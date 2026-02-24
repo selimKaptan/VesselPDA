@@ -67,6 +67,8 @@ A professional web-based maritime platform for ship agents to create instant pro
 - Manual calculation via "Calculate Proforma" button (no auto-calculate)
 
 ## Recent Changes
+- 2026-02-24: Added Service Ports page showing ports with registered agents/providers, expandable port cards, search/filter
+- 2026-02-24: Role selection is now permanent - users pick role once at first login, cannot change afterward
 - 2026-02-24: Added company profiles and maritime directory with search/filter
 - 2026-02-24: Added user role system (shipowner, agent, provider) with role-aware UI
 - 2026-02-24: Redesigned dashboard with role-based content and featured companies section
