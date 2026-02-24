@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "wouter";
-import { MessageSquare, Eye, Clock, Plus, Search, Pin, Lock, ChevronRight } from "lucide-react";
+import { MessageSquare, Eye, Clock, Plus, Search, Pin, Lock, ChevronRight, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -47,6 +48,7 @@ interface ForumTopicListItem {
   categoryName: string;
   categorySlug: string;
   categoryColor: string;
+  userId: string;
   authorFirstName: string | null;
   authorLastName: string | null;
   authorImage: string | null;
@@ -81,6 +83,7 @@ export default function Forum() {
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [newCategoryId, setNewCategoryId] = useState("");
+  const [deleteTopicId, setDeleteTopicId] = useState<number | null>(null);
 
   const { data: categories } = useQuery<ForumCategory[]>({
     queryKey: ["/api/forum/categories"],
@@ -118,6 +121,22 @@ export default function Forum() {
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message || "Failed to create topic", variant: "destructive" });
+    },
+  });
+
+  const deleteTopicMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/forum/topics/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/forum/topics"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/forum/categories"] });
+      setDeleteTopicId(null);
+      toast({ title: "Topic deleted", description: "The discussion topic has been removed." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to delete topic", variant: "destructive" });
     },
   });
 
@@ -279,7 +298,7 @@ export default function Forum() {
             </div>
             {filteredTopics.map(topic => (
               <Link key={topic.id} href={`/forum/${topic.id}`} data-testid={`link-topic-${topic.id}`}>
-                <div className="grid grid-cols-1 sm:grid-cols-[1fr_80px_80px_100px] gap-2 sm:gap-4 px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer items-center">
+                <div className="group grid grid-cols-1 sm:grid-cols-[1fr_80px_80px_100px] gap-2 sm:gap-4 px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer items-center">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       {topic.isPinned && <Pin className="w-3 h-3 text-[hsl(var(--maritime-primary))] flex-shrink-0" />}
@@ -319,13 +338,32 @@ export default function Forum() {
                   <div className="hidden sm:flex items-center justify-center">
                     <span className="text-sm text-muted-foreground">{topic.viewCount}</span>
                   </div>
-                  <div className="hidden sm:flex items-center justify-end">
+                  <div className="hidden sm:flex items-center justify-end gap-2">
                     <span className="text-xs text-muted-foreground">{timeAgo(topic.lastActivityAt)}</span>
+                    {user && (user.id === topic.userId || user.userRole === "admin") && (
+                      <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTopicId(topic.id); }}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+                        data-testid={`button-delete-topic-${topic.id}`}
+                        title="Delete topic"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                   <div className="flex sm:hidden items-center gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {topic.replyCount}</span>
                     <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {topic.viewCount}</span>
                     <span>{timeAgo(topic.lastActivityAt)}</span>
+                    {user && (user.id === topic.userId || user.userRole === "admin") && (
+                      <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTopicId(topic.id); }}
+                        className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+                        data-testid={`button-delete-topic-mobile-${topic.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </Link>
@@ -392,6 +430,28 @@ export default function Forum() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteTopicId !== null} onOpenChange={(open) => { if (!open) setDeleteTopicId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Bu topic'i silmek istiyor musunuz?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bu işlem geri alınamaz. Topic ve tüm yanıtları kalıcı olarak silinecektir.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">İptal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTopicId !== null && deleteTopicMutation.mutate(deleteTopicId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+              disabled={deleteTopicMutation.isPending}
+            >
+              {deleteTopicMutation.isPending ? "Siliniyor..." : "Evet, Sil"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

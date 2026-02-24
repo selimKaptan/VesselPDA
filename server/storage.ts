@@ -61,6 +61,7 @@ export interface IStorage {
   getForumTopics(options?: { categoryId?: number; sort?: string; limit?: number; offset?: number }): Promise<any[]>;
   getForumTopic(id: number): Promise<any | undefined>;
   createForumTopic(topic: InsertForumTopic): Promise<ForumTopic>;
+  deleteForumTopic(id: number): Promise<void>;
   getForumReplies(topicId: number): Promise<any[]>;
   createForumReply(reply: InsertForumReply): Promise<ForumReply>;
   getTopicParticipants(topicId: number, limit?: number): Promise<any[]>;
@@ -356,6 +357,17 @@ export class DatabaseStorage implements IStorage {
       .set({ topicCount: sql`${forumCategories.topicCount} + 1` })
       .where(eq(forumCategories.id, topic.categoryId));
     return created;
+  }
+
+  async deleteForumTopic(id: number): Promise<void> {
+    const [topic] = await db.select().from(forumTopics).where(eq(forumTopics.id, id));
+    if (topic) {
+      await db.delete(forumReplies).where(eq(forumReplies.topicId, id));
+      await db.delete(forumTopics).where(eq(forumTopics.id, id));
+      await db.update(forumCategories)
+        .set({ topicCount: sql`GREATEST(${forumCategories.topicCount} - 1, 0)` })
+        .where(eq(forumCategories.id, topic.categoryId));
+    }
   }
 
   async getForumReplies(topicId: number): Promise<any[]> {

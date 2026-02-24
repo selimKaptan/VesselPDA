@@ -1,12 +1,13 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams } from "wouter";
-import { MessageSquare, Eye, ArrowLeft, Clock, Pin, Lock, Send } from "lucide-react";
+import { Link, useParams, useLocation } from "wouter";
+import { MessageSquare, Eye, ArrowLeft, Clock, Pin, Lock, Send, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +29,7 @@ interface TopicDetail {
   id: number;
   title: string;
   content: string;
+  userId: string;
   viewCount: number;
   replyCount: number;
   isPinned: boolean;
@@ -67,9 +69,11 @@ function timeAgo(timestamp: string | null): string {
 export default function ForumTopic() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const params = useParams<{ id: string }>();
   const topicId = parseInt(params.id || "0");
   const [replyContent, setReplyContent] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const { data: topic, isLoading } = useQuery<TopicDetail>({
     queryKey: [`/api/forum/topics/${topicId}`],
@@ -89,6 +93,22 @@ export default function ForumTopic() {
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message || "Failed to post reply", variant: "destructive" });
+    },
+  });
+
+  const deleteTopicMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", `/api/forum/topics/${topicId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/forum/topics"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/forum/categories"] });
+      toast({ title: "Topic silindi" });
+      setLocation("/forum");
+    },
+    onError: (err: any) => {
+      toast({ title: "Hata", description: err.message || "Topic silinemedi", variant: "destructive" });
     },
   });
 
@@ -149,10 +169,24 @@ export default function ForumTopic() {
                   <AvatarFallback className="bg-[hsl(var(--maritime-primary))] text-white text-sm">{authorInitials}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap mb-2">
-                    {topic.isPinned && <Pin className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" />}
-                    {topic.isLocked && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
-                    <h1 className="font-serif text-xl font-bold" data-testid="text-topic-detail-title">{topic.title}</h1>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {topic.isPinned && <Pin className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" />}
+                      {topic.isLocked && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
+                      <h1 className="font-serif text-xl font-bold" data-testid="text-topic-detail-title">{topic.title}</h1>
+                    </div>
+                    {user && (user.id === topic.userId || user.userRole === "admin") && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="flex-shrink-0 h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setShowDeleteConfirm(true)}
+                        data-testid="button-delete-topic-detail"
+                        title="Bu topic'i sil"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 flex-wrap mb-4">
                     <Badge
@@ -252,6 +286,28 @@ export default function ForumTopic() {
           </>
         )}
       </div>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Bu topic'i silmek istiyor musunuz?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bu işlem geri alınamaz. Topic ve tüm yanıtları kalıcı olarak silinecektir.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-detail">İptal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTopicMutation.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-detail"
+              disabled={deleteTopicMutation.isPending}
+            >
+              {deleteTopicMutation.isPending ? "Siliniyor..." : "Evet, Sil"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

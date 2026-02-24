@@ -623,6 +623,16 @@ export async function registerRoutes(
         });
       }
 
+      const recentTopics = await storage.getForumTopics({ sort: "latest", limit: 6 });
+      for (const t of recentTopics) {
+        activities.push({
+          type: "forum",
+          message: `"${t.title}" konusu forum'da açıldı`,
+          timestamp: t.createdAt ? new Date(t.createdAt).toISOString() : new Date().toISOString(),
+          icon: "message-square",
+        });
+      }
+
       activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       res.json(activities.slice(0, 20));
     } catch (error) {
@@ -706,6 +716,25 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Create topic error:", error);
       res.status(500).json({ message: "Failed to create topic" });
+    }
+  });
+
+  app.delete("/api/forum/topics/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const topicId = parseInt(req.params.id);
+      const topic = await storage.getForumTopic(topicId);
+      if (!topic) return res.status(404).json({ message: "Topic not found" });
+      const user = await storage.getUser(userId);
+      const isAdmin = user?.userRole === "admin";
+      if (topic.userId !== userId && !isAdmin) {
+        return res.status(403).json({ message: "Not authorized to delete this topic" });
+      }
+      await storage.deleteForumTopic(topicId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete topic error:", error);
+      res.status(500).json({ message: "Failed to delete topic" });
     }
   });
 
