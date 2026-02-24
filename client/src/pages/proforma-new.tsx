@@ -263,6 +263,15 @@ export default function ProformaNew() {
                   </Select>
                 </div>
               </div>
+              <div className="space-y-2 sm:col-span-2 lg:col-span-3">
+                <Label>Cargo Description</Label>
+                <Input
+                  value={cargoType}
+                  onChange={(e) => setCargoType(e.target.value)}
+                  placeholder="e.g. Wheat, SFS OIL, Coal, Container, Bulk Cement..."
+                  data-testid="input-cargo-type"
+                />
+              </div>
             </div>
 
             <div className="flex items-center gap-3 p-3 rounded-md border bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800">
@@ -412,10 +421,6 @@ export default function ProformaNew() {
                 <div className="space-y-2">
                   <Label>Country</Label>
                   <Input value={toCountry} onChange={(e) => setToCountry(e.target.value)} placeholder="e.g. TURKIYE" data-testid="input-to-country" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Cargo Type</Label>
-                  <Input value={cargoType} onChange={(e) => setCargoType(e.target.value)} placeholder="e.g. SFS OIL, Bulk, Container..." data-testid="input-cargo-type" />
                 </div>
               </div>
               <div className="space-y-2">
