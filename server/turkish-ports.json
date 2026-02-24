@@ -1,0 +1,3896 @@
+[
+  {
+    "name": "ALANYA DEMİR MEVKİİ",
+    "code": "TRALA-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ALANYA İSKELESİ",
+    "code": "TRALA-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AYTEMİZ AKARYAKIT ALANYA DOLUM TESİSİ",
+    "code": "TRALA-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GAZİPAŞA BALIK YÜKLEME DEMİRİ",
+    "code": "TRALA-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ALANYA MARİNA",
+    "code": "TRALA-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ALPET TÜRKİYE A.Ş. ALİAĞA TERMİNALİ",
+    "code": "TRALI-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "APM TERMİNALS KONTEYNER TERMİNALİ",
+    "code": "TRALI-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BATILİMAN LİMAN İŞLETMESİ",
+    "code": "TRALI-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "EGE ÇELİK LİMANI",
+    "code": "TRALI-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "EGE GAZ A.Ş. PLATFORM-İSKELESİ",
+    "code": "TRALI-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "EGE GÜBRE LİMAN TESİSİ",
+    "code": "TRALI-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ETKİ LİMANI",
+    "code": "TRALI-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "HABAŞ NEMRUT LİMANI",
+    "code": "TRALI-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İDÇ NEMRUT LİMANI",
+    "code": "TRALI-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "NEMPORT İSKELESİ",
+    "code": "TRALI-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "NEMRUT PLATFORMU",
+    "code": "TRALI-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PETKİM LİMANI",
+    "code": "TRALI-012",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SOCAR TURKEY AKARYAKIT DEPOLAMA ALİAĞA ŞUBESİ",
+    "code": "TRALI-013",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GÜZEL ENERJİ AKARYAKIT A.Ş. ALİAĞA TESİSİ",
+    "code": "TRALI-014",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TÜPRAŞ-ALİAĞA TERMİNALİ",
+    "code": "TRALI-015",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ALİAĞA GEMİ SÖKÜM BÖLGESİ",
+    "code": "TRALI-016",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "NEMRUT KÖRFEZİ DEMİRLEME SAHASI",
+    "code": "TRALI-017",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "STAR RAFİNERİ LİMAN TESİSİ",
+    "code": "TRALI-018",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİR (AKARYAKIT, ASKERİ TANKER)",
+    "code": "TRALI-019",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİR SAHASI",
+    "code": "TRALI-020",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİR SAHASI (TEHLİKELİ)",
+    "code": "TRALI-021",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "4 NOLU DEMİR SAHASI",
+    "code": "TRALI-022",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "5 NOLU DEMİR SAHASI",
+    "code": "TRALI-023",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "6 NOLU DEMİR SAHASI (TEHLİKELİ)",
+    "code": "TRALI-024",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GEMİ SÖKÜM DEMİR SAHASI",
+    "code": "TRALI-025",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "8 NOLU DEMİR SAHASI (TEHLİKELİ)",
+    "code": "TRALI-026",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ALIAPORT",
+    "code": "TRALI-027",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KURUCAŞİLE BALIKÇI BARINAĞI",
+    "code": "TRAMA-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AKKONAK İSKELESİ",
+    "code": "TRAMA-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AMASRA LİMANI",
+    "code": "TRAMA-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DEMİRLEME SAHASI 1",
+    "code": "TRAMA-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DEMİRLEME SAHASI 2",
+    "code": "TRAMA-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AKÇANSA AMBARLI LİMANI",
+    "code": "TRAMB-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AMBARLI DEPOLAMA VE DOLUM TERMİNALİ",
+    "code": "TRAMB-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AMBARLI LİMAN TESİSLERİ MARDAŞ İSKELESİ",
+    "code": "TRAMB-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AYGAZ A.Ş. AMBARLI TERMİNALİ",
+    "code": "TRAMB-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KUMPORT LİMANI",
+    "code": "TRAMB-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KURUYÜK DEMİR ALANI",
+    "code": "TRAMB-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MARPORT KONTEYNER TERMİNALİ",
+    "code": "TRAMB-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "HARAMİDERE TERMİNALİ",
+    "code": "TRAMB-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TEHLİKELİ YÜK DEMİR ALANI",
+    "code": "TRAMB-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "WEST İSTANBUL MARİNA",
+    "code": "TRAMB-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AVCILAR İDO TERMİNALİ",
+    "code": "TRAMB-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MİMARSİNAN BALIKÇI BARINAĞI İSKELESİ",
+    "code": "TRAMB-012",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BÜYÜKÇEKMECE BALIKÇI BARINAĞI",
+    "code": "TRAMB-013",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GÜZELCE BALIKÇI BARINAĞI",
+    "code": "TRAMB-014",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AVCILAR BALIKÇI BARINAĞI",
+    "code": "TRAMB-015",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GÜRPINAR BALIKÇI BARINAĞI",
+    "code": "TRAMB-016",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KIYI İSTANBUL MARİNA",
+    "code": "TRAMB-017",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DEMİRLEME SAHASI",
+    "code": "TRANA-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "FERİBOT VE DENİZ UÇAĞI İSKELESİ",
+    "code": "TRANA-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AKDENİZ AKARYAKIT DEPOLAMA NAKLİYAT VE TİC. A.Ş.",
+    "code": "TRAYT-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ANTALYA SERBEST BÖLGESİ ASBAŞ LİMANI 11 NOLU RIHTIM (ASBAŞ RIHTIM",
+    "code": "TRAYT-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇEKİSAN ANTALYA TERMİNALİ",
+    "code": "TRAYT-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KALEİÇİ YAT LİMANI",
+    "code": "TRAYT-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PETROL OFİSİ A.Ş. ANTALYA TERMİNALİ",
+    "code": "TRAYT-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PORT AKDENİZ ANTALYA LİMANI",
+    "code": "TRAYT-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SHELLTURCAS ANTALYA TERMİNALİ",
+    "code": "TRAYT-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "NATO DOLUM TESİSİ",
+    "code": "TRAYT-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ANTALYA SERBEST BÖLGESİ ASBAŞ LİMANI",
+    "code": "TRAYT-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRAYT-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI",
+    "code": "TRAYT-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİRLEME SAHASI",
+    "code": "TRAYT-012",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AYVALIK YAT LİMANI",
+    "code": "TRAYV-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BAGFAŞ BANDIRMA LİMANI",
+    "code": "TRBDM-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇELEBİ BANDIRMA LİMANI",
+    "code": "TRBDM-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İDO BANDIRMA İSKELESİ",
+    "code": "TRBDM-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İSA BALABAN",
+    "code": "TRBDM-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AE GEMİ VE TERSANECİLİK",
+    "code": "TRBDM-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İLYAS KÖROĞLU (KARDEŞLER DENİZCİLİK)",
+    "code": "TRBDM-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BALABAN KARDEŞLER GEMİ SAN. NAK. GIDA TUR. TİC. LTD. ŞTİ.",
+    "code": "TRBDM-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRBDM-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI (TEHLİKELİ)",
+    "code": "TRBDM-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİRLEME SAHASI",
+    "code": "TRBDM-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BARTIN LİMANI",
+    "code": "TRBTN-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BARTIN DEMİR YERİ 1",
+    "code": "TRBTN-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BARTIN DEMİR YERİ 2  (TEHLİKELİ YÜK)",
+    "code": "TRBTN-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BODRUM MİLTA MARİNA",
+    "code": "TRBXN-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BODRUM YOLCU İSKELESİ",
+    "code": "TRBXN-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MUĞLA BÜYÜKŞEHİR BELEDİYESİ BODRUM YAT LİMANI",
+    "code": "TRBXN-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRBXN-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI",
+    "code": "TRBXN-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "D-MARİN TURGUTREİS YAT LİMANI",
+    "code": "TRBXN-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PALMARİNA BODRUM MARİNA",
+    "code": "TRBXN-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "Ağanlar Tersanesi Tekne İmal ve Çekek Yeri",
+    "code": "TRBXN-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ATM TEKNE İMAL VE ÇEKEK YERİ",
+    "code": "TRBXN-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "NETA MARİNA TEKNE İMAL VE ÇEKEK YERİ",
+    "code": "TRBXN-012",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YAT LİFT ÇEKEK YERİ",
+    "code": "TRBXN-013",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GÜLPINAR BALIKÇI BARINAĞI",
+    "code": "TRBZC-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GEYİKLİ YÜKYERİ İSKELESİ",
+    "code": "TRBZC-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİR SAHASI",
+    "code": "TRBZC-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİR SAHASI",
+    "code": "TRBZC-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİR SAHASI",
+    "code": "TRBZC-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GESTAŞ BOZCAADA LİMANI",
+    "code": "TRBZC-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ALAÇATI YAT LİMANI",
+    "code": "TRCES-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ALTINYUNUS SETUR YAT LİMANI",
+    "code": "TRCES-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇEŞME LİMANI SERBEST DEMİR YERİ",
+    "code": "TRCES-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇEŞME MARİNA",
+    "code": "TRCES-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DALYAN YAT YANAŞMA YERİ",
+    "code": "TRCES-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ULUSOY ÇEŞME LİMANI",
+    "code": "TRCES-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SIĞACIK YAT LİMANI",
+    "code": "TRCES-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AYVALIK BELEDİYE VAPUR İSKELESİ",
+    "code": "TRCKZ-0001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ASKERİ POL",
+    "code": "TRCKZ-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇANAKKALE AKÇANSA LİMANI",
+    "code": "TRCKZ-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇANAKKALE BELEDİYE YAT LİMANI",
+    "code": "TRCKZ-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇANAKKALE FERİBOT İSKELESİ",
+    "code": "TRCKZ-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇANAKKALE KEPEZ LİMANI",
+    "code": "TRCKZ-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GELİBOLU TERSANESİ",
+    "code": "TRCKZ-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GELİBOLU TERSANESİ",
+    "code": "TRCKZ-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TDİ KABATEPE LİMANI",
+    "code": "TRCKZ-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KABATEPE LİMANI",
+    "code": "TRCKZ-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DÜZKOÇ - FALCON KEPEZ İSKELESİ",
+    "code": "TRCKZ-013",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇANAKKALE BOTAŞ FAALİYET ALANI",
+    "code": "TRCKZ-014",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KARANLIK LİMAN DEMİR SAHASI",
+    "code": "TRCKZ-015",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AKÇANSA DEMİR SAHASI",
+    "code": "TRCKZ-016",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ŞEVKETİYE DEMİR SAHASI",
+    "code": "TRCKZ-017",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DATÇA KÖRMEN YAT LİMANI",
+    "code": "TRDAT-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MERKEZ BALIKÇI BARINAĞI",
+    "code": "TRDAT-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KÖRMEN BALIKÇI BARINAĞI",
+    "code": "TRDAT-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PALAMUTBÜKÜ BALIKÇI BARINAĞI",
+    "code": "TRDAT-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MESUDİYE BALIKÇI BARINAĞI",
+    "code": "TRDAT-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİR SAHASI",
+    "code": "TRDAT-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİR SAHASI",
+    "code": "TRDAT-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KAIROS YOLCU LİMANI",
+    "code": "TRDAT-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DİKİLİ LİMANI",
+    "code": "TRDIK-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DİKİLİ DEMİRLEME SAHASI",
+    "code": "TRDIK-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI",
+    "code": "TREDO-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KÜÇÜKKUYU BALIKÇI BARINAĞI",
+    "code": "TREDO-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ALTINOLUK BALIKCI BARINAĞI",
+    "code": "TREDO-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AKÇAY İSKELESİ",
+    "code": "TREDO-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GESTAŞ KÜÇÜKKUYU YANAŞMA YERİ",
+    "code": "TREDO-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BABAKALE BALIKCI BARINAĞI",
+    "code": "TREDO-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TREDO-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BOTAŞ SAROS FSRU TERMİNALİ",
+    "code": "TRENE-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BOTAŞ SAROS DEMİRLEME SAHASI",
+    "code": "TRENE-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ERDEMİR LİMANI",
+    "code": "TRERE-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KARADENİZ EREĞLİ  BOZHANE LİMANI",
+    "code": "TRERE-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ASKERİ LİMAN",
+    "code": "TRERE-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TERSANELER TEÇHİZ LİMAN",
+    "code": "TRERE-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRERE-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI",
+    "code": "TRERE-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİRLEME SAHASI",
+    "code": "TRERE-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "4 NOLU DEMİRLEME SAHASI",
+    "code": "TRERE-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MADENCİ GEMİ TERSANESİ",
+    "code": "TRERE-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "USTAMEHMETOĞLU GEMİ TERSANESİ",
+    "code": "TRERE-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "USTAOĞLU GEMİ TERSANESİ",
+    "code": "TRERE-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "EREĞLİ GEMİ TERSANESİ",
+    "code": "TRERE-012",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "FERİ İSKELESİ",
+    "code": "TRERK-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ANT TESİSLERİ",
+    "code": "TRERK-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRERK-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI",
+    "code": "TRERK-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "FATSA BALIKÇI BARINAĞI    ",
+    "code": "TRFAS-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "FATSA İSKELESİ",
+    "code": "TRFAS-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRFAS-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI (TEHLİKELİ)",
+    "code": "TRFAS-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ECE MARİNA YAT LİMANI",
+    "code": "TRFET-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "FETHİYE BELEDİYE İSKELESİ",
+    "code": "TRFET-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BU-BA INVEST MARİNA",
+    "code": "TRFET-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİR SAHASI",
+    "code": "TRFET-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİR SAHASI",
+    "code": "TRFET-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİR SAHASI",
+    "code": "TRFET-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "FİNİKE BARINMA YERİ VE TURİZM YAT LİMANI  ( BALIKÇI TEKNELERİ HİZ",
+    "code": "TRFIN-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "FİNİKE TURİZM YAT LİMANI",
+    "code": "TRFIN-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇAYAĞZI DEMİR MEVKİİ",
+    "code": "TRFIN-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRFIN-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI",
+    "code": "TRFIN-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİRLEME SAHASI",
+    "code": "TRFIN-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ESKİ FOÇA BALIKÇI BARINAĞI    ",
+    "code": "TRFOC-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "FOÇA BELEDİYE RIHTIMLARI",
+    "code": "TRFOC-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "OASİS MARİNE YENİ FOÇA",
+    "code": "TRFOC-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KALEKÖY BALIKÇI BARINAĞI",
+    "code": "TRGCA-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "CLUP MARİNA",
+    "code": "TRGCK-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "D-MARİN GÖCEK MARİNA",
+    "code": "TRGCK-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MARINTÜRK VILLAGE PORT GÖCEK",
+    "code": "TRGCK-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MARİNTÜRK EXCLUSIVE GÖCEK",
+    "code": "TRGCK-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "POAŞ DALAMAN TERMİNALİ",
+    "code": "TRGCK-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MY MARİNA",
+    "code": "TRGCK-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SKOPEA MARİNA",
+    "code": "TRGCK-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BELEDİYE YAT YANAŞMA YERİ",
+    "code": "TRGCK-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİR SAHASI",
+    "code": "TRGCK-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİR SAHASI",
+    "code": "TRGCK-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİR SAHASI",
+    "code": "TRGCK-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "4 NOLU DEMİR SAHASI",
+    "code": "TRGCK-012",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "EKİNCİK KOYU GEÇİCİ DEMİR YERİ",
+    "code": "TRGCK-013",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PORT AZURE",
+    "code": "TRGCK-014",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SAROS KÖRFEZİ NATO TESİSİ",
+    "code": "TRGEL-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BORUSAN LİMANI",
+    "code": "TRGEM-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BP GEMLİK TERMİNALİ",
+    "code": "TRGEM-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BURULAŞ GEMLİK İSKELESİ",
+    "code": "TRGEM-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇINAR TERSANECİLİK SAN. VE TİC. LTD. ŞTİ.",
+    "code": "TRGEM-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GEMLİK KÜÇÜKKUMLA İSKELESİ",
+    "code": "TRGEM-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GEMPORT GEMLİK LİMAN TESİSİ",
+    "code": "TRGEM-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MKS MARMARA BORU HATTI VE ŞAMANDIRA SİSTEMİ (GEMLİK)",
+    "code": "TRGEM-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "RODA GEMLİK LİMANI",
+    "code": "TRGEM-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "FISTIKLI KÖYÜ BALIKÇI BARINAĞI",
+    "code": "TRGEM-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRGEM-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI",
+    "code": "TRGEM-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GİRESUN LİMANI",
+    "code": "TRGIR-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRGIR-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI",
+    "code": "TRGIR-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİRLEME SAHASI",
+    "code": "TRGIR-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "4 NOLU DEMİRLEME SAHASI",
+    "code": "TRGIR-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GÖRELE BALIKÇI BARINAĞI",
+    "code": "TRGOR-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "EGESU GÜLLÜK MARİNA",
+    "code": "TRGUL-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GÜLLÜK MANDALYA LİMANI",
+    "code": "TRGUL-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KILIÇ DENİZ ÜRÜNLERİ İSKELESİ",
+    "code": "TRGUL-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MANDALYA MARİNA",
+    "code": "TRGUL-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GÖKOVA ÖREN MARİNA",
+    "code": "TRGUL-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİR SAHASI",
+    "code": "TRGUL-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİR SAHASI",
+    "code": "TRGUL-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TERSAN TERSANECİLİK YAT TEKNE İMAL VE ÇEKEK YERİ",
+    "code": "TRGUL-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "UFUK DENİZCİLİK YAT ÇEKEK YERİ",
+    "code": "TRGUL-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇAVUŞLU TERSANESİ",
+    "code": "TRGUL-012",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "HOPA LİMANI",
+    "code": "TRHOP-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRHOP-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI",
+    "code": "TRHOP-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİRLEME SAHASI",
+    "code": "TRHOP-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KIYIKÖY BALIKÇI BARINAĞI",
+    "code": "TRIGN-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİR YERİ",
+    "code": "TRIGN-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİR YERİ",
+    "code": "TRIGN-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİR YERİ",
+    "code": "TRIGN-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İĞNEADA BALIKÇI BARINAĞI",
+    "code": "TRIGN-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İNEBOLU LİMANI",
+    "code": "TRINE-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İNEBOLU LİMANI DEMİR SAHASI",
+    "code": "TRINE-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TEH.MAD.TAŞI.GEMİ DEMİR SAHASI",
+    "code": "TRINE-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ASSAN PORT İSKENDERUN",
+    "code": "TRISK-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ATAKAŞ LİMAN TESİSİ",
+    "code": "TRISK-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AYGAZ A.Ş. DÖRTYOL TERMİNALİ",
+    "code": "TRISK-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BOTAŞ DÖRTYOL LİMANI",
+    "code": "TRISK-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇEVLİK BALIKÇI BARINAĞI",
+    "code": "TRISK-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "EKİNCİLER İSKELESİ",
+    "code": "TRISK-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GÜBRETAŞ İSKENDERUN LİMANI",
+    "code": "TRISK-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İPRAGAZ A.Ş. DÖRTYOL STOKLAMA TERMİNALİ",
+    "code": "TRISK-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İSDEMİR LİMANI",
+    "code": "TRISK-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İSKENDERUN BALIKÇI BARINAĞI",
+    "code": "TRISK-013",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İSKENDERUN KARAYOLLARI ASFALT İSKELESİ",
+    "code": "TRISK-014",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İSKENDERUN NATO ŞAMANDIRALARI",
+    "code": "TRISK-015",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "LİMAKPORT İSKENDERUN LİMANI",
+    "code": "TRISK-016",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MİLANGAZ A.Ş. DÖRTYOL TERMİNALİ",
+    "code": "TRISK-017",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MMK METALURJİ İSKELESİ",
+    "code": "TRISK-018",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PET GAZ A.Ş. LPG DEPOLAMA VE TÜP DOLUM TESİSİ",
+    "code": "TRISK-019",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PETROL OFİSİ A.Ş. İSKENDERUN TERMİNALİ",
+    "code": "TRISK-020",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GLOBAL TERMİNAL HİZMETLERİ",
+    "code": "TRISK-021",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SARISEKİ NATO İSKELESİ",
+    "code": "TRISK-023",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SASA İSKENDERUN TANK SAHASI VE DOLUM TESİSİ TERMİNALİ",
+    "code": "TRISK-024",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YAZICILAR İSKELESİ",
+    "code": "TRISK-027",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BYPORT PETROL TERMİNALİ",
+    "code": "TRISK-028",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TOSYALI LİMANI",
+    "code": "TRISK-029",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRISK-031",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI (TEHLİKELİ YÜK)",
+    "code": "TRISK-032",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİRLEME SAHASI",
+    "code": "TRISK-033",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "4 NOLU DEMİRLEME SAHASI",
+    "code": "TRISK-034",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "5-A DEMİRLEME SAHASI (LPG)",
+    "code": "TRISK-035",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "5-B DEMİRLEME SAHASI (LNG)",
+    "code": "TRISK-036",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "6 NOLU DEMİRLEME SAHASI",
+    "code": "TRISK-037",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "7 NOLU DEMİRLEME SAHASI (TEHLİKELİ YÜK)",
+    "code": "TRISK-038",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "HATAY DENİZ OTOBÜSÜ İSKELESİ",
+    "code": "TRISK-039",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GÜNEY WİMBA DOLUM VE DEPOLAMA TERMİNALİ",
+    "code": "TRISK-040",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AHIRKAPI DEMİR MEVKİİ",
+    "code": "TRIST-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ATAKÖY MARİNA",
+    "code": "TRIST-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İSPARK İSTİNYE TEKNE PARK",
+    "code": "TRIST-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İSPARK TARABYA TEKNE PARK",
+    "code": "TRIST-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KARAKÖY SALIPAZARI LİMANI",
+    "code": "TRIST-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TDİ SARAYBURNU RIHTIMI",
+    "code": "TRIST-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TCDD HAYDARPAŞA LİMANI",
+    "code": "TRIST-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "THY OPET YEŞİLKÖY TERMİNALİ",
+    "code": "TRIST-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ZEYPORT LİMANI",
+    "code": "TRIST-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TDİ KURUÇEŞME RIHTIMI",
+    "code": "TRIST-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BOSTANCI İDO TERMİNALİ",
+    "code": "TRIST-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YENİKAPI İDO TERMİNALİ",
+    "code": "TRIST-012",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İSTANBUL YENİ HAVA LİMANI AKARYAKIT İKMAL TERMİNALİ",
+    "code": "TRIST-013",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BAKIRKÖY İDO TERMİNALİ",
+    "code": "TRIST-014",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MALTEPE İDO TERMİNALİ",
+    "code": "TRIST-015",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TÜRKELİ DEMİR MEVKİİ",
+    "code": "TRIST-016",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "HALİÇ TERSANESİ",
+    "code": "TRIST-017",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ALSANCAK LİMANI",
+    "code": "TRIZM-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DEMİR VE TCDD İZMİR ALS.LİMANI",
+    "code": "TRIZM-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "LEVENT MARİNA",
+    "code": "TRIZM-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ADMARİN TERSANESİ",
+    "code": "TRIZT-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AKTAŞ TANK TERMİNALİ",
+    "code": "TRIZT-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ALTINOVA TERSANESİ",
+    "code": "TRIZT-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ALTINTAŞ TERSANECİLİK",
+    "code": "TRIZT-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ALTINTEL LİMAN VE TERMİNALİ",
+    "code": "TRIZT-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ASLAN ÇİMENTO LİMANI",
+    "code": "TRIZT-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AUTOPORT LİMANI",
+    "code": "TRIZT-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BAYRAMOĞLU İSKELESİ",
+    "code": "TRIZT-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BELDEPORT",
+    "code": "TRIZT-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BEŞİKTAŞ TERSANESİ",
+    "code": "TRIZT-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "CEMRE TERSANESİ",
+    "code": "TRIZT-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇAYIROVA CAM SANAYİ İSKELESİ",
+    "code": "TRIZT-012",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇOLAKOĞLU METALURJİ LİMAN TESİSİ",
+    "code": "TRIZT-013",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DİLER DEMİR ÇELİK ENDÜSTRİ VE TİC. A.Ş. LİMANI",
+    "code": "TRIZT-014",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DP WORLD YARIMCA KONTEYNER TERMİNALİ",
+    "code": "TRIZT-015",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DÜZGİT TERSANESİ",
+    "code": "TRIZT-016",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AK YAHCT YATÇILIK SAN. TİC. A.Ş.",
+    "code": "TRIZT-017",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "EFESANPORT LİMAN TESİSİ",
+    "code": "TRIZT-018",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ESKİHİSAR DEMİR",
+    "code": "TRIZT-019",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "EVYAPPORT KİRAZLIYALI LİMANI",
+    "code": "TRIZT-020",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "FORD OTOSAN YENİKÖY İSKELESİ",
+    "code": "TRIZT-021",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GÜBRETAŞ YARIMCA LİMANI",
+    "code": "TRIZT-022",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "HABAŞ TÜTÜNÇİFTLİK PLATFORMU",
+    "code": "TRIZT-023",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "HATSAN TERSANESİ",
+    "code": "TRIZT-024",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İGSAŞ LİMANI",
+    "code": "TRIZT-025",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İZMİT DEMİR",
+    "code": "TRIZT-026",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KOCATEPE TERSANESİ",
+    "code": "TRIZT-027",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KORUMA KLOR İSKELESİ",
+    "code": "TRIZT-028",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KROMAN ÇELİK A.Ş. LİMAN TESİSLERİ",
+    "code": "TRIZT-029",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KURBAN TERSANESİ",
+    "code": "TRIZT-030",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "LİMAŞ LİMANI",
+    "code": "TRIZT-031",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MİLANGAZ DOLUM TESİSİ",
+    "code": "TRIZT-032",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "NACİ SELİMOĞLU TERSANESİ",
+    "code": "TRIZT-033",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "NORTHSTAR+E171:E213 TERSANESİ",
+    "code": "TRIZT-034",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "NUH ÇİMENTO SANAYİ A.Ş. LİMAN TESİSİ",
+    "code": "TRIZT-035",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "OP-AY PLATFORM İSKELE",
+    "code": "TRIZT-036",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÖZATA TERSANESİ",
+    "code": "TRIZT-037",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PETLİNE PLATFORMU VE BORU HATTI",
+    "code": "TRIZT-038",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PETROL OFİSİ A.Ş. DERİNCE TERMİNALİ",
+    "code": "TRIZT-039",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "POLİPORT LİMANI",
+    "code": "TRIZT-040",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ROTA LİMANI",
+    "code": "TRIZT-041",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SAFİ DERİNCE LİMANI",
+    "code": "TRIZT-042",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SEFİNE TERSANESİ",
+    "code": "TRIZT-043",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SHELL DERİNCE TERMİNALİ",
+    "code": "TRIZT-044",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇİMTAŞ GEMİ İNŞAA",
+    "code": "TRIZT-045",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SOLVENTAŞ TEKNİK DEPOLAMA A.Ş.",
+    "code": "TRIZT-046",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TOTAL OİL TÜRKİYE DOLFEN TESİSİ",
+    "code": "TRIZT-047",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TURKUAZ- İZGİN TERMİNALİ",
+    "code": "TRIZT-048",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TÜPRAŞ İZMİT RAFİNERİSİ LİMANI",
+    "code": "TRIZT-049",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TÜRKOĞLU TERSANESİ",
+    "code": "TRIZT-050",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ATLAS TERSANESİ",
+    "code": "TRIZT-051",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "UZMAR TERSANESİ",
+    "code": "TRIZT-052",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YARIMCA DEMİR",
+    "code": "TRIZT-053",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YAŞARSAN TERSANESİ",
+    "code": "TRIZT-054",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YATCHLEY GEMİ YAPIM",
+    "code": "TRIZT-055",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YILPORT KONTEYNER TERMİNALİ VE LİMANI",
+    "code": "TRIZT-056",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İDO ESKİHİSAR İSKELESİ",
+    "code": "TRIZT-057",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "HEREKE KURUYÜK DEMİR YERİ",
+    "code": "TRIZT-058",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "HEREKE SIVIYÜK DEMİR YERİ",
+    "code": "TRIZT-059",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YILDIZ ENTEGRE LİMAN TESİSİ",
+    "code": "TRIZT-060",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PORT YARIMCA",
+    "code": "TRIZT-062",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TURQUOISE SHIPYARD YAT VE GEMİ SAN. A.Ş.",
+    "code": "TRIZT-063",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "NORSE TERSANECİLİK SAN.TİC.A.Ş.",
+    "code": "TRIZT-064",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "UM TERSANESİ",
+    "code": "TRIZT-065",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "VEGA YATÇILIK (SERBEST BÖLGE)",
+    "code": "TRIZT-066",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KAŞ YAT LİMANI",
+    "code": "TRKAS-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRKAS-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI",
+    "code": "TRKAS-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİRLEME SAHASI",
+    "code": "TRKAS-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "4 NOLU DEMİRLEME SAHASI (Demre)",
+    "code": "TRKAS-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DEMİRLEME SAHASI 1",
+    "code": "TRKMR-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DEMİRLEME SAHASI 2",
+    "code": "TRKMR-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DEMİRLEME SAHASI 3 (TEHLİKELİ YÜK)",
+    "code": "TRKMR-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "CENAL KARABİGA İSKELESİ",
+    "code": "TRKRB-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İÇDAŞ TERSANE (TEÇHİZ RIHTIMI)",
+    "code": "TRKRB-0010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İÇDAŞ-1 (DEĞİRMENCİK)",
+    "code": "TRKRB-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İÇDAŞ-2 (BEKİRLİ)",
+    "code": "TRKRB-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KARABİGA BELEDİYE LİMANI",
+    "code": "TRKRB-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İÇDAŞ TERSANE (KURU HAVUZ)",
+    "code": "TRKRB-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRKRB-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU (TEHLİKELİ) DEMİRLEME SAHASI",
+    "code": "TRKRB-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİRLEME SAHASI",
+    "code": "TRKRB-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİR SAHASI",
+    "code": "TRKRT-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİR SAHASI",
+    "code": "TRKRT-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KUŞADASI YOLCU LİMANI",
+    "code": "TRKUS-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "D-MARİN DİDİM MARİNA",
+    "code": "TRKUS-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SETUR KUŞADASI MARİNA",
+    "code": "TRKUS-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRKUS-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI (TEHLİKELİ YÜK)",
+    "code": "TRKUS-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AKPET AKARYAKIT MERSİN TERMİNALİ",
+    "code": "TRMER-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ALPET MERSİN DOLUM TESİSİ",
+    "code": "TRMER-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ATAŞ MERSİN TERMİNALİ",
+    "code": "TRMER-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "LİMAN DIŞI DEMİR",
+    "code": "TRMER-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "LİMAN İÇİ DEMİR",
+    "code": "TRMER-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MERSİN SERBEST BÖLGE RIHTIMI",
+    "code": "TRMER-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MIP MERSİN LİMANI",
+    "code": "TRMER-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "NERGİS MERSİN TERMİNALİ",
+    "code": "TRMER-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "OPET MERSİN TERMİNALİ",
+    "code": "TRMER-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PETROL OFİSİ A.Ş.  MERSİN TERMİNALİ",
+    "code": "TRMER-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ENERJİ MERSİN TERMİNALİ",
+    "code": "TRMER-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MERSİN KUMKUYU YAT LİMANI",
+    "code": "TRMER-012",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SAVKA MERSİN TERMİNALİ",
+    "code": "TRMER-013",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "EUROİL KAZANLI MERSİN TERMİNALİ",
+    "code": "TRMER-014",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TURKİS ENERJİ MERSİN TERMİNALİ",
+    "code": "TRMER-015",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MARMARA ADASI ERS İSKELESİ",
+    "code": "TRMRA-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SARAYLAR BELEDİYE LİMANI",
+    "code": "TRMRA-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YAYLA MOZAİK İSKELESİ",
+    "code": "TRMRA-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TUNA MADENCİLİK İSKELESİ",
+    "code": "TRMRA-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MARMARA ADASI İSKELESİ",
+    "code": "TRMRA-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AVŞA İSKELESİ",
+    "code": "TRMRA-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PAŞALİMANI İSKELESİ",
+    "code": "TRMRA-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "EKİNLİK İSKELESİ",
+    "code": "TRMRA-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇINARLI İSKELESİ",
+    "code": "TRMRA-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BADALAN RIHTIMI (Marmara Birleşik Madencilik)",
+    "code": "TRMRA-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU SARAYLAR DEMİRLEME SAHASI",
+    "code": "TRMRA-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU GÜNDOĞDU DEMİRLEME SAHASI",
+    "code": "TRMRA-012",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MY MARİNA YAT YANAŞMA YERİ",
+    "code": "TRMRM-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ALBATROS MARİNA",
+    "code": "TRMRM-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MARTI MARINA",
+    "code": "TRMRM-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MARMARİS LİMANI",
+    "code": "TRMRM-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "NETSEL MARMARİS MARİNA",
+    "code": "TRMRM-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MARMARİS ADAKÖY MARİNA",
+    "code": "TRMRM-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "EGESU MARİNA (PORT İASOS)",
+    "code": "TRMRM-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AKSAZ",
+    "code": "TRMRM-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRMRM-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI (ASKERİ)",
+    "code": "TRMRM-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BURULAŞ MUDANYA İSKELESİ",
+    "code": "TRMUD-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İDO GÜZELYALI İSKELESİ",
+    "code": "TRMUD-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRORD-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU (TEHLİKELİ MADDE) DEMİRLEME SAHASI",
+    "code": "TRORD-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU (UZUN SÜRELİ) DEMİRLEME SAHASI",
+    "code": "TRORD-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇAYELİ LİMANI",
+    "code": "TRRIZ-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "RİZE LİMANI",
+    "code": "TRRIZ-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "RİZE LİMANI DEMİR SAHASI",
+    "code": "TRRIZ-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SİNOP LİMANI DEMİR SAHASI",
+    "code": "TRSIC-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SİNOP LİMANI",
+    "code": "TRSIC-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DEMİRLEME SAHASI",
+    "code": "TRSIL-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ALTINBAŞ PETROL VE TİCARET A.Ş. (ALPET) DOLUM TESİSİ",
+    "code": "TRSSX-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AYGAZ SAMSUN TERMİNALİ",
+    "code": "TRSSX-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "LİKİTGAZ SAMSUN DOLUM VE DEPOLAMA TERMİNALİ",
+    "code": "TRSSX-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PETROL OFİSİ A.Ş. SAMSUN TERMİNALİ",
+    "code": "TRSSX-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SAMSUNPORT",
+    "code": "TRSSX-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TOROS TARIM SAMSUN LİMANI",
+    "code": "TRSSX-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AKPET AKARYAKIT SAMSUN TERMİNALİ",
+    "code": "TRSSX-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SADAŞ SAMSUN TERMİNALİ",
+    "code": "TRSSX-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YEŞİLYURT LİMANI",
+    "code": "TRSSX-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YAKAKENT BALIKÇI BARINAĞI",
+    "code": "TRSSX-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DEREKÖY BALIKÇI BARINAĞI",
+    "code": "TRSSX-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BELEDİYE EVLERİ BALIKÇI BARINAĞI",
+    "code": "TRSSX-012",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "LİMAN İÇİ DEMİR MEVKİİ",
+    "code": "TRSSX-013",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ETİ BAKIR KIYI TESİSİ",
+    "code": "TRSSX-014",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TERME TERSANESİ",
+    "code": "TRSSX-015",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİR SAHASI (LİMAN İÇİ 1000 GRT KÜÇÜK)",
+    "code": "TRSSX-016",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİR SAHASI (5000 GRT KÜÇÜK)",
+    "code": "TRSSX-017",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİR SAHASI (+5000 GRT)",
+    "code": "TRSSX-018",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "4 NOLU DEMİR SAHASI (TEHLİKELİ YÜK)",
+    "code": "TRSSX-019",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MBT KİMYA SAMSUN LİMANI",
+    "code": "TRSSX-020",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YENİÇAM TERSANE RIHTIMI",
+    "code": "TRSUR-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRSUR-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI",
+    "code": "TRSUR-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİRLEME SAHASI",
+    "code": "TRSUR-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "4 NOLU DEMİRLEME SAHASI",
+    "code": "TRSUR-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "5 NOLU DEMİRLEME SAHASI",
+    "code": "TRSUR-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YEŞİLOVACIK LİMANI TAŞUCU",
+    "code": "TRTAS-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TAŞUCU BALIKÇI BARINAĞI, FERİBOT VE YAT YANAŞMA İSKELESİ",
+    "code": "TRTAS-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "CEYPORT TAŞUCU ULUSLARARASI LİMAN İŞL.A.Ş.",
+    "code": "TRTAS-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AĞALAR LİMANI NATO İSKELESİ",
+    "code": "TRTAS-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KILIÇ DENİZ ÜRÜNLERİ BALIK ÇİFTLİĞİ",
+    "code": "TRTAS-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YEŞİLOVACIK BALIKÇI BARINAĞI",
+    "code": "TRTAS-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AKKUYU DOĞU KARGO TERMİNALİ",
+    "code": "TRTAS-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİR SAHASI",
+    "code": "TRTAS-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİR SAHASI(TEHLİKELİ MADDE)",
+    "code": "TRTAS-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YEŞİLOVACIK LİMANI DEMİRLEME SAHASI",
+    "code": "TRTAS-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ARGAZ LPG DEPOLAMA TESİSİ",
+    "code": "TRTEK-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ASYAPORT",
+    "code": "TRTEK-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BOTAŞ LNG TERMİNALİ İSKELESİ",
+    "code": "TRTEK-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BÜTANGAZ TRAKYA DEPOLAMA TERMİNALİ",
+    "code": "TRTEK-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MARMARA DEPOCULUK HİZ. A.Ş. BORU HATTI DOLFEN SİSTEMİ",
+    "code": "TRTEK-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MARTAŞ MARMARA EREĞLİSİ LİMAN TESİSİ",
+    "code": "TRTEK-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "LİKİTGAZ MARMARA EREĞLİSİ DEPOLAMA VE DOLUM TERMİNALİ",
+    "code": "TRTEK-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "OPET PETROLCÜLÜK A.Ş. MARMARA TERMİNALİ",
+    "code": "TRTEK-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TDİ TEKİRDAĞ LİMANI",
+    "code": "TRTEK-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TMO GENEL MÜDÜRLÜĞÜ TEKİRDAĞ İSKELESİ",
+    "code": "TRTEK-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRTEK-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI",
+    "code": "TRTEK-012",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİRLEME SAHASI",
+    "code": "TRTEK-013",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "4 NOLU DEMİRLEME SAHASI",
+    "code": "TRTEK-014",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "5 NOLU DEMİRLEME SAHASI",
+    "code": "TRTEK-015",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "6 NOLU DEMİRLEME SAHASI",
+    "code": "TRTEK-016",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "7 NOLU DEMİRLEME SAHASI",
+    "code": "TRTEK-017",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ŞARKÖY BALIKÇI BARINAĞI",
+    "code": "TRTEK-018",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MÜREFTE BALIKÇI BARINAĞI",
+    "code": "TRTEK-019",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "HOŞKÖY BALIKÇI BARINAĞI",
+    "code": "TRTEK-020",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KUMBAĞ  BALIKÇI BARINAĞI",
+    "code": "TRTEK-021",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BARBAROS BALIKÇI BARINAĞI",
+    "code": "TRTEK-022",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TEKİRDAĞ BALIKÇI BARINAĞI",
+    "code": "TRTEK-023",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MARMARA EREĞLİSİ BALIKÇI BARINAĞI",
+    "code": "TRTEK-024",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BOTAŞ FAALİYET ALANI",
+    "code": "TRTEK-025",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "LİKİTPORT TERMİNALİ",
+    "code": "TRTEK-026",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TİREBOLU BALIKÇI BARINAĞI",
+    "code": "TRTIR-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KARADENİZ LPG TERMİNALİ",
+    "code": "TRTIR-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "OPET ESPİYE TERMİNALİ",
+    "code": "TRTIR-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRTIR-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI",
+    "code": "TRTIR-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİRLEME SAHASI",
+    "code": "TRTIR-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "POAŞ TRABZON TERMİNALİ",
+    "code": "TRTZX-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TRABZON LİMANI",
+    "code": "TRTZX-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AYTEMİZ TRABZON TERMİNALİ",
+    "code": "TRTZX-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRTZX-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI (TEHLİKELİ YÜK)",
+    "code": "TRTZX-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU DEMİRLEME SAHASI (UZUN SÜRE)",
+    "code": "TRTZX-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÜNYE LİMANI",
+    "code": "TRUNY-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİRLEME SAHASI",
+    "code": "TRUNY-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİRLEME SAHASI (TEHLİKELİ)",
+    "code": "TRUNY-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÜNYE TERSANESİ",
+    "code": "TRUNY-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YALOVA RO-RO TERMİNALİ",
+    "code": "TRYAL-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ETERPARK YALOVA TERMİNALİ",
+    "code": "TRYAL-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SETUR YALOVA YAT LİMANI",
+    "code": "TRYAL-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AKSA AKRİLİK LİMANI",
+    "code": "TRYAL-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TAVŞANLI BELEDİYE İSKELESİ",
+    "code": "TRYAL-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÖZATA TERSANESİ",
+    "code": "TRYAL-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SANMAR DENİZCİLİK TERSANESİ",
+    "code": "TRYAL-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TERSAN TERSANESİ",
+    "code": "TRYAL-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU DEMİR SAHASI",
+    "code": "TRYAL-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU DEMİR SAHASI",
+    "code": "TRYAL-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GİSAN ALTINOVA TERSANESİ",
+    "code": "TRYAL-012",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GİRGİN KALE TERSANESİ",
+    "code": "TRYAL-013",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GEMAK TERSANESİ",
+    "code": "TRYAL-014",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PARK TERSANESİ",
+    "code": "TRYAL-015",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DOĞRUYOL TERSANECİLİK",
+    "code": "TRYAL-016",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "CEMRE TERSANESİ",
+    "code": "TRYAL-017",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇAKIRLAR TERSANESİ",
+    "code": "TRYAL-018",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BEŞİKTAŞ TERSANESİ",
+    "code": "TRYAL-019",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ARI TERSANESİ",
+    "code": "TRYAL-020",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ALTINOVA TERSANESİ",
+    "code": "TRYAL-021",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KAMER MARINE TERSANESİ",
+    "code": "TRYAL-023",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SEFİNE TERSANESİ",
+    "code": "TRYAL-024",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KUZEY STAR TERSANESİ",
+    "code": "TRYAL-025",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KARADENİZ HOLDİNG TERSANESİ",
+    "code": "TRYAL-027",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "EROL ŞENKAYA TERSANESİ",
+    "code": "TRYAL-028",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AYKIN TERSANECİLİK",
+    "code": "TRYAL-029",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GÖK DENİZCİLİK YALOVA TAVŞANLI",
+    "code": "TRYAL-033",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "HATSAN TERSANESİ",
+    "code": "TRYAL-034",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "HİCRİ ERCİLİ TERSANECİLİK",
+    "code": "TRYAL-035",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TOPÇULAR ARABALI VAPUR İSKELESİ",
+    "code": "TRYAL-036",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YALOVA HIZLI FERİBOT İSKELESİ",
+    "code": "TRYAL-037",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇINARCIK BALIKÇI BARINAĞI",
+    "code": "TRYAL-038",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ESENKÖY BALIKÇI BARINAĞI",
+    "code": "TRYAL-039",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "MERKEZ BALIKÇI BARINAĞI",
+    "code": "TRYAL-040",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YALOVA TEŞVİKİYE İSKELESİ",
+    "code": "TRYAL-041",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YALOVA KOCADERE İSKELESİ",
+    "code": "TRYAL-042",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ESENKÖY BALIKCI BARINAĞI",
+    "code": "TRYAL-043",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DEREAĞZI BALIKÇI BARINAĞI",
+    "code": "TRYAL-044",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YÜKSEL TERSANESİ",
+    "code": "TRYAL-045",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SELTAŞ TERSANESİ",
+    "code": "TRYAL-046",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ARİF KALKAVANOĞLU TERSANESİ",
+    "code": "TRYAL-047",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GÜRDESAN TERSANESİ",
+    "code": "TRYAL-048",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BOĞAZİÇİ TERSANESİ",
+    "code": "TRYAL-049",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "HERÇELİK TERSANESİ",
+    "code": "TRYAL-050",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ICT YAT TERSANESİ",
+    "code": "TRYAL-051",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DEN-TA DENİZCİLİK TERSANESİ",
+    "code": "TRYAL-053",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İDO MERKEZ DENİZ OTOBÜSÜ İSKELESİ",
+    "code": "TRYAL-054",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KORUKÖY BALIKÇI BARINAĞI",
+    "code": "TRYAL-055",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "CEMRE MÜHENDİSLİK TERSANESİ",
+    "code": "TRYAL-056",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "HERSEK TERSANESİ",
+    "code": "TRYAL-057",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KARSAN TERSANESİ",
+    "code": "TRYAL-058",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İDO ÇINARCIK DENİZ OTOBÜSÜ İSKELESİ",
+    "code": "TRYAL-059",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÖZATA DENİZCİLİK TERSANESİ",
+    "code": "TRYAL-060",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BİLGİN YATÇILIK TERSANESİ",
+    "code": "TRYAL-061",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TISG TURKEY YAT TERSANECİLİK A.Ş.",
+    "code": "TRYAL-062",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YALOVA GEMİ TERSANECİLİK",
+    "code": "TRYAL-063",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "EREN LİMANI",
+    "code": "TRZON-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TTK ZONGULDAK LİMANI",
+    "code": "TRZON-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "FİLYOS LİMANI",
+    "code": "TRZON-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "FİLYOS TÜRKİYE PETROLLERİ LİMANI",
+    "code": "TRZON-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1-A DEMİR SAHASI",
+    "code": "TRZON-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1-B DEMİR SAHASI",
+    "code": "TRZON-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2-A DEMİR SAHASI",
+    "code": "TRZON-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2-B DEMİR SAHASI",
+    "code": "TRZON-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3-A DEMİR SAHASI",
+    "code": "TRZON-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3-B DEMİR SAHASI",
+    "code": "TRZON-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DEMİR SAHASI",
+    "code": "TR002-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BAĞIRGANLI BALIKÇI BARINAĞI",
+    "code": "TR002-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KEFKEN BALIKÇI BARINAĞI",
+    "code": "TR002-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DEMİR SAHASI",
+    "code": "TR003-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SUGÖZÜ ENERJİ SANTRALİ İSKELESİ",
+    "code": "TR01M-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SANKO LİMAN TESİSİ",
+    "code": "TR01M-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BOTAŞ CEYHAN TERMİNALİ",
+    "code": "TR01M-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "BTC HAYDAR ALİYEV DENİZ TERMİNALİ",
+    "code": "TR01M-004",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SÖNMEZ ÇİMENTO LİMAN TESİSİ",
+    "code": "TR01M-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AKDENİZ GEMİ İNŞA TERSANESİ",
+    "code": "TR01M-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TOROS TARIM CEYHAN TERMİNALİ",
+    "code": "TR01M-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "EMBA LİMANI",
+    "code": "TR01M-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "1 NOLU  DEMİR SAHASI (TEHLİKELİ YÜK TAŞIYANLAR)",
+    "code": "TR01M-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "2 NOLU  DEMİR SAHASI",
+    "code": "TR01M-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "3 NOLU  DEMİR SAHASI",
+    "code": "TR01M-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "4 NOLU  DEMİR SAHASI",
+    "code": "TR01M-012",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "CİDE DEMİR BÖLGESİ",
+    "code": "TR027-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KARASU LİMANI",
+    "code": "TR039-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DEMİRLEME SAHASI",
+    "code": "TR039-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ANADOLU TERSANESİ",
+    "code": "TR092-001",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ARGEM TERSANECİLİK",
+    "code": "TR092-002",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇEKSAN TERSANESİ",
+    "code": "TR092-003",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇİNDEMİR TERSANESİ",
+    "code": "TR092-005",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DEARSAN TERSANESİ",
+    "code": "TR092-006",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DENİZ ENDÜSTRİSİ TERSANESİ",
+    "code": "TR092-007",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DENTAŞ TERSANESİ",
+    "code": "TR092-008",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DESAN TERSANESİ",
+    "code": "TR092-009",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DESAN TERSANESİ KÜÇÜK HAVUZ",
+    "code": "TR092-010",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GEMAK TERSANESİ",
+    "code": "TR092-011",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GEMDOK",
+    "code": "TR092-012",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GEMTİŞ TERSANESİ",
+    "code": "TR092-013",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GİSAN GEMİ İNŞA SANAYİ VE TİC",
+    "code": "TR092-014",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "GİSAŞ RIHTIMI",
+    "code": "TR092-015",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "HİDRODİNAMİK TERSANESİ",
+    "code": "TR092-016",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İSTANBUL TERSANESİ",
+    "code": "TR092-017",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PENDİK ASKERİ TERSANE",
+    "code": "TR092-019",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SEDEF GEMİ İNŞAA AŞ.",
+    "code": "TR092-021",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ADA TERSANESİ (2. TESİS)",
+    "code": "TR092-022",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ŞAHİN ÇELİK TERSANESİ",
+    "code": "TR092-024",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "DENTAŞ TERSANESİ İSTANBUL ŞB.",
+    "code": "TR092-025",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TORLAK TERSANESİ",
+    "code": "TR092-026",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TUZLA DEMİR",
+    "code": "TR092-028",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TUZLA GEMİ END.TERSANESİ",
+    "code": "TR092-029",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TUZLA TERSANECİLİK VE TURİZM",
+    "code": "TR092-030",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TÜRKTER TERSANESİ",
+    "code": "TR092-031",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "UN RO-RO PENDİK TERMİNALİ",
+    "code": "TR092-032",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YARDGEM TERSANESİ",
+    "code": "TR092-033",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ART GEMİ İNŞA VE TERSANECİLİK HİZMETLERİ A.Ş. (1. TESİS)",
+    "code": "TR092-034",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YILDIRIM TERSANESİ",
+    "code": "TR092-035",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TUZLA VİAPORT MARİNA",
+    "code": "TR092-036",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KARTAL KUMCULAR İSKELELERİ",
+    "code": "TR092-037",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ASTAŞ ASLAN TERSANECİLİK",
+    "code": "TR092-038",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÇELİKTRANS TERSANESİ",
+    "code": "TR092-039",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "AYKIN TERSANESİ",
+    "code": "TR092-040",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ARKADAŞ TEKNE İMAL",
+    "code": "TR092-041",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ADA TERSANESİ (1. TESİS)",
+    "code": "TR092-042",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YONCA ONUK TEKNE İMAL",
+    "code": "TR092-043",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "YILDIZ TERSANESİ",
+    "code": "TR092-044",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "URSA TERSANESİ",
+    "code": "TR092-045",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TUZLA İDO TERMİNALİ",
+    "code": "TR092-046",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TUZLA DLH LİMANI",
+    "code": "TR092-047",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TUZLA BELEDİYE İSKELESİ",
+    "code": "TR092-048",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TURQUOISE YAT",
+    "code": "TR092-049",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "TERSAN TERSANESİ",
+    "code": "TR092-050",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SS YENİ TİC.TUR.DZ.ARÇ.YP.KOOP",
+    "code": "TR092-051",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SNR GEMİ İNŞA TERSANESİ",
+    "code": "TR092-052",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SELAHATTİN TELCİ TERSANESİ",
+    "code": "TR092-053",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "SANMAR TERSANESİ",
+    "code": "TR092-054",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "RMK MARINE TERSANESİ",
+    "code": "TR092-055",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PIRLANT YAT ÇEKEK",
+    "code": "TR092-056",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ANADOLU PORT",
+    "code": "TR092-057",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PENDİK İDO TERMİNALİ",
+    "code": "TR092-058",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ÖZKARADENİZ TERSANESİ",
+    "code": "TR092-059",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "NESA TERSANESİ",
+    "code": "TR092-060",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KUZEY STAR TERSANESİ",
+    "code": "TR092-061",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KPT TERSANESİ",
+    "code": "TR092-062",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KARTAL İDO TERMİNALİ",
+    "code": "TR092-063",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "KARTAL DEMİR YERİ",
+    "code": "TR092-064",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "İSTANBUL DZ. GEMİ İNŞ.TERSANESİ",
+    "code": "TR092-065",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ART GEMİ İNŞA VE TERSANECİLİK HİZMETLERİ A.Ş. (2. TESİS)",
+    "code": "TR092-066",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ENGİN DENİZCİLİK İŞLETMESİ SAN",
+    "code": "TR092-067",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ENGİN DENİZCİLİK TERSANESİ",
+    "code": "TR092-068",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "ERKAL TERSANESİ",
+    "code": "TR092-069",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "PENDİK MARİNTÜRK MARİNA",
+    "code": "TR092-070",
+    "country": "Turkey",
+    "currency": "USD"
+  },
+  {
+    "name": "Tuzlaport Tersanesi",
+    "code": "TR092-071",
+    "country": "Turkey",
+    "currency": "USD"
+  }
+]
