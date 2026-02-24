@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -38,6 +39,24 @@ export default function ProformaNew() {
   const [lighthouseCategory, setLighthouseCategory] = useState<string>("turkish");
   const [vtsCategory, setVtsCategory] = useState<string>("turkish");
   const [wharfageCategory, setWharfageCategory] = useState<string>("foreign");
+
+  const isTurkishFlag = (flag: string): boolean => {
+    const f = flag.toLowerCase().trim();
+    return f === "turkey" || f === "turkish" || f === "türk" || f === "türkiye" || f === "tr" || f === "turk";
+  };
+
+  const handleVesselChange = (vesselId: string) => {
+    setSelectedVessel(vesselId);
+    const vessel = vessels?.find(v => v.id.toString() === vesselId);
+    if (vessel) {
+      const turkish = isTurkishFlag(vessel.flag);
+      setFlagCategory(turkish ? "turkish" : "foreign");
+      setDtoCategory(turkish ? "turkish" : "foreign");
+      setLighthouseCategory(turkish ? "turkish" : "foreign");
+      setVtsCategory(turkish ? "turkish" : "foreign");
+      setWharfageCategory(turkish ? "cabotage" : "foreign");
+    }
+  };
   const [usdTryRate, setUsdTryRate] = useState<number>(43.86);
   const [eurTryRate, setEurTryRate] = useState<number>(51.73);
   const [toCompany, setToCompany] = useState<string>("");
@@ -176,7 +195,7 @@ export default function ProformaNew() {
               <div className="space-y-2">
                 <Label>Vessel *</Label>
                 {vesselsLoading ? <Skeleton className="h-10" /> : vessels && vessels.length > 0 ? (
-                  <Select value={selectedVessel} onValueChange={setSelectedVessel}>
+                  <Select value={selectedVessel} onValueChange={handleVesselChange}>
                     <SelectTrigger data-testid="select-vessel"><SelectValue placeholder="Select vessel" /></SelectTrigger>
                     <SelectContent>
                       {vessels.map((v) => (
@@ -211,12 +230,15 @@ export default function ProformaNew() {
             </div>
 
             {selectedVesselData && (
-              <div className="flex flex-wrap gap-4 text-xs text-muted-foreground bg-muted/30 rounded-md p-3" data-testid="text-vessel-summary">
+              <div className="flex flex-wrap gap-4 items-center text-xs text-muted-foreground bg-muted/30 rounded-md p-3" data-testid="text-vessel-summary">
                 <span><strong>Flag:</strong> {selectedVesselData.flag}</span>
                 <span><strong>Type:</strong> {selectedVesselData.vesselType}</span>
                 <span><strong>GRT:</strong> {selectedVesselData.grt?.toLocaleString()}</span>
                 <span><strong>NRT:</strong> {selectedVesselData.nrt?.toLocaleString()}</span>
                 {selectedVesselData.dwt && <span><strong>DWT:</strong> {selectedVesselData.dwt?.toLocaleString()}</span>}
+                <Badge variant={isTurkishFlag(selectedVesselData.flag) ? "default" : "secondary"} className="text-[10px] ml-auto" data-testid="badge-flag-category">
+                  {isTurkishFlag(selectedVesselData.flag) ? "🇹🇷 Türk Bayraklı" : "🏳️ Yabancı Bayraklı"} — Tarifeler otomatik ayarlandı
+                </Badge>
               </div>
             )}
 
