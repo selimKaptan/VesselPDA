@@ -1,4 +1,4 @@
-import { Ship, FileText, Anchor, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin, Shield, ChevronDown } from "lucide-react";
+import { Ship, FileText, Anchor, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin, Shield, ChevronDown, MessageSquare } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -38,6 +38,7 @@ export function AppSidebar() {
   const mainNav = [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
     { title: "Directory", url: "/directory", icon: Users },
+    { title: "Forum", url: "/forum", icon: MessageSquare },
   ];
 
   const isAdminUser = userRole === "admin";

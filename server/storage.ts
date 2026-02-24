@@ -6,11 +6,15 @@ import {
   type TariffRate, type InsertTariffRate,
   type Proforma, type InsertProforma,
   type CompanyProfile, type InsertCompanyProfile,
+  type ForumCategory, type InsertForumCategory,
+  type ForumTopic, type InsertForumTopic,
+  type ForumReply, type InsertForumReply,
   vessels, ports, tariffCategories, tariffRates, proformas,
+  forumCategories, forumTopics, forumReplies,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
-import { eq, and, lte, gte, or, isNull, desc, sql } from "drizzle-orm";
+import { eq, and, lte, gte, or, isNull, desc, asc, sql, count, countDistinct } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -52,6 +56,14 @@ export interface IStorage {
   updateCompanyProfile(id: number, userId: string, data: Partial<InsertCompanyProfile>): Promise<CompanyProfile | undefined>;
   getPublicCompanyProfiles(filters?: { companyType?: string; portId?: number }): Promise<CompanyProfile[]>;
   getFeaturedCompanyProfiles(): Promise<CompanyProfile[]>;
+
+  getForumCategories(): Promise<ForumCategory[]>;
+  getForumTopics(options?: { categoryId?: number; sort?: string; limit?: number; offset?: number }): Promise<any[]>;
+  getForumTopic(id: number): Promise<any | undefined>;
+  createForumTopic(topic: InsertForumTopic): Promise<ForumTopic>;
+  getForumReplies(topicId: number): Promise<any[]>;
+  createForumReply(reply: InsertForumReply): Promise<ForumReply>;
+  getTopicParticipants(topicId: number, limit?: number): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -255,6 +267,149 @@ export class DatabaseStorage implements IStorage {
         eq(companyProfiles.isFeatured, true),
       ))
       .orderBy(desc(companyProfiles.createdAt));
+  }
+
+  async getForumCategories(): Promise<ForumCategory[]> {
+    return db.select().from(forumCategories).orderBy(asc(forumCategories.name));
+  }
+
+  async getForumTopics(options?: { categoryId?: number; sort?: string; limit?: number; offset?: number }): Promise<any[]> {
+    const limit = options?.limit || 20;
+    const offset = options?.offset || 0;
+
+    let query = db
+      .select({
+        id: forumTopics.id,
+        title: forumTopics.title,
+        content: forumTopics.content,
+        viewCount: forumTopics.viewCount,
+        replyCount: forumTopics.replyCount,
+        isPinned: forumTopics.isPinned,
+        isLocked: forumTopics.isLocked,
+        lastActivityAt: forumTopics.lastActivityAt,
+        createdAt: forumTopics.createdAt,
+        categoryId: forumTopics.categoryId,
+        userId: forumTopics.userId,
+        categoryName: forumCategories.name,
+        categorySlug: forumCategories.slug,
+        categoryColor: forumCategories.color,
+        authorFirstName: users.firstName,
+        authorLastName: users.lastName,
+        authorImage: users.profileImageUrl,
+      })
+      .from(forumTopics)
+      .innerJoin(forumCategories, eq(forumTopics.categoryId, forumCategories.id))
+      .innerJoin(users, eq(forumTopics.userId, users.id))
+      .$dynamic();
+
+    if (options?.categoryId) {
+      query = query.where(eq(forumTopics.categoryId, options.categoryId));
+    }
+
+    if (options?.sort === "popular") {
+      query = query.orderBy(desc(forumTopics.isPinned), desc(forumTopics.viewCount));
+    } else {
+      query = query.orderBy(desc(forumTopics.isPinned), desc(forumTopics.lastActivityAt));
+    }
+
+    return query.limit(limit).offset(offset);
+  }
+
+  async getForumTopic(id: number): Promise<any | undefined> {
+    const [topic] = await db
+      .select({
+        id: forumTopics.id,
+        title: forumTopics.title,
+        content: forumTopics.content,
+        viewCount: forumTopics.viewCount,
+        replyCount: forumTopics.replyCount,
+        isPinned: forumTopics.isPinned,
+        isLocked: forumTopics.isLocked,
+        lastActivityAt: forumTopics.lastActivityAt,
+        createdAt: forumTopics.createdAt,
+        categoryId: forumTopics.categoryId,
+        userId: forumTopics.userId,
+        categoryName: forumCategories.name,
+        categorySlug: forumCategories.slug,
+        categoryColor: forumCategories.color,
+        authorFirstName: users.firstName,
+        authorLastName: users.lastName,
+        authorImage: users.profileImageUrl,
+      })
+      .from(forumTopics)
+      .innerJoin(forumCategories, eq(forumTopics.categoryId, forumCategories.id))
+      .innerJoin(users, eq(forumTopics.userId, users.id))
+      .where(eq(forumTopics.id, id));
+
+    if (!topic) return undefined;
+
+    await db.update(forumTopics)
+      .set({ viewCount: sql`${forumTopics.viewCount} + 1` })
+      .where(eq(forumTopics.id, id));
+
+    return topic;
+  }
+
+  async createForumTopic(topic: InsertForumTopic): Promise<ForumTopic> {
+    const [created] = await db.insert(forumTopics).values(topic).returning();
+    await db.update(forumCategories)
+      .set({ topicCount: sql`${forumCategories.topicCount} + 1` })
+      .where(eq(forumCategories.id, topic.categoryId));
+    return created;
+  }
+
+  async getForumReplies(topicId: number): Promise<any[]> {
+    return db
+      .select({
+        id: forumReplies.id,
+        content: forumReplies.content,
+        createdAt: forumReplies.createdAt,
+        topicId: forumReplies.topicId,
+        userId: forumReplies.userId,
+        authorFirstName: users.firstName,
+        authorLastName: users.lastName,
+        authorImage: users.profileImageUrl,
+      })
+      .from(forumReplies)
+      .innerJoin(users, eq(forumReplies.userId, users.id))
+      .where(eq(forumReplies.topicId, topicId))
+      .orderBy(asc(forumReplies.createdAt));
+  }
+
+  async createForumReply(reply: InsertForumReply): Promise<ForumReply> {
+    const [created] = await db.insert(forumReplies).values(reply).returning();
+    await db.update(forumTopics)
+      .set({
+        replyCount: sql`${forumTopics.replyCount} + 1`,
+        lastActivityAt: new Date(),
+      })
+      .where(eq(forumTopics.id, reply.topicId));
+    return created;
+  }
+
+  async getTopicParticipants(topicId: number, limit: number = 5): Promise<any[]> {
+    const replies = await db
+      .select({
+        userId: forumReplies.userId,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        profileImageUrl: users.profileImageUrl,
+      })
+      .from(forumReplies)
+      .innerJoin(users, eq(forumReplies.userId, users.id))
+      .where(eq(forumReplies.topicId, topicId))
+      .orderBy(desc(forumReplies.createdAt));
+
+    const seen = new Set<string>();
+    const unique: any[] = [];
+    for (const r of replies) {
+      if (!seen.has(r.userId)) {
+        seen.add(r.userId);
+        unique.push(r);
+        if (unique.length >= limit) break;
+      }
+    }
+    return unique;
   }
 }
 

@@ -631,5 +631,113 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/forum/categories", async (_req, res) => {
+    try {
+      const categories = await storage.getForumCategories();
+      res.json(categories);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch forum categories" });
+    }
+  });
+
+  app.get("/api/forum/topics", async (req, res) => {
+    try {
+      const categoryId = req.query.categoryId ? parseInt(req.query.categoryId as string) : undefined;
+      const sort = (req.query.sort as string) || "latest";
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
+      const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
+
+      const topics = await storage.getForumTopics({ categoryId, sort, limit, offset });
+
+      const topicsWithParticipants = await Promise.all(
+        topics.map(async (t: any) => {
+          const participants = await storage.getTopicParticipants(t.id, 5);
+          return { ...t, participants };
+        })
+      );
+
+      res.json(topicsWithParticipants);
+    } catch (error) {
+      console.error("Forum topics error:", error);
+      res.status(500).json({ message: "Failed to fetch forum topics" });
+    }
+  });
+
+  app.get("/api/forum/topics/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const topic = await storage.getForumTopic(id);
+      if (!topic) return res.status(404).json({ message: "Topic not found" });
+
+      const replies = await storage.getForumReplies(id);
+      const participants = await storage.getTopicParticipants(id, 10);
+
+      res.json({ ...topic, replies, participants });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch topic" });
+    }
+  });
+
+  app.post("/api/forum/topics", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { title, content, categoryId } = req.body;
+
+      if (!title || !content || !categoryId) {
+        return res.status(400).json({ message: "title, content, and categoryId are required" });
+      }
+
+      if (title.trim().length < 3) {
+        return res.status(400).json({ message: "Title must be at least 3 characters" });
+      }
+
+      if (content.trim().length < 10) {
+        return res.status(400).json({ message: "Content must be at least 10 characters" });
+      }
+
+      const topic = await storage.createForumTopic({
+        userId,
+        title: title.trim(),
+        content: content.trim(),
+        categoryId: Number(categoryId),
+      });
+
+      res.json(topic);
+    } catch (error) {
+      console.error("Create topic error:", error);
+      res.status(500).json({ message: "Failed to create topic" });
+    }
+  });
+
+  app.post("/api/forum/topics/:id/replies", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const topicId = parseInt(req.params.id);
+      const { content } = req.body;
+
+      if (!content || content.trim().length < 1) {
+        return res.status(400).json({ message: "Content is required" });
+      }
+
+      const topic = await storage.getForumTopic(topicId);
+      if (!topic) return res.status(404).json({ message: "Topic not found" });
+
+      if (topic.isLocked) {
+        return res.status(403).json({ message: "This topic is locked" });
+      }
+
+      const reply = await storage.createForumReply({
+        topicId,
+        userId,
+        content: content.trim(),
+      });
+
+      res.json(reply);
+    } catch (error) {
+      console.error("Create reply error:", error);
+      res.status(500).json({ message: "Failed to create reply" });
+    }
+  });
+
   return httpServer;
 }

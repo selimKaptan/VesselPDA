@@ -21,6 +21,8 @@ import Directory from "@/pages/directory";
 import CompanyProfile from "@/pages/company-profile";
 import ServicePorts from "@/pages/service-ports";
 import AdminPanel from "@/pages/admin";
+import Forum from "@/pages/forum";
+import ForumTopic from "@/pages/forum-topic";
 
 function AuthenticatedRouter() {
   return (
@@ -36,6 +38,8 @@ function AuthenticatedRouter() {
       <Route path="/service-ports" component={ServicePorts} />
       <Route path="/company-profile" component={CompanyProfile} />
       <Route path="/admin" component={AdminPanel} />
+      <Route path="/forum" component={Forum} />
+      <Route path="/forum/:id" component={ForumTopic} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -69,6 +73,8 @@ function PublicDirectoryPage() {
     <Switch>
       <Route path="/directory" component={Directory} />
       <Route path="/service-ports" component={ServicePorts} />
+      <Route path="/forum" component={Forum} />
+      <Route path="/forum/:id" component={ForumTopic} />
       <Route><Landing /></Route>
     </Switch>
   );

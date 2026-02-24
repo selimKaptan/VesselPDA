@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { ports, tariffCategories, tariffRates } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { ports, tariffCategories, tariffRates, forumCategories } from "@shared/schema";
+import { eq, count } from "drizzle-orm";
 import turkishPorts from "./turkish-ports.json";
 
 async function seedTariffs(port: { id: number; name: string }, portMultiplier: number) {
@@ -295,4 +295,20 @@ export async function seedDatabase() {
   }
 
   console.log(`Database seeded successfully with ${totalInserted} Turkish ports and tariff data.`);
+}
+
+export async function seedForumCategories() {
+  const [{ value: catCount }] = await db.select({ value: count() }).from(forumCategories);
+  if (catCount > 0) return;
+
+  console.log("Seeding forum categories...");
+  await db.insert(forumCategories).values([
+    { name: "General Discussions", slug: "general", color: "#2563EB", description: "General maritime industry discussions and conversations" },
+    { name: "Market & Freight", slug: "market-freight", color: "#D97706", description: "Freight rates, market trends, and commercial discussions" },
+    { name: "Port Operations", slug: "port-operations", color: "#16A34A", description: "Port procedures, operations, and berth management" },
+    { name: "Regulations & Compliance", slug: "regulations", color: "#DC2626", description: "Maritime laws, regulations, and compliance topics" },
+    { name: "Technology & Software", slug: "technology", color: "#0891B2", description: "Maritime software, digital tools, and technology solutions" },
+    { name: "Vessel Intelligence", slug: "vessel-intelligence", color: "#7C3AED", description: "Vessel tracking, specifications, and fleet intelligence" },
+  ]);
+  console.log("Forum categories seeded.");
 }

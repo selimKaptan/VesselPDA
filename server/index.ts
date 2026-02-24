@@ -99,8 +99,9 @@ app.use((req, res, next) => {
     () => {
       log(`serving on port ${port}`);
 
-      import("./seed").then(({ seedDatabase }) => {
+      import("./seed").then(({ seedDatabase, seedForumCategories }) => {
         seedDatabase().catch((err: Error) => console.error("Seed error:", err));
+        seedForumCategories().catch((err: Error) => console.error("Forum seed error:", err));
       });
     },
   );

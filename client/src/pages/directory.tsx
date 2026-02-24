@@ -94,6 +94,7 @@ export default function Directory() {
               <a href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Home</a>
               <a href="/directory" className="text-sm font-medium text-foreground transition-colors">Directory</a>
               <a href="/service-ports" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Service Ports</a>
+              <a href="/forum" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Forum</a>
             </div>
             <div className="flex items-center gap-3">
               <a href="/api/login">

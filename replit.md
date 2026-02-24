@@ -28,20 +28,20 @@ A professional web-based maritime platform for ship agents to create instant pro
 - **Service Provider**: Creates company profile only (no proforma access)
 
 ## Project Structure
-- `shared/schema.ts` - All Drizzle models (vessels, ports, tariffCategories, tariffRates, proformas)
+- `shared/schema.ts` - All Drizzle models (vessels, ports, tariffCategories, tariffRates, proformas, forumCategories, forumTopics, forumReplies)
 - `shared/models/auth.ts` - Auth models (users, sessions, companyProfiles) with subscription + role fields
-- `server/routes.ts` - API endpoints including company profiles, directory, user role management, admin endpoints
+- `server/routes.ts` - API endpoints including company profiles, directory, user role management, admin endpoints, forum CRUD
 - `client/src/pages/admin.tsx` - Admin panel with users/vessels/proformas/profiles tabs
 - `server/proforma-calculator.ts` - Formula-based calculation engine matching Excel reference (22 line items)
-- `server/storage.ts` - Database storage layer with company profile CRUD methods
-- `server/seed.ts` - Seed data for ports and tariffs
+- `server/storage.ts` - Database storage layer with company profile and forum CRUD methods
+- `server/seed.ts` - Seed data for ports, tariffs, and forum categories
 - `server/replit_integrations/auth/` - Replit Auth integration
-- `client/src/pages/` - Landing, Dashboard, Vessels, Ports, Proformas, ProformaNew, ProformaView, Pricing, Directory, CompanyProfile
+- `client/src/pages/` - Landing, Dashboard, Vessels, Ports, Proformas, ProformaNew, ProformaView, Pricing, Directory, CompanyProfile, Forum, ForumTopic
 - `client/src/components/app-sidebar.tsx` - Role-aware navigation sidebar
 
 ## Database
 - PostgreSQL with Drizzle ORM
-- Tables: users, sessions, vessels, ports, tariff_categories, tariff_rates, proformas, company_profiles
+- Tables: users, sessions, vessels, ports, tariff_categories, tariff_rates, proformas, company_profiles, forum_categories, forum_topics, forum_replies
 - Users table has userRole, activeRole, subscriptionPlan, proformaCount, proformaLimit fields
 - Company profiles have companyType, servedPorts (jsonb), serviceTypes (jsonb), isFeatured, featuredUntil
 - 804 Turkish ports loaded from Excel data
@@ -58,6 +58,11 @@ A professional web-based maritime platform for ship agents to create instant pro
 - `GET /api/directory` - Public directory listing with type and port filters
 - `GET /api/directory/featured` - Featured companies
 - `GET /api/directory/:id` - Single company profile
+- `GET /api/forum/categories` - Public list of forum categories
+- `GET /api/forum/topics` - Public topic listing (supports categoryId, sort, limit, offset params)
+- `GET /api/forum/topics/:id` - Public single topic with replies and participants
+- `POST /api/forum/topics` - Authenticated: create new discussion topic
+- `POST /api/forum/topics/:id/replies` - Authenticated: reply to a topic
 
 ## Subscription Plans
 - Free: 1 proforma, 1 vessel
@@ -72,7 +77,19 @@ A professional web-based maritime platform for ship agents to create instant pro
 - Dangerous cargo 30% surcharge on pilotage and tugboats
 - Manual calculation via "Calculate Proforma" button (no auto-calculate)
 
+## Forum
+- Discussion board with 6 categories: General Discussions, Port Operations, Vessel Intelligence, Regulations & Compliance, Technology & Software, Market & Freight
+- All authenticated users can create topics and reply
+- Public browsing (no auth required to read)
+- Topics have: title, content, category, view count, reply count, participant avatars
+- Sorting: Latest (by last activity) or Popular (by views)
+- Category filtering and search
+- Forum tables: forum_categories, forum_topics, forum_replies
+- Categories seeded on startup (6 default categories with color coding)
+- Forum accessible from sidebar (authenticated), landing/directory/service-ports nav (public)
+
 ## Recent Changes
+- 2026-02-24: Added forum/discussion board with categories, topics, replies, search, and filtering
 - 2026-02-24: Live activity feed on landing page - animated 3D ticker showing real-time platform events (proformas, vessels, companies, users)
 - 2026-02-24: Admin role switching - admin can switch between agent/shipowner/provider views via sidebar dropdown, keeps admin privileges
 - 2026-02-24: Logo upload now stores images as base64 data URIs in database (persists across deployments, no filesystem dependency)
