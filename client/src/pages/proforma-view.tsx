@@ -136,16 +136,16 @@ export default function ProformaView() {
                       {item.description}
                       {item.notes && <span className="text-xs text-muted-foreground ml-2">({item.notes})</span>}
                     </td>
-                    <td className="p-3 text-right font-mono">{item.amountUsd?.toLocaleString()}</td>
-                    <td className="p-3 text-right font-mono">{item.amountEur?.toLocaleString() || Math.round(item.amountUsd / exchangeRate).toLocaleString()}</td>
+                    <td className="p-3 text-right font-mono">{item.amountUsd?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="p-3 text-right font-mono">{(item.amountEur || (item.amountUsd / exchangeRate))?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="bg-[hsl(var(--maritime-primary)/0.05)] font-bold">
                   <td className="p-3">Total Port Expenses</td>
-                  <td className="p-3 text-right font-mono">${proforma.totalUsd?.toLocaleString()}</td>
-                  <td className="p-3 text-right font-mono">€{proforma.totalEur?.toLocaleString() || Math.round(proforma.totalUsd / exchangeRate).toLocaleString()}</td>
+                  <td className="p-3 text-right font-mono">${proforma.totalUsd?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="p-3 text-right font-mono">€{(proforma.totalEur || proforma.totalUsd / exchangeRate)?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 </tr>
               </tfoot>
             </table>

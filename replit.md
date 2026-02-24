@@ -21,6 +21,7 @@ A professional web-based maritime proforma generator system for ship agents to a
 - `shared/schema.ts` - All Drizzle models (vessels, ports, tariffCategories, tariffRates, proformas)
 - `shared/models/auth.ts` - Auth models (users, sessions) with subscription fields
 - `server/routes.ts` - API endpoints including subscription upgrade
+- `server/proforma-calculator.ts` - Formula-based calculation engine matching Excel reference (22 line items)
 - `server/storage.ts` - Database storage layer with user subscription methods
 - `server/seed.ts` - Seed data for ports and tariffs
 - `server/replit_integrations/auth/` - Replit Auth integration
@@ -38,7 +39,17 @@ A professional web-based maritime proforma generator system for ship agents to a
 - Standard ($29): 10 proformas, unlimited vessels
 - Unlimited ($79/mo): unlimited proformas, unlimited vessels
 
+## Calculation Engine
+- `server/proforma-calculator.ts` - Formula-based engine matching user's Excel reference (PROFORMA_HAYRATI_S.H)
+- 22 line items: Pilotage, Tugboats, Wharfage, Mooring, Garbage, Oto Service, Harbour Master, Sanitary, Light Dues, VTS, Customs Overtime, Anchorage, Chamber of Shipping, Chamber Freight Share, Maritime Association, Motorboat, Facilities, Transportation, Fiscal, Communication, Supervision, Agency Fee
+- Parameters: dangerous cargo flag, customs type, flag/DTO/lighthouse/VTS/wharfage categories, exchange rates (USD/TRY, EUR/TRY)
+- GRT-based scaling for pilotage, tugboats, mooring; NRT-based tiers for sanitary, harbour master, VTS
+- Dangerous cargo 30% surcharge on pilotage and tugboats
+- Manual calculation via "Calculate Proforma" button (no auto-calculate)
+
 ## Recent Changes
+- 2026-02-24: Built formula-based calculation engine with 22 line items matching Excel reference
+- 2026-02-24: Added comprehensive tariff parameter controls (dangerous cargo, customs, flag categories, exchange rates)
 - 2026-02-24: Added 3-tier pricing system with usage limits and in-app pricing page
 - 2026-02-24: Loaded 804 Turkish ports from Excel data
 - 2026-02-24: Initial MVP build with full proforma generation system

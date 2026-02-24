@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useEffect, useCallback } from "react";
-import { FileText, Ship, Globe, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Settings2, Package, Crown } from "lucide-react";
+import { useState, useCallback } from "react";
+import { FileText, Ship, Globe, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Settings2, Package, AlertTriangle, Crown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/auth-utils";
@@ -24,12 +25,21 @@ export default function ProformaNew() {
 
   const [selectedVessel, setSelectedVessel] = useState<string>("");
   const [selectedPort, setSelectedPort] = useState<string>("");
-  const [berthStayDays, setBerthStayDays] = useState<number>(5);
-  const [purposeOfCall, setPurposeOfCall] = useState<string>("Loading");
-  const [cargoQuantity, setCargoQuantity] = useState<string>("");
+  const [berthStayDays, setBerthStayDays] = useState<number>(4);
+  const [anchorageDays, setAnchorageDays] = useState<number>(0);
+  const [purposeOfCall, setPurposeOfCall] = useState<string>("Discharging");
+  const [cargoQuantity, setCargoQuantity] = useState<string>("3001");
   const [cargoType, setCargoType] = useState<string>("");
   const [cargoUnit, setCargoUnit] = useState<string>("MT");
-  const [exchangeRate, setExchangeRate] = useState<number>(1.1593);
+  const [isDangerousCargo, setIsDangerousCargo] = useState<boolean>(false);
+  const [customsType, setCustomsType] = useState<string>("import");
+  const [flagCategory, setFlagCategory] = useState<string>("turkish");
+  const [dtoCategory, setDtoCategory] = useState<string>("turkish");
+  const [lighthouseCategory, setLighthouseCategory] = useState<string>("turkish");
+  const [vtsCategory, setVtsCategory] = useState<string>("turkish");
+  const [wharfageCategory, setWharfageCategory] = useState<string>("foreign");
+  const [usdTryRate, setUsdTryRate] = useState<number>(43.86);
+  const [eurTryRate, setEurTryRate] = useState<number>(51.73);
   const [toCompany, setToCompany] = useState<string>("");
   const [toCountry, setToCountry] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
@@ -38,19 +48,21 @@ export default function ProformaNew() {
   const [calculatedItems, setCalculatedItems] = useState<ProformaLineItem[] | null>(null);
   const [totalUsd, setTotalUsd] = useState<number>(0);
   const [totalEur, setTotalEur] = useState<number>(0);
+  const [eurUsdParity, setEurUsdParity] = useState<number>(1.178);
 
   const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
   const { data: ports, isLoading: portsLoading } = useQuery<Port[]>({ queryKey: ["/api/ports"] });
 
   const calculateMutation = useMutation({
-    mutationFn: async (params: { vesselId: number; portId: number; berthStayDays: number; cargoQuantity?: number; purposeOfCall: string; exchangeRate: number }) => {
+    mutationFn: async (params: Record<string, unknown>) => {
       const res = await apiRequest("POST", "/api/proformas/calculate", params);
       return res.json();
     },
-    onSuccess: (data: { lineItems: ProformaLineItem[]; totalUsd: number; totalEur: number }) => {
+    onSuccess: (data: { lineItems: ProformaLineItem[]; totalUsd: number; totalEur: number; eurUsdParity: number }) => {
       setCalculatedItems(data.lineItems);
       setTotalUsd(data.totalUsd);
       setTotalEur(data.totalEur);
+      if (data.eurUsdParity) setEurUsdParity(data.eurUsdParity);
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
@@ -92,29 +104,28 @@ export default function ProformaNew() {
   });
 
   const triggerCalculation = useCallback(() => {
-    if (!selectedVessel || !selectedPort) return;
+    if (!selectedVessel || !selectedPort) {
+      toast({ title: "Please select a vessel and port first", variant: "destructive" });
+      return;
+    }
     calculateMutation.mutate({
       vesselId: parseInt(selectedVessel),
       portId: parseInt(selectedPort),
       berthStayDays,
+      anchorageDays,
       cargoQuantity: cargoQuantity ? parseFloat(cargoQuantity) : undefined,
       purposeOfCall,
-      exchangeRate,
+      isDangerousCargo,
+      customsType,
+      flagCategory,
+      dtoCategory,
+      lighthouseCategory,
+      vtsCategory,
+      wharfageCategory,
+      usdTryRate,
+      eurTryRate,
     });
-  }, [selectedVessel, selectedPort, berthStayDays, cargoQuantity, purposeOfCall, exchangeRate]);
-
-  useEffect(() => {
-    if (selectedVessel && selectedPort) {
-      const timer = setTimeout(() => {
-        triggerCalculation();
-      }, 300);
-      return () => clearTimeout(timer);
-    } else {
-      setCalculatedItems(null);
-      setTotalUsd(0);
-      setTotalEur(0);
-    }
-  }, [selectedVessel, selectedPort, berthStayDays, cargoQuantity, purposeOfCall, exchangeRate]);
+  }, [selectedVessel, selectedPort, berthStayDays, anchorageDays, cargoQuantity, purposeOfCall, isDangerousCargo, customsType, flagCategory, dtoCategory, lighthouseCategory, vtsCategory, wharfageCategory, usdTryRate, eurTryRate]);
 
   const handleSave = () => {
     if (!calculatedItems || !selectedVessel || !selectedPort) return;
@@ -128,7 +139,7 @@ export default function ProformaNew() {
       cargoQuantity: cargoQuantity ? parseFloat(cargoQuantity) : null,
       cargoUnit,
       berthStayDays,
-      exchangeRate,
+      exchangeRate: eurUsdParity,
       lineItems: calculatedItems,
       totalUsd,
       totalEur,
@@ -201,11 +212,11 @@ export default function ProformaNew() {
 
             {selectedVesselData && (
               <div className="flex flex-wrap gap-4 text-xs text-muted-foreground bg-muted/30 rounded-md p-3" data-testid="text-vessel-summary">
+                <span><strong>Flag:</strong> {selectedVesselData.flag}</span>
                 <span><strong>Type:</strong> {selectedVesselData.vesselType}</span>
                 <span><strong>GRT:</strong> {selectedVesselData.grt?.toLocaleString()}</span>
                 <span><strong>NRT:</strong> {selectedVesselData.nrt?.toLocaleString()}</span>
                 {selectedVesselData.dwt && <span><strong>DWT:</strong> {selectedVesselData.dwt?.toLocaleString()}</span>}
-                {selectedVesselData.loa && <span><strong>LOA:</strong> {selectedVesselData.loa}m</span>}
               </div>
             )}
 
@@ -226,7 +237,7 @@ export default function ProformaNew() {
                 <Input
                   type="number"
                   value={berthStayDays}
-                  onChange={(e) => setBerthStayDays(parseInt(e.target.value) || 5)}
+                  onChange={(e) => setBerthStayDays(parseInt(e.target.value) || 1)}
                   min={1}
                   max={90}
                   data-testid="input-berth-days"
@@ -253,7 +264,132 @@ export default function ProformaNew() {
                 </div>
               </div>
             </div>
+
+            <div className="flex items-center gap-3 p-3 rounded-md border bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800">
+              <AlertTriangle className="w-4 h-4 text-orange-500 shrink-0" />
+              <Label htmlFor="dangerous-cargo" className="text-sm cursor-pointer flex-1">Dangerous Cargo (IMDG)</Label>
+              <Switch
+                id="dangerous-cargo"
+                checked={isDangerousCargo}
+                onCheckedChange={setIsDangerousCargo}
+                data-testid="switch-dangerous-cargo"
+              />
+            </div>
           </Card>
+
+          <Card className="p-6 space-y-5">
+            <h2 className="font-serif font-semibold text-lg flex items-center gap-2">
+              <Settings2 className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
+              Tariff Parameters
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Customs Type</Label>
+                <Select value={customsType} onValueChange={setCustomsType}>
+                  <SelectTrigger data-testid="select-customs-type"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="import">Import (İthalat)</SelectItem>
+                    <SelectItem value="export">Export (İhracat)</SelectItem>
+                    <SelectItem value="transit">Transit</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>DTO (Chamber of Shipping)</Label>
+                <Select value={dtoCategory} onValueChange={setDtoCategory}>
+                  <SelectTrigger data-testid="select-dto"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="turkish">Turkish (Türk)</SelectItem>
+                    <SelectItem value="foreign">Foreign (Yabancı)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Wharfage / Berth Type</Label>
+                <Select value={wharfageCategory} onValueChange={setWharfageCategory}>
+                  <SelectTrigger data-testid="select-wharfage"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="foreign">Foreign (Yabancı)</SelectItem>
+                    <SelectItem value="turkish">Turkish (Türk)</SelectItem>
+                    <SelectItem value="cabotage">Cabotage (Kabotaj)</SelectItem>
+                    <SelectItem value="izmir_tcdd">İzmir/TCDD</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Lighthouse (Fener)</Label>
+                <Select value={lighthouseCategory} onValueChange={setLighthouseCategory}>
+                  <SelectTrigger data-testid="select-lighthouse"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="turkish">Turkish (Türk)</SelectItem>
+                    <SelectItem value="foreign">Foreign (Yabancı)</SelectItem>
+                    <SelectItem value="cabotage">Cabotage (Kabotaj)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>VTS</Label>
+                <Select value={vtsCategory} onValueChange={setVtsCategory}>
+                  <SelectTrigger data-testid="select-vts"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="turkish">Turkish (Türk)</SelectItem>
+                    <SelectItem value="foreign">Foreign (Yabancı)</SelectItem>
+                    <SelectItem value="cabotage">Cabotage (Kabotaj)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Anchorage Days</Label>
+                <Input
+                  type="number"
+                  value={anchorageDays}
+                  onChange={(e) => setAnchorageDays(parseInt(e.target.value) || 0)}
+                  min={0}
+                  max={90}
+                  data-testid="input-anchorage-days"
+                />
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>USD/TRY Exchange Rate</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={usdTryRate}
+                  onChange={(e) => setUsdTryRate(parseFloat(e.target.value) || 43.86)}
+                  data-testid="input-usd-try-rate"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>EUR/TRY Exchange Rate</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={eurTryRate}
+                  onChange={(e) => setEurTryRate(parseFloat(e.target.value) || 51.73)}
+                  data-testid="input-eur-try-rate"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              EUR/USD Parity: <strong>{(eurTryRate / usdTryRate).toFixed(6)}</strong>
+            </p>
+          </Card>
+
+          <Button
+            className="w-full gap-2 h-12 text-base font-semibold"
+            onClick={triggerCalculation}
+            disabled={calculateMutation.isPending || !selectedVessel || !selectedPort}
+            data-testid="button-calculate"
+          >
+            {calculateMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Calculator className="w-5 h-5" />}
+            {calculateMutation.isPending ? "Calculating..." : "Calculate Proforma"}
+          </Button>
 
           <button
             type="button"
@@ -261,8 +397,8 @@ export default function ProformaNew() {
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full"
             data-testid="button-toggle-advanced"
           >
-            <Settings2 className="w-4 h-4" />
-            Additional Details (Optional)
+            <Package className="w-4 h-4" />
+            Additional Details (Company, Notes)
             {showAdvanced ? <ChevronUp className="w-4 h-4 ml-auto" /> : <ChevronDown className="w-4 h-4 ml-auto" />}
           </button>
 
@@ -275,21 +411,11 @@ export default function ProformaNew() {
                 </div>
                 <div className="space-y-2">
                   <Label>Country</Label>
-                  <Input value={toCountry} onChange={(e) => setToCountry(e.target.value)} placeholder="e.g. U.A.E" data-testid="input-to-country" />
+                  <Input value={toCountry} onChange={(e) => setToCountry(e.target.value)} placeholder="e.g. TURKIYE" data-testid="input-to-country" />
                 </div>
                 <div className="space-y-2">
                   <Label>Cargo Type</Label>
-                  <Input value={cargoType} onChange={(e) => setCargoType(e.target.value)} placeholder="e.g. SFS, Bulk, Container..." data-testid="input-cargo-type" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Exchange Rate (USD/EUR)</Label>
-                  <Input
-                    type="number"
-                    step="0.0001"
-                    value={exchangeRate}
-                    onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 1.1593)}
-                    data-testid="input-exchange-rate"
-                  />
+                  <Input value={cargoType} onChange={(e) => setCargoType(e.target.value)} placeholder="e.g. SFS OIL, Bulk, Container..." data-testid="input-cargo-type" />
                 </div>
               </div>
               <div className="space-y-2">
@@ -299,16 +425,7 @@ export default function ProformaNew() {
             </Card>
           )}
 
-          {calculateMutation.isPending && (
-            <Card className="p-8">
-              <div className="flex items-center justify-center gap-3 text-muted-foreground">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Calculating port expenses...</span>
-              </div>
-            </Card>
-          )}
-
-          {calculatedItems && !calculateMutation.isPending && (
+          {calculatedItems && (
             <Card className="p-6 space-y-4" data-testid="card-calculation-results">
               <div className="flex items-center justify-between">
                 <h2 className="font-serif font-semibold text-lg flex items-center gap-2">
@@ -316,7 +433,7 @@ export default function ProformaNew() {
                   Proforma Disbursement Account
                 </h2>
                 <div className="text-xs text-muted-foreground">
-                  Rate: $1 = €{(1 / exchangeRate).toFixed(4)}
+                  $1 = €{(1 / eurUsdParity).toFixed(4)} | EUR/USD: {eurUsdParity.toFixed(6)}
                 </div>
               </div>
 
@@ -336,6 +453,7 @@ export default function ProformaNew() {
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-muted-foreground">
                   <Package className="w-3 h-3" />
                   {purposeOfCall} | {berthStayDays} day(s)
+                  {isDangerousCargo && " | ⚠️ IMDG"}
                 </div>
               </div>
 
@@ -345,8 +463,8 @@ export default function ProformaNew() {
                     <tr className="border-b bg-[hsl(var(--maritime-primary)/0.04)]">
                       <th className="text-left p-3 font-medium text-xs uppercase tracking-wider">#</th>
                       <th className="text-left p-3 font-medium text-xs uppercase tracking-wider">Description</th>
-                      <th className="text-right p-3 font-medium text-xs uppercase tracking-wider">USD</th>
-                      <th className="text-right p-3 font-medium text-xs uppercase tracking-wider hidden sm:table-cell">EUR</th>
+                      <th className="text-right p-3 font-medium text-xs uppercase tracking-wider">USD ($)</th>
+                      <th className="text-right p-3 font-medium text-xs uppercase tracking-wider hidden sm:table-cell">EUR (€)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -357,16 +475,20 @@ export default function ProformaNew() {
                           <span className="font-medium">{item.description}</span>
                           {item.notes && <p className="text-xs text-muted-foreground mt-0.5">{item.notes}</p>}
                         </td>
-                        <td className="p-3 text-right font-mono">{item.amountUsd.toLocaleString()}</td>
-                        <td className="p-3 text-right font-mono hidden sm:table-cell">{item.amountEur?.toLocaleString() || "-"}</td>
+                        <td className="p-3 text-right font-mono">{item.amountUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="p-3 text-right font-mono hidden sm:table-cell">{item.amountEur?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || "-"}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr className="bg-[hsl(var(--maritime-primary)/0.06)] font-bold">
                       <td className="p-3" colSpan={2}>Total Port Expenses</td>
-                      <td className="p-3 text-right font-mono text-[hsl(var(--maritime-primary))]" data-testid="text-total-usd">${totalUsd.toLocaleString()}</td>
-                      <td className="p-3 text-right font-mono text-[hsl(var(--maritime-primary))] hidden sm:table-cell" data-testid="text-total-eur">€{totalEur.toLocaleString()}</td>
+                      <td className="p-3 text-right font-mono text-[hsl(var(--maritime-primary))]" data-testid="text-total-usd">
+                        ${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="p-3 text-right font-mono text-[hsl(var(--maritime-primary))] hidden sm:table-cell" data-testid="text-total-eur">
+                        €{totalEur.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
                     </tr>
                   </tfoot>
                 </table>
@@ -391,13 +513,16 @@ export default function ProformaNew() {
                 <div className="p-4 rounded-md bg-[hsl(var(--maritime-primary)/0.05)] border border-[hsl(var(--maritime-primary)/0.1)]">
                   <p className="text-xs text-muted-foreground mb-1">Total Estimated</p>
                   <p className="text-2xl font-bold font-serif text-[hsl(var(--maritime-primary))]" data-testid="text-sidebar-total-usd">
-                    ${totalUsd.toLocaleString()}
+                    ${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
-                  <p className="text-sm text-muted-foreground font-mono">€{totalEur.toLocaleString()}</p>
+                  <p className="text-sm text-muted-foreground font-mono">
+                    €{totalEur.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
                 </div>
                 <div className="text-xs text-muted-foreground space-y-1">
                   <p>{calculatedItems.length} expense items</p>
                   <p>{berthStayDays} day(s) berth stay</p>
+                  {isDangerousCargo && <p className="text-orange-500 font-medium">⚠️ Dangerous cargo surcharge applied</p>}
                 </div>
                 <Button
                   className="w-full gap-2"
@@ -408,11 +533,6 @@ export default function ProformaNew() {
                   {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
                   Save Proforma
                 </Button>
-              </div>
-            ) : calculateMutation.isPending ? (
-              <div className="text-sm text-muted-foreground p-4 rounded-md bg-muted/30 text-center">
-                <Loader2 className="w-4 h-4 animate-spin mx-auto mb-2" />
-                Calculating...
               </div>
             ) : null}
           </Card>

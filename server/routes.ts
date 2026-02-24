@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
 import type { ProformaLineItem } from "@shared/schema";
+import { calculateProforma, type CalculationInput } from "./proforma-calculator";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -100,7 +101,14 @@ export async function registerRoutes(
 
   app.post("/api/proformas/calculate", isAuthenticated, async (req: any, res) => {
     try {
-      const { vesselId, portId, berthStayDays = 5, cargoQuantity, purposeOfCall = "Loading", exchangeRate: reqExchangeRate } = req.body;
+      const {
+        vesselId, portId, berthStayDays = 5, cargoQuantity,
+        anchorageDays = 0, isDangerousCargo = false,
+        customsType = "import", flagCategory = "turkish",
+        dtoCategory = "turkish", lighthouseCategory = "turkish",
+        vtsCategory = "turkish", wharfageCategory = "foreign",
+        usdTryRate = 43.86, eurTryRate = 51.73
+      } = req.body;
       const userId = req.user.claims.sub;
 
       if (!vesselId || !portId) {
@@ -113,70 +121,35 @@ export async function registerRoutes(
       const port = await storage.getPort(Number(portId));
       if (!port) return res.status(404).json({ message: "Port not found" });
 
-      const categories = await storage.getTariffCategories(port.id);
-      const lineItems: ProformaLineItem[] = [];
-      let totalUsd = 0;
-      const exchangeRate = Number(reqExchangeRate) || 1.1593;
-      const days = Number(berthStayDays) || 5;
-      const cargo = cargoQuantity ? Number(cargoQuantity) : 0;
+      const usdRate = Number(usdTryRate) || 43.86;
+      const eurRate = Number(eurTryRate) || 51.73;
+      const eurUsdParity = eurRate / usdRate;
 
-      for (const cat of categories) {
-        let amount = 0;
-        const rates = await storage.getTariffRates(cat.id);
+      const calcInput: CalculationInput = {
+        nrt: vessel.nrt,
+        grt: vessel.grt,
+        cargoQuantity: cargoQuantity ? Number(cargoQuantity) : 0,
+        berthStayDays: Number(berthStayDays) || 5,
+        anchorageDays: Number(anchorageDays) || 0,
+        isDangerousCargo: isDangerousCargo === true || isDangerousCargo === "true",
+        customsType: customsType || "import",
+        flagCategory: flagCategory || "turkish",
+        dtoCategory: dtoCategory || "turkish",
+        lighthouseCategory: lighthouseCategory || "turkish",
+        vtsCategory: vtsCategory || "turkish",
+        wharfageCategory: wharfageCategory || "foreign",
+        usdTryRate: usdRate,
+        eurTryRate: eurRate,
+        eurUsdParity,
+      };
 
-        if (cat.calculationType === "grt_based") {
-          const rate = rates.find(r => vessel.grt >= r.minGrt && (r.maxGrt === null || vessel.grt <= r.maxGrt));
-          if (rate) {
-            amount = rate.rate;
-            if (cat.baseUnit === "per_1000_grt") {
-              amount = rate.rate * Math.ceil(vessel.grt / 1000);
-            }
-          }
-        } else if (cat.calculationType === "nrt_based") {
-          const rate = rates.find(r => vessel.nrt >= r.minGrt && (r.maxGrt === null || vessel.nrt <= r.maxGrt));
-          if (rate) {
-            amount = rate.rate;
-            if (cat.name.includes("Agency Fee") && days > 5) {
-              const extraPeriods = Math.ceil((days - 5) / 3);
-              amount = amount * (1 + 0.25 * extraPeriods);
-            }
-          }
-        } else if (cat.calculationType === "per_day") {
-          const rate = rates[0];
-          if (rate) {
-            amount = rate.rate * days;
-          }
-        } else if (cat.calculationType === "cargo_based") {
-          const rate = rates.find(r => cargo >= r.minGrt && (r.maxGrt === null || cargo <= r.maxGrt));
-          if (rate) {
-            amount = rate.rate;
-          }
-        } else {
-          const rate = rates[0];
-          if (rate) {
-            amount = rate.rate;
-          }
-        }
-
-        if (amount > 0) {
-          let notes = cat.description || undefined;
-          if (cat.overtimeRate && cat.overtimeRate > 0) {
-            notes = `${Math.round(cat.overtimeRate * 100)}% overtime will applicable on National/Religious holidays & Sundays`;
-          }
-
-          const roundedAmount = Math.round(amount);
-          const amountEur = Math.round(roundedAmount / exchangeRate);
-          lineItems.push({
-            description: cat.name,
-            amountUsd: roundedAmount,
-            amountEur,
-            notes,
-          });
-          totalUsd += roundedAmount;
-        }
-      }
-
-      res.json({ lineItems, totalUsd, totalEur: Math.round(totalUsd / exchangeRate) });
+      const result = calculateProforma(calcInput);
+      res.json({
+        lineItems: result.lineItems,
+        totalUsd: result.totalUsd,
+        totalEur: result.totalEur,
+        eurUsdParity: Math.round(eurUsdParity * 1000000) / 1000000,
+      });
     } catch (error) {
       console.error("Calculate error:", error);
       res.status(500).json({ message: "Failed to calculate expenses" });
