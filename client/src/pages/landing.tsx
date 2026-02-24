@@ -1,9 +1,10 @@
-import { Ship, FileText, BarChart3, Shield, Globe, ArrowRight, Waves, Check, Zap, Crown, Star, Building2, User, Activity } from "lucide-react";
+import { Ship, FileText, BarChart3, Shield, Globe, ArrowRight, Waves, Check, Zap, Crown, Star, Building2, User, Activity, Anchor, Users, Briefcase } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 interface ActivityItem {
   type: string;
@@ -137,9 +138,69 @@ function LiveActivityTicker() {
   );
 }
 
+const WELCOME_KEY = "vesselPDA_welcomed";
+
 export default function Landing() {
+  const [showWelcome, setShowWelcome] = useState(() => {
+    try { return !localStorage.getItem(WELCOME_KEY); } catch { return true; }
+  });
+
+  function closeWelcome() {
+    try { localStorage.setItem(WELCOME_KEY, "1"); } catch {}
+    setShowWelcome(false);
+  }
+
   return (
     <div className="min-h-screen bg-background">
+      <Dialog open={showWelcome} onOpenChange={(open) => { if (!open) closeWelcome(); }}>
+        <DialogContent className="max-w-2xl p-0 overflow-hidden gap-0" data-testid="dialog-welcome">
+          <div className="bg-[hsl(var(--maritime-primary))] px-8 py-7 flex items-center gap-4">
+            <img src="/logo.png" alt="VesselPDA" className="w-14 h-14 rounded-xl object-contain bg-white/10 p-1 flex-shrink-0" />
+            <div>
+              <h2 className="font-serif text-2xl font-bold text-white tracking-tight">VesselPDA'ya Hoş Geldiniz</h2>
+              <p className="text-white/75 text-sm mt-1">Denizcilik profesyonelleri için geliştirilmiş dijital platform</p>
+            </div>
+          </div>
+
+          <div className="px-8 py-6 space-y-6">
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              <strong className="text-foreground">VesselPDA</strong>, gemi acentelerinin anlık proforma borçlandırma hesabı (Disbursement Account) üretmesini sağlayan ve gemi sahiplerini denizcilik servis sağlayıcılarıyla buluşturan profesyonel bir denizcilik platformudur. Türkiye'nin 804 limanına ait tarife verileri ile formül tabanlı 22 kalem hesaplama motoru içerir.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-lg border bg-card p-4 space-y-2">
+                <div className="w-9 h-9 rounded-md bg-blue-500/10 flex items-center justify-center">
+                  <Anchor className="w-5 h-5 text-blue-600" />
+                </div>
+                <p className="font-semibold text-sm">Gemi Sahibi / Broker</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">Proforma faturalarını görüntüleyin, rehberden acente ve tedarikçi bulun, filosunuzu yönetin.</p>
+              </div>
+              <div className="rounded-lg border bg-card p-4 space-y-2">
+                <div className="w-9 h-9 rounded-md bg-emerald-500/10 flex items-center justify-center">
+                  <Briefcase className="w-5 h-5 text-emerald-600" />
+                </div>
+                <p className="font-semibold text-sm">Gemi Acentesi</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">Saniyeler içinde proforma üretin, şirket profili oluşturun ve denizcilik rehberinde yer alın.</p>
+              </div>
+              <div className="rounded-lg border bg-card p-4 space-y-2">
+                <div className="w-9 h-9 rounded-md bg-amber-500/10 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-amber-600" />
+                </div>
+                <p className="font-semibold text-sm">Servis Sağlayıcı</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">Şirket profilinizi oluşturun, hizmet verdiğiniz limanlarda görünür olun ve müşteri kazanın.</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <p className="text-xs text-muted-foreground">Bu mesaj bir daha gösterilmeyecek.</p>
+              <Button onClick={closeWelcome} className="gap-2" data-testid="button-welcome-close">
+                Platforma Gir
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/80 border-b">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
