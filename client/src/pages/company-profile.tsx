@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
-import { Building2, Phone, Mail, Globe, MapPin, Save, Loader2, Check, X } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Building2, Phone, Mail, Globe, MapPin, Save, Loader2, Check, X, Upload, Trash2, Image } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +39,8 @@ export default function CompanyProfilePage() {
   const [selectedPorts, setSelectedPorts] = useState<number[]>([]);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [portSearch, setPortSearch] = useState("");
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (profile) {
@@ -53,6 +55,7 @@ export default function CompanyProfilePage() {
       setCountry(profile.country || "Turkey");
       setSelectedPorts((profile.servedPorts as number[]) || []);
       setSelectedServices((profile.serviceTypes as string[]) || []);
+      setLogoPreview(profile.logoUrl || null);
     }
   }, [profile]);
 
@@ -74,6 +77,62 @@ export default function CompanyProfilePage() {
       toast({ title: "Failed to save profile", description: error.message, variant: "destructive" });
     },
   });
+
+  const logoUploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("logo", file);
+      const res = await fetch("/api/company-profile/logo", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Upload failed");
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setLogoPreview(data.logoUrl);
+      queryClient.invalidateQueries({ queryKey: ["/api/company-profile/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/directory"] });
+      toast({ title: "Logo uploaded successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to upload logo", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const logoDeleteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", "/api/company-profile/logo");
+      return res.json();
+    },
+    onSuccess: () => {
+      setLogoPreview(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/company-profile/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/directory"] });
+      toast({ title: "Logo removed" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to remove logo", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Maximum file size is 2MB", variant: "destructive" });
+      return;
+    }
+    if (!profile) {
+      toast({ title: "Save your profile first", description: "Create your company profile before uploading a logo", variant: "destructive" });
+      return;
+    }
+    logoUploadMutation.mutate(file);
+  };
 
   const handleSave = () => {
     if (!companyName.trim()) {
@@ -135,6 +194,70 @@ export default function CompanyProfilePage() {
           <Building2 className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
           Company Information
         </h2>
+
+        <div className="space-y-3">
+          <Label className="flex items-center gap-2">
+            <Image className="w-4 h-4" />
+            Company Logo
+          </Label>
+          <div className="flex items-center gap-4">
+            <div className="w-20 h-20 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center overflow-hidden bg-muted/30 flex-shrink-0">
+              {logoPreview ? (
+                <img
+                  src={logoPreview}
+                  alt="Company logo"
+                  className="w-full h-full object-contain"
+                  data-testid="img-logo-preview"
+                />
+              ) : (
+                <Building2 className="w-8 h-8 text-muted-foreground/30" />
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleLogoSelect}
+                  accept=".png,.jpg,.jpeg,.webp,.svg"
+                  className="hidden"
+                  data-testid="input-logo-file"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={logoUploadMutation.isPending || !profile}
+                  className="gap-1.5"
+                  data-testid="button-upload-logo"
+                >
+                  {logoUploadMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                  {logoPreview ? "Change Logo" : "Upload Logo"}
+                </Button>
+                {logoPreview && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => logoDeleteMutation.mutate()}
+                    disabled={logoDeleteMutation.isPending}
+                    className="gap-1.5 text-destructive hover:text-destructive"
+                    data-testid="button-remove-logo"
+                  >
+                    {logoDeleteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                    Remove
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                PNG, JPG, WEBP, or SVG. Max 2MB.{!profile && " Save your profile first to upload a logo."}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <Separator />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">

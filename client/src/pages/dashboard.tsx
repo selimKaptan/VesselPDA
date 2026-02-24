@@ -355,8 +355,10 @@ export default function Dashboard() {
             {featured.slice(0, 3).map((profile) => (
               <Card key={profile.id} className="p-5 border-amber-200 dark:border-amber-800 space-y-3" data-testid={`card-featured-${profile.id}`}>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-md bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center flex-shrink-0">
-                    {profile.companyType === "agent" ? (
+                  <div className="w-10 h-10 rounded-md bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    {profile.logoUrl ? (
+                      <img src={profile.logoUrl} alt={profile.companyName} className="w-full h-full object-contain" />
+                    ) : profile.companyType === "agent" ? (
                       <Anchor className="w-5 h-5 text-amber-600" />
                     ) : (
                       <Building2 className="w-5 h-5 text-amber-600" />

@@ -319,8 +319,10 @@ function CompanyCard({ profile, getPortName, isFeatured }: { profile: CompanyPro
       data-testid={`card-company-${profile.id}`}
     >
       <div className="flex items-start gap-4">
-        <div className={`w-14 h-14 rounded-lg flex items-center justify-center flex-shrink-0 ${isFeatured ? "bg-amber-100 dark:bg-amber-900/30" : "bg-[hsl(var(--maritime-primary)/0.08)]"}`}>
-          {profile.companyType === "agent" ? (
+        <div className={`w-14 h-14 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden ${isFeatured ? "bg-amber-100 dark:bg-amber-900/30" : "bg-[hsl(var(--maritime-primary)/0.08)]"}`}>
+          {profile.logoUrl ? (
+            <img src={profile.logoUrl} alt={profile.companyName} className="w-full h-full object-contain" data-testid={`img-company-logo-${profile.id}`} />
+          ) : profile.companyType === "agent" ? (
             <Anchor className={`w-7 h-7 ${isFeatured ? "text-amber-600" : "text-[hsl(var(--maritime-primary))]"}`} />
           ) : (
             <Building2 className={`w-7 h-7 ${isFeatured ? "text-amber-600" : "text-[hsl(var(--maritime-primary))]"}`} />

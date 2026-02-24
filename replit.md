@@ -51,6 +51,8 @@ A professional web-based maritime platform for ship agents to create instant pro
 - `GET /api/company-profile/me` - Get current user's company profile
 - `POST /api/company-profile` - Create company profile (agents/providers only)
 - `PATCH /api/company-profile/:id` - Update own company profile (sanitized fields)
+- `POST /api/company-profile/logo` - Upload company logo (multipart form, max 2MB)
+- `DELETE /api/company-profile/logo` - Remove company logo
 - `GET /api/directory` - Public directory listing with type and port filters
 - `GET /api/directory/featured` - Featured companies
 - `GET /api/directory/:id` - Single company profile

@@ -19,6 +19,7 @@ interface ServicePortCompany {
   phone: string | null;
   email: string | null;
   website: string | null;
+  logoUrl: string | null;
 }
 
 interface ServicePortEntry {
@@ -210,7 +211,12 @@ export default function ServicePorts() {
 function CompanyCard({ company }: { company: ServicePortCompany }) {
   return (
     <Card className={`p-3 ${company.isFeatured ? "border-amber-300/50 bg-amber-50/30 dark:bg-amber-950/10" : ""}`} data-testid={`card-company-${company.id}`}>
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start gap-3">
+        {company.logoUrl && (
+          <div className="w-9 h-9 rounded-md border overflow-hidden flex-shrink-0 bg-white flex items-center justify-center">
+            <img src={company.logoUrl} alt={company.companyName} className="w-full h-full object-contain" data-testid={`img-service-logo-${company.id}`} />
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
             <span className="font-medium text-sm truncate">{company.companyName}</span>

@@ -1,9 +1,40 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import path from "path";
+import fs from "fs";
+import multer from "multer";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
 import type { ProformaLineItem } from "@shared/schema";
 import { calculateProforma, type CalculationInput } from "./proforma-calculator";
+
+const uploadsDir = path.join(process.cwd(), "uploads", "logos");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const logoStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const uniqueName = `logo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
+    cb(null, uniqueName);
+  },
+});
+
+const uploadLogo = multer({
+  storage: logoStorage,
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = [".png", ".jpg", ".jpeg", ".webp", ".svg"];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only PNG, JPG, WEBP, SVG files are allowed"));
+    }
+  },
+});
 
 export async function registerRoutes(
   httpServer: Server,
@@ -11,6 +42,8 @@ export async function registerRoutes(
 ): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
+
+  app.use("/uploads", (await import("express")).default.static(path.join(process.cwd(), "uploads")));
 
   async function isAdmin(req: any): Promise<boolean> {
     const userId = req.user?.claims?.sub;
@@ -350,6 +383,51 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/company-profile/logo", isAuthenticated, uploadLogo.single("logo"), async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profile = await storage.getCompanyProfileByUser(userId);
+      if (!profile) return res.status(404).json({ message: "Create a company profile first" });
+      if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
+      if (profile.logoUrl) {
+        const oldPath = path.join(process.cwd(), profile.logoUrl.replace(/^\//, ""));
+        if (fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+        }
+      }
+
+      const logoUrl = `/uploads/logos/${req.file.filename}`;
+      const updated = await storage.updateCompanyProfile(profile.id, userId, { logoUrl });
+      res.json({ logoUrl, profile: updated });
+    } catch (error: any) {
+      if (error.message?.includes("Only PNG")) {
+        return res.status(400).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Failed to upload logo" });
+    }
+  });
+
+  app.delete("/api/company-profile/logo", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profile = await storage.getCompanyProfileByUser(userId);
+      if (!profile) return res.status(404).json({ message: "Profile not found" });
+
+      if (profile.logoUrl) {
+        const oldPath = path.join(process.cwd(), profile.logoUrl.replace(/^\//, ""));
+        if (fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+        }
+      }
+
+      const updated = await storage.updateCompanyProfile(profile.id, userId, { logoUrl: null });
+      res.json({ success: true, profile: updated });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to remove logo" });
+    }
+  });
+
   app.get("/api/admin/users", isAuthenticated, async (req: any, res) => {
     try {
       if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
@@ -425,6 +503,7 @@ export async function registerRoutes(
             phone: profile.phone,
             email: profile.email,
             website: profile.website,
+            logoUrl: profile.logoUrl,
           });
         }
       }
