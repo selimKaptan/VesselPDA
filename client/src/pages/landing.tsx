@@ -1,6 +1,7 @@
-import { Ship, Anchor, FileText, BarChart3, Shield, Globe, ArrowRight, Waves } from "lucide-react";
+import { Ship, Anchor, FileText, BarChart3, Shield, Globe, ArrowRight, Waves, Check, Zap, Crown, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 export default function Landing() {
   return (
@@ -182,6 +183,110 @@ export default function Landing() {
                 <p className="text-muted-foreground text-sm leading-relaxed max-w-xs mx-auto">{item.desc}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="pricing" className="py-20 md:py-28">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16 space-y-4">
+            <Badge variant="outline" className="px-4 py-1.5 text-sm font-medium border-[hsl(var(--maritime-accent))] text-[hsl(var(--maritime-accent))]" data-testid="badge-pricing">
+              <Star className="w-3.5 h-3.5 mr-1.5" />
+              Pricing Plans
+            </Badge>
+            <h2 className="font-serif text-3xl md:text-4xl font-bold tracking-tight">
+              Choose Your Plan
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
+              Start free and scale as your business grows. All plans include access to 800+ Turkish ports.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            <Card className="relative p-8 space-y-6 border-border/60 hover-elevate" data-testid="card-plan-free">
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center">
+                  <Zap className="w-6 h-6 text-[hsl(var(--maritime-primary))]" />
+                </div>
+                <h3 className="font-serif font-bold text-xl">Free</h3>
+                <p className="text-sm text-muted-foreground">Perfect for trying out the platform</p>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="font-serif text-4xl font-bold">$0</span>
+                <span className="text-muted-foreground text-sm">/forever</span>
+              </div>
+              <ul className="space-y-3">
+                {["1 proforma generation", "1 vessel registration", "All Turkish ports access", "Basic tariff calculations", "PDF export"].map((feature, i) => (
+                  <li key={i} className="flex items-start gap-2.5 text-sm">
+                    <Check className="w-4 h-4 text-[hsl(var(--maritime-success))] flex-shrink-0 mt-0.5" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <a href="/api/login" className="block">
+                <Button variant="outline" className="w-full" size="lg" data-testid="button-plan-free">
+                  Get Started Free
+                </Button>
+              </a>
+            </Card>
+
+            <Card className="relative p-8 space-y-6 border-[hsl(var(--maritime-accent))] border-2 shadow-lg shadow-[hsl(var(--maritime-accent)/0.1)] hover-elevate" data-testid="card-plan-standard">
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                <Badge className="bg-[hsl(var(--maritime-accent))] text-white px-4 py-1 text-xs font-semibold shadow-md">
+                  MOST POPULAR
+                </Badge>
+              </div>
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-lg bg-[hsl(var(--maritime-accent)/0.1)] flex items-center justify-center">
+                  <Ship className="w-6 h-6 text-[hsl(var(--maritime-accent))]" />
+                </div>
+                <h3 className="font-serif font-bold text-xl">Standard</h3>
+                <p className="text-sm text-muted-foreground">For active ship agents</p>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="font-serif text-4xl font-bold">$29</span>
+                <span className="text-muted-foreground text-sm">/10 proformas</span>
+              </div>
+              <ul className="space-y-3">
+                {["10 proforma generations", "Unlimited vessel registration", "All Turkish ports access", "Advanced tariff calculations", "PDF export & printing", "Priority support"].map((feature, i) => (
+                  <li key={i} className="flex items-start gap-2.5 text-sm">
+                    <Check className="w-4 h-4 text-[hsl(var(--maritime-accent))] flex-shrink-0 mt-0.5" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <a href="/api/login" className="block">
+                <Button className="w-full bg-[hsl(var(--maritime-accent))] hover:bg-[hsl(var(--maritime-accent)/0.9)] text-white" size="lg" data-testid="button-plan-standard">
+                  Choose Standard
+                </Button>
+              </a>
+            </Card>
+
+            <Card className="relative p-8 space-y-6 border-border/60 hover-elevate bg-gradient-to-b from-[hsl(var(--maritime-primary)/0.03)] to-transparent" data-testid="card-plan-unlimited">
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center">
+                  <Crown className="w-6 h-6 text-[hsl(var(--maritime-primary))]" />
+                </div>
+                <h3 className="font-serif font-bold text-xl">Unlimited</h3>
+                <p className="text-sm text-muted-foreground">For large-scale operations</p>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="font-serif text-4xl font-bold">$79</span>
+                <span className="text-muted-foreground text-sm">/month</span>
+              </div>
+              <ul className="space-y-3">
+                {["Unlimited proforma generations", "Unlimited vessel registration", "All Turkish ports access", "Advanced tariff calculations", "PDF export & printing", "Priority support", "Custom branding", "API access"].map((feature, i) => (
+                  <li key={i} className="flex items-start gap-2.5 text-sm">
+                    <Check className="w-4 h-4 text-[hsl(var(--maritime-primary))] flex-shrink-0 mt-0.5" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <a href="/api/login" className="block">
+                <Button variant="outline" className="w-full border-[hsl(var(--maritime-primary))] text-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-primary)/0.05)]" size="lg" data-testid="button-plan-unlimited">
+                  Choose Unlimited
+                </Button>
+              </a>
+            </Card>
           </div>
         </div>
       </section>

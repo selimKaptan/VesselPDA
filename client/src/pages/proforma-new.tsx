@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useEffect, useCallback } from "react";
-import { FileText, Ship, Globe, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Settings2, Package } from "lucide-react";
+import { FileText, Ship, Globe, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Settings2, Package, Crown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,10 +72,19 @@ export default function ProformaNew() {
       toast({ title: "Proforma created successfully" });
       setLocation(`/proformas/${data.id}`);
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
       if (isUnauthorizedError(error)) {
         toast({ title: "Session expired", variant: "destructive" });
         setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        return;
+      }
+      if (error.message?.includes("limit reached") || error.message?.includes("LIMIT_REACHED") || error.message?.includes("upgrade")) {
+        toast({
+          title: "Proforma Limit Reached",
+          description: "You've used all proformas in your plan. Upgrade to continue.",
+          variant: "destructive",
+        });
+        setTimeout(() => { setLocation("/pricing"); }, 1500);
         return;
       }
       toast({ title: "Failed to create proforma", description: error.message, variant: "destructive" });

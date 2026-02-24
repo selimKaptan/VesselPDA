@@ -186,6 +186,22 @@ export async function registerRoutes(
   app.post("/api/proformas", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+
+      const user = await storage.getUser(userId);
+      if (user) {
+        const limit = user.proformaLimit ?? 1;
+        const count = user.proformaCount ?? 0;
+        if (user.subscriptionPlan !== "unlimited" && count >= limit) {
+          return res.status(403).json({
+            message: "Proforma limit reached. Please upgrade your plan to generate more proformas.",
+            code: "LIMIT_REACHED",
+            currentPlan: user.subscriptionPlan,
+            proformaCount: count,
+            proformaLimit: limit,
+          });
+        }
+      }
+
       const { vesselId, portId, lineItems, totalUsd } = req.body;
       if (!vesselId || !portId || !lineItems || totalUsd === undefined) {
         return res.status(400).json({ message: "vesselId, portId, lineItems, and totalUsd are required" });
@@ -211,10 +227,35 @@ export async function registerRoutes(
         notes: req.body.notes || null,
         status: req.body.status || "draft",
       });
+
+      await storage.incrementProformaCount(userId);
+
       res.json(proforma);
     } catch (error) {
       console.error("Create proforma error:", error);
       res.status(500).json({ message: "Failed to create proforma" });
+    }
+  });
+
+  app.post("/api/subscription/upgrade", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { plan } = req.body;
+
+      const planLimits: Record<string, number> = {
+        free: 1,
+        standard: 10,
+        unlimited: 999999,
+      };
+
+      if (!plan || !planLimits[plan]) {
+        return res.status(400).json({ message: "Invalid plan. Choose: free, standard, or unlimited" });
+      }
+
+      const updated = await storage.updateSubscription(userId, plan, planLimits[plan]);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to upgrade subscription" });
     }
   });
 

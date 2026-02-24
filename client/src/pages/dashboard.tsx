@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Ship, FileText, Globe, TrendingUp, Plus, ArrowRight } from "lucide-react";
+import { Ship, FileText, Globe, TrendingUp, Plus, ArrowRight, Crown, Zap } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import type { Vessel, Proforma, Port } from "@shared/schema";
@@ -31,6 +33,56 @@ export default function Dashboard() {
           Here's an overview of your maritime operations.
         </p>
       </div>
+
+      <Card className="p-6 border-[hsl(var(--maritime-accent)/0.3)]" data-testid="card-subscription">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-lg bg-[hsl(var(--maritime-accent)/0.1)] flex items-center justify-center flex-shrink-0">
+              {user?.subscriptionPlan === "unlimited" ? (
+                <Crown className="w-6 h-6 text-[hsl(var(--maritime-accent))]" />
+              ) : (
+                <Zap className="w-6 h-6 text-[hsl(var(--maritime-accent))]" />
+              )}
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <p className="font-serif font-semibold" data-testid="text-plan-name">
+                  {user?.subscriptionPlan === "free" ? "Free Plan" :
+                   user?.subscriptionPlan === "standard" ? "Standard Plan" : "Unlimited Plan"}
+                </p>
+                <Badge
+                  variant={user?.subscriptionPlan === "unlimited" ? "default" : "outline"}
+                  className={user?.subscriptionPlan === "unlimited" ? "bg-[hsl(var(--maritime-accent))] text-white" : ""}
+                  data-testid="badge-plan"
+                >
+                  {(user?.subscriptionPlan || "free").toUpperCase()}
+                </Badge>
+              </div>
+              {user?.subscriptionPlan !== "unlimited" ? (
+                <div className="space-y-1.5">
+                  <p className="text-sm text-muted-foreground" data-testid="text-usage">
+                    {user?.proformaCount ?? 0} / {user?.proformaLimit ?? 1} proformas used
+                  </p>
+                  <Progress
+                    value={Math.min(((user?.proformaCount ?? 0) / (user?.proformaLimit ?? 1)) * 100, 100)}
+                    className="h-2 w-48"
+                  />
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground" data-testid="text-usage">Unlimited proforma generations</p>
+              )}
+            </div>
+          </div>
+          {user?.subscriptionPlan !== "unlimited" && (
+            <Link href="/pricing">
+              <Button size="sm" className="bg-[hsl(var(--maritime-accent))] hover:bg-[hsl(var(--maritime-accent)/0.9)] text-white gap-1.5" data-testid="button-upgrade">
+                <Crown className="w-3.5 h-3.5" />
+                Upgrade Plan
+              </Button>
+            </Link>
+          )}
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {stats.map((stat) => (

@@ -7,10 +7,15 @@ import {
   type Proforma, type InsertProforma,
   vessels, ports, tariffCategories, tariffRates, proformas,
 } from "@shared/schema";
+import { users } from "@shared/models/auth";
 import { db } from "./db";
-import { eq, and, lte, gte, or, isNull, desc } from "drizzle-orm";
+import { eq, and, lte, gte, or, isNull, desc, sql } from "drizzle-orm";
 
 export interface IStorage {
+  getUser(id: string): Promise<User | undefined>;
+  incrementProformaCount(userId: string): Promise<void>;
+  updateSubscription(userId: string, plan: string, limit: number): Promise<User | undefined>;
+
   getVesselsByUser(userId: string): Promise<Vessel[]>;
   getVessel(id: number, userId: string): Promise<Vessel | undefined>;
   createVessel(vessel: InsertVessel): Promise<Vessel>;
@@ -34,6 +39,25 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async incrementProformaCount(userId: string): Promise<void> {
+    await db.update(users)
+      .set({ proformaCount: sql`${users.proformaCount} + 1` })
+      .where(eq(users.id, userId));
+  }
+
+  async updateSubscription(userId: string, plan: string, limit: number): Promise<User | undefined> {
+    const [updated] = await db.update(users)
+      .set({ subscriptionPlan: plan, proformaLimit: limit, proformaCount: 0, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
   async getVesselsByUser(userId: string): Promise<Vessel[]> {
     return db.select().from(vessels).where(eq(vessels.userId, userId));
   }
