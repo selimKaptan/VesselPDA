@@ -1,0 +1,217 @@
+import { Ship, Anchor, FileText, BarChart3, Shield, Globe, ArrowRight, Waves } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+
+export default function Landing() {
+  return (
+    <div className="min-h-screen bg-background">
+      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/80 border-b">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-md bg-[hsl(var(--maritime-primary))] flex items-center justify-center">
+              <Anchor className="w-5 h-5 text-white" />
+            </div>
+            <span className="font-serif font-bold text-lg tracking-tight">MaritimePDA</span>
+          </div>
+          <div className="hidden md:flex items-center gap-8">
+            <a href="#features" className="text-sm text-muted-foreground transition-colors" data-testid="link-features">Features</a>
+            <a href="#how-it-works" className="text-sm text-muted-foreground transition-colors" data-testid="link-how-it-works">How It Works</a>
+            <a href="#pricing" className="text-sm text-muted-foreground transition-colors" data-testid="link-pricing">Pricing</a>
+          </div>
+          <a href="/api/login">
+            <Button data-testid="button-login">Sign In</Button>
+          </a>
+        </div>
+      </nav>
+
+      <section className="relative pt-32 pb-20 md:pt-40 md:pb-32">
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-[hsl(var(--maritime-accent)/0.08)] blur-3xl" />
+          <div className="absolute top-1/2 -left-20 w-72 h-72 rounded-full bg-[hsl(var(--maritime-primary)/0.06)] blur-3xl" />
+        </div>
+        <div className="max-w-7xl mx-auto px-6 relative">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            <div className="space-y-8">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[hsl(var(--maritime-accent)/0.1)] text-[hsl(var(--maritime-accent))] text-sm font-medium">
+                <Ship className="w-4 h-4" />
+                <span>Professional Maritime Solutions</span>
+              </div>
+              <h1 className="font-serif text-4xl md:text-5xl lg:text-6xl font-bold leading-tight tracking-tight">
+                Instant Proforma
+                <span className="block text-[hsl(var(--maritime-primary))]">Disbursement Accounts</span>
+              </h1>
+              <p className="text-lg text-muted-foreground max-w-lg leading-relaxed">
+                Generate professional port expense estimates in seconds. Built for ship agents, 
+                shipowners, and brokers who demand accuracy and speed.
+              </p>
+              <div className="flex flex-wrap items-center gap-4">
+                <a href="/api/login">
+                  <Button size="lg" className="gap-2" data-testid="button-get-started">
+                    Get Started Free
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </a>
+                <a href="#features">
+                  <Button variant="outline" size="lg" data-testid="button-learn-more">
+                    Learn More
+                  </Button>
+                </a>
+              </div>
+              <div className="flex flex-wrap items-center gap-6 pt-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Shield className="w-4 h-4 text-[hsl(var(--maritime-success))]" />
+                  <span>Free forever plan</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Globe className="w-4 h-4 text-[hsl(var(--maritime-accent))]" />
+                  <span>All Turkish ports</span>
+                </div>
+              </div>
+            </div>
+            <div className="relative hidden lg:block">
+              <div className="relative rounded-md shadow-xl ring-1 ring-black/5 overflow-hidden transition-transform duration-500 hover:scale-[1.02]">
+                <div className="absolute inset-0 bg-gradient-to-t from-[hsl(var(--maritime-primary)/0.4)] to-transparent z-10" />
+                <img
+                  src="/images/hero-ship.png"
+                  alt="Maritime vessel"
+                  className="w-full h-[420px] object-cover"
+                />
+                <div className="absolute bottom-6 left-6 right-6 z-20">
+                  <div className="backdrop-blur-sm bg-white/10 rounded-md p-4 border border-white/20">
+                    <div className="flex items-center gap-3 text-white">
+                      <FileText className="w-5 h-5" />
+                      <div>
+                        <p className="font-medium text-sm">MV CHELSEA 2 - Tekirdag Port</p>
+                        <p className="text-xs text-white/70">Proforma generated in 3 seconds</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="absolute -bottom-4 -right-4 w-32 h-32 rounded-full bg-[hsl(var(--maritime-accent)/0.1)] blur-2xl" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" className="py-20 md:py-28">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16 space-y-4">
+            <h2 className="font-serif text-3xl md:text-4xl font-bold tracking-tight">
+              Everything You Need for Port Disbursements
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
+              Streamline your proforma generation process with powerful tools designed for the maritime industry.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              {
+                icon: Ship,
+                title: "Fleet Management",
+                desc: "Add and manage all your vessels in one place. Track GRT, NRT, flag, and vessel specifications.",
+                color: "var(--maritime-primary)",
+              },
+              {
+                icon: FileText,
+                title: "Instant Proformas",
+                desc: "Generate professional proforma invoices in seconds based on real port tariff data.",
+                color: "var(--maritime-secondary)",
+              },
+              {
+                icon: BarChart3,
+                title: "Tariff Calculator",
+                desc: "Automated calculation engine using official port tariff rates for accurate cost estimates.",
+                color: "var(--maritime-accent)",
+              },
+              {
+                icon: Globe,
+                title: "Multi-Port Support",
+                desc: "Access tariff data for Turkish ports including Istanbul, Izmir, Tekirdag, and more.",
+                color: "var(--maritime-success)",
+              },
+              {
+                icon: Shield,
+                title: "Professional Reports",
+                desc: "Generate industry-standard proforma documents ready to send to shipowners and brokers.",
+                color: "var(--maritime-primary)",
+              },
+              {
+                icon: Waves,
+                title: "Real-Time Updates",
+                desc: "Stay current with the latest tariff rates and port regulations across all supported ports.",
+                color: "var(--maritime-secondary)",
+              },
+            ].map((feature, i) => (
+              <Card key={i} className="p-6 space-y-4 hover-elevate" data-testid={`card-feature-${i}`}>
+                <div
+                  className="w-11 h-11 rounded-md flex items-center justify-center"
+                  style={{ backgroundColor: `hsl(${feature.color} / 0.1)` }}
+                >
+                  <feature.icon className="w-5 h-5" style={{ color: `hsl(${feature.color})` }} />
+                </div>
+                <h3 className="font-serif font-semibold text-lg">{feature.title}</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">{feature.desc}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="how-it-works" className="py-20 md:py-28 bg-card/50">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16 space-y-4">
+            <h2 className="font-serif text-3xl md:text-4xl font-bold tracking-tight">
+              How It Works
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
+              Three simple steps to generate your proforma disbursement account.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              { step: "01", title: "Add Your Vessel", desc: "Enter vessel particulars including GRT, NRT, flag, and type." },
+              { step: "02", title: "Select Port", desc: "Choose the destination port and specify cargo details." },
+              { step: "03", title: "Generate Proforma", desc: "Get instant cost breakdown with official tariff calculations." },
+            ].map((item, i) => (
+              <div key={i} className="text-center space-y-4" data-testid={`step-${i}`}>
+                <div className="w-16 h-16 rounded-full bg-[hsl(var(--maritime-primary))] text-white flex items-center justify-center mx-auto font-serif font-bold text-xl">
+                  {item.step}
+                </div>
+                <h3 className="font-serif font-semibold text-xl">{item.title}</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed max-w-xs mx-auto">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-20 md:py-28">
+        <div className="max-w-4xl mx-auto px-6 text-center space-y-8">
+          <h2 className="font-serif text-3xl md:text-4xl font-bold tracking-tight">
+            Ready to Streamline Your Port Operations?
+          </h2>
+          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+            Join maritime professionals who trust MaritimePDA for accurate and instant proforma generation.
+          </p>
+          <a href="/api/login">
+            <Button size="lg" className="gap-2" data-testid="button-cta-bottom">
+              Start Generating Proformas
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+          </a>
+        </div>
+      </section>
+
+      <footer className="border-t py-8">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Anchor className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+            <span className="text-sm font-medium">MaritimePDA</span>
+          </div>
+          <p className="text-sm text-muted-foreground">&copy; {new Date().getFullYear()} MaritimePDA. All rights reserved.</p>
+        </div>
+      </footer>
+    </div>
+  );
+}

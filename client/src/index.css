@@ -43,9 +43,13 @@
   --chart-3: 185 75% 32%;
   --chart-4: 175 70% 28%;
   --chart-5: 165 65% 30%;
-  --font-sans: Open Sans, sans-serif;
-  --font-serif: Georgia, serif;
-  --font-mono: Menlo, monospace;
+  --font-sans: Inter, sans-serif;
+  --font-serif: Montserrat, sans-serif;
+  --font-mono: 'Roboto Mono', monospace;
+  --maritime-primary: 205 100% 24%;
+  --maritime-secondary: 202 100% 37%;
+  --maritime-accent: 195 100% 44%;
+  --maritime-success: 162 100% 39%;
   --radius: .5rem;
   --shadow-2xs: 0px 2px 0px 0px hsl(210 15% 20% / 0.03);
   --shadow-xs: 0px 2px 0px 0px hsl(210 15% 20% / 0.05);
