@@ -29,6 +29,7 @@ interface TopicDetail {
   id: number;
   title: string;
   content: string;
+  isAnonymous: boolean;
   userId: string;
   viewCount: number;
   replyCount: number;
@@ -118,7 +119,9 @@ export default function ForumTopic() {
   };
 
   const authorInitials = topic
-    ? `${topic.authorFirstName?.[0] || ""}${topic.authorLastName?.[0] || ""}`.toUpperCase() || "U"
+    ? topic.isAnonymous
+      ? "?"
+      : `${topic.authorFirstName?.[0] || ""}${topic.authorLastName?.[0] || ""}`.toUpperCase() || "U"
     : "U";
 
   return (
@@ -165,8 +168,8 @@ export default function ForumTopic() {
             <Card className="p-6 mb-6">
               <div className="flex items-start gap-4">
                 <Avatar className="w-10 h-10 flex-shrink-0">
-                  <AvatarImage src={topic.authorImage || undefined} />
-                  <AvatarFallback className="bg-[hsl(var(--maritime-primary))] text-white text-sm">{authorInitials}</AvatarFallback>
+                  {!topic.isAnonymous && <AvatarImage src={topic.authorImage || undefined} />}
+                  <AvatarFallback className={topic.isAnonymous ? "bg-muted text-muted-foreground text-sm" : "bg-[hsl(var(--maritime-primary))] text-white text-sm"}>{authorInitials}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2 mb-2">
@@ -197,8 +200,8 @@ export default function ForumTopic() {
                       <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: topic.categoryColor }} />
                       {topic.categoryName}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {topic.authorFirstName} {topic.authorLastName}
+                    <span className="text-xs text-muted-foreground italic">
+                      {topic.isAnonymous ? "Anonim Kullanıcı" : `${topic.authorFirstName || ""} ${topic.authorLastName || ""}`.trim()}
                     </span>
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Clock className="w-3 h-3" /> {formatDateTime(topic.createdAt)}

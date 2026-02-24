@@ -126,6 +126,7 @@ export const forumTopics = pgTable("forum_topics", {
   userId: varchar("user_id").notNull().references(() => users.id),
   title: text("title").notNull(),
   content: text("content").notNull(),
+  isAnonymous: boolean("is_anonymous").notNull().default(false),
   viewCount: integer("view_count").notNull().default(0),
   replyCount: integer("reply_count").notNull().default(0),
   isPinned: boolean("is_pinned").notNull().default(false),

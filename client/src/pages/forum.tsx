@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -38,6 +39,7 @@ interface ForumTopicListItem {
   id: number;
   title: string;
   content: string;
+  isAnonymous: boolean;
   viewCount: number;
   replyCount: number;
   isPinned: boolean;
@@ -83,6 +85,7 @@ export default function Forum() {
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [newCategoryId, setNewCategoryId] = useState("");
+  const [newIsAnonymous, setNewIsAnonymous] = useState(false);
   const [deleteTopicId, setDeleteTopicId] = useState<number | null>(null);
 
   const { data: categories } = useQuery<ForumCategory[]>({
@@ -106,7 +109,7 @@ export default function Forum() {
   });
 
   const createTopicMutation = useMutation({
-    mutationFn: async (data: { title: string; content: string; categoryId: number }) => {
+    mutationFn: async (data: { title: string; content: string; categoryId: number; isAnonymous: boolean }) => {
       const res = await apiRequest("POST", "/api/forum/topics", data);
       return res.json();
     },
@@ -117,6 +120,7 @@ export default function Forum() {
       setNewTitle("");
       setNewContent("");
       setNewCategoryId("");
+      setNewIsAnonymous(false);
       toast({ title: "Topic created", description: "Your discussion topic has been posted." });
     },
     onError: (err: any) => {
@@ -152,6 +156,7 @@ export default function Forum() {
       title: newTitle.trim(),
       content: newContent.trim(),
       categoryId: Number(newCategoryId),
+      isAnonymous: newIsAnonymous,
     });
   };
 
@@ -314,21 +319,32 @@ export default function Forum() {
                         <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: topic.categoryColor }} />
                         {topic.categoryName}
                       </Badge>
-                      <div className="flex items-center -space-x-1.5">
-                        <Avatar className="w-5 h-5 border-2 border-background">
-                          <AvatarImage src={topic.authorImage || undefined} />
-                          <AvatarFallback className="text-[8px] bg-[hsl(var(--maritime-primary))] text-white">
-                            {(topic.authorFirstName?.[0] || "") + (topic.authorLastName?.[0] || "")}
-                          </AvatarFallback>
-                        </Avatar>
-                        {topic.participants?.slice(0, 4).map((p, i) => (
-                          <Avatar key={i} className="w-5 h-5 border-2 border-background">
-                            <AvatarImage src={p.profileImageUrl || undefined} />
-                            <AvatarFallback className="text-[8px] bg-muted">
-                              {(p.firstName?.[0] || "") + (p.lastName?.[0] || "")}
-                            </AvatarFallback>
-                          </Avatar>
-                        ))}
+                      <div className="flex items-center gap-1.5">
+                        {topic.isAnonymous ? (
+                          <div className="flex items-center gap-1">
+                            <Avatar className="w-5 h-5 border-2 border-background">
+                              <AvatarFallback className="text-[8px] bg-muted text-muted-foreground">?</AvatarFallback>
+                            </Avatar>
+                            <span className="text-[10px] text-muted-foreground italic">Anonim</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center -space-x-1.5">
+                            <Avatar className="w-5 h-5 border-2 border-background">
+                              <AvatarImage src={topic.authorImage || undefined} />
+                              <AvatarFallback className="text-[8px] bg-[hsl(var(--maritime-primary))] text-white">
+                                {(topic.authorFirstName?.[0] || "") + (topic.authorLastName?.[0] || "")}
+                              </AvatarFallback>
+                            </Avatar>
+                            {topic.participants?.slice(0, 4).map((p, i) => (
+                              <Avatar key={i} className="w-5 h-5 border-2 border-background">
+                                <AvatarImage src={p.profileImageUrl || undefined} />
+                                <AvatarFallback className="text-[8px] bg-muted">
+                                  {(p.firstName?.[0] || "") + (p.lastName?.[0] || "")}
+                                </AvatarFallback>
+                              </Avatar>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -416,6 +432,18 @@ export default function Forum() {
                 rows={6}
                 data-testid="input-topic-content"
               />
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+              <Checkbox
+                id="anonymous-check"
+                checked={newIsAnonymous}
+                onCheckedChange={(checked) => setNewIsAnonymous(checked === true)}
+                data-testid="checkbox-anonymous"
+              />
+              <div>
+                <Label htmlFor="anonymous-check" className="font-medium cursor-pointer">Anonim olarak paylaş</Label>
+                <p className="text-[11px] text-muted-foreground mt-0.5">İsminiz gizlenir, sadece içerik görünür. Yanıtlar her zaman isimlidir.</p>
+              </div>
             </div>
           </div>
           <DialogFooter>

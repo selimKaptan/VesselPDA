@@ -691,7 +691,7 @@ export async function registerRoutes(
   app.post("/api/forum/topics", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { title, content, categoryId } = req.body;
+      const { title, content, categoryId, isAnonymous } = req.body;
 
       if (!title || !content || !categoryId) {
         return res.status(400).json({ message: "title, content, and categoryId are required" });
@@ -710,6 +710,7 @@ export async function registerRoutes(
         title: title.trim(),
         content: content.trim(),
         categoryId: Number(categoryId),
+        isAnonymous: isAnonymous === true,
       });
 
       res.json(topic);

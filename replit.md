@@ -89,6 +89,7 @@ A professional web-based maritime platform (VesselPDA) for ship agents to create
 - Forum accessible from sidebar (authenticated), landing/directory/service-ports nav (public)
 
 ## Recent Changes
+- 2026-02-24: Anonymous forum topics — users can post topics with "Anonim olarak paylaş" checkbox; author name/avatar hidden and shown as "Anonim" in topic list and detail page; replies always named; userId still stored for ownership/deletion
 - 2026-02-24: Rebranded from MaritimePDA to VesselPDA — all text references, logo images (using attached brand logo), page titles, sidebar, footer updated across all pages
 - 2026-02-24: Added forum/discussion board with categories, topics, replies, search, and filtering
 - 2026-02-24: Live activity feed on landing page - animated 3D ticker showing real-time platform events (proformas, vessels, companies, users)
