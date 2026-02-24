@@ -617,7 +617,7 @@ export async function registerRoutes(
         const name = u.firstName || "A maritime professional";
         activities.push({
           type: "user",
-          message: `${name} joined MaritimePDA as ${roleLabel}`,
+          message: `${name} joined VesselPDA as ${roleLabel}`,
           timestamp: u.createdAt ? new Date(u.createdAt).toISOString() : new Date().toISOString(),
           icon: "user",
         });

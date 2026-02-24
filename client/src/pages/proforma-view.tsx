@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Download, Printer, Ship, Globe, FileText, Anchor, Calendar, Package } from "lucide-react";
+import { ArrowLeft, Download, Printer, Ship, Globe, FileText, Calendar, Package } from "lucide-react";
+import vesselPdaLogo from "@assets/image_1771971772715.png";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -89,12 +90,10 @@ export default function ProformaView() {
         <div className="flex items-start justify-between gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-md bg-[hsl(var(--maritime-primary))] flex items-center justify-center">
-                <Anchor className="w-5 h-5 text-white" />
-              </div>
+              <img src={vesselPdaLogo} alt="VesselPDA" className="w-10 h-10 rounded-md object-contain" />
               <div>
                 <h2 className="font-serif font-bold text-lg">PROFORMA D/A - INVOICE</h2>
-                <p className="text-xs text-muted-foreground">MaritimePDA Professional</p>
+                <p className="text-xs text-muted-foreground">VesselPDA Professional</p>
               </div>
             </div>
           </div>

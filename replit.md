@@ -1,7 +1,7 @@
-# MaritimePDA - Maritime Hub Platform
+# VesselPDA - Maritime Platform
 
 ## Overview
-A professional web-based maritime platform for ship agents to create instant proforma disbursement accounts AND connect shipowners with maritime service providers. The platform features proforma generation, a maritime company directory, and company profiles for agents and providers.
+A professional web-based maritime platform (VesselPDA) for ship agents to create instant proforma disbursement accounts AND connect shipowners with maritime service providers. The platform features proforma generation, a maritime company directory, and company profiles for agents and providers.
 
 ## Architecture
 - **Frontend**: React + Vite + Tailwind CSS + Shadcn UI
@@ -89,6 +89,7 @@ A professional web-based maritime platform for ship agents to create instant pro
 - Forum accessible from sidebar (authenticated), landing/directory/service-ports nav (public)
 
 ## Recent Changes
+- 2026-02-24: Rebranded from MaritimePDA to VesselPDA — all text references, logo images (using attached brand logo), page titles, sidebar, footer updated across all pages
 - 2026-02-24: Added forum/discussion board with categories, topics, replies, search, and filtering
 - 2026-02-24: Live activity feed on landing page - animated 3D ticker showing real-time platform events (proformas, vessels, companies, users)
 - 2026-02-24: Admin role switching - admin can switch between agent/shipowner/provider views via sidebar dropdown, keeps admin privileges
