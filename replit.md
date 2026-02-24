@@ -54,6 +54,7 @@ A professional web-based maritime platform for ship agents to create instant pro
 - `PATCH /api/company-profile/:id` - Update own company profile (sanitized fields)
 - `POST /api/company-profile/logo` - Upload company logo (multipart form, max 2MB)
 - `DELETE /api/company-profile/logo` - Remove company logo
+- `GET /api/activity-feed` - Public live activity feed (recent proformas, vessels, companies, users)
 - `GET /api/directory` - Public directory listing with type and port filters
 - `GET /api/directory/featured` - Featured companies
 - `GET /api/directory/:id` - Single company profile
@@ -72,6 +73,7 @@ A professional web-based maritime platform for ship agents to create instant pro
 - Manual calculation via "Calculate Proforma" button (no auto-calculate)
 
 ## Recent Changes
+- 2026-02-24: Live activity feed on landing page - animated 3D ticker showing real-time platform events (proformas, vessels, companies, users)
 - 2026-02-24: Admin role switching - admin can switch between agent/shipowner/provider views via sidebar dropdown, keeps admin privileges
 - 2026-02-24: Logo upload now stores images as base64 data URIs in database (persists across deployments, no filesystem dependency)
 - 2026-02-24: Added admin role for selim17 - full system access, Admin Panel (/admin) with tabs for users/vessels/proformas/profiles

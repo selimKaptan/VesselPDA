@@ -559,5 +559,77 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/activity-feed", async (_req, res) => {
+    try {
+      const activities: { type: string; message: string; timestamp: string; icon: string }[] = [];
+
+      const allVessels = await storage.getAllVessels();
+      const vesselMap = new Map(allVessels.map(v => [v.id, v]));
+      const allPorts = await storage.getPorts();
+      const portMap = new Map(allPorts.map(p => [p.id, p]));
+
+      const allProformas = await storage.getAllProformas();
+      for (const p of allProformas.slice(0, 8)) {
+        const vessel = p.vesselId ? vesselMap.get(p.vesselId) : null;
+        const port = p.portId ? portMap.get(p.portId) : null;
+        const vesselName = vessel?.name || "a vessel";
+        const portName = port?.name || "port";
+        activities.push({
+          type: "proforma",
+          message: `Proforma generated for ${vesselName} at ${portName}`,
+          timestamp: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(),
+          icon: "filetext",
+        });
+      }
+
+      const sortedVessels = allVessels
+        .filter(v => v.createdAt)
+        .sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+      for (const v of sortedVessels.slice(0, 6)) {
+        activities.push({
+          type: "vessel",
+          message: `${v.name} (${v.flag}) registered to the fleet`,
+          timestamp: v.createdAt ? new Date(v.createdAt).toISOString() : new Date().toISOString(),
+          icon: "ship",
+        });
+      }
+
+      const allProfiles = await storage.getAllCompanyProfiles();
+      const sortedProfiles = allProfiles
+        .filter(p => p.createdAt)
+        .sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+      for (const p of sortedProfiles.slice(0, 6)) {
+        const typeLabel = p.companyType === "agent" ? "Ship Agent" : "Service Provider";
+        activities.push({
+          type: "company",
+          message: `${p.companyName} joined as ${typeLabel}`,
+          timestamp: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(),
+          icon: "building",
+        });
+      }
+
+      const allUsers = await storage.getAllUsers();
+      const sortedUsers = allUsers
+        .filter(u => u.createdAt && u.userRole !== "admin")
+        .sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
+      for (const u of sortedUsers.slice(0, 4)) {
+        const roleLabel = u.userRole === "agent" ? "Ship Agent" : u.userRole === "provider" ? "Service Provider" : "Shipowner";
+        const name = u.firstName || "A maritime professional";
+        activities.push({
+          type: "user",
+          message: `${name} joined MaritimePDA as ${roleLabel}`,
+          timestamp: u.createdAt ? new Date(u.createdAt).toISOString() : new Date().toISOString(),
+          icon: "user",
+        });
+      }
+
+      activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      res.json(activities.slice(0, 20));
+    } catch (error) {
+      console.error("Activity feed error:", error);
+      res.status(500).json({ message: "Failed to fetch activity feed" });
+    }
+  });
+
   return httpServer;
 }

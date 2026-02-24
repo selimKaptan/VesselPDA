@@ -1,7 +1,141 @@
-import { Ship, Anchor, FileText, BarChart3, Shield, Globe, ArrowRight, Waves, Check, Zap, Crown, Star } from "lucide-react";
+import { Ship, Anchor, FileText, BarChart3, Shield, Globe, ArrowRight, Waves, Check, Zap, Crown, Star, Building2, User, Activity } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+
+interface ActivityItem {
+  type: string;
+  message: string;
+  timestamp: string;
+  icon: string;
+}
+
+function getActivityIcon(type: string) {
+  switch (type) {
+    case "proforma": return <FileText className="w-4 h-4" />;
+    case "vessel": return <Ship className="w-4 h-4" />;
+    case "company": return <Building2 className="w-4 h-4" />;
+    case "user": return <User className="w-4 h-4" />;
+    default: return <Activity className="w-4 h-4" />;
+  }
+}
+
+function getActivityColor(type: string) {
+  switch (type) {
+    case "proforma": return "from-blue-500/20 to-cyan-500/20 text-blue-400 border-blue-500/20";
+    case "vessel": return "from-emerald-500/20 to-teal-500/20 text-emerald-400 border-emerald-500/20";
+    case "company": return "from-amber-500/20 to-orange-500/20 text-amber-400 border-amber-500/20";
+    case "user": return "from-violet-500/20 to-purple-500/20 text-violet-400 border-violet-500/20";
+    default: return "from-gray-500/20 to-slate-500/20 text-gray-400 border-gray-500/20";
+  }
+}
+
+function timeAgo(timestamp: string): string {
+  const diff = Date.now() - new Date(timestamp).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function LiveActivityTicker() {
+  const { data: activities } = useQuery<ActivityItem[]>({
+    queryKey: ["/api/activity-feed"],
+    refetchInterval: 30000,
+  });
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isPaused, setIsPaused] = useState(false);
+
+  if (!activities || activities.length === 0) return null;
+
+  const duplicated = [...activities, ...activities, ...activities];
+
+  return (
+    <section className="py-12 md:py-16 relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-b from-[hsl(var(--maritime-primary)/0.03)] via-[hsl(var(--maritime-primary)/0.06)] to-[hsl(var(--maritime-primary)/0.03)]" />
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-0 left-1/4 w-64 h-64 rounded-full bg-[hsl(var(--maritime-accent)/0.04)] blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-48 h-48 rounded-full bg-[hsl(var(--maritime-secondary)/0.04)] blur-3xl" />
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 relative mb-8">
+        <div className="flex items-center justify-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+            </span>
+            <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Live Platform Activity</span>
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="relative"
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+        style={{ perspective: "1000px" }}
+      >
+        <div className="absolute left-0 top-0 bottom-0 w-32 z-10 bg-gradient-to-r from-background to-transparent pointer-events-none" />
+        <div className="absolute right-0 top-0 bottom-0 w-32 z-10 bg-gradient-to-l from-background to-transparent pointer-events-none" />
+
+        <div
+          ref={scrollRef}
+          className="flex gap-4"
+          style={{
+            animation: `scroll-ticker ${activities.length * 4}s linear infinite`,
+            animationPlayState: isPaused ? "paused" : "running",
+            width: "max-content",
+          }}
+        >
+          {duplicated.map((item, i) => (
+            <div
+              key={i}
+              className="flex-shrink-0 w-[320px] group"
+              style={{
+                transform: "rotateY(-2deg)",
+                transformStyle: "preserve-3d",
+                transition: "transform 0.3s ease",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = "rotateY(0deg) scale(1.05) translateZ(20px)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = "rotateY(-2deg)"; }}
+              data-testid={`activity-card-${i}`}
+            >
+              <div className={`relative rounded-xl border backdrop-blur-sm bg-gradient-to-br ${getActivityColor(item.type)} p-4 h-full shadow-lg shadow-black/5 transition-shadow group-hover:shadow-xl`}>
+                <div className="flex items-start gap-3">
+                  <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${getActivityColor(item.type)} flex items-center justify-center flex-shrink-0 border border-current/10`}>
+                    {getActivityIcon(item.type)}
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <p className="text-sm font-medium text-foreground leading-snug line-clamp-2">
+                      {item.message}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {timeAgo(item.timestamp)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes scroll-ticker {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-33.333%); }
+        }
+      `}</style>
+    </section>
+  );
+}
 
 export default function Landing() {
   return (
@@ -96,6 +230,8 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      <LiveActivityTicker />
 
       <section id="features" className="py-20 md:py-28">
         <div className="max-w-7xl mx-auto px-6">
