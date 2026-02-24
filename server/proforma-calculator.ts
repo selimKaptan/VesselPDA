@@ -211,12 +211,12 @@ function calcGarbage(input: CalculationInput): number {
 }
 
 function calcAnchorageDues(input: CalculationInput): number {
-  const { grt, anchorageDays, berthStayDays } = input;
+  const { grt, anchorageDays } = input;
   if (anchorageDays <= 0) return 0;
-  if (berthStayDays <= 7) {
-    return grt * 0.004 * berthStayDays;
+  if (anchorageDays <= 7) {
+    return grt * 0.004 * anchorageDays;
   }
-  return (grt * 0.004 * 7) + (grt * 0.006 * (berthStayDays - 7));
+  return (grt * 0.004 * 7) + (grt * 0.006 * (anchorageDays - 7));
 }
 
 function calcSanitary(input: CalculationInput): number {

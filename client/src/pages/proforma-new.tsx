@@ -161,7 +161,7 @@ export default function ProformaNew() {
         </Link>
         <div>
           <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-new-proforma-title">New Proforma</h1>
-          <p className="text-muted-foreground text-sm">Select vessel and port - expenses are calculated automatically.</p>
+          <p className="text-muted-foreground text-sm">Select vessel and port, set parameters, then click "Calculate Proforma".</p>
         </div>
       </div>
 
