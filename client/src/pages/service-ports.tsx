@@ -1,0 +1,260 @@
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Anchor, Search, MapPin, Building2, Phone, Mail, Globe, Star, ChevronDown, ChevronUp, Ship, Users } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+
+interface ServicePortCompany {
+  id: number;
+  companyName: string;
+  companyType: string;
+  serviceTypes: string[];
+  city: string | null;
+  country: string | null;
+  isFeatured: boolean;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+}
+
+interface ServicePortEntry {
+  port: { id: number; name: string; unlocode: string | null; region: string | null };
+  companies: ServicePortCompany[];
+}
+
+export default function ServicePorts() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [expandedPort, setExpandedPort] = useState<number | null>(null);
+
+  const { data: servicePorts, isLoading } = useQuery<ServicePortEntry[]>({
+    queryKey: ["/api/service-ports"],
+  });
+
+  const filtered = servicePorts?.filter(entry => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      entry.port.name.toLowerCase().includes(q) ||
+      entry.port.unlocode?.toLowerCase().includes(q) ||
+      entry.port.region?.toLowerCase().includes(q) ||
+      entry.companies.some(c => c.companyName.toLowerCase().includes(q))
+    );
+  });
+
+  const togglePort = (portId: number) => {
+    setExpandedPort(prev => prev === portId ? null : portId);
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="border-b bg-gradient-to-r from-[hsl(var(--maritime-primary)/0.03)] to-transparent">
+        <div className="max-w-6xl mx-auto px-6 py-8">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center">
+              <Anchor className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
+            </div>
+            <div>
+              <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-service-ports-title">
+                Service Ports
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Ports where our registered agents and service providers operate
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-6 py-6">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search ports, regions, or companies..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+              data-testid="input-search-service-ports"
+            />
+          </div>
+          {filtered && (
+            <Badge variant="secondary" className="text-xs" data-testid="badge-port-count">
+              {filtered.length} port{filtered.length !== 1 ? "s" : ""} with services
+            </Badge>
+          )}
+        </div>
+
+        {isLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 w-full rounded-lg" />
+            ))}
+          </div>
+        ) : !filtered?.length ? (
+          <Card className="p-12 text-center">
+            <Anchor className="w-12 h-12 mx-auto mb-4 text-muted-foreground/30" />
+            <h3 className="text-lg font-medium mb-2">No Service Ports Found</h3>
+            <p className="text-sm text-muted-foreground">
+              {searchQuery ? "Try a different search term." : "No companies have registered their service ports yet."}
+            </p>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {filtered.map(entry => {
+              const isExpanded = expandedPort === entry.port.id;
+              const agents = entry.companies.filter(c => c.companyType === "agent");
+              const providers = entry.companies.filter(c => c.companyType === "provider");
+
+              return (
+                <div key={entry.port.id} data-testid={`card-service-port-${entry.port.id}`}>
+                  <button
+                    onClick={() => togglePort(entry.port.id)}
+                    className="w-full text-left"
+                    data-testid={`button-toggle-port-${entry.port.id}`}
+                  >
+                    <Card className={`p-4 transition-colors hover:bg-muted/50 ${isExpanded ? "border-[hsl(var(--maritime-primary)/0.3)] bg-muted/30" : ""}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-md bg-[hsl(var(--maritime-primary)/0.08)] flex items-center justify-center flex-shrink-0">
+                            <MapPin className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">{entry.port.name}</span>
+                              {entry.port.unlocode && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
+                                  {entry.port.unlocode}
+                                </Badge>
+                              )}
+                            </div>
+                            {entry.port.region && (
+                              <p className="text-xs text-muted-foreground">{entry.port.region}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            {agents.length > 0 && (
+                              <span className="flex items-center gap-1">
+                                <Ship className="w-3.5 h-3.5" />
+                                {agents.length} agent{agents.length !== 1 ? "s" : ""}
+                              </span>
+                            )}
+                            {providers.length > 0 && (
+                              <span className="flex items-center gap-1">
+                                <Building2 className="w-3.5 h-3.5" />
+                                {providers.length} provider{providers.length !== 1 ? "s" : ""}
+                              </span>
+                            )}
+                          </div>
+                          {isExpanded ? (
+                            <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="mt-1 ml-6 space-y-3 pb-2" data-testid={`panel-port-companies-${entry.port.id}`}>
+                      {agents.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-2 mt-3">
+                            <Ship className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                              Ship Agents ({agents.length})
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            {agents.map(company => (
+                              <CompanyCard key={company.id} company={company} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {providers.length > 0 && (
+                        <div>
+                          {agents.length > 0 && <Separator className="my-3" />}
+                          <div className="flex items-center gap-2 mb-2">
+                            <Building2 className="w-4 h-4 text-[hsl(var(--maritime-secondary))]" />
+                            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                              Service Providers ({providers.length})
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            {providers.map(company => (
+                              <CompanyCard key={company.id} company={company} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CompanyCard({ company }: { company: ServicePortCompany }) {
+  return (
+    <Card className={`p-3 ${company.isFeatured ? "border-amber-300/50 bg-amber-50/30 dark:bg-amber-950/10" : ""}`} data-testid={`card-company-${company.id}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="font-medium text-sm truncate">{company.companyName}</span>
+            {company.isFeatured && (
+              <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 flex-shrink-0" />
+            )}
+          </div>
+          {(company.city || company.country) && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1.5">
+              <MapPin className="w-3 h-3" />
+              {[company.city, company.country].filter(Boolean).join(", ")}
+            </p>
+          )}
+          {company.serviceTypes?.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {(company.serviceTypes as string[]).slice(0, 4).map(s => (
+                <Badge key={s} variant="secondary" className="text-[10px] px-1.5 py-0">{s}</Badge>
+              ))}
+              {company.serviceTypes.length > 4 && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                  +{company.serviceTypes.length - 4}
+                </Badge>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {company.phone && (
+            <a href={`tel:${company.phone}`} className="text-muted-foreground hover:text-foreground transition-colors" data-testid={`link-phone-${company.id}`}>
+              <Phone className="w-3.5 h-3.5" />
+            </a>
+          )}
+          {company.email && (
+            <a href={`mailto:${company.email}`} className="text-muted-foreground hover:text-foreground transition-colors" data-testid={`link-email-${company.id}`}>
+              <Mail className="w-3.5 h-3.5" />
+            </a>
+          )}
+          {company.website && (
+            <a href={company.website} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors" data-testid={`link-website-${company.id}`}>
+              <Globe className="w-3.5 h-3.5" />
+            </a>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}

@@ -1,4 +1,4 @@
-import { Ship, FileText, Anchor, Globe, LogOut, LayoutDashboard, Building2, Users, Crown } from "lucide-react";
+import { Ship, FileText, Anchor, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -101,6 +101,14 @@ export function AppSidebar() {
           <SidebarGroupLabel>Account</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild data-active={location === "/service-ports"}>
+                  <Link href="/service-ports" data-testid="nav-service-ports">
+                    <MapPin className="w-4 h-4" />
+                    <span>Service Ports</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild data-active={location === "/pricing"}>
                   <Link href="/pricing" data-testid="nav-pricing">

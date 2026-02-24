@@ -330,6 +330,46 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/service-ports", async (req, res) => {
+    try {
+      const profiles = await storage.getPublicCompanyProfiles();
+      const allPorts = await storage.getPorts();
+      const portMap = new Map(allPorts.map(p => [p.id, p]));
+
+      const portCompanyMap: Record<number, { port: any; companies: any[] }> = {};
+      for (const profile of profiles) {
+        const served = (profile.servedPorts as number[]) || [];
+        for (const portId of served) {
+          if (!portCompanyMap[portId]) {
+            const port = portMap.get(portId);
+            if (!port) continue;
+            portCompanyMap[portId] = { port, companies: [] };
+          }
+          portCompanyMap[portId].companies.push({
+            id: profile.id,
+            companyName: profile.companyName,
+            companyType: profile.companyType,
+            serviceTypes: profile.serviceTypes,
+            city: profile.city,
+            country: profile.country,
+            isFeatured: profile.isFeatured,
+            phone: profile.phone,
+            email: profile.email,
+            website: profile.website,
+          });
+        }
+      }
+
+      const result = Object.values(portCompanyMap)
+        .filter(entry => entry.companies.length > 0)
+        .sort((a, b) => b.companies.length - a.companies.length);
+
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch service ports" });
+    }
+  });
+
   app.get("/api/directory", async (req, res) => {
     try {
       const companyType = req.query.type as string | undefined;

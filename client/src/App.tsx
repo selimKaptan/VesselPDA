@@ -19,6 +19,7 @@ import ProformaView from "@/pages/proforma-view";
 import Pricing from "@/pages/pricing";
 import Directory from "@/pages/directory";
 import CompanyProfile from "@/pages/company-profile";
+import ServicePorts from "@/pages/service-ports";
 
 function AuthenticatedRouter() {
   return (
@@ -31,6 +32,7 @@ function AuthenticatedRouter() {
       <Route path="/proformas/:id" component={ProformaView} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/directory" component={Directory} />
+      <Route path="/service-ports" component={ServicePorts} />
       <Route path="/company-profile" component={CompanyProfile} />
       <Route component={NotFound} />
     </Switch>
@@ -64,6 +66,7 @@ function PublicDirectoryPage() {
   return (
     <Switch>
       <Route path="/directory" component={Directory} />
+      <Route path="/service-ports" component={ServicePorts} />
       <Route><Landing /></Route>
     </Switch>
   );

@@ -18,6 +18,7 @@ export default function Landing() {
             <a href="#features" className="text-sm text-muted-foreground transition-colors" data-testid="link-features">Features</a>
             <a href="#how-it-works" className="text-sm text-muted-foreground transition-colors" data-testid="link-how-it-works">How It Works</a>
             <a href="/directory" className="text-sm text-muted-foreground transition-colors" data-testid="link-directory">Directory</a>
+            <a href="/service-ports" className="text-sm text-muted-foreground transition-colors" data-testid="link-service-ports">Service Ports</a>
             <a href="#pricing" className="text-sm text-muted-foreground transition-colors" data-testid="link-pricing">Pricing</a>
           </div>
           <a href="/api/login">
