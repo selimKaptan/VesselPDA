@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Search, MapPin, Building2, Phone, Mail, Globe, Star, ChevronDown, ChevronUp, Ship, Users, X, ExternalLink } from "lucide-react";
+import { Search, MapPin, Building2, Phone, Mail, Globe, Star, ChevronDown, ChevronUp, Ship, Users, X, ExternalLink, Anchor } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

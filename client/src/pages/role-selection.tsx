@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { Ship, Building2, ArrowRight } from "lucide-react";
+import { Ship, Building2, ArrowRight, Anchor } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient } from "@/lib/queryClient";
