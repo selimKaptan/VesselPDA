@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Ship, FileText, TrendingUp, Plus, ArrowRight, Crown, Zap, Users, Building2, Anchor, Star } from "lucide-react";
+import { Ship, FileText, TrendingUp, Plus, ArrowRight, Crown, Zap, Users, Building2, Anchor, Star, Shield } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,16 +13,19 @@ const ROLE_LABELS: Record<string, string> = {
   shipowner: "Shipowner / Broker",
   agent: "Ship Agent",
   provider: "Service Provider",
+  admin: "Administrator",
 };
 
 export default function Dashboard() {
   const { user } = useAuth();
   const userRole = (user as any)?.userRole || "shipowner";
 
-  const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"], enabled: userRole !== "provider" });
-  const { data: proformas, isLoading: proformasLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"], enabled: userRole !== "provider" });
+  const isAdmin = userRole === "admin";
+  const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"], enabled: isAdmin || userRole !== "provider" });
+  const { data: proformas, isLoading: proformasLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"], enabled: isAdmin || userRole !== "provider" });
   const { data: featured, isLoading: featuredLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/directory/featured"] });
-  const { data: myProfile } = useQuery<CompanyProfile | null>({ queryKey: ["/api/company-profile/me"], enabled: userRole === "agent" || userRole === "provider" });
+  const { data: myProfile } = useQuery<CompanyProfile | null>({ queryKey: ["/api/company-profile/me"], enabled: isAdmin || userRole === "agent" || userRole === "provider" });
+  const { data: adminStats } = useQuery<any>({ queryKey: ["/api/admin/stats"], enabled: isAdmin });
 
   const recentProformas = proformas?.slice(0, 5) || [];
 
@@ -35,6 +38,7 @@ export default function Dashboard() {
           </h1>
           <p className="text-muted-foreground text-sm">
             {userRole === "agent" ? "Manage your fleet & connect with shipowners." :
+             isAdmin ? "Full system access. Monitor all users, vessels, and proformas." :
              userRole === "provider" ? "Manage your company profile and services." :
              "Create proformas and find trusted maritime services."}
           </p>
@@ -48,7 +52,48 @@ export default function Dashboard() {
         </Badge>
       </div>
 
-      {userRole !== "provider" && (
+      {isAdmin && adminStats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="p-4" data-testid="card-admin-users">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Total Users</p>
+                <p className="text-2xl font-bold font-serif">{adminStats.totalUsers}</p>
+              </div>
+              <Users className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
+            </div>
+          </Card>
+          <Card className="p-4" data-testid="card-admin-vessels">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Total Vessels</p>
+                <p className="text-2xl font-bold font-serif">{adminStats.totalVessels}</p>
+              </div>
+              <Ship className="w-5 h-5 text-[hsl(var(--maritime-secondary))]" />
+            </div>
+          </Card>
+          <Card className="p-4" data-testid="card-admin-proformas">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Total Proformas</p>
+                <p className="text-2xl font-bold font-serif">{adminStats.totalProformas}</p>
+              </div>
+              <FileText className="w-5 h-5 text-[hsl(var(--maritime-accent))]" />
+            </div>
+          </Card>
+          <Card className="p-4" data-testid="card-admin-profiles">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Company Profiles</p>
+                <p className="text-2xl font-bold font-serif">{adminStats.totalCompanyProfiles}</p>
+              </div>
+              <Building2 className="w-5 h-5 text-amber-500" />
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {(isAdmin || userRole !== "provider") && (
         <Card className="p-6 border-[hsl(var(--maritime-accent)/0.3)]" data-testid="card-subscription">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -100,7 +145,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {userRole !== "provider" && (
+      {(isAdmin || userRole !== "provider") && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Link href="/vessels">
             <Card className="p-6 hover-elevate cursor-pointer" data-testid="card-stat-vessels">
@@ -144,7 +189,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {(userRole === "agent" || userRole === "provider") && !myProfile && (
+      {(isAdmin || userRole === "agent" || userRole === "provider") && !myProfile && (
         <Card className="p-6 border-dashed border-2 border-[hsl(var(--maritime-primary)/0.3)] bg-[hsl(var(--maritime-primary)/0.03)]" data-testid="card-setup-profile-cta">
           <div className="flex flex-col sm:flex-row items-center gap-6">
             <div className="w-14 h-14 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0">
@@ -172,7 +217,7 @@ export default function Dashboard() {
             <h2 className="font-serif font-semibold text-lg">Quick Actions</h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {userRole !== "provider" && (
+            {(isAdmin || userRole !== "provider") && (
               <>
                 <Link href="/vessels?new=true">
                   <Card className="p-4 hover-elevate cursor-pointer space-y-2" data-testid="button-add-vessel-quick">
@@ -195,6 +240,18 @@ export default function Dashboard() {
                   </Card>
                 </Link>
               </>
+            )}
+            {isAdmin && (
+              <Link href="/admin">
+                <Card className="p-4 hover-elevate cursor-pointer space-y-2" data-testid="button-admin-panel-quick">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-md bg-red-50 dark:bg-red-950/30 flex items-center justify-center">
+                      <Shield className="w-4 h-4 text-red-600" />
+                    </div>
+                    <span className="font-medium text-sm">Admin Panel</span>
+                  </div>
+                </Card>
+              </Link>
             )}
             <Link href="/directory">
               <Card className="p-4 hover-elevate cursor-pointer space-y-2" data-testid="button-browse-directory">
@@ -221,10 +278,10 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        {userRole !== "provider" ? (
+        {(isAdmin || userRole !== "provider") ? (
           <Card className="p-6 space-y-4">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="font-serif font-semibold text-lg">Recent Proformas</h2>
+              <h2 className="font-serif font-semibold text-lg">{isAdmin ? "All Recent Proformas" : "Recent Proformas"}</h2>
               <Link href="/proformas">
                 <Button variant="ghost" size="sm" className="gap-1 text-xs" data-testid="link-view-all-proformas">
                   View All <ArrowRight className="w-3 h-3" />

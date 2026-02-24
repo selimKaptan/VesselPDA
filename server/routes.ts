@@ -12,9 +12,20 @@ export async function registerRoutes(
   await setupAuth(app);
   registerAuthRoutes(app);
 
+  async function isAdmin(req: any): Promise<boolean> {
+    const userId = req.user?.claims?.sub;
+    if (!userId) return false;
+    const user = await storage.getUser(userId);
+    return user?.userRole === "admin";
+  }
+
   app.get("/api/vessels", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      if (await isAdmin(req)) {
+        const vessels = await storage.getAllVessels();
+        return res.json(vessels);
+      }
       const vessels = await storage.getVesselsByUser(userId);
       res.json(vessels);
     } catch (error) {
@@ -80,6 +91,10 @@ export async function registerRoutes(
   app.get("/api/proformas", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      if (await isAdmin(req)) {
+        const allProformas = await storage.getAllProformas();
+        return res.json(allProformas);
+      }
       const proformas = await storage.getProformasByUser(userId);
       res.json(proformas);
     } catch (error) {
@@ -91,6 +106,11 @@ export async function registerRoutes(
     try {
       const userId = req.user.claims.sub;
       const id = parseInt(req.params.id);
+      if (await isAdmin(req)) {
+        const proforma = await storage.getProformaById(id);
+        if (!proforma) return res.status(404).json({ message: "Proforma not found" });
+        return res.json(proforma);
+      }
       const proforma = await storage.getProforma(id, userId);
       if (!proforma) return res.status(404).json({ message: "Proforma not found" });
       res.json(proforma);
@@ -164,7 +184,7 @@ export async function registerRoutes(
       if (user) {
         const limit = user.proformaLimit ?? 1;
         const count = user.proformaCount ?? 0;
-        if (user.subscriptionPlan !== "unlimited" && count >= limit) {
+        if (user.userRole !== "admin" && user.subscriptionPlan !== "unlimited" && count >= limit) {
           return res.status(403).json({
             message: "Proforma limit reached. Please upgrade your plan to generate more proformas.",
             code: "LIMIT_REACHED",
@@ -248,7 +268,7 @@ export async function registerRoutes(
     try {
       const userId = req.user.claims.sub;
       const { role } = req.body;
-      if (!["shipowner", "agent", "provider"].includes(role)) {
+      if (!["shipowner", "agent", "provider", "admin"].includes(role)) {
         return res.status(400).json({ message: "Invalid role. Choose: shipowner, agent, or provider" });
       }
       const user = await storage.getUser(userId);
@@ -276,7 +296,7 @@ export async function registerRoutes(
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
-      if (!user || !["agent", "provider"].includes(user.userRole)) {
+      if (!user || !["agent", "provider", "admin"].includes(user.userRole)) {
         return res.status(403).json({ message: "Only agents and providers can create company profiles" });
       }
       const existing = await storage.getCompanyProfileByUser(userId);
@@ -327,6 +347,55 @@ export async function registerRoutes(
       res.json(updated);
     } catch (error) {
       res.status(500).json({ message: "Failed to update company profile" });
+    }
+  });
+
+  app.get("/api/admin/users", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const allUsers = await storage.getAllUsers();
+      res.json(allUsers);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.get("/api/admin/company-profiles", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const profiles = await storage.getAllCompanyProfiles();
+      res.json(profiles);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch company profiles" });
+    }
+  });
+
+  app.get("/api/admin/stats", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const allUsers = await storage.getAllUsers();
+      const allVessels = await storage.getAllVessels();
+      const allProformas = await storage.getAllProformas();
+      const allProfiles = await storage.getAllCompanyProfiles();
+      res.json({
+        totalUsers: allUsers.length,
+        totalVessels: allVessels.length,
+        totalProformas: allProformas.length,
+        totalCompanyProfiles: allProfiles.length,
+        usersByRole: {
+          shipowner: allUsers.filter(u => u.userRole === "shipowner").length,
+          agent: allUsers.filter(u => u.userRole === "agent").length,
+          provider: allUsers.filter(u => u.userRole === "provider").length,
+          admin: allUsers.filter(u => u.userRole === "admin").length,
+        },
+        usersByPlan: {
+          free: allUsers.filter(u => u.subscriptionPlan === "free").length,
+          standard: allUsers.filter(u => u.subscriptionPlan === "standard").length,
+          unlimited: allUsers.filter(u => u.subscriptionPlan === "unlimited").length,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch admin stats" });
     }
   });
 

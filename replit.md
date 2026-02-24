@@ -22,6 +22,7 @@ A professional web-based maritime platform for ship agents to create instant pro
 - Role-aware dashboard and navigation
 
 ## User Roles
+- **Admin**: Full system access - sees ALL vessels, proformas, users, company profiles. No proforma limits. Has dedicated Admin Panel (/admin)
 - **Shipowner/Broker**: Uses proforma generator, browses directory
 - **Ship Agent**: Creates company profile + uses proforma generator
 - **Service Provider**: Creates company profile only (no proforma access)
@@ -29,7 +30,8 @@ A professional web-based maritime platform for ship agents to create instant pro
 ## Project Structure
 - `shared/schema.ts` - All Drizzle models (vessels, ports, tariffCategories, tariffRates, proformas)
 - `shared/models/auth.ts` - Auth models (users, sessions, companyProfiles) with subscription + role fields
-- `server/routes.ts` - API endpoints including company profiles, directory, user role management
+- `server/routes.ts` - API endpoints including company profiles, directory, user role management, admin endpoints
+- `client/src/pages/admin.tsx` - Admin panel with users/vessels/proformas/profiles tabs
 - `server/proforma-calculator.ts` - Formula-based calculation engine matching Excel reference (22 line items)
 - `server/storage.ts` - Database storage layer with company profile CRUD methods
 - `server/seed.ts` - Seed data for ports and tariffs
@@ -67,6 +69,7 @@ A professional web-based maritime platform for ship agents to create instant pro
 - Manual calculation via "Calculate Proforma" button (no auto-calculate)
 
 ## Recent Changes
+- 2026-02-24: Added admin role for selim17 - full system access, Admin Panel (/admin) with tabs for users/vessels/proformas/profiles
 - 2026-02-24: Added Service Ports page showing ports with registered agents/providers, expandable port cards, search/filter
 - 2026-02-24: Role selection is now permanent - users pick role once at first login, cannot change afterward
 - 2026-02-24: Added company profiles and maritime directory with search/filter

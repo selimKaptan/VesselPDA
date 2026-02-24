@@ -1,4 +1,4 @@
-import { Ship, FileText, Anchor, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin } from "lucide-react";
+import { Ship, FileText, Anchor, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin, Shield } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -30,16 +30,22 @@ export function AppSidebar() {
     { title: "Directory", url: "/directory", icon: Users },
   ];
 
+  const isAdminUser = userRole === "admin";
+
   const toolsNav = [];
-  if (userRole !== "provider") {
+  if (isAdminUser || userRole !== "provider") {
     toolsNav.push({ title: "Vessels", url: "/vessels", icon: Ship });
     toolsNav.push({ title: "Proformas", url: "/proformas", icon: FileText });
   }
-  if (userRole === "agent" || userRole === "provider") {
+  if (isAdminUser || userRole === "agent" || userRole === "provider") {
     toolsNav.push({ title: "My Profile", url: "/company-profile", icon: Building2 });
   }
 
-  const roleLabel = userRole === "agent" ? "Ship Agent" : userRole === "provider" ? "Provider" : "Shipowner";
+  const adminNav = isAdminUser ? [
+    { title: "Admin Panel", url: "/admin", icon: Shield },
+  ] : [];
+
+  const roleLabel = isAdminUser ? "Admin" : userRole === "agent" ? "Ship Agent" : userRole === "provider" ? "Provider" : "Shipowner";
 
   return (
     <Sidebar>
@@ -85,6 +91,28 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       asChild
                       data-active={location === item.url || (item.url !== "/" && location.startsWith(item.url))}
+                    >
+                      <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
+                        <item.icon className="w-4 h-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+        {adminNav.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminNav.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      data-active={location === item.url || location.startsWith(item.url)}
                     >
                       <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
                         <item.icon className="w-4 h-4" />

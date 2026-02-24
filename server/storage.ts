@@ -35,9 +35,15 @@ export interface IStorage {
   getTariffRateForGrt(categoryId: number, grt: number): Promise<TariffRate | undefined>;
 
   getProformasByUser(userId: string): Promise<Proforma[]>;
+  getAllProformas(): Promise<Proforma[]>;
   getProforma(id: number, userId: string): Promise<(Proforma & { vessel?: Vessel; port?: Port }) | undefined>;
+  getProformaById(id: number): Promise<(Proforma & { vessel?: Vessel; port?: Port }) | undefined>;
   createProforma(proforma: InsertProforma): Promise<Proforma>;
   deleteProforma(id: number, userId: string): Promise<boolean>;
+
+  getAllVessels(): Promise<Vessel[]>;
+  getAllUsers(): Promise<User[]>;
+  getAllCompanyProfiles(): Promise<CompanyProfile[]>;
 
   getCompanyProfileByUser(userId: string): Promise<CompanyProfile | undefined>;
   getCompanyProfile(id: number): Promise<CompanyProfile | undefined>;
@@ -139,6 +145,10 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(proformas.createdAt));
   }
 
+  async getAllProformas(): Promise<Proforma[]> {
+    return db.select().from(proformas).orderBy(desc(proformas.createdAt));
+  }
+
   async getProforma(id: number, userId: string): Promise<(Proforma & { vessel?: Vessel; port?: Port }) | undefined> {
     const [proforma] = await db.select().from(proformas)
       .where(and(eq(proformas.id, id), eq(proformas.userId, userId)));
@@ -149,6 +159,26 @@ export class DatabaseStorage implements IStorage {
     const [port] = await db.select().from(ports).where(eq(ports.id, proforma.portId));
 
     return { ...proforma, vessel, port };
+  }
+
+  async getProformaById(id: number): Promise<(Proforma & { vessel?: Vessel; port?: Port }) | undefined> {
+    const [proforma] = await db.select().from(proformas).where(eq(proformas.id, id));
+    if (!proforma) return undefined;
+    const [vessel] = await db.select().from(vessels).where(eq(vessels.id, proforma.vesselId));
+    const [port] = await db.select().from(ports).where(eq(ports.id, proforma.portId));
+    return { ...proforma, vessel, port };
+  }
+
+  async getAllVessels(): Promise<Vessel[]> {
+    return db.select().from(vessels);
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return db.select().from(users).orderBy(desc(users.createdAt));
+  }
+
+  async getAllCompanyProfiles(): Promise<CompanyProfile[]> {
+    return db.select().from(companyProfiles).orderBy(desc(companyProfiles.createdAt));
   }
 
   async createProforma(proforma: InsertProforma): Promise<Proforma> {

@@ -20,6 +20,7 @@ import Pricing from "@/pages/pricing";
 import Directory from "@/pages/directory";
 import CompanyProfile from "@/pages/company-profile";
 import ServicePorts from "@/pages/service-ports";
+import AdminPanel from "@/pages/admin";
 
 function AuthenticatedRouter() {
   return (
@@ -34,6 +35,7 @@ function AuthenticatedRouter() {
       <Route path="/directory" component={Directory} />
       <Route path="/service-ports" component={ServicePorts} />
       <Route path="/company-profile" component={CompanyProfile} />
+      <Route path="/admin" component={AdminPanel} />
       <Route component={NotFound} />
     </Switch>
   );
