@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/hooks/use-auth";
 
 interface ServicePortCompany {
   id: number;
@@ -28,6 +29,7 @@ interface ServicePortEntry {
 }
 
 export default function ServicePorts() {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedPort, setExpandedPort] = useState<number | null>(null);
 
@@ -52,7 +54,33 @@ export default function ServicePorts() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="border-b bg-gradient-to-r from-[hsl(var(--maritime-primary)/0.03)] to-transparent">
+      {!user && (
+        <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/80 border-b">
+          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
+            <a href="/" className="flex items-center gap-2" data-testid="link-home">
+              <div className="w-9 h-9 rounded-md bg-[hsl(var(--maritime-primary))] flex items-center justify-center">
+                <Anchor className="w-5 h-5 text-white" />
+              </div>
+              <span className="font-serif font-bold text-lg tracking-tight">MaritimePDA</span>
+            </a>
+            <div className="hidden md:flex items-center gap-8">
+              <a href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-nav-home">Home</a>
+              <a href="/directory" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-nav-directory">Directory</a>
+              <a href="/service-ports" className="text-sm font-medium text-foreground transition-colors" data-testid="link-nav-service-ports">Service Ports</a>
+            </div>
+            <div className="flex items-center gap-3">
+              <a href="/api/login">
+                <Button variant="outline" data-testid="button-service-ports-login">Log in</Button>
+              </a>
+              <a href="/api/login">
+                <Button data-testid="button-service-ports-signup">Sign up</Button>
+              </a>
+            </div>
+          </div>
+        </nav>
+      )}
+
+      <div className={`border-b bg-gradient-to-r from-[hsl(var(--maritime-primary)/0.03)] to-transparent ${!user ? "mt-16" : ""}`}>
         <div className="max-w-6xl mx-auto px-6 py-8">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center">
