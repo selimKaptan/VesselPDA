@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useCallback } from "react";
-import { FileText, Ship, Globe, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Settings2, Package, AlertTriangle, Crown } from "lucide-react";
+import { FileText, Ship, Globe, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Settings2, Package, AlertTriangle, Crown, ChevronsUpDown, Check } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/auth-utils";
@@ -63,6 +65,7 @@ export default function ProformaNew() {
   const [toCountry, setToCountry] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [portOpen, setPortOpen] = useState(false);
 
   const [calculatedItems, setCalculatedItems] = useState<ProformaLineItem[] | null>(null);
   const [totalUsd, setTotalUsd] = useState<number>(0);
@@ -215,16 +218,46 @@ export default function ProformaNew() {
               <div className="space-y-2">
                 <Label>Destination Port *</Label>
                 {portsLoading ? <Skeleton className="h-10" /> : (
-                  <Select value={selectedPort} onValueChange={setSelectedPort}>
-                    <SelectTrigger data-testid="select-port"><SelectValue placeholder="Select port" /></SelectTrigger>
-                    <SelectContent>
-                      {ports?.map((p) => (
-                        <SelectItem key={p.id} value={p.id.toString()} data-testid={`option-port-${p.id}`}>
-                          {p.name} ({p.country})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={portOpen} onOpenChange={setPortOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={portOpen}
+                        className="w-full justify-between font-normal"
+                        data-testid="select-port"
+                      >
+                        {selectedPort
+                          ? (() => { const p = ports?.find(p => p.id.toString() === selectedPort); return p ? `${p.name} (${p.country})` : "Select port"; })()
+                          : "Search and select port..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[400px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Type port name to search..." data-testid="input-search-port" />
+                        <CommandList>
+                          <CommandEmpty>No port found.</CommandEmpty>
+                          <CommandGroup className="max-h-[300px] overflow-y-auto">
+                            {ports?.map((p) => (
+                              <CommandItem
+                                key={p.id}
+                                value={`${p.name} ${p.code || ""} ${p.country}`}
+                                onSelect={() => {
+                                  setSelectedPort(p.id.toString());
+                                  setPortOpen(false);
+                                }}
+                                data-testid={`option-port-${p.id}`}
+                              >
+                                <Check className={`mr-2 h-4 w-4 ${selectedPort === p.id.toString() ? "opacity-100" : "opacity-0"}`} />
+                                {p.name} ({p.country})
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 )}
               </div>
             </div>
