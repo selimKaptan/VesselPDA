@@ -244,5 +244,118 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/user/role", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { role } = req.body;
+      if (!["shipowner", "agent", "provider"].includes(role)) {
+        return res.status(400).json({ message: "Invalid role. Choose: shipowner, agent, or provider" });
+      }
+      const updated = await storage.updateUserRole(userId, role);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update role" });
+    }
+  });
+
+  app.get("/api/company-profile/me", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profile = await storage.getCompanyProfileByUser(userId);
+      res.json(profile || null);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch company profile" });
+    }
+  });
+
+  app.post("/api/company-profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user || !["agent", "provider"].includes(user.userRole)) {
+        return res.status(403).json({ message: "Only agents and providers can create company profiles" });
+      }
+      const existing = await storage.getCompanyProfileByUser(userId);
+      if (existing) {
+        return res.status(400).json({ message: "Profile already exists. Use PATCH to update." });
+      }
+      const { companyName, companyType, description, phone, email, website, address, city, country, servedPorts, serviceTypes } = req.body;
+      if (!companyName) return res.status(400).json({ message: "companyName is required" });
+      const profile = await storage.createCompanyProfile({
+        userId,
+        companyName,
+        companyType: companyType || "agent",
+        description: description || null,
+        phone: phone || null,
+        email: email || null,
+        website: website || null,
+        address: address || null,
+        city: city || null,
+        country: country || "Turkey",
+        servedPorts: servedPorts || [],
+        serviceTypes: serviceTypes || [],
+      });
+      res.json(profile);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create company profile" });
+    }
+  });
+
+  app.patch("/api/company-profile/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const id = parseInt(req.params.id);
+      const { companyName, companyType, description, phone, email, website, address, city, country, servedPorts, serviceTypes } = req.body;
+      const safeData: Record<string, any> = {};
+      if (companyName !== undefined) safeData.companyName = companyName;
+      if (companyType !== undefined) safeData.companyType = companyType;
+      if (description !== undefined) safeData.description = description;
+      if (phone !== undefined) safeData.phone = phone;
+      if (email !== undefined) safeData.email = email;
+      if (website !== undefined) safeData.website = website;
+      if (address !== undefined) safeData.address = address;
+      if (city !== undefined) safeData.city = city;
+      if (country !== undefined) safeData.country = country;
+      if (servedPorts !== undefined) safeData.servedPorts = servedPorts;
+      if (serviceTypes !== undefined) safeData.serviceTypes = serviceTypes;
+      const updated = await storage.updateCompanyProfile(id, userId, safeData);
+      if (!updated) return res.status(404).json({ message: "Profile not found" });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update company profile" });
+    }
+  });
+
+  app.get("/api/directory", async (req, res) => {
+    try {
+      const companyType = req.query.type as string | undefined;
+      const portId = req.query.portId ? parseInt(req.query.portId as string) : undefined;
+      const profiles = await storage.getPublicCompanyProfiles({ companyType, portId });
+      res.json(profiles);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch directory" });
+    }
+  });
+
+  app.get("/api/directory/featured", async (req, res) => {
+    try {
+      const profiles = await storage.getFeaturedCompanyProfiles();
+      res.json(profiles);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch featured profiles" });
+    }
+  });
+
+  app.get("/api/directory/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const profile = await storage.getCompanyProfile(id);
+      if (!profile || !profile.isActive) return res.status(404).json({ message: "Profile not found" });
+      res.json(profile);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch profile" });
+    }
+  });
+
   return httpServer;
 }

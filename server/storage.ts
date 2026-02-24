@@ -5,14 +5,16 @@ import {
   type TariffCategory, type InsertTariffCategory,
   type TariffRate, type InsertTariffRate,
   type Proforma, type InsertProforma,
+  type CompanyProfile, type InsertCompanyProfile,
   vessels, ports, tariffCategories, tariffRates, proformas,
 } from "@shared/schema";
-import { users } from "@shared/models/auth";
+import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
 import { eq, and, lte, gte, or, isNull, desc, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
+  updateUserRole(userId: string, role: string): Promise<User | undefined>;
   incrementProformaCount(userId: string): Promise<void>;
   updateSubscription(userId: string, plan: string, limit: number): Promise<User | undefined>;
 
@@ -36,6 +38,13 @@ export interface IStorage {
   getProforma(id: number, userId: string): Promise<(Proforma & { vessel?: Vessel; port?: Port }) | undefined>;
   createProforma(proforma: InsertProforma): Promise<Proforma>;
   deleteProforma(id: number, userId: string): Promise<boolean>;
+
+  getCompanyProfileByUser(userId: string): Promise<CompanyProfile | undefined>;
+  getCompanyProfile(id: number): Promise<CompanyProfile | undefined>;
+  createCompanyProfile(profile: InsertCompanyProfile): Promise<CompanyProfile>;
+  updateCompanyProfile(id: number, userId: string, data: Partial<InsertCompanyProfile>): Promise<CompanyProfile | undefined>;
+  getPublicCompanyProfiles(filters?: { companyType?: string; portId?: number }): Promise<CompanyProfile[]>;
+  getFeaturedCompanyProfiles(): Promise<CompanyProfile[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -152,6 +161,61 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(proformas.id, id), eq(proformas.userId, userId)))
       .returning();
     return result.length > 0;
+  }
+
+  async updateUserRole(userId: string, role: string): Promise<User | undefined> {
+    const [updated] = await db.update(users)
+      .set({ userRole: role, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async getCompanyProfileByUser(userId: string): Promise<CompanyProfile | undefined> {
+    const [profile] = await db.select().from(companyProfiles).where(eq(companyProfiles.userId, userId));
+    return profile;
+  }
+
+  async getCompanyProfile(id: number): Promise<CompanyProfile | undefined> {
+    const [profile] = await db.select().from(companyProfiles).where(eq(companyProfiles.id, id));
+    return profile;
+  }
+
+  async createCompanyProfile(profile: InsertCompanyProfile): Promise<CompanyProfile> {
+    const [created] = await db.insert(companyProfiles).values(profile).returning();
+    return created;
+  }
+
+  async updateCompanyProfile(id: number, userId: string, data: Partial<InsertCompanyProfile>): Promise<CompanyProfile | undefined> {
+    const [updated] = await db.update(companyProfiles)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(companyProfiles.id, id), eq(companyProfiles.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async getPublicCompanyProfiles(filters?: { companyType?: string; portId?: number }): Promise<CompanyProfile[]> {
+    let results = await db.select().from(companyProfiles)
+      .where(eq(companyProfiles.isActive, true))
+      .orderBy(desc(companyProfiles.isFeatured), desc(companyProfiles.createdAt));
+
+    if (filters?.companyType && filters.companyType !== "all") {
+      results = results.filter(p => p.companyType === filters.companyType);
+    }
+    if (filters?.portId) {
+      results = results.filter(p => (p.servedPorts as number[])?.includes(filters.portId!));
+    }
+    return results;
+  }
+
+  async getFeaturedCompanyProfiles(): Promise<CompanyProfile[]> {
+    const now = new Date();
+    return db.select().from(companyProfiles)
+      .where(and(
+        eq(companyProfiles.isActive, true),
+        eq(companyProfiles.isFeatured, true),
+      ))
+      .orderBy(desc(companyProfiles.createdAt));
   }
 }
 

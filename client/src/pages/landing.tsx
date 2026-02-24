@@ -133,14 +133,14 @@ export default function Landing() {
               },
               {
                 icon: Shield,
-                title: "Professional Reports",
-                desc: "Generate industry-standard proforma documents ready to send to shipowners and brokers.",
+                title: "Agent & Provider Directory",
+                desc: "Find and connect with trusted ship agents and maritime service providers across Turkish ports.",
                 color: "var(--maritime-primary)",
               },
               {
                 icon: Waves,
-                title: "Real-Time Updates",
-                desc: "Stay current with the latest tariff rates and port regulations across all supported ports.",
+                title: "Company Profiles",
+                desc: "Agents and providers can create professional profiles to advertise their services to shipowners.",
                 color: "var(--maritime-secondary)",
               },
             ].map((feature, i) => (

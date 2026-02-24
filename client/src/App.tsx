@@ -16,6 +16,8 @@ import Proformas from "@/pages/proformas";
 import ProformaNew from "@/pages/proforma-new";
 import ProformaView from "@/pages/proforma-view";
 import Pricing from "@/pages/pricing";
+import Directory from "@/pages/directory";
+import CompanyProfile from "@/pages/company-profile";
 
 function AuthenticatedRouter() {
   return (
@@ -27,6 +29,8 @@ function AuthenticatedRouter() {
       <Route path="/proformas/new" component={ProformaNew} />
       <Route path="/proformas/:id" component={ProformaView} />
       <Route path="/pricing" component={Pricing} />
+      <Route path="/directory" component={Directory} />
+      <Route path="/company-profile" component={CompanyProfile} />
       <Route component={NotFound} />
     </Switch>
   );
