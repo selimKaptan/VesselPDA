@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Anchor, Search, MapPin, Building2, Phone, Mail, Globe, Star, ChevronDown, ChevronUp, Ship, Users } from "lucide-react";
+import { Anchor, Search, MapPin, Building2, Phone, Mail, Globe, Star, ChevronDown, ChevronUp, Ship, Users, X, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/use-auth";
 
 interface ServicePortCompany {
@@ -23,6 +24,25 @@ interface ServicePortCompany {
   logoUrl: string | null;
 }
 
+interface CompanyProfile {
+  id: number;
+  companyName: string;
+  companyType: string;
+  description: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  address: string | null;
+  city: string | null;
+  country: string | null;
+  servedPorts: number[];
+  serviceTypes: string[];
+  logoUrl: string | null;
+  isFeatured: boolean;
+  isActive: boolean;
+  createdAt: string | null;
+}
+
 interface ServicePortEntry {
   port: { id: number; name: string; unlocode: string | null; region: string | null };
   companies: ServicePortCompany[];
@@ -32,9 +52,15 @@ export default function ServicePorts() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedPort, setExpandedPort] = useState<number | null>(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
 
   const { data: servicePorts, isLoading } = useQuery<ServicePortEntry[]>({
     queryKey: ["/api/service-ports"],
+  });
+
+  const { data: companyDetail } = useQuery<CompanyProfile>({
+    queryKey: ["/api/directory", selectedCompanyId],
+    enabled: !!selectedCompanyId,
   });
 
   const filtered = servicePorts?.filter(entry => {
@@ -202,7 +228,7 @@ export default function ServicePorts() {
                           </div>
                           <div className="space-y-2">
                             {agents.map(company => (
-                              <CompanyCard key={company.id} company={company} />
+                              <CompanyCard key={company.id} company={company} onSelect={() => setSelectedCompanyId(company.id)} />
                             ))}
                           </div>
                         </div>
@@ -219,7 +245,7 @@ export default function ServicePorts() {
                           </div>
                           <div className="space-y-2">
                             {providers.map(company => (
-                              <CompanyCard key={company.id} company={company} />
+                              <CompanyCard key={company.id} company={company} onSelect={() => setSelectedCompanyId(company.id)} />
                             ))}
                           </div>
                         </div>
@@ -232,17 +258,156 @@ export default function ServicePorts() {
           </div>
         )}
       </div>
+
+      <Dialog open={!!selectedCompanyId} onOpenChange={(open) => { if (!open) setSelectedCompanyId(null); }}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          {companyDetail ? (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-4">
+                  {companyDetail.logoUrl ? (
+                    <div className="w-14 h-14 rounded-lg border overflow-hidden flex-shrink-0 bg-white flex items-center justify-center">
+                      <img src={companyDetail.logoUrl} alt={companyDetail.companyName} className="w-full h-full object-contain" data-testid="img-detail-logo" />
+                    </div>
+                  ) : (
+                    <div className="w-14 h-14 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0">
+                      {companyDetail.companyType === "agent" ? (
+                        <Ship className="w-6 h-6 text-[hsl(var(--maritime-primary))]" />
+                      ) : (
+                        <Building2 className="w-6 h-6 text-[hsl(var(--maritime-primary))]" />
+                      )}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <DialogTitle className="font-serif text-lg" data-testid="text-detail-company-name">
+                      {companyDetail.companyName}
+                    </DialogTitle>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline" className="text-[10px]">
+                        {companyDetail.companyType === "agent" ? "Ship Agent" : "Service Provider"}
+                      </Badge>
+                      {companyDetail.isFeatured && (
+                        <Badge className="bg-amber-500 text-white text-[10px] gap-1">
+                          <Star className="w-2.5 h-2.5 fill-white" /> Featured
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-5 mt-2">
+                {companyDetail.description && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">About</p>
+                    <p className="text-sm text-foreground leading-relaxed" data-testid="text-detail-description">{companyDetail.description}</p>
+                  </div>
+                )}
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contact Information</p>
+                  <div className="grid gap-2.5">
+                    {companyDetail.address && (
+                      <div className="flex items-start gap-3 text-sm">
+                        <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                        <span data-testid="text-detail-address">
+                          {companyDetail.address}
+                          {companyDetail.city && `, ${companyDetail.city}`}
+                          {companyDetail.country && `, ${companyDetail.country}`}
+                        </span>
+                      </div>
+                    )}
+                    {!companyDetail.address && (companyDetail.city || companyDetail.country) && (
+                      <div className="flex items-center gap-3 text-sm">
+                        <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <span>{[companyDetail.city, companyDetail.country].filter(Boolean).join(", ")}</span>
+                      </div>
+                    )}
+                    {companyDetail.phone && (
+                      <div className="flex items-center gap-3 text-sm">
+                        <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <a href={`tel:${companyDetail.phone}`} className="hover:text-[hsl(var(--maritime-primary))] transition-colors" data-testid="link-detail-phone">
+                          {companyDetail.phone}
+                        </a>
+                      </div>
+                    )}
+                    {companyDetail.email && (
+                      <div className="flex items-center gap-3 text-sm">
+                        <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <a href={`mailto:${companyDetail.email}`} className="hover:text-[hsl(var(--maritime-primary))] transition-colors" data-testid="link-detail-email">
+                          {companyDetail.email}
+                        </a>
+                      </div>
+                    )}
+                    {companyDetail.website && (
+                      <div className="flex items-center gap-3 text-sm">
+                        <Globe className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <a href={companyDetail.website.startsWith("http") ? companyDetail.website : `https://${companyDetail.website}`} target="_blank" rel="noopener noreferrer" className="hover:text-[hsl(var(--maritime-primary))] transition-colors flex items-center gap-1" data-testid="link-detail-website">
+                          {companyDetail.website} <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {companyDetail.serviceTypes && companyDetail.serviceTypes.length > 0 && (
+                  <>
+                    <Separator />
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Services</p>
+                      <div className="flex flex-wrap gap-1.5" data-testid="badges-detail-services">
+                        {(companyDetail.serviceTypes as string[]).map(s => (
+                          <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {companyDetail.createdAt && (
+                  <p className="text-[11px] text-muted-foreground text-right pt-2">
+                    Member since {new Date(companyDetail.createdAt).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
+                  </p>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="py-8 space-y-3">
+              <Skeleton className="h-14 w-14 rounded-lg" />
+              <Skeleton className="h-5 w-48" />
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function CompanyCard({ company }: { company: ServicePortCompany }) {
+function CompanyCard({ company, onSelect }: { company: ServicePortCompany; onSelect: () => void }) {
   return (
-    <Card className={`p-3 ${company.isFeatured ? "border-amber-300/50 bg-amber-50/30 dark:bg-amber-950/10" : ""}`} data-testid={`card-company-${company.id}`}>
+    <Card
+      className={`p-3 cursor-pointer transition-all hover:shadow-md hover:border-[hsl(var(--maritime-primary)/0.3)] ${company.isFeatured ? "border-amber-300/50 bg-amber-50/30 dark:bg-amber-950/10" : ""}`}
+      onClick={onSelect}
+      data-testid={`card-company-${company.id}`}
+    >
       <div className="flex items-start gap-3">
-        {company.logoUrl && (
+        {company.logoUrl ? (
           <div className="w-9 h-9 rounded-md border overflow-hidden flex-shrink-0 bg-white flex items-center justify-center">
             <img src={company.logoUrl} alt={company.companyName} className="w-full h-full object-contain" data-testid={`img-service-logo-${company.id}`} />
+          </div>
+        ) : (
+          <div className="w-9 h-9 rounded-md bg-[hsl(var(--maritime-primary)/0.08)] flex items-center justify-center flex-shrink-0">
+            {company.companyType === "agent" ? (
+              <Ship className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+            ) : (
+              <Building2 className="w-4 h-4 text-[hsl(var(--maritime-secondary))]" />
+            )}
           </div>
         )}
         <div className="min-w-0 flex-1">
@@ -273,19 +438,19 @@ function CompanyCard({ company }: { company: ServicePortCompany }) {
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {company.phone && (
-            <a href={`tel:${company.phone}`} className="text-muted-foreground hover:text-foreground transition-colors" data-testid={`link-phone-${company.id}`}>
+            <span className="text-muted-foreground" data-testid={`icon-phone-${company.id}`}>
               <Phone className="w-3.5 h-3.5" />
-            </a>
+            </span>
           )}
           {company.email && (
-            <a href={`mailto:${company.email}`} className="text-muted-foreground hover:text-foreground transition-colors" data-testid={`link-email-${company.id}`}>
+            <span className="text-muted-foreground" data-testid={`icon-email-${company.id}`}>
               <Mail className="w-3.5 h-3.5" />
-            </a>
+            </span>
           )}
           {company.website && (
-            <a href={company.website} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors" data-testid={`link-website-${company.id}`}>
+            <span className="text-muted-foreground" data-testid={`icon-website-${company.id}`}>
               <Globe className="w-3.5 h-3.5" />
-            </a>
+            </span>
           )}
         </div>
       </div>
