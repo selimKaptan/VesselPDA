@@ -59,6 +59,15 @@ function AuthenticatedLayout() {
   );
 }
 
+function PublicDirectoryPage() {
+  return (
+    <Switch>
+      <Route path="/directory" component={Directory} />
+      <Route><Landing /></Route>
+    </Switch>
+  );
+}
+
 function AppContent() {
   const { user, isLoading } = useAuth();
 
@@ -74,7 +83,7 @@ function AppContent() {
   }
 
   if (!user) {
-    return <Landing />;
+    return <PublicDirectoryPage />;
   }
 
   return <AuthenticatedLayout />;

@@ -68,7 +68,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/ports", isAuthenticated, async (req, res) => {
+  app.get("/api/ports", async (req, res) => {
     try {
       const ports = await storage.getPorts();
       res.json(ports);
