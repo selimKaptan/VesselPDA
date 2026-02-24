@@ -1,8 +1,11 @@
-import { Ship, FileText, Anchor, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin, Shield } from "lucide-react";
+import { Ship, FileText, Anchor, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin, Shield, ChevronDown } from "lucide-react";
 import { useLocation, Link } from "wouter";
+import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Sidebar,
   SidebarContent,
@@ -16,10 +19,17 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 
+const ACTIVE_ROLE_OPTIONS = [
+  { value: "agent", label: "Ship Agent" },
+  { value: "shipowner", label: "Shipowner / Broker" },
+  { value: "provider", label: "Service Provider" },
+];
+
 export function AppSidebar() {
   const [location] = useLocation();
   const { user } = useAuth();
   const userRole = (user as any)?.userRole || "shipowner";
+  const activeRole = (user as any)?.activeRole || "agent";
 
   const initials = user
     ? `${(user.firstName || "")[0] || ""}${(user.lastName || "")[0] || ""}`.toUpperCase() || "U"
@@ -31,13 +41,24 @@ export function AppSidebar() {
   ];
 
   const isAdminUser = userRole === "admin";
+  const effectiveRole = isAdminUser ? activeRole : userRole;
+
+  const switchRoleMutation = useMutation({
+    mutationFn: async (newRole: string) => {
+      const res = await apiRequest("PATCH", "/api/admin/active-role", { activeRole: newRole });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    },
+  });
 
   const toolsNav = [];
-  if (isAdminUser || userRole !== "provider") {
+  if (isAdminUser || effectiveRole !== "provider") {
     toolsNav.push({ title: "Vessels", url: "/vessels", icon: Ship });
     toolsNav.push({ title: "Proformas", url: "/proformas", icon: FileText });
   }
-  if (isAdminUser || userRole === "agent" || userRole === "provider") {
+  if (isAdminUser || effectiveRole === "agent" || effectiveRole === "provider") {
     toolsNav.push({ title: "My Profile", url: "/company-profile", icon: Building2 });
   }
 
@@ -45,7 +66,9 @@ export function AppSidebar() {
     { title: "Admin Panel", url: "/admin", icon: Shield },
   ] : [];
 
-  const roleLabel = isAdminUser ? "Admin" : userRole === "agent" ? "Ship Agent" : userRole === "provider" ? "Provider" : "Shipowner";
+  const roleLabel = isAdminUser
+    ? ACTIVE_ROLE_OPTIONS.find(r => r.value === activeRole)?.label || "Admin"
+    : effectiveRole === "agent" ? "Ship Agent" : effectiveRole === "provider" ? "Provider" : "Shipowner";
 
   return (
     <Sidebar>
@@ -149,7 +172,39 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 space-y-2">
+        {isAdminUser && (
+          <div className="px-1">
+            <p className="text-[10px] text-muted-foreground mb-1.5 uppercase tracking-wider font-medium">View as role</p>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md border text-xs hover:bg-muted/50 transition-colors"
+                  data-testid="dropdown-admin-role-switch"
+                >
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-3 h-3 text-red-500" />
+                    <span>{roleLabel}</span>
+                  </div>
+                  <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
+                {ACTIVE_ROLE_OPTIONS.map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() => switchRoleMutation.mutate(opt.value)}
+                    className={activeRole === opt.value ? "bg-muted" : ""}
+                    data-testid={`menu-role-${opt.value}`}
+                  >
+                    {opt.label}
+                    {activeRole === opt.value && <span className="ml-auto text-[hsl(var(--maritime-primary))]">✓</span>}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
         <div className="flex items-center gap-3">
           <Avatar className="w-8 h-8">
             <AvatarImage src={user?.profileImageUrl || undefined} />
@@ -160,6 +215,7 @@ export function AppSidebar() {
               {user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "User"}
             </p>
             <div className="flex items-center gap-1.5">
+              {isAdminUser && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-red-300 text-red-600">Admin</Badge>}
               <Badge variant="outline" className="text-[10px] px-1.5 py-0">{roleLabel}</Badge>
             </div>
           </div>

@@ -42,12 +42,13 @@ A professional web-based maritime platform for ship agents to create instant pro
 ## Database
 - PostgreSQL with Drizzle ORM
 - Tables: users, sessions, vessels, ports, tariff_categories, tariff_rates, proformas, company_profiles
-- Users table has userRole, subscriptionPlan, proformaCount, proformaLimit fields
+- Users table has userRole, activeRole, subscriptionPlan, proformaCount, proformaLimit fields
 - Company profiles have companyType, servedPorts (jsonb), serviceTypes (jsonb), isFeatured, featuredUntil
 - 804 Turkish ports loaded from Excel data
 
 ## API Endpoints
 - `PATCH /api/user/role` - Update user role (shipowner/agent/provider)
+- `PATCH /api/admin/active-role` - Admin: switch active role view (shipowner/agent/provider)
 - `GET /api/company-profile/me` - Get current user's company profile
 - `POST /api/company-profile` - Create company profile (agents/providers only)
 - `PATCH /api/company-profile/:id` - Update own company profile (sanitized fields)
@@ -71,6 +72,8 @@ A professional web-based maritime platform for ship agents to create instant pro
 - Manual calculation via "Calculate Proforma" button (no auto-calculate)
 
 ## Recent Changes
+- 2026-02-24: Admin role switching - admin can switch between agent/shipowner/provider views via sidebar dropdown, keeps admin privileges
+- 2026-02-24: Logo upload now stores images as base64 data URIs in database (persists across deployments, no filesystem dependency)
 - 2026-02-24: Added admin role for selim17 - full system access, Admin Panel (/admin) with tabs for users/vessels/proformas/profiles
 - 2026-02-24: Added Service Ports page showing ports with registered agents/providers, expandable port cards, search/filter
 - 2026-02-24: Role selection is now permanent - users pick role once at first login, cannot change afterward

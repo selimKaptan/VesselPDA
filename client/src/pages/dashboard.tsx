@@ -19,8 +19,10 @@ const ROLE_LABELS: Record<string, string> = {
 export default function Dashboard() {
   const { user } = useAuth();
   const userRole = (user as any)?.userRole || "shipowner";
+  const activeRole = (user as any)?.activeRole || "agent";
 
   const isAdmin = userRole === "admin";
+  const effectiveRole = isAdmin ? activeRole : userRole;
   const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"], enabled: isAdmin || userRole !== "provider" });
   const { data: proformas, isLoading: proformasLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"], enabled: isAdmin || userRole !== "provider" });
   const { data: featured, isLoading: featuredLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/directory/featured"] });
@@ -37,19 +39,30 @@ export default function Dashboard() {
             Welcome back, {user?.firstName || "Captain"}
           </h1>
           <p className="text-muted-foreground text-sm">
-            {userRole === "agent" ? "Manage your fleet & connect with shipowners." :
-             isAdmin ? "Full system access. Monitor all users, vessels, and proformas." :
-             userRole === "provider" ? "Manage your company profile and services." :
+            {isAdmin ? "Full system access. Monitor all users, vessels, and proformas." :
+             effectiveRole === "agent" ? "Manage your fleet & connect with shipowners." :
+             effectiveRole === "provider" ? "Manage your company profile and services." :
              "Create proformas and find trusted maritime services."}
           </p>
         </div>
-        <Badge
-          variant="outline"
-          className="text-xs px-3 py-1.5 border-[hsl(var(--maritime-primary)/0.3)] text-[hsl(var(--maritime-primary))]"
-          data-testid="badge-user-role"
-        >
-          {ROLE_LABELS[userRole] || userRole}
-        </Badge>
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Badge
+              variant="outline"
+              className="text-xs px-3 py-1.5 border-red-300 text-red-600"
+              data-testid="badge-admin-role"
+            >
+              Administrator
+            </Badge>
+          )}
+          <Badge
+            variant="outline"
+            className="text-xs px-3 py-1.5 border-[hsl(var(--maritime-primary)/0.3)] text-[hsl(var(--maritime-primary))]"
+            data-testid="badge-user-role"
+          >
+            {isAdmin ? ROLE_LABELS[effectiveRole] || effectiveRole : ROLE_LABELS[userRole] || userRole}
+          </Badge>
+        </div>
       </div>
 
       {isAdmin && adminStats && (
@@ -189,7 +202,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {(isAdmin || userRole === "agent" || userRole === "provider") && !myProfile && (
+      {(isAdmin || effectiveRole === "agent" || effectiveRole === "provider") && !myProfile && (
         <Card className="p-6 border-dashed border-2 border-[hsl(var(--maritime-primary)/0.3)] bg-[hsl(var(--maritime-primary)/0.03)]" data-testid="card-setup-profile-cta">
           <div className="flex flex-col sm:flex-row items-center gap-6">
             <div className="w-14 h-14 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0">
@@ -263,7 +276,7 @@ export default function Dashboard() {
                 </div>
               </Card>
             </Link>
-            {(userRole === "agent" || userRole === "provider") && (
+            {(isAdmin || effectiveRole === "agent" || effectiveRole === "provider") && (
               <Link href="/company-profile">
                 <Card className="p-4 hover-elevate cursor-pointer space-y-2" data-testid="button-edit-profile-quick">
                   <div className="flex items-center gap-3">

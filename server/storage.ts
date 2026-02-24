@@ -15,6 +15,7 @@ import { eq, and, lte, gte, or, isNull, desc, sql } from "drizzle-orm";
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   updateUserRole(userId: string, role: string): Promise<User | undefined>;
+  updateActiveRole(userId: string, activeRole: string): Promise<User | undefined>;
   incrementProformaCount(userId: string): Promise<void>;
   updateSubscription(userId: string, plan: string, limit: number): Promise<User | undefined>;
 
@@ -196,6 +197,14 @@ export class DatabaseStorage implements IStorage {
   async updateUserRole(userId: string, role: string): Promise<User | undefined> {
     const [updated] = await db.update(users)
       .set({ userRole: role, roleConfirmed: true, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async updateActiveRole(userId: string, activeRole: string): Promise<User | undefined> {
+    const [updated] = await db.update(users)
+      .set({ activeRole, updatedAt: new Date() })
       .where(eq(users.id, userId))
       .returning();
     return updated;

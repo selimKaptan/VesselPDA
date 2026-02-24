@@ -315,6 +315,23 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/admin/active-role", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      if (!(await isAdmin(req))) {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      const { activeRole } = req.body;
+      if (!["shipowner", "agent", "provider"].includes(activeRole)) {
+        return res.status(400).json({ message: "Invalid role. Choose: shipowner, agent, or provider" });
+      }
+      const updated = await storage.updateActiveRole(userId, activeRole);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update active role" });
+    }
+  });
+
   app.get("/api/company-profile/me", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -390,20 +407,20 @@ export async function registerRoutes(
       if (!profile) return res.status(404).json({ message: "Create a company profile first" });
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
-      if (profile.logoUrl) {
-        const oldPath = path.join(process.cwd(), profile.logoUrl.replace(/^\//, ""));
-        if (fs.existsSync(oldPath)) {
-          fs.unlinkSync(oldPath);
-        }
-      }
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const base64 = fileBuffer.toString("base64");
+      const mimeType = req.file.mimetype || "image/png";
+      const logoUrl = `data:${mimeType};base64,${base64}`;
 
-      const logoUrl = `/uploads/logos/${req.file.filename}`;
+      fs.unlinkSync(req.file.path);
+
       const updated = await storage.updateCompanyProfile(profile.id, userId, { logoUrl });
       res.json({ logoUrl, profile: updated });
     } catch (error: any) {
       if (error.message?.includes("Only PNG")) {
         return res.status(400).json({ message: error.message });
       }
+      console.error("Logo upload error:", error);
       res.status(500).json({ message: "Failed to upload logo" });
     }
   });
@@ -413,13 +430,6 @@ export async function registerRoutes(
       const userId = req.user.claims.sub;
       const profile = await storage.getCompanyProfileByUser(userId);
       if (!profile) return res.status(404).json({ message: "Profile not found" });
-
-      if (profile.logoUrl) {
-        const oldPath = path.join(process.cwd(), profile.logoUrl.replace(/^\//, ""));
-        if (fs.existsSync(oldPath)) {
-          fs.unlinkSync(oldPath);
-        }
-      }
 
       const updated = await storage.updateCompanyProfile(profile.id, userId, { logoUrl: null });
       res.json({ success: true, profile: updated });

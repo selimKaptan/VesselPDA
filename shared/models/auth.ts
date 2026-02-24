@@ -22,6 +22,7 @@ export const users = pgTable("users", {
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
   userRole: varchar("user_role").notNull().default("shipowner"),
+  activeRole: varchar("active_role"),
   roleConfirmed: boolean("role_confirmed").notNull().default(false),
   subscriptionPlan: varchar("subscription_plan").notNull().default("free"),
   proformaCount: integer("proforma_count").notNull().default(0),
