@@ -2,7 +2,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "wouter";
 import { MessageSquare, Eye, Clock, Plus, Search, Pin, Lock, ChevronRight } from "lucide-react";
-import vesselPdaLogo from "@assets/image_1771971772715.png";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -143,7 +142,7 @@ export default function Forum() {
         <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/80 border-b">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
             <a href="/" className="flex items-center gap-2" data-testid="link-home">
-              <img src={vesselPdaLogo} alt="VesselPDA" className="w-9 h-9 rounded-md object-contain" />
+              <img src="/logo.png" alt="VesselPDA" className="w-9 h-9 rounded-md object-contain" />
               <span className="font-serif font-bold text-lg tracking-tight">VesselPDA</span>
             </a>
             <div className="hidden md:flex items-center gap-8">

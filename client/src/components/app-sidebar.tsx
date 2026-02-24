@@ -1,5 +1,4 @@
 import { Ship, FileText, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin, Shield, ChevronDown, MessageSquare } from "lucide-react";
-import vesselPdaLogo from "@assets/image_1771971772715.png";
 import { useLocation, Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -76,7 +75,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
-          <img src={vesselPdaLogo} alt="VesselPDA" className="w-9 h-9 rounded-md flex-shrink-0 object-contain" />
+          <img src="/logo.png" alt="VesselPDA" className="w-9 h-9 rounded-md flex-shrink-0 object-contain" />
           <div className="min-w-0">
             <p className="font-serif font-bold text-sm tracking-tight truncate">VesselPDA</p>
             <p className="text-xs text-muted-foreground truncate">Maritime Platform</p>

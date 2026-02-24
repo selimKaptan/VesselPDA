@@ -1,6 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
 import { Ship, Building2, ArrowRight } from "lucide-react";
-import vesselPdaLogo from "@assets/image_1771971772715.png";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -56,7 +55,7 @@ export default function RoleSelection() {
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="max-w-4xl w-full space-y-8">
         <div className="text-center space-y-3">
-          <img src={vesselPdaLogo} alt="VesselPDA" className="w-14 h-14 rounded-lg mx-auto object-contain" />
+          <img src="/logo.png" alt="VesselPDA" className="w-14 h-14 rounded-lg mx-auto object-contain" />
           <h1 className="font-serif text-3xl font-bold tracking-tight" data-testid="text-role-selection-title">
             Welcome to VesselPDA
           </h1>
