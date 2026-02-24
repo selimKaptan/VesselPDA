@@ -75,7 +75,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="VesselPDA" className="w-9 h-9 rounded-md flex-shrink-0 object-contain" />
+          <img src="/logo-v2.png" alt="VesselPDA" className="w-9 h-9 rounded-md flex-shrink-0 object-contain" />
           <div className="min-w-0">
             <p className="font-serif font-bold text-sm tracking-tight truncate">VesselPDA</p>
             <p className="text-xs text-muted-foreground truncate">Maritime Platform</p>

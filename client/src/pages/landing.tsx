@@ -155,7 +155,7 @@ export default function Landing() {
       <Dialog open={showWelcome} onOpenChange={(open) => { if (!open) closeWelcome(); }}>
         <DialogContent className="max-w-2xl p-0 overflow-hidden gap-0" data-testid="dialog-welcome">
           <div className="bg-[hsl(var(--maritime-primary))] px-8 py-7 flex items-center gap-4">
-            <img src="/logo.png" alt="VesselPDA" className="w-14 h-14 rounded-xl object-contain bg-white/10 p-1 flex-shrink-0" />
+            <img src="/logo-v2.png" alt="VesselPDA" className="w-14 h-14 rounded-xl object-contain bg-white/10 p-1 flex-shrink-0" />
             <div>
               <h2 className="font-serif text-2xl font-bold text-white tracking-tight">VesselPDA'ya Hoş Geldiniz</h2>
               <p className="text-white/75 text-sm mt-1">Denizcilik profesyonelleri için geliştirilmiş dijital platform</p>
@@ -204,7 +204,7 @@ export default function Landing() {
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/80 border-b">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="VesselPDA" className="w-9 h-9 rounded-md object-contain" />
+            <img src="/logo-v2.png" alt="VesselPDA" className="w-9 h-9 rounded-md object-contain" />
             <span className="font-serif font-bold text-lg tracking-tight">VesselPDA</span>
           </div>
           <div className="hidden md:flex items-center gap-8">
@@ -509,7 +509,7 @@ export default function Landing() {
       <footer className="border-t py-8">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="VesselPDA" className="w-5 h-5 rounded object-contain" />
+            <img src="/logo-v2.png" alt="VesselPDA" className="w-5 h-5 rounded object-contain" />
             <span className="text-sm font-medium">VesselPDA</span>
           </div>
           <p className="text-sm text-muted-foreground">&copy; {new Date().getFullYear()} VesselPDA. All rights reserved.</p>
