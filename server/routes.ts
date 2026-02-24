@@ -251,6 +251,10 @@ export async function registerRoutes(
       if (!["shipowner", "agent", "provider"].includes(role)) {
         return res.status(400).json({ message: "Invalid role. Choose: shipowner, agent, or provider" });
       }
+      const user = await storage.getUser(userId);
+      if (user && user.roleConfirmed) {
+        return res.status(403).json({ message: "Role already confirmed. You cannot change your role." });
+      }
       const updated = await storage.updateUserRole(userId, role);
       res.json(updated);
     } catch (error) {

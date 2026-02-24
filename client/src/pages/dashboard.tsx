@@ -1,38 +1,28 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Ship, FileText, TrendingUp, Plus, ArrowRight, Crown, Zap, Users, Building2, Anchor, Star } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Vessel, Proforma, CompanyProfile } from "@shared/schema";
+
+const ROLE_LABELS: Record<string, string> = {
+  shipowner: "Shipowner / Broker",
+  agent: "Ship Agent",
+  provider: "Service Provider",
+};
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { toast } = useToast();
   const userRole = (user as any)?.userRole || "shipowner";
 
   const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"], enabled: userRole !== "provider" });
   const { data: proformas, isLoading: proformasLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"], enabled: userRole !== "provider" });
   const { data: featured, isLoading: featuredLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/directory/featured"] });
   const { data: myProfile } = useQuery<CompanyProfile | null>({ queryKey: ["/api/company-profile/me"], enabled: userRole === "agent" || userRole === "provider" });
-
-  const roleMutation = useMutation({
-    mutationFn: async (role: string) => {
-      const res = await apiRequest("PATCH", "/api/user/role", { role });
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-      toast({ title: "Role updated. Please refresh the page to see changes." });
-      window.location.reload();
-    },
-  });
 
   const recentProformas = proformas?.slice(0, 5) || [];
 
@@ -49,19 +39,13 @@ export default function Dashboard() {
              "Create proformas and find trusted maritime services."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">I am a:</span>
-          <Select value={userRole} onValueChange={(v) => roleMutation.mutate(v)}>
-            <SelectTrigger className="w-40 h-8 text-xs" data-testid="select-role">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="shipowner">Shipowner / Broker</SelectItem>
-              <SelectItem value="agent">Ship Agent</SelectItem>
-              <SelectItem value="provider">Service Provider</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <Badge
+          variant="outline"
+          className="text-xs px-3 py-1.5 border-[hsl(var(--maritime-primary)/0.3)] text-[hsl(var(--maritime-primary))]"
+          data-testid="badge-user-role"
+        >
+          {ROLE_LABELS[userRole] || userRole}
+        </Badge>
       </div>
 
       {userRole !== "provider" && (

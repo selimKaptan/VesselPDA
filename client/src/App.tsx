@@ -9,6 +9,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
+import RoleSelection from "@/pages/role-selection";
 import Dashboard from "@/pages/dashboard";
 import Vessels from "@/pages/vessels";
 import Ports from "@/pages/ports";
@@ -84,6 +85,10 @@ function AppContent() {
 
   if (!user) {
     return <PublicDirectoryPage />;
+  }
+
+  if (!(user as any).roleConfirmed) {
+    return <RoleSelection />;
   }
 
   return <AuthenticatedLayout />;
