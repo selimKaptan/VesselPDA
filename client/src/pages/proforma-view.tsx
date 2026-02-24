@@ -57,6 +57,31 @@ export default function ProformaView() {
           <Button variant="outline" className="gap-2" onClick={() => window.print()} data-testid="button-print">
             <Printer className="w-4 h-4" /> Print
           </Button>
+          <Button
+            variant="outline"
+            className="gap-2"
+            data-testid="button-download"
+            onClick={() => {
+              const doc = document.getElementById("proforma-document");
+              if (!doc) return;
+              const printWindow = window.open("", "_blank");
+              if (!printWindow) return;
+              const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+                .map(el => el.outerHTML).join("\n");
+              printWindow.document.write(`<!DOCTYPE html><html><head><title>${proforma.referenceNumber || "Proforma"}</title>${styles}<style>
+                body { padding: 32px; font-family: system-ui, -apple-system, sans-serif; }
+                @media print { body { padding: 0; } }
+                .print-hide { display: none !important; }
+              </style></head><body>${doc.outerHTML}</body></html>`);
+              printWindow.document.close();
+              setTimeout(() => {
+                printWindow.print();
+                setTimeout(() => printWindow.close(), 1000);
+              }, 500);
+            }}
+          >
+            <Download className="w-4 h-4" /> Download PDF
+          </Button>
         </div>
       </div>
 
