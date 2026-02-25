@@ -641,6 +641,23 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/stats", async (_req, res) => {
+    try {
+      const [users, proformas, companies] = await Promise.all([
+        storage.getAllUsers(),
+        storage.getAllProformas(),
+        storage.getAllCompanyProfiles(),
+      ]);
+      res.json({
+        userCount: users.length,
+        proformaCount: proformas.length,
+        companyCount: companies.length,
+      });
+    } catch {
+      res.json({ userCount: 0, proformaCount: 0, companyCount: 0 });
+    }
+  });
+
   app.get("/api/activity-feed", async (_req, res) => {
     try {
       const activities: { type: string; message: string; timestamp: string; icon: string }[] = [];

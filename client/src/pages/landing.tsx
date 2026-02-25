@@ -63,14 +63,16 @@ function LiveActivityTicker() {
     <section className="py-14 md:py-20 relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-[hsl(var(--maritime-primary)/0.02)] via-[hsl(var(--maritime-primary)/0.05)] to-[hsl(var(--maritime-primary)/0.02)]" />
 
-      <div className="max-w-7xl mx-auto px-6 relative mb-8">
-        <div className="flex items-center justify-center gap-3">
-          <span className="relative flex h-2.5 w-2.5">
+      <div className="max-w-7xl mx-auto px-6 relative mb-8 text-center space-y-2">
+        <div className="flex items-center justify-center gap-2.5">
+          <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
           </span>
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Live Platform Activity</span>
+          <span className="text-xs font-bold text-foreground uppercase tracking-widest">Live Platform Activity</span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold border border-emerald-500/20">LIVE</span>
         </div>
+        <p className="text-xs text-muted-foreground">{activities.length} recent actions from VesselPDA users · refreshes every 30 seconds</p>
       </div>
 
       <div
@@ -134,6 +136,10 @@ const WELCOME_KEY = "vesselPDA_welcomed";
 export default function Landing() {
   const [showWelcome, setShowWelcome] = useState(() => {
     try { return !localStorage.getItem(WELCOME_KEY); } catch { return true; }
+  });
+  const { data: platformStats } = useQuery<{ userCount: number; proformaCount: number; companyCount: number }>({
+    queryKey: ["/api/stats"],
+    staleTime: 5 * 60 * 1000,
   });
 
   function closeWelcome() {
@@ -321,14 +327,24 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border/60">
             {[
-              { value: "804+", label: "Turkish Ports", icon: MapPin, color: "var(--maritime-primary)" },
-              { value: "22", label: "Calculation Items", icon: BarChart3, color: "var(--maritime-secondary)" },
-              { value: "3", label: "Subscription Plans", icon: Shield, color: "var(--maritime-accent)" },
-              { value: "100%", label: "Formula-Based", icon: TrendingUp, color: "var(--maritime-success)" },
+              {
+                value: platformStats ? `${platformStats.userCount}+` : "—",
+                label: "Maritime Professionals",
+                icon: Users,
+                color: "var(--maritime-primary)",
+              },
+              {
+                value: platformStats ? `${platformStats.proformaCount}+` : "—",
+                label: "Proformas Generated",
+                icon: FileText,
+                color: "var(--maritime-secondary)",
+              },
+              { value: "804+", label: "Turkish Ports", icon: MapPin, color: "var(--maritime-accent)" },
+              { value: "22", label: "Tariff Line Items", icon: BarChart3, color: "var(--maritime-success)" },
             ].map((stat, i) => (
               <div key={i} className="flex items-center gap-3 px-6 py-5">
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `hsl(${stat.color} / 0.1)` }}>
-                  <stat.icon className="w-4.5 h-4.5" style={{ color: `hsl(${stat.color})` }} />
+                  <stat.icon className="w-4 h-4" style={{ color: `hsl(${stat.color})` }} />
                 </div>
                 <div>
                   <p className="font-serif text-xl font-bold leading-none" style={{ color: `hsl(${stat.color})` }}>{stat.value}</p>
@@ -357,73 +373,140 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[
-              {
-                icon: Ship,
-                title: "Fleet Management",
-                desc: "Add and manage all your vessels in one place. Track GRT, NRT, flag, and vessel specifications with ease.",
-                color: "var(--maritime-primary)",
-                bg: "from-blue-500/10 to-cyan-500/5",
-              },
-              {
-                icon: FileText,
-                title: "Instant Proformas",
-                desc: "Generate professional proforma invoices in seconds based on real port tariff data and vessel particulars.",
-                color: "var(--maritime-secondary)",
-                bg: "from-sky-500/10 to-blue-500/5",
-              },
-              {
-                icon: BarChart3,
-                title: "Tariff Calculator",
-                desc: "Automated calculation engine using official port tariff rates for 22 line items — accurate every time.",
-                color: "var(--maritime-accent)",
-                bg: "from-cyan-500/10 to-teal-500/5",
-              },
-              {
-                icon: Globe,
-                title: "Multi-Port Support",
-                desc: "Access tariff data for all 804 Turkish ports including Istanbul, Izmir, Tekirdag, and many more.",
-                color: "var(--maritime-success)",
-                bg: "from-emerald-500/10 to-green-500/5",
-              },
-              {
-                icon: Users,
-                title: "Agent & Provider Directory",
-                desc: "Find and connect with trusted ship agents and maritime service providers across Turkish ports.",
-                color: "var(--maritime-primary)",
-                bg: "from-blue-500/10 to-indigo-500/5",
-              },
-              {
-                icon: Building2,
-                title: "Company Profiles",
-                desc: "Agents and providers can create professional profiles to advertise their services to shipowners.",
-                color: "var(--maritime-secondary)",
-                bg: "from-sky-500/10 to-blue-400/5",
-              },
-            ].map((feature, i) => (
-              <Card
-                key={i}
-                className="p-6 space-y-4 hover:shadow-lg hover:border-[hsl(var(--maritime-primary)/0.25)] transition-all duration-200 group cursor-default"
-                data-testid={`card-feature-${i}`}
-              >
-                <div
-                  className={`w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br ${feature.bg}`}
+          <div className="space-y-5">
+            {/* Hero row — primary features */}
+            <div className="grid md:grid-cols-2 gap-5">
+              {[
+                {
+                  icon: FileText,
+                  title: "Instant Proforma Generation",
+                  desc: "Generate professional proforma disbursement accounts in seconds. Select a port, enter vessel and cargo details, and receive a complete 22-line breakdown using official Turkish tariff rates — ready to print or send as PDF.",
+                  color: "var(--maritime-secondary)",
+                  bg: "from-sky-500/12 to-blue-500/6",
+                  badge: "Core Feature",
+                  stat: "22 line items · official tariff rates · PDF export",
+                },
+                {
+                  icon: BarChart3,
+                  title: "Formula-Based Tariff Calculator",
+                  desc: "The calculation engine mirrors the official Turkish port tariff schedule exactly. GRT/NRT-based scaling, dangerous cargo surcharges, flag and customs categories — every variable accounted for. Not estimates; precise figures.",
+                  color: "var(--maritime-accent)",
+                  bg: "from-cyan-500/12 to-teal-500/6",
+                  badge: "Unique to VesselPDA",
+                  stat: "804 ports · USD / EUR / TRY rates",
+                },
+              ].map((feature, i) => (
+                <Card
+                  key={i}
+                  className="p-7 space-y-5 hover:shadow-xl hover:border-[hsl(var(--maritime-primary)/0.3)] transition-all duration-200 group cursor-default ring-1 ring-border/40"
+                  data-testid={`card-feature-hero-${i}`}
                 >
-                  <feature.icon className="w-5 h-5 transition-transform duration-200 group-hover:scale-110" style={{ color: `hsl(${feature.color})` }} />
-                </div>
-                <div>
-                  <h3 className="font-serif font-semibold text-base mb-1.5">{feature.title}</h3>
-                  <p className="text-muted-foreground text-sm leading-relaxed">{feature.desc}</p>
-                </div>
-                <div className="pt-1">
-                  <div className="h-0.5 w-8 rounded-full transition-all duration-300 group-hover:w-16" style={{ backgroundColor: `hsl(${feature.color} / 0.5)` }} />
-                </div>
-              </Card>
-            ))}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className={`w-13 h-13 rounded-xl flex items-center justify-center bg-gradient-to-br ${feature.bg} p-3`}>
+                      <feature.icon className="w-6 h-6 transition-transform duration-200 group-hover:scale-110" style={{ color: `hsl(${feature.color})` }} />
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border flex-shrink-0" style={{ color: `hsl(${feature.color})`, backgroundColor: `hsl(${feature.color} / 0.08)`, borderColor: `hsl(${feature.color} / 0.2)` }}>
+                      {feature.badge}
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-bold text-lg mb-2">{feature.title}</h3>
+                    <p className="text-muted-foreground text-sm leading-relaxed">{feature.desc}</p>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="h-0.5 w-10 rounded-full transition-all duration-300 group-hover:w-20" style={{ backgroundColor: `hsl(${feature.color} / 0.5)` }} />
+                    <span className="text-xs text-muted-foreground">{feature.stat}</span>
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            {/* Supporting features — compact */}
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                {
+                  icon: Ship,
+                  title: "Fleet Management",
+                  desc: "Manage all vessels — GRT, NRT, flag, and type — in one place. Saved and reused across every proforma.",
+                  color: "var(--maritime-primary)",
+                  bg: "from-blue-500/10 to-cyan-500/5",
+                },
+                {
+                  icon: Globe,
+                  title: "804+ Turkish Ports",
+                  desc: "Full tariff coverage across every active Turkish commercial port, from major hubs to coastal terminals.",
+                  color: "var(--maritime-success)",
+                  bg: "from-emerald-500/10 to-green-500/5",
+                },
+                {
+                  icon: Users,
+                  title: "Agent Directory",
+                  desc: "Browse ship agents and maritime providers by port, service type, or company name.",
+                  color: "var(--maritime-primary)",
+                  bg: "from-blue-500/10 to-indigo-500/5",
+                },
+                {
+                  icon: Building2,
+                  title: "Company Profiles",
+                  desc: "Agents and providers create public profiles to attract shipowners and brokers.",
+                  color: "var(--maritime-secondary)",
+                  bg: "from-sky-500/10 to-blue-400/5",
+                },
+              ].map((feature, i) => (
+                <Card
+                  key={i}
+                  className="p-5 space-y-3 hover:shadow-md hover:border-[hsl(var(--maritime-primary)/0.2)] transition-all duration-200 group cursor-default"
+                  data-testid={`card-feature-${i}`}
+                >
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center bg-gradient-to-br ${feature.bg}`}>
+                    <feature.icon className="w-4.5 h-4.5 transition-transform duration-200 group-hover:scale-110" style={{ color: `hsl(${feature.color})` }} />
+                  </div>
+                  <div>
+                    <h3 className="font-serif font-semibold text-sm mb-1">{feature.title}</h3>
+                    <p className="text-muted-foreground text-xs leading-relaxed">{feature.desc}</p>
+                  </div>
+                  <div className="h-0.5 w-6 rounded-full transition-all duration-300 group-hover:w-12" style={{ backgroundColor: `hsl(${feature.color} / 0.4)` }} />
+                </Card>
+              ))}
+            </div>
           </div>
         </div>
       </section>
+
+      {/* CREDIBILITY STRIP */}
+      <div className="border-y border-border/50 bg-[hsl(var(--maritime-primary)/0.025)] py-7">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="grid md:grid-cols-3 gap-5 md:gap-8">
+            {[
+              {
+                icon: Shield,
+                label: "Official Rate Data",
+                text: "Calculation engine built directly from official Turkish port tariff schedules — the same tables agents use manually.",
+              },
+              {
+                icon: BarChart3,
+                label: "Formula-Based, Not Estimated",
+                text: "Every line item follows the published formula. GRT/NRT tiers, surcharges, and duty categories are all accounted for precisely.",
+              },
+              {
+                icon: Globe,
+                label: "Complete Turkish Port Coverage",
+                text: "All 804 active Turkish commercial ports loaded with current tariff data, from Bosphorus to Aegean and Black Sea.",
+              },
+            ].map((item, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <item.icon className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-1">{item.label}</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{item.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* HOW IT WORKS */}
       <section id="how-it-works" className="py-24 md:py-32 scroll-mt-20 bg-gradient-to-b from-[hsl(var(--maritime-primary)/0.03)] to-transparent border-y border-border/40">
