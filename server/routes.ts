@@ -987,13 +987,10 @@ export async function registerRoutes(
           if (!servedPorts.includes(tender.portId)) {
             return res.status(403).json({ message: "This tender is not in your served ports" });
           }
+          const bids = await storage.getTenderBids(tenderId);
+          const myBid = bids.find(b => b.agentUserId === userId) || null;
+          return res.json({ tender, bids: myBid ? [myBid] : [], myBid, isOwner: false });
         }
-      }
-
-      if (effectiveRole === "agent") {
-        const bids = await storage.getTenderBids(tenderId);
-        const myBid = bids.find(b => b.agentUserId === userId) || null;
-        return res.json({ tender, bids: myBid ? [myBid] : [], myBid, isOwner: false });
       }
 
       const bids = await storage.getTenderBids(tenderId);
