@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -11,12 +11,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Gavel, Plus, Clock, FileText, Ship, MapPin, ChevronRight,
-  AlertCircle, CheckCircle2, XCircle, Inbox, Send, Anchor
+  AlertCircle, CheckCircle2, XCircle, Inbox, Send, Anchor, Upload, X
 } from "lucide-react";
+import type { Vessel } from "@shared/schema";
 
 function useCountdown(createdAt: string, expiryHours: number) {
   const [remaining, setRemaining] = useState("");
@@ -125,34 +125,52 @@ function TenderCard({ tender, role, myBidStatus }: { tender: any; role: string; 
   );
 }
 
+const EMPTY_FORM = {
+  portId: "", vesselName: "", description: "", cargoInfo: "",
+  grt: "", nrt: "", flag: "", cargoType: "", cargoQuantity: "",
+  previousPort: "", q88Base64: "", q88FileName: "", expiryHours: "24",
+};
+
 function CreateTenderDialog() {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [portSearch, setPortSearch] = useState("");
-  const [form, setForm] = useState({
-    portId: "",
-    vesselName: "",
-    description: "",
-    cargoInfo: "",
-    expiryHours: "24",
-  });
+  const [showPortDropdown, setShowPortDropdown] = useState(false);
+  const [vesselSearch, setVesselSearch] = useState("");
+  const [showVesselDropdown, setShowVesselDropdown] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const portRef = useRef<HTMLDivElement>(null);
+  const vesselRef = useRef<HTMLDivElement>(null);
+  const q88Ref = useRef<HTMLInputElement>(null);
 
   const { data: ports } = useQuery<any[]>({ queryKey: ["/api/ports"] });
+  const { data: myVessels } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
 
   const filteredPorts = (ports || []).filter((p: any) =>
     p.name.toLowerCase().includes(portSearch.toLowerCase())
   ).slice(0, 50);
 
+  const filteredVessels = (myVessels || []).filter((v: Vessel) =>
+    v.name.toLowerCase().includes(vesselSearch.toLowerCase())
+  );
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (portRef.current && !portRef.current.contains(e.target as Node)) setShowPortDropdown(false);
+      if (vesselRef.current && !vesselRef.current.contains(e.target as Node)) setShowVesselDropdown(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   const mutation = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/tenders", data),
     onSuccess: async (res: any) => {
       const data = await res.json();
-      toast({
-        title: "İhale oluşturuldu!",
-        description: `${data.agentCount} acenteye gönderildi.`,
-      });
+      toast({ title: "İhale oluşturuldu!", description: `${data.agentCount} acenteye gönderildi.` });
       setOpen(false);
-      setForm({ portId: "", vesselName: "", description: "", cargoInfo: "", expiryHours: "24" });
+      setForm(EMPTY_FORM);
+      setPortSearch(""); setVesselSearch("");
       queryClient.invalidateQueries({ queryKey: ["/api/tenders"] });
     },
     onError: async (err: any) => {
@@ -161,12 +179,47 @@ function CreateTenderDialog() {
     },
   });
 
-  const handleSubmit = () => {
-    if (!form.portId) {
-      toast({ title: "Hata", description: "Liman seçiniz", variant: "destructive" });
+  const handleQ88Upload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Hata", description: "Dosya 5MB'dan küçük olmalıdır", variant: "destructive" });
       return;
     }
-    mutation.mutate({ ...form, portId: Number(form.portId), expiryHours: Number(form.expiryHours) });
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setForm(f => ({ ...f, q88Base64: ev.target?.result as string, q88FileName: file.name }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = () => {
+    const required: [string, string][] = [
+      [form.portId, "Liman seçiniz"],
+      [form.vesselName, "Gemi adı giriniz"],
+      [form.flag, "Bayrak giriniz"],
+      [form.grt, "GRT giriniz"],
+      [form.nrt, "NRT giriniz"],
+      [form.cargoType, "Yük türü giriniz"],
+      [form.cargoQuantity, "Yük miktarı giriniz"],
+      [form.previousPort, "Geminin nereden geldiğini giriniz"],
+    ];
+    for (const [val, msg] of required) {
+      if (!val) { toast({ title: "Eksik Alan", description: msg, variant: "destructive" }); return; }
+    }
+    mutation.mutate({
+      portId: Number(form.portId),
+      vesselName: form.vesselName,
+      flag: form.flag,
+      grt: Number(form.grt),
+      nrt: Number(form.nrt),
+      cargoType: form.cargoType,
+      cargoQuantity: form.cargoQuantity,
+      previousPort: form.previousPort,
+      q88Base64: form.q88Base64 || null,
+      description: form.description || null,
+      expiryHours: Number(form.expiryHours),
+    });
   };
 
   return (
@@ -176,7 +229,7 @@ function CreateTenderDialog() {
           <Plus className="w-4 h-4" /> Yeni İhale Oluştur
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg" data-testid="dialog-create-tender">
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto" data-testid="dialog-create-tender">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Gavel className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
@@ -185,76 +238,202 @@ function CreateTenderDialog() {
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
-          <div className="space-y-1.5">
+
+          {/* PORT SEARCH */}
+          <div className="space-y-1.5" ref={portRef}>
             <Label>Liman <span className="text-red-500">*</span></Label>
-            <Input
-              placeholder="Liman ara..."
-              value={portSearch}
-              onChange={e => setPortSearch(e.target.value)}
-              data-testid="input-port-search"
-            />
-            {portSearch && (
-              <div className="border rounded-md max-h-40 overflow-y-auto divide-y">
-                {filteredPorts.length === 0 && (
-                  <p className="p-2 text-sm text-muted-foreground">Sonuç yok</p>
-                )}
-                {filteredPorts.map((p: any) => (
-                  <button
-                    key={p.id}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors ${form.portId === String(p.id) ? "bg-[hsl(var(--maritime-primary)/0.08)] font-medium" : ""}`}
-                    onClick={() => { setForm(f => ({ ...f, portId: String(p.id) })); setPortSearch(p.name); }}
-                    data-testid={`option-port-${p.id}`}
-                  >
-                    {p.name}
-                  </button>
-                ))}
-              </div>
-            )}
-            {form.portId && !portSearch.includes("…") && (
+            <div className="relative">
+              <Input
+                placeholder="Liman ara..."
+                value={portSearch}
+                onChange={e => { setPortSearch(e.target.value); setShowPortDropdown(true); setForm(f => ({ ...f, portId: "" })); }}
+                onFocus={() => { if (portSearch) setShowPortDropdown(true); }}
+                data-testid="input-port-search"
+              />
+              {showPortDropdown && portSearch && (
+                <div className="absolute z-50 w-full border rounded-md shadow-lg bg-popover max-h-44 overflow-y-auto divide-y mt-1">
+                  {filteredPorts.length === 0 && <p className="p-2 text-sm text-muted-foreground">Sonuç yok</p>}
+                  {filteredPorts.map((p: any) => (
+                    <button
+                      key={p.id}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => {
+                        setForm(f => ({ ...f, portId: String(p.id) }));
+                        setPortSearch(p.name);
+                        setShowPortDropdown(false);
+                      }}
+                      data-testid={`option-port-${p.id}`}
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {form.portId && (
               <p className="text-xs text-emerald-600 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> Liman seçildi
               </p>
             )}
           </div>
 
+          {/* VESSEL NAME + FLAG */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5" ref={vesselRef}>
+              <Label>Gemi Adı <span className="text-red-500">*</span></Label>
+              <div className="relative">
+                <Input
+                  placeholder="MV EXAMPLE"
+                  value={vesselSearch}
+                  onChange={e => {
+                    setVesselSearch(e.target.value);
+                    setForm(f => ({ ...f, vesselName: e.target.value }));
+                    setShowVesselDropdown(true);
+                  }}
+                  onFocus={() => { if (myVessels?.length) setShowVesselDropdown(true); }}
+                  data-testid="input-vessel-name"
+                />
+                {showVesselDropdown && filteredVessels.length > 0 && (
+                  <div className="absolute z-50 w-full border rounded-md shadow-lg bg-popover max-h-40 overflow-y-auto divide-y mt-1">
+                    {filteredVessels.map((v: Vessel) => (
+                      <button
+                        key={v.id}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={() => {
+                          setVesselSearch(v.name);
+                          setForm(f => ({
+                            ...f,
+                            vesselName: v.name,
+                            grt: String(v.grt || ""),
+                            nrt: String(v.nrt || ""),
+                            flag: v.flag || "",
+                          }));
+                          setShowVesselDropdown(false);
+                        }}
+                        data-testid={`option-vessel-${v.id}`}
+                      >
+                        <span className="font-medium">{v.name}</span>
+                        <span className="text-muted-foreground text-xs ml-2">{v.flag}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Bayrak <span className="text-red-500">*</span></Label>
+              <Input
+                placeholder="Turkey"
+                value={form.flag}
+                onChange={e => setForm(f => ({ ...f, flag: e.target.value }))}
+                data-testid="input-flag"
+              />
+            </div>
+          </div>
+
+          {/* GRT + NRT */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>GRT <span className="text-red-500">*</span></Label>
+              <Input
+                placeholder="ör. 5000"
+                type="number"
+                value={form.grt}
+                onChange={e => setForm(f => ({ ...f, grt: e.target.value }))}
+                data-testid="input-grt"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>NRT <span className="text-red-500">*</span></Label>
+              <Input
+                placeholder="ör. 3000"
+                type="number"
+                value={form.nrt}
+                onChange={e => setForm(f => ({ ...f, nrt: e.target.value }))}
+                data-testid="input-nrt"
+              />
+            </div>
+          </div>
+
+          {/* CARGO TYPE + CARGO QUANTITY */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Yük Türü <span className="text-red-500">*</span></Label>
+              <Input
+                placeholder="ör. Grain, Coal, Steel"
+                value={form.cargoType}
+                onChange={e => setForm(f => ({ ...f, cargoType: e.target.value }))}
+                data-testid="input-cargo-type"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Yük Miktarı <span className="text-red-500">*</span></Label>
+              <Input
+                placeholder="ör. 15,000 MT"
+                value={form.cargoQuantity}
+                onChange={e => setForm(f => ({ ...f, cargoQuantity: e.target.value }))}
+                data-testid="input-cargo-quantity"
+              />
+            </div>
+          </div>
+
+          {/* PREVIOUS PORT */}
           <div className="space-y-1.5">
-            <Label>Gemi Adı</Label>
+            <Label>Nereden Geliyor <span className="text-red-500">*</span></Label>
             <Input
-              placeholder="MV EXAMPLE"
-              value={form.vesselName}
-              onChange={e => setForm(f => ({ ...f, vesselName: e.target.value }))}
-              data-testid="input-vessel-name"
+              placeholder="ör. Novorossiysk, Russia"
+              value={form.previousPort}
+              onChange={e => setForm(f => ({ ...f, previousPort: e.target.value }))}
+              data-testid="input-previous-port"
             />
           </div>
 
+          {/* Q88 UPLOAD (optional) */}
           <div className="space-y-1.5">
-            <Label>Kargo Bilgisi</Label>
-            <Input
-              placeholder="ör. 15,000 MT Grain, Loading"
-              value={form.cargoInfo}
-              onChange={e => setForm(f => ({ ...f, cargoInfo: e.target.value }))}
-              data-testid="input-cargo-info"
-            />
+            <Label className="flex items-center gap-1.5">
+              Q88 Formu
+              <span className="text-[10px] text-muted-foreground font-normal">(opsiyonel, PDF / JPG, maks. 5MB)</span>
+            </Label>
+            <input ref={q88Ref} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleQ88Upload} />
+            {form.q88Base64 ? (
+              <div className="flex items-center gap-2 border rounded-md px-3 py-2 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span className="text-sm text-emerald-700 dark:text-emerald-400 truncate flex-1">{form.q88FileName}</span>
+                <button onClick={() => setForm(f => ({ ...f, q88Base64: "", q88FileName: "" }))} className="text-muted-foreground hover:text-destructive">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => q88Ref.current?.click()}
+                className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-border rounded-md py-3 text-sm text-muted-foreground hover:border-[hsl(var(--maritime-primary)/0.4)] hover:text-[hsl(var(--maritime-primary))] transition-colors"
+                data-testid="button-upload-q88"
+              >
+                <Upload className="w-4 h-4" />
+                Q88 Formu Yükle
+              </button>
+            )}
           </div>
 
+          {/* DESCRIPTION */}
           <div className="space-y-1.5">
             <Label>Açıklama / Notlar</Label>
             <Textarea
               placeholder="Ek bilgi ve gereksinimler..."
-              rows={3}
+              rows={2}
               value={form.description}
               onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
               data-testid="input-description"
             />
           </div>
 
+          {/* EXPIRY */}
           <div className="space-y-2">
             <Label>İhale Süresi <span className="text-red-500">*</span></Label>
-            <RadioGroup
-              value={form.expiryHours}
-              onValueChange={v => setForm(f => ({ ...f, expiryHours: v }))}
-              className="flex gap-4"
-            >
+            <RadioGroup value={form.expiryHours} onValueChange={v => setForm(f => ({ ...f, expiryHours: v }))} className="flex gap-4">
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="24" id="exp-24" data-testid="radio-24h" />
                 <Label htmlFor="exp-24" className="cursor-pointer font-normal">24 Saat</Label>
@@ -275,7 +454,7 @@ function CreateTenderDialog() {
 
           <Button
             onClick={handleSubmit}
-            disabled={mutation.isPending || !form.portId}
+            disabled={mutation.isPending}
             className="w-full"
             data-testid="button-submit-tender"
           >

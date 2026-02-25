@@ -825,8 +825,15 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Only shipowners and agents can create tenders" });
       }
 
-      const { portId, vesselName, description, cargoInfo, expiryHours } = req.body;
+      const { portId, vesselName, description, cargoInfo, expiryHours, grt, nrt, flag, cargoType, cargoQuantity, previousPort, q88Base64 } = req.body;
       if (!portId) return res.status(400).json({ message: "Port is required" });
+      if (!vesselName) return res.status(400).json({ message: "Vessel name is required" });
+      if (!flag) return res.status(400).json({ message: "Flag is required" });
+      if (!grt) return res.status(400).json({ message: "GRT is required" });
+      if (!nrt) return res.status(400).json({ message: "NRT is required" });
+      if (!cargoType) return res.status(400).json({ message: "Cargo type is required" });
+      if (!cargoQuantity) return res.status(400).json({ message: "Cargo quantity is required" });
+      if (!previousPort) return res.status(400).json({ message: "Previous port is required" });
       if (![24, 48].includes(Number(expiryHours))) {
         return res.status(400).json({ message: "Expiry must be 24 or 48 hours" });
       }
@@ -837,6 +844,13 @@ export async function registerRoutes(
         vesselName: vesselName || null,
         description: description || null,
         cargoInfo: cargoInfo || null,
+        grt: grt ? Number(grt) : null,
+        nrt: nrt ? Number(nrt) : null,
+        flag: flag || null,
+        cargoType: cargoType || null,
+        cargoQuantity: cargoQuantity || null,
+        previousPort: previousPort || null,
+        q88Base64: q88Base64 || null,
         expiryHours: Number(expiryHours),
       });
 

@@ -368,15 +368,54 @@ export default function TenderDetailPage() {
 
         <Separator className="my-4" />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          {tender.cargoInfo && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+          {/* Vessel info */}
+          {tender.flag && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Bayrak</p>
+              <p>{tender.flag}</p>
+            </div>
+          )}
+          {tender.grt && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">GRT</p>
+              <p>{Number(tender.grt).toLocaleString("tr-TR")}</p>
+            </div>
+          )}
+          {tender.nrt && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">NRT</p>
+              <p>{Number(tender.nrt).toLocaleString("tr-TR")}</p>
+            </div>
+          )}
+          {/* Cargo info */}
+          {tender.cargoType && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Yük Türü</p>
+              <p>{tender.cargoType}</p>
+            </div>
+          )}
+          {tender.cargoQuantity && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Yük Miktarı</p>
+              <p>{tender.cargoQuantity}</p>
+            </div>
+          )}
+          {tender.previousPort && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Önceki Liman</p>
+              <p>{tender.previousPort}</p>
+            </div>
+          )}
+          {/* Legacy cargoInfo */}
+          {tender.cargoInfo && !tender.cargoType && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Kargo</p>
               <p>{tender.cargoInfo}</p>
             </div>
           )}
           {tender.description && (
-            <div>
+            <div className="col-span-2 md:col-span-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Açıklama</p>
               <p>{tender.description}</p>
             </div>
@@ -390,6 +429,26 @@ export default function TenderDetailPage() {
             <p>{new Date(tender.createdAt).toLocaleString("tr-TR")}</p>
           </div>
         </div>
+
+        {/* Q88 Download */}
+        {tender.q88Base64 && (
+          <>
+            <Separator className="my-4" />
+            <div className="flex items-center gap-3">
+              <FileText className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              <span className="text-sm font-medium">Q88 Formu</span>
+              <a
+                href={tender.q88Base64}
+                download="Q88_Form"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto text-xs text-[hsl(var(--maritime-primary))] hover:underline font-medium flex items-center gap-1"
+              >
+                <Eye className="w-3.5 h-3.5" /> Görüntüle / İndir
+              </a>
+            </div>
+          </>
+        )}
       </Card>
 
       {/* Nomination success banner */}
