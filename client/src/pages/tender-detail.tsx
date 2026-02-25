@@ -118,8 +118,9 @@ function SubmitBidForm({ tenderId, onSuccess }: { tenderId: number; onSuccess: (
       toast({ title: "Dosya çok büyük", description: "Maksimum 5MB PDF yükleyebilirsiniz.", variant: "destructive" });
       return;
     }
-    if (file.type !== "application/pdf") {
-      toast({ title: "Hatalı format", description: "Sadece PDF dosyası yükleyebilirsiniz.", variant: "destructive" });
+    const allowed = ["application/pdf", "image/jpg", "image/jpeg", "image/png"];
+    if (!allowed.includes(file.type) && !file.name.match(/\.(pdf|jpg|jpeg|png)$/i)) {
+      toast({ title: "Hatalı format", description: "PDF, JPG veya PNG dosyası yükleyiniz.", variant: "destructive" });
       return;
     }
     const reader = new FileReader();
@@ -141,7 +142,15 @@ function SubmitBidForm({ tenderId, onSuccess }: { tenderId: number; onSuccess: (
 
   const handleSubmit = () => {
     if (!form.totalAmount) {
-      toast({ title: "Hata", description: "Toplam tutar giriniz", variant: "destructive" });
+      toast({ title: "Eksik Alan", description: "Fiyat giriniz", variant: "destructive" });
+      return;
+    }
+    if (!form.notes) {
+      toast({ title: "Eksik Alan", description: "Açıklama giriniz", variant: "destructive" });
+      return;
+    }
+    if (!pdfBase64) {
+      toast({ title: "Eksik Alan", description: "PDA dosyası yükleyiniz", variant: "destructive" });
       return;
     }
     mutation.mutate({ ...form, proformaPdfBase64: pdfBase64 });
@@ -156,7 +165,7 @@ function SubmitBidForm({ tenderId, onSuccess }: { tenderId: number; onSuccess: (
       <div className="space-y-4">
         <div className="flex gap-3">
           <div className="flex-1 space-y-1.5">
-            <Label>Toplam Tutar <span className="text-red-500">*</span></Label>
+            <Label>Fiyat <span className="text-red-500">*</span></Label>
             <Input
               placeholder="ör. 8,500"
               value={form.totalAmount}
@@ -180,9 +189,9 @@ function SubmitBidForm({ tenderId, onSuccess }: { tenderId: number; onSuccess: (
         </div>
 
         <div className="space-y-1.5">
-          <Label>Notlar</Label>
+          <Label>Açıklama <span className="text-red-500">*</span></Label>
           <Textarea
-            placeholder="Teklif hakkında ek bilgi..."
+            placeholder="Teklif hakkında açıklama ekleyiniz..."
             rows={3}
             value={form.notes}
             onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
@@ -191,9 +200,9 @@ function SubmitBidForm({ tenderId, onSuccess }: { tenderId: number; onSuccess: (
         </div>
 
         <div className="space-y-1.5">
-          <Label>Proforma PDF <span className="text-muted-foreground text-xs">(Opsiyonel, maks. 5MB)</span></Label>
+          <Label>PDA Dosyası <span className="text-red-500">*</span> <span className="text-muted-foreground text-xs font-normal">(PDF / JPG, maks. 5MB)</span></Label>
           <div
-            className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:bg-muted/30 transition-colors"
+            className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${pdfName ? "border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/10" : "hover:bg-muted/30 border-border"}`}
             onClick={() => fileRef.current?.click()}
             data-testid="dropzone-pdf"
           >
@@ -205,11 +214,12 @@ function SubmitBidForm({ tenderId, onSuccess }: { tenderId: number; onSuccess: (
             ) : (
               <div className="flex flex-col items-center gap-2 text-muted-foreground">
                 <Upload className="w-6 h-6" />
-                <span className="text-sm">PDF yüklemek için tıklayın</span>
+                <span className="text-sm">PDA dosyasını yüklemek için tıklayın</span>
+                <span className="text-xs">PDF, JPG, PNG desteklenir</span>
               </div>
             )}
           </div>
-          <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={handleFile} data-testid="input-pdf-file" />
+          <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleFile} data-testid="input-pdf-file" />
         </div>
 
         <Button onClick={handleSubmit} disabled={mutation.isPending} className="w-full gap-2" data-testid="button-submit-bid">

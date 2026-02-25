@@ -821,8 +821,8 @@ export async function registerRoutes(
       if (!user) return res.status(401).json({ message: "Unauthorized" });
 
       const effectiveRole = user.userRole === "admin" ? (user.activeRole || "shipowner") : user.userRole;
-      if (effectiveRole === "provider") {
-        return res.status(403).json({ message: "Only shipowners and agents can create tenders" });
+      if (effectiveRole !== "shipowner") {
+        return res.status(403).json({ message: "Only shipowners and brokers can create tenders" });
       }
 
       const { portId, vesselName, description, cargoInfo, expiryHours, grt, nrt, flag, cargoType, cargoQuantity, previousPort, q88Base64 } = req.body;
@@ -906,18 +906,34 @@ export async function registerRoutes(
       const tender = await storage.getPortTenderById(tenderId);
       if (!tender) return res.status(404).json({ message: "Tender not found" });
 
-      const effectiveRole = user.userRole === "admin" ? (user.activeRole || "shipowner") : user.userRole;
+      const isAdminUser = user.userRole === "admin";
+      const effectiveRole = isAdminUser ? (user.activeRole || "shipowner") : user.userRole;
+
+      if (!isAdminUser) {
+        if (effectiveRole === "provider") {
+          return res.status(403).json({ message: "Access denied" });
+        }
+        if (effectiveRole === "shipowner" && tender.userId !== userId) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+        if (effectiveRole === "agent") {
+          const profile = await storage.getCompanyProfileByUser(userId);
+          const servedPorts = (profile?.servedPorts as number[]) || [];
+          if (!servedPorts.includes(tender.portId)) {
+            return res.status(403).json({ message: "This tender is not in your served ports" });
+          }
+        }
+      }
 
       if (effectiveRole === "agent") {
         const bids = await storage.getTenderBids(tenderId);
         const myBid = bids.find(b => b.agentUserId === userId) || null;
-        const { proformaPdfBase64: _pdf, ...tenderWithoutPdf } = tender as any;
         return res.json({ tender, bids: myBid ? [myBid] : [], myBid, isOwner: false });
       }
 
       const bids = await storage.getTenderBids(tenderId);
       const bidsNoPdf = bids.map(({ proformaPdfBase64: _pdf, ...b }) => b);
-      res.json({ tender, bids: bidsNoPdf, myBid: null, isOwner: tender.userId === userId || user.userRole === "admin" });
+      res.json({ tender, bids: bidsNoPdf, myBid: null, isOwner: tender.userId === userId || isAdminUser });
     } catch (error) {
       console.error("Get tender error:", error);
       res.status(500).json({ message: "Failed to get tender" });
