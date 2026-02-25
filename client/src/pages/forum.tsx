@@ -187,11 +187,11 @@ export default function Forum() {
         </nav>
       )}
 
-      <div className={`border-b bg-gradient-to-r from-[hsl(var(--maritime-primary)/0.03)] to-transparent ${!user ? "mt-16" : ""}`}>
+      <div className={`border-b bg-gradient-to-br from-[hsl(var(--maritime-primary)/0.06)] via-[hsl(var(--maritime-primary)/0.03)] to-transparent ${!user ? "mt-16" : ""}`}>
         <div className="max-w-5xl mx-auto px-6 py-8">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[hsl(var(--maritime-primary)/0.15)] to-[hsl(var(--maritime-primary)/0.05)] border border-[hsl(var(--maritime-primary)/0.2)] flex items-center justify-center">
                 <MessageSquare className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
               </div>
               <div>
@@ -255,18 +255,24 @@ export default function Forum() {
             {categories?.map(cat => (
               <Card
                 key={cat.id}
-                className="p-5 cursor-pointer hover:shadow-md transition-all hover:border-[hsl(var(--maritime-primary)/0.3)]"
+                className="p-5 cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group overflow-hidden"
                 onClick={() => { setCategoryFilter(cat.slug); setActiveTab("latest"); }}
                 data-testid={`card-category-${cat.slug}`}
+                style={{ borderLeft: `3px solid ${cat.color}40` }}
               >
                 <div className="flex items-start gap-3">
-                  <div className="w-3 h-3 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: cat.color }} />
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform duration-200 group-hover:scale-110"
+                    style={{ background: `${cat.color}18`, border: `1px solid ${cat.color}30` }}
+                  >
+                    <MessageSquare className="w-4 h-4" style={{ color: cat.color }} />
+                  </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-medium text-sm mb-1">{cat.name}</h3>
+                    <h3 className="font-semibold text-sm mb-1 group-hover:text-foreground transition-colors">{cat.name}</h3>
                     {cat.description && (
-                      <p className="text-xs text-muted-foreground leading-relaxed mb-2">{cat.description}</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed mb-2.5 line-clamp-2">{cat.description}</p>
                     )}
-                    <Badge variant="secondary" className="text-[10px]">
+                    <Badge variant="outline" className="text-[10px] h-4 px-1.5" style={{ borderColor: `${cat.color}40`, color: cat.color }}>
                       {cat.topicCount} topic{cat.topicCount !== 1 ? "s" : ""}
                     </Badge>
                   </div>
@@ -303,7 +309,10 @@ export default function Forum() {
             </div>
             {filteredTopics.map(topic => (
               <Link key={topic.id} href={`/forum/${topic.id}`} data-testid={`link-topic-${topic.id}`}>
-                <div className="group grid grid-cols-1 sm:grid-cols-[1fr_80px_80px_100px] gap-2 sm:gap-4 px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer items-center">
+                <div
+                  className="group grid grid-cols-1 sm:grid-cols-[1fr_80px_80px_100px] gap-2 sm:gap-4 px-4 py-3 border-b last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer items-center"
+                  style={{ borderLeft: `3px solid ${topic.categoryColor}50` }}
+                >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       {topic.isPinned && <Pin className="w-3 h-3 text-[hsl(var(--maritime-primary))] flex-shrink-0" />}

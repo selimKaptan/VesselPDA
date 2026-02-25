@@ -315,11 +315,17 @@ function CompanyCard({ profile, getPortName, isFeatured }: { profile: CompanyPro
 
   return (
     <Card
-      className={`p-5 transition-all hover:shadow-md ${isFeatured ? "border-amber-300 dark:border-amber-700 ring-1 ring-amber-200 dark:ring-amber-800" : ""}`}
+      className={`overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${isFeatured ? "ring-1 ring-amber-300/60 dark:ring-amber-700/60" : ""}`}
       data-testid={`card-company-${profile.id}`}
     >
-      <div className="flex items-start gap-4">
-        <div className={`w-14 h-14 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden ${isFeatured ? "bg-amber-100 dark:bg-amber-900/30" : "bg-[hsl(var(--maritime-primary)/0.08)]"}`}>
+      {isFeatured && (
+        <div className="bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-1.5 flex items-center gap-2">
+          <Star className="w-3 h-3 text-white fill-white flex-shrink-0" />
+          <span className="text-[11px] font-bold text-white uppercase tracking-wider">Featured Company</span>
+        </div>
+      )}
+      <div className="p-5 flex items-start gap-4">
+        <div className={`w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden border ${isFeatured ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200/60 dark:border-amber-800/40" : "bg-[hsl(var(--maritime-primary)/0.06)] border-[hsl(var(--maritime-primary)/0.12)]"}`}>
           {profile.logoUrl ? (
             <img src={profile.logoUrl} alt={profile.companyName} className="w-full h-full object-contain" data-testid={`img-company-logo-${profile.id}`} />
           ) : profile.companyType === "agent" ? (
@@ -334,7 +340,6 @@ function CompanyCard({ profile, getPortName, isFeatured }: { profile: CompanyPro
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="font-semibold text-base" data-testid={`text-company-name-${profile.id}`}>{profile.companyName}</h3>
-                {isFeatured && <Star className="w-4 h-4 text-amber-500 fill-amber-500 flex-shrink-0" />}
               </div>
               {serviceTypes.length > 0 && (
                 <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
@@ -349,11 +354,12 @@ function CompanyCard({ profile, getPortName, isFeatured }: { profile: CompanyPro
 
             <Button
               variant="outline"
-              className="flex-shrink-0 gap-1.5"
+              size="sm"
+              className="flex-shrink-0 gap-1.5 hover:border-[hsl(var(--maritime-primary)/0.4)] hover:text-[hsl(var(--maritime-primary))]"
               data-testid={`button-view-${profile.id}`}
               onClick={() => {}}
             >
-              {profile.companyType === "agent" ? "View Ship Agent" : "View Provider"}
+              {profile.companyType === "agent" ? "View Agent" : "View Provider"}
             </Button>
           </div>
 

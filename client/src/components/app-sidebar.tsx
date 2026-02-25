@@ -1,4 +1,4 @@
-import { Ship, FileText, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin, Shield, ChevronDown, MessageSquare } from "lucide-react";
+import { Ship, FileText, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin, Shield, ChevronDown, MessageSquare, Anchor } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -25,11 +25,18 @@ const ACTIVE_ROLE_OPTIONS = [
   { value: "provider", label: "Service Provider" },
 ];
 
+const PLAN_BADGE: Record<string, string> = {
+  free: "bg-muted text-muted-foreground",
+  standard: "bg-[hsl(var(--maritime-gold)/0.15)] text-[hsl(var(--maritime-gold))]",
+  unlimited: "bg-[hsl(var(--maritime-primary)/0.15)] text-[hsl(var(--maritime-primary))]",
+};
+
 export function AppSidebar() {
   const [location] = useLocation();
   const { user } = useAuth();
   const userRole = (user as any)?.userRole || "shipowner";
   const activeRole = (user as any)?.activeRole || "agent";
+  const plan = (user as any)?.subscriptionPlan || "free";
 
   const initials = user
     ? `${(user.firstName || "")[0] || ""}${(user.lastName || "")[0] || ""}`.toUpperCase() || "U"
@@ -71,99 +78,182 @@ export function AppSidebar() {
     ? ACTIVE_ROLE_OPTIONS.find(r => r.value === activeRole)?.label || "Admin"
     : effectiveRole === "agent" ? "Ship Agent" : effectiveRole === "provider" ? "Provider" : "Shipowner";
 
+  function isActive(url: string) {
+    if (url === "/") return location === "/";
+    return location === url || location.startsWith(url + "/");
+  }
+
   return (
     <Sidebar>
-      <SidebarHeader className="p-4">
+      {/* Header */}
+      <SidebarHeader className="px-4 py-5 border-b border-sidebar-border/60">
         <div className="flex items-center gap-3">
-          <img src="/logo-v2.png" alt="VesselPDA" className="w-9 h-9 rounded-md flex-shrink-0 object-contain" />
+          <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 ring-1 ring-white/10">
+            <img src="/logo-v2.png" alt="VesselPDA" className="w-full h-full object-contain" />
+          </div>
           <div className="min-w-0">
-            <p className="font-serif font-bold text-sm tracking-tight truncate">VesselPDA</p>
-            <p className="text-xs text-muted-foreground truncate">Maritime Platform</p>
+            <p className="font-serif font-bold text-sm tracking-tight truncate text-sidebar-foreground">VesselPDA</p>
+            <p className="text-[10px] font-medium uppercase tracking-widest text-sidebar-foreground/45 truncate mt-0.5">Maritime Platform</p>
           </div>
         </div>
       </SidebarHeader>
-      <SidebarContent>
+
+      <SidebarContent className="py-3">
+        {/* Main Nav */}
         <SidebarGroup>
-          <SidebarGroupLabel>Main</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 text-sidebar-foreground/40">
+            Main
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNav.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    data-active={location === item.url || (item.url !== "/" && location.startsWith(item.url))}
-                  >
-                    <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
-                      <item.icon className="w-4 h-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {mainNav.map((item) => {
+                const active = isActive(item.url);
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      data-active={active}
+                    >
+                      <Link
+                        href={item.url}
+                        data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                        style={active ? {
+                          borderLeft: "3px solid hsl(var(--sidebar-primary))",
+                          background: "hsl(var(--sidebar-primary) / 0.12)",
+                          color: "hsl(var(--sidebar-primary))",
+                          paddingLeft: "calc(0.75rem - 3px)",
+                        } : {}}
+                        className="transition-all duration-150"
+                      >
+                        <item.icon className="w-4 h-4" />
+                        <span className="font-medium">{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Tools Nav */}
         {toolsNav.length > 0 && (
           <SidebarGroup>
-            <SidebarGroupLabel>Tools</SidebarGroupLabel>
+            <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 text-sidebar-foreground/40">
+              Tools
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {toolsNav.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      data-active={location === item.url || (item.url !== "/" && location.startsWith(item.url))}
-                    >
-                      <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
-                        <item.icon className="w-4 h-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                {toolsNav.map((item) => {
+                  const active = isActive(item.url);
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        data-active={active}
+                      >
+                        <Link
+                          href={item.url}
+                          data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                          style={active ? {
+                            borderLeft: "3px solid hsl(var(--sidebar-primary))",
+                            background: "hsl(var(--sidebar-primary) / 0.12)",
+                            color: "hsl(var(--sidebar-primary))",
+                            paddingLeft: "calc(0.75rem - 3px)",
+                          } : {}}
+                          className="transition-all duration-150"
+                        >
+                          <item.icon className="w-4 h-4" />
+                          <span className="font-medium">{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
+
+        {/* Admin Nav */}
         {adminNav.length > 0 && (
           <SidebarGroup>
-            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 text-sidebar-foreground/40">
+              Administration
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {adminNav.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      data-active={location === item.url || location.startsWith(item.url)}
-                    >
-                      <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
-                        <item.icon className="w-4 h-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
+                {adminNav.map((item) => {
+                  const active = isActive(item.url);
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        data-active={active}
+                      >
+                        <Link
+                          href={item.url}
+                          data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                          style={active ? {
+                            borderLeft: "3px solid hsl(0 84% 35%)",
+                            background: "hsl(0 84% 35% / 0.10)",
+                            color: "hsl(0 84% 35%)",
+                            paddingLeft: "calc(0.75rem - 3px)",
+                          } : {}}
+                          className="transition-all duration-150"
+                        >
+                          <item.icon className="w-4 h-4" />
+                          <span className="font-medium">{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         )}
+
+        {/* Account Nav */}
         <SidebarGroup>
-          <SidebarGroupLabel>Account</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 text-sidebar-foreground/40">
+            Account
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild data-active={location === "/service-ports"}>
-                  <Link href="/service-ports" data-testid="nav-service-ports">
+                <SidebarMenuButton asChild data-active={isActive("/service-ports")}>
+                  <Link
+                    href="/service-ports"
+                    data-testid="nav-service-ports"
+                    style={isActive("/service-ports") ? {
+                      borderLeft: "3px solid hsl(var(--sidebar-primary))",
+                      background: "hsl(var(--sidebar-primary) / 0.12)",
+                      color: "hsl(var(--sidebar-primary))",
+                      paddingLeft: "calc(0.75rem - 3px)",
+                    } : {}}
+                    className="transition-all duration-150"
+                  >
                     <MapPin className="w-4 h-4" />
-                    <span>Service Ports</span>
+                    <span className="font-medium">Service Ports</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild data-active={location === "/pricing"}>
-                  <Link href="/pricing" data-testid="nav-pricing">
+                <SidebarMenuButton asChild data-active={isActive("/pricing")}>
+                  <Link
+                    href="/pricing"
+                    data-testid="nav-pricing"
+                    style={isActive("/pricing") ? {
+                      borderLeft: "3px solid hsl(var(--sidebar-primary))",
+                      background: "hsl(var(--sidebar-primary) / 0.12)",
+                      color: "hsl(var(--sidebar-primary))",
+                      paddingLeft: "calc(0.75rem - 3px)",
+                    } : {}}
+                    className="transition-all duration-150"
+                  >
                     <Crown className="w-4 h-4" />
-                    <span>Pricing</span>
+                    <span className="font-medium">Pricing</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -171,21 +261,24 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4 space-y-2">
+
+      {/* Footer */}
+      <SidebarFooter className="border-t border-sidebar-border/60 p-4 space-y-3">
+        {/* Admin role switcher */}
         {isAdminUser && (
-          <div className="px-1">
-            <p className="text-[10px] text-muted-foreground mb-1.5 uppercase tracking-wider font-medium">View as role</p>
+          <div>
+            <p className="text-[9px] text-sidebar-foreground/40 mb-1.5 uppercase tracking-widest font-bold px-0.5">View as role</p>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md border text-xs hover:bg-muted/50 transition-colors"
+                  className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg border border-sidebar-border/60 text-xs hover:bg-sidebar-accent/60 transition-colors text-sidebar-foreground"
                   data-testid="dropdown-admin-role-switch"
                 >
                   <div className="flex items-center gap-2">
-                    <Shield className="w-3 h-3 text-red-500" />
-                    <span>{roleLabel}</span>
+                    <Shield className="w-3 h-3 text-red-400" />
+                    <span className="font-medium">{roleLabel}</span>
                   </div>
-                  <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                  <ChevronDown className="w-3 h-3 text-sidebar-foreground/40" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-48">
@@ -204,22 +297,35 @@ export function AppSidebar() {
             </DropdownMenu>
           </div>
         )}
+
+        {/* User info */}
         <div className="flex items-center gap-3">
-          <Avatar className="w-8 h-8">
+          <Avatar className="w-8 h-8 ring-2 ring-sidebar-primary/20 flex-shrink-0">
             <AvatarImage src={user?.profileImageUrl || undefined} />
-            <AvatarFallback className="bg-[hsl(var(--maritime-primary))] text-white text-xs">{initials}</AvatarFallback>
+            <AvatarFallback className="bg-[hsl(var(--sidebar-primary))] text-[hsl(var(--sidebar-primary-foreground))] text-xs font-bold">{initials}</AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">
+            <p className="text-sm font-semibold truncate text-sidebar-foreground">
               {user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "User"}
             </p>
-            <div className="flex items-center gap-1.5">
-              {isAdminUser && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-red-300 text-red-600">Admin</Badge>}
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0">{roleLabel}</Badge>
+            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+              {isAdminUser && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 uppercase tracking-wide">
+                  Admin
+                </span>
+              )}
+              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide ${PLAN_BADGE[plan] || PLAN_BADGE.free}`}>
+                {plan}
+              </span>
             </div>
           </div>
-          <a href="/api/logout" data-testid="button-logout">
-            <LogOut className="w-4 h-4 text-muted-foreground" />
+          <a
+            href="/api/logout"
+            data-testid="button-logout"
+            className="w-7 h-7 rounded-md flex items-center justify-center hover:bg-red-500/10 transition-colors group"
+            title="Sign out"
+          >
+            <LogOut className="w-3.5 h-3.5 text-sidebar-foreground/40 group-hover:text-red-400 transition-colors" />
           </a>
         </div>
       </SidebarFooter>
