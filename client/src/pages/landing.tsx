@@ -1,4 +1,4 @@
-import { Ship, FileText, BarChart3, Shield, Globe, ArrowRight, Waves, Check, Zap, Crown, Star, Building2, User, Activity, Anchor, Users, Briefcase, MessageSquare, ChevronDown, TrendingUp, MapPin, Lock, CheckCircle2 } from "lucide-react";
+import { Ship, FileText, BarChart3, Shield, Globe, ArrowRight, Waves, Check, Zap, Crown, Star, Building2, User, Activity, Anchor, Users, Briefcase, MessageSquare, ChevronDown, TrendingUp, MapPin, Lock, CheckCircle2, Menu, X } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -137,6 +137,7 @@ export default function Landing() {
   const [showWelcome, setShowWelcome] = useState(() => {
     try { return !localStorage.getItem(WELCOME_KEY); } catch { return true; }
   });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { data: platformStats } = useQuery<{ userCount: number; proformaCount: number; companyCount: number }>({
     queryKey: ["/api/stats"],
     staleTime: 5 * 60 * 1000,
@@ -197,32 +198,93 @@ export default function Landing() {
 
       {/* NAV */}
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/85 border-b border-border/60 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5 flex-shrink-0">
             <img src="/logo-v2.png" alt="VesselPDA" className="w-8 h-8 rounded-md object-contain" />
             <span className="font-serif font-bold text-lg tracking-tight">VesselPDA</span>
           </div>
-          <div className="hidden md:flex items-center gap-7">
-            <a href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-features">Features</a>
-            <a href="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-how-it-works">How It Works</a>
-            <a href="/directory" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-directory">Directory</a>
-            <a href="/service-ports" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-service-ports">Service Ports</a>
-            <a href="/forum" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-forum">Forum</a>
-            <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-pricing">Pricing</a>
+
+          {/* Desktop nav links */}
+          <div className="hidden md:flex items-center gap-1">
+            {[
+              { href: "#features", label: "Features" },
+              { href: "#how-it-works", label: "How It Works" },
+              { href: "/directory", label: "Directory" },
+              { href: "/service-ports", label: "Service Ports" },
+              { href: "/forum", label: "Forum" },
+              { href: "#pricing", label: "Pricing" },
+            ].map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all duration-150"
+                data-testid={`link-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+              >
+                {item.label}
+              </a>
+            ))}
           </div>
+
           <div className="flex items-center gap-2">
-            <a href="/api/login">
-              <Button size="sm" variant="outline" data-testid="button-login">Log in</Button>
+            {/* Desktop auth buttons */}
+            <div className="hidden md:flex items-center gap-2">
+              <a href="/api/login">
+                <Button size="sm" variant="outline" data-testid="button-login">Log in</Button>
+              </a>
+              <a href="/api/login">
+                <Button size="sm" className="shadow-sm" data-testid="button-signup">Sign up</Button>
+              </a>
+            </div>
+
+            {/* Mobile: sign up + hamburger */}
+            <a href="/api/login" className="md:hidden">
+              <Button size="sm" data-testid="button-signup-mobile">Sign up</Button>
             </a>
-            <a href="/api/login">
-              <Button size="sm" className="shadow-sm" data-testid="button-signup">Sign up</Button>
-            </a>
+            <button
+              className="md:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
+              onClick={() => setMobileMenuOpen((o) => !o)}
+              aria-label="Toggle menu"
+              data-testid="button-mobile-menu"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile dropdown menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-border/60 bg-background/95 backdrop-blur-md" data-testid="mobile-menu">
+            <div className="max-w-7xl mx-auto px-4 py-3 space-y-0.5">
+              {[
+                { href: "#features", label: "Features" },
+                { href: "#how-it-works", label: "How It Works" },
+                { href: "/directory", label: "Directory" },
+                { href: "/service-ports", label: "Service Ports" },
+                { href: "/forum", label: "Forum" },
+                { href: "#pricing", label: "Pricing" },
+              ].map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="flex items-center px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
+                  onClick={() => setMobileMenuOpen(false)}
+                  data-testid={`mobile-link-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+                >
+                  {item.label}
+                </a>
+              ))}
+              <div className="pt-2 pb-1 border-t border-border/60 mt-1">
+                <a href="/api/login">
+                  <Button variant="outline" className="w-full" size="sm" data-testid="button-login-mobile">Log in</Button>
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* HERO */}
-      <section className="relative pt-32 pb-24 md:pt-44 md:pb-32 overflow-hidden">
+      <section className="relative pt-28 pb-16 md:pt-44 md:pb-32 overflow-hidden">
         <div className="absolute inset-0">
           <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--maritime-primary)/0.07)] via-background to-[hsl(var(--maritime-accent)/0.05)]" />
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[hsl(var(--maritime-primary)/0.3)] to-transparent" />
@@ -232,7 +294,7 @@ export default function Landing() {
         </div>
 
         <div className="max-w-7xl mx-auto px-6 relative">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
             <div className="space-y-8">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[hsl(var(--maritime-primary)/0.25)] bg-[hsl(var(--maritime-primary)/0.07)] text-[hsl(var(--maritime-primary))] text-xs font-semibold tracking-wide uppercase">
                 <Ship className="w-3.5 h-3.5" />
@@ -359,9 +421,9 @@ export default function Landing() {
       <LiveActivityTicker />
 
       {/* FEATURES */}
-      <section id="features" className="py-24 md:py-32 scroll-mt-20">
+      <section id="features" className="py-14 md:py-28 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16 space-y-4">
+          <div className="text-center mb-10 md:mb-16 space-y-4">
             <Badge variant="outline" className="px-4 py-1.5 text-xs font-semibold border-[hsl(var(--maritime-primary)/0.3)] text-[hsl(var(--maritime-primary))] uppercase tracking-wide">
               Platform Features
             </Badge>
@@ -509,9 +571,9 @@ export default function Landing() {
       </div>
 
       {/* HOW IT WORKS */}
-      <section id="how-it-works" className="py-24 md:py-32 scroll-mt-20 bg-gradient-to-b from-[hsl(var(--maritime-primary)/0.03)] to-transparent border-y border-border/40">
+      <section id="how-it-works" className="py-14 md:py-28 scroll-mt-20 bg-gradient-to-b from-[hsl(var(--maritime-primary)/0.03)] to-transparent border-y border-border/40">
         <div className="max-w-5xl mx-auto px-6">
-          <div className="text-center mb-16 space-y-4">
+          <div className="text-center mb-10 md:mb-16 space-y-4">
             <Badge variant="outline" className="px-4 py-1.5 text-xs font-semibold border-[hsl(var(--maritime-accent)/0.4)] text-[hsl(var(--maritime-accent))] uppercase tracking-wide">
               How It Works
             </Badge>
@@ -598,9 +660,9 @@ export default function Landing() {
       </section>
 
       {/* PRICING */}
-      <section id="pricing" className="py-24 md:py-32 scroll-mt-20">
+      <section id="pricing" className="py-14 md:py-28 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16 space-y-4">
+          <div className="text-center mb-10 md:mb-16 space-y-4">
             <Badge variant="outline" className="px-4 py-1.5 text-xs font-semibold border-[hsl(var(--maritime-gold)/0.5)] text-[hsl(var(--maritime-gold))] uppercase tracking-wide" data-testid="badge-pricing">
               <Star className="w-3 h-3 mr-1.5 inline fill-current" />
               Pricing Plans
@@ -728,7 +790,7 @@ export default function Landing() {
       </section>
 
       {/* CTA BANNER */}
-      <section className="py-20 md:py-28 bg-gradient-to-br from-[hsl(var(--maritime-primary))] via-[hsl(var(--maritime-secondary))] to-[hsl(var(--maritime-primary)/0.9)] relative overflow-hidden">
+      <section className="py-14 md:py-24 bg-gradient-to-br from-[hsl(var(--maritime-primary))] via-[hsl(var(--maritime-secondary))] to-[hsl(var(--maritime-primary)/0.9)] relative overflow-hidden">
         <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: "radial-gradient(white 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
         <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-white/10 blur-3xl" />
         <div className="absolute -bottom-32 -left-32 w-96 h-96 rounded-full bg-white/5 blur-3xl" />
