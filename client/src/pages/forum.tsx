@@ -114,6 +114,10 @@ export default function Forum() {
     setUrlParam("q", v, "");
   }, []);
 
+  useEffect(() => {
+    sessionStorage.setItem("forumReturnSearch", window.location.search);
+  }, [activeTab, categoryFilter, searchQuery]);
+
   const { data: categories } = useQuery<ForumCategory[]>({
     queryKey: ["/api/forum/categories"],
   });

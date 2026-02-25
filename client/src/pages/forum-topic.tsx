@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { MessageSquare, Eye, ArrowLeft, Clock, Pin, Lock, Send, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -76,6 +76,11 @@ export default function ForumTopic() {
   const [replyContent, setReplyContent] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  const forumReturnUrl = useMemo(() => {
+    const saved = sessionStorage.getItem("forumReturnSearch");
+    return saved ? `/forum${saved}` : "/forum";
+  }, []);
+
   const { data: topic, isLoading } = useQuery<TopicDetail>({
     queryKey: [`/api/forum/topics/${topicId}`],
     enabled: topicId > 0,
@@ -105,8 +110,8 @@ export default function ForumTopic() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/forum/topics"] });
       queryClient.invalidateQueries({ queryKey: ["/api/forum/categories"] });
-      toast({ title: "Topic silindi" });
-      setLocation("/forum");
+      toast({ title: "Konu silindi" });
+      setLocation(forumReturnUrl);
     },
     onError: (err: any) => {
       toast({ title: "Hata", description: err.message || "Topic silinemedi", variant: "destructive" });
@@ -148,8 +153,8 @@ export default function ForumTopic() {
       )}
 
       <div className={`max-w-4xl mx-auto px-6 ${!user ? "pt-24" : "pt-6"} pb-8`}>
-        <Link href="/forum" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6" data-testid="link-back-forum">
-          <ArrowLeft className="w-4 h-4" /> Back to Forum
+        <Link href={forumReturnUrl} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6" data-testid="link-back-forum">
+          <ArrowLeft className="w-4 h-4" /> Forum'a Dön
         </Link>
 
         {isLoading ? (
