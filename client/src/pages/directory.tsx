@@ -78,7 +78,11 @@ export default function Directory() {
     p.name.toLowerCase().includes(portSearch.toLowerCase())
   ).slice(0, 50);
 
-  const visibleServices = showAllServices ? SERVICE_CATEGORIES : SERVICE_CATEGORIES.slice(0, 8);
+  const sortedAlphabetically = [...SERVICE_CATEGORIES].sort((a, b) => a.localeCompare(b));
+  const sortedByPopularity = [...SERVICE_CATEGORIES]
+    .filter(s => serviceCounts[s] > 0)
+    .sort((a, b) => (serviceCounts[b] || 0) - (serviceCounts[a] || 0));
+  const visibleServices = showAllServices ? sortedAlphabetically : sortedByPopularity.slice(0, 8);
 
   return (
     <div className="min-h-screen bg-background">
@@ -180,6 +184,9 @@ export default function Directory() {
             <Card className="p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-sm">Service Categories</span>
+                <span className="text-[10px] text-muted-foreground font-normal">
+                  {showAllServices ? "A–Z" : "Popular"}
+                </span>
               </div>
               <div className="space-y-1">
                 {visibleServices.map(service => (
@@ -190,19 +197,19 @@ export default function Directory() {
                     data-testid={`filter-service-${service.replace(/\s+/g, "-").toLowerCase()}`}
                   >
                     <span className="truncate">{service}</span>
-                    {serviceCounts[service] && (
+                    {serviceCounts[service] > 0 && (
                       <span className="text-xs text-muted-foreground ml-2">{serviceCounts[service]}</span>
                     )}
                   </button>
                 ))}
               </div>
-              {SERVICE_CATEGORIES.length > 8 && (
+              {sortedAlphabetically.length > 8 && (
                 <button
                   onClick={() => setShowAllServices(!showAllServices)}
                   className="flex items-center gap-1 text-xs text-[hsl(var(--maritime-primary))] hover:underline"
                 >
                   {showAllServices ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                  {showAllServices ? "Show less" : `Show all (${SERVICE_CATEGORIES.length})`}
+                  {showAllServices ? "Show less" : `Show all A–Z (${sortedAlphabetically.length})`}
                 </button>
               )}
               {serviceFilter && (
