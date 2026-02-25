@@ -45,6 +45,93 @@ async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: stri
   }
 }
 
+export interface ContactEmailData {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+}
+
+export async function sendContactEmail(data: ContactEmailData): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) {
+    console.warn("[email] No Resend credentials available — skipping contact email");
+    return false;
+  }
+
+  const resend = new Resend(creds.apiKey);
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>VesselPDA İletişim Formu</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:32px 16px">
+        <table width="580" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.12)">
+          <tr>
+            <td style="background:linear-gradient(135deg,#003D7A,#0077BE);padding:28px 32px">
+              <p style="margin:0;color:#fff;font-size:20px;font-weight:700">⚓ VesselPDA</p>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,.8);font-size:14px">İletişim Formu Mesajı</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px">
+              <p style="margin:0 0 20px;font-size:18px;font-weight:700;color:#0f172a">${data.subject}</p>
+              <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:20px">
+                <tr>
+                  <td style="color:#64748b;padding:4px 12px 4px 0;white-space:nowrap">Ad Soyad</td>
+                  <td style="font-weight:600;color:#1e293b">${data.name}</td>
+                </tr>
+                <tr>
+                  <td style="color:#64748b;padding:4px 12px 4px 0;white-space:nowrap">E-posta</td>
+                  <td style="font-weight:600;color:#1e293b"><a href="mailto:${data.email}" style="color:#0077BE">${data.email}</a></td>
+                </tr>
+              </table>
+              <div style="background:#f8fafc;border-radius:8px;padding:16px 20px;border-left:3px solid #003D7A">
+                <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Mesaj</p>
+                <p style="margin:0;color:#1e293b;white-space:pre-wrap;font-size:14px;line-height:1.6">${data.message}</p>
+              </div>
+              <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0">
+                <p style="margin:0;color:#94a3b8;font-size:12px">Bu mesaj VesselPDA iletişim formu üzerinden gönderilmiştir.</p>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0">
+              <p style="margin:0;color:#94a3b8;font-size:12px">© ${new Date().getFullYear()} VesselPDA · <a href="https://vesselpda.com" style="color:#0077BE;text-decoration:none">vesselpda.com</a></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: `VesselPDA <${creds.fromEmail}>`,
+      to: ["info@vesselpda.com"],
+      replyTo: `${data.name} <${data.email}>`,
+      subject: `[VesselPDA İletişim] ${data.subject}`,
+      html,
+    });
+
+    if (error) {
+      console.error("[email] Resend contact error:", error);
+      return false;
+    }
+
+    console.log(`[email] Contact email sent from ${data.email}`);
+    return true;
+  } catch (err) {
+    console.error("[email] Failed to send contact email:", err);
+    return false;
+  }
+}
+
 export interface NominationEmailData {
   agentEmail: string;
   agentCompanyName: string;

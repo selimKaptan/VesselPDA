@@ -26,6 +26,7 @@ import ForumTopic from "@/pages/forum-topic";
 import Tenders from "@/pages/tenders";
 import TenderDetail from "@/pages/tender-detail";
 import DirectoryProfile from "@/pages/directory-profile";
+import Contact from "@/pages/contact";
 
 function AuthenticatedRouter() {
   return (
@@ -46,6 +47,7 @@ function AuthenticatedRouter() {
       <Route path="/forum/:id" component={ForumTopic} />
       <Route path="/tenders" component={Tenders} />
       <Route path="/tenders/:id" component={TenderDetail} />
+      <Route path="/contact" component={Contact} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -82,6 +84,7 @@ function PublicDirectoryPage() {
       <Route path="/service-ports" component={ServicePorts} />
       <Route path="/forum" component={Forum} />
       <Route path="/forum/:id" component={ForumTopic} />
+      <Route path="/contact" component={Contact} />
       <Route><Landing /></Route>
     </Switch>
   );

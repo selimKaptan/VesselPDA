@@ -89,12 +89,14 @@ A professional web-based maritime platform (VesselPDA) for ship agents to create
 - Forum accessible from sidebar (authenticated), landing/directory/service-ports nav (public)
 
 ## Email
-- `server/email.ts` — Resend-based transactional email module
+- `server/email.ts` — Resend-based transactional email module (uses Replit Resend connector OAuth, falls back to RESEND_API_KEY)
 - `sendNominationEmail()` — sends HTML nomination confirmation to agent + extra recipients
-- Requires `RESEND_API_KEY` env var (set via Resend integration); if missing, skips silently
+- `sendContactEmail()` — sends contact form submission to info@vesselpda.com, reply-to set to sender
+- If credentials unavailable, skips silently (logged to console)
 - From address: `noreply@vesselpda.com` (must be a verified Resend domain)
 
 ## Recent Changes
+- 2026-02-25: Contact page — new /contact page with form (Ad Soyad, E-posta, Konu, Mesaj); sends to info@vesselpda.com via Resend; success confirmation state. "İletişim" link added to landing page nav (desktop + mobile) opens in new tab. POST /api/contact public endpoint. Page accessible to both logged-in and public users.
 - 2026-02-25: Nomination dialog overhauled — replaced simple confirm AlertDialog with full Dialog showing: selected agent info (logo, name, email), vessel & cargo details (vessel name, flag, GRT, NRT, cargo type/quantity, previous port), optional "Not/Mesaj" textarea, optional "Ek Email Adresleri" field (comma-separated). Backend accepts note + extraEmails in POST /api/tenders/:id/nominate body. "Bu Acenteyi Değerlendir" button now only shows when effectiveRole === "shipowner" (admin in agent view no longer sees it).
 - 2026-02-25: Agent Review System — shipowners/brokers can rate agents (1-5 stars) and leave comments on agent company profiles. Reviews show on /directory/:id (new DirectoryProfilePage). Review form visible to shipowners on agent profiles. After nomination, tender detail shows "Bu Acenteyi Değerlendir" button linking to agent's profile. New DB table: agent_reviews. New page: /directory/:id. New API: GET/POST /api/reviews/:companyProfileId. Directory "View Agent" button now navigates to profile page.
 

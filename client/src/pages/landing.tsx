@@ -213,10 +213,13 @@ export default function Landing() {
               { href: "/service-ports", label: "Service Ports" },
               { href: "/forum", label: "Forum" },
               { href: "#pricing", label: "Pricing" },
+              { href: "/contact", label: "İletişim", newTab: true },
             ].map((item) => (
               <a
                 key={item.href}
                 href={item.href}
+                target={(item as any).newTab ? "_blank" : undefined}
+                rel={(item as any).newTab ? "noopener noreferrer" : undefined}
                 className="px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all duration-150"
                 data-testid={`link-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
               >
@@ -262,10 +265,13 @@ export default function Landing() {
                 { href: "/service-ports", label: "Service Ports" },
                 { href: "/forum", label: "Forum" },
                 { href: "#pricing", label: "Pricing" },
+                { href: "/contact", label: "İletişim", newTab: true },
               ].map((item) => (
                 <a
                   key={item.href}
                   href={item.href}
+                  target={(item as any).newTab ? "_blank" : undefined}
+                  rel={(item as any).newTab ? "noopener noreferrer" : undefined}
                   className="flex items-center px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
                   onClick={() => setMobileMenuOpen(false)}
                   data-testid={`mobile-link-${item.label.toLowerCase().replace(/\s+/g, "-")}`}

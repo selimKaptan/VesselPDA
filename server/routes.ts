@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
 import multer from "multer";
-import { sendNominationEmail } from "./email";
+import { sendNominationEmail, sendContactEmail } from "./email";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
 import type { ProformaLineItem } from "@shared/schema";
@@ -656,6 +656,18 @@ export async function registerRoutes(
     } catch {
       res.json({ userCount: 0, proformaCount: 0, companyCount: 0 });
     }
+  });
+
+  app.post("/api/contact", async (req, res) => {
+    const { name, email, subject, message } = req.body || {};
+    if (!name || !email || !subject || !message) {
+      return res.status(400).json({ ok: false, error: "Tüm alanlar zorunludur" });
+    }
+    if (typeof email !== "string" || !email.includes("@")) {
+      return res.status(400).json({ ok: false, error: "Geçersiz e-posta adresi" });
+    }
+    sendContactEmail({ name: String(name), email: String(email), subject: String(subject), message: String(message) });
+    return res.json({ ok: true });
   });
 
   app.get("/api/activity-feed", async (_req, res) => {
