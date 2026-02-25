@@ -204,9 +204,14 @@ export default function Landing() {
             <a href="/forum" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-forum">Forum</a>
             <a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-pricing">Pricing</a>
           </div>
-          <a href="/api/login">
-            <Button size="sm" className="shadow-sm" data-testid="button-login">Sign In</Button>
-          </a>
+          <div className="flex items-center gap-2">
+            <a href="/api/login">
+              <Button size="sm" variant="outline" data-testid="button-login">Log in</Button>
+            </a>
+            <a href="/api/login">
+              <Button size="sm" className="shadow-sm" data-testid="button-signup">Sign up</Button>
+            </a>
+          </div>
         </div>
       </nav>
 

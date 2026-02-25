@@ -214,12 +214,12 @@ export default function Forum() {
               <a href="/service-ports" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-nav-service-ports">Limanlar</a>
               <a href="/forum" className="text-sm font-medium text-foreground transition-colors" data-testid="link-nav-forum">Forum</a>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <a href="/api/login">
-                <Button variant="outline" data-testid="button-forum-login">Giriş Yap</Button>
+                <Button variant="outline" data-testid="button-forum-login">Log in</Button>
               </a>
               <a href="/api/login">
-                <Button data-testid="button-forum-signup">Üye Ol</Button>
+                <Button data-testid="button-forum-signup">Sign up</Button>
               </a>
             </div>
           </div>
