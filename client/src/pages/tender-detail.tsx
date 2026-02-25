@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,8 +18,11 @@ import {
   AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
+} from "@/components/ui/dialog";
+import {
   Gavel, ArrowLeft, Clock, Ship, FileText, Upload, CheckCircle2,
-  XCircle, Building2, Trophy, Mail, AlertCircle, Eye, Send, Star
+  XCircle, Building2, Trophy, Mail, AlertCircle, Eye, Send, Star, Users
 } from "lucide-react";
 
 function useCountdown(createdAt: string, expiryHours: number) {
@@ -266,9 +270,16 @@ export default function TenderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [selectBidId, setSelectBidId] = useState<number | null>(null);
   const [showNomination, setShowNomination] = useState(false);
   const [nominationData, setNominationData] = useState<any>(null);
+  const [nominationNote, setNominationNote] = useState("");
+  const [nominationExtraEmails, setNominationExtraEmails] = useState("");
+
+  const userRole = (user as any)?.userRole;
+  const activeRole = (user as any)?.activeRole;
+  const effectiveRole = userRole === "admin" ? (activeRole || "shipowner") : userRole;
 
   const tenderId = parseInt(id!);
 
@@ -295,11 +306,22 @@ export default function TenderDetailPage() {
   });
 
   const nominateMutation = useMutation({
-    mutationFn: () => apiRequest("POST", `/api/tenders/${tenderId}/nominate`, {}),
+    mutationFn: () => {
+      const extraEmailsList = nominationExtraEmails
+        .split(",")
+        .map((e) => e.trim())
+        .filter(Boolean);
+      return apiRequest("POST", `/api/tenders/${tenderId}/nominate`, {
+        note: nominationNote.trim() || undefined,
+        extraEmails: extraEmailsList.length > 0 ? extraEmailsList : undefined,
+      });
+    },
     onSuccess: async (res: any) => {
       const d = await res.json();
       setNominationData(d.nominatedAgent);
       setShowNomination(false);
+      setNominationNote("");
+      setNominationExtraEmails("");
       toast({
         title: "Nominasyon tamamlandı!",
         description: `${d.nominatedAgent.companyName} başarıyla nomiye edildi.`,
@@ -517,7 +539,7 @@ export default function TenderDetailPage() {
               <CheckCircle2 className="w-6 h-6 text-purple-600" />
               <p className="font-medium text-purple-800 dark:text-purple-300">Bu ihale için nominasyon tamamlandı.</p>
             </div>
-            {isOwner && (() => {
+            {isOwner && effectiveRole === "shipowner" && (() => {
               const nominatedBid = allBids?.find((b: any) => b.status === "selected");
               return nominatedBid?.agentCompanyId ? (
                 <Button
@@ -663,35 +685,117 @@ export default function TenderDetailPage() {
       </AlertDialog>
 
       {/* Nomination confirmation dialog */}
-      <AlertDialog open={showNomination} onOpenChange={setShowNomination}>
-        <AlertDialogContent data-testid="dialog-nominate">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
+      <Dialog open={showNomination} onOpenChange={setShowNomination}>
+        <DialogContent className="max-w-lg" data-testid="dialog-nominate">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
               <Mail className="w-5 h-5 text-purple-600" />
               Nominasyon Onayla
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {selectedBid && (
-                <span>
-                  <strong>{selectedBid.companyName || `${selectedBid.agentFirstName} ${selectedBid.agentLastName}`}</strong> firmасına nominasyon bildirimi gönderilecek.
-                  {selectedBid.agentEmail && <> ({selectedBid.agentEmail})</>}
-                  {" "}Onaylıyor musunuz?
-                </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedBid && (
+            <div className="space-y-4">
+              {/* Acente bilgileri */}
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Seçilen Acente</p>
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    {selectedBid.companyLogoUrl
+                      ? <img src={selectedBid.companyLogoUrl} alt="" className="w-full h-full object-contain" />
+                      : <Building2 className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                    }
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">{selectedBid.companyName || `${selectedBid.agentFirstName} ${selectedBid.agentLastName}`}</p>
+                    {selectedBid.agentEmail && <p className="text-xs text-muted-foreground">{selectedBid.agentEmail}</p>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Gemi ve yük bilgileri */}
+              {(tender.vesselName || tender.flag || tender.grt || tender.cargoType || tender.cargoQuantity || tender.previousPort) && (
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Gemi & Yük Bilgileri</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                    {tender.vesselName && (
+                      <><span className="text-muted-foreground">Gemi</span><span className="font-medium">{tender.vesselName}</span></>
+                    )}
+                    {tender.flag && (
+                      <><span className="text-muted-foreground">Bayrak</span><span className="font-medium">{tender.flag}</span></>
+                    )}
+                    {tender.grt && (
+                      <><span className="text-muted-foreground">GRT</span><span className="font-medium">{Number(tender.grt).toLocaleString("tr-TR")}</span></>
+                    )}
+                    {tender.nrt && (
+                      <><span className="text-muted-foreground">NRT</span><span className="font-medium">{Number(tender.nrt).toLocaleString("tr-TR")}</span></>
+                    )}
+                    {tender.cargoType && (
+                      <><span className="text-muted-foreground">Yük Türü</span><span className="font-medium">{tender.cargoType}</span></>
+                    )}
+                    {tender.cargoQuantity && (
+                      <><span className="text-muted-foreground">Yük Miktarı</span><span className="font-medium">{tender.cargoQuantity}</span></>
+                    )}
+                    {tender.previousPort && (
+                      <><span className="text-muted-foreground">Önceki Liman</span><span className="font-medium">{tender.previousPort}</span></>
+                    )}
+                  </div>
+                </div>
               )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-nominate">İptal</AlertDialogCancel>
-            <AlertDialogAction
+
+              {/* Not alanı */}
+              <div className="space-y-1.5">
+                <Label htmlFor="nomination-note" className="text-sm font-medium">
+                  Not / Mesaj <span className="text-muted-foreground font-normal">(isteğe bağlı)</span>
+                </Label>
+                <Textarea
+                  id="nomination-note"
+                  placeholder="Acenteye iletmek istediğiniz özel bir not yazabilirsiniz..."
+                  rows={3}
+                  value={nominationNote}
+                  onChange={(e) => setNominationNote(e.target.value)}
+                  data-testid="input-nomination-note"
+                />
+              </div>
+
+              {/* Ek email adresleri */}
+              <div className="space-y-1.5">
+                <Label htmlFor="nomination-emails" className="flex items-center gap-1.5 text-sm font-medium">
+                  <Users className="w-3.5 h-3.5" />
+                  Ek Email Adresleri <span className="text-muted-foreground font-normal">(isteğe bağlı)</span>
+                </Label>
+                <Input
+                  id="nomination-emails"
+                  placeholder="kaptan@gemi.com, operasyon@sirket.com (virgülle ayırın)"
+                  value={nominationExtraEmails}
+                  onChange={(e) => setNominationExtraEmails(e.target.value)}
+                  data-testid="input-nomination-emails"
+                />
+                <p className="text-xs text-muted-foreground">Gemi kaptanı, operasyon sorumlusu gibi kişileri ekleyebilirsiniz.</p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowNomination(false)}
+              data-testid="button-cancel-nominate"
+            >
+              İptal
+            </Button>
+            <Button
               onClick={() => nominateMutation.mutate()}
               className="bg-purple-600 hover:bg-purple-700"
+              disabled={nominateMutation.isPending}
               data-testid="button-confirm-nominate"
             >
-              {nominateMutation.isPending ? "İşleniyor..." : "Evet, Nomiye Et"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              <Send className="w-4 h-4 mr-2" />
+              {nominateMutation.isPending ? "İşleniyor..." : "Nominasyonu Gönder"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

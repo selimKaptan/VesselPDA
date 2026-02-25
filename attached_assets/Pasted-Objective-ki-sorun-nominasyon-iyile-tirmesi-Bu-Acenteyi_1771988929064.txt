@@ -1,0 +1,50 @@
+Objective
+İki sorun + nominasyon iyileştirmesi:
+
+"Bu Acenteyi Değerlendir" butonu acente rolündeyken görünmemeli (sadece armatör)
+Nominasyon dialogu genişletilmeli: not alanı, ek email adresleri, tüm gemi/yük bilgileri — ve email gönderilmeli
+Tasks
+T001: "Bu Acenteyi Değerlendir" Butonunu Gizle
+Blocked By: []
+Details:
+client/src/pages/tender-detail.tsx:
+Mevcut: {isOwner && (() => { ... })()} — admin hangi rolde olursa olsun isOwner=true
+Düzeltme: useAuth() hook ile frontend'de effectiveRole hesapla
+Koşul: isOwner && effectiveRole === "shipowner" olduğunda göster
+const { user } = useAuth();
+const effectiveRole = (user as any)?.userRole === "admin"
+  ? ((user as any)?.activeRole || "shipowner")
+  : (user as any)?.userRole;
+Butonu sadece isOwner && effectiveRole === "shipowner" olduğunda göster
+Files: client/src/pages/tender-detail.tsx
+T002: Resend Email Entegrasyonu Kur
+Blocked By: []
+Details:
+Resend connector'ını kur (connector:ccfg_resend_01K69QKYK789WN202XSE3QS17V)
+proposeIntegration ile kullanıcıdan OAuth onayı al
+Entegrasyon dosyasını server/email.ts olarak oluştur
+Files: server/email.ts
+T003: Nominasyon Dialogunu Yeniden Tasarla
+Blocked By: []
+Details:
+client/src/pages/tender-detail.tsx:
+AlertDialog → Dialog (shadcn) olarak değiştir (daha fazla içerik sığsın)
+Yeni dialog içeriği:
+Acente bilgileri: şirket adı, email
+Gemi bilgileri: gemi adı, bayrak, GRT, NRT
+Yük bilgileri: yük türü, miktarı, önceki liman
+Not/Mesaj (textarea): shipowner nominasyona not ekleyebilir
+Ek Email Adresleri (input): virgülle ayrılmış, örn. gemi kaptanı emaili, diğer alıcılar
+State ekle: nominationNote (string), nominationExtraEmails (string)
+Files: client/src/pages/tender-detail.tsx
+T004: Backend — Nominasyon Note + Extra Emails Kabul Et + Email Gönder
+Blocked By: [T002, T003]
+Details:
+server/routes.ts POST /api/tenders/:id/nominate:
+Body'den note ve extraEmails (array veya virgülle ayrılmış string) al
+server/email.ts'deki sendNominationEmail() fonksiyonunu çağır:
+To: selectedBid.agentEmail + extraEmails
+Subject: [VesselPDA] Nominasyon Bildirimi - {vesselName}
+İçerik: tüm tender bilgileri (gemi, bayrak, GRT/NRT, yük, liman, not)
+nominateMutation'ı { note, extraEmails } body ile gönderecek şekilde güncelle
+Files: server/routes.ts, server/email.ts

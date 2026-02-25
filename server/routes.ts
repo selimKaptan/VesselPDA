@@ -1097,6 +1097,7 @@ export async function registerRoutes(
     try {
       const userId = req.user.claims.sub;
       const tenderId = parseInt(req.params.id);
+      const { note, extraEmails } = req.body;
 
       const tender = await storage.getPortTenderById(tenderId);
       if (!tender) return res.status(404).json({ message: "Not found" });
@@ -1118,6 +1119,18 @@ export async function registerRoutes(
           agentFirstName: selectedBid.agentFirstName,
           agentLastName: selectedBid.agentLastName,
         },
+        tenderInfo: {
+          portName: tender.portName,
+          vesselName: tender.vesselName,
+          flag: tender.flag,
+          grt: tender.grt,
+          nrt: tender.nrt,
+          cargoType: tender.cargoType,
+          cargoQuantity: tender.cargoQuantity,
+          previousPort: tender.previousPort,
+        },
+        note: note || null,
+        extraEmails: Array.isArray(extraEmails) ? extraEmails : [],
       });
     } catch (error) {
       console.error("Nominate error:", error);
