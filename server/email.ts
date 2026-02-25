@@ -1,9 +1,48 @@
 import { Resend } from "resend";
 
-function getResendClient(): Resend | null {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return null;
-  return new Resend(apiKey);
+// Replit Resend integration — fetches API key via OAuth connector
+let _connectionSettings: any;
+
+async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: string } | null> {
+  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+  const xReplitToken = process.env.REPL_IDENTITY
+    ? "repl " + process.env.REPL_IDENTITY
+    : process.env.WEB_REPL_RENEWAL
+    ? "depl " + process.env.WEB_REPL_RENEWAL
+    : null;
+
+  if (!hostname || !xReplitToken) {
+    const fallback = process.env.RESEND_API_KEY;
+    if (fallback) return { apiKey: fallback, fromEmail: "noreply@vesselpda.com" };
+    return null;
+  }
+
+  try {
+    _connectionSettings = await fetch(
+      `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=resend`,
+      {
+        headers: {
+          Accept: "application/json",
+          "X-Replit-Token": xReplitToken,
+        },
+      }
+    )
+      .then((r) => r.json())
+      .then((d) => d.items?.[0]);
+
+    if (!_connectionSettings?.settings?.api_key) {
+      console.warn("[email] Resend connector not connected");
+      return null;
+    }
+
+    return {
+      apiKey: _connectionSettings.settings.api_key,
+      fromEmail: _connectionSettings.settings.from_email || "noreply@vesselpda.com",
+    };
+  } catch (err) {
+    console.error("[email] Failed to fetch Resend credentials:", err);
+    return null;
+  }
 }
 
 export interface NominationEmailData {
@@ -23,12 +62,13 @@ export interface NominationEmailData {
 }
 
 export async function sendNominationEmail(data: NominationEmailData): Promise<boolean> {
-  const resend = getResendClient();
-  if (!resend) {
-    console.warn("[email] RESEND_API_KEY not set — skipping email send");
+  const creds = await getResendCredentials();
+  if (!creds) {
+    console.warn("[email] No Resend credentials available — skipping email send");
     return false;
   }
 
+  const resend = new Resend(creds.apiKey);
   const toAddresses = [data.agentEmail, ...(data.extraEmails || [])].filter(Boolean);
 
   const vesselRows = [
@@ -111,7 +151,7 @@ export async function sendNominationEmail(data: NominationEmailData): Promise<bo
 
   try {
     const { error } = await resend.emails.send({
-      from: "VesselPDA <noreply@vesselpda.com>",
+      from: `VesselPDA <${creds.fromEmail}>`,
       to: toAddresses,
       subject: `[VesselPDA] Nominasyon Bildirimi — ${data.portName}${data.vesselName ? ` / ${data.vesselName}` : ""}`,
       html,
