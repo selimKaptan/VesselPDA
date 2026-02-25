@@ -361,7 +361,7 @@ function CompanyCard({ profile, getPortName, isFeatured }: { profile: CompanyPro
               data-testid={`button-view-${profile.id}`}
               onClick={() => setLocation(`/directory/${profile.id}`)}
             >
-              {profile.companyType === "agent" ? "Profili Gör" : "Profili Gör"}
+              View Profile
             </Button>
           </div>
 
