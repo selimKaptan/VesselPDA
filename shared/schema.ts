@@ -4,7 +4,7 @@ import { sql, relations } from "drizzle-orm";
 import { pgTable, text, varchar, integer, real, timestamp, jsonb, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { users } from "./models/auth";
+import { users, companyProfiles } from "./models/auth";
 
 export const vessels = pgTable("vessels", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -181,3 +181,52 @@ export type InsertForumTopic = z.infer<typeof insertForumTopicSchema>;
 export type ForumTopic = typeof forumTopics.$inferSelect;
 export type InsertForumReply = z.infer<typeof insertForumReplySchema>;
 export type ForumReply = typeof forumReplies.$inferSelect;
+
+// ─── PORT CALL TENDER SYSTEM ─────────────────────────────────────────────────
+
+export const portTenders = pgTable("port_tenders", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  portId: integer("port_id").notNull().references(() => ports.id),
+  vesselName: text("vessel_name"),
+  description: text("description"),
+  cargoInfo: text("cargo_info"),
+  expiryHours: integer("expiry_hours").notNull().default(24),
+  status: text("status").notNull().default("open"),
+  nominatedAgentId: varchar("nominated_agent_id"),
+  nominatedAt: timestamp("nominated_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const tenderBids = pgTable("tender_bids", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  tenderId: integer("tender_id").notNull().references(() => portTenders.id),
+  agentUserId: varchar("agent_user_id").notNull().references(() => users.id),
+  agentCompanyId: integer("agent_company_id").references(() => companyProfiles.id),
+  proformaPdfBase64: text("proforma_pdf_base64"),
+  notes: text("notes"),
+  totalAmount: text("total_amount"),
+  currency: text("currency").notNull().default("USD"),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const portTenderRelations = relations(portTenders, ({ one, many }) => ({
+  user: one(users, { fields: [portTenders.userId], references: [users.id] }),
+  port: one(ports, { fields: [portTenders.portId], references: [ports.id] }),
+  bids: many(tenderBids),
+}));
+
+export const tenderBidRelations = relations(tenderBids, ({ one }) => ({
+  tender: one(portTenders, { fields: [tenderBids.tenderId], references: [portTenders.id] }),
+  agent: one(users, { fields: [tenderBids.agentUserId], references: [users.id] }),
+  agentCompany: one(companyProfiles, { fields: [tenderBids.agentCompanyId], references: [companyProfiles.id] }),
+}));
+
+export const insertPortTenderSchema = createInsertSchema(portTenders).omit({ id: true, createdAt: true, nominatedAt: true, nominatedAgentId: true, status: true });
+export const insertTenderBidSchema = createInsertSchema(tenderBids).omit({ id: true, createdAt: true, status: true });
+
+export type InsertPortTender = z.infer<typeof insertPortTenderSchema>;
+export type PortTender = typeof portTenders.$inferSelect;
+export type InsertTenderBid = z.infer<typeof insertTenderBidSchema>;
+export type TenderBid = typeof tenderBids.$inferSelect;

@@ -769,5 +769,277 @@ export async function registerRoutes(
     }
   });
 
+  // ─── TENDER ROUTES ──────────────────────────────────────────────────────────
+
+  app.get("/api/tenders", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+      const effectiveRole = user.userRole === "admin" ? (user.activeRole || "shipowner") : user.userRole;
+
+      if (effectiveRole === "agent") {
+        const profile = await storage.getCompanyProfileByUser(userId);
+        const servedPorts = (profile?.servedPorts as number[]) || [];
+        const tenders = await Promise.all(
+          servedPorts.map(portId => storage.getPortTenders({ portId, status: "open" }))
+        );
+        const flat = tenders.flat();
+        const unique = flat.filter((t, i, arr) => arr.findIndex(x => x.id === t.id) === i);
+        return res.json({ role: "agent", tenders: unique });
+      }
+
+      const myTenders = await storage.getPortTenders({ userId });
+      return res.json({ role: "shipowner", tenders: myTenders });
+    } catch (error) {
+      console.error("Get tenders error:", error);
+      res.status(500).json({ message: "Failed to get tenders" });
+    }
+  });
+
+  app.post("/api/tenders", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+      const effectiveRole = user.userRole === "admin" ? (user.activeRole || "shipowner") : user.userRole;
+      if (effectiveRole === "provider") {
+        return res.status(403).json({ message: "Only shipowners and agents can create tenders" });
+      }
+
+      const { portId, vesselName, description, cargoInfo, expiryHours } = req.body;
+      if (!portId) return res.status(400).json({ message: "Port is required" });
+      if (![24, 48].includes(Number(expiryHours))) {
+        return res.status(400).json({ message: "Expiry must be 24 or 48 hours" });
+      }
+
+      const tender = await storage.createPortTender({
+        userId,
+        portId: Number(portId),
+        vesselName: vesselName || null,
+        description: description || null,
+        cargoInfo: cargoInfo || null,
+        expiryHours: Number(expiryHours),
+      });
+
+      const agents = await storage.getAgentsByPort(Number(portId));
+      res.json({ tender, agentCount: agents.length });
+    } catch (error) {
+      console.error("Create tender error:", error);
+      res.status(500).json({ message: "Failed to create tender" });
+    }
+  });
+
+  app.get("/api/tenders/my-bids", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const bids = await storage.getTenderBidsByAgent(userId);
+      res.json(bids);
+    } catch (error) {
+      console.error("Get my bids error:", error);
+      res.status(500).json({ message: "Failed to get bids" });
+    }
+  });
+
+  app.get("/api/tenders/badge-count", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) return res.json({ count: 0 });
+
+      const effectiveRole = user.userRole === "admin" ? (user.activeRole || "shipowner") : user.userRole;
+
+      if (effectiveRole === "agent") {
+        const profile = await storage.getCompanyProfileByUser(userId);
+        const portIds = (profile?.servedPorts as number[]) || [];
+        const count = await storage.getTenderCountForAgent(userId, portIds);
+        return res.json({ count });
+      }
+
+      const myTenders = await storage.getPortTenders({ userId, status: "open" });
+      const withBids = myTenders.filter(t => (t.bidCount || 0) > 0);
+      return res.json({ count: withBids.length });
+    } catch (error) {
+      res.json({ count: 0 });
+    }
+  });
+
+  app.get("/api/tenders/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+      const tenderId = parseInt(req.params.id);
+      const tender = await storage.getPortTenderById(tenderId);
+      if (!tender) return res.status(404).json({ message: "Tender not found" });
+
+      const effectiveRole = user.userRole === "admin" ? (user.activeRole || "shipowner") : user.userRole;
+
+      if (effectiveRole === "agent") {
+        const bids = await storage.getTenderBids(tenderId);
+        const myBid = bids.find(b => b.agentUserId === userId) || null;
+        const { proformaPdfBase64: _pdf, ...tenderWithoutPdf } = tender as any;
+        return res.json({ tender, bids: myBid ? [myBid] : [], myBid, isOwner: false });
+      }
+
+      const bids = await storage.getTenderBids(tenderId);
+      const bidsNoPdf = bids.map(({ proformaPdfBase64: _pdf, ...b }) => b);
+      res.json({ tender, bids: bidsNoPdf, myBid: null, isOwner: tender.userId === userId || user.userRole === "admin" });
+    } catch (error) {
+      console.error("Get tender error:", error);
+      res.status(500).json({ message: "Failed to get tender" });
+    }
+  });
+
+  app.delete("/api/tenders/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const tenderId = parseInt(req.params.id);
+      const tender = await storage.getPortTenderById(tenderId);
+      if (!tender) return res.status(404).json({ message: "Not found" });
+      if (tender.userId !== userId && !(await isAdmin(req))) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      if (tender.status !== "open") {
+        return res.status(400).json({ message: "Can only cancel open tenders" });
+      }
+      await storage.updatePortTenderStatus(tenderId, "cancelled");
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to cancel tender" });
+    }
+  });
+
+  app.post("/api/tenders/:id/bids", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+      const tenderId = parseInt(req.params.id);
+      const tender = await storage.getPortTenderById(tenderId);
+      if (!tender) return res.status(404).json({ message: "Tender not found" });
+      if (tender.status !== "open") return res.status(400).json({ message: "Tender is no longer open" });
+
+      const expiresAt = new Date(tender.createdAt).getTime() + tender.expiryHours * 3600000;
+      if (Date.now() > expiresAt) return res.status(400).json({ message: "Tender has expired" });
+
+      const existingBids = await storage.getTenderBids(tenderId);
+      if (existingBids.some(b => b.agentUserId === userId)) {
+        return res.status(400).json({ message: "You have already submitted a bid for this tender" });
+      }
+
+      const profile = await storage.getCompanyProfileByUser(userId);
+      const { notes, totalAmount, currency, proformaPdfBase64 } = req.body;
+
+      if (proformaPdfBase64 && proformaPdfBase64.length > 10 * 1024 * 1024) {
+        return res.status(400).json({ message: "PDF file is too large (max 5MB)" });
+      }
+
+      const bid = await storage.createTenderBid({
+        tenderId,
+        agentUserId: userId,
+        agentCompanyId: profile?.id || null,
+        proformaPdfBase64: proformaPdfBase64 || null,
+        notes: notes || null,
+        totalAmount: totalAmount || null,
+        currency: currency || "USD",
+      });
+
+      res.json(bid);
+    } catch (error) {
+      console.error("Create bid error:", error);
+      res.status(500).json({ message: "Failed to submit bid" });
+    }
+  });
+
+  app.post("/api/tenders/:id/bids/:bidId/select", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const tenderId = parseInt(req.params.id);
+      const bidId = parseInt(req.params.bidId);
+
+      const tender = await storage.getPortTenderById(tenderId);
+      if (!tender) return res.status(404).json({ message: "Not found" });
+      if (tender.userId !== userId && !(await isAdmin(req))) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const bids = await storage.getTenderBids(tenderId);
+      for (const bid of bids) {
+        await storage.updateTenderBidStatus(bid.id, bid.id === bidId ? "selected" : "rejected");
+      }
+      await storage.updatePortTenderStatus(tenderId, "closed");
+
+      const selectedBid = bids.find(b => b.id === bidId);
+      res.json({ success: true, selectedBid });
+    } catch (error) {
+      console.error("Select bid error:", error);
+      res.status(500).json({ message: "Failed to select bid" });
+    }
+  });
+
+  app.post("/api/tenders/:id/nominate", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const tenderId = parseInt(req.params.id);
+
+      const tender = await storage.getPortTenderById(tenderId);
+      if (!tender) return res.status(404).json({ message: "Not found" });
+      if (tender.userId !== userId && !(await isAdmin(req))) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const bids = await storage.getTenderBids(tenderId);
+      const selectedBid = bids.find(b => b.status === "selected");
+      if (!selectedBid) return res.status(400).json({ message: "No bid selected yet" });
+
+      await storage.updatePortTenderStatus(tenderId, "nominated", selectedBid.agentUserId);
+
+      res.json({
+        success: true,
+        nominatedAgent: {
+          companyName: selectedBid.companyName,
+          email: selectedBid.agentEmail,
+          agentFirstName: selectedBid.agentFirstName,
+          agentLastName: selectedBid.agentLastName,
+        },
+      });
+    } catch (error) {
+      console.error("Nominate error:", error);
+      res.status(500).json({ message: "Failed to process nomination" });
+    }
+  });
+
+  app.get("/api/tenders/:id/bids/:bidId/pdf", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const tenderId = parseInt(req.params.id);
+      const bidId = parseInt(req.params.bidId);
+
+      const tender = await storage.getPortTenderById(tenderId);
+      if (!tender) return res.status(404).json({ message: "Not found" });
+
+      const bids = await storage.getTenderBids(tenderId);
+      const bid = bids.find(b => b.id === bidId);
+      if (!bid) return res.status(404).json({ message: "Bid not found" });
+
+      const isOwner = tender.userId === userId;
+      const isThisAgent = bid.agentUserId === userId;
+      if (!isOwner && !isThisAgent && !(await isAdmin(req))) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const allBids = await storage.getTenderBids(tenderId);
+      const fullBid = allBids.find(b => b.id === bidId);
+      res.json({ proformaPdfBase64: fullBid?.proformaPdfBase64 || null });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get PDF" });
+    }
+  });
+
   return httpServer;
 }

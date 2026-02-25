@@ -1,6 +1,6 @@
-import { Ship, FileText, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin, Shield, ChevronDown, MessageSquare, Anchor } from "lucide-react";
+import { Ship, FileText, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin, Shield, ChevronDown, MessageSquare, Anchor, Gavel } from "lucide-react";
 import { useLocation, Link } from "wouter";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -61,10 +61,19 @@ export function AppSidebar() {
     },
   });
 
+  const { data: tenderBadge } = useQuery<{ count: number }>({
+    queryKey: ["/api/tenders/badge-count"],
+    refetchInterval: 60000,
+  });
+  const tenderCount = tenderBadge?.count || 0;
+
   const toolsNav = [];
   if (isAdminUser || effectiveRole !== "provider") {
     toolsNav.push({ title: "Vessels", url: "/vessels", icon: Ship });
     toolsNav.push({ title: "Proformas", url: "/proformas", icon: FileText });
+  }
+  if (isAdminUser || effectiveRole !== "provider") {
+    toolsNav.push({ title: "Tenders", url: "/tenders", icon: Gavel, badge: tenderCount });
   }
   if (isAdminUser || effectiveRole === "agent" || effectiveRole === "provider") {
     toolsNav.push({ title: "My Profile", url: "/company-profile", icon: Building2 });
@@ -146,6 +155,7 @@ export function AppSidebar() {
               <SidebarMenu>
                 {toolsNav.map((item) => {
                   const active = isActive(item.url);
+                  const hasBadge = (item as any).badge > 0;
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton
@@ -164,7 +174,12 @@ export function AppSidebar() {
                           className="transition-all duration-150"
                         >
                           <item.icon className="w-4 h-4" />
-                          <span className="font-medium">{item.title}</span>
+                          <span className="font-medium flex-1">{item.title}</span>
+                          {hasBadge && (
+                            <span className="ml-auto flex-shrink-0 w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                              {(item as any).badge}
+                            </span>
+                          )}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

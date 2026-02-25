@@ -23,6 +23,8 @@ import ServicePorts from "@/pages/service-ports";
 import AdminPanel from "@/pages/admin";
 import Forum from "@/pages/forum";
 import ForumTopic from "@/pages/forum-topic";
+import Tenders from "@/pages/tenders";
+import TenderDetail from "@/pages/tender-detail";
 
 function AuthenticatedRouter() {
   return (
@@ -40,6 +42,8 @@ function AuthenticatedRouter() {
       <Route path="/admin" component={AdminPanel} />
       <Route path="/forum" component={Forum} />
       <Route path="/forum/:id" component={ForumTopic} />
+      <Route path="/tenders" component={Tenders} />
+      <Route path="/tenders/:id" component={TenderDetail} />
       <Route component={NotFound} />
     </Switch>
   );
