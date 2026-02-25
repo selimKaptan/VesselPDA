@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
 
 interface ServicePortCompany {
   id: number;
@@ -50,6 +51,7 @@ interface ServicePortEntry {
 
 export default function ServicePorts() {
   const { user } = useAuth();
+  const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedPort, setExpandedPort] = useState<number | null>(null);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
@@ -370,6 +372,21 @@ export default function ServicePorts() {
                   </p>
                 )}
               </div>
+
+              <DialogFooter className="mt-2">
+                <Button
+                  variant="outline"
+                  className="w-full gap-2"
+                  onClick={() => {
+                    setSelectedCompanyId(null);
+                    navigate(`/directory/${companyDetail.id}`);
+                  }}
+                  data-testid="button-view-full-profile"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  View Full Profile
+                </Button>
+              </DialogFooter>
             </>
           ) : (
             <div className="py-8 space-y-3">
