@@ -85,7 +85,7 @@ function BidCard({
           </div>
 
           <div className="flex items-center gap-2 mt-3 flex-wrap">
-            {bid.proformaPdfBase64 !== undefined && (
+            {(bid.hasPdf || bid.proformaPdfBase64) && (
               <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8"
                 onClick={() => onViewPdf(bid.id)} data-testid={`button-view-pdf-${bid.id}`}>
                 <Eye className="w-3.5 h-3.5" /> Proforma Görüntüle

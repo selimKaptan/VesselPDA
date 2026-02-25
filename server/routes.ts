@@ -994,7 +994,10 @@ export async function registerRoutes(
       }
 
       const bids = await storage.getTenderBids(tenderId);
-      const bidsNoPdf = bids.map(({ proformaPdfBase64: _pdf, ...b }) => b);
+      const bidsNoPdf = bids.map(({ proformaPdfBase64, ...b }) => ({
+        ...b,
+        hasPdf: !!proformaPdfBase64,
+      }));
       res.json({ tender, bids: bidsNoPdf, myBid: null, isOwner: tender.userId === userId || isAdminUser });
     } catch (error) {
       console.error("Get tender error:", error);
