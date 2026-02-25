@@ -315,6 +315,22 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/bootstrap", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const APPROVED_ADMINS = ["selim@barbarosshipping.com"];
+      if (!user || !APPROVED_ADMINS.includes(user.email || "")) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const updated = await storage.updateUserRole(userId, "admin");
+      await storage.updateActiveRole(userId, "agent");
+      res.json({ success: true, userRole: updated?.userRole });
+    } catch (error) {
+      res.status(500).json({ message: "Bootstrap failed" });
+    }
+  });
+
   app.patch("/api/admin/active-role", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

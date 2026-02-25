@@ -104,6 +104,16 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
     },
   });
+
+  const bootstrapAdminMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/bootstrap", {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    },
+  });
   const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"], enabled: isAdmin || userRole !== "provider" });
   const { data: proformas, isLoading: proformasLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"], enabled: isAdmin || userRole !== "provider" });
   const { data: featured, isLoading: featuredLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/directory/featured"] });
@@ -127,6 +137,25 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 space-y-7 max-w-7xl mx-auto">
+
+      {/* Admin Bootstrap — one-time activation for approved admin email */}
+      {!isAdmin && bootstrapAdminMutation.isSuccess && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 p-3 text-sm text-emerald-700 dark:text-emerald-400 font-medium">
+          Admin modu aktif edildi! Sayfayı yenileyin (F5).
+        </div>
+      )}
+      {!isAdmin && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => bootstrapAdminMutation.mutate()}
+            disabled={bootstrapAdminMutation.isPending || bootstrapAdminMutation.isSuccess}
+            data-testid="button-bootstrap-admin"
+            className="text-[10px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors px-2 py-1"
+          >
+            {bootstrapAdminMutation.isPending ? "..." : bootstrapAdminMutation.isSuccess ? "✓" : "⚙"}
+          </button>
+        </div>
+      )}
 
       {/* Admin Role Switcher — always visible for admin users */}
       {isAdmin && (
