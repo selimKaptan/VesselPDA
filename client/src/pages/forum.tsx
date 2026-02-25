@@ -361,6 +361,38 @@ export default function Forum() {
           </div>
         )}
 
+        {/* Compose prompt */}
+        {user ? (
+          <button
+            onClick={openNewTopicWithCategory}
+            className="w-full flex items-center gap-3 px-4 py-3 mb-4 rounded-lg border bg-card hover:border-[hsl(var(--maritime-primary)/0.4)] hover:shadow-sm transition-all text-left group"
+            data-testid="button-compose-prompt"
+          >
+            <Avatar className="w-8 h-8 flex-shrink-0">
+              <AvatarImage src={(user as any)?.profileImageUrl || undefined} />
+              <AvatarFallback className="text-xs bg-[hsl(var(--maritime-primary))] text-white">
+                {((user as any)?.firstName?.[0] || "") + ((user as any)?.lastName?.[0] || "")}
+              </AvatarFallback>
+            </Avatar>
+            <span className="flex-1 text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+              {activeCategoryObj ? `${activeCategoryObj.name} kategorisinde konu başlatın...` : "Yeni bir tartışma başlatın..."}
+            </span>
+            <span className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium text-[hsl(var(--maritime-primary))] opacity-0 group-hover:opacity-100 transition-opacity">
+              <Plus className="w-3.5 h-3.5" /> Yeni Konu
+            </span>
+          </button>
+        ) : (
+          <div className="flex items-center gap-3 px-4 py-3 mb-4 rounded-lg border border-dashed bg-muted/20">
+            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+              <MessageSquare className="w-4 h-4 text-muted-foreground" />
+            </div>
+            <span className="flex-1 text-sm text-muted-foreground">Tartışmaya katılmak için</span>
+            <a href="/api/login">
+              <Button size="sm" variant="outline" className="flex-shrink-0" data-testid="button-login-compose">Giriş Yap</Button>
+            </a>
+          </div>
+        )}
+
         {/* Topic list */}
         {isLoading ? (
           <div className="space-y-2">
