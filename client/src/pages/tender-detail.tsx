@@ -47,17 +47,26 @@ function BidCard({
 }: {
   bid: any; isOwner: boolean; onSelect: (bidId: number) => void; onViewPdf: (bidId: number) => void;
 }) {
+  const [, navigate] = useLocation();
   const statusConfig = {
     selected: { label: "Seçildi", cls: "bg-emerald-100 text-emerald-700", icon: <CheckCircle2 className="w-4 h-4 text-emerald-600" /> },
     rejected: { label: "Reddedildi", cls: "bg-red-100 text-red-700", icon: <XCircle className="w-4 h-4 text-red-500" /> },
     pending: { label: "Beklemede", cls: "bg-amber-100 text-amber-700", icon: null },
   }[bid.status as string] || { label: bid.status, cls: "bg-gray-100 text-gray-600", icon: null };
 
+  const goToProfile = () => {
+    if (bid.agentCompanyId) navigate(`/directory/${bid.agentCompanyId}`);
+  };
+
   return (
     <Card className={`p-5 transition-all ${bid.status === "selected" ? "ring-2 ring-emerald-400 bg-emerald-50/30 dark:bg-emerald-950/10" : ""}`}
       data-testid={`card-bid-${bid.id}`}>
       <div className="flex items-start gap-4">
-        <div className="w-12 h-12 rounded-xl bg-[hsl(var(--maritime-primary)/0.08)] flex items-center justify-center flex-shrink-0 overflow-hidden border border-[hsl(var(--maritime-primary)/0.12)]">
+        <div
+          className={`w-12 h-12 rounded-xl bg-[hsl(var(--maritime-primary)/0.08)] flex items-center justify-center flex-shrink-0 overflow-hidden border border-[hsl(var(--maritime-primary)/0.12)] ${bid.agentCompanyId ? "cursor-pointer hover:ring-2 hover:ring-[hsl(var(--maritime-primary)/0.3)] transition-all" : ""}`}
+          onClick={goToProfile}
+          data-testid={`img-bid-logo-${bid.id}`}
+        >
           {bid.companyLogoUrl
             ? <img src={bid.companyLogoUrl} alt={bid.companyName} className="w-full h-full object-contain" />
             : <Building2 className="w-6 h-6 text-[hsl(var(--maritime-primary))]" />
@@ -67,7 +76,11 @@ function BidCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="font-semibold text-sm">
+              <p
+                className={`font-semibold text-sm ${bid.agentCompanyId ? "cursor-pointer hover:text-[hsl(var(--maritime-primary))] hover:underline transition-colors" : ""}`}
+                onClick={goToProfile}
+                data-testid={`text-bid-company-${bid.id}`}
+              >
                 {bid.companyName || `${bid.agentFirstName} ${bid.agentLastName}`}
               </p>
               {bid.totalAmount && (
