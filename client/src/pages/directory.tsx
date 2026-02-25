@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
 import type { CompanyProfile, Port } from "@shared/schema";
 
 const SERVICE_CATEGORIES = [
@@ -310,6 +311,7 @@ export default function Directory() {
 }
 
 function CompanyCard({ profile, getPortName, isFeatured }: { profile: CompanyProfile; getPortName: (id: number) => string; isFeatured: boolean }) {
+  const [, setLocation] = useLocation();
   const servedPorts = (profile.servedPorts as number[]) || [];
   const serviceTypes = (profile.serviceTypes as string[]) || [];
 
@@ -357,9 +359,9 @@ function CompanyCard({ profile, getPortName, isFeatured }: { profile: CompanyPro
               size="sm"
               className="flex-shrink-0 gap-1.5 hover:border-[hsl(var(--maritime-primary)/0.4)] hover:text-[hsl(var(--maritime-primary))]"
               data-testid={`button-view-${profile.id}`}
-              onClick={() => {}}
+              onClick={() => setLocation(`/directory/${profile.id}`)}
             >
-              {profile.companyType === "agent" ? "View Agent" : "View Provider"}
+              {profile.companyType === "agent" ? "Profili Gör" : "Profili Gör"}
             </Button>
           </div>
 

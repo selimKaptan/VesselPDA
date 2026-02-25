@@ -89,6 +89,9 @@ A professional web-based maritime platform (VesselPDA) for ship agents to create
 - Forum accessible from sidebar (authenticated), landing/directory/service-ports nav (public)
 
 ## Recent Changes
+- 2026-02-25: Agent Review System — shipowners/brokers can rate agents (1-5 stars) and leave comments on agent company profiles. Reviews show on /directory/:id (new DirectoryProfilePage). Review form visible to shipowners on agent profiles. After nomination, tender detail shows "Bu Acenteyi Değerlendir" button linking to agent's profile. New DB table: agent_reviews. New page: /directory/:id. New API: GET/POST /api/reviews/:companyProfileId. Directory "View Agent" button now navigates to profile page.
+
+
 - 2026-02-25: Port Call Tender System — shipowners/brokers create port call tenders (24h/48h expiry), system routes to agents serving that port, agents submit PDF proforma bids, shipowner selects winning bid, nomination dialog sends nomination confirmation. Archive for both sides. Sidebar badge shows pending count. New DB tables: port_tenders, tender_bids. New pages: /tenders, /tenders/:id.
 - 2026-02-25: Professional UI redesign — global design tokens (maritime-gold, stronger shadows, dark navy sidebar), landing page complete overhaul (hero floating cards, stats bar, features with gradient icons, gold Standard badge, dark CTA banner, professional footer), dashboard (StatCard component with left accent border + colored progress bar), sidebar (dark background, active left border, plan badge color coding), forum (category gradient icons + left border on topic rows), directory (featured banner strip + improved company cards)
 - 2026-02-24: Anonymous forum topics — users can post topics with "Anonim olarak paylaş" checkbox; author name/avatar hidden and shown as "Anonim" in topic list and detail page; replies always named; userId still stored for ownership/deletion

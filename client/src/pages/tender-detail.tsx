@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Gavel, ArrowLeft, Clock, Ship, FileText, Upload, CheckCircle2,
-  XCircle, Building2, Trophy, Mail, AlertCircle, Eye, Send
+  XCircle, Building2, Trophy, Mail, AlertCircle, Eye, Send, Star
 } from "lucide-react";
 
 function useCountdown(createdAt: string, expiryHours: number) {
@@ -499,9 +499,25 @@ export default function TenderDetailPage() {
       {/* Tender closed/nominated status */}
       {tender.status === "nominated" && !nominationData && (
         <Card className="p-5 bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800">
-          <div className="flex items-center gap-3">
-            <CheckCircle2 className="w-6 h-6 text-purple-600" />
-            <p className="font-medium text-purple-800 dark:text-purple-300">Bu ihale için nominasyon tamamlandı.</p>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-6 h-6 text-purple-600" />
+              <p className="font-medium text-purple-800 dark:text-purple-300">Bu ihale için nominasyon tamamlandı.</p>
+            </div>
+            {isOwner && (() => {
+              const nominatedBid = allBids?.find((b: any) => b.status === "selected");
+              return nominatedBid?.agentCompanyId ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-100"
+                  onClick={() => navigate(`/directory/${nominatedBid.agentCompanyId}`)}
+                  data-testid="button-review-agent"
+                >
+                  <Star className="w-3.5 h-3.5" /> Bu Acenteyi Değerlendir
+                </Button>
+              ) : null;
+            })()}
           </div>
         </Card>
       )}

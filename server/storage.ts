@@ -11,9 +11,10 @@ import {
   type ForumReply, type InsertForumReply,
   type PortTender, type InsertPortTender,
   type TenderBid, type InsertTenderBid,
+  type AgentReview, type InsertAgentReview,
   vessels, ports, tariffCategories, tariffRates, proformas,
   forumCategories, forumTopics, forumReplies,
-  portTenders, tenderBids,
+  portTenders, tenderBids, agentReviews,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
@@ -79,6 +80,10 @@ export interface IStorage {
   updateTenderBidStatus(id: number, status: string): Promise<TenderBid | undefined>;
   getAgentsByPort(portId: number): Promise<CompanyProfile[]>;
   getTenderCountForAgent(agentUserId: string, portIds: number[]): Promise<number>;
+
+  createReview(data: InsertAgentReview): Promise<AgentReview>;
+  getReviewsByCompany(companyProfileId: number): Promise<any[]>;
+  getMyReviewForTender(reviewerUserId: string, tenderId: number): Promise<AgentReview | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -609,6 +614,39 @@ export class DatabaseStorage implements IStorage {
     const bidTenderIds = await db.select({ tenderId: tenderBids.tenderId }).from(tenderBids).where(eq(tenderBids.agentUserId, agentUserId));
     const bidSet = new Set(bidTenderIds.map(b => b.tenderId));
     return relevant.filter(t => !bidSet.has(t.id)).length;
+  }
+
+  async createReview(data: InsertAgentReview): Promise<AgentReview> {
+    const [review] = await db.insert(agentReviews).values(data).returning();
+    return review;
+  }
+
+  async getReviewsByCompany(companyProfileId: number): Promise<any[]> {
+    const rows = await db
+      .select({
+        id: agentReviews.id,
+        companyProfileId: agentReviews.companyProfileId,
+        tenderId: agentReviews.tenderId,
+        rating: agentReviews.rating,
+        comment: agentReviews.comment,
+        vesselName: agentReviews.vesselName,
+        portName: agentReviews.portName,
+        createdAt: agentReviews.createdAt,
+        reviewerFirstName: users.firstName,
+        reviewerLastName: users.lastName,
+        reviewerProfileImage: users.profileImageUrl,
+      })
+      .from(agentReviews)
+      .leftJoin(users, eq(agentReviews.reviewerUserId, users.id))
+      .where(eq(agentReviews.companyProfileId, companyProfileId))
+      .orderBy(desc(agentReviews.createdAt));
+    return rows;
+  }
+
+  async getMyReviewForTender(reviewerUserId: string, tenderId: number): Promise<AgentReview | undefined> {
+    const [review] = await db.select().from(agentReviews)
+      .where(and(eq(agentReviews.reviewerUserId, reviewerUserId), eq(agentReviews.tenderId, tenderId)));
+    return review;
   }
 }
 

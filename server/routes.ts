@@ -575,6 +575,71 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/reviews/:companyProfileId", async (req, res) => {
+    try {
+      const companyProfileId = parseInt(req.params.companyProfileId);
+      const reviews = await storage.getReviewsByCompany(companyProfileId);
+      res.json(reviews);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch reviews" });
+    }
+  });
+
+  app.post("/api/reviews", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+      const effectiveRole = user.userRole === "admin" ? (user.activeRole || "shipowner") : user.userRole;
+      if (effectiveRole !== "shipowner") {
+        return res.status(403).json({ message: "Only shipowners and brokers can leave reviews" });
+      }
+
+      const { companyProfileId, tenderId, rating, comment } = req.body;
+      if (!companyProfileId) return res.status(400).json({ message: "companyProfileId is required" });
+      if (!rating || rating < 1 || rating > 5) return res.status(400).json({ message: "Rating must be between 1 and 5" });
+
+      const profile = await storage.getCompanyProfile(companyProfileId);
+      if (!profile) return res.status(404).json({ message: "Company profile not found" });
+
+      let vesselName: string | undefined;
+      let portName: string | undefined;
+
+      if (tenderId) {
+        const existing = await storage.getMyReviewForTender(userId, tenderId);
+        if (existing) return res.status(400).json({ message: "You have already reviewed this job" });
+
+        const tender = await storage.getPortTenderById(tenderId);
+        if (tender) {
+          if (tender.nominatedAgentId !== profile.userId) {
+            return res.status(403).json({ message: "This agent was not nominated for that tender" });
+          }
+          if (tender.userId !== userId) {
+            return res.status(403).json({ message: "This is not your tender" });
+          }
+          vesselName = tender.vesselName;
+          portName = tender.portName;
+        }
+      }
+
+      const review = await storage.createReview({
+        companyProfileId,
+        reviewerUserId: userId,
+        tenderId: tenderId || null,
+        rating,
+        comment: comment || null,
+        vesselName: vesselName || null,
+        portName: portName || null,
+      });
+
+      res.json(review);
+    } catch (error) {
+      console.error("Create review error:", error);
+      res.status(500).json({ message: "Failed to create review" });
+    }
+  });
+
   app.get("/api/activity-feed", async (_req, res) => {
     try {
       const activities: { type: string; message: string; timestamp: string; icon: string }[] = [];

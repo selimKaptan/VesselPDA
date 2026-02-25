@@ -25,6 +25,7 @@ import Forum from "@/pages/forum";
 import ForumTopic from "@/pages/forum-topic";
 import Tenders from "@/pages/tenders";
 import TenderDetail from "@/pages/tender-detail";
+import DirectoryProfile from "@/pages/directory-profile";
 
 function AuthenticatedRouter() {
   return (
@@ -37,6 +38,7 @@ function AuthenticatedRouter() {
       <Route path="/proformas/:id" component={ProformaView} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/directory" component={Directory} />
+      <Route path="/directory/:id" component={DirectoryProfile} />
       <Route path="/service-ports" component={ServicePorts} />
       <Route path="/company-profile" component={CompanyProfile} />
       <Route path="/admin" component={AdminPanel} />
@@ -76,6 +78,7 @@ function PublicDirectoryPage() {
   return (
     <Switch>
       <Route path="/directory" component={Directory} />
+      <Route path="/directory/:id" component={DirectoryProfile} />
       <Route path="/service-ports" component={ServicePorts} />
       <Route path="/forum" component={Forum} />
       <Route path="/forum/:id" component={ForumTopic} />

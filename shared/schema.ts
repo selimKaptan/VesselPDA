@@ -237,3 +237,27 @@ export type InsertPortTender = z.infer<typeof insertPortTenderSchema>;
 export type PortTender = typeof portTenders.$inferSelect;
 export type InsertTenderBid = z.infer<typeof insertTenderBidSchema>;
 export type TenderBid = typeof tenderBids.$inferSelect;
+
+// ─── AGENT REVIEWS ────────────────────────────────────────────────────────────
+
+export const agentReviews = pgTable("agent_reviews", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  companyProfileId: integer("company_profile_id").notNull().references(() => companyProfiles.id),
+  reviewerUserId: varchar("reviewer_user_id").notNull().references(() => users.id),
+  tenderId: integer("tender_id").references(() => portTenders.id),
+  rating: integer("rating").notNull(),
+  comment: text("comment"),
+  vesselName: text("vessel_name"),
+  portName: text("port_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const agentReviewRelations = relations(agentReviews, ({ one }) => ({
+  company: one(companyProfiles, { fields: [agentReviews.companyProfileId], references: [companyProfiles.id] }),
+  reviewer: one(users, { fields: [agentReviews.reviewerUserId], references: [users.id] }),
+  tender: one(portTenders, { fields: [agentReviews.tenderId], references: [portTenders.id] }),
+}));
+
+export const insertAgentReviewSchema = createInsertSchema(agentReviews).omit({ id: true, createdAt: true });
+export type InsertAgentReview = z.infer<typeof insertAgentReviewSchema>;
+export type AgentReview = typeof agentReviews.$inferSelect;
