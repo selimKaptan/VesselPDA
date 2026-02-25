@@ -275,66 +275,32 @@ export default function Landing() {
               </div>
             </div>
 
-            {/* Floating UI cards */}
-            <div className="relative hidden lg:flex flex-col gap-4 items-end">
-              <div className="w-full max-w-sm">
-                <Card className="p-5 shadow-xl shadow-[hsl(var(--maritime-primary)/0.10)] border-[hsl(var(--maritime-primary)/0.15)] bg-card/95 backdrop-blur-sm">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-9 h-9 rounded-md bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center">
-                      <FileText className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Proforma Generated</p>
-                      <p className="text-sm font-bold">MV CHELSEA 2 — İstanbul</p>
-                    </div>
-                    <Badge className="ml-auto bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border-0 text-[10px]">Draft</Badge>
-                  </div>
-                  <div className="space-y-2">
-                    {[
-                      { label: "Pilotage", usd: "$820" },
-                      { label: "Tugboats (2)", usd: "$1,240" },
-                      { label: "Wharfage", usd: "$380" },
-                      { label: "Agency Fee", usd: "$750" },
-                    ].map((item) => (
-                      <div key={item.label} className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">{item.label}</span>
-                        <span className="font-medium">{item.usd}</span>
+            {/* Hero ship image */}
+            <div className="relative hidden lg:block">
+              <div className="relative rounded-2xl shadow-2xl shadow-[hsl(var(--maritime-primary)/0.25)] overflow-hidden transition-transform duration-500 hover:scale-[1.02]">
+                <div className="absolute inset-0 bg-gradient-to-t from-[hsl(var(--maritime-primary)/0.65)] via-[hsl(var(--maritime-primary)/0.15)] to-transparent z-10" />
+                <img
+                  src="/images/hero-ship.png"
+                  alt="Maritime vessel"
+                  className="w-full h-[420px] object-cover"
+                />
+                <div className="absolute bottom-6 left-6 right-6 z-20">
+                  <div className="backdrop-blur-sm bg-white/10 rounded-xl p-4 border border-white/20">
+                    <div className="flex items-center gap-3 text-white">
+                      <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-5 h-5 text-white" />
                       </div>
-                    ))}
-                    <Separator className="my-2" />
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold">Total Estimate</span>
-                      <span className="text-base font-bold text-[hsl(var(--maritime-primary))]">$6,840</span>
+                      <div>
+                        <p className="font-semibold text-sm">MV BARBARA — Tekirdag Port</p>
+                        <p className="text-xs text-white/70">Proforma generated in 3 seconds</p>
+                      </div>
+                      <Badge className="ml-auto bg-emerald-500/80 text-white border-0 text-[10px]">Live</Badge>
                     </div>
                   </div>
-                </Card>
+                </div>
               </div>
-
-              <div className="flex gap-3 w-full max-w-sm">
-                <Card className="flex-1 p-4 shadow-lg border-[hsl(var(--maritime-secondary)/0.2)] bg-card/95">
-                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Ports Covered</p>
-                  <p className="text-2xl font-bold font-serif text-[hsl(var(--maritime-secondary))]">804+</p>
-                  <p className="text-[11px] text-muted-foreground mt-1">Turkish ports</p>
-                </Card>
-                <Card className="flex-1 p-4 shadow-lg border-[hsl(var(--maritime-accent)/0.2)] bg-card/95">
-                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Calculation Items</p>
-                  <p className="text-2xl font-bold font-serif text-[hsl(var(--maritime-accent))]">22</p>
-                  <p className="text-[11px] text-muted-foreground mt-1">Line items</p>
-                </Card>
-              </div>
-
-              <div className="w-full max-w-sm">
-                <Card className="p-4 shadow-lg bg-[hsl(var(--maritime-primary)/0.05)] border-[hsl(var(--maritime-primary)/0.2)] flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-[hsl(var(--maritime-primary))] flex items-center justify-center flex-shrink-0">
-                    <TrendingUp className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold">Formula-Based Engine</p>
-                    <p className="text-[11px] text-muted-foreground">Matches official port tariffs exactly</p>
-                  </div>
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
-                </Card>
-              </div>
+              <div className="absolute -bottom-6 -right-6 w-40 h-40 rounded-full bg-[hsl(var(--maritime-accent)/0.15)] blur-3xl pointer-events-none" />
+              <div className="absolute -top-4 -left-4 w-24 h-24 rounded-full bg-[hsl(var(--maritime-secondary)/0.1)] blur-2xl pointer-events-none" />
             </div>
           </div>
 
