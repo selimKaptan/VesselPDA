@@ -82,10 +82,12 @@ function TenderCard({ tender, role, myBidStatus }: { tender: any; role: string; 
             <Gavel className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className="font-semibold text-sm" data-testid={`text-tender-port-${tender.id}`}>
-                {tender.portName}
-              </span>
+            <div className="flex items-center gap-2 flex-wrap mb-0.5">
+              {tender.vesselName && (
+                <span className="font-bold text-base" data-testid={`text-tender-vessel-${tender.id}`}>
+                  {tender.vesselName}
+                </span>
+              )}
               <Badge className={`text-[10px] border-0 ${statusColor}`}>{statusLabel}</Badge>
               {myBidStatus && (
                 <div className="flex items-center gap-1">
@@ -96,12 +98,10 @@ function TenderCard({ tender, role, myBidStatus }: { tender: any; role: string; 
                 </div>
               )}
             </div>
-            {tender.vesselName && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-                <Ship className="w-3 h-3" />
-                <span>{tender.vesselName}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+              <Ship className="w-3 h-3" />
+              <span data-testid={`text-tender-port-${tender.id}`}>{tender.portName}</span>
+            </div>
             {tender.cargoInfo && (
               <p className="text-xs text-muted-foreground line-clamp-1">{tender.cargoInfo}</p>
             )}

@@ -220,6 +220,25 @@ function SubmitBidForm({ tenderId, onSuccess }: { tenderId: number; onSuccess: (
             )}
           </div>
           <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleFile} data-testid="input-pdf-file" />
+          {pdfBase64 && (
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              className="gap-1.5 text-xs"
+              onClick={() => {
+                const win = window.open();
+                if (win) {
+                  win.document.write(
+                    `<iframe src="${pdfBase64}" width="100%" height="100%" style="border:none;margin:0;padding:0;height:100vh;"></iframe>`
+                  );
+                }
+              }}
+              data-testid="button-preview-pdf"
+            >
+              <Eye className="w-3.5 h-3.5" /> Önizle
+            </Button>
+          )}
         </div>
 
         <Button onClick={handleSubmit} disabled={mutation.isPending} className="w-full gap-2" data-testid="button-submit-bid">
