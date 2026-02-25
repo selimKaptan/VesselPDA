@@ -1,4 +1,4 @@
-import { Ship, FileText, BarChart3, Shield, Globe, ArrowRight, Waves, Check, Zap, Crown, Star, Building2, User, Activity, Anchor, Users, Briefcase, MessageSquare, ChevronDown, TrendingUp, MapPin, Lock } from "lucide-react";
+import { Ship, FileText, BarChart3, Shield, Globe, ArrowRight, Waves, Check, Zap, Crown, Star, Building2, User, Activity, Anchor, Users, Briefcase, MessageSquare, ChevronDown, TrendingUp, MapPin, Lock, CheckCircle2 } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -427,7 +427,7 @@ export default function Landing() {
 
       {/* HOW IT WORKS */}
       <section id="how-it-works" className="py-24 md:py-32 scroll-mt-20 bg-gradient-to-b from-[hsl(var(--maritime-primary)/0.03)] to-transparent border-y border-border/40">
-        <div className="max-w-7xl mx-auto px-6">
+        <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-16 space-y-4">
             <Badge variant="outline" className="px-4 py-1.5 text-xs font-semibold border-[hsl(var(--maritime-accent)/0.4)] text-[hsl(var(--maritime-accent))] uppercase tracking-wide">
               How It Works
@@ -436,52 +436,80 @@ export default function Landing() {
               Three Steps to Your Proforma
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto text-base md:text-lg">
-              From vessel to finished proforma in under a minute.
+              From vessel details to a finished cost breakdown in under a minute.
             </p>
           </div>
 
-          <div className="relative grid md:grid-cols-3 gap-8">
-            <div className="absolute top-10 left-[20%] right-[20%] h-px bg-gradient-to-r from-[hsl(var(--maritime-primary)/0.2)] via-[hsl(var(--maritime-accent)/0.4)] to-[hsl(var(--maritime-primary)/0.2)] hidden md:block" />
+          {/* Steps — desktop: horizontal with connector; mobile: vertical */}
+          <div className="relative">
+            {/* Connector line — passes behind circles; circles mask it with bg-background */}
+            <div className="absolute top-7 left-[16.666%] right-[16.666%] h-0.5 bg-gradient-to-r from-[hsl(var(--maritime-primary)/0.35)] via-[hsl(var(--maritime-accent)/0.5)] to-[hsl(var(--maritime-primary)/0.35)] hidden md:block" />
 
-            {[
-              {
-                step: "01",
-                title: "Add Your Vessel",
-                desc: "Enter vessel particulars including GRT, NRT, flag, and vessel type. Takes less than 2 minutes.",
-                icon: Ship,
-                color: "var(--maritime-primary)",
-              },
-              {
-                step: "02",
-                title: "Select Port & Cargo",
-                desc: "Choose your destination port from 804+ options, specify cargo details and customs type.",
-                icon: MapPin,
-                color: "var(--maritime-secondary)",
-              },
-              {
-                step: "03",
-                title: "Generate Proforma",
-                desc: "Get instant 22-line cost breakdown using official tariff rates. Export as PDF or print.",
-                icon: FileText,
-                color: "var(--maritime-accent)",
-              },
-            ].map((item, i) => (
-              <div key={i} className="relative text-center space-y-5" data-testid={`step-${i}`}>
-                <div className="relative flex justify-center">
+            <div className="grid md:grid-cols-3 gap-4 md:gap-8">
+              {[
+                {
+                  n: 1,
+                  title: "Save Your Vessel",
+                  desc: "Enter GRT, NRT, flag and vessel type once. It stays on file and is ready for every future port call.",
+                  icon: Ship,
+                  color: "var(--maritime-primary)",
+                },
+                {
+                  n: 2,
+                  title: "Pick Port & Cargo",
+                  desc: "Select from 804+ Turkish ports and specify cargo type. Live tariff schedules load automatically — no manual lookup.",
+                  icon: MapPin,
+                  color: "var(--maritime-secondary)",
+                },
+                {
+                  n: 3,
+                  title: "Your Proforma is Ready",
+                  desc: "22 official line items appear instantly, calculated at current tariff rates. Export as PDF and share with owners in seconds.",
+                  icon: FileText,
+                  color: "var(--maritime-accent)",
+                },
+              ].map((item, i) => (
+                <div key={i} className="flex flex-col items-center text-center gap-5" data-testid={`step-${i}`}>
+                  {/* Number circle — sits on top of the connector line */}
                   <div
-                    className="w-20 h-20 rounded-2xl flex flex-col items-center justify-center mx-auto shadow-lg"
-                    style={{ background: `linear-gradient(135deg, hsl(${item.color} / 0.15), hsl(${item.color} / 0.05))`, border: `1.5px solid hsl(${item.color} / 0.25)` }}
+                    className="relative z-10 w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 bg-background shadow-md border-2"
+                    style={{ borderColor: `hsl(${item.color} / 0.45)`, boxShadow: `0 0 0 4px hsl(${item.color} / 0.08), 0 4px 12px hsl(${item.color} / 0.18)` }}
                   >
-                    <item.icon className="w-7 h-7 mb-0.5" style={{ color: `hsl(${item.color})` }} />
-                    <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: `hsl(${item.color} / 0.7)` }}>{item.step}</span>
+                    <span className="text-xl font-bold" style={{ color: `hsl(${item.color})` }}>{item.n}</span>
                   </div>
+
+                  {/* Card */}
+                  <Card className="w-full p-6 space-y-3 hover:shadow-md transition-shadow duration-200 border-border/60">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto"
+                      style={{ background: `hsl(${item.color} / 0.09)` }}
+                    >
+                      <item.icon className="w-5 h-5" style={{ color: `hsl(${item.color})` }} />
+                    </div>
+                    <h3 className="font-serif font-bold text-base">{item.title}</h3>
+                    <p className="text-muted-foreground text-sm leading-relaxed">{item.desc}</p>
+                  </Card>
                 </div>
-                <div>
-                  <h3 className="font-serif font-bold text-lg mb-2">{item.title}</h3>
-                  <p className="text-muted-foreground text-sm leading-relaxed max-w-xs mx-auto">{item.desc}</p>
-                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Outcome / completion moment */}
+          <div className="mt-12 flex justify-center">
+            <div className="flex flex-col sm:flex-row items-center gap-4 px-6 py-5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 max-w-lg w-full">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center flex-shrink-0">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               </div>
-            ))}
+              <div className="text-center sm:text-left flex-1 min-w-0">
+                <p className="font-semibold text-emerald-900 dark:text-emerald-200 text-sm">Your proforma is ready to share</p>
+                <p className="text-emerald-700 dark:text-emerald-400 text-xs mt-0.5">22 line items · Official tariff rates · Instant PDF export</p>
+              </div>
+              <a href="/api/login" className="flex-shrink-0">
+                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5" data-testid="button-hiw-cta">
+                  Try It Free <ArrowRight className="w-3.5 h-3.5" />
+                </Button>
+              </a>
+            </div>
           </div>
         </div>
       </section>
