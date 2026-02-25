@@ -88,6 +88,12 @@ A professional web-based maritime platform (VesselPDA) for ship agents to create
 - Categories seeded on startup (6 default categories with color coding)
 - Forum accessible from sidebar (authenticated), landing/directory/service-ports nav (public)
 
+## Email
+- `server/email.ts` — Resend-based transactional email module
+- `sendNominationEmail()` — sends HTML nomination confirmation to agent + extra recipients
+- Requires `RESEND_API_KEY` env var (set via Resend integration); if missing, skips silently
+- From address: `noreply@vesselpda.com` (must be a verified Resend domain)
+
 ## Recent Changes
 - 2026-02-25: Nomination dialog overhauled — replaced simple confirm AlertDialog with full Dialog showing: selected agent info (logo, name, email), vessel & cargo details (vessel name, flag, GRT, NRT, cargo type/quantity, previous port), optional "Not/Mesaj" textarea, optional "Ek Email Adresleri" field (comma-separated). Backend accepts note + extraEmails in POST /api/tenders/:id/nominate body. "Bu Acenteyi Değerlendir" button now only shows when effectiveRole === "shipowner" (admin in agent view no longer sees it).
 - 2026-02-25: Agent Review System — shipowners/brokers can rate agents (1-5 stars) and leave comments on agent company profiles. Reviews show on /directory/:id (new DirectoryProfilePage). Review form visible to shipowners on agent profiles. After nomination, tender detail shows "Bu Acenteyi Değerlendir" button linking to agent's profile. New DB table: agent_reviews. New page: /directory/:id. New API: GET/POST /api/reviews/:companyProfileId. Directory "View Agent" button now navigates to profile page.

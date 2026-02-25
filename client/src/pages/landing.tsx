@@ -343,7 +343,7 @@ export default function Landing() {
       <LiveActivityTicker />
 
       {/* FEATURES */}
-      <section id="features" className="py-24 md:py-32">
+      <section id="features" className="py-24 md:py-32 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16 space-y-4">
             <Badge variant="outline" className="px-4 py-1.5 text-xs font-semibold border-[hsl(var(--maritime-primary)/0.3)] text-[hsl(var(--maritime-primary))] uppercase tracking-wide">
@@ -426,7 +426,7 @@ export default function Landing() {
       </section>
 
       {/* HOW IT WORKS */}
-      <section id="how-it-works" className="py-24 md:py-32 bg-gradient-to-b from-[hsl(var(--maritime-primary)/0.03)] to-transparent border-y border-border/40">
+      <section id="how-it-works" className="py-24 md:py-32 scroll-mt-20 bg-gradient-to-b from-[hsl(var(--maritime-primary)/0.03)] to-transparent border-y border-border/40">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16 space-y-4">
             <Badge variant="outline" className="px-4 py-1.5 text-xs font-semibold border-[hsl(var(--maritime-accent)/0.4)] text-[hsl(var(--maritime-accent))] uppercase tracking-wide">
@@ -487,7 +487,7 @@ export default function Landing() {
       </section>
 
       {/* PRICING */}
-      <section id="pricing" className="py-24 md:py-32">
+      <section id="pricing" className="py-24 md:py-32 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16 space-y-4">
             <Badge variant="outline" className="px-4 py-1.5 text-xs font-semibold border-[hsl(var(--maritime-gold)/0.5)] text-[hsl(var(--maritime-gold))] uppercase tracking-wide" data-testid="badge-pricing">
@@ -634,17 +634,13 @@ export default function Landing() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <a href="/api/login">
-              <Button size="lg" variant="secondary" className="gap-2 bg-white text-[hsl(var(--maritime-primary))] hover:bg-white/90 shadow-lg font-semibold" data-testid="button-cta-bottom">
-                Start Generating Proformas
+              <Button size="lg" variant="secondary" className="gap-2 bg-white text-[hsl(var(--maritime-primary))] hover:bg-white/90 shadow-lg font-semibold px-8" data-testid="button-cta-bottom">
+                Get Started Free
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </a>
-            <a href="/directory">
-              <Button size="lg" variant="ghost" className="gap-2 text-white hover:bg-white/15 border border-white/30">
-                Browse Directory
-              </Button>
-            </a>
           </div>
+          <p className="text-white/50 text-xs pt-1">No credit card required · Free plan available</p>
         </div>
       </section>
 
@@ -662,24 +658,25 @@ export default function Landing() {
               </p>
             </div>
             <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Platform</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Product</p>
               <ul className="space-y-2">
                 {[
-                  { href: "#features", label: "Features" },
-                  { href: "#pricing", label: "Pricing" },
                   { href: "/directory", label: "Directory" },
+                  { href: "/service-ports", label: "Service Ports" },
                   { href: "/forum", label: "Forum" },
+                  { href: "/api/login", label: "Sign Up Free" },
                 ].map((l) => (
                   <li key={l.label}><a href={l.href} className="text-sm text-muted-foreground hover:text-foreground transition-colors">{l.label}</a></li>
                 ))}
               </ul>
             </div>
             <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Resources</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Support</p>
               <ul className="space-y-2">
                 {[
-                  { href: "/service-ports", label: "Service Ports" },
-                  { href: "#how-it-works", label: "How It Works" },
+                  { href: "mailto:info@vesselpda.com", label: "Contact Us" },
+                  { href: "/forum", label: "Community Forum" },
+                  { href: "#pricing", label: "Pricing & Plans" },
                 ].map((l) => (
                   <li key={l.label}><a href={l.href} className="text-sm text-muted-foreground hover:text-foreground transition-colors">{l.label}</a></li>
                 ))}

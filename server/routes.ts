@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
 import multer from "multer";
+import { sendNominationEmail } from "./email";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
 import type { ProformaLineItem } from "@shared/schema";
@@ -1111,6 +1112,29 @@ export async function registerRoutes(
 
       await storage.updatePortTenderStatus(tenderId, "nominated", selectedBid.agentUserId);
 
+      const extraEmailsList: string[] = Array.isArray(extraEmails)
+        ? extraEmails
+        : typeof extraEmails === "string"
+          ? extraEmails.split(",").map((e: string) => e.trim()).filter(Boolean)
+          : [];
+
+      if (selectedBid.agentEmail) {
+        sendNominationEmail({
+          agentEmail: selectedBid.agentEmail,
+          agentCompanyName: selectedBid.companyName || `${selectedBid.agentFirstName} ${selectedBid.agentLastName}`,
+          extraEmails: extraEmailsList,
+          portName: tender.portName,
+          vesselName: tender.vesselName ?? undefined,
+          flag: tender.flag ?? undefined,
+          grt: tender.grt ?? undefined,
+          nrt: tender.nrt ?? undefined,
+          cargoType: tender.cargoType ?? undefined,
+          cargoQuantity: tender.cargoQuantity ?? undefined,
+          previousPort: tender.previousPort ?? undefined,
+          note: note || undefined,
+        }).catch(err => console.error("[email] Nomination email failed (non-blocking):", err));
+      }
+
       res.json({
         success: true,
         nominatedAgent: {
@@ -1119,18 +1143,9 @@ export async function registerRoutes(
           agentFirstName: selectedBid.agentFirstName,
           agentLastName: selectedBid.agentLastName,
         },
-        tenderInfo: {
-          portName: tender.portName,
-          vesselName: tender.vesselName,
-          flag: tender.flag,
-          grt: tender.grt,
-          nrt: tender.nrt,
-          cargoType: tender.cargoType,
-          cargoQuantity: tender.cargoQuantity,
-          previousPort: tender.previousPort,
-        },
         note: note || null,
-        extraEmails: Array.isArray(extraEmails) ? extraEmails : [],
+        extraEmails: extraEmailsList,
+        emailSent: !!selectedBid.agentEmail,
       });
     } catch (error) {
       console.error("Nominate error:", error);
