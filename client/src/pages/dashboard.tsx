@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Ship, FileText, TrendingUp, Plus, ArrowRight, Crown, Zap, Users, Building2, Anchor, Star, Shield, BarChart3, Activity } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Vessel, Proforma, CompanyProfile } from "@shared/schema";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -77,6 +78,12 @@ function StatCard({
   );
 }
 
+const ADMIN_ROLES = [
+  { value: "shipowner", label: "Shipowner / Broker", icon: Ship, color: "hsl(var(--maritime-primary))" },
+  { value: "agent", label: "Ship Agent", icon: Anchor, color: "hsl(var(--maritime-secondary))" },
+  { value: "provider", label: "Service Provider", icon: Building2, color: "hsl(var(--maritime-accent))" },
+];
+
 export default function Dashboard() {
   const { user } = useAuth();
   const userRole = (user as any)?.userRole || "shipowner";
@@ -84,6 +91,19 @@ export default function Dashboard() {
 
   const isAdmin = userRole === "admin";
   const effectiveRole = isAdmin ? activeRole : userRole;
+
+  const switchRoleMutation = useMutation({
+    mutationFn: async (newRole: string) => {
+      const res = await apiRequest("PATCH", "/api/admin/active-role", { activeRole: newRole });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/vessels"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/proformas"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+    },
+  });
   const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"], enabled: isAdmin || userRole !== "provider" });
   const { data: proformas, isLoading: proformasLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"], enabled: isAdmin || userRole !== "provider" });
   const { data: featured, isLoading: featuredLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/directory/featured"] });
@@ -107,6 +127,45 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 space-y-7 max-w-7xl mx-auto">
+
+      {/* Admin Role Switcher — always visible for admin users */}
+      {isAdmin && (
+        <div className="rounded-xl border-2 border-red-200 dark:border-red-900 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/20 p-4" data-testid="admin-role-switcher">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="w-7 h-7 rounded-md bg-red-500 flex items-center justify-center">
+                <Shield className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-red-600 dark:text-red-400">Admin Modu</p>
+                <p className="text-[11px] text-red-500/70 dark:text-red-500/60">Görüntüleme rolünü seçin</p>
+              </div>
+            </div>
+            <div className="flex gap-2 flex-wrap sm:ml-auto">
+              {ADMIN_ROLES.map((role) => {
+                const active = effectiveRole === role.value;
+                return (
+                  <button
+                    key={role.value}
+                    onClick={() => switchRoleMutation.mutate(role.value)}
+                    disabled={switchRoleMutation.isPending}
+                    data-testid={`button-switch-role-${role.value}`}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-150 border-2 ${
+                      active
+                        ? "border-red-400 bg-white dark:bg-red-950/40 text-red-700 dark:text-red-300 shadow-sm"
+                        : "border-transparent bg-white/50 dark:bg-white/5 text-muted-foreground hover:bg-white dark:hover:bg-white/10 hover:text-foreground"
+                    }`}
+                  >
+                    <role.icon className="w-4 h-4" />
+                    {role.label}
+                    {active && <span className="w-2 h-2 rounded-full bg-emerald-500 ml-1" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
