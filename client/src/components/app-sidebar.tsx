@@ -1,4 +1,4 @@
-import { Ship, FileText, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin, Shield, ChevronDown, MessageSquare, Anchor, Gavel } from "lucide-react";
+import { Ship, FileText, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin, Shield, ChevronDown, MessageSquare, Anchor, Gavel, Navigation } from "lucide-react";
 import { useLocation, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -74,6 +74,9 @@ export function AppSidebar() {
   }
   if (isAdminUser || effectiveRole !== "provider") {
     toolsNav.push({ title: "Tenders", url: "/tenders", icon: Gavel, badge: tenderCount });
+  }
+  if (isAdminUser || effectiveRole !== "provider") {
+    toolsNav.push({ title: "Vessel Track", url: "/vessel-track", icon: Navigation });
   }
   if (isAdminUser || effectiveRole === "agent" || effectiveRole === "provider") {
     toolsNav.push({ title: "My Profile", url: "/company-profile", icon: Building2 });

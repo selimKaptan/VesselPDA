@@ -20,6 +20,7 @@ A professional web-based maritime platform (VesselPDA) for ship agents to create
 - Featured/promoted company listings in directory
 - 3-tier subscription system (Free/Standard/Unlimited) with usage tracking
 - Role-aware dashboard and navigation
+- **Vessel Track**: Interactive Leaflet map with vessel tracking, personal watchlist, role-based fleet views, AIS API integration hook
 
 ## User Roles
 - **Admin**: Full system access - sees ALL vessels, proformas, users, company profiles. No proforma limits. Has dedicated Admin Panel (/admin)
@@ -96,6 +97,8 @@ A professional web-based maritime platform (VesselPDA) for ship agents to create
 - From address: `noreply@vesselpda.com` (must be a verified Resend domain)
 
 ## Recent Changes
+- 2026-02-26: Vessel Track feature — new /vessel-track page with interactive Leaflet map (CartoDB Dark Matter tiles) showing vessels in Turkish waters. Split layout: left panel with role-based tabs (My Fleet for shipowners/brokers, Agency Vessels for agents, Watchlist for all). Personal watchlist with search + add/remove. Custom SVG ship-arrow markers colored by status (underway=blue, anchored=amber, moored=green), rotated by heading. Click vessel → fly-to on map + popup with full details. Demo AIS data with 15 realistic vessels around Turkish ports. AIS API integration hook ready (TODO comments). New DB table: vessel_watchlist. 7 new API endpoints: /api/vessel-track/positions|search|watchlist|fleet|agency-vessels. Sidebar nav item + dashboard quick action added.
+- 2026-02-26: Full English translation — all Turkish UI strings replaced with English across landing.tsx, forum.tsx, forum-topic.tsx, contact.tsx, tenders.tsx, tender-detail.tsx, directory-profile.tsx, dashboard.tsx, proforma-new.tsx, app-sidebar.tsx, server/routes.ts, server/email.ts
 - 2026-02-25: Contact page — new /contact page with form (Ad Soyad, E-posta, Konu, Mesaj); sends to info@vesselpda.com via Resend; success confirmation state. "İletişim" link added to landing page nav (desktop + mobile) opens in new tab. POST /api/contact public endpoint. Page accessible to both logged-in and public users.
 - 2026-02-25: Nomination dialog overhauled — replaced simple confirm AlertDialog with full Dialog showing: selected agent info (logo, name, email), vessel & cargo details (vessel name, flag, GRT, NRT, cargo type/quantity, previous port), optional "Not/Mesaj" textarea, optional "Ek Email Adresleri" field (comma-separated). Backend accepts note + extraEmails in POST /api/tenders/:id/nominate body. "Bu Acenteyi Değerlendir" button now only shows when effectiveRole === "shipowner" (admin in agent view no longer sees it).
 - 2026-02-25: Agent Review System — shipowners/brokers can rate agents (1-5 stars) and leave comments on agent company profiles. Reviews show on /directory/:id (new DirectoryProfilePage). Review form visible to shipowners on agent profiles. After nomination, tender detail shows "Bu Acenteyi Değerlendir" button linking to agent's profile. New DB table: agent_reviews. New page: /directory/:id. New API: GET/POST /api/reviews/:companyProfileId. Directory "View Agent" button now navigates to profile page.

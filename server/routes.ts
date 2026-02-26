@@ -1182,6 +1182,142 @@ export async function registerRoutes(
     }
   });
 
+  // ─── VESSEL TRACK ─────────────────────────────────────────────────────────────
+  // TODO: Replace MOCK_AIS_DATA with real AIS API call when API key is available
+  // Compatible with: MarineTraffic API v2, VesselFinder, AISHub, or any MMSI/position-based AIS provider
+  // Integration point: replace the MOCK_AIS_DATA array + the search filter below
+  // Expected field format per vessel: { mmsi, name, flag, vesselType, lat, lng, heading, speed, destination, eta, status }
+  const MOCK_AIS_DATA = [
+    { mmsi: "271000001", name: "MV MARMARA STAR", flag: "🇹🇷", vesselType: "Bulk Carrier", lat: 40.9823, lng: 28.6542, heading: 45, speed: 10.2, destination: "ISTANBUL", eta: "2026-02-26T18:00:00Z", status: "underway" },
+    { mmsi: "271000002", name: "MV AEGEAN PIONEER", flag: "🇹🇷", vesselType: "General Cargo", lat: 38.4337, lng: 26.7673, heading: 270, speed: 8.5, destination: "IZMIR", eta: "2026-02-26T20:00:00Z", status: "underway" },
+    { mmsi: "271000003", name: "MV BOSPHORUS TRADER", flag: "🇹🇷", vesselType: "Container Ship", lat: 41.0210, lng: 29.1102, heading: 180, speed: 0, destination: "ISTANBUL", eta: null, status: "anchored" },
+    { mmsi: "248000001", name: "MV HELLAS SPIRIT", flag: "🇬🇷", vesselType: "Tanker", lat: 37.8510, lng: 23.9200, heading: 90, speed: 12.1, destination: "MERSIN", eta: "2026-02-27T10:00:00Z", status: "underway" },
+    { mmsi: "271000004", name: "MV MERSIN PRIDE", flag: "🇹🇷", vesselType: "Bulk Carrier", lat: 36.7825, lng: 34.6001, heading: 0, speed: 0, destination: "MERSIN", eta: null, status: "moored" },
+    { mmsi: "271000005", name: "MV CANAKKALE GUARDIAN", flag: "🇹🇷", vesselType: "RoRo", lat: 40.1490, lng: 26.3990, heading: 315, speed: 14.3, destination: "CANAKKALE", eta: "2026-02-26T16:30:00Z", status: "underway" },
+    { mmsi: "229000001", name: "MV MALTA VENTURE", flag: "🇲🇹", vesselType: "General Cargo", lat: 39.4210, lng: 32.8540, heading: 200, speed: 9.8, destination: "ISKENDERUN", eta: "2026-02-27T08:00:00Z", status: "underway" },
+    { mmsi: "271000006", name: "MV TRABZON CARRIER", flag: "🇹🇷", vesselType: "Bulk Carrier", lat: 41.0020, lng: 39.7340, heading: 0, speed: 0, destination: "TRABZON", eta: null, status: "moored" },
+    { mmsi: "271000007", name: "MV SAMSUN BREEZE", flag: "🇹🇷", vesselType: "Container Ship", lat: 41.2820, lng: 36.3320, heading: 90, speed: 11.5, destination: "SAMSUN", eta: "2026-02-26T22:00:00Z", status: "underway" },
+    { mmsi: "255000001", name: "MV MADEIRA STREAM", flag: "🇵🇹", vesselType: "Tanker", lat: 40.5660, lng: 27.5900, heading: 135, speed: 7.2, destination: "TEKIRDAG", eta: "2026-02-27T06:00:00Z", status: "underway" },
+    { mmsi: "271000008", name: "MV IZMIR STAR", flag: "🇹🇷", vesselType: "General Cargo", lat: 38.6990, lng: 27.0990, heading: 0, speed: 0, destination: "IZMIR", eta: null, status: "anchored" },
+    { mmsi: "636000001", name: "MV LIBERIA HAWK", flag: "🇱🇷", vesselType: "Bulk Carrier", lat: 36.5990, lng: 36.1620, heading: 270, speed: 13.4, destination: "ISKENDERUN", eta: "2026-02-26T23:00:00Z", status: "underway" },
+    { mmsi: "538000001", name: "MV MARSHALL TIDE", flag: "🇲🇭", vesselType: "Tanker", lat: 41.5680, lng: 31.4500, heading: 60, speed: 10.0, destination: "ZONGULDAK", eta: "2026-02-27T04:00:00Z", status: "underway" },
+    { mmsi: "271000009", name: "MV BANDIRMA EXPRESS", flag: "🇹🇷", vesselType: "Ferry", lat: 40.3490, lng: 27.9670, heading: 0, speed: 0, destination: "BANDIRMA", eta: null, status: "moored" },
+    { mmsi: "311000001", name: "MV BAHAMAS CHIEF", flag: "🇧🇸", vesselType: "Container Ship", lat: 36.8820, lng: 30.6870, heading: 315, speed: 15.2, destination: "ANTALYA", eta: "2026-02-26T19:00:00Z", status: "underway" },
+  ];
+
+  app.get("/api/vessel-track/positions", isAuthenticated, async (_req, res) => {
+    // TODO: Replace with real AIS API call when API key is available
+    res.json(MOCK_AIS_DATA);
+  });
+
+  app.get("/api/vessel-track/search", isAuthenticated, async (req, res) => {
+    const q = (req.query.q as string || "").toLowerCase().trim();
+    // TODO: Replace with real AIS vessel search API call when API key is available
+    if (!q) return res.json([]);
+    const results = MOCK_AIS_DATA.filter(v =>
+      v.name.toLowerCase().includes(q) || v.mmsi.includes(q)
+    );
+    res.json(results);
+  });
+
+  app.get("/api/vessel-track/watchlist", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const list = await storage.getVesselWatchlist(userId);
+      res.json(list);
+    } catch (e) {
+      res.status(500).json({ message: "Failed to get watchlist" });
+    }
+  });
+
+  app.post("/api/vessel-track/watchlist", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { vesselName, mmsi, imo, flag, vesselType, notes } = req.body;
+      if (!vesselName) return res.status(400).json({ message: "vesselName is required" });
+      const item = await storage.addToWatchlist({ userId, vesselName, mmsi, imo, flag, vesselType, notes });
+      res.json(item);
+    } catch (e) {
+      res.status(500).json({ message: "Failed to add to watchlist" });
+    }
+  });
+
+  app.delete("/api/vessel-track/watchlist/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const id = parseInt(req.params.id);
+      const ok = await storage.removeFromWatchlist(id, userId);
+      if (!ok) return res.status(404).json({ message: "Not found" });
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ message: "Failed to remove from watchlist" });
+    }
+  });
+
+  app.get("/api/vessel-track/fleet", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const vessels = await storage.getVesselsByUser(userId);
+      const fleetWithPositions = vessels.map((v, i) => {
+        const mock = MOCK_AIS_DATA[i % MOCK_AIS_DATA.length];
+        return {
+          id: v.id,
+          vesselName: v.name,
+          mmsi: null,
+          imo: v.imoNumber,
+          flag: v.flag,
+          vesselType: v.vesselType,
+          grt: v.grt,
+          lat: mock.lat + (Math.random() - 0.5) * 2,
+          lng: mock.lng + (Math.random() - 0.5) * 2,
+          heading: Math.floor(Math.random() * 360),
+          speed: Math.round(Math.random() * 14 * 10) / 10,
+          destination: mock.destination,
+          eta: mock.eta,
+          status: ["underway", "anchored", "moored"][Math.floor(Math.random() * 3)] as string,
+          isOwnVessel: true,
+        };
+      });
+      res.json(fleetWithPositions);
+    } catch (e) {
+      res.status(500).json({ message: "Failed to get fleet" });
+    }
+  });
+
+  app.get("/api/vessel-track/agency-vessels", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profile = await storage.getCompanyProfileByUser(userId);
+      if (!profile) return res.json([]);
+      const allTenders = await storage.getPortTenders({ status: "nominated" });
+      const myNominated = allTenders.filter((t: any) => t.nominatedAgentId === userId);
+      const agencyVessels = myNominated.map((t: any, i: number) => {
+        const mock = MOCK_AIS_DATA[i % MOCK_AIS_DATA.length];
+        return {
+          id: `tender-${t.id}`,
+          vesselName: t.vesselName || `Vessel #${t.id}`,
+          mmsi: null,
+          imo: null,
+          flag: t.flag || "Unknown",
+          vesselType: t.cargoType || "General Cargo",
+          tenderId: t.id,
+          portName: t.port?.name,
+          lat: mock.lat + (Math.random() - 0.5) * 1.5,
+          lng: mock.lng + (Math.random() - 0.5) * 1.5,
+          heading: Math.floor(Math.random() * 360),
+          speed: Math.round(Math.random() * 12 * 10) / 10,
+          destination: t.port?.name || "Unknown",
+          eta: null,
+          status: "underway",
+          isAgencyVessel: true,
+        };
+      });
+      res.json(agencyVessels);
+    } catch (e) {
+      res.status(500).json({ message: "Failed to get agency vessels" });
+    }
+  });
+
   app.get("/api/tenders/:id/bids/:bidId/pdf", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

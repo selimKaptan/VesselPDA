@@ -261,3 +261,25 @@ export const agentReviewRelations = relations(agentReviews, ({ one }) => ({
 export const insertAgentReviewSchema = createInsertSchema(agentReviews).omit({ id: true, createdAt: true });
 export type InsertAgentReview = z.infer<typeof insertAgentReviewSchema>;
 export type AgentReview = typeof agentReviews.$inferSelect;
+
+// ─── VESSEL WATCHLIST ─────────────────────────────────────────────────────────
+
+export const vesselWatchlist = pgTable("vessel_watchlist", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  mmsi: text("mmsi"),
+  imo: text("imo"),
+  vesselName: text("vessel_name").notNull(),
+  flag: text("flag"),
+  vesselType: text("vessel_type"),
+  notes: text("notes"),
+  addedAt: timestamp("added_at").defaultNow(),
+});
+
+export const vesselWatchlistRelations = relations(vesselWatchlist, ({ one }) => ({
+  user: one(users, { fields: [vesselWatchlist.userId], references: [users.id] }),
+}));
+
+export const insertVesselWatchlistSchema = createInsertSchema(vesselWatchlist).omit({ id: true, addedAt: true });
+export type InsertVesselWatchlist = z.infer<typeof insertVesselWatchlistSchema>;
+export type VesselWatchlistItem = typeof vesselWatchlist.$inferSelect;

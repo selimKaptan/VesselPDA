@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Ship, FileText, TrendingUp, Plus, ArrowRight, Crown, Zap, Users, Building2, Anchor, Star, Shield, BarChart3, Activity } from "lucide-react";
+import { Ship, FileText, TrendingUp, Plus, ArrowRight, Crown, Zap, Users, Building2, Anchor, Star, Shield, BarChart3, Activity, Navigation } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -369,6 +369,7 @@ export default function Dashboard() {
               ...(isAdmin || userRole !== "provider" ? [
                 { href: "/vessels?new=true", icon: Ship, label: "Add Vessel", desc: "Register a new vessel", color: "var(--maritime-primary)", testId: "button-add-vessel-quick" },
                 { href: "/proformas/new", icon: FileText, label: "New Proforma", desc: "Generate a proforma invoice", color: "var(--maritime-secondary)", testId: "button-new-proforma-quick" },
+                { href: "/vessel-track", icon: Navigation, label: "Vessel Track", desc: "Track your fleet on the map", color: "217 91% 40%", testId: "button-vessel-track-quick" },
               ] : []),
               ...(isAdmin ? [{ href: "/admin", icon: Shield, label: "Admin Panel", desc: "Manage users and data", color: "0 84% 35%", testId: "button-admin-panel-quick" }] : []),
               { href: "/directory", icon: Users, label: "Browse Directory", desc: "Find agents and providers", color: "var(--maritime-accent)", testId: "button-browse-directory" },

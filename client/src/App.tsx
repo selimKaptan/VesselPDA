@@ -27,6 +27,7 @@ import Tenders from "@/pages/tenders";
 import TenderDetail from "@/pages/tender-detail";
 import DirectoryProfile from "@/pages/directory-profile";
 import Contact from "@/pages/contact";
+import VesselTrack from "@/pages/vessel-track";
 
 function AuthenticatedRouter() {
   return (
@@ -48,6 +49,7 @@ function AuthenticatedRouter() {
       <Route path="/tenders" component={Tenders} />
       <Route path="/tenders/:id" component={TenderDetail} />
       <Route path="/contact" component={Contact} />
+      <Route path="/vessel-track" component={VesselTrack} />
       <Route component={NotFound} />
     </Switch>
   );

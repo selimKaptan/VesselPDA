@@ -12,9 +12,10 @@ import {
   type PortTender, type InsertPortTender,
   type TenderBid, type InsertTenderBid,
   type AgentReview, type InsertAgentReview,
+  type VesselWatchlistItem, type InsertVesselWatchlist,
   vessels, ports, tariffCategories, tariffRates, proformas,
   forumCategories, forumTopics, forumReplies,
-  portTenders, tenderBids, agentReviews,
+  portTenders, tenderBids, agentReviews, vesselWatchlist,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
@@ -84,6 +85,10 @@ export interface IStorage {
   createReview(data: InsertAgentReview): Promise<AgentReview>;
   getReviewsByCompany(companyProfileId: number): Promise<any[]>;
   getMyReviewForTender(reviewerUserId: string, tenderId: number): Promise<AgentReview | undefined>;
+
+  getVesselWatchlist(userId: string): Promise<VesselWatchlistItem[]>;
+  addToWatchlist(item: InsertVesselWatchlist): Promise<VesselWatchlistItem>;
+  removeFromWatchlist(id: number, userId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -647,6 +652,23 @@ export class DatabaseStorage implements IStorage {
     const [review] = await db.select().from(agentReviews)
       .where(and(eq(agentReviews.reviewerUserId, reviewerUserId), eq(agentReviews.tenderId, tenderId)));
     return review;
+  }
+
+  async getVesselWatchlist(userId: string): Promise<VesselWatchlistItem[]> {
+    return db.select().from(vesselWatchlist)
+      .where(eq(vesselWatchlist.userId, userId))
+      .orderBy(desc(vesselWatchlist.addedAt));
+  }
+
+  async addToWatchlist(item: InsertVesselWatchlist): Promise<VesselWatchlistItem> {
+    const [row] = await db.insert(vesselWatchlist).values(item).returning();
+    return row;
+  }
+
+  async removeFromWatchlist(id: number, userId: string): Promise<boolean> {
+    const result = await db.delete(vesselWatchlist)
+      .where(and(eq(vesselWatchlist.id, id), eq(vesselWatchlist.userId, userId)));
+    return (result.rowCount ?? 0) > 0;
   }
 }
 
