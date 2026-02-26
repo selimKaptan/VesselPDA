@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useCallback, useMemo } from "react";
-import { FileText, Ship, Globe, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Settings2, Package, AlertTriangle, Crown, ChevronsUpDown, Check, MapPin } from "lucide-react";
+import { FileText, Ship, Globe, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Settings2, Package, AlertTriangle, Crown, ChevronsUpDown, Check, MapPin, RefreshCw } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -171,6 +171,24 @@ export default function ProformaNew() {
         return;
       }
       toast({ title: "Failed to create proforma", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const liveRatesMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("GET", "/api/exchange-rates");
+      return res.json() as Promise<{ usdTry: number; eurTry: number; date: string | null; source: string }>;
+    },
+    onSuccess: (data) => {
+      setUsdTryRate(data.usdTry);
+      setEurTryRate(data.eurTry);
+      toast({
+        title: "Live rates loaded",
+        description: `USD/TRY: ${data.usdTry} · EUR/TRY: ${data.eurTry}${data.date ? ` (TCMB ${data.date})` : ""}`,
+      });
+    },
+    onError: () => {
+      toast({ title: "Could not fetch live rates", description: "TCMB may be unavailable. Enter rates manually.", variant: "destructive" });
     },
   });
 
@@ -515,9 +533,26 @@ export default function ProformaNew() {
 
             <Separator />
 
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Exchange Rates (TRY)</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => liveRatesMutation.mutate()}
+                disabled={liveRatesMutation.isPending}
+                className="gap-1.5 text-xs"
+                data-testid="button-fetch-live-rates"
+              >
+                {liveRatesMutation.isPending
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <RefreshCw className="w-3.5 h-3.5" />}
+                {liveRatesMutation.isPending ? "Fetching..." : "Fetch Live Rates (TCMB)"}
+              </Button>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>USD/TRY Exchange Rate</Label>
+                <Label>USD/TRY</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -527,7 +562,7 @@ export default function ProformaNew() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>EUR/TRY Exchange Rate</Label>
+                <Label>EUR/TRY</Label>
                 <Input
                   type="number"
                   step="0.01"

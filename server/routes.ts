@@ -122,6 +122,41 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/exchange-rates", async (_req, res) => {
+    try {
+      const response = await fetch("https://www.tcmb.gov.tr/kurlar/today.xml", {
+        headers: { "User-Agent": "VesselPDA/1.0" },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) throw new Error(`TCMB responded with ${response.status}`);
+      const xml = await response.text();
+
+      const extractRate = (currencyCode: string): number | null => {
+        const blockRe = new RegExp(
+          `<Currency[^>]*CurrencyCode="${currencyCode}"[^>]*>([\\s\\S]*?)<\\/Currency>`,
+          "i"
+        );
+        const block = xml.match(blockRe)?.[1];
+        if (!block) return null;
+        const buying = parseFloat(block.match(/<ForexBuying>([\d.]+)<\/ForexBuying>/i)?.[1] ?? "");
+        const selling = parseFloat(block.match(/<ForexSelling>([\d.]+)<\/ForexSelling>/i)?.[1] ?? "");
+        if (isNaN(buying) || isNaN(selling)) return null;
+        return Math.round(((buying + selling) / 2) * 10000) / 10000;
+      };
+
+      const dateMatch = xml.match(/Date="([^"]+)"/);
+      const usdTry = extractRate("USD");
+      const eurTry = extractRate("EUR");
+
+      if (!usdTry || !eurTry) throw new Error("Could not parse rates from TCMB response");
+
+      res.json({ usdTry, eurTry, date: dateMatch?.[1] ?? null, source: "TCMB" });
+    } catch (error: any) {
+      console.error("Exchange rate fetch error:", error.message);
+      res.status(502).json({ message: "Could not fetch live rates from TCMB. Please enter rates manually.", error: error.message });
+    }
+  });
+
   app.get("/api/proformas", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
