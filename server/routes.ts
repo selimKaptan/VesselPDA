@@ -157,6 +157,68 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/vessels/lookup", isAuthenticated, async (req, res) => {
+    const imo = (req.query.imo as string || "").replace(/\D/g, "");
+    if (!imo || imo.length < 5) {
+      return res.status(400).json({ message: "Please enter a valid IMO number (5–7 digits)" });
+    }
+    const apiKey = process.env.VESSEL_API_KEY;
+    if (!apiKey) {
+      return res.status(503).json({
+        message: "Vessel lookup is not configured. Add a VESSEL_API_KEY (Datalastic.com, free tier) to enable auto-fill.",
+        setupUrl: "https://datalastic.com",
+      });
+    }
+    try {
+      const response = await fetch(
+        `https://api.datalastic.com/api/v0/vessel?api-key=${apiKey}&imo=${imo}`,
+        { signal: AbortSignal.timeout(8000) }
+      );
+      const json: any = await response.json();
+      if (!response.ok || !json.data) {
+        const msg = json?.meta?.message || "Vessel not found";
+        return res.status(404).json({ message: msg });
+      }
+      const d = json.data;
+      const flagMap: Record<string, string> = {
+        TR: "Turkey", MT: "Malta", PA: "Panama", LR: "Liberia", MH: "Marshall Islands",
+        BS: "Bahamas", GR: "Greece", CY: "Cyprus", SG: "Singapore", HK: "Hong Kong",
+        NO: "Norway", GB: "United Kingdom", AG: "Antigua & Barbuda", BZ: "Belize",
+        KM: "Comoros", CK: "Cook Islands", MS: "Midway Islands", TV: "Tuvalu",
+        VU: "Vanuatu", TZ: "Tanzania", PW: "Palau",
+      };
+      const typeMap: Record<string, string> = {
+        "Bulk Carrier": "Bulk Carrier", "Container Ship": "Container Ship",
+        "Container": "Container Ship", "Tanker": "Tanker", "Ro-Ro": "Ro-Ro",
+        "Ro-Ro Cargo": "Ro-Ro", "Passenger": "Passenger",
+        "Chemical Tanker": "Chemical Tanker", "LPG Tanker": "LPG Carrier",
+        "LNG Tanker": "LNG Carrier", "Reefer": "Reefer",
+        "General Cargo": "General Cargo", "Cargo": "General Cargo",
+      };
+      const rawType = d.vessel_type_sub || d.vessel_type || "";
+      const mappedType = Object.entries(typeMap).find(([k]) =>
+        rawType.toLowerCase().includes(k.toLowerCase())
+      )?.[1] || "General Cargo";
+      const mappedFlag = flagMap[d.flag] || d.flag_full || "Turkey";
+      res.json({
+        name: d.name || "",
+        flag: mappedFlag,
+        vesselType: mappedType,
+        imoNumber: String(d.imo || imo),
+        mmsi: d.mmsi ? String(d.mmsi) : null,
+        callSign: d.call_sign || "",
+        grt: d.gross_tonnage || null,
+        nrt: d.net_tonnage || null,
+        dwt: d.deadweight || null,
+        loa: d.length_overall || null,
+        beam: d.beam || null,
+      });
+    } catch (error: any) {
+      console.error("Vessel lookup error:", error.message);
+      res.status(502).json({ message: "Lookup failed. Please try again or enter details manually." });
+    }
+  });
+
   app.get("/api/proformas", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
