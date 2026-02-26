@@ -171,7 +171,7 @@ export async function registerRoutes(
     }
     try {
       const response = await fetch(
-        `https://vessel-information-api.p.rapidapi.com/api/imo-search?imo=${imo}`,
+        `https://vessel-information-api.p.rapidapi.com/1498/get%2Bvessel%2Binfo?imoCode=${imo}`,
         {
           headers: {
             "X-RapidAPI-Key": apiKey,
@@ -181,18 +181,17 @@ export async function registerRoutes(
         }
       );
       const json: any = await response.json();
-      if (!response.ok) {
+      if (!response.ok || !json.success || !json.data) {
         const msg = json?.message || "Vessel not found";
         return res.status(404).json({ message: msg });
       }
-      const d = json.data ?? json;
-      const flagMap: Record<string, string> = {
-        TR: "Turkey", MT: "Malta", PA: "Panama", LR: "Liberia", MH: "Marshall Islands",
-        BS: "Bahamas", GR: "Greece", CY: "Cyprus", SG: "Singapore", HK: "Hong Kong",
-        NO: "Norway", GB: "United Kingdom", AG: "Antigua & Barbuda", BZ: "Belize",
-        KM: "Comoros", CK: "Cook Islands", MS: "Midway Islands", TV: "Tuvalu",
-        VU: "Vanuatu", TZ: "Tanzania", PW: "Palau",
-      };
+      const d = json.data;
+      const knownFlags = [
+        "Turkey", "Malta", "Panama", "Liberia", "Marshall Islands", "Bahamas",
+        "Greece", "Cyprus", "Singapore", "Hong Kong", "Norway", "United Kingdom",
+        "Antigua & Barbuda", "Belize", "Comoros", "Cook Islands", "Tuvalu",
+        "Vanuatu", "Tanzania", "Palau",
+      ];
       const typeMap: Record<string, string> = {
         "Bulk Carrier": "Bulk Carrier", "Container Ship": "Container Ship",
         "Container": "Container Ship", "Tanker": "Tanker", "Ro-Ro": "Ro-Ro",
@@ -201,24 +200,24 @@ export async function registerRoutes(
         "LNG Tanker": "LNG Carrier", "Reefer": "Reefer",
         "General Cargo": "General Cargo", "Cargo": "General Cargo",
       };
-      const rawType = d.vessel_type_sub || d.vessel_type || d.type || "";
+      const rawType = d.ship_type || d.vessel_type || "";
       const mappedType = Object.entries(typeMap).find(([k]) =>
         rawType.toLowerCase().includes(k.toLowerCase())
       )?.[1] || "General Cargo";
-      const rawFlag = d.flag || d.country_of_registration || d.flag_code || "";
-      const mappedFlag = flagMap[rawFlag] || flagMap[rawFlag?.toUpperCase()] || d.flag_full || d.country || "Turkey";
+      const rawFlag = d.flag || "";
+      const mappedFlag = knownFlags.find(f => f.toLowerCase() === rawFlag.toLowerCase()) || rawFlag || "Turkey";
       res.json({
-        name: d.vessel_name || d.name || "",
+        name: d.vessel_name || "",
         flag: mappedFlag,
         vesselType: mappedType,
-        imoNumber: String(d.imo || imo),
+        imoNumber: String(d.imo_number || imo),
         mmsi: d.mmsi ? String(d.mmsi) : null,
         callSign: d.call_sign || d.callsign || "",
-        grt: d.gross_tonnage || d.grt || null,
-        nrt: d.net_tonnage || d.nrt || null,
-        dwt: d.deadweight || d.dwt || null,
-        loa: d.length_overall || d.loa || null,
-        beam: d.beam || null,
+        grt: d.gross_tonnage ? parseFloat(d.gross_tonnage) : null,
+        nrt: d.net_tonnage ? parseFloat(d.net_tonnage) : null,
+        dwt: d.summer_deadweight_t ? parseFloat(d.summer_deadweight_t) : null,
+        loa: d.length_overall_m ? parseFloat(d.length_overall_m) : null,
+        beam: d.beam_m ? parseFloat(d.beam_m) : null,
       });
     } catch (error: any) {
       console.error("Vessel lookup error:", error.message);
