@@ -8,6 +8,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
 import type { ProformaLineItem } from "@shared/schema";
 import { calculateProforma, type CalculationInput } from "./proforma-calculator";
+import { startAISStream, getPositions, searchVessels, isConnected, getCacheSize } from "./ais-stream";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "logos");
 if (!fs.existsSync(uploadsDir)) {
@@ -43,6 +44,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
+  startAISStream();
 
   app.use("/uploads", (await import("express")).default.static(path.join(process.cwd(), "uploads")));
 
@@ -1308,15 +1310,26 @@ export async function registerRoutes(
     { mmsi: "311000001", name: "MV BAHAMAS CHIEF", flag: "🇧🇸", vesselType: "Container Ship", lat: 36.8820, lng: 30.6870, heading: 315, speed: 15.2, destination: "ANTALYA", eta: "2026-02-26T19:00:00Z", status: "underway" },
   ];
 
+  app.get("/api/vessel-track/status", isAuthenticated, (_req, res) => {
+    const liveCount = getCacheSize();
+    const live = isConnected() || liveCount > 0;
+    res.json({
+      connected: isConnected(),
+      vesselCount: live ? liveCount : MOCK_AIS_DATA.length,
+      mode: live ? "live" : "demo",
+    });
+  });
+
   app.get("/api/vessel-track/positions", isAuthenticated, async (_req, res) => {
-    // TODO: Replace with real AIS API call when API key is available
-    res.json(MOCK_AIS_DATA);
+    const livePositions = getPositions();
+    res.json(livePositions.length > 0 ? livePositions : MOCK_AIS_DATA);
   });
 
   app.get("/api/vessel-track/search", isAuthenticated, async (req, res) => {
     const q = (req.query.q as string || "").toLowerCase().trim();
-    // TODO: Replace with real AIS vessel search API call when API key is available
     if (!q) return res.json([]);
+    const liveResults = searchVessels(q);
+    if (liveResults.length > 0) return res.json(liveResults);
     const results = MOCK_AIS_DATA.filter(v =>
       v.name.toLowerCase().includes(q) || v.mmsi.includes(q)
     );

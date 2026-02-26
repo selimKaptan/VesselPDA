@@ -180,9 +180,16 @@ export default function VesselTrack() {
   const [isSearching, setIsSearching] = useState(false);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { data: positions = [] } = useQuery<AISVessel[]>({ queryKey: ["/api/vessel-track/positions"] });
-  const { data: fleet = [] } = useQuery<AISVessel[]>({ queryKey: ["/api/vessel-track/fleet"] });
-  const { data: agencyVessels = [] } = useQuery<AISVessel[]>({ queryKey: ["/api/vessel-track/agency-vessels"], enabled: isAgent || isAdmin });
+  const { data: aisStatus } = useQuery<{ connected: boolean; vesselCount: number; mode: "live" | "demo" }>({
+    queryKey: ["/api/vessel-track/status"],
+    refetchInterval: 30000,
+  });
+  const isLive = aisStatus?.mode === "live";
+  const refetchInterval = isLive ? 15000 : 60000;
+
+  const { data: positions = [] } = useQuery<AISVessel[]>({ queryKey: ["/api/vessel-track/positions"], refetchInterval });
+  const { data: fleet = [] } = useQuery<AISVessel[]>({ queryKey: ["/api/vessel-track/fleet"], refetchInterval });
+  const { data: agencyVessels = [] } = useQuery<AISVessel[]>({ queryKey: ["/api/vessel-track/agency-vessels"], enabled: isAgent || isAdmin, refetchInterval });
   const { data: watchlist = [] } = useQuery<VesselWatchlistItem[]>({ queryKey: ["/api/vessel-track/watchlist"] });
 
   const removeMutation = useMutation({
@@ -281,9 +288,17 @@ export default function VesselTrack() {
                 {allMapVessels.length} vessels on map
               </p>
             </div>
-            <Badge variant="outline" className="ml-auto text-[10px] font-bold border-amber-300 text-amber-600 bg-amber-50 dark:bg-amber-950/20">
-              DEMO
-            </Badge>
+            {isLive ? (
+              <Badge variant="outline" className="ml-auto text-[10px] font-bold border-emerald-300 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 flex items-center gap-1" data-testid="badge-ais-status">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                LIVE AIS
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="ml-auto text-[10px] font-bold border-amber-300 text-amber-600 bg-amber-50 dark:bg-amber-950/20 flex items-center gap-1" data-testid="badge-ais-status">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                DEMO
+              </Badge>
+            )}
           </div>
         </div>
 
