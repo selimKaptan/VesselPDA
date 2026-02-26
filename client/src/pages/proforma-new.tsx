@@ -407,8 +407,8 @@ export default function ProformaNew() {
                 <Input
                   type="number"
                   value={berthStayDays}
-                  onChange={(e) => setBerthStayDays(parseInt(e.target.value) || 1)}
-                  min={1}
+                  onChange={(e) => { const v = parseInt(e.target.value); setBerthStayDays(isNaN(v) ? 0 : v); }}
+                  min={0}
                   max={90}
                   data-testid="input-berth-days"
                 />
