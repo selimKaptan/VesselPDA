@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useCallback } from "react";
-import { FileText, Ship, Globe, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Settings2, Package, AlertTriangle, Crown, ChevronsUpDown, Check } from "lucide-react";
+import { useState, useCallback, useMemo } from "react";
+import { FileText, Ship, Globe, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Settings2, Package, AlertTriangle, Crown, ChevronsUpDown, Check, MapPin } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,12 +22,44 @@ import type { Vessel, Port, ProformaLineItem } from "@shared/schema";
 const purposeOptions = ["Loading", "Discharging", "Loading/Discharging", "Transit", "Bunkering", "Repair", "Survey"];
 const cargoUnits = ["MT", "CBM", "TEU", "Units"];
 
+const CITY_CODE_NAMES: Record<string, string> = {
+  ALA: "Alanya", ALI: "Aliağa", AMA: "Amasra", AMB: "Ambarlı (İstanbul)",
+  ANA: "Anamur", AYT: "Antalya", AYV: "Ayvalık", BDM: "Bodrum",
+  BTN: "Bartın", BXN: "Bandırma", BZC: "Bartın (Çaycuma)", CES: "Çeşme",
+  CKZ: "Çanakkale", DAT: "Datça", DIK: "Dikili", EDO: "Erdek",
+  ENE: "Enez", ERE: "Ereğli (Zonguldak)", ERK: "Erdemli", FAS: "Fasa",
+  FET: "Fethiye", FIN: "Fındıklı", FOC: "Foça", GCA: "Geyikli",
+  GCK: "Gebze (Kocaeli)", GEL: "Gelibolu", GEM: "Gemlik", GIR: "Giresun",
+  GOR: "Görele", GUL: "Güllük", HOP: "Hopa", IGN: "İğneada",
+  INE: "İnebolu", ISK: "İskenderun", IST: "İstanbul", IZM: "İzmit",
+  IZT: "İzmit (Tersaneler)", KAS: "Kaş", KMR: "Karamürsel", KRB: "Karabiga",
+  KRT: "Karataş (Adana)", KUS: "Kuşadası", MER: "Mersin", MRA: "Marmara Adası",
+  MRM: "Marmaris", MUD: "Mudanya", ORD: "Ordu", RIZ: "Rize",
+  SIC: "Sinop", SIL: "Silopi", SSX: "Samsun", SUR: "Sürmene",
+  TAS: "Taşucu", TEK: "Tekirdağ", TIR: "Tire (İzmir)", TZX: "Trabzon",
+  UNY: "Ünye", YAL: "Yalova", ZON: "Zonguldak",
+  "092": "Tuzla (Tersaneler Bölgesi)", "01M": "Ceyhan (Adana)",
+  "039": "Karasu (Sakarya)", "027": "Cide", "002": "Kefken", "003": "Seyhan",
+};
+
+function getPortCityCode(code: string): string {
+  if (!code) return "OTHER";
+  const withoutTr = code.startsWith("TR") ? code.substring(2) : code;
+  const dashIdx = withoutTr.indexOf("-");
+  return dashIdx !== -1 ? withoutTr.substring(0, dashIdx) : withoutTr;
+}
+
+function getCityName(cityCode: string): string {
+  return CITY_CODE_NAMES[cityCode] ?? cityCode;
+}
+
 export default function ProformaNew() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   const [selectedVessel, setSelectedVessel] = useState<string>("");
   const [selectedPort, setSelectedPort] = useState<string>("");
+  const [selectedCity, setSelectedCity] = useState<string>("");
   const [berthStayDays, setBerthStayDays] = useState<number>(4);
   const [anchorageDays, setAnchorageDays] = useState<number>(0);
   const [purposeOfCall, setPurposeOfCall] = useState<string>("Discharging");
@@ -74,6 +106,23 @@ export default function ProformaNew() {
 
   const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
   const { data: ports, isLoading: portsLoading } = useQuery<Port[]>({ queryKey: ["/api/ports"] });
+
+  const citiesWithCounts = useMemo(() => {
+    if (!ports) return [];
+    const counts: Record<string, number> = {};
+    for (const p of ports) {
+      const code = getPortCityCode(p.code || "");
+      counts[code] = (counts[code] ?? 0) + 1;
+    }
+    return Object.entries(counts)
+      .map(([code, count]) => ({ code, name: getCityName(code), count }))
+      .sort((a, b) => a.name.localeCompare(b.name, "tr"));
+  }, [ports]);
+
+  const portsForCity = useMemo(() => {
+    if (!ports || !selectedCity) return [];
+    return ports.filter((p) => getPortCityCode(p.code || "") === selectedCity);
+  }, [ports, selectedCity]);
 
   const calculateMutation = useMutation({
     mutationFn: async (params: Record<string, unknown>) => {
@@ -216,50 +265,84 @@ export default function ProformaNew() {
                 )}
               </div>
               <div className="space-y-2">
-                <Label>Destination Port *</Label>
+                <Label className="flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" />
+                  City / Region *
+                </Label>
                 {portsLoading ? <Skeleton className="h-10" /> : (
-                  <Popover open={portOpen} onOpenChange={setPortOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={portOpen}
-                        className="w-full justify-between font-normal"
-                        data-testid="select-port"
-                      >
-                        {selectedPort
-                          ? (() => { const p = ports?.find(p => p.id.toString() === selectedPort); return p ? `${p.name} (${p.country})` : "Select port"; })()
-                          : "Search and select port..."}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[400px] p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="Type port name to search..." data-testid="input-search-port" />
-                        <CommandList>
-                          <CommandEmpty>No port found.</CommandEmpty>
-                          <CommandGroup className="max-h-[300px] overflow-y-auto">
-                            {ports?.map((p) => (
-                              <CommandItem
-                                key={p.id}
-                                value={`${p.name} ${p.code || ""} ${p.country}`}
-                                onSelect={() => {
-                                  setSelectedPort(p.id.toString());
-                                  setPortOpen(false);
-                                }}
-                                data-testid={`option-port-${p.id}`}
-                              >
-                                <Check className={`mr-2 h-4 w-4 ${selectedPort === p.id.toString() ? "opacity-100" : "opacity-0"}`} />
-                                {p.name} ({p.country})
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                  <Select
+                    value={selectedCity}
+                    onValueChange={(v) => { setSelectedCity(v); setSelectedPort(""); setPortOpen(false); }}
+                    data-testid="select-port-city"
+                  >
+                    <SelectTrigger data-testid="select-port-city-trigger">
+                      <SelectValue placeholder="Select city or region..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {citiesWithCounts.map((c) => (
+                        <SelectItem key={c.code} value={c.code} data-testid={`option-city-${c.code}`}>
+                          {c.name}
+                          <span className="ml-1.5 text-xs text-muted-foreground">({c.count})</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                Terminal / Port *
+                {selectedCity && (
+                  <span className="text-xs font-normal text-muted-foreground ml-1">
+                    — {getCityName(selectedCity)} ({portsForCity.length} terminals)
+                  </span>
+                )}
+              </Label>
+              {portsLoading ? <Skeleton className="h-10" /> : (
+                <Popover open={portOpen} onOpenChange={setPortOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={portOpen}
+                      disabled={!selectedCity}
+                      className="w-full justify-between font-normal disabled:opacity-60"
+                      data-testid="select-port-terminal"
+                    >
+                      {!selectedCity
+                        ? "Select a city / region first..."
+                        : selectedPort
+                          ? (() => { const p = ports?.find(p => p.id.toString() === selectedPort); return p ? p.name : "Select terminal"; })()
+                          : "Search and select terminal..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full max-w-xl p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search terminals..." data-testid="input-search-port" />
+                      <CommandList>
+                        <CommandEmpty>No terminal found.</CommandEmpty>
+                        <CommandGroup className="max-h-[300px] overflow-y-auto">
+                          {portsForCity.map((p) => (
+                            <CommandItem
+                              key={p.id}
+                              value={`${p.name} ${p.code || ""}`}
+                              onSelect={() => { setSelectedPort(p.id.toString()); setPortOpen(false); }}
+                              data-testid={`option-port-${p.id}`}
+                            >
+                              <Check className={`mr-2 h-4 w-4 shrink-0 ${selectedPort === p.id.toString() ? "opacity-100" : "opacity-0"}`} />
+                              <span className="flex-1">{p.name}</span>
+                              {p.code && <span className="ml-2 text-xs text-muted-foreground font-mono">{p.code}</span>}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
 
             {selectedVesselData && (
@@ -272,6 +355,20 @@ export default function ProformaNew() {
                 <Badge variant={isTurkishFlag(selectedVesselData.flag) ? "default" : "secondary"} className="text-[10px] ml-auto" data-testid="badge-flag-category">
                   {isTurkishFlag(selectedVesselData.flag) ? "🇹🇷 Turkish Flag" : "🏳️ Foreign Flag"} — Tariffs auto-adjusted
                 </Badge>
+              </div>
+            )}
+            {selectedPortData && (
+              <div className="flex flex-wrap gap-3 items-center text-xs text-muted-foreground bg-muted/20 rounded-md p-3 border border-dashed" data-testid="text-port-summary">
+                <MapPin className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" />
+                <span><strong>City:</strong> {getCityName(selectedCity)}</span>
+                <span className="text-muted-foreground/50">·</span>
+                <span><strong>Terminal:</strong> {selectedPortData.name}</span>
+                {selectedPortData.code && (
+                  <>
+                    <span className="text-muted-foreground/50">·</span>
+                    <span className="font-mono"><strong>Code:</strong> {selectedPortData.code}</span>
+                  </>
+                )}
               </div>
             )}
 
