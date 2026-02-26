@@ -95,7 +95,10 @@ export async function registerRoutes(
     try {
       const userId = req.user.claims.sub;
       const id = parseInt(req.params.id);
-      const vessel = await storage.updateVessel(id, userId, req.body);
+      const admin = await isAdmin(req);
+      const vessel = admin
+        ? await storage.updateVesselById(id, req.body)
+        : await storage.updateVessel(id, userId, req.body);
       if (!vessel) return res.status(404).json({ message: "Vessel not found" });
       res.json(vessel);
     } catch (error) {
@@ -107,10 +110,14 @@ export async function registerRoutes(
     try {
       const userId = req.user.claims.sub;
       const id = parseInt(req.params.id);
-      const deleted = await storage.deleteVessel(id, userId);
+      const admin = await isAdmin(req);
+      const deleted = admin
+        ? await storage.deleteVesselById(id)
+        : await storage.deleteVessel(id, userId);
       if (!deleted) return res.status(404).json({ message: "Vessel not found" });
       res.json({ success: true });
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Delete vessel error:", error?.message || error);
       res.status(500).json({ message: "Failed to delete vessel" });
     }
   });

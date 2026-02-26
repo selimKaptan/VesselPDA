@@ -32,7 +32,9 @@ export interface IStorage {
   getVessel(id: number, userId: string): Promise<Vessel | undefined>;
   createVessel(vessel: InsertVessel): Promise<Vessel>;
   updateVessel(id: number, userId: string, data: Partial<InsertVessel>): Promise<Vessel | undefined>;
+  updateVesselById(id: number, data: Partial<InsertVessel>): Promise<Vessel | undefined>;
   deleteVessel(id: number, userId: string): Promise<boolean>;
+  deleteVesselById(id: number): Promise<boolean>;
 
   getPorts(): Promise<Port[]>;
   getPort(id: number): Promise<Port | undefined>;
@@ -130,9 +132,25 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async updateVesselById(id: number, data: Partial<InsertVessel>): Promise<Vessel | undefined> {
+    const [updated] = await db.update(vessels).set(data).where(eq(vessels.id, id)).returning();
+    return updated;
+  }
+
   async deleteVessel(id: number, userId: string): Promise<boolean> {
-    const result = await db.delete(vessels).where(and(eq(vessels.id, id), eq(vessels.userId, userId))).returning();
-    return result.length > 0;
+    const existing = await db.select().from(vessels).where(and(eq(vessels.id, id), eq(vessels.userId, userId)));
+    if (existing.length === 0) return false;
+    await db.delete(proformas).where(eq(proformas.vesselId, id));
+    await db.delete(vessels).where(eq(vessels.id, id));
+    return true;
+  }
+
+  async deleteVesselById(id: number): Promise<boolean> {
+    const existing = await db.select().from(vessels).where(eq(vessels.id, id));
+    if (existing.length === 0) return false;
+    await db.delete(proformas).where(eq(proformas.vesselId, id));
+    await db.delete(vessels).where(eq(vessels.id, id));
+    return true;
   }
 
   async getPorts(): Promise<Port[]> {
