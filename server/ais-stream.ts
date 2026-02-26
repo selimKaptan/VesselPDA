@@ -2,6 +2,7 @@ import WebSocket from "ws";
 
 export interface VesselPosition {
   mmsi: string;
+  imo?: string;
   name: string;
   flag: string;
   vesselType: string;
@@ -131,6 +132,7 @@ function handleMessage(raw: string) {
       if (existing) {
         existing.name = (data.Name || meta.ShipName || existing.name || "").trim() || existing.name;
         existing.destination = (data.Destination || existing.destination || "").trim();
+        if (data.ImoNumber) existing.imo = String(data.ImoNumber);
         if (data.TypeOfShipAndCargoType) {
           existing.vesselType = vesselTypeCodeToString(data.TypeOfShipAndCargoType);
         }
@@ -163,15 +165,24 @@ function connect(apiKey: string) {
     wsConnected = true;
     reconnectDelay = 5000;
     console.log(`AISStream: connected ✓`);
-    ws.send(JSON.stringify({
+    const subscribeMsg = {
       APIKey: apiKey,
       BoundingBoxes: TURKEY_BBOX,
-      FilterMessageTypes: ["PositionReport", "ShipStaticData", "StandardClassBPositionReport", "ExtendedClassBPositionReport"],
-    }));
+    };
+    console.log("AISStream: sending subscribe:", JSON.stringify(subscribeMsg));
+    ws.send(JSON.stringify(subscribeMsg));
   });
 
   ws.on("message", (data) => {
-    handleMessage(data.toString());
+    const raw = data.toString();
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.Error) {
+        console.error("AISStream server error:", parsed.Error);
+        return;
+      }
+    } catch { }
+    handleMessage(raw);
   });
 
   ws.on("error", (err) => {
@@ -181,7 +192,8 @@ function connect(apiKey: string) {
   ws.on("close", (code, reason) => {
     wsConnected = false;
     wsInstance = null;
-    console.log(`AISStream: disconnected (code ${code}). Reconnecting in ${reconnectDelay / 1000}s...`);
+    const reasonStr = reason?.toString() || "";
+    console.log(`AISStream: disconnected (code ${code}${reasonStr ? `, reason: ${reasonStr}` : ""}). Reconnecting in ${reconnectDelay / 1000}s...`);
     reconnectTimeout = setTimeout(() => {
       reconnectDelay = Math.min(reconnectDelay * 2, 60000);
       connect(apiKey);
@@ -206,9 +218,12 @@ export function getPositions(): VesselPosition[] {
 
 export function searchVessels(q: string): VesselPosition[] {
   if (!q) return [];
-  const lower = q.toLowerCase();
+  const lower = q.toLowerCase().trim();
   return Array.from(vesselCache.values()).filter(
-    (v) => v.name.toLowerCase().includes(lower) || v.mmsi.includes(lower)
+    (v) =>
+      v.name.toLowerCase().includes(lower) ||
+      v.mmsi.includes(lower) ||
+      (v.imo && v.imo.includes(lower))
   );
 }
 

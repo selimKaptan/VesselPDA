@@ -3,11 +3,10 @@ import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Navigation, Search, Plus, X, Anchor, Ship, MapPin, Clock, ArrowRight, AlertTriangle, ChevronRight, Loader2 } from "lucide-react";
+import { Navigation, Search, Plus, X, Anchor, Ship, MapPin, ArrowRight, AlertTriangle, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -174,11 +173,14 @@ export default function VesselTrack() {
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [demoBarDismissed, setDemoBarDismissed] = useState(false);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<AISVessel[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [panelSearch, setPanelSearch] = useState("");
+  const [panelResults, setPanelResults] = useState<AISVessel[]>([]);
+  const [isPanelSearching, setIsPanelSearching] = useState(false);
+  const [wlSearch, setWlSearch] = useState("");
+  const [wlResults, setWlResults] = useState<AISVessel[]>([]);
+  const [isWlSearching, setIsWlSearching] = useState(false);
+  const panelSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wlSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: aisStatus } = useQuery<{ connected: boolean; vesselCount: number; mode: "live" | "demo" }>({
     queryKey: ["/api/vessel-track/status"],
@@ -219,25 +221,31 @@ export default function VesselTrack() {
     setHighlightedId(id);
   }, []);
 
-  const performSearch = useCallback(async (q: string) => {
-    if (!q.trim()) { setSearchResults([]); return; }
-    setIsSearching(true);
+  const doSearch = useCallback(async (q: string, setResults: (r: AISVessel[]) => void, setLoading: (b: boolean) => void) => {
+    if (!q.trim()) { setResults([]); return; }
+    setLoading(true);
     try {
       const res = await fetch(`/api/vessel-track/search?q=${encodeURIComponent(q)}`, { credentials: "include" });
       const data = await res.json();
-      setSearchResults(data);
+      setResults(Array.isArray(data) ? data : []);
     } catch {
-      setSearchResults([]);
+      setResults([]);
     } finally {
-      setIsSearching(false);
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    searchTimeout.current = setTimeout(() => performSearch(searchQuery), 350);
-    return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current); };
-  }, [searchQuery, performSearch]);
+    if (panelSearchTimeout.current) clearTimeout(panelSearchTimeout.current);
+    panelSearchTimeout.current = setTimeout(() => doSearch(panelSearch, setPanelResults, setIsPanelSearching), 300);
+    return () => { if (panelSearchTimeout.current) clearTimeout(panelSearchTimeout.current); };
+  }, [panelSearch, doSearch]);
+
+  useEffect(() => {
+    if (wlSearchTimeout.current) clearTimeout(wlSearchTimeout.current);
+    wlSearchTimeout.current = setTimeout(() => doSearch(wlSearch, setWlResults, setIsWlSearching), 300);
+    return () => { if (wlSearchTimeout.current) clearTimeout(wlSearchTimeout.current); };
+  }, [wlSearch, doSearch]);
 
   const watchlistOnMap: AISVessel[] = (watchlist as VesselWatchlistItem[]).map((w) => {
     const match = positions.find(p => p.mmsi === w.mmsi);
@@ -268,10 +276,6 @@ export default function VesselTrack() {
 
   const defaultTab = isAgent ? "agency" : "fleet";
 
-  const alreadyWatchlisted = useCallback((v: AISVessel) => {
-    return (watchlist as VesselWatchlistItem[]).some(w => w.mmsi === v.mmsi && v.mmsi);
-  }, [watchlist]);
-
   return (
     <div className="flex h-full" style={{ height: "calc(100vh - 56px)" }}>
 
@@ -300,6 +304,76 @@ export default function VesselTrack() {
               </Badge>
             )}
           </div>
+        </div>
+
+        {/* Vessel Search Bar */}
+        <div className="px-3 py-2 border-b flex-shrink-0 relative" data-testid="panel-search">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Search by name, MMSI or IMO..."
+              value={panelSearch}
+              onChange={(e) => setPanelSearch(e.target.value)}
+              className="pl-8 pr-7 h-8 text-xs"
+              data-testid="input-panel-search"
+            />
+            {isPanelSearching && <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+            {panelSearch && !isPanelSearching && (
+              <button
+                onClick={() => { setPanelSearch(""); setPanelResults([]); }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                data-testid="button-clear-panel-search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          {panelSearch && (
+            <div className="absolute left-3 right-3 top-full z-50 mt-0.5 bg-background border rounded-lg shadow-xl overflow-hidden" data-testid="panel-search-results">
+              {panelResults.length === 0 && !isPanelSearching ? (
+                <p className="text-xs text-muted-foreground text-center py-4">No vessels found for "{panelSearch}"</p>
+              ) : (
+                <div className="max-h-60 overflow-y-auto divide-y divide-border">
+                  {panelResults.slice(0, 20).map((v) => {
+                    const vName = v.name || v.vesselName || "Unknown";
+                    const watched = (watchlist as VesselWatchlistItem[]).some(w => w.mmsi === v.mmsi && v.mmsi);
+                    return (
+                      <div key={v.mmsi} className="flex items-center gap-2 px-2.5 py-2 hover:bg-muted/40 transition-colors" data-testid={`search-result-${v.mmsi}`}>
+                        <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${v.status === "underway" ? "bg-blue-500" : v.status === "anchored" ? "bg-amber-500" : "bg-emerald-500"}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold truncate">{vName}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{v.flag} · {v.vesselType}{v.mmsi ? ` · ${v.mmsi}` : ""}</p>
+                        </div>
+                        <div className="flex gap-1 flex-shrink-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-[10px] px-1.5 gap-0.5"
+                            onClick={() => { handleFocus(v); setPanelSearch(""); setPanelResults([]); }}
+                            data-testid={`button-focus-result-${v.mmsi}`}
+                            title="Focus on map"
+                          >
+                            <MapPin className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={watched ? "outline" : "default"}
+                            className="h-6 text-[10px] px-1.5"
+                            disabled={watched || addMutation.isPending}
+                            onClick={() => addMutation.mutate(v)}
+                            data-testid={`button-add-result-${v.mmsi}`}
+                            title="Add to watchlist"
+                          >
+                            {watched ? "✓" : <Plus className="w-3 h-3" />}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <Tabs defaultValue={defaultTab} className="flex flex-col flex-1 overflow-hidden">
@@ -370,36 +444,82 @@ export default function VesselTrack() {
           )}
 
           {/* Watchlist Tab */}
-          <TabsContent value="watchlist" className="flex-1 overflow-y-auto px-3 pb-3 mt-2 space-y-2" data-testid="content-watchlist">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowAddDialog(true)}
-              className="w-full gap-1.5 text-xs border-dashed h-8"
-              data-testid="button-add-to-watchlist"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Vessel to Watchlist
-            </Button>
-            {watchlist.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <Navigation className="w-10 h-10 text-muted-foreground/30 mb-3" />
-                <p className="text-sm font-semibold text-muted-foreground">Watchlist is empty</p>
-                <p className="text-xs text-muted-foreground/70 mt-1 px-4">Search and add vessels to track them on the map</p>
+          <TabsContent value="watchlist" className="flex-1 flex flex-col overflow-hidden mt-0" data-testid="content-watchlist">
+            {/* Inline watchlist search */}
+            <div className="px-3 py-2 border-b flex-shrink-0">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  placeholder="Add vessel by name, MMSI or IMO..."
+                  value={wlSearch}
+                  onChange={(e) => setWlSearch(e.target.value)}
+                  className="pl-8 pr-7 h-8 text-xs"
+                  data-testid="input-watchlist-search"
+                />
+                {isWlSearching && <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                {wlSearch && !isWlSearching && (
+                  <button onClick={() => { setWlSearch(""); setWlResults([]); }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
-            ) : (
-              watchlistOnMap.map((v, i) => {
-                const wlItem = (watchlist as VesselWatchlistItem[])[i];
-                return (
-                  <VesselCard
-                    key={String(v.id)}
-                    vessel={v}
-                    onFocus={handleFocus}
-                    highlighted={highlightedId === String(v.mmsi || v.id)}
-                    onRemove={() => wlItem && removeMutation.mutate(wlItem.id)}
-                  />
-                );
-              })
-            )}
+              {wlSearch && (
+                <div className="mt-1 border rounded-lg overflow-hidden" data-testid="watchlist-search-results">
+                  {wlResults.length === 0 && !isWlSearching ? (
+                    <p className="text-xs text-muted-foreground text-center py-3">No vessels found</p>
+                  ) : (
+                    <div className="max-h-44 overflow-y-auto divide-y divide-border">
+                      {wlResults.slice(0, 10).map((v) => {
+                        const vName = v.name || v.vesselName || "Unknown";
+                        const watched = (watchlist as VesselWatchlistItem[]).some(w => w.mmsi === v.mmsi && v.mmsi);
+                        return (
+                          <div key={v.mmsi} className="flex items-center gap-2 px-2.5 py-2 hover:bg-muted/40 transition-colors" data-testid={`wl-result-${v.mmsi}`}>
+                            <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${v.status === "underway" ? "bg-blue-500" : v.status === "anchored" ? "bg-amber-500" : "bg-emerald-500"}`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold truncate">{vName}</p>
+                              <p className="text-[10px] text-muted-foreground truncate font-mono">{v.mmsi}</p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={watched ? "outline" : "default"}
+                              className="h-6 text-[10px] px-2 flex-shrink-0"
+                              disabled={watched || addMutation.isPending}
+                              onClick={() => { addMutation.mutate(v); setWlSearch(""); setWlResults([]); }}
+                              data-testid={`button-wl-add-${v.mmsi}`}
+                            >
+                              {watched ? "✓" : <><Plus className="w-3 h-3" /> Add</>}
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            {/* Watchlist items */}
+            <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-2">
+              {watchlist.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <Navigation className="w-10 h-10 text-muted-foreground/30 mb-3" />
+                  <p className="text-sm font-semibold text-muted-foreground">Watchlist is empty</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1 px-4">Use the search box above to find and add vessels</p>
+                </div>
+              ) : (
+                watchlistOnMap.map((v, i) => {
+                  const wlItem = (watchlist as VesselWatchlistItem[])[i];
+                  return (
+                    <VesselCard
+                      key={String(v.id)}
+                      vessel={v}
+                      onFocus={handleFocus}
+                      highlighted={highlightedId === String(v.mmsi || v.id)}
+                      onRemove={() => wlItem && removeMutation.mutate(wlItem.id)}
+                    />
+                  );
+                })
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>
@@ -481,76 +601,6 @@ export default function VesselTrack() {
         </MapContainer>
       </div>
 
-      {/* Add to Watchlist Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-md" data-testid="dialog-add-watchlist">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Search className="w-4 h-4" /> Search & Add Vessel
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Search by vessel name or MMSI..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-9 text-sm"
-                data-testid="input-watchlist-search"
-              />
-              {isSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />}
-            </div>
-
-            {searchQuery && (
-              <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
-                {searchResults.length === 0 && !isSearching ? (
-                  <p className="text-xs text-muted-foreground text-center py-6">No vessels found for "{searchQuery}"</p>
-                ) : (
-                  searchResults.map((v) => {
-                    const watched = alreadyWatchlisted(v);
-                    return (
-                      <div
-                        key={v.mmsi}
-                        className="flex items-center justify-between gap-2 p-2.5 rounded-lg border bg-card hover:border-[hsl(var(--maritime-primary)/0.4)] transition-colors"
-                        data-testid={`result-vessel-${v.mmsi}`}
-                      >
-                        <div className="min-w-0">
-                          <p className="font-semibold text-sm truncate">{v.name}</p>
-                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
-                            <span>{v.flag}</span>
-                            <span>·</span>
-                            <span>{v.vesselType}</span>
-                            {v.mmsi && <><span>·</span><span className="font-mono">{v.mmsi}</span></>}
-                          </div>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant={watched ? "outline" : "default"}
-                          disabled={watched || addMutation.isPending}
-                          onClick={() => addMutation.mutate(v)}
-                          className="flex-shrink-0 h-7 text-xs gap-1"
-                          data-testid={`button-add-vessel-${v.mmsi}`}
-                        >
-                          {watched ? "Added" : <><Plus className="w-3 h-3" /> Add</>}
-                        </Button>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
-
-            {!searchQuery && (
-              <div className="text-center py-6">
-                <Ship className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="text-xs text-muted-foreground">Type a vessel name or MMSI to search</p>
-                <p className="text-[10px] text-muted-foreground/60 mt-1">Demo data: try "MV" to see all available vessels</p>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
