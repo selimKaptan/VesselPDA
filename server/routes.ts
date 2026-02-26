@@ -165,21 +165,27 @@ export async function registerRoutes(
     const apiKey = process.env.VESSEL_API_KEY;
     if (!apiKey) {
       return res.status(503).json({
-        message: "Vessel lookup is not configured. Add a VESSEL_API_KEY (Datalastic.com, free tier) to enable auto-fill.",
-        setupUrl: "https://datalastic.com",
+        message: "Vessel lookup is not configured. Add a RapidAPI key as VESSEL_API_KEY to enable auto-fill.",
+        setupUrl: "https://rapidapi.com/zyla-labs-zyla-labs-default/api/vessel-information-api",
       });
     }
     try {
       const response = await fetch(
-        `https://api.datalastic.com/api/v0/vessel?api-key=${apiKey}&imo=${imo}`,
-        { signal: AbortSignal.timeout(8000) }
+        `https://vessel-information-api.p.rapidapi.com/api/imo-search?imo=${imo}`,
+        {
+          headers: {
+            "X-RapidAPI-Key": apiKey,
+            "X-RapidAPI-Host": "vessel-information-api.p.rapidapi.com",
+          },
+          signal: AbortSignal.timeout(8000),
+        }
       );
       const json: any = await response.json();
-      if (!response.ok || !json.data) {
-        const msg = json?.meta?.message || "Vessel not found";
+      if (!response.ok) {
+        const msg = json?.message || "Vessel not found";
         return res.status(404).json({ message: msg });
       }
-      const d = json.data;
+      const d = json.data ?? json;
       const flagMap: Record<string, string> = {
         TR: "Turkey", MT: "Malta", PA: "Panama", LR: "Liberia", MH: "Marshall Islands",
         BS: "Bahamas", GR: "Greece", CY: "Cyprus", SG: "Singapore", HK: "Hong Kong",
@@ -195,22 +201,23 @@ export async function registerRoutes(
         "LNG Tanker": "LNG Carrier", "Reefer": "Reefer",
         "General Cargo": "General Cargo", "Cargo": "General Cargo",
       };
-      const rawType = d.vessel_type_sub || d.vessel_type || "";
+      const rawType = d.vessel_type_sub || d.vessel_type || d.type || "";
       const mappedType = Object.entries(typeMap).find(([k]) =>
         rawType.toLowerCase().includes(k.toLowerCase())
       )?.[1] || "General Cargo";
-      const mappedFlag = flagMap[d.flag] || d.flag_full || "Turkey";
+      const rawFlag = d.flag || d.country_of_registration || d.flag_code || "";
+      const mappedFlag = flagMap[rawFlag] || flagMap[rawFlag?.toUpperCase()] || d.flag_full || d.country || "Turkey";
       res.json({
-        name: d.name || "",
+        name: d.vessel_name || d.name || "",
         flag: mappedFlag,
         vesselType: mappedType,
         imoNumber: String(d.imo || imo),
         mmsi: d.mmsi ? String(d.mmsi) : null,
-        callSign: d.call_sign || "",
-        grt: d.gross_tonnage || null,
-        nrt: d.net_tonnage || null,
-        dwt: d.deadweight || null,
-        loa: d.length_overall || null,
+        callSign: d.call_sign || d.callsign || "",
+        grt: d.gross_tonnage || d.grt || null,
+        nrt: d.net_tonnage || d.nrt || null,
+        dwt: d.deadweight || d.dwt || null,
+        loa: d.length_overall || d.loa || null,
         beam: d.beam || null,
       });
     } catch (error: any) {

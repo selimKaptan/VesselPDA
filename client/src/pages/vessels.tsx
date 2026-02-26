@@ -98,7 +98,7 @@ function VesselForm({
       toast({
         title: isNoKey ? "Lookup not configured" : "Vessel not found",
         description: isNoKey
-          ? "Add a VESSEL_API_KEY (free at datalastic.com) to enable auto-fill."
+          ? "Add a RapidAPI key as VESSEL_API_KEY to enable auto-fill."
           : err.message,
         variant: "destructive",
       });
