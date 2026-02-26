@@ -155,41 +155,41 @@ export default function Landing() {
           <div className="bg-[hsl(var(--maritime-primary))] px-8 py-7 flex items-center gap-4">
             <img src="/logo-v2.png" alt="VesselPDA" className="w-14 h-14 rounded-xl object-contain bg-white/10 p-1 flex-shrink-0" />
             <div>
-              <h2 className="font-serif text-2xl font-bold text-white tracking-tight">VesselPDA'ya Hoş Geldiniz</h2>
-              <p className="text-white/75 text-sm mt-1">Denizcilik profesyonelleri için geliştirilmiş dijital platform</p>
+              <h2 className="font-serif text-2xl font-bold text-white tracking-tight">Welcome to VesselPDA</h2>
+              <p className="text-white/75 text-sm mt-1">The professional maritime platform for shipping professionals</p>
             </div>
           </div>
           <div className="px-8 py-6 space-y-6">
             <p className="text-muted-foreground text-sm leading-relaxed">
-              <strong className="text-foreground">VesselPDA</strong>, gemi acentelerinin anlık proforma borçlandırma hesabı (Disbursement Account) üretmesini sağlayan ve gemi sahiplerini denizcilik servis sağlayıcılarıyla buluşturan profesyonel bir denizcilik platformudur. Türkiye'nin 804 limanına ait tarife verileri ile formül tabanlı 22 kalem hesaplama motoru içerir.
+              <strong className="text-foreground">VesselPDA</strong> is a professional maritime platform enabling ship agents to generate instant proforma disbursement accounts and connecting shipowners with maritime service providers. Includes tariff data for 804 Turkish ports and a formula-based 22-line calculation engine.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="rounded-lg border bg-card p-4 space-y-2">
                 <div className="w-9 h-9 rounded-md bg-blue-500/10 flex items-center justify-center">
                   <Anchor className="w-5 h-5 text-blue-600" />
                 </div>
-                <p className="font-semibold text-sm">Gemi Sahibi / Broker</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">Proforma faturalarını görüntüleyin, rehberden acente ve tedarikçi bulun, filosunuzu yönetin.</p>
+                <p className="font-semibold text-sm">Shipowner / Broker</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">View proforma invoices, find agents and providers in the directory, manage your fleet.</p>
               </div>
               <div className="rounded-lg border bg-card p-4 space-y-2">
                 <div className="w-9 h-9 rounded-md bg-emerald-500/10 flex items-center justify-center">
                   <Briefcase className="w-5 h-5 text-emerald-600" />
                 </div>
-                <p className="font-semibold text-sm">Gemi Acentesi</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">Saniyeler içinde proforma üretin, şirket profili oluşturun ve denizcilik rehberinde yer alın.</p>
+                <p className="font-semibold text-sm">Ship Agent</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">Generate proformas in seconds, create your company profile, and appear in the maritime directory.</p>
               </div>
               <div className="rounded-lg border bg-card p-4 space-y-2">
                 <div className="w-9 h-9 rounded-md bg-amber-500/10 flex items-center justify-center">
                   <Users className="w-5 h-5 text-amber-600" />
                 </div>
-                <p className="font-semibold text-sm">Servis Sağlayıcı</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">Şirket profilinizi oluşturun, hizmet verdiğiniz limanlarda görünür olun ve müşteri kazanın.</p>
+                <p className="font-semibold text-sm">Service Provider</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">Create your company profile, get discovered by ports you serve, and grow your client base.</p>
               </div>
             </div>
             <div className="flex items-center justify-between pt-1">
-              <p className="text-xs text-muted-foreground">Bu mesaj bir daha gösterilmeyecek.</p>
+              <p className="text-xs text-muted-foreground">This message won't be shown again.</p>
               <Button onClick={closeWelcome} className="gap-2" data-testid="button-welcome-close">
-                Platforma Gir <ArrowRight className="w-4 h-4" />
+                Enter Platform <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
           </div>
@@ -213,7 +213,7 @@ export default function Landing() {
               { href: "/service-ports", label: "Service Ports" },
               { href: "/forum", label: "Forum" },
               { href: "#pricing", label: "Pricing" },
-              { href: "/contact", label: "İletişim", newTab: true },
+              { href: "/contact", label: "Contact", newTab: true },
             ].map((item) => (
               <a
                 key={item.href}
@@ -265,7 +265,7 @@ export default function Landing() {
                 { href: "/service-ports", label: "Service Ports" },
                 { href: "/forum", label: "Forum" },
                 { href: "#pricing", label: "Pricing" },
-                { href: "/contact", label: "İletişim", newTab: true },
+                { href: "/contact", label: "Contact", newTab: true },
               ].map((item) => (
                 <a
                   key={item.href}

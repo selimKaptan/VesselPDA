@@ -60,13 +60,13 @@ function timeAgo(timestamp: string | null): string {
   if (!timestamp) return "";
   const diff = Date.now() - new Date(timestamp).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "az önce";
-  if (mins < 60) return `${mins}dk önce`;
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}s önce`;
+  if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}g önce`;
-  return new Date(timestamp).toLocaleDateString("tr-TR", { month: "short", year: "numeric" });
+  if (days < 30) return `${days}d ago`;
+  return new Date(timestamp).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
 function getUrlParams() {
@@ -150,10 +150,10 @@ export default function Forum() {
       setNewContent("");
       setNewCategoryId("");
       setNewIsAnonymous(false);
-      toast({ title: "Konu oluşturuldu", description: "Tartışma konunuz yayınlandı." });
+      toast({ title: "Topic created", description: "Your discussion has been published." });
     },
     onError: (err: any) => {
-      toast({ title: "Hata", description: err.message || "Konu oluşturulamadı", variant: "destructive" });
+      toast({ title: "Error", description: err.message || "Could not create topic", variant: "destructive" });
     },
   });
 
@@ -166,10 +166,10 @@ export default function Forum() {
       queryClient.invalidateQueries({ queryKey: ["/api/forum/topics"] });
       queryClient.invalidateQueries({ queryKey: ["/api/forum/categories"] });
       setDeleteTopicId(null);
-      toast({ title: "Konu silindi", description: "Tartışma konusu kaldırıldı." });
+      toast({ title: "Topic deleted", description: "The discussion has been removed." });
     },
     onError: (err: any) => {
-      toast({ title: "Hata", description: err.message || "Konu silinemedi", variant: "destructive" });
+      toast({ title: "Error", description: err.message || "Could not delete topic", variant: "destructive" });
     },
   });
 
@@ -209,9 +209,9 @@ export default function Forum() {
               <span className="font-serif font-bold text-lg tracking-tight">VesselPDA</span>
             </a>
             <div className="hidden md:flex items-center gap-8">
-              <a href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-nav-home">Anasayfa</a>
-              <a href="/directory" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-nav-directory">Rehber</a>
-              <a href="/service-ports" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-nav-service-ports">Limanlar</a>
+              <a href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-nav-home">Home</a>
+              <a href="/directory" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-nav-directory">Directory</a>
+              <a href="/service-ports" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-nav-service-ports">Ports</a>
               <a href="/forum" className="text-sm font-medium text-foreground transition-colors" data-testid="link-nav-forum">Forum</a>
             </div>
             <div className="flex items-center gap-2">
@@ -236,17 +236,17 @@ export default function Forum() {
               </div>
               <div>
                 <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-forum-title">Forum</h1>
-                <p className="text-sm text-muted-foreground">Denizcilik topluluğuyla tartışın</p>
+                <p className="text-sm text-muted-foreground">Discuss with the maritime community</p>
               </div>
             </div>
             {user ? (
               <Button onClick={openNewTopicWithCategory} className="gap-2 flex-shrink-0" data-testid="button-new-topic">
-                <Plus className="w-4 h-4" /> Yeni Konu
+                <Plus className="w-4 h-4" /> New Topic
               </Button>
             ) : (
               <a href="/api/login">
                 <Button variant="outline" className="gap-2 flex-shrink-0" data-testid="button-login-to-post">
-                  <Plus className="w-4 h-4" /> Konu Aç
+                  <Plus className="w-4 h-4" /> Start Topic
                 </Button>
               </a>
             )}
@@ -268,7 +268,7 @@ export default function Forum() {
               }`}
               data-testid="tab-latest"
             >
-              <Clock className="w-3.5 h-3.5" /> Son Eklenen
+              <Clock className="w-3.5 h-3.5" /> Latest
             </button>
             <button
               onClick={() => setActiveTab("popular")}
@@ -279,14 +279,14 @@ export default function Forum() {
               }`}
               data-testid="tab-popular"
             >
-              <Flame className="w-3.5 h-3.5" /> Popüler
+              <Flame className="w-3.5 h-3.5" /> Popular
             </button>
           </div>
 
           <div className="relative flex-1 w-full sm:w-auto">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Konu ara..."
+              placeholder="Search topics..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -310,7 +310,7 @@ export default function Forum() {
             }`}
             data-testid="pill-category-all"
           >
-            Tümü
+            All
             {topics && <span className="ml-1 opacity-70">({topics.length})</span>}
           </button>
           {categories?.map(cat => (
@@ -356,7 +356,7 @@ export default function Forum() {
               className="text-xs text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
               data-testid="button-clear-category"
             >
-              Temizle ×
+              Clear ×
             </button>
           </div>
         )}
@@ -375,10 +375,10 @@ export default function Forum() {
               </AvatarFallback>
             </Avatar>
             <span className="flex-1 text-sm text-muted-foreground group-hover:text-foreground transition-colors">
-              {activeCategoryObj ? `${activeCategoryObj.name} kategorisinde konu başlatın...` : "Yeni bir tartışma başlatın..."}
+              {activeCategoryObj ? `Start a topic in ${activeCategoryObj.name}...` : "Start a new discussion..."}
             </span>
             <span className="flex-shrink-0 flex items-center gap-1.5 text-xs font-semibold text-[hsl(var(--maritime-primary))]">
-              <Plus className="w-3.5 h-3.5" /> Yeni Konu
+              <Plus className="w-3.5 h-3.5" /> New Topic
             </span>
           </button>
         ) : (
@@ -386,9 +386,9 @@ export default function Forum() {
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
               <MessageSquare className="w-4 h-4 text-muted-foreground" />
             </div>
-            <span className="flex-1 text-sm text-muted-foreground">Konu açmak veya yanıtlamak için giriş yapın</span>
+            <span className="flex-1 text-sm text-muted-foreground">Sign in to post or reply</span>
             <a href="/api/login">
-              <Button size="sm" variant="outline" className="flex-shrink-0" data-testid="button-login-compose">Giriş Yap</Button>
+              <Button size="sm" variant="outline" className="flex-shrink-0" data-testid="button-login-compose">Sign in</Button>
             </a>
           </div>
         )}
@@ -406,22 +406,22 @@ export default function Forum() {
               <MessageSquare className="w-6 h-6 text-muted-foreground/50" />
             </div>
             <h3 className="text-base font-semibold mb-1">
-              {searchQuery ? "Eşleşen konu bulunamadı" : activeCategoryObj ? `${activeCategoryObj.name} kategorisinde henüz konu yok` : "Henüz konu yok"}
+              {searchQuery ? "No matching topics found" : activeCategoryObj ? `No topics in ${activeCategoryObj.name} yet` : "No topics yet"}
             </h3>
             <p className="text-sm text-muted-foreground mb-5">
               {searchQuery
-                ? "Farklı bir arama terimi deneyin ya da tüm kategorilere bakın."
-                : "İlk tartışmayı sen başlat!"}
+                ? "Try a different search term or browse all categories."
+                : "Be the first to start a discussion!"}
             </p>
             {user ? (
               <Button onClick={openNewTopicWithCategory} className="gap-2 mx-auto" data-testid="button-new-topic-empty">
                 <Plus className="w-4 h-4" />
-                {activeCategoryObj ? `${activeCategoryObj.name} — Konu Aç` : "Konu Aç"}
+                {activeCategoryObj ? `${activeCategoryObj.name} — Start Topic` : "Start Topic"}
               </Button>
             ) : (
               <a href="/api/login">
                 <Button variant="outline" className="gap-2 mx-auto" data-testid="button-login-empty">
-                  <Plus className="w-4 h-4" /> Tartışmaya katılmak için giriş yapın
+                  <Plus className="w-4 h-4" /> Sign in to join the discussion
                 </Button>
               </a>
             )}
@@ -471,7 +471,7 @@ export default function Forum() {
                             {topic.categoryName}
                           </Badge>
                           <span className="text-[11px] text-muted-foreground">
-                            {topic.isAnonymous ? "Anonim" : [topic.authorFirstName, topic.authorLastName].filter(Boolean).join(" ") || "Kullanıcı"}
+                            {topic.isAnonymous ? "Anonymous" : [topic.authorFirstName, topic.authorLastName].filter(Boolean).join(" ") || "User"}
                           </span>
                           <span className="text-[11px] text-muted-foreground">·</span>
                           <span className="text-[11px] text-muted-foreground">{timeAgo(topic.lastActivityAt)}</span>
@@ -484,7 +484,7 @@ export default function Forum() {
                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTopicId(topic.id); }}
                           className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all flex-shrink-0"
                           data-testid={`button-delete-topic-${topic.id}`}
-                          title="Konuyu sil"
+                          title="Delete topic"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -496,23 +496,24 @@ export default function Forum() {
                       <span className="flex items-center gap-1 text-xs text-muted-foreground">
                         <MessageSquare className="w-3 h-3" />
                         <span data-testid={`text-reply-count-${topic.id}`}>{topic.replyCount}</span>
-                        <span className="hidden sm:inline">yanıt</span>
+                        <span className="hidden sm:inline">replies</span>
                       </span>
                       <span className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Eye className="w-3 h-3" />
-                        {topic.viewCount}
-                        <span className="hidden sm:inline">görüntüleme</span>
+                        <span data-testid={`text-view-count-${topic.id}`}>{topic.viewCount}</span>
                       </span>
                       {topic.participants && topic.participants.length > 0 && (
-                        <div className="flex items-center -space-x-1.5 ml-auto">
-                          {topic.participants.slice(0, 5).map((p, i) => (
-                            <Avatar key={i} className="w-5 h-5 border-2 border-background">
-                              <AvatarImage src={p.profileImageUrl || undefined} />
-                              <AvatarFallback className="text-[8px] bg-muted">
-                                {(p.firstName?.[0] || "") + (p.lastName?.[0] || "")}
-                              </AvatarFallback>
-                            </Avatar>
-                          ))}
+                        <div className="flex items-center gap-1">
+                          <div className="flex -space-x-1.5">
+                            {topic.participants.slice(0, 4).map((p, i) => (
+                              <Avatar key={i} className="w-5 h-5 border-2 border-background">
+                                <AvatarImage src={p.profileImageUrl || undefined} />
+                                <AvatarFallback className="text-[8px] bg-muted">
+                                  {(p.firstName?.[0] || "") + (p.lastName?.[0] || "")}
+                                </AvatarFallback>
+                              </Avatar>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -522,108 +523,91 @@ export default function Forum() {
             ))}
           </div>
         )}
-
-        {/* Login to participate notice for guests */}
-        {!user && filteredTopics && filteredTopics.length > 0 && (
-          <div className="mt-6 p-4 rounded-lg border border-dashed bg-muted/20 text-center">
-            <p className="text-sm text-muted-foreground mb-2">Tartışmalara katılmak için giriş yapın</p>
-            <a href="/api/login">
-              <Button size="sm" variant="outline" data-testid="button-login-join">Giriş Yap / Üye Ol</Button>
-            </a>
-          </div>
-        )}
       </div>
 
-      {/* New Topic Dialog */}
+      {/* New topic dialog */}
       <Dialog open={showNewTopic} onOpenChange={setShowNewTopic}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-w-lg" data-testid="dialog-new-topic">
           <DialogHeader>
-            <DialogTitle className="font-serif">Yeni Tartışma Konusu</DialogTitle>
+            <DialogTitle>New Discussion Topic</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="topic-title">Başlık</Label>
+            <div className="space-y-1.5">
+              <Label>Title <span className="text-destructive">*</span></Label>
               <Input
-                id="topic-title"
-                placeholder="Ne hakkında konuşmak istiyorsunuz?"
+                placeholder="What would you like to discuss?"
                 value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
+                onChange={e => setNewTitle(e.target.value)}
                 data-testid="input-topic-title"
               />
             </div>
-            <div>
-              <Label htmlFor="topic-category">Kategori</Label>
+            <div className="space-y-1.5">
+              <Label>Category <span className="text-destructive">*</span></Label>
               <Select value={newCategoryId} onValueChange={setNewCategoryId}>
                 <SelectTrigger data-testid="select-topic-category">
-                  <SelectValue placeholder="Kategori seçin" />
+                  <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
                   {categories?.map(cat => (
-                    <SelectItem key={cat.id} value={String(cat.id)}>
-                      <span className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
-                        {cat.name}
-                      </span>
-                    </SelectItem>
+                    <SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label htmlFor="topic-content">İçerik</Label>
+            <div className="space-y-1.5">
+              <Label>Content <span className="text-destructive">*</span></Label>
               <Textarea
-                id="topic-content"
-                placeholder="Düşüncelerinizi, sorularınızı veya içgörülerinizi paylaşın..."
+                placeholder="Share your thoughts, questions, or insights..."
+                rows={5}
                 value={newContent}
-                onChange={(e) => setNewContent(e.target.value)}
-                rows={6}
+                onChange={e => setNewContent(e.target.value)}
                 data-testid="input-topic-content"
               />
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/30">
+            <div className="flex items-start gap-2.5">
               <Checkbox
-                id="anonymous-check"
+                id="anon-check"
                 checked={newIsAnonymous}
-                onCheckedChange={(checked) => setNewIsAnonymous(checked === true)}
+                onCheckedChange={v => setNewIsAnonymous(!!v)}
                 data-testid="checkbox-anonymous"
               />
               <div>
-                <Label htmlFor="anonymous-check" className="font-medium cursor-pointer">Anonim olarak paylaş</Label>
-                <p className="text-[11px] text-muted-foreground mt-0.5">İsminiz gizlenir, sadece içerik görünür. Yanıtlar her zaman isimlidir.</p>
+                <label htmlFor="anon-check" className="text-sm font-medium cursor-pointer">Post anonymously</label>
+                <p className="text-xs text-muted-foreground mt-0.5">Your name is hidden, only the content is shown. Replies are always named.</p>
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewTopic(false)} data-testid="button-cancel-topic">İptal</Button>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowNewTopic(false)} data-testid="button-cancel-new-topic">Cancel</Button>
             <Button
               onClick={handleCreateTopic}
-              disabled={!newTitle.trim() || !newContent.trim() || !newCategoryId || createTopicMutation.isPending}
-              data-testid="button-submit-topic"
+              disabled={createTopicMutation.isPending || !newTitle.trim() || !newContent.trim() || !newCategoryId}
+              data-testid="button-submit-new-topic"
             >
-              {createTopicMutation.isPending ? "Gönderiliyor..." : "Konuyu Yayınla"}
+              {createTopicMutation.isPending ? "Publishing..." : "Publish Topic"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete confirmation */}
-      <AlertDialog open={deleteTopicId !== null} onOpenChange={(open) => { if (!open) setDeleteTopicId(null); }}>
-        <AlertDialogContent>
+      <AlertDialog open={deleteTopicId !== null} onOpenChange={(o) => !o && setDeleteTopicId(null)}>
+        <AlertDialogContent data-testid="dialog-delete-topic">
           <AlertDialogHeader>
-            <AlertDialogTitle>Bu konuyu silmek istiyor musunuz?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this topic?</AlertDialogTitle>
             <AlertDialogDescription>
-              Bu işlem geri alınamaz. Konu ve tüm yanıtları kalıcı olarak silinecektir.
+              This action cannot be undone. The topic and all its replies will be permanently deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-delete">İptal</AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteTopicId !== null && deleteTopicMutation.mutate(deleteTopicId)}
+              onClick={() => deleteTopicId && deleteTopicMutation.mutate(deleteTopicId)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="button-confirm-delete"
               disabled={deleteTopicMutation.isPending}
             >
-              {deleteTopicMutation.isPending ? "Siliniyor..." : "Evet, Sil"}
+              {deleteTopicMutation.isPending ? "Deleting..." : "Yes, Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

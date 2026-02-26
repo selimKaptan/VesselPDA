@@ -113,7 +113,7 @@ export function AppSidebar() {
           <div className="mx-3 mb-1 rounded-lg border border-red-500/20 bg-red-500/8 p-2.5">
             <div className="flex items-center gap-1.5 mb-2">
               <Shield className="w-3 h-3 text-red-400" />
-              <span className="text-[9px] font-bold uppercase tracking-widest text-red-400">Admin — Rol Görünümü</span>
+              <span className="text-[9px] font-bold uppercase tracking-widest text-red-400">Admin — Role View</span>
             </div>
             <div className="grid grid-cols-1 gap-1">
               {ACTIVE_ROLE_OPTIONS.map((opt) => {

@@ -42,7 +42,7 @@ function StarRating({ value, onChange, readonly = false }: { value: number; onCh
 function ReviewCard({ review }: { review: any }) {
   const displayName = review.reviewerFirstName
     ? `${review.reviewerFirstName}${review.reviewerLastName ? ` ${review.reviewerLastName}` : ""}`
-    : "Armatör";
+    : "Shipowner/Broker";
 
   return (
     <Card className="p-4">
@@ -57,7 +57,7 @@ function ReviewCard({ review }: { review: any }) {
           <div>
             <p className="font-medium text-sm">{displayName}</p>
             <p className="text-xs text-muted-foreground">
-              {new Date(review.createdAt).toLocaleDateString("tr-TR", { year: "numeric", month: "long", day: "numeric" })}
+              {new Date(review.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
             </p>
           </div>
         </div>
@@ -129,20 +129,20 @@ export default function DirectoryProfilePage() {
       comment: comment || undefined,
     }),
     onSuccess: () => {
-      toast({ title: "Değerlendirmeniz alındı", description: "Teşekkürler!" });
+      toast({ title: "Review submitted", description: "Thank you!" });
       setRating(0);
       setComment("");
       queryClient.invalidateQueries({ queryKey: ["/api/reviews", profileId] });
     },
     onError: async (err: any) => {
       const data = await err?.response?.json?.().catch(() => ({}));
-      toast({ title: "Hata", description: data?.message || "Değerlendirme gönderilemedi", variant: "destructive" });
+      toast({ title: "Error", description: data?.message || "Could not submit review", variant: "destructive" });
     },
   });
 
   const handleSubmitReview = () => {
     if (rating === 0) {
-      toast({ title: "Puan giriniz", description: "Lütfen 1-5 arası puan seçiniz", variant: "destructive" });
+      toast({ title: "Please rate", description: "Please select a rating between 1 and 5", variant: "destructive" });
       return;
     }
     reviewMutation.mutate();
@@ -170,9 +170,9 @@ export default function DirectoryProfilePage() {
   if (!profile) {
     return (
       <div className="p-6 max-w-3xl mx-auto text-center">
-        <p className="text-muted-foreground">Şirket profili bulunamadı.</p>
+        <p className="text-muted-foreground">Company profile not found.</p>
         <Button variant="outline" className="mt-4" onClick={() => navigate("/directory")}>
-          Dizine Dön
+          Back to Directory
         </Button>
       </div>
     );
@@ -181,7 +181,7 @@ export default function DirectoryProfilePage() {
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-5">
       <Button variant="ghost" size="sm" className="gap-1.5 -ml-2" onClick={() => navigate("/directory")} data-testid="button-back-directory">
-        <ArrowLeft className="w-4 h-4" /> Dizine Dön
+        <ArrowLeft className="w-4 h-4" /> Back to Directory
       </Button>
 
       {/* Company Header */}
@@ -199,8 +199,8 @@ export default function DirectoryProfilePage() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <h1 className="font-bold text-xl" data-testid="text-company-name">{profile.companyName}</h1>
-              <Badge variant="secondary" className="text-xs capitalize">{profile.companyType === "agent" ? "Acente" : "Servis Sağlayıcı"}</Badge>
-              {profile.isFeatured && <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200">Öne Çıkan</Badge>}
+              <Badge variant="secondary" className="text-xs capitalize">{profile.companyType === "agent" ? "Ship Agent" : "Service Provider"}</Badge>
+              {profile.isFeatured && <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200">Featured</Badge>}
             </div>
 
             {avgRating && (
@@ -211,7 +211,7 @@ export default function DirectoryProfilePage() {
                   ))}
                 </div>
                 <span className="text-sm font-semibold">{avgRating}</span>
-                <span className="text-xs text-muted-foreground">({reviews.length} değerlendirme)</span>
+                <span className="text-xs text-muted-foreground">({reviews.length} reviews)</span>
               </div>
             )}
 
@@ -252,7 +252,7 @@ export default function DirectoryProfilePage() {
           {servedPorts.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
-                <Anchor className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" /> Hizmet Verilen Limanlar
+                <Anchor className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" /> Served Ports
               </h3>
               <div className="flex flex-wrap gap-1.5">
                 {servedPorts.map((portId: number) => (
@@ -265,7 +265,7 @@ export default function DirectoryProfilePage() {
           {serviceTypes.length > 0 && (
             <div>
               <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" /> Hizmet Türleri
+                <Building2 className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" /> Service Types
               </h3>
               <div className="flex flex-wrap gap-1.5">
                 {serviceTypes.map((s: string) => (
@@ -281,7 +281,7 @@ export default function DirectoryProfilePage() {
       <div>
         <h2 className="font-semibold text-base mb-3 flex items-center gap-2">
           <Star className="w-4 h-4 text-amber-500" />
-          Değerlendirmeler
+          Reviews
           {reviews.length > 0 && (
             <span className="text-sm font-normal text-muted-foreground">({reviews.length})</span>
           )}
@@ -292,17 +292,17 @@ export default function DirectoryProfilePage() {
           <Card className="p-5 mb-4 border-[hsl(var(--maritime-primary)/0.2)] bg-[hsl(var(--maritime-primary)/0.02)]">
             <h3 className="font-medium text-sm mb-3 flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              Bu acenteyi değerlendirin
+              Rate this agent
             </h3>
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">Puanınız <span className="text-red-500">*</span></Label>
+                <Label className="text-xs">Your Rating <span className="text-red-500">*</span></Label>
                 <StarRating value={rating} onChange={setRating} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Yorum (opsiyonel)</Label>
+                <Label className="text-xs">Comment (optional)</Label>
                 <Textarea
-                  placeholder="Bu acenteyle çalışma deneyiminizi paylaşın..."
+                  placeholder="Share your experience working with this agent..."
                   rows={3}
                   value={comment}
                   onChange={e => setComment(e.target.value)}
@@ -317,7 +317,7 @@ export default function DirectoryProfilePage() {
                 data-testid="button-submit-review"
               >
                 <Star className="w-3.5 h-3.5" />
-                {reviewMutation.isPending ? "Gönderiliyor..." : "Değerlendirmeyi Gönder"}
+                {reviewMutation.isPending ? "Submitting..." : "Submit Review"}
               </Button>
             </div>
           </Card>
@@ -331,8 +331,8 @@ export default function DirectoryProfilePage() {
         ) : reviews.length === 0 ? (
           <Card className="p-8 text-center border-dashed">
             <Star className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">Henüz değerlendirme bulunmuyor</p>
-            {canReview && <p className="text-xs text-muted-foreground mt-1">İlk değerlendirmeyi siz yapın</p>}
+            <p className="text-sm text-muted-foreground">No reviews yet</p>
+            {canReview && <p className="text-xs text-muted-foreground mt-1">Be the first to leave a review</p>}
           </Card>
         ) : (
           <div className="space-y-3">

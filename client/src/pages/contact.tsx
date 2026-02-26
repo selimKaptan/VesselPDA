@@ -11,10 +11,10 @@ import { Card } from "@/components/ui/card";
 import { apiRequest } from "@/lib/queryClient";
 
 const contactSchema = z.object({
-  name: z.string().min(2, "Ad Soyad en az 2 karakter olmalı"),
-  email: z.string().email("Geçerli bir e-posta adresi girin"),
-  subject: z.string().min(3, "Konu en az 3 karakter olmalı"),
-  message: z.string().min(10, "Mesaj en az 10 karakter olmalı"),
+  name: z.string().min(2, "Full name must be at least 2 characters"),
+  email: z.string().email("Enter a valid email address"),
+  subject: z.string().min(3, "Subject must be at least 3 characters"),
+  message: z.string().min(10, "Message must be at least 10 characters"),
 });
 
 type ContactForm = z.infer<typeof contactSchema>;
@@ -36,7 +36,7 @@ export default function Contact() {
       await apiRequest("POST", "/api/contact", data);
       setSubmitted(true);
     } catch (err: any) {
-      setError(err.message || "Bir hata oluştu. Lütfen tekrar deneyin.");
+      setError(err.message || "An error occurred. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -57,7 +57,7 @@ export default function Contact() {
             data-testid="link-back-home"
           >
             <ArrowLeft className="w-4 h-4" />
-            Ana Sayfa
+            Home
           </a>
         </div>
       </nav>
@@ -69,10 +69,10 @@ export default function Contact() {
             <Ship className="w-6 h-6 text-white" />
           </div>
           <h1 className="font-serif text-3xl md:text-4xl font-bold text-white tracking-tight">
-            Bizimle İletişime Geçin
+            Get in Touch
           </h1>
           <p className="text-white/75 text-sm md:text-base max-w-md mx-auto">
-            Sorularınız, önerileriniz veya işbirliği talepleriniz için mesaj gönderin.
+            For questions, suggestions or partnership inquiries, send us a message.
           </p>
         </div>
       </div>
@@ -84,19 +84,19 @@ export default function Contact() {
             <div className="flex items-center justify-center w-16 h-16 rounded-full bg-green-50 border border-green-200 mx-auto mb-5">
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
-            <h2 className="font-serif text-2xl font-bold mb-2 text-foreground">Mesajınız İletildi</h2>
+            <h2 className="font-serif text-2xl font-bold mb-2 text-foreground">Message Sent</h2>
             <p className="text-muted-foreground mb-6">
-              Ekibimiz en kısa sürede size geri dönüş yapacaktır.
+              Our team will get back to you as soon as possible.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <a href="/">
-                <Button variant="outline" data-testid="button-back-home">Ana Sayfaya Dön</Button>
+                <Button variant="outline" data-testid="button-back-home">Go to Home</Button>
               </a>
               <Button
                 onClick={() => { setSubmitted(false); form.reset(); }}
                 data-testid="button-send-another"
               >
-                Yeni Mesaj Gönder
+                Send Another Message
               </Button>
             </div>
           </Card>
@@ -106,10 +106,10 @@ export default function Contact() {
 
               <div className="grid sm:grid-cols-2 gap-5">
                 <div className="space-y-1.5">
-                  <Label htmlFor="contact-name">Ad Soyad <span className="text-destructive">*</span></Label>
+                  <Label htmlFor="contact-name">Full Name <span className="text-destructive">*</span></Label>
                   <Input
                     id="contact-name"
-                    placeholder="Ahmet Yılmaz"
+                    placeholder="John Smith"
                     {...form.register("name")}
                     data-testid="input-contact-name"
                   />
@@ -121,11 +121,11 @@ export default function Contact() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="contact-email">E-posta <span className="text-destructive">*</span></Label>
+                  <Label htmlFor="contact-email">Email <span className="text-destructive">*</span></Label>
                   <Input
                     id="contact-email"
                     type="email"
-                    placeholder="ahmet@sirket.com"
+                    placeholder="john@company.com"
                     {...form.register("email")}
                     data-testid="input-contact-email"
                   />
@@ -138,10 +138,10 @@ export default function Contact() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="contact-subject">Konu <span className="text-destructive">*</span></Label>
+                <Label htmlFor="contact-subject">Subject <span className="text-destructive">*</span></Label>
                 <Input
                   id="contact-subject"
-                  placeholder="Mesajınızın konusu..."
+                  placeholder="Your subject..."
                   {...form.register("subject")}
                   data-testid="input-contact-subject"
                 />
@@ -153,10 +153,10 @@ export default function Contact() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="contact-message">Mesaj <span className="text-destructive">*</span></Label>
+                <Label htmlFor="contact-message">Message <span className="text-destructive">*</span></Label>
                 <Textarea
                   id="contact-message"
-                  placeholder="Mesajınızı buraya yazın..."
+                  placeholder="Write your message here..."
                   rows={6}
                   {...form.register("message")}
                   data-testid="input-contact-message"
@@ -182,17 +182,17 @@ export default function Contact() {
               >
                 {submitting ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Gönderiliyor...
+                    <Loader2 className="w-4 h-4 animate-spin" /> Sending...
                   </>
                 ) : (
                   <>
-                    <Send className="w-4 h-4" /> Gönder
+                    <Send className="w-4 h-4" /> Send
                   </>
                 )}
               </Button>
 
               <p className="text-xs text-center text-muted-foreground">
-                Mesajınız <strong>info@vesselpda.com</strong> adresine iletilecektir.
+                Your message will be sent to <strong>info@vesselpda.com</strong>.
               </p>
             </form>
           </Card>

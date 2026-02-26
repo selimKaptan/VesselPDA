@@ -141,7 +141,7 @@ export default function Dashboard() {
       {/* Admin Bootstrap — one-time activation for approved admin email */}
       {!isAdmin && bootstrapAdminMutation.isSuccess && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 p-3 text-sm text-emerald-700 dark:text-emerald-400 font-medium">
-          Admin modu aktif edildi! Sayfayı yenileyin (F5).
+          Admin mode activated! Refresh the page (F5).
         </div>
       )}
       {!isAdmin && (
@@ -166,8 +166,8 @@ export default function Dashboard() {
                 <Shield className="w-4 h-4 text-white" />
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-red-600 dark:text-red-400">Admin Modu</p>
-                <p className="text-[11px] text-red-500/70 dark:text-red-500/60">Görüntüleme rolünü seçin</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-red-600 dark:text-red-400">Admin Mode</p>
+                <p className="text-[11px] text-red-500/70 dark:text-red-500/60">Select view role</p>
               </div>
             </div>
             <div className="flex gap-2 flex-wrap sm:ml-auto">

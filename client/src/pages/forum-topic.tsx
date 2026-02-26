@@ -110,11 +110,11 @@ export default function ForumTopic() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/forum/topics"] });
       queryClient.invalidateQueries({ queryKey: ["/api/forum/categories"] });
-      toast({ title: "Konu silindi" });
+      toast({ title: "Topic deleted" });
       setLocation(forumReturnUrl);
     },
     onError: (err: any) => {
-      toast({ title: "Hata", description: err.message || "Topic silinemedi", variant: "destructive" });
+      toast({ title: "Error", description: err.message || "Could not delete topic", variant: "destructive" });
     },
   });
 
@@ -154,7 +154,7 @@ export default function ForumTopic() {
 
       <div className={`max-w-4xl mx-auto px-6 ${!user ? "pt-24" : "pt-6"} pb-8`}>
         <Link href={forumReturnUrl} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6" data-testid="link-back-forum">
-          <ArrowLeft className="w-4 h-4" /> Forum'a Dön
+          <ArrowLeft className="w-4 h-4" /> Back to Forum
         </Link>
 
         {isLoading ? (
@@ -206,7 +206,7 @@ export default function ForumTopic() {
                       {topic.categoryName}
                     </Badge>
                     <span className="text-xs text-muted-foreground italic">
-                      {topic.isAnonymous ? "Anonim Kullanıcı" : `${topic.authorFirstName || ""} ${topic.authorLastName || ""}`.trim()}
+                      {topic.isAnonymous ? "Anonymous User" : `${topic.authorFirstName || ""} ${topic.authorLastName || ""}`.trim()}
                     </span>
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Clock className="w-3 h-3" /> {formatDateTime(topic.createdAt)}
@@ -298,20 +298,20 @@ export default function ForumTopic() {
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Bu topic'i silmek istiyor musunuz?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this topic?</AlertDialogTitle>
             <AlertDialogDescription>
-              Bu işlem geri alınamaz. Topic ve tüm yanıtları kalıcı olarak silinecektir.
+              This action cannot be undone. The topic and all its replies will be permanently deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-delete-detail">İptal</AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-cancel-delete-detail">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteTopicMutation.mutate()}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="button-confirm-delete-detail"
               disabled={deleteTopicMutation.isPending}
             >
-              {deleteTopicMutation.isPending ? "Siliniyor..." : "Evet, Sil"}
+              {deleteTopicMutation.isPending ? "Deleting..." : "Yes, Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

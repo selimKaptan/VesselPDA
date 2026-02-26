@@ -661,10 +661,10 @@ export async function registerRoutes(
   app.post("/api/contact", async (req, res) => {
     const { name, email, subject, message } = req.body || {};
     if (!name || !email || !subject || !message) {
-      return res.status(400).json({ ok: false, error: "Tüm alanlar zorunludur" });
+      return res.status(400).json({ ok: false, error: "All fields are required" });
     }
     if (typeof email !== "string" || !email.includes("@")) {
-      return res.status(400).json({ ok: false, error: "Geçersiz e-posta adresi" });
+      return res.status(400).json({ ok: false, error: "Invalid email address" });
     }
     sendContactEmail({ name: String(name), email: String(email), subject: String(subject), message: String(message) });
     return res.json({ ok: true });
@@ -738,7 +738,7 @@ export async function registerRoutes(
       for (const t of recentTopics) {
         activities.push({
           type: "forum",
-          message: `"${t.title}" konusu forum'da açıldı`,
+          message: `"${t.title}" posted in the forum`,
           timestamp: t.createdAt ? new Date(t.createdAt).toISOString() : new Date().toISOString(),
           icon: "message-square",
         });

@@ -27,13 +27,13 @@ function useCountdown(createdAt: string, expiryHours: number) {
     const update = () => {
       const diff = expiresAt - Date.now();
       if (diff <= 0) {
-        setRemaining("Süresi Doldu");
+        setRemaining("Expired");
         setExpired(true);
         return;
       }
       const h = Math.floor(diff / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
-      setRemaining(`${h}s ${m}dk kaldı`);
+      setRemaining(`${h}h ${m}m left`);
       setExpired(false);
     };
     update();
@@ -56,10 +56,10 @@ function TenderCard({ tender, role, myBidStatus }: { tender: any; role: string; 
   }[tender.status as string] || "bg-gray-100 text-gray-700";
 
   const statusLabel = {
-    open: "Açık",
-    closed: "Kapandı",
-    cancelled: "İptal",
-    nominated: "Nominasyon Yapıldı",
+    open: "Open",
+    closed: "Closed",
+    cancelled: "Cancelled",
+    nominated: "Nominated",
   }[tender.status as string] || tender.status;
 
   const bidStatusIcon = myBidStatus === "selected"
@@ -93,7 +93,7 @@ function TenderCard({ tender, role, myBidStatus }: { tender: any; role: string; 
                 <div className="flex items-center gap-1">
                   {bidStatusIcon}
                   <span className="text-xs text-muted-foreground">
-                    {myBidStatus === "selected" ? "Teklifiniz seçildi!" : myBidStatus === "rejected" ? "Reddedildi" : "Değerlendiriliyor"}
+                    {myBidStatus === "selected" ? "Your bid was selected!" : myBidStatus === "rejected" ? "Rejected" : "Under Review"}
                   </span>
                 </div>
               )}
@@ -115,7 +115,7 @@ function TenderCard({ tender, role, myBidStatus }: { tender: any; role: string; 
           </div>
           {role === "shipowner" && tender.bidCount > 0 && (
             <Badge variant="secondary" className="text-[10px]">
-              {tender.bidCount} teklif
+              {tender.bidCount} bids
             </Badge>
           )}
           <ChevronRight className="w-4 h-4 text-muted-foreground" />
@@ -167,7 +167,7 @@ function CreateTenderDialog() {
     mutationFn: (data: any) => apiRequest("POST", "/api/tenders", data),
     onSuccess: async (res: any) => {
       const data = await res.json();
-      toast({ title: "İhale oluşturuldu!", description: `${data.agentCount} acenteye gönderildi.` });
+      toast({ title: "Tender created!", description: `Sent to ${data.agentCount} agents.` });
       setOpen(false);
       setForm(EMPTY_FORM);
       setPortSearch(""); setVesselSearch("");
@@ -175,7 +175,7 @@ function CreateTenderDialog() {
     },
     onError: async (err: any) => {
       const data = await err.response?.json().catch(() => ({}));
-      toast({ title: "Hata", description: data.message || "İhale oluşturulamadı", variant: "destructive" });
+      toast({ title: "Error", description: data.message || "Could not create tender", variant: "destructive" });
     },
   });
 
@@ -183,7 +183,7 @@ function CreateTenderDialog() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "Hata", description: "Dosya 5MB'dan küçük olmalıdır", variant: "destructive" });
+      toast({ title: "Error", description: "File must be under 5MB", variant: "destructive" });
       return;
     }
     const reader = new FileReader();
@@ -195,17 +195,17 @@ function CreateTenderDialog() {
 
   const handleSubmit = () => {
     const required: [string, string][] = [
-      [form.portId, "Liman seçiniz"],
-      [form.vesselName, "Gemi adı giriniz"],
-      [form.flag, "Bayrak giriniz"],
-      [form.grt, "GRT giriniz"],
-      [form.nrt, "NRT giriniz"],
-      [form.cargoType, "Yük türü giriniz"],
-      [form.cargoQuantity, "Yük miktarı giriniz"],
-      [form.previousPort, "Geminin nereden geldiğini giriniz"],
+      [form.portId, "Please select a port"],
+      [form.vesselName, "Please enter vessel name"],
+      [form.flag, "Please enter flag"],
+      [form.grt, "Please enter GRT"],
+      [form.nrt, "Please enter NRT"],
+      [form.cargoType, "Please enter cargo type"],
+      [form.cargoQuantity, "Please enter cargo quantity"],
+      [form.previousPort, "Please enter previous port"],
     ];
     for (const [val, msg] of required) {
-      if (!val) { toast({ title: "Eksik Alan", description: msg, variant: "destructive" }); return; }
+      if (!val) { toast({ title: "Missing Field", description: msg, variant: "destructive" }); return; }
     }
     mutation.mutate({
       portId: Number(form.portId),
@@ -226,14 +226,14 @@ function CreateTenderDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button className="gap-2" data-testid="button-create-tender">
-          <Plus className="w-4 h-4" /> Yeni İhale Oluştur
+          <Plus className="w-4 h-4" /> Create New Tender
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto" data-testid="dialog-create-tender">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Gavel className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
-            Liman Proforma İhalesi
+            Port Proforma Tender
           </DialogTitle>
         </DialogHeader>
 
@@ -241,10 +241,10 @@ function CreateTenderDialog() {
 
           {/* PORT SEARCH */}
           <div className="space-y-1.5" ref={portRef}>
-            <Label>Liman <span className="text-red-500">*</span></Label>
+            <Label>Port <span className="text-red-500">*</span></Label>
             <div className="relative">
               <Input
-                placeholder="Liman ara..."
+                placeholder="Search port..."
                 value={portSearch}
                 onChange={e => { setPortSearch(e.target.value); setShowPortDropdown(true); setForm(f => ({ ...f, portId: "" })); }}
                 onFocus={() => { if (portSearch) setShowPortDropdown(true); }}
@@ -252,7 +252,7 @@ function CreateTenderDialog() {
               />
               {showPortDropdown && portSearch && (
                 <div className="absolute z-50 w-full border rounded-md shadow-lg bg-popover max-h-44 overflow-y-auto divide-y mt-1">
-                  {filteredPorts.length === 0 && <p className="p-2 text-sm text-muted-foreground">Sonuç yok</p>}
+                  {filteredPorts.length === 0 && <p className="p-2 text-sm text-muted-foreground">No results</p>}
                   {filteredPorts.map((p: any) => (
                     <button
                       key={p.id}
@@ -273,7 +273,7 @@ function CreateTenderDialog() {
             </div>
             {form.portId && (
               <p className="text-xs text-emerald-600 flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> Liman seçildi
+                <CheckCircle2 className="w-3 h-3" /> Port selected
               </p>
             )}
           </div>
@@ -281,7 +281,7 @@ function CreateTenderDialog() {
           {/* VESSEL NAME + FLAG */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5" ref={vesselRef}>
-              <Label>Gemi Adı <span className="text-red-500">*</span></Label>
+              <Label>Vessel Name <span className="text-red-500">*</span></Label>
               <div className="relative">
                 <Input
                   placeholder="MV EXAMPLE"
@@ -323,7 +323,7 @@ function CreateTenderDialog() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Bayrak <span className="text-red-500">*</span></Label>
+              <Label>Flag <span className="text-red-500">*</span></Label>
               <Input
                 placeholder="Turkey"
                 value={form.flag}
@@ -338,7 +338,7 @@ function CreateTenderDialog() {
             <div className="space-y-1.5">
               <Label>GRT <span className="text-red-500">*</span></Label>
               <Input
-                placeholder="ör. 5000"
+                placeholder="e.g. 5000"
                 type="number"
                 value={form.grt}
                 onChange={e => setForm(f => ({ ...f, grt: e.target.value }))}
@@ -348,7 +348,7 @@ function CreateTenderDialog() {
             <div className="space-y-1.5">
               <Label>NRT <span className="text-red-500">*</span></Label>
               <Input
-                placeholder="ör. 3000"
+                placeholder="e.g. 3000"
                 type="number"
                 value={form.nrt}
                 onChange={e => setForm(f => ({ ...f, nrt: e.target.value }))}
@@ -360,18 +360,18 @@ function CreateTenderDialog() {
           {/* CARGO TYPE + CARGO QUANTITY */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Yük Türü <span className="text-red-500">*</span></Label>
+              <Label>Cargo Type <span className="text-red-500">*</span></Label>
               <Input
-                placeholder="ör. Grain, Coal, Steel"
+                placeholder="e.g. Grain, Coal, Steel"
                 value={form.cargoType}
                 onChange={e => setForm(f => ({ ...f, cargoType: e.target.value }))}
                 data-testid="input-cargo-type"
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Yük Miktarı <span className="text-red-500">*</span></Label>
+              <Label>Cargo Quantity <span className="text-red-500">*</span></Label>
               <Input
-                placeholder="ör. 15,000 MT"
+                placeholder="e.g. 15,000 MT"
                 value={form.cargoQuantity}
                 onChange={e => setForm(f => ({ ...f, cargoQuantity: e.target.value }))}
                 data-testid="input-cargo-quantity"
@@ -381,9 +381,9 @@ function CreateTenderDialog() {
 
           {/* PREVIOUS PORT */}
           <div className="space-y-1.5">
-            <Label>Nereden Geliyor <span className="text-red-500">*</span></Label>
+            <Label>Previous Port <span className="text-red-500">*</span></Label>
             <Input
-              placeholder="ör. Novorossiysk, Russia"
+              placeholder="e.g. Novorossiysk, Russia"
               value={form.previousPort}
               onChange={e => setForm(f => ({ ...f, previousPort: e.target.value }))}
               data-testid="input-previous-port"
@@ -393,8 +393,8 @@ function CreateTenderDialog() {
           {/* Q88 UPLOAD (optional) */}
           <div className="space-y-1.5">
             <Label className="flex items-center gap-1.5">
-              Q88 Formu
-              <span className="text-[10px] text-muted-foreground font-normal">(opsiyonel, PDF / JPG, maks. 5MB)</span>
+              Q88 Form
+              <span className="text-[10px] text-muted-foreground font-normal">(optional, PDF / JPG, max 5MB)</span>
             </Label>
             <input ref={q88Ref} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleQ88Upload} />
             {form.q88Base64 ? (
@@ -413,16 +413,16 @@ function CreateTenderDialog() {
                 data-testid="button-upload-q88"
               >
                 <Upload className="w-4 h-4" />
-                Q88 Formu Yükle
+                Upload Q88 Form
               </button>
             )}
           </div>
 
           {/* DESCRIPTION */}
           <div className="space-y-1.5">
-            <Label>Açıklama / Notlar</Label>
+            <Label>Description / Notes</Label>
             <Textarea
-              placeholder="Ek bilgi ve gereksinimler..."
+              placeholder="Additional information and requirements..."
               rows={2}
               value={form.description}
               onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
@@ -432,15 +432,15 @@ function CreateTenderDialog() {
 
           {/* EXPIRY */}
           <div className="space-y-2">
-            <Label>İhale Süresi <span className="text-red-500">*</span></Label>
+            <Label>Tender Duration <span className="text-red-500">*</span></Label>
             <RadioGroup value={form.expiryHours} onValueChange={v => setForm(f => ({ ...f, expiryHours: v }))} className="flex gap-4">
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="24" id="exp-24" data-testid="radio-24h" />
-                <Label htmlFor="exp-24" className="cursor-pointer font-normal">24 Saat</Label>
+                <Label htmlFor="exp-24" className="cursor-pointer font-normal">24 Hours</Label>
               </div>
               <div className="flex items-center gap-2">
                 <RadioGroupItem value="48" id="exp-48" data-testid="radio-48h" />
-                <Label htmlFor="exp-48" className="cursor-pointer font-normal">48 Saat</Label>
+                <Label htmlFor="exp-48" className="cursor-pointer font-normal">48 Hours</Label>
               </div>
             </RadioGroup>
           </div>
@@ -448,7 +448,7 @@ function CreateTenderDialog() {
           <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-3 flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-blue-700 dark:text-blue-400">
-              İhale oluşturulduğunda, seçtiğiniz limanda kayıtlı tüm acentelere otomatik olarak iletilecektir.
+              When the tender is created, it will automatically be sent to all agents registered at your selected port.
             </p>
           </div>
 
@@ -458,7 +458,7 @@ function CreateTenderDialog() {
             className="w-full"
             data-testid="button-submit-tender"
           >
-            {mutation.isPending ? "Oluşturuluyor..." : "İhale Oluştur ve Gönder"}
+            {mutation.isPending ? "Creating..." : "Create & Send Tender"}
           </Button>
         </div>
       </DialogContent>
@@ -488,12 +488,12 @@ export default function TendersPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Gavel className="w-6 h-6 text-[hsl(var(--maritime-primary))]" />
-            {role === "agent" ? "Liman İhaleleri" : "Proforma İhaleleri"}
+            {role === "agent" ? "Port Tenders" : "Proforma Tenders"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {role === "agent"
-              ? "Hizmet verdiğiniz limanlardaki açık ihaleler"
-              : "Oluşturduğunuz ihale teklifleri"}
+              ? "Open tenders at ports you serve"
+              : "Your submitted tender requests"}
           </p>
         </div>
         {role !== "agent" && <CreateTenderDialog />}
@@ -512,17 +512,17 @@ export default function TendersPage() {
         <Tabs defaultValue="available">
           <TabsList>
             <TabsTrigger value="available" data-testid="tab-available">
-              Açık İhaleler
+              Open Tenders
               {openTenders.length > 0 && (
                 <Badge className="ml-2 text-[10px] bg-emerald-100 text-emerald-700 border-0">{openTenders.length}</Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="my-bids" data-testid="tab-my-bids">Tekliflerim</TabsTrigger>
+            <TabsTrigger value="my-bids" data-testid="tab-my-bids">My Bids</TabsTrigger>
           </TabsList>
 
           <TabsContent value="available" className="space-y-3 mt-4">
             {openTenders.length === 0 ? (
-              <EmptyState icon={Inbox} title="Açık ihale yok" desc="Hizmet verdiğiniz limanlar için yeni ihale geldiğinde burada görünecek." />
+              <EmptyState icon={Inbox} title="No open tenders" desc="New tenders for the ports you serve will appear here." />
             ) : (
               openTenders.map(t => (
                 <TenderCard key={t.id} tender={t} role="agent" myBidStatus={getMyBidStatus(t.id)} />
@@ -532,7 +532,7 @@ export default function TendersPage() {
 
           <TabsContent value="my-bids" className="space-y-3 mt-4">
             {!myBids || myBids.length === 0 ? (
-              <EmptyState icon={Send} title="Henüz teklif vermediniz" desc="Açık ihaleler sekmesinden teklif verebilirsiniz." />
+              <EmptyState icon={Send} title="No bids submitted yet" desc="You can submit bids from the Open Tenders tab." />
             ) : (
               myBids.map((bid: any) => (
                 <MyBidCard key={bid.id} bid={bid} />
@@ -544,17 +544,17 @@ export default function TendersPage() {
         <Tabs defaultValue="active">
           <TabsList>
             <TabsTrigger value="active" data-testid="tab-active">
-              Aktif İhaleler
+              Active Tenders
               {openTenders.length > 0 && (
                 <Badge className="ml-2 text-[10px] bg-emerald-100 text-emerald-700 border-0">{openTenders.length}</Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="past" data-testid="tab-past">Geçmiş</TabsTrigger>
+            <TabsTrigger value="past" data-testid="tab-past">Past</TabsTrigger>
           </TabsList>
 
           <TabsContent value="active" className="space-y-3 mt-4">
             {openTenders.length === 0 ? (
-              <EmptyState icon={Gavel} title="Aktif ihale yok" desc="Yeni ihale oluşturmak için 'Yeni İhale Oluştur' butonuna tıklayın." />
+              <EmptyState icon={Gavel} title="No active tenders" desc="Click 'Create New Tender' to get started." />
             ) : (
               openTenders.map(t => <TenderCard key={t.id} tender={t} role="shipowner" />)
             )}
@@ -562,7 +562,7 @@ export default function TendersPage() {
 
           <TabsContent value="past" className="space-y-3 mt-4">
             {closedTenders.length === 0 ? (
-              <EmptyState icon={FileText} title="Geçmiş ihale yok" />
+              <EmptyState icon={FileText} title="No past tenders" />
             ) : (
               closedTenders.map(t => <TenderCard key={t.id} tender={t} role="shipowner" />)
             )}
@@ -578,9 +578,9 @@ function MyBidCard({ bid }: { bid: any }) {
   const { remaining, expired } = useCountdown(bid.tenderCreatedAt, bid.expiryHours);
 
   const statusConfig = {
-    selected: { label: "Seçildi! 🎉", cls: "bg-emerald-100 text-emerald-700" },
-    rejected: { label: "Reddedildi", cls: "bg-red-100 text-red-700" },
-    pending: { label: "Değerlendiriliyor", cls: "bg-amber-100 text-amber-700" },
+    selected: { label: "Selected! 🎉", cls: "bg-emerald-100 text-emerald-700" },
+    rejected: { label: "Rejected", cls: "bg-red-100 text-red-700" },
+    pending: { label: "Under Review", cls: "bg-amber-100 text-amber-700" },
   }[bid.status as string] || { label: bid.status, cls: "bg-gray-100 text-gray-700" };
 
   return (
@@ -607,7 +607,7 @@ function MyBidCard({ bid }: { bid: any }) {
         <div className="flex flex-col items-end gap-1.5">
           <Badge className={`text-[10px] border-0 ${statusConfig.cls}`}>{statusConfig.label}</Badge>
           <span className="text-[11px] text-muted-foreground">
-            {bid.tenderStatus === "open" ? remaining : "İhale kapandı"}
+            {bid.tenderStatus === "open" ? remaining : "Tender closed"}
           </span>
         </div>
       </div>

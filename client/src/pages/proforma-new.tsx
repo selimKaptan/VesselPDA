@@ -270,7 +270,7 @@ export default function ProformaNew() {
                 <span><strong>NRT:</strong> {selectedVesselData.nrt?.toLocaleString()}</span>
                 {selectedVesselData.dwt && <span><strong>DWT:</strong> {selectedVesselData.dwt?.toLocaleString()}</span>}
                 <Badge variant={isTurkishFlag(selectedVesselData.flag) ? "default" : "secondary"} className="text-[10px] ml-auto" data-testid="badge-flag-category">
-                  {isTurkishFlag(selectedVesselData.flag) ? "🇹🇷 Türk Bayraklı" : "🏳️ Yabancı Bayraklı"} — Tarifeler otomatik ayarlandı
+                  {isTurkishFlag(selectedVesselData.flag) ? "🇹🇷 Turkish Flag" : "🏳️ Foreign Flag"} — Tariffs auto-adjusted
                 </Badge>
               </div>
             )}
@@ -352,8 +352,8 @@ export default function ProformaNew() {
                 <Select value={customsType} onValueChange={setCustomsType}>
                   <SelectTrigger data-testid="select-customs-type"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="import">Import (İthalat)</SelectItem>
-                    <SelectItem value="export">Export (İhracat)</SelectItem>
+                    <SelectItem value="import">Import</SelectItem>
+                    <SelectItem value="export">Export</SelectItem>
                     <SelectItem value="transit">Transit</SelectItem>
                     <SelectItem value="none">None</SelectItem>
                   </SelectContent>
@@ -364,8 +364,8 @@ export default function ProformaNew() {
                 <Select value={dtoCategory} onValueChange={setDtoCategory}>
                   <SelectTrigger data-testid="select-dto"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="turkish">Turkish (Türk)</SelectItem>
-                    <SelectItem value="foreign">Foreign (Yabancı)</SelectItem>
+                    <SelectItem value="turkish">Turkish</SelectItem>
+                    <SelectItem value="foreign">Foreign</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -374,21 +374,21 @@ export default function ProformaNew() {
                 <Select value={wharfageCategory} onValueChange={setWharfageCategory}>
                   <SelectTrigger data-testid="select-wharfage"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="foreign">Foreign (Yabancı)</SelectItem>
-                    <SelectItem value="turkish">Turkish (Türk)</SelectItem>
-                    <SelectItem value="cabotage">Cabotage (Kabotaj)</SelectItem>
-                    <SelectItem value="izmir_tcdd">İzmir/TCDD</SelectItem>
+                    <SelectItem value="foreign">Foreign</SelectItem>
+                    <SelectItem value="turkish">Turkish</SelectItem>
+                    <SelectItem value="cabotage">Cabotage</SelectItem>
+                    <SelectItem value="izmir_tcdd">Izmir/TCDD</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Lighthouse (Fener)</Label>
+                <Label>Lighthouse</Label>
                 <Select value={lighthouseCategory} onValueChange={setLighthouseCategory}>
                   <SelectTrigger data-testid="select-lighthouse"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="turkish">Turkish (Türk)</SelectItem>
-                    <SelectItem value="foreign">Foreign (Yabancı)</SelectItem>
-                    <SelectItem value="cabotage">Cabotage (Kabotaj)</SelectItem>
+                    <SelectItem value="turkish">Turkish</SelectItem>
+                    <SelectItem value="foreign">Foreign</SelectItem>
+                    <SelectItem value="cabotage">Cabotage</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -397,9 +397,9 @@ export default function ProformaNew() {
                 <Select value={vtsCategory} onValueChange={setVtsCategory}>
                   <SelectTrigger data-testid="select-vts"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="turkish">Turkish (Türk)</SelectItem>
-                    <SelectItem value="foreign">Foreign (Yabancı)</SelectItem>
-                    <SelectItem value="cabotage">Cabotage (Kabotaj)</SelectItem>
+                    <SelectItem value="turkish">Turkish</SelectItem>
+                    <SelectItem value="foreign">Foreign</SelectItem>
+                    <SelectItem value="cabotage">Cabotage</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

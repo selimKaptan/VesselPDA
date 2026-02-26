@@ -274,8 +274,8 @@ export default function CompanyProfilePage() {
             <Select value={companyType} onValueChange={setCompanyType}>
               <SelectTrigger data-testid="select-company-type"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="agent">Ship Agent (Acente)</SelectItem>
-                <SelectItem value="provider">Service Provider (Tedarikçi)</SelectItem>
+                <SelectItem value="agent">Ship Agent</SelectItem>
+                <SelectItem value="provider">Service Provider</SelectItem>
               </SelectContent>
             </Select>
           </div>
