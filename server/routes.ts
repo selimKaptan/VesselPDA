@@ -1153,6 +1153,21 @@ export async function registerRoutes(
       });
 
       res.json(reply);
+
+      // Notify topic author if different from replier
+      try {
+        if (topic.userId && topic.userId !== userId) {
+          const replier = await storage.getUser(userId);
+          const replierName = replier ? `${replier.firstName || ""} ${replier.lastName || ""}`.trim() || replier.email : "Someone";
+          await storage.createNotification({
+            userId: topic.userId,
+            type: "forum_reply",
+            title: "New Reply on Your Topic",
+            message: `${replierName} replied to "${topic.title}"`,
+            link: `/forum/${topicId}`,
+          });
+        }
+      } catch (e) { /* non-critical */ }
     } catch (error) {
       console.error("Create reply error:", error);
       res.status(500).json({ message: "Failed to create reply" });
@@ -1452,18 +1467,27 @@ export async function registerRoutes(
       try {
         const owner = await storage.getUser(tender.userId);
         const port = await storage.getPort(tender.portId);
+        const portName = (port as any)?.name || `Port #${tender.portId}`;
+        const agentName = profile?.companyName || user.firstName || "An agent";
         if (owner?.email) {
           await sendBidReceivedEmail({
             ownerEmail: owner.email,
             ownerName: owner.firstName || owner.email,
-            agentName: profile?.companyName || user.firstName || undefined,
-            portName: (port as any)?.name || `Port #${tender.portId}`,
+            agentName,
+            portName,
             vesselName: tender.vesselName || undefined,
             totalAmount: totalAmount || undefined,
             currency: currency || "USD",
             tenderId,
           });
         }
+        await storage.createNotification({
+          userId: tender.userId,
+          type: "bid_received",
+          title: "New Bid Received",
+          message: `${agentName} submitted a bid for ${portName}${tender.vesselName ? ` — ${tender.vesselName}` : ""}`,
+          link: `/tenders/${tenderId}`,
+        });
       } catch (emailErr) { console.warn("[email] sendBidReceivedEmail failed (non-critical):", emailErr); }
     } catch (error) {
       console.error("Create bid error:", error);
@@ -1497,15 +1521,23 @@ export async function registerRoutes(
         if (selectedBid) {
           const agent = await storage.getUser(selectedBid.agentUserId);
           const port = await storage.getPort(tender.portId);
+          const portName = (port as any)?.name || `Port #${tender.portId}`;
           if (agent?.email) {
             await sendBidSelectedEmail({
               agentEmail: agent.email,
               agentName: agent.firstName || undefined,
-              portName: (port as any)?.name || `Port #${tender.portId}`,
+              portName,
               vesselName: tender.vesselName || undefined,
               tenderId,
             });
           }
+          await storage.createNotification({
+            userId: selectedBid.agentUserId,
+            type: "bid_selected",
+            title: "Your Bid Was Selected!",
+            message: `Your bid for ${portName}${tender.vesselName ? ` — ${tender.vesselName}` : ""} has been selected.`,
+            link: `/tenders/${tenderId}`,
+          });
         }
       } catch (emailErr) { console.warn("[email] sendBidSelectedEmail failed (non-critical):", emailErr); }
     } catch (error) {
@@ -1744,6 +1776,40 @@ export async function registerRoutes(
       res.json({ proformaPdfBase64: fullBid?.proformaPdfBase64 || null });
     } catch (error) {
       res.status(500).json({ message: "Failed to get PDF" });
+    }
+  });
+
+  // ─── NOTIFICATIONS ───────────────────────────────────────────────────────────
+
+  app.get("/api/notifications", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const items = await storage.getNotifications(userId);
+      const unreadCount = await storage.getUnreadNotificationCount(userId);
+      res.json({ notifications: items, unreadCount });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch notifications" });
+    }
+  });
+
+  app.post("/api/notifications/read-all", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      await storage.markAllNotificationsRead(userId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to mark all read" });
+    }
+  });
+
+  app.post("/api/notifications/:id/read", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const id = parseInt(req.params.id);
+      await storage.markNotificationRead(id, userId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to mark read" });
     }
   });
 

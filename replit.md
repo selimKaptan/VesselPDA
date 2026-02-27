@@ -22,6 +22,7 @@ The platform is built with a modern web stack:
     - **Vessel Tracking**: Interactive Leaflet map with live AIS data (via AISStream.io) for vessel positions in Turkish waters, custom SVG ship markers, and role-based fleet views.
     - **Port Call Tender System**: Enables shipowners to create tenders, routes them to relevant agents, allows agents to submit bids, and facilitates bid selection and nomination with email notifications.
     - **Forum/Discussion Board**: A comprehensive discussion platform with categories, topics, replies, search, and filtering, accessible to all users for collaborative communication. Supports anonymous posting.
+    - **Notification System**: Real-time in-app notifications (bell icon in top-right header). Notifies users of forum replies on their topics, incoming bids on tenders, selected bids, and nominations. Unread count badge, mark-all-read, click-to-navigate. `notifications` table in DB. Auto-polls every 30 seconds.
     - **Internationalization**: TR/EN language toggle with content translation.
 - **Design Choices**: Global design tokens, professional UI redesign across all pages, including revamped landing page, dashboards, and forms.
 - **Data Storage**: Logo images are stored as base64 data URIs in the database to ensure persistence.

@@ -35,6 +35,7 @@ import RegisterPage from "@/pages/register";
 import VerifyEmailPage from "@/pages/verify-email";
 import ForgotPasswordPage from "@/pages/forgot-password";
 import ResetPasswordPage from "@/pages/reset-password";
+import { NotificationBell } from "@/components/notification-bell";
 
 function AuthenticatedRouter() {
   return (
@@ -74,8 +75,11 @@ function AuthenticatedLayout() {
       <div className="flex h-screen w-full">
         <AppSidebar />
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center gap-2 p-3 border-b h-14 flex-shrink-0">
+          <header className="flex items-center justify-between gap-2 px-3 border-b h-14 flex-shrink-0">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <div className="flex items-center gap-1">
+              <NotificationBell />
+            </div>
           </header>
           <main className="flex-1 overflow-auto">
             <AuthenticatedRouter />
