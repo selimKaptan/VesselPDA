@@ -1,11 +1,10 @@
-import { Ship, FileText, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin, Shield, ChevronDown, MessageSquare, Anchor, Gavel, Navigation, Languages } from "lucide-react";
+import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Sidebar,
@@ -84,9 +83,7 @@ export function AppSidebar() {
     toolsNav.push({ title: t("nav.vesselTrack"), url: "/vessel-track", icon: Navigation });
   }
   toolsNav.push({ title: t("nav.portInfo"), url: "/port-info", icon: Anchor });
-  if (isAdminUser || effectiveRole === "agent" || effectiveRole === "provider") {
-    toolsNav.push({ title: t("nav.companyProfile"), url: "/company-profile", icon: Building2 });
-  }
+  toolsNav.push({ title: t("nav.servicePorts"), url: "/service-ports", icon: MapPin });
 
   const adminNav = isAdminUser ? [
     { title: t("nav.admin"), url: "/admin", icon: Shield },
@@ -100,6 +97,10 @@ export function AppSidebar() {
     if (url === "/") return location === "/";
     return location === url || location.startsWith(url + "/");
   }
+
+  const userDisplayName = user?.firstName
+    ? `${user.firstName} ${(user as any).lastName || ""}`.trim()
+    : "User";
 
   return (
     <Sidebar collapsible="icon">
@@ -161,11 +162,7 @@ export function AppSidebar() {
                 const active = isActive(item.url);
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      data-active={active}
-                      tooltip={item.title}
-                    >
+                    <SidebarMenuButton asChild data-active={active} tooltip={item.title}>
                       <Link
                         href={item.url}
                         data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
@@ -201,11 +198,7 @@ export function AppSidebar() {
                   const hasBadge = (item as any).badge > 0;
                   return (
                     <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton
-                        asChild
-                        data-active={active}
-                        tooltip={item.title}
-                      >
+                      <SidebarMenuButton asChild data-active={active} tooltip={item.title}>
                         <Link
                           href={item.url}
                           data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
@@ -246,11 +239,7 @@ export function AppSidebar() {
                   const active = isActive(item.url);
                   return (
                     <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton
-                        asChild
-                        data-active={active}
-                        tooltip={item.title}
-                      >
+                      <SidebarMenuButton asChild data-active={active} tooltip={item.title}>
                         <Link
                           href={item.url}
                           data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
@@ -273,60 +262,13 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         )}
-
-        {/* Account Nav */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 text-sidebar-foreground/40">
-            Account
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild data-active={isActive("/service-ports")} tooltip="Service Ports">
-                  <Link
-                    href="/service-ports"
-                    data-testid="nav-service-ports"
-                    style={isActive("/service-ports") ? {
-                      borderLeft: "3px solid hsl(var(--sidebar-primary))",
-                      background: "hsl(var(--sidebar-primary) / 0.12)",
-                      color: "hsl(var(--sidebar-primary))",
-                      paddingLeft: "calc(0.75rem - 3px)",
-                    } : {}}
-                    className="transition-all duration-150"
-                  >
-                    <MapPin className="w-4 h-4" />
-                    <span className="font-medium">Service Ports</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild data-active={isActive("/pricing")} tooltip="Pricing">
-                  <Link
-                    href="/pricing"
-                    data-testid="nav-pricing"
-                    style={isActive("/pricing") ? {
-                      borderLeft: "3px solid hsl(var(--sidebar-primary))",
-                      background: "hsl(var(--sidebar-primary) / 0.12)",
-                      color: "hsl(var(--sidebar-primary))",
-                      paddingLeft: "calc(0.75rem - 3px)",
-                    } : {}}
-                    className="transition-all duration-150"
-                  >
-                    <Crown className="w-4 h-4" />
-                    <span className="font-medium">Pricing</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
 
       {/* Footer */}
-      <SidebarFooter className="border-t border-sidebar-border/60 p-4 space-y-3">
+      <SidebarFooter className="border-t border-sidebar-border/60 p-3">
         {/* Admin role dropdown — hidden when collapsed */}
         {isAdminUser && !isCollapsed && (
-          <div>
+          <div className="mb-2">
             <p className="text-[9px] text-sidebar-foreground/40 mb-1.5 uppercase tracking-widest font-bold px-0.5">View as role</p>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -360,7 +302,7 @@ export function AppSidebar() {
 
         {/* Language toggle — hidden when collapsed */}
         {!isCollapsed && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-2">
             <Languages className="w-3.5 h-3.5 text-sidebar-foreground/40" />
             <div className="flex rounded-md border border-sidebar-border/60 text-[11px] overflow-hidden">
               <button
@@ -381,40 +323,75 @@ export function AppSidebar() {
           </div>
         )}
 
-        {/* User info */}
-        <div className="flex items-center gap-3 overflow-hidden">
-          <Avatar className="w-8 h-8 ring-2 ring-sidebar-primary/20 flex-shrink-0">
-            <AvatarImage src={user?.profileImageUrl || undefined} />
-            <AvatarFallback className="bg-[hsl(var(--sidebar-primary))] text-[hsl(var(--sidebar-primary-foreground))] text-xs font-bold">{initials}</AvatarFallback>
-          </Avatar>
-          {!isCollapsed && (
-            <>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate text-sidebar-foreground">
-                  {user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "User"}
-                </p>
-                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  {isAdminUser && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 uppercase tracking-wide">
-                      Admin
-                    </span>
-                  )}
-                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide ${PLAN_BADGE[plan] || PLAN_BADGE.free}`}>
-                    {plan}
-                  </span>
-                </div>
-              </div>
-              <a
-                href="/api/logout"
-                data-testid="button-logout"
-                className="w-7 h-7 rounded-md flex items-center justify-center hover:bg-red-500/10 transition-colors group flex-shrink-0"
-                title="Sign out"
-              >
-                <LogOut className="w-3.5 h-3.5 text-sidebar-foreground/40 group-hover:text-red-400 transition-colors" />
+        {/* User profile dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              data-testid="button-user-menu"
+              className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-sidebar-accent/60 transition-colors text-left overflow-hidden"
+            >
+              <Avatar className="w-8 h-8 ring-2 ring-sidebar-primary/20 flex-shrink-0">
+                <AvatarImage src={user?.profileImageUrl || undefined} />
+                <AvatarFallback className="bg-[hsl(var(--sidebar-primary))] text-[hsl(var(--sidebar-primary-foreground))] text-xs font-bold">{initials}</AvatarFallback>
+              </Avatar>
+              {!isCollapsed && (
+                <>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate text-sidebar-foreground">{userDisplayName}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      {isAdminUser && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 uppercase tracking-wide">
+                          Admin
+                        </span>
+                      )}
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide ${PLAN_BADGE[plan] || PLAN_BADGE.free}`}>
+                        {plan}
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronUp className="w-3.5 h-3.5 text-sidebar-foreground/40 flex-shrink-0" />
+                </>
+              )}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            side="top"
+            align="start"
+            sideOffset={8}
+            className="w-56"
+          >
+            <div className="px-2 py-1.5">
+              <p className="text-sm font-semibold truncate">{userDisplayName}</p>
+              <p className="text-xs text-muted-foreground truncate">{(user as any)?.email}</p>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild data-testid="menu-settings">
+              <Link href="/settings" className="flex items-center gap-2 cursor-pointer">
+                <Settings className="w-4 h-4" />
+                Settings
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild data-testid="menu-company-profile">
+              <Link href="/company-profile" className="flex items-center gap-2 cursor-pointer">
+                <Building2 className="w-4 h-4" />
+                Company Profile
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild data-testid="menu-pricing">
+              <Link href="/pricing" className="flex items-center gap-2 cursor-pointer">
+                <Crown className="w-4 h-4" />
+                Pricing
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild data-testid="menu-logout">
+              <a href="/api/logout" className="flex items-center gap-2 cursor-pointer text-red-500 focus:text-red-500">
+                <LogOut className="w-4 h-4" />
+                Sign Out
               </a>
-            </>
-          )}
-        </div>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </SidebarFooter>
     </Sidebar>
   );

@@ -9,7 +9,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, Menu, LayoutDashboard, Ship, Anchor, FileText, Building2, Gavel, MessageSquare, Navigation, MapPin, Settings, Star, Users } from "lucide-react";
+import { Moon, Sun, Menu, LayoutDashboard, Ship, Anchor, FileText, Building2, Gavel, MessageSquare, Navigation, MapPin, Star, Users } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import RoleSelection from "@/pages/role-selection";
@@ -32,6 +32,7 @@ import DirectoryProfile from "@/pages/directory-profile";
 import Contact from "@/pages/contact";
 import VesselTrack from "@/pages/vessel-track";
 import PortInfo from "@/pages/port-info";
+import Settings from "@/pages/settings";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -142,6 +143,7 @@ function AuthenticatedRouter() {
       <Route path="/contact" component={Contact} />
       <Route path="/vessel-track" component={VesselTrack} />
       <Route path="/port-info" component={PortInfo} />
+      <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -249,4 +249,59 @@ export function registerAuthRoutes(app: Express): void {
       res.redirect("/");
     });
   });
+
+  app.patch("/api/auth/profile", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { firstName, lastName } = req.body;
+
+      if (!firstName || !firstName.trim()) {
+        return res.status(400).json({ message: "First name is required" });
+      }
+
+      await authStorage.updateProfile(userId, {
+        firstName: firstName.trim(),
+        lastName: (lastName || "").trim(),
+      });
+
+      const user = await authStorage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Profile update error:", error);
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  app.post("/api/auth/change-password", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { currentPassword, newPassword } = req.body;
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "Current and new password are required" });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters" });
+      }
+
+      const user = await authStorage.getUser(userId);
+      if (!user || !user.passwordHash) {
+        return res.status(400).json({ message: "No password set for this account" });
+      }
+
+      const passwordMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!passwordMatch) {
+        return res.status(401).json({ message: "Current password is incorrect" });
+      }
+
+      const passwordHash = await bcrypt.hash(newPassword, 12);
+      await authStorage.updatePassword(userId, passwordHash);
+
+      res.json({ message: "Password changed successfully" });
+    } catch (error) {
+      console.error("Change password error:", error);
+      res.status(500).json({ message: "Failed to change password" });
+    }
+  });
 }

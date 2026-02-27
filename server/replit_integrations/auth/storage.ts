@@ -6,6 +6,7 @@ export interface IAuthStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  updateProfile(userId: string, data: { firstName: string; lastName: string }): Promise<void>;
   createUser(data: {
     email: string;
     passwordHash: string;
@@ -141,6 +142,17 @@ class AuthStorage implements IAuthStorage {
       .set({
         resetPasswordToken: null,
         resetPasswordTokenExpiry: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async updateProfile(userId: string, data: { firstName: string; lastName: string }): Promise<void> {
+    await db
+      .update(users)
+      .set({
+        firstName: data.firstName,
+        lastName: data.lastName,
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
