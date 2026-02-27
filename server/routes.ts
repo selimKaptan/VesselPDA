@@ -1005,9 +1005,10 @@ export async function registerRoutes(
 
       if (effectiveRole === "agent") {
         if (isAdminUser) {
-          // Admin in agent view: show all open tenders for testing
+          // Admin in agent view: show all open tenders EXCEPT own tenders
           const allOpen = await storage.getPortTenders({ status: "open" });
-          return res.json({ role: "agent", tenders: allOpen });
+          const othersOpen = allOpen.filter(t => t.userId !== userId);
+          return res.json({ role: "agent", tenders: othersOpen });
         }
         const profile = await storage.getCompanyProfileByUser(userId);
         const servedPorts = (profile?.servedPorts as number[]) || [];
@@ -1154,7 +1155,7 @@ export async function registerRoutes(
         ...b,
         hasPdf: !!proformaPdfBase64,
       }));
-      res.json({ tender, bids: bidsNoPdf, myBid: null, isOwner: tender.userId === userId || isAdminUser });
+      res.json({ tender, bids: bidsNoPdf, myBid: null, isOwner: tender.userId === userId });
     } catch (error) {
       console.error("Get tender error:", error);
       res.status(500).json({ message: "Failed to get tender" });
