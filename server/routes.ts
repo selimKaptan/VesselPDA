@@ -1159,6 +1159,49 @@ export async function registerRoutes(
     }
   });
 
+  // Like/unlike forum topics
+  app.post("/api/forum/topics/:id/like", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const topicId = parseInt(req.params.id);
+      if (!topicId) return res.status(400).json({ message: "Invalid topic ID" });
+      const result = await storage.toggleTopicLike(userId, topicId);
+      res.json(result);
+    } catch (error) {
+      console.error("Toggle topic like error:", error);
+      res.status(500).json({ message: "Failed to toggle like" });
+    }
+  });
+
+  // Like/unlike forum replies
+  app.post("/api/forum/replies/:id/like", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const replyId = parseInt(req.params.id);
+      if (!replyId) return res.status(400).json({ message: "Invalid reply ID" });
+      const result = await storage.toggleReplyLike(userId, replyId);
+      res.json(result);
+    } catch (error) {
+      console.error("Toggle reply like error:", error);
+      res.status(500).json({ message: "Failed to toggle like" });
+    }
+  });
+
+  // Get current user's liked topic IDs and reply IDs
+  app.get("/api/forum/my-likes", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const [topicIds, replyIds] = await Promise.all([
+        storage.getUserTopicLikes(userId),
+        storage.getUserReplyLikes(userId),
+      ]);
+      res.json({ topicIds, replyIds });
+    } catch (error) {
+      console.error("Get user likes error:", error);
+      res.status(500).json({ message: "Failed to get likes" });
+    }
+  });
+
   // ─── TENDER ROUTES ──────────────────────────────────────────────────────────
 
   app.get("/api/tenders", isAuthenticated, async (req: any, res) => {

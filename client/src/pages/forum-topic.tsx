@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link, useParams, useLocation } from "wouter";
-import { MessageSquare, Eye, ArrowLeft, Clock, Pin, Lock, Send, Trash2 } from "lucide-react";
+import { MessageSquare, Eye, ArrowLeft, Clock, Pin, Lock, Send, Trash2, Heart } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 interface Reply {
   id: number;
   content: string;
+  likeCount: number;
   createdAt: string | null;
   topicId: number;
   userId: string;
@@ -33,6 +34,7 @@ interface TopicDetail {
   userId: string;
   viewCount: number;
   replyCount: number;
+  likeCount: number;
   isPinned: boolean;
   isLocked: boolean;
   lastActivityAt: string | null;
@@ -45,6 +47,11 @@ interface TopicDetail {
   authorLastName: string | null;
   authorImage: string | null;
   replies: Reply[];
+}
+
+interface MyLikes {
+  topicIds: number[];
+  replyIds: number[];
 }
 
 function formatDateTime(timestamp: string | null): string {
@@ -76,6 +83,10 @@ export default function ForumTopic() {
   const [replyContent, setReplyContent] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // Optimistic like states
+  const [topicLike, setTopicLike] = useState<{ liked: boolean; count: number } | null>(null);
+  const [replyLikes, setReplyLikes] = useState<Record<number, { liked: boolean; count: number }>>({});
+
   const forumReturnUrl = useMemo(() => {
     const saved = sessionStorage.getItem("forumReturnSearch");
     return saved ? `/forum${saved}` : "/forum";
@@ -85,6 +96,102 @@ export default function ForumTopic() {
     queryKey: [`/api/forum/topics/${topicId}`],
     enabled: topicId > 0,
   });
+
+  const { data: myLikes } = useQuery<MyLikes>({
+    queryKey: ["/api/forum/my-likes"],
+    enabled: !!user,
+    queryFn: async () => {
+      const res = await fetch("/api/forum/my-likes", { credentials: "include" });
+      if (!res.ok) return { topicIds: [], replyIds: [] };
+      return res.json();
+    },
+  });
+
+  // Sync server likes into local state
+  useEffect(() => {
+    if (!myLikes || !topic) return;
+    const likedTopicSet = new Set(myLikes.topicIds);
+    const likedReplySet = new Set(myLikes.replyIds);
+
+    setTopicLike({ liked: likedTopicSet.has(topic.id), count: topic.likeCount ?? 0 });
+
+    const newReplyLikes: Record<number, { liked: boolean; count: number }> = {};
+    for (const r of topic.replies || []) {
+      newReplyLikes[r.id] = { liked: likedReplySet.has(r.id), count: r.likeCount ?? 0 };
+    }
+    setReplyLikes(newReplyLikes);
+  }, [myLikes, topic]);
+
+  // Also init from topic data (before likes load)
+  useEffect(() => {
+    if (!topic) return;
+    setTopicLike(prev => prev ?? { liked: false, count: topic.likeCount ?? 0 });
+    const newReplyLikes: Record<number, { liked: boolean; count: number }> = {};
+    for (const r of topic.replies || []) {
+      newReplyLikes[r.id] = { liked: false, count: r.likeCount ?? 0 };
+    }
+    setReplyLikes(prev => {
+      const merged: Record<number, { liked: boolean; count: number }> = { ...newReplyLikes };
+      for (const [id, val] of Object.entries(prev)) {
+        merged[Number(id)] = val;
+      }
+      return merged;
+    });
+  }, [topic]);
+
+  const likeTopicMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/forum/topics/${topicId}/like`);
+      return res.json();
+    },
+    onSuccess: (data: { liked: boolean; likeCount: number }) => {
+      setTopicLike({ liked: data.liked, count: data.likeCount });
+      queryClient.invalidateQueries({ queryKey: ["/api/forum/my-likes"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/forum/topics/${topicId}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/forum/topics"] });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Could not update like.", variant: "destructive" });
+    },
+  });
+
+  const likeReplyMutation = useMutation({
+    mutationFn: async (replyId: number) => {
+      const res = await apiRequest("POST", `/api/forum/replies/${replyId}/like`);
+      return res.json() as Promise<{ liked: boolean; likeCount: number }>;
+    },
+    onSuccess: (data, replyId) => {
+      setReplyLikes(prev => ({ ...prev, [replyId]: { liked: data.liked, count: data.likeCount } }));
+      queryClient.invalidateQueries({ queryKey: ["/api/forum/my-likes"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/forum/topics/${topicId}`] });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Could not update like.", variant: "destructive" });
+    },
+  });
+
+  const handleLikeTopic = () => {
+    if (!user) {
+      toast({ title: "Sign in required", description: "Log in to like topics." });
+      return;
+    }
+    const current = topicLike ?? { liked: false, count: 0 };
+    setTopicLike({ liked: !current.liked, count: current.liked ? current.count - 1 : current.count + 1 });
+    likeTopicMutation.mutate();
+  };
+
+  const handleLikeReply = (replyId: number) => {
+    if (!user) {
+      toast({ title: "Sign in required", description: "Log in to like replies." });
+      return;
+    }
+    const current = replyLikes[replyId] ?? { liked: false, count: 0 };
+    setReplyLikes(prev => ({
+      ...prev,
+      [replyId]: { liked: !current.liked, count: current.liked ? current.count - 1 : current.count + 1 },
+    }));
+    likeReplyMutation.mutate(replyId);
+  };
 
   const replyMutation = useMutation({
     mutationFn: async (content: string) => {
@@ -145,8 +252,8 @@ export default function ForumTopic() {
               <a href="/forum" className="text-sm font-medium text-foreground transition-colors">Forum</a>
             </div>
             <div className="flex items-center gap-3">
-              <a href="/api/login"><Button variant="outline">Log in</Button></a>
-              <a href="/api/login"><Button>Sign up</Button></a>
+              <a href="/login"><Button variant="outline">Log in</Button></a>
+              <a href="/register"><Button>Sign up</Button></a>
             </div>
           </div>
         </nav>
@@ -190,7 +297,6 @@ export default function ForumTopic() {
                         className="flex-shrink-0 h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                         onClick={() => setShowDeleteConfirm(true)}
                         data-testid="button-delete-topic-detail"
-                        title="Bu topic'i sil"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -218,8 +324,36 @@ export default function ForumTopic() {
                       <MessageSquare className="w-3 h-3" /> {topic.replyCount} replies
                     </span>
                   </div>
-                  <div className="text-sm leading-relaxed whitespace-pre-wrap" data-testid="text-topic-content">
+                  <div className="text-sm leading-relaxed whitespace-pre-wrap mb-4" data-testid="text-topic-content">
                     {topic.content}
+                  </div>
+
+                  {/* Topic like button */}
+                  <div className="flex items-center gap-2 pt-3 border-t border-border/50">
+                    <button
+                      onClick={handleLikeTopic}
+                      className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-all ${
+                        topicLike?.liked
+                          ? "border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:border-rose-800 dark:text-rose-400"
+                          : "border-border text-muted-foreground hover:border-rose-200 hover:text-rose-500 hover:bg-rose-50/50 dark:hover:bg-rose-950/20"
+                      }`}
+                      data-testid="button-like-topic-detail"
+                    >
+                      <Heart className={`w-4 h-4 transition-all ${topicLike?.liked ? "fill-current" : ""}`} />
+                      <span className="font-medium">
+                        {topicLike?.liked ? "Liked" : "Like"}
+                      </span>
+                      {(topicLike?.count ?? 0) > 0 && (
+                        <span className="ml-0.5 text-xs opacity-80">
+                          · {topicLike!.count}
+                        </span>
+                      )}
+                    </button>
+                    {!user && (
+                      <span className="text-xs text-muted-foreground">
+                        <a href="/login" className="underline hover:text-foreground">Sign in</a> to like
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -230,8 +364,9 @@ export default function ForumTopic() {
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
                   <MessageSquare className="w-4 h-4" /> {topic.replies.length} {topic.replies.length === 1 ? "Reply" : "Replies"}
                 </h3>
-                {topic.replies.map((reply, idx) => {
+                {topic.replies.map((reply) => {
                   const initials = `${reply.authorFirstName?.[0] || ""}${reply.authorLastName?.[0] || ""}`.toUpperCase() || "U";
+                  const replyLike = replyLikes[reply.id] ?? { liked: false, count: reply.likeCount ?? 0 };
                   return (
                     <Card key={reply.id} className="p-4" data-testid={`card-reply-${reply.id}`}>
                       <div className="flex items-start gap-3">
@@ -246,9 +381,23 @@ export default function ForumTopic() {
                             </span>
                             <span className="text-xs text-muted-foreground">{timeAgo(reply.createdAt)}</span>
                           </div>
-                          <div className="text-sm leading-relaxed whitespace-pre-wrap" data-testid={`text-reply-content-${reply.id}`}>
+                          <div className="text-sm leading-relaxed whitespace-pre-wrap mb-3" data-testid={`text-reply-content-${reply.id}`}>
                             {reply.content}
                           </div>
+                          {/* Reply like button */}
+                          <button
+                            onClick={() => handleLikeReply(reply.id)}
+                            className={`flex items-center gap-1 text-xs transition-colors rounded-md px-2 py-1 border ${
+                              replyLike.liked
+                                ? "border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:border-rose-800 dark:text-rose-400"
+                                : "border-border text-muted-foreground hover:border-rose-200 hover:text-rose-500 hover:bg-rose-50/50 dark:hover:bg-rose-950/20"
+                            }`}
+                            data-testid={`button-like-reply-${reply.id}`}
+                          >
+                            <Heart className={`w-3 h-3 ${replyLike.liked ? "fill-current" : ""}`} />
+                            <span>{replyLike.liked ? "Liked" : "Like"}</span>
+                            {replyLike.count > 0 && <span className="ml-0.5 opacity-70">· {replyLike.count}</span>}
+                          </button>
                         </div>
                       </div>
                     </Card>
@@ -286,7 +435,7 @@ export default function ForumTopic() {
             ) : (
               <Card className="p-6 text-center">
                 <p className="text-sm text-muted-foreground mb-3">Log in to join the discussion</p>
-                <a href="/api/login">
+                <a href="/login">
                   <Button variant="outline" data-testid="button-login-to-reply">Log in to Reply</Button>
                 </a>
               </Card>

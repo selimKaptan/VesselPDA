@@ -14,7 +14,7 @@ import {
   type AgentReview, type InsertAgentReview,
   type VesselWatchlistItem, type InsertVesselWatchlist,
   vessels, ports, tariffCategories, tariffRates, proformas,
-  forumCategories, forumTopics, forumReplies,
+  forumCategories, forumTopics, forumReplies, forumLikes,
   portTenders, tenderBids, agentReviews, vesselWatchlist,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
@@ -73,6 +73,10 @@ export interface IStorage {
   deleteForumTopic(id: number): Promise<void>;
   getForumReplies(topicId: number): Promise<any[]>;
   createForumReply(reply: InsertForumReply): Promise<ForumReply>;
+  getUserTopicLikes(userId: string): Promise<number[]>;
+  getUserReplyLikes(userId: string): Promise<number[]>;
+  toggleTopicLike(userId: string, topicId: number): Promise<{ liked: boolean; likeCount: number }>;
+  toggleReplyLike(userId: string, replyId: number): Promise<{ liked: boolean; likeCount: number }>;
   getTopicParticipants(topicId: number, limit?: number): Promise<any[]>;
 
   getPortTenders(filters?: { userId?: string; portId?: number; status?: string }): Promise<any[]>;
@@ -344,6 +348,7 @@ export class DatabaseStorage implements IStorage {
         isAnonymous: forumTopics.isAnonymous,
         viewCount: forumTopics.viewCount,
         replyCount: forumTopics.replyCount,
+        likeCount: forumTopics.likeCount,
         isPinned: forumTopics.isPinned,
         isLocked: forumTopics.isLocked,
         lastActivityAt: forumTopics.lastActivityAt,
@@ -367,7 +372,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (options?.sort === "popular") {
-      query = query.orderBy(desc(forumTopics.isPinned), desc(forumTopics.viewCount));
+      query = query.orderBy(desc(forumTopics.isPinned), desc(forumTopics.likeCount), desc(forumTopics.viewCount));
     } else {
       query = query.orderBy(desc(forumTopics.isPinned), desc(forumTopics.lastActivityAt));
     }
@@ -384,6 +389,7 @@ export class DatabaseStorage implements IStorage {
         isAnonymous: forumTopics.isAnonymous,
         viewCount: forumTopics.viewCount,
         replyCount: forumTopics.replyCount,
+        likeCount: forumTopics.likeCount,
         isPinned: forumTopics.isPinned,
         isLocked: forumTopics.isLocked,
         lastActivityAt: forumTopics.lastActivityAt,
@@ -435,6 +441,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: forumReplies.id,
         content: forumReplies.content,
+        likeCount: forumReplies.likeCount,
         createdAt: forumReplies.createdAt,
         topicId: forumReplies.topicId,
         userId: forumReplies.userId,
@@ -482,6 +489,66 @@ export class DatabaseStorage implements IStorage {
       }
     }
     return unique;
+  }
+
+  async getUserTopicLikes(userId: string): Promise<number[]> {
+    const likes = await db.select({ topicId: forumLikes.topicId })
+      .from(forumLikes)
+      .where(and(eq(forumLikes.userId, userId), isNull(forumLikes.replyId)));
+    return likes.map(l => l.topicId!).filter(Boolean);
+  }
+
+  async getUserReplyLikes(userId: string): Promise<number[]> {
+    const likes = await db.select({ replyId: forumLikes.replyId })
+      .from(forumLikes)
+      .where(and(eq(forumLikes.userId, userId), isNull(forumLikes.topicId)));
+    return likes.map(l => l.replyId!).filter(Boolean);
+  }
+
+  async toggleTopicLike(userId: string, topicId: number): Promise<{ liked: boolean; likeCount: number }> {
+    const existing = await db.select()
+      .from(forumLikes)
+      .where(and(eq(forumLikes.userId, userId), eq(forumLikes.topicId, topicId), isNull(forumLikes.replyId)))
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db.delete(forumLikes).where(eq(forumLikes.id, existing[0].id));
+      const [updated] = await db.update(forumTopics)
+        .set({ likeCount: sql`GREATEST(${forumTopics.likeCount} - 1, 0)` })
+        .where(eq(forumTopics.id, topicId))
+        .returning({ likeCount: forumTopics.likeCount });
+      return { liked: false, likeCount: updated?.likeCount ?? 0 };
+    } else {
+      await db.insert(forumLikes).values({ userId, topicId });
+      const [updated] = await db.update(forumTopics)
+        .set({ likeCount: sql`${forumTopics.likeCount} + 1` })
+        .where(eq(forumTopics.id, topicId))
+        .returning({ likeCount: forumTopics.likeCount });
+      return { liked: true, likeCount: updated?.likeCount ?? 1 };
+    }
+  }
+
+  async toggleReplyLike(userId: string, replyId: number): Promise<{ liked: boolean; likeCount: number }> {
+    const existing = await db.select()
+      .from(forumLikes)
+      .where(and(eq(forumLikes.userId, userId), eq(forumLikes.replyId, replyId), isNull(forumLikes.topicId)))
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db.delete(forumLikes).where(eq(forumLikes.id, existing[0].id));
+      const [updated] = await db.update(forumReplies)
+        .set({ likeCount: sql`GREATEST(${forumReplies.likeCount} - 1, 0)` })
+        .where(eq(forumReplies.id, replyId))
+        .returning({ likeCount: forumReplies.likeCount });
+      return { liked: false, likeCount: updated?.likeCount ?? 0 };
+    } else {
+      await db.insert(forumLikes).values({ userId, replyId });
+      const [updated] = await db.update(forumReplies)
+        .set({ likeCount: sql`${forumReplies.likeCount} + 1` })
+        .where(eq(forumReplies.id, replyId))
+        .returning({ likeCount: forumReplies.likeCount });
+      return { liked: true, likeCount: updated?.likeCount ?? 1 };
+    }
   }
 
   // ─── TENDER SYSTEM ─────────────────────────────────────────────────────────

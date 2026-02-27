@@ -129,6 +129,7 @@ export const forumTopics = pgTable("forum_topics", {
   isAnonymous: boolean("is_anonymous").notNull().default(false),
   viewCount: integer("view_count").notNull().default(0),
   replyCount: integer("reply_count").notNull().default(0),
+  likeCount: integer("like_count").notNull().default(0),
   isPinned: boolean("is_pinned").notNull().default(false),
   isLocked: boolean("is_locked").notNull().default(false),
   lastActivityAt: timestamp("last_activity_at").defaultNow(),
@@ -146,6 +147,7 @@ export const forumReplies = pgTable("forum_replies", {
   topicId: integer("topic_id").notNull().references(() => forumTopics.id),
   userId: varchar("user_id").notNull().references(() => users.id),
   content: text("content").notNull(),
+  likeCount: integer("like_count").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -153,6 +155,14 @@ export const forumReplyRelations = relations(forumReplies, ({ one }) => ({
   topic: one(forumTopics, { fields: [forumReplies.topicId], references: [forumTopics.id] }),
   user: one(users, { fields: [forumReplies.userId], references: [users.id] }),
 }));
+
+export const forumLikes = pgTable("forum_likes", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  topicId: integer("topic_id").references(() => forumTopics.id),
+  replyId: integer("reply_id").references(() => forumReplies.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
 export const insertVesselSchema = createInsertSchema(vessels).omit({ id: true, createdAt: true });
 export const insertPortSchema = createInsertSchema(ports).omit({ id: true, createdAt: true });
@@ -172,8 +182,8 @@ export type InsertProforma = z.infer<typeof insertProformaSchema>;
 export type Proforma = typeof proformas.$inferSelect;
 
 export const insertForumCategorySchema = createInsertSchema(forumCategories).omit({ id: true, createdAt: true });
-export const insertForumTopicSchema = createInsertSchema(forumTopics).omit({ id: true, createdAt: true, lastActivityAt: true, viewCount: true, replyCount: true, isPinned: true, isLocked: true });
-export const insertForumReplySchema = createInsertSchema(forumReplies).omit({ id: true, createdAt: true });
+export const insertForumTopicSchema = createInsertSchema(forumTopics).omit({ id: true, createdAt: true, lastActivityAt: true, viewCount: true, replyCount: true, likeCount: true, isPinned: true, isLocked: true });
+export const insertForumReplySchema = createInsertSchema(forumReplies).omit({ id: true, createdAt: true, likeCount: true });
 
 export type InsertForumCategory = z.infer<typeof insertForumCategorySchema>;
 export type ForumCategory = typeof forumCategories.$inferSelect;
@@ -181,6 +191,7 @@ export type InsertForumTopic = z.infer<typeof insertForumTopicSchema>;
 export type ForumTopic = typeof forumTopics.$inferSelect;
 export type InsertForumReply = z.infer<typeof insertForumReplySchema>;
 export type ForumReply = typeof forumReplies.$inferSelect;
+export type ForumLike = typeof forumLikes.$inferSelect;
 
 // ─── PORT CALL TENDER SYSTEM ─────────────────────────────────────────────────
 

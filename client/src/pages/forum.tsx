@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { MessageSquare, Eye, Clock, Plus, Search, Pin, Lock, Trash2, TrendingUp, Flame, Menu, X } from "lucide-react";
+import { MessageSquare, Eye, Clock, Plus, Search, Pin, Lock, Trash2, TrendingUp, Flame, Menu, X, Heart } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,7 @@ interface ForumTopicListItem {
   isAnonymous: boolean;
   viewCount: number;
   replyCount: number;
+  likeCount: number;
   isPinned: boolean;
   isLocked: boolean;
   lastActivityAt: string | null;
@@ -54,6 +55,11 @@ interface ForumTopicListItem {
   authorLastName: string | null;
   authorImage: string | null;
   participants: TopicParticipant[];
+}
+
+interface MyLikes {
+  topicIds: number[];
+  replyIds: number[];
 }
 
 function timeAgo(timestamp: string | null): string {
@@ -99,6 +105,8 @@ export default function Forum() {
   const [newCategoryId, setNewCategoryId] = useState("");
   const [newIsAnonymous, setNewIsAnonymous] = useState(false);
   const [deleteTopicId, setDeleteTopicId] = useState<number | null>(null);
+  // Optimistic like state: topicId → { liked, count }
+  const [localLikes, setLocalLikes] = useState<Record<number, { liked: boolean; count: number }>>({});
 
   const setActiveTab = useCallback((v: string) => {
     setActiveTabState(v);
@@ -137,6 +145,61 @@ export default function Forum() {
       return res.json();
     },
   });
+
+  const { data: myLikes } = useQuery<MyLikes>({
+    queryKey: ["/api/forum/my-likes"],
+    enabled: !!user,
+    queryFn: async () => {
+      const res = await fetch("/api/forum/my-likes", { credentials: "include" });
+      if (!res.ok) return { topicIds: [], replyIds: [] };
+      return res.json();
+    },
+  });
+
+  // Sync server likes into local state
+  useEffect(() => {
+    if (!myLikes || !topics) return;
+    const likedSet = new Set(myLikes.topicIds);
+    const newLocal: Record<number, { liked: boolean; count: number }> = {};
+    for (const t of topics) {
+      newLocal[t.id] = {
+        liked: likedSet.has(t.id),
+        count: t.likeCount ?? 0,
+      };
+    }
+    setLocalLikes(newLocal);
+  }, [myLikes, topics]);
+
+  const likeMutation = useMutation({
+    mutationFn: async (topicId: number) => {
+      const res = await apiRequest("POST", `/api/forum/topics/${topicId}/like`);
+      return res.json();
+    },
+    onSuccess: (data: { liked: boolean; likeCount: number }, topicId: number) => {
+      setLocalLikes(prev => ({ ...prev, [topicId]: { liked: data.liked, count: data.likeCount } }));
+      queryClient.invalidateQueries({ queryKey: ["/api/forum/my-likes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/forum/topics"] });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Could not update like.", variant: "destructive" });
+    },
+  });
+
+  const handleLike = (e: React.MouseEvent, topicId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) {
+      toast({ title: "Sign in required", description: "Log in to like topics." });
+      return;
+    }
+    // Optimistic update
+    const current = localLikes[topicId] ?? { liked: false, count: 0 };
+    setLocalLikes(prev => ({
+      ...prev,
+      [topicId]: { liked: !current.liked, count: current.liked ? current.count - 1 : current.count + 1 },
+    }));
+    likeMutation.mutate(topicId);
+  };
 
   const createTopicMutation = useMutation({
     mutationFn: async (data: { title: string; content: string; categoryId: number; isAnonymous: boolean }) => {
@@ -216,15 +279,15 @@ export default function Forum() {
               <a href="/forum" className="text-sm font-medium text-foreground transition-colors" data-testid="link-nav-forum">Forum</a>
             </div>
             <div className="hidden md:flex items-center gap-2">
-              <a href="/api/login">
+              <a href="/login">
                 <Button variant="outline" data-testid="button-forum-login">Log in</Button>
               </a>
-              <a href="/api/login">
+              <a href="/register">
                 <Button data-testid="button-forum-signup">Sign up</Button>
               </a>
             </div>
             <div className="flex md:hidden items-center gap-2">
-              <a href="/api/login">
+              <a href="/register">
                 <Button size="sm" data-testid="button-forum-signup-mobile">Sign up</Button>
               </a>
               <button
@@ -253,7 +316,7 @@ export default function Forum() {
                   >{item.label}</a>
                 ))}
                 <div className="pt-2 border-t border-border mt-1">
-                  <a href="/api/login" className="block">
+                  <a href="/login" className="block">
                     <Button variant="outline" className="w-full mb-2" size="sm">Log in</Button>
                   </a>
                 </div>
@@ -281,7 +344,7 @@ export default function Forum() {
                 <Plus className="w-4 h-4" /> New Topic
               </Button>
             ) : (
-              <a href="/api/login">
+              <a href="/login">
                 <Button variant="outline" className="gap-2 flex-shrink-0" data-testid="button-login-to-post">
                   <Plus className="w-4 h-4" /> Start Topic
                 </Button>
@@ -332,7 +395,7 @@ export default function Forum() {
           </div>
         </div>
 
-        {/* Category pills — single source of truth */}
+        {/* Category pills */}
         <div
           ref={pillsRef}
           className="flex items-center gap-2 overflow-x-auto pb-3 mb-5 scrollbar-hide"
@@ -424,7 +487,7 @@ export default function Forum() {
               <MessageSquare className="w-4 h-4 text-muted-foreground" />
             </div>
             <span className="flex-1 text-sm text-muted-foreground">Sign in to post or reply</span>
-            <a href="/api/login">
+            <a href="/login">
               <Button size="sm" variant="outline" className="flex-shrink-0" data-testid="button-login-compose">Sign in</Button>
             </a>
           </div>
@@ -456,7 +519,7 @@ export default function Forum() {
                 {activeCategoryObj ? `${activeCategoryObj.name} — Start Topic` : "Start Topic"}
               </Button>
             ) : (
-              <a href="/api/login">
+              <a href="/login">
                 <Button variant="outline" className="gap-2 mx-auto" data-testid="button-login-empty">
                   <Plus className="w-4 h-4" /> Sign in to join the discussion
                 </Button>
@@ -465,171 +528,181 @@ export default function Forum() {
           </Card>
         ) : (
           <div className="space-y-2">
-            {filteredTopics.map(topic => (
-              <Link key={topic.id} href={`/forum/${topic.id}`} data-testid={`link-topic-${topic.id}`}>
-                <div
-                  className="group flex gap-3 sm:gap-4 p-4 rounded-lg border bg-card hover:shadow-sm hover:border-[hsl(var(--maritime-primary)/0.25)] transition-all cursor-pointer"
-                  style={{ borderLeft: `3px solid ${topic.categoryColor}60` }}
-                >
-                  {/* Author avatar */}
-                  <div className="flex-shrink-0 pt-0.5">
-                    {topic.isAnonymous ? (
-                      <Avatar className="w-8 h-8">
-                        <AvatarFallback className="text-xs bg-muted text-muted-foreground">?</AvatarFallback>
-                      </Avatar>
-                    ) : (
-                      <Avatar className="w-8 h-8">
-                        <AvatarImage src={topic.authorImage || undefined} />
-                        <AvatarFallback className="text-xs bg-[hsl(var(--maritime-primary))] text-white">
-                          {(topic.authorFirstName?.[0] || "") + (topic.authorLastName?.[0] || "")}
-                        </AvatarFallback>
-                      </Avatar>
-                    )}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-1.5">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                          {topic.isPinned && <Pin className="w-3 h-3 text-[hsl(var(--maritime-primary))] flex-shrink-0" />}
-                          {topic.isLocked && <Lock className="w-3 h-3 text-muted-foreground flex-shrink-0" />}
-                          <span className="font-semibold text-sm leading-snug line-clamp-2" data-testid={`text-topic-title-${topic.id}`}>
-                            {topic.title}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] px-1.5 py-0 h-4 gap-1 flex-shrink-0"
-                            style={{ borderColor: topic.categoryColor + "50", color: topic.categoryColor }}
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: topic.categoryColor }} />
-                            {topic.categoryName}
-                          </Badge>
-                          <span className="text-[11px] text-muted-foreground">
-                            {topic.isAnonymous ? "Anonymous" : [topic.authorFirstName, topic.authorLastName].filter(Boolean).join(" ") || "User"}
-                          </span>
-                          <span className="text-[11px] text-muted-foreground">·</span>
-                          <span className="text-[11px] text-muted-foreground">{timeAgo(topic.lastActivityAt)}</span>
-                        </div>
-                      </div>
-
-                      {/* Delete button (desktop hover) */}
-                      {user && (user.id === topic.userId || (user as any).userRole === "admin") && (
-                        <button
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTopicId(topic.id); }}
-                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all flex-shrink-0"
-                          data-testid={`button-delete-topic-${topic.id}`}
-                          title="Delete topic"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+            {filteredTopics.map(topic => {
+              const likeState = localLikes[topic.id] ?? { liked: false, count: topic.likeCount ?? 0 };
+              return (
+                <Link key={topic.id} href={`/forum/${topic.id}`} data-testid={`link-topic-${topic.id}`}>
+                  <div
+                    className="group flex gap-3 sm:gap-4 p-4 rounded-lg border bg-card hover:shadow-sm hover:border-[hsl(var(--maritime-primary)/0.25)] transition-all cursor-pointer"
+                    style={{ borderLeft: `3px solid ${topic.categoryColor}60` }}
+                  >
+                    {/* Author avatar */}
+                    <div className="flex-shrink-0 pt-0.5">
+                      {topic.isAnonymous ? (
+                        <Avatar className="w-8 h-8">
+                          <AvatarFallback className="text-xs bg-muted text-muted-foreground">?</AvatarFallback>
+                        </Avatar>
+                      ) : (
+                        <Avatar className="w-8 h-8">
+                          <AvatarImage src={topic.authorImage || undefined} />
+                          <AvatarFallback className="text-xs bg-[hsl(var(--maritime-primary))] text-white">
+                            {(topic.authorFirstName?.[0] || "") + (topic.authorLastName?.[0] || "")}
+                          </AvatarFallback>
+                        </Avatar>
                       )}
                     </div>
 
-                    {/* Stats row */}
-                    <div className="flex items-center gap-3 mt-1.5">
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <MessageSquare className="w-3 h-3" />
-                        <span data-testid={`text-reply-count-${topic.id}`}>{topic.replyCount}</span>
-                        <span className="hidden sm:inline">replies</span>
-                      </span>
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Eye className="w-3 h-3" />
-                        <span data-testid={`text-view-count-${topic.id}`}>{topic.viewCount}</span>
-                      </span>
-                      {topic.participants && topic.participants.length > 0 && (
-                        <div className="flex items-center gap-1">
-                          <div className="flex -space-x-1.5">
-                            {topic.participants.slice(0, 4).map((p, i) => (
-                              <Avatar key={i} className="w-5 h-5 border-2 border-background">
-                                <AvatarImage src={p.profileImageUrl || undefined} />
-                                <AvatarFallback className="text-[8px] bg-muted">
-                                  {(p.firstName?.[0] || "") + (p.lastName?.[0] || "")}
-                                </AvatarFallback>
-                              </Avatar>
-                            ))}
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                            {topic.isPinned && <Pin className="w-3 h-3 text-[hsl(var(--maritime-primary))] flex-shrink-0" />}
+                            {topic.isLocked && <Lock className="w-3 h-3 text-muted-foreground flex-shrink-0" />}
+                            <span className="font-semibold text-sm leading-snug line-clamp-2" data-testid={`text-topic-title-${topic.id}`}>
+                              {topic.title}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] px-1.5 py-0 h-4 gap-1 flex-shrink-0"
+                              style={{ borderColor: topic.categoryColor + "50", color: topic.categoryColor }}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: topic.categoryColor }} />
+                              {topic.categoryName}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {topic.isAnonymous ? "Anonymous" : `${topic.authorFirstName || ""} ${topic.authorLastName || ""}`.trim()}
+                            </span>
+                            <span className="text-xs text-muted-foreground hidden sm:inline">{timeAgo(topic.lastActivityAt)}</span>
                           </div>
                         </div>
-                      )}
+
+                        {/* Delete button (desktop hover) */}
+                        {user && (user.id === topic.userId || (user as any).userRole === "admin") && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setDeleteTopicId(topic.id);
+                            }}
+                            className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-destructive/10 hover:text-destructive text-muted-foreground"
+                            data-testid={`button-delete-topic-${topic.id}`}
+                            title="Delete topic"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Stats row */}
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {/* Like button */}
+                        <button
+                          onClick={(e) => handleLike(e, topic.id)}
+                          className={`flex items-center gap-1 text-xs transition-colors rounded-md px-1.5 py-0.5 -ml-1.5 ${
+                            likeState.liked
+                              ? "text-rose-500 hover:text-rose-600"
+                              : "text-muted-foreground hover:text-rose-500"
+                          }`}
+                          data-testid={`button-like-topic-${topic.id}`}
+                          title={likeState.liked ? "Unlike" : "Like"}
+                        >
+                          <Heart
+                            className={`w-3.5 h-3.5 transition-all ${likeState.liked ? "fill-current" : ""}`}
+                          />
+                          {likeState.count > 0 && <span className="font-medium">{likeState.count}</span>}
+                        </button>
+
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          {topic.replyCount}
+                        </span>
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Eye className="w-3.5 h-3.5" />
+                          {topic.viewCount}
+                        </span>
+                        <span className="text-xs text-muted-foreground sm:hidden">{timeAgo(topic.lastActivityAt)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* New topic dialog */}
+      {/* New Topic Dialog */}
       <Dialog open={showNewTopic} onOpenChange={setShowNewTopic}>
-        <DialogContent className="max-w-lg" data-testid="dialog-new-topic">
+        <DialogContent className="sm:max-w-[560px]">
           <DialogHeader>
-            <DialogTitle>New Discussion Topic</DialogTitle>
+            <DialogTitle>Start a New Discussion</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>Title <span className="text-destructive">*</span></Label>
-              <Input
-                placeholder="What would you like to discuss?"
-                value={newTitle}
-                onChange={e => setNewTitle(e.target.value)}
-                data-testid="input-topic-title"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Category <span className="text-destructive">*</span></Label>
+              <Label htmlFor="topic-category">Category</Label>
               <Select value={newCategoryId} onValueChange={setNewCategoryId}>
-                <SelectTrigger data-testid="select-topic-category">
-                  <SelectValue placeholder="Select category" />
+                <SelectTrigger id="topic-category" data-testid="select-topic-category">
+                  <SelectValue placeholder="Select a category..." />
                 </SelectTrigger>
                 <SelectContent>
                   {categories?.map(cat => (
-                    <SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>
+                    <SelectItem key={cat.id} value={String(cat.id)}>
+                      {cat.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Content <span className="text-destructive">*</span></Label>
+              <Label htmlFor="topic-title">Title</Label>
+              <Input
+                id="topic-title"
+                placeholder="What would you like to discuss?"
+                value={newTitle}
+                onChange={e => setNewTitle(e.target.value)}
+                data-testid="input-new-topic-title"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="topic-content">Content</Label>
               <Textarea
+                id="topic-content"
                 placeholder="Share your thoughts, questions, or insights..."
-                rows={5}
                 value={newContent}
                 onChange={e => setNewContent(e.target.value)}
-                data-testid="input-topic-content"
+                rows={5}
+                data-testid="input-new-topic-content"
               />
             </div>
-            <div className="flex items-start gap-2.5">
+            <div className="flex items-center gap-2">
               <Checkbox
-                id="anon-check"
+                id="anonymous"
                 checked={newIsAnonymous}
-                onCheckedChange={v => setNewIsAnonymous(!!v)}
+                onCheckedChange={(v) => setNewIsAnonymous(!!v)}
                 data-testid="checkbox-anonymous"
               />
-              <div>
-                <label htmlFor="anon-check" className="text-sm font-medium cursor-pointer">Post anonymously</label>
-                <p className="text-xs text-muted-foreground mt-0.5">Your name is hidden, only the content is shown. Replies are always named.</p>
-              </div>
+              <Label htmlFor="anonymous" className="text-sm font-normal cursor-pointer">Post anonymously</Label>
             </div>
           </div>
-          <DialogFooter className="gap-2">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setShowNewTopic(false)} data-testid="button-cancel-new-topic">Cancel</Button>
             <Button
               onClick={handleCreateTopic}
-              disabled={createTopicMutation.isPending || !newTitle.trim() || !newContent.trim() || !newCategoryId}
+              disabled={!newTitle.trim() || !newContent.trim() || !newCategoryId || createTopicMutation.isPending}
               data-testid="button-submit-new-topic"
             >
-              {createTopicMutation.isPending ? "Publishing..." : "Publish Topic"}
+              {createTopicMutation.isPending ? "Publishing..." : "Publish"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirmation */}
-      <AlertDialog open={deleteTopicId !== null} onOpenChange={(o) => !o && setDeleteTopicId(null)}>
-        <AlertDialogContent data-testid="dialog-delete-topic">
+      {/* Delete Confirm */}
+      <AlertDialog open={!!deleteTopicId} onOpenChange={() => setDeleteTopicId(null)}>
+        <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this topic?</AlertDialogTitle>
             <AlertDialogDescription>
