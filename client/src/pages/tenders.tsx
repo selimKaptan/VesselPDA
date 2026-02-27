@@ -44,7 +44,7 @@ function useCountdown(createdAt: string, expiryHours: number) {
   return { remaining, expired };
 }
 
-function TenderCard({ tender, role, myBidStatus }: { tender: any; role: string; myBidStatus?: string }) {
+function TenderCard({ tender, role, myBidStatus, isOwnTender }: { tender: any; role: string; myBidStatus?: string; isOwnTender?: boolean }) {
   const [, navigate] = useLocation();
   const { remaining, expired } = useCountdown(tender.createdAt, tender.expiryHours);
 
@@ -89,6 +89,9 @@ function TenderCard({ tender, role, myBidStatus }: { tender: any; role: string; 
                 </span>
               )}
               <Badge className={`text-[10px] border-0 ${statusColor}`}>{statusLabel}</Badge>
+              {isOwnTender && (
+                <Badge className="text-[10px] border-0 bg-amber-100 text-amber-700">Your Tender</Badge>
+              )}
               {myBidStatus && (
                 <div className="flex items-center gap-1">
                   {bidStatusIcon}
@@ -467,11 +470,12 @@ function CreateTenderDialog() {
 }
 
 export default function TendersPage() {
-  const { data, isLoading } = useQuery<{ role: string; tenders: any[] }>({ queryKey: ["/api/tenders"] });
+  const { data, isLoading } = useQuery<{ role: string; tenders: any[]; ownUserId?: string }>({ queryKey: ["/api/tenders"] });
   const { data: myBids } = useQuery<any[]>({ queryKey: ["/api/tenders/my-bids"] });
 
   const role = data?.role || "shipowner";
   const tenders = data?.tenders || [];
+  const ownUserId = data?.ownUserId;
 
   const openTenders = tenders.filter(t => t.status === "open");
   const closedTenders = tenders.filter(t => t.status !== "open");
@@ -525,7 +529,7 @@ export default function TendersPage() {
               <EmptyState icon={Inbox} title="No open tenders" desc="New tenders for the ports you serve will appear here." />
             ) : (
               openTenders.map(t => (
-                <TenderCard key={t.id} tender={t} role="agent" myBidStatus={getMyBidStatus(t.id)} />
+                <TenderCard key={t.id} tender={t} role="agent" myBidStatus={getMyBidStatus(t.id)} isOwnTender={ownUserId ? t.userId === ownUserId : false} />
               ))
             )}
           </TabsContent>

@@ -1058,10 +1058,9 @@ export async function registerRoutes(
 
       if (effectiveRole === "agent") {
         if (isAdminUser) {
-          // Admin in agent view: show all open tenders EXCEPT own tenders
+          // Admin in agent view: show ALL open tenders (own tenders shown but can't bid on them)
           const allOpen = await storage.getPortTenders({ status: "open" });
-          const othersOpen = allOpen.filter(t => t.userId !== userId);
-          return res.json({ role: "agent", tenders: othersOpen });
+          return res.json({ role: "agent", tenders: allOpen, ownUserId: userId });
         }
         const profile = await storage.getCompanyProfileByUser(userId);
         const servedPorts = (profile?.servedPorts as number[]) || [];

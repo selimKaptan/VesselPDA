@@ -593,6 +593,21 @@ export default function TenderDetailPage() {
         </Card>
       )}
 
+      {/* Agent mode viewing own tender: explain why bid isn't available */}
+      {isOwner && effectiveRole === "agent" && (
+        <Card className="p-5 border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-semibold text-amber-800 dark:text-amber-400 text-sm">You created this tender</p>
+              <p className="text-sm text-amber-700 dark:text-amber-500 mt-0.5">
+                This tender was created from your Shipowner account. Switch to <strong>Shipowner mode</strong> from the sidebar to view and manage the incoming bids.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Agent: submit bid or show my bid */}
       {!isOwner && (
         <div>
