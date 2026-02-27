@@ -590,7 +590,7 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Not authorized" });
       }
       const updated = await storage.updateUserRole(userId, "admin");
-      await storage.updateActiveRole(userId, "agent");
+      await storage.updateActiveRole(userId, "admin");
       res.json({ success: true, userRole: updated?.userRole });
     } catch (error) {
       res.status(500).json({ message: "Bootstrap failed" });
@@ -604,8 +604,8 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Admin access required" });
       }
       const { activeRole } = req.body;
-      if (!["shipowner", "agent", "provider"].includes(activeRole)) {
-        return res.status(400).json({ message: "Invalid role. Choose: shipowner, agent, or provider" });
+      if (!["shipowner", "agent", "provider", "admin"].includes(activeRole)) {
+        return res.status(400).json({ message: "Invalid role. Choose: shipowner, agent, provider, or admin" });
       }
       const updated = await storage.updateActiveRole(userId, activeRole);
       res.json(updated);
