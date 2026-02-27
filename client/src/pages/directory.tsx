@@ -12,6 +12,37 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import type { CompanyProfile, Port } from "@shared/schema";
 
+const CITY_CODE_NAMES: Record<string, string> = {
+  ALA: "Alanya", ALI: "Aliağa", AMA: "Amasra", AMB: "Ambarlı (İstanbul)",
+  ANA: "Anamur", AYT: "Antalya", AYV: "Ayvalık", BDM: "Bodrum",
+  BTN: "Bartın", BXN: "Bandırma", BZC: "Bartın (Çaycuma)", CES: "Çeşme",
+  CKZ: "Çanakkale", DAT: "Datça", DIK: "Dikili", EDO: "Erdek",
+  ENE: "Enez", ERE: "Ereğli (Zonguldak)", ERK: "Erdemli", FAS: "Fasa",
+  FET: "Fethiye", FIN: "Fındıklı", FOC: "Foça", GCA: "Geyikli",
+  GCK: "Gebze (Kocaeli)", GEL: "Gelibolu", GEM: "Gemlik", GIR: "Giresun",
+  GOR: "Görele", GUL: "Güllük", HOP: "Hopa", IGN: "İğneada",
+  INE: "İnebolu", ISK: "İskenderun", IST: "İstanbul", IZM: "İzmit",
+  IZT: "İzmit (Tersaneler)", KAS: "Kaş", KMR: "Karamürsel", KRB: "Karabiga",
+  KRT: "Karataş (Adana)", KUS: "Kuşadası", MER: "Mersin", MRA: "Marmara Adası",
+  MRM: "Marmaris", MUD: "Mudanya", ORD: "Ordu", RIZ: "Rize",
+  SIC: "Sinop", SIL: "Silopi", SSX: "Samsun", SUR: "Sürmene",
+  TAS: "Taşucu", TEK: "Tekirdağ", TIR: "Tire (İzmir)", TZX: "Trabzon",
+  UNY: "Ünye", YAL: "Yalova", ZON: "Zonguldak",
+  "092": "Tuzla (Tersaneler Bölgesi)", "01M": "Ceyhan (Adana)",
+  "039": "Karasu (Sakarya)", "027": "Cide", "002": "Kefken", "003": "Seyhan",
+};
+
+function getPortCityCode(code: string): string {
+  if (!code) return "OTHER";
+  const withoutTr = code.startsWith("TR") ? code.substring(2) : code;
+  const dashIdx = withoutTr.indexOf("-");
+  return dashIdx !== -1 ? withoutTr.substring(0, dashIdx) : withoutTr;
+}
+
+function getCityName(cityCode: string): string {
+  return CITY_CODE_NAMES[cityCode] ?? cityCode;
+}
+
 const SERVICE_CATEGORIES = [
   "Ship Agency", "Port Agency", "Husbandry Agency", "Protective Agency",
   "Ship Chandler", "Bunker Supply", "Provisions", "Technical Supply",
@@ -25,9 +56,10 @@ export default function Directory() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [countryFilter, setCountryFilter] = useState("all");
+  const [cityFilter, setCityFilter] = useState("all");
   const [portFilter, setPortFilter] = useState("");
   const [serviceFilter, setServiceFilter] = useState("");
-  const [portSearch, setPortSearch] = useState("");
   const [showAllServices, setShowAllServices] = useState(false);
 
   const buildUrl = () => {
@@ -75,9 +107,22 @@ export default function Directory() {
   const regular = filtered?.filter(p => !p.isFeatured) || [];
   const allResults = [...featured, ...regular];
 
-  const filteredPorts = ports?.filter(p =>
-    p.name.toLowerCase().includes(portSearch.toLowerCase())
-  ).slice(0, 50);
+  // Hierarchical port filter derived data
+  const availableCountries = ports
+    ? [...new Set(ports.map(p => p.country).filter(Boolean))].sort()
+    : [];
+
+  const portsInCountry = countryFilter === "all"
+    ? (ports || [])
+    : (ports || []).filter(p => p.country === countryFilter);
+
+  const availableCities = [...new Set(portsInCountry.map(p => getPortCityCode(p.code || "")))]
+    .filter(c => c !== "OTHER")
+    .sort((a, b) => getCityName(a).localeCompare(getCityName(b)));
+
+  const portsInCity = cityFilter === "all"
+    ? portsInCountry
+    : portsInCountry.filter(p => getPortCityCode(p.code || "") === cityFilter);
 
   const sortedAlphabetically = [...SERVICE_CATEGORIES].sort((a, b) => a.localeCompare(b));
   const sortedByPopularity = [...SERVICE_CATEGORIES]
@@ -183,37 +228,82 @@ export default function Directory() {
 
               <Separator />
 
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Port(s)</label>
-                <Input
-                  placeholder="Search port(s)"
-                  value={portSearch}
-                  onChange={(e) => setPortSearch(e.target.value)}
-                  className="text-sm"
-                  data-testid="input-port-search-sidebar"
-                />
-                {portSearch && filteredPorts && filteredPorts.length > 0 && (
-                  <div className="max-h-40 overflow-y-auto border rounded-md divide-y text-sm">
-                    {filteredPorts.map(port => (
-                      <button
-                        key={port.id}
-                        className={`w-full text-left px-3 py-2 hover:bg-muted/50 transition-colors text-sm ${portFilter === String(port.id) ? "bg-[hsl(var(--maritime-primary)/0.1)] font-medium" : ""}`}
-                        onClick={() => { setPortFilter(String(port.id)); setPortSearch(""); }}
-                        data-testid={`port-filter-${port.id}`}
-                      >
-                        {port.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {portFilter && portFilter !== "all" && (
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="secondary" className="text-xs gap-1">
-                      <MapPin className="w-3 h-3" />
-                      {getPortName(parseInt(portFilter))}
-                      <button onClick={() => setPortFilter("")} className="ml-1 hover:text-destructive">&times;</button>
-                    </Badge>
-                  </div>
+              <div className="space-y-3">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Location</label>
+
+                {/* Step 1: Country */}
+                <div className="space-y-1">
+                  <span className="text-[11px] text-muted-foreground">Country</span>
+                  <Select
+                    value={countryFilter}
+                    onValueChange={(v) => { setCountryFilter(v); setCityFilter("all"); setPortFilter(""); }}
+                    data-testid="select-country-filter"
+                  >
+                    <SelectTrigger className="w-full text-sm h-8" data-testid="select-country-filter-trigger">
+                      <SelectValue placeholder="All countries" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Countries</SelectItem>
+                      {availableCountries.map(c => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Step 2: City */}
+                <div className="space-y-1">
+                  <span className="text-[11px] text-muted-foreground">City</span>
+                  <Select
+                    value={cityFilter}
+                    onValueChange={(v) => { setCityFilter(v); setPortFilter(""); }}
+                    disabled={countryFilter === "all"}
+                    data-testid="select-city-filter"
+                  >
+                    <SelectTrigger className="w-full text-sm h-8" data-testid="select-city-filter-trigger">
+                      <SelectValue placeholder={countryFilter === "all" ? "Select country first" : "All cities"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Cities</SelectItem>
+                      {availableCities.map(code => (
+                        <SelectItem key={code} value={code}>{getCityName(code)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Step 3: Port/Terminal */}
+                <div className="space-y-1">
+                  <span className="text-[11px] text-muted-foreground">Port / Terminal</span>
+                  <Select
+                    value={portFilter || "all"}
+                    onValueChange={(v) => setPortFilter(v === "all" ? "" : v)}
+                    disabled={cityFilter === "all"}
+                    data-testid="select-port-filter"
+                  >
+                    <SelectTrigger className="w-full text-sm h-8" data-testid="select-port-filter-trigger">
+                      <SelectValue placeholder={cityFilter === "all" ? "Select city first" : "All terminals"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Terminals</SelectItem>
+                      {portsInCity.sort((a, b) => a.name.localeCompare(b.name)).map(port => (
+                        <SelectItem key={port.id} value={String(port.id)} data-testid={`port-option-${port.id}`}>
+                          {port.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Active filter badge */}
+                {(portFilter || cityFilter !== "all" || countryFilter !== "all") && (
+                  <button
+                    onClick={() => { setCountryFilter("all"); setCityFilter("all"); setPortFilter(""); }}
+                    className="text-xs text-[hsl(var(--maritime-primary))] hover:underline flex items-center gap-1"
+                    data-testid="button-clear-location-filter"
+                  >
+                    <X className="w-3 h-3" /> Clear location filter
+                  </button>
                 )}
               </div>
             </Card>
