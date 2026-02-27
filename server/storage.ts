@@ -14,10 +14,11 @@ import {
   type AgentReview, type InsertAgentReview,
   type VesselWatchlistItem, type InsertVesselWatchlist,
   type Notification, type InsertNotification,
+  type Feedback, type InsertFeedback,
   vessels, ports, tariffCategories, tariffRates, proformas,
   forumCategories, forumTopics, forumReplies, forumLikes,
   portTenders, tenderBids, agentReviews, vesselWatchlist,
-  notifications,
+  notifications, feedbacks,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
@@ -111,6 +112,9 @@ export interface IStorage {
   getUnreadNotificationCount(userId: string): Promise<number>;
   markNotificationRead(id: number, userId: string): Promise<void>;
   markAllNotificationsRead(userId: string): Promise<void>;
+
+  createFeedback(data: InsertFeedback): Promise<Feedback>;
+  getAllFeedbacks(): Promise<Feedback[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -862,6 +866,15 @@ export class DatabaseStorage implements IStorage {
     await db.update(notifications)
       .set({ isRead: true })
       .where(eq(notifications.userId, userId));
+  }
+
+  async createFeedback(data: InsertFeedback): Promise<Feedback> {
+    const [row] = await db.insert(feedbacks).values(data).returning();
+    return row;
+  }
+
+  async getAllFeedbacks(): Promise<Feedback[]> {
+    return await db.select().from(feedbacks).orderBy(desc(feedbacks.createdAt));
   }
 }
 

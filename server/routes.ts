@@ -1999,5 +1999,29 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/feedback", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { category, message, pageUrl } = req.body;
+      if (!category || !message?.trim()) {
+        return res.status(400).json({ message: "Category and message are required" });
+      }
+      const feedback = await storage.createFeedback({ userId, category, message: message.trim(), pageUrl });
+      res.json(feedback);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to submit feedback" });
+    }
+  });
+
+  app.get("/api/admin/feedback", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const items = await storage.getAllFeedbacks();
+      res.json(items);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch feedback" });
+    }
+  });
+
   return httpServer;
 }

@@ -297,6 +297,18 @@ export type VesselWatchlistItem = typeof vesselWatchlist.$inferSelect;
 
 // ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
 
+export const feedbacks = pgTable("feedbacks", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  category: text("category").notNull(),
+  message: text("message").notNull(),
+  pageUrl: text("page_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertFeedbackSchema = createInsertSchema(feedbacks).omit({ id: true, createdAt: true });
+export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
+export type Feedback = typeof feedbacks.$inferSelect;
+
 export const notifications = pgTable("notifications", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
