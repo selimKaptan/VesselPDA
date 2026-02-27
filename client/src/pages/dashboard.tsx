@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { PageMeta } from "@/components/page-meta";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Vessel, Proforma, CompanyProfile } from "@shared/schema";
 
@@ -137,6 +138,7 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 space-y-7 max-w-7xl mx-auto">
+      <PageMeta title="Dashboard | VesselPDA" description="Your maritime operations dashboard - manage vessels, proformas, and fleet activity." />
 
       {/* Admin Bootstrap — one-time activation for approved admin email */}
       {!isAdmin && bootstrapAdminMutation.isSuccess && (

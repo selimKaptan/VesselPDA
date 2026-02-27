@@ -1,14 +1,18 @@
-import { useQuery } from "@tanstack/react-query";
-import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { User } from "@shared/models/auth";
 import type { Vessel, Proforma, CompanyProfile } from "@shared/schema";
+import { PageMeta } from "@/components/page-meta";
 import {
   BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend
@@ -23,6 +27,7 @@ const ROLE_BADGES: Record<string, string> = {
 
 export default function AdminPanel() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const userRole = (user as any)?.userRole;
   const [searchUsers, setSearchUsers] = useState("");
   const [searchVessels, setSearchVessels] = useState("");
@@ -34,6 +39,33 @@ export default function AdminPanel() {
   const { data: allVessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
   const { data: allProformas, isLoading: proformasLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"] });
   const { data: allProfiles, isLoading: profilesLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/admin/company-profiles"] });
+  const { data: pendingProfiles, isLoading: pendingLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/admin/companies/pending"] });
+
+  const approveMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/admin/companies/${id}/approve`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/companies/pending"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/company-profiles"] });
+      toast({ title: "Approved", description: "Company profile is now visible in the directory." });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to approve.", variant: "destructive" }),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/admin/companies/${id}/reject`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/companies/pending"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/company-profiles"] });
+      toast({ title: "Rejected", description: "Company profile has been removed." });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to reject.", variant: "destructive" }),
+  });
 
   if (userRole !== "admin") {
     return (
@@ -65,6 +97,7 @@ export default function AdminPanel() {
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <PageMeta title="Admin Panel | VesselPDA" description="System administration and management" />
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-950/30 flex items-center justify-center">
           <Shield className="w-5 h-5 text-red-600" />
@@ -126,11 +159,19 @@ export default function AdminPanel() {
       )}
 
       <Tabs defaultValue="users">
-        <TabsList data-testid="admin-tabs">
+        <TabsList data-testid="admin-tabs" className="flex-wrap h-auto gap-1">
           <TabsTrigger value="users" data-testid="tab-users">Users ({allUsers?.length || 0})</TabsTrigger>
           <TabsTrigger value="vessels" data-testid="tab-vessels">Vessels ({allVessels?.length || 0})</TabsTrigger>
           <TabsTrigger value="proformas" data-testid="tab-proformas">Proformas ({allProformas?.length || 0})</TabsTrigger>
           <TabsTrigger value="profiles" data-testid="tab-profiles">Profiles ({allProfiles?.length || 0})</TabsTrigger>
+          <TabsTrigger value="pending" data-testid="tab-pending" className="relative">
+            Pending
+            {(pendingProfiles?.length ?? 0) > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold rounded-full bg-amber-500 text-white">
+                {pendingProfiles!.length}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="analytics" data-testid="tab-analytics">Analytics</TabsTrigger>
         </TabsList>
 
@@ -318,6 +359,78 @@ export default function AdminPanel() {
                 </table>
               </div>
             </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="pending" className="space-y-4" data-testid="tab-content-pending">
+          <div className="flex items-center gap-3 mb-2">
+            <Clock className="w-5 h-5 text-amber-500" />
+            <div>
+              <h3 className="font-semibold">Pending Company Approvals</h3>
+              <p className="text-sm text-muted-foreground">Review and approve or reject new company profile submissions</p>
+            </div>
+          </div>
+          {pendingLoading ? (
+            <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-24" />)}</div>
+          ) : !pendingProfiles?.length ? (
+            <Card className="p-10 text-center border-dashed">
+              <CheckCircle className="w-10 h-10 text-emerald-500 mx-auto mb-3" />
+              <h3 className="font-semibold mb-1">All caught up!</h3>
+              <p className="text-sm text-muted-foreground">No company profiles are waiting for review.</p>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {pendingProfiles.map(p => (
+                <Card key={p.id} className="p-4" data-testid={`card-pending-${p.id}`}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {p.logoUrl ? (
+                        <img src={p.logoUrl} alt={p.companyName} className="w-10 h-10 rounded-lg object-contain border bg-white flex-shrink-0" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                          <Building2 className="w-5 h-5 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="font-semibold truncate" data-testid={`text-pending-name-${p.id}`}>{p.companyName}</p>
+                        <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                          <Badge className={`text-[10px] ${ROLE_BADGES[p.companyType] || ""}`}>{p.companyType}</Badge>
+                          {p.city && <span className="text-xs text-muted-foreground">{p.city}</span>}
+                          {p.email && <span className="text-xs text-muted-foreground">{p.email}</span>}
+                        </div>
+                        {p.description && (
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.description}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Submitted {p.createdAt ? new Date(p.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "recently"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-800 dark:hover:bg-red-950/30"
+                        onClick={() => rejectMutation.mutate(p.id)}
+                        disabled={rejectMutation.isPending || approveMutation.isPending}
+                        data-testid={`button-reject-${p.id}`}
+                      >
+                        <XCircle className="w-3.5 h-3.5" /> Reject
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                        onClick={() => approveMutation.mutate(p.id)}
+                        disabled={approveMutation.isPending || rejectMutation.isPending}
+                        data-testid={`button-approve-${p.id}`}
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" /> Approve
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
           )}
         </TabsContent>
 

@@ -36,6 +36,7 @@ import VerifyEmailPage from "@/pages/verify-email";
 import ForgotPasswordPage from "@/pages/forgot-password";
 import ResetPasswordPage from "@/pages/reset-password";
 import { NotificationBell } from "@/components/notification-bell";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 function AuthenticatedRouter() {
   return (
@@ -82,7 +83,9 @@ function AuthenticatedLayout() {
             </div>
           </header>
           <main className="flex-1 overflow-auto">
-            <AuthenticatedRouter />
+            <ErrorBoundary>
+              <AuthenticatedRouter />
+            </ErrorBoundary>
           </main>
         </div>
       </div>

@@ -599,7 +599,19 @@ export async function registerRoutes(
         country: country || "Turkey",
         servedPorts: servedPorts || [],
         serviceTypes: serviceTypes || [],
+        isApproved: false,
       });
+      // Notify admin about pending company profile
+      const admins = (await storage.getAllUsers()).filter((u: any) => u.userRole === "admin");
+      for (const admin of admins) {
+        await storage.createNotification({
+          userId: admin.id,
+          type: "system",
+          title: "New Company Profile Pending Approval",
+          message: `${companyName} has submitted a company profile and is awaiting approval.`,
+          link: "/admin",
+        });
+      }
       res.json(profile);
     } catch (error) {
       res.status(500).json({ message: "Failed to create company profile" });
@@ -686,6 +698,57 @@ export async function registerRoutes(
       res.json(profiles);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch company profiles" });
+    }
+  });
+
+  app.get("/api/admin/companies/pending", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const profiles = await storage.getPendingCompanyProfiles();
+      res.json(profiles);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch pending company profiles" });
+    }
+  });
+
+  app.post("/api/admin/companies/:id/approve", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const id = parseInt(req.params.id);
+      const profile = await storage.approveCompanyProfile(id);
+      if (!profile) return res.status(404).json({ message: "Profile not found" });
+      // Notify company owner
+      await storage.createNotification({
+        userId: profile.userId,
+        type: "system",
+        title: "Company Profile Approved",
+        message: `Your company profile for ${profile.companyName} has been approved and is now visible in the directory.`,
+        link: "/company-profile",
+      });
+      res.json(profile);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to approve company profile" });
+    }
+  });
+
+  app.delete("/api/admin/companies/:id/reject", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const id = parseInt(req.params.id);
+      const profile = await storage.getCompanyProfile(id);
+      if (!profile) return res.status(404).json({ message: "Profile not found" });
+      await storage.rejectCompanyProfile(id);
+      // Notify company owner
+      await storage.createNotification({
+        userId: profile.userId,
+        type: "system",
+        title: "Company Profile Rejected",
+        message: `Your company profile for ${profile.companyName} was not approved. Please review and resubmit.`,
+        link: "/company-profile",
+      });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to reject company profile" });
     }
   });
 

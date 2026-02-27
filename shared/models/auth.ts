@@ -53,6 +53,7 @@ export const companyProfiles = pgTable("company_profiles", {
   isFeatured: boolean("is_featured").notNull().default(false),
   featuredUntil: timestamp("featured_until"),
   isActive: boolean("is_active").notNull().default(true),
+  isApproved: boolean("is_approved").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

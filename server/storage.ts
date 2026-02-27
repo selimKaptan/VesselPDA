@@ -67,6 +67,9 @@ export interface IStorage {
   updateCompanyProfile(id: number, userId: string, data: Partial<InsertCompanyProfile>): Promise<CompanyProfile | undefined>;
   getPublicCompanyProfiles(filters?: { companyType?: string; portId?: number }): Promise<CompanyProfile[]>;
   getFeaturedCompanyProfiles(): Promise<CompanyProfile[]>;
+  getPendingCompanyProfiles(): Promise<CompanyProfile[]>;
+  approveCompanyProfile(id: number): Promise<CompanyProfile | undefined>;
+  rejectCompanyProfile(id: number): Promise<boolean>;
 
   getForumCategories(): Promise<ForumCategory[]>;
   getForumTopics(options?: { categoryId?: number; sort?: string; limit?: number; offset?: number }): Promise<any[]>;
@@ -318,7 +321,7 @@ export class DatabaseStorage implements IStorage {
 
   async getPublicCompanyProfiles(filters?: { companyType?: string; portId?: number }): Promise<CompanyProfile[]> {
     let results = await db.select().from(companyProfiles)
-      .where(eq(companyProfiles.isActive, true))
+      .where(and(eq(companyProfiles.isActive, true), eq(companyProfiles.isApproved, true)))
       .orderBy(desc(companyProfiles.isFeatured), desc(companyProfiles.createdAt));
 
     if (filters?.companyType && filters.companyType !== "all") {
@@ -331,13 +334,33 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getFeaturedCompanyProfiles(): Promise<CompanyProfile[]> {
-    const now = new Date();
     return db.select().from(companyProfiles)
       .where(and(
         eq(companyProfiles.isActive, true),
         eq(companyProfiles.isFeatured, true),
+        eq(companyProfiles.isApproved, true),
       ))
       .orderBy(desc(companyProfiles.createdAt));
+  }
+
+  async getPendingCompanyProfiles(): Promise<CompanyProfile[]> {
+    return db.select().from(companyProfiles)
+      .where(eq(companyProfiles.isApproved, false))
+      .orderBy(desc(companyProfiles.createdAt));
+  }
+
+  async approveCompanyProfile(id: number): Promise<CompanyProfile | undefined> {
+    const [updated] = await db.update(companyProfiles)
+      .set({ isApproved: true, updatedAt: new Date() })
+      .where(eq(companyProfiles.id, id))
+      .returning();
+    return updated;
+  }
+
+  async rejectCompanyProfile(id: number): Promise<boolean> {
+    const result = await db.delete(companyProfiles)
+      .where(eq(companyProfiles.id, id));
+    return true;
   }
 
   async getForumCategories(): Promise<ForumCategory[]> {

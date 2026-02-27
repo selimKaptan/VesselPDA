@@ -5,6 +5,7 @@ import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Anchor, Ship, Building2, Eye, EyeOff, CheckCircle, Mail } from "lucide-react";
+import { PageMeta } from "@/components/page-meta";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -137,6 +138,8 @@ export default function Register() {
   }
 
   return (
+    <>
+    <PageMeta title="Register | VesselPDA" description="Create your VesselPDA account and join the maritime community." />
     <div
       className="min-h-screen flex items-center justify-center p-4 py-8"
       style={{ background: "linear-gradient(135deg, #001f3f 0%, #003D7A 50%, #0077BE 100%)" }}
@@ -325,5 +328,6 @@ export default function Register() {
         </Card>
       </div>
     </div>
+    </>
   );
 }

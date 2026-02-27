@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { PageMeta } from "@/components/page-meta";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -505,6 +506,7 @@ export default function TendersPage() {
 
   return (
     <div className="flex flex-col gap-6 p-6 max-w-4xl mx-auto">
+      <PageMeta title="Port Call Tenders | VesselPDA" description="Create and manage port call tenders, receive bids from agents worldwide." />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">

@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
+import { PageMeta } from "@/components/page-meta";
 import { useLocation } from "wouter";
 import type { CompanyProfile, Port } from "@shared/schema";
 
@@ -132,6 +133,7 @@ export default function Directory() {
 
   return (
     <div className="min-h-screen bg-background">
+      <PageMeta title="Maritime Directory | VesselPDA" description="Find ship agents, service providers, and maritime companies in Turkey and worldwide." />
       {!user && (
         <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/80 border-b">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">

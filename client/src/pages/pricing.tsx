@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { PageMeta } from "@/components/page-meta";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -66,6 +67,7 @@ export default function Pricing() {
 
   return (
     <div className="p-6 space-y-8 max-w-5xl mx-auto">
+      <PageMeta title="Pricing & Plans | VesselPDA" description="Choose the right plan for your maritime operations. Free, Standard, and Unlimited plans available." />
       <div className="flex items-center gap-4">
         <Link href="/">
           <Button variant="ghost" size="icon" data-testid="button-back">

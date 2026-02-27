@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { PageMeta } from "@/components/page-meta";
 
 interface Reply {
   id: number;
@@ -238,6 +239,10 @@ export default function ForumTopic() {
 
   return (
     <div className="min-h-screen bg-background">
+      <PageMeta
+        title={topic ? `${topic.title} | VesselPDA Forum` : "Topic | VesselPDA Forum"}
+        description={topic?.content?.slice(0, 155)}
+      />
       {!user && (
         <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/80 border-b">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">

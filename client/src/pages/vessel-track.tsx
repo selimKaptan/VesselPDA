@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { PageMeta } from "@/components/page-meta";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { VesselWatchlistItem } from "@shared/schema";
 
@@ -291,6 +292,7 @@ export default function VesselTrack() {
 
   return (
     <div className="flex h-full" style={{ height: "calc(100vh - 56px)" }}>
+      <PageMeta title="Vessel Track | VesselPDA" description="Track live vessel positions in Turkish waters with AIS data." />
 
       {/* Left panel */}
       <div className="w-80 flex-shrink-0 border-r flex flex-col bg-background overflow-hidden" data-testid="panel-vessel-list">

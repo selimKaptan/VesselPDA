@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { PageMeta } from "@/components/page-meta";
 
 interface ForumCategory {
   id: number;
@@ -110,11 +111,15 @@ export default function Forum() {
 
   const setActiveTab = useCallback((v: string) => {
     setActiveTabState(v);
+    setOffset(0);
+    setAllTopics([]);
     setUrlParam("tab", v, "latest");
   }, []);
 
   const setCategoryFilter = useCallback((v: string) => {
     setCategoryFilterState(v);
+    setOffset(0);
+    setAllTopics([]);
     setUrlParam("cat", v, "all");
   }, []);
 
@@ -131,11 +136,18 @@ export default function Forum() {
     queryKey: ["/api/forum/categories"],
   });
 
-  const { data: topics, isLoading } = useQuery<ForumTopicListItem[]>({
-    queryKey: ["/api/forum/topics", activeTab, categoryFilter],
+  const [offset, setOffset] = useState(0);
+  const [allTopics, setAllTopics] = useState<ForumTopicListItem[]>([]);
+  const [hasMore, setHasMore] = useState(true);
+  const PAGE_SIZE = 20;
+
+  const { data: topics, isLoading, isFetching } = useQuery<ForumTopicListItem[]>({
+    queryKey: ["/api/forum/topics", activeTab, categoryFilter, offset],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set("sort", activeTab === "popular" ? "popular" : "latest");
+      params.set("limit", String(PAGE_SIZE));
+      params.set("offset", String(offset));
       if (categoryFilter && categoryFilter !== "all") {
         const cat = categories?.find(c => c.slug === categoryFilter);
         if (cat) params.set("categoryId", String(cat.id));
@@ -144,7 +156,22 @@ export default function Forum() {
       if (!res.ok) throw new Error("Failed to fetch topics");
       return res.json();
     },
+    enabled: !!categories || categoryFilter === "all",
   });
+
+  useEffect(() => {
+    if (!topics) return;
+    if (offset === 0) {
+      setAllTopics(topics);
+    } else {
+      setAllTopics(prev => {
+        const existingIds = new Set(prev.map(t => t.id));
+        const newItems = topics.filter(t => !existingIds.has(t.id));
+        return [...prev, ...newItems];
+      });
+    }
+    setHasMore(topics.length === PAGE_SIZE);
+  }, [topics, offset]);
 
   const { data: myLikes } = useQuery<MyLikes>({
     queryKey: ["/api/forum/my-likes"],
@@ -158,17 +185,21 @@ export default function Forum() {
 
   // Sync server likes into local state
   useEffect(() => {
-    if (!myLikes || !topics) return;
+    if (!myLikes || !allTopics.length) return;
     const likedSet = new Set(myLikes.topicIds);
-    const newLocal: Record<number, { liked: boolean; count: number }> = {};
-    for (const t of topics) {
-      newLocal[t.id] = {
-        liked: likedSet.has(t.id),
-        count: t.likeCount ?? 0,
-      };
-    }
-    setLocalLikes(newLocal);
-  }, [myLikes, topics]);
+    setLocalLikes(prev => {
+      const newLocal: Record<number, { liked: boolean; count: number }> = { ...prev };
+      for (const t of allTopics) {
+        if (!newLocal[t.id]) {
+          newLocal[t.id] = {
+            liked: likedSet.has(t.id),
+            count: t.likeCount ?? 0,
+          };
+        }
+      }
+      return newLocal;
+    });
+  }, [myLikes, allTopics]);
 
   const likeMutation = useMutation({
     mutationFn: async (topicId: number) => {
@@ -207,6 +238,8 @@ export default function Forum() {
       return res.json();
     },
     onSuccess: () => {
+      setOffset(0);
+      setAllTopics([]);
       queryClient.invalidateQueries({ queryKey: ["/api/forum/topics"] });
       queryClient.invalidateQueries({ queryKey: ["/api/forum/categories"] });
       setShowNewTopic(false);
@@ -237,7 +270,7 @@ export default function Forum() {
     },
   });
 
-  const filteredTopics = topics?.filter(t => {
+  const filteredTopics = allTopics.filter(t => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return t.title.toLowerCase().includes(q) || t.categoryName.toLowerCase().includes(q);
@@ -265,6 +298,7 @@ export default function Forum() {
 
   return (
     <div className="min-h-screen bg-background">
+      <PageMeta title="Maritime Forum | VesselPDA" description="Discuss maritime topics with ship agents, shipowners, and service providers worldwide." />
       {!user && (
         <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/80 border-b">
           <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
@@ -411,7 +445,7 @@ export default function Forum() {
             data-testid="pill-category-all"
           >
             All
-            {topics && <span className="ml-1 opacity-70">({topics.length})</span>}
+            {allTopics.length > 0 && <span className="ml-1 opacity-70">({allTopics.length}{hasMore ? "+" : ""})</span>}
           </button>
           {categories?.map(cat => (
             <button
@@ -527,7 +561,8 @@ export default function Forum() {
             )}
           </Card>
         ) : (
-          <div className="space-y-2">
+          <>
+          <div className="space-y-2" data-testid="forum-topic-list">
             {filteredTopics.map(topic => {
               const likeState = localLikes[topic.id] ?? { liked: false, count: topic.likeCount ?? 0 };
               return (
@@ -629,6 +664,19 @@ export default function Forum() {
               );
             })}
           </div>
+          {!searchQuery && hasMore && (
+            <div className="flex justify-center mt-4 pb-2">
+              <Button
+                variant="outline"
+                onClick={() => setOffset(prev => prev + PAGE_SIZE)}
+                disabled={isFetching}
+                data-testid="button-load-more-topics"
+              >
+                {isFetching ? "Loading..." : "Load More Topics"}
+              </Button>
+            </div>
+          )}
+          </>
         )}
       </div>
 

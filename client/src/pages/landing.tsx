@@ -1,5 +1,6 @@
 import { Ship, FileText, BarChart3, Shield, Globe, ArrowRight, Waves, Check, Zap, Crown, Star, Building2, User, Activity, Anchor, Users, Briefcase, MessageSquare, ChevronDown, TrendingUp, MapPin, Lock, CheckCircle2, Menu, X } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
+import { PageMeta } from "@/components/page-meta";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -150,6 +151,7 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-background">
+      <PageMeta title="VesselPDA - Maritime Platform | Proforma Disbursement Accounts" description="Professional proforma disbursement accounts for ship agents. Instant calculations, maritime directory, and port call tenders for the shipping industry." />
       <Dialog open={showWelcome} onOpenChange={(open) => { if (!open) closeWelcome(); }}>
         <DialogContent className="max-w-2xl p-0 overflow-hidden gap-0" data-testid="dialog-welcome">
           <div className="bg-[hsl(var(--maritime-primary))] px-8 py-7 flex items-center gap-4">
