@@ -127,6 +127,72 @@ export async function sendContactEmail(data: ContactEmailData): Promise<boolean>
     }
 
     console.log(`[email] Contact email sent from ${data.email}`);
+
+    // Auto-reply confirmation to the sender
+    try {
+      const confirmHtml = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Message Received — VesselPDA</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:32px 16px">
+        <table width="580" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.12)">
+          <tr>
+            <td style="background:linear-gradient(135deg,#003D7A,#0077BE);padding:28px 32px">
+              <p style="margin:0;color:#fff;font-size:20px;font-weight:700">⚓ VesselPDA</p>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,.8);font-size:14px">Message Confirmation</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px">
+              <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#0f172a">Dear ${data.name},</p>
+              <p style="margin:0 0 16px;color:#334155;font-size:15px;line-height:1.7">
+                Thank you for reaching out to us. We have received your message regarding <strong>"${data.subject}"</strong> and our team will review it shortly.
+              </p>
+              <p style="margin:0 0 24px;color:#334155;font-size:15px;line-height:1.7">
+                We will get back to you as soon as possible. In the meantime, feel free to explore the VesselPDA platform.
+              </p>
+              <div style="background:#f8fafc;border-radius:8px;padding:16px 20px;border-left:3px solid #003D7A;margin-bottom:24px">
+                <p style="margin:0 0 6px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Your message</p>
+                <p style="margin:0;color:#475569;white-space:pre-wrap;font-size:13px;line-height:1.6">${data.message}</p>
+              </div>
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="border-radius:8px;background:#003D7A">
+                    <a href="https://vesselpda.com" style="display:inline-block;padding:12px 24px;color:#fff;font-size:14px;font-weight:600;text-decoration:none">Visit VesselPDA →</a>
+                  </td>
+                </tr>
+              </table>
+              <div style="margin-top:28px;padding-top:16px;border-top:1px solid #e2e8f0">
+                <p style="margin:0;color:#94a3b8;font-size:12px">This is an automated confirmation. Please do not reply to this email — contact us at <a href="mailto:info@vesselpda.com" style="color:#0077BE">info@vesselpda.com</a>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0">
+              <p style="margin:0;color:#94a3b8;font-size:12px">© ${new Date().getFullYear()} VesselPDA · <a href="https://vesselpda.com" style="color:#0077BE;text-decoration:none">vesselpda.com</a></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+      await resend.emails.send({
+        from: `VesselPDA <${creds.fromEmail}>`,
+        to: [data.email],
+        subject: `We received your message — VesselPDA`,
+        html: confirmHtml,
+      });
+      console.log(`[email] Auto-reply sent to ${data.email}`);
+    } catch (replyErr) {
+      console.warn("[email] Auto-reply failed (non-critical):", replyErr);
+    }
+
     return true;
   } catch (err) {
     console.error("[email] Failed to send contact email:", err);
