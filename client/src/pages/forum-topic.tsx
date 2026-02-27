@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useMemo, useEffect } from "react";
 import { Link, useParams, useLocation } from "wouter";
-import { MessageSquare, Eye, ArrowLeft, Clock, Pin, Lock, Send, Trash2, Heart } from "lucide-react";
+import { MessageSquare, Eye, ArrowLeft, Clock, Pin, Lock, Send, Trash2, ThumbsUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -332,22 +332,16 @@ export default function ForumTopic() {
                   <div className="flex items-center gap-2 pt-3 border-t border-border/50">
                     <button
                       onClick={handleLikeTopic}
-                      className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-all ${
+                      className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-all font-medium ${
                         topicLike?.liked
-                          ? "border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:border-rose-800 dark:text-rose-400"
-                          : "border-border text-muted-foreground hover:border-rose-200 hover:text-rose-500 hover:bg-rose-50/50 dark:hover:bg-rose-950/20"
+                          ? "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-400"
+                          : "border-border text-muted-foreground hover:border-blue-200 hover:text-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-950/20"
                       }`}
                       data-testid="button-like-topic-detail"
                     >
-                      <Heart className={`w-4 h-4 transition-all ${topicLike?.liked ? "fill-current" : ""}`} />
-                      <span className="font-medium">
-                        {topicLike?.liked ? "Liked" : "Like"}
-                      </span>
-                      {(topicLike?.count ?? 0) > 0 && (
-                        <span className="ml-0.5 text-xs opacity-80">
-                          · {topicLike!.count}
-                        </span>
-                      )}
+                      <ThumbsUp className="w-4 h-4" />
+                      <span>{topicLike?.liked ? "Unlike" : "Like"}</span>
+                      <span className="text-xs opacity-80">· {topicLike?.count ?? 0}</span>
                     </button>
                     {!user && (
                       <span className="text-xs text-muted-foreground">
@@ -387,16 +381,16 @@ export default function ForumTopic() {
                           {/* Reply like button */}
                           <button
                             onClick={() => handleLikeReply(reply.id)}
-                            className={`flex items-center gap-1 text-xs transition-colors rounded-md px-2 py-1 border ${
+                            className={`flex items-center gap-1.5 text-xs transition-all rounded border px-2 py-1 font-medium ${
                               replyLike.liked
-                                ? "border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:border-rose-800 dark:text-rose-400"
-                                : "border-border text-muted-foreground hover:border-rose-200 hover:text-rose-500 hover:bg-rose-50/50 dark:hover:bg-rose-950/20"
+                                ? "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-400"
+                                : "border-border text-muted-foreground hover:border-blue-200 hover:text-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-950/20"
                             }`}
                             data-testid={`button-like-reply-${reply.id}`}
                           >
-                            <Heart className={`w-3 h-3 ${replyLike.liked ? "fill-current" : ""}`} />
-                            <span>{replyLike.liked ? "Liked" : "Like"}</span>
-                            {replyLike.count > 0 && <span className="ml-0.5 opacity-70">· {replyLike.count}</span>}
+                            <ThumbsUp className="w-3 h-3" />
+                            <span>{replyLike.liked ? "Unlike" : "Like"}</span>
+                            <span className="opacity-70">· {replyLike.count}</span>
                           </button>
                         </div>
                       </div>

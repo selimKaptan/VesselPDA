@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { MessageSquare, Eye, Clock, Plus, Search, Pin, Lock, Trash2, TrendingUp, Flame, Menu, X, Heart } from "lucide-react";
+import { MessageSquare, Eye, Clock, Plus, Search, Pin, Lock, Trash2, TrendingUp, Flame, Menu, X, ThumbsUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -601,18 +601,16 @@ export default function Forum() {
                         {/* Like button */}
                         <button
                           onClick={(e) => handleLike(e, topic.id)}
-                          className={`flex items-center gap-1 text-xs transition-colors rounded-md px-1.5 py-0.5 -ml-1.5 ${
+                          className={`flex items-center gap-1.5 text-xs transition-all rounded border px-2 py-1 -ml-1.5 font-medium ${
                             likeState.liked
-                              ? "text-rose-500 hover:text-rose-600"
-                              : "text-muted-foreground hover:text-rose-500"
+                              ? "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-400"
+                              : "border-border text-muted-foreground hover:border-blue-200 hover:text-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-950/20"
                           }`}
                           data-testid={`button-like-topic-${topic.id}`}
-                          title={likeState.liked ? "Unlike" : "Like"}
                         >
-                          <Heart
-                            className={`w-3.5 h-3.5 transition-all ${likeState.liked ? "fill-current" : ""}`}
-                          />
-                          {likeState.count > 0 && <span className="font-medium">{likeState.count}</span>}
+                          <ThumbsUp className="w-3.5 h-3.5" />
+                          <span>{likeState.liked ? "Unlike" : "Like"}</span>
+                          <span className="opacity-70">· {likeState.count}</span>
                         </button>
 
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
