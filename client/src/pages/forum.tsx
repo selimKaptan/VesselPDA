@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { MessageSquare, Eye, Clock, Plus, Search, Pin, Lock, Trash2, TrendingUp, Flame } from "lucide-react";
+import { MessageSquare, Eye, Clock, Plus, Search, Pin, Lock, Trash2, TrendingUp, Flame, Menu, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,6 +89,7 @@ export default function Forum() {
   const { toast } = useToast();
   const pillsRef = useRef<HTMLDivElement>(null);
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTabState] = useState(() => getUrlParams().get("tab") || "latest");
   const [categoryFilter, setCategoryFilterState] = useState(() => getUrlParams().get("cat") || "all");
   const [searchQuery, setSearchQueryState] = useState(() => getUrlParams().get("q") || "");
@@ -214,7 +215,7 @@ export default function Forum() {
               <a href="/service-ports" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-nav-service-ports">Ports</a>
               <a href="/forum" className="text-sm font-medium text-foreground transition-colors" data-testid="link-nav-forum">Forum</a>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2">
               <a href="/api/login">
                 <Button variant="outline" data-testid="button-forum-login">Log in</Button>
               </a>
@@ -222,7 +223,43 @@ export default function Forum() {
                 <Button data-testid="button-forum-signup">Sign up</Button>
               </a>
             </div>
+            <div className="flex md:hidden items-center gap-2">
+              <a href="/api/login">
+                <Button size="sm" data-testid="button-forum-signup-mobile">Sign up</Button>
+              </a>
+              <button
+                onClick={() => setMobileMenuOpen(o => !o)}
+                className="p-2 rounded-md hover:bg-muted transition-colors"
+                data-testid="button-forum-mobile-menu"
+              >
+                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
+          {mobileMenuOpen && (
+            <div className="md:hidden border-t border-border/60 bg-background/95 backdrop-blur-md" data-testid="forum-mobile-menu">
+              <div className="px-6 py-4 flex flex-col gap-1">
+                {[
+                  { href: "/", label: "Home" },
+                  { href: "/directory", label: "Directory" },
+                  { href: "/service-ports", label: "Service Ports" },
+                  { href: "/forum", label: "Forum" },
+                ].map(item => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="px-3 py-2.5 rounded-md text-sm font-medium hover:bg-muted transition-colors"
+                  >{item.label}</a>
+                ))}
+                <div className="pt-2 border-t border-border mt-1">
+                  <a href="/api/login" className="block">
+                    <Button variant="outline" className="w-full mb-2" size="sm">Log in</Button>
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
         </nav>
       )}
 

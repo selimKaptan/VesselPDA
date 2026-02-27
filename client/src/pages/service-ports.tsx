@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Search, MapPin, Building2, Phone, Mail, Globe, Star, ChevronDown, ChevronUp, Ship, Users, X, ExternalLink, Anchor } from "lucide-react";
+import { Search, MapPin, Building2, Phone, Mail, Globe, Star, ChevronDown, ChevronUp, Ship, Users, X, ExternalLink, Anchor, Menu } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +52,7 @@ interface ServicePortEntry {
 export default function ServicePorts() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedPort, setExpandedPort] = useState<number | null>(null);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
@@ -93,8 +94,9 @@ export default function ServicePorts() {
               <a href="/" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-nav-home">Home</a>
               <a href="/directory" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-nav-directory">Directory</a>
               <a href="/service-ports" className="text-sm font-medium text-foreground transition-colors" data-testid="link-nav-service-ports">Service Ports</a>
+              <a href="/forum" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-nav-forum">Forum</a>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-3">
               <a href="/api/login">
                 <Button variant="outline" data-testid="button-service-ports-login">Log in</Button>
               </a>
@@ -102,7 +104,43 @@ export default function ServicePorts() {
                 <Button data-testid="button-service-ports-signup">Sign up</Button>
               </a>
             </div>
+            <div className="flex md:hidden items-center gap-2">
+              <a href="/api/login">
+                <Button size="sm" data-testid="button-service-ports-signup-mobile">Sign up</Button>
+              </a>
+              <button
+                onClick={() => setMobileMenuOpen(o => !o)}
+                className="p-2 rounded-md hover:bg-muted transition-colors"
+                data-testid="button-service-ports-mobile-menu"
+              >
+                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
+          {mobileMenuOpen && (
+            <div className="md:hidden border-t border-border/60 bg-background/95 backdrop-blur-md" data-testid="service-ports-mobile-menu">
+              <div className="px-6 py-4 flex flex-col gap-1">
+                {[
+                  { href: "/", label: "Home" },
+                  { href: "/directory", label: "Directory" },
+                  { href: "/service-ports", label: "Service Ports" },
+                  { href: "/forum", label: "Forum" },
+                ].map(item => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="px-3 py-2.5 rounded-md text-sm font-medium hover:bg-muted transition-colors"
+                  >{item.label}</a>
+                ))}
+                <div className="pt-2 border-t border-border mt-1">
+                  <a href="/api/login" className="block">
+                    <Button variant="outline" className="w-full mb-2" size="sm">Log in</Button>
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
         </nav>
       )}
 

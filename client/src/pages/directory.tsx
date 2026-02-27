@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Building2, Phone, Mail, Globe, MapPin, Star, Search, Filter, ExternalLink, ArrowRight, ChevronDown, ChevronUp, Ship, Anchor } from "lucide-react";
+import { Building2, Phone, Mail, Globe, MapPin, Star, Search, Filter, ExternalLink, ArrowRight, ChevronDown, ChevronUp, Ship, Anchor, Menu, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ const SERVICE_CATEGORIES = [
 
 export default function Directory() {
   const { user } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [portFilter, setPortFilter] = useState("");
@@ -99,7 +100,7 @@ export default function Directory() {
               <a href="/service-ports" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Service Ports</a>
               <a href="/forum" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Forum</a>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-3">
               <a href="/api/login">
                 <Button variant="outline" data-testid="button-directory-login">Log in</Button>
               </a>
@@ -107,7 +108,43 @@ export default function Directory() {
                 <Button data-testid="button-directory-signup">Sign up</Button>
               </a>
             </div>
+            <div className="flex md:hidden items-center gap-2">
+              <a href="/api/login">
+                <Button size="sm" data-testid="button-directory-signup-mobile">Sign up</Button>
+              </a>
+              <button
+                onClick={() => setMobileMenuOpen(o => !o)}
+                className="p-2 rounded-md hover:bg-muted transition-colors"
+                data-testid="button-directory-mobile-menu"
+              >
+                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
+          {mobileMenuOpen && (
+            <div className="md:hidden border-t border-border/60 bg-background/95 backdrop-blur-md" data-testid="directory-mobile-menu">
+              <div className="px-6 py-4 flex flex-col gap-1">
+                {[
+                  { href: "/", label: "Home" },
+                  { href: "/directory", label: "Directory" },
+                  { href: "/service-ports", label: "Service Ports" },
+                  { href: "/forum", label: "Forum" },
+                ].map(item => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="px-3 py-2.5 rounded-md text-sm font-medium hover:bg-muted transition-colors"
+                  >{item.label}</a>
+                ))}
+                <div className="pt-2 border-t border-border mt-1">
+                  <a href="/api/login" className="block">
+                    <Button variant="outline" className="w-full mb-2" size="sm">Log in</Button>
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
         </nav>
       )}
 
