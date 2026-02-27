@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { useState } from "react";
-import { Building2, Phone, Mail, Globe, MapPin, Star, Ship, Anchor, ArrowLeft, MessageSquare } from "lucide-react";
+import { Building2, Phone, Mail, Globe, MapPin, Star, Ship, Anchor, ArrowLeft, MessageSquare, FileText } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -248,13 +248,20 @@ export default function DirectoryProfilePage() {
           </div>
         </div>
 
-        {profile.description && (
-          <>
-            <Separator className="my-4" />
-            <p className="text-sm text-muted-foreground leading-relaxed">{profile.description}</p>
-          </>
-        )}
       </Card>
+
+      {/* Company Description */}
+      {profile.description && (
+        <Card className="overflow-hidden" data-testid="card-company-description">
+          <div className="px-5 py-3 flex items-center gap-2" style={{ background: "linear-gradient(90deg, #003D7A, #0077BE)" }}>
+            <FileText className="w-4 h-4 text-white/80" />
+            <h2 className="text-sm font-bold tracking-wide text-white uppercase">Company Description</h2>
+          </div>
+          <div className="px-5 py-4">
+            <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{profile.description}</p>
+          </div>
+        </Card>
+      )}
 
       {/* Agent Performance Metrics */}
       {profile.companyType === "agent" && agentStats && (agentStats.totalBids > 0 || agentStats.totalReviews > 0) && (
