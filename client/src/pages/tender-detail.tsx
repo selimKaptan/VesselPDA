@@ -166,11 +166,7 @@ function SubmitBidForm({ tenderId, onSuccess }: { tenderId: number; onSuccess: (
       toast({ title: "Missing Field", description: "Please enter a description", variant: "destructive" });
       return;
     }
-    if (!pdfBase64) {
-      toast({ title: "Missing Field", description: "Please upload a PDA file", variant: "destructive" });
-      return;
-    }
-    mutation.mutate({ ...form, proformaPdfBase64: pdfBase64 });
+    mutation.mutate({ ...form, proformaPdfBase64: pdfBase64 || undefined });
   };
 
   return (
@@ -217,7 +213,7 @@ function SubmitBidForm({ tenderId, onSuccess }: { tenderId: number; onSuccess: (
         </div>
 
         <div className="space-y-1.5">
-          <Label>PDA File <span className="text-red-500">*</span> <span className="text-muted-foreground text-xs font-normal">(PDF / JPG, max 5MB)</span></Label>
+          <Label>PDA File <span className="text-muted-foreground text-xs font-normal">(Optional — PDF / JPG, max 5MB)</span></Label>
           <div
             className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${pdfName ? "border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/10" : "hover:bg-muted/30 border-border"}`}
             onClick={() => fileRef.current?.click()}

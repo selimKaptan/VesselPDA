@@ -241,10 +241,10 @@ function CreateTenderDialog() {
 
           {/* PORT SEARCH */}
           <div className="space-y-1.5" ref={portRef}>
-            <Label>Port <span className="text-red-500">*</span></Label>
+            <Label>Destination Port <span className="text-red-500">*</span></Label>
             <div className="relative">
               <Input
-                placeholder="Search port..."
+                placeholder="Search destination port..."
                 value={portSearch}
                 onChange={e => { setPortSearch(e.target.value); setShowPortDropdown(true); setForm(f => ({ ...f, portId: "" })); }}
                 onFocus={() => { if (portSearch) setShowPortDropdown(true); }}

@@ -1000,9 +1000,15 @@ export async function registerRoutes(
       const user = await storage.getUser(userId);
       if (!user) return res.status(401).json({ message: "Unauthorized" });
 
-      const effectiveRole = user.userRole === "admin" ? (user.activeRole || "shipowner") : user.userRole;
+      const isAdminUser = user.userRole === "admin";
+      const effectiveRole = isAdminUser ? (user.activeRole || "shipowner") : user.userRole;
 
       if (effectiveRole === "agent") {
+        if (isAdminUser) {
+          // Admin in agent view: show all open tenders for testing
+          const allOpen = await storage.getPortTenders({ status: "open" });
+          return res.json({ role: "agent", tenders: allOpen });
+        }
         const profile = await storage.getCompanyProfileByUser(userId);
         const servedPorts = (profile?.servedPorts as number[]) || [];
         const tenders = await Promise.all(
@@ -1116,22 +1122,30 @@ export async function registerRoutes(
       const isAdminUser = user.userRole === "admin";
       const effectiveRole = isAdminUser ? (user.activeRole || "shipowner") : user.userRole;
 
+      // Agent view (real agents + admin testing in agent mode)
+      if (effectiveRole === "agent") {
+        if (!isAdminUser) {
+          // Real agents: must serve this port
+          const profile = await storage.getCompanyProfileByUser(userId);
+          const servedPorts = (profile?.servedPorts as number[]) || [];
+          if (!servedPorts.includes(tender.portId)) {
+            return res.status(403).json({ message: "This tender is not in your served ports" });
+          }
+        }
+        // Admin in agent mode or real agent: show agent view if not the owner
+        if (tender.userId !== userId) {
+          const bids = await storage.getTenderBids(tenderId);
+          const myBid = bids.find(b => b.agentUserId === userId) || null;
+          return res.json({ tender, bids: myBid ? [myBid] : [], myBid, isOwner: false });
+        }
+      }
+
       if (!isAdminUser) {
         if (effectiveRole === "provider") {
           return res.status(403).json({ message: "Access denied" });
         }
         if (effectiveRole === "shipowner" && tender.userId !== userId) {
           return res.status(403).json({ message: "Access denied" });
-        }
-        if (effectiveRole === "agent") {
-          const profile = await storage.getCompanyProfileByUser(userId);
-          const servedPorts = (profile?.servedPorts as number[]) || [];
-          if (!servedPorts.includes(tender.portId)) {
-            return res.status(403).json({ message: "This tender is not in your served ports" });
-          }
-          const bids = await storage.getTenderBids(tenderId);
-          const myBid = bids.find(b => b.agentUserId === userId) || null;
-          return res.json({ tender, bids: myBid ? [myBid] : [], myBid, isOwner: false });
         }
       }
 
