@@ -18,6 +18,7 @@ import {
   SidebarMenuItem,
   SidebarHeader,
   SidebarFooter,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 const ACTIVE_ROLE_OPTIONS = [
@@ -36,6 +37,8 @@ export function AppSidebar() {
   const [location] = useLocation();
   const { lang, setLang, t } = useLanguage();
   const { user } = useAuth();
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
   const userRole = (user as any)?.userRole || "shipowner";
   const activeRole = (user as any)?.activeRole || "agent";
   const plan = (user as any)?.subscriptionPlan || "free";
@@ -99,23 +102,25 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       {/* Header */}
       <SidebarHeader className="px-4 py-5 border-b border-sidebar-border/60">
-        <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+        <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity overflow-hidden">
           <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 ring-1 ring-white/10">
             <img src="/logo-v2.png" alt="VesselPDA" className="w-full h-full object-contain" />
           </div>
-          <div className="min-w-0">
-            <p className="font-serif font-bold text-sm tracking-tight truncate text-sidebar-foreground">VesselPDA</p>
-            <p className="text-[10px] font-medium uppercase tracking-widest text-sidebar-foreground/45 truncate mt-0.5">Maritime Platform</p>
-          </div>
+          {!isCollapsed && (
+            <div className="min-w-0">
+              <p className="font-serif font-bold text-sm tracking-tight truncate text-sidebar-foreground">VesselPDA</p>
+              <p className="text-[10px] font-medium uppercase tracking-widest text-sidebar-foreground/45 truncate mt-0.5">Maritime Platform</p>
+            </div>
+          )}
         </Link>
       </SidebarHeader>
 
       <SidebarContent className="py-3">
-        {/* Admin Role Switcher — pinned at top of sidebar content */}
-        {isAdminUser && (
+        {/* Admin Role Switcher — hidden when collapsed */}
+        {isAdminUser && !isCollapsed && (
           <div className="mx-3 mb-1 rounded-lg border border-red-500/20 bg-red-500/8 p-2.5">
             <div className="flex items-center gap-1.5 mb-2">
               <Shield className="w-3 h-3 text-red-400" />
@@ -123,7 +128,7 @@ export function AppSidebar() {
             </div>
             <div className="grid grid-cols-1 gap-1">
               {ACTIVE_ROLE_OPTIONS.map((opt) => {
-                const isActive = activeRole === opt.value;
+                const active = activeRole === opt.value;
                 return (
                   <button
                     key={opt.value}
@@ -131,13 +136,13 @@ export function AppSidebar() {
                     disabled={switchRoleMutation.isPending}
                     data-testid={`sidebar-role-${opt.value}`}
                     className={`flex items-center justify-between px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all ${
-                      isActive
+                      active
                         ? "bg-red-500/20 text-red-300 border border-red-500/30"
                         : "text-sidebar-foreground/50 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground border border-transparent"
                     }`}
                   >
                     <span>{opt.label}</span>
-                    {isActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                    {active && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
                   </button>
                 );
               })}
@@ -159,6 +164,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       asChild
                       data-active={active}
+                      tooltip={item.title}
                     >
                       <Link
                         href={item.url}
@@ -198,6 +204,7 @@ export function AppSidebar() {
                       <SidebarMenuButton
                         asChild
                         data-active={active}
+                        tooltip={item.title}
                       >
                         <Link
                           href={item.url}
@@ -242,6 +249,7 @@ export function AppSidebar() {
                       <SidebarMenuButton
                         asChild
                         data-active={active}
+                        tooltip={item.title}
                       >
                         <Link
                           href={item.url}
@@ -274,7 +282,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild data-active={isActive("/service-ports")}>
+                <SidebarMenuButton asChild data-active={isActive("/service-ports")} tooltip="Service Ports">
                   <Link
                     href="/service-ports"
                     data-testid="nav-service-ports"
@@ -292,7 +300,7 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild data-active={isActive("/pricing")}>
+                <SidebarMenuButton asChild data-active={isActive("/pricing")} tooltip="Pricing">
                   <Link
                     href="/pricing"
                     data-testid="nav-pricing"
@@ -316,8 +324,8 @@ export function AppSidebar() {
 
       {/* Footer */}
       <SidebarFooter className="border-t border-sidebar-border/60 p-4 space-y-3">
-        {/* Admin role switcher */}
-        {isAdminUser && (
+        {/* Admin role dropdown — hidden when collapsed */}
+        {isAdminUser && !isCollapsed && (
           <div>
             <p className="text-[9px] text-sidebar-foreground/40 mb-1.5 uppercase tracking-widest font-bold px-0.5">View as role</p>
             <DropdownMenu>
@@ -350,56 +358,62 @@ export function AppSidebar() {
           </div>
         )}
 
-        {/* Language toggle */}
-        <div className="flex items-center gap-2">
-          <Languages className="w-3.5 h-3.5 text-sidebar-foreground/40" />
-          <div className="flex rounded-md border border-sidebar-border/60 text-[11px] overflow-hidden">
-            <button
-              onClick={() => setLang("en")}
-              className={`px-2.5 py-1 font-medium transition-colors ${lang === "en" ? "bg-[hsl(var(--maritime-primary))] text-white" : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40"}`}
-              data-testid="button-lang-en"
-            >
-              EN
-            </button>
-            <button
-              onClick={() => setLang("tr")}
-              className={`px-2.5 py-1 font-medium transition-colors ${lang === "tr" ? "bg-[hsl(var(--maritime-primary))] text-white" : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40"}`}
-              data-testid="button-lang-tr"
-            >
-              TR
-            </button>
+        {/* Language toggle — hidden when collapsed */}
+        {!isCollapsed && (
+          <div className="flex items-center gap-2">
+            <Languages className="w-3.5 h-3.5 text-sidebar-foreground/40" />
+            <div className="flex rounded-md border border-sidebar-border/60 text-[11px] overflow-hidden">
+              <button
+                onClick={() => setLang("en")}
+                className={`px-2.5 py-1 font-medium transition-colors ${lang === "en" ? "bg-[hsl(var(--maritime-primary))] text-white" : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40"}`}
+                data-testid="button-lang-en"
+              >
+                EN
+              </button>
+              <button
+                onClick={() => setLang("tr")}
+                className={`px-2.5 py-1 font-medium transition-colors ${lang === "tr" ? "bg-[hsl(var(--maritime-primary))] text-white" : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40"}`}
+                data-testid="button-lang-tr"
+              >
+                TR
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* User info */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 overflow-hidden">
           <Avatar className="w-8 h-8 ring-2 ring-sidebar-primary/20 flex-shrink-0">
             <AvatarImage src={user?.profileImageUrl || undefined} />
             <AvatarFallback className="bg-[hsl(var(--sidebar-primary))] text-[hsl(var(--sidebar-primary-foreground))] text-xs font-bold">{initials}</AvatarFallback>
           </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold truncate text-sidebar-foreground">
-              {user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "User"}
-            </p>
-            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-              {isAdminUser && (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 uppercase tracking-wide">
-                  Admin
-                </span>
-              )}
-              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide ${PLAN_BADGE[plan] || PLAN_BADGE.free}`}>
-                {plan}
-              </span>
-            </div>
-          </div>
-          <a
-            href="/api/logout"
-            data-testid="button-logout"
-            className="w-7 h-7 rounded-md flex items-center justify-center hover:bg-red-500/10 transition-colors group"
-            title="Sign out"
-          >
-            <LogOut className="w-3.5 h-3.5 text-sidebar-foreground/40 group-hover:text-red-400 transition-colors" />
-          </a>
+          {!isCollapsed && (
+            <>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate text-sidebar-foreground">
+                  {user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "User"}
+                </p>
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                  {isAdminUser && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 uppercase tracking-wide">
+                      Admin
+                    </span>
+                  )}
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide ${PLAN_BADGE[plan] || PLAN_BADGE.free}`}>
+                    {plan}
+                  </span>
+                </div>
+              </div>
+              <a
+                href="/api/logout"
+                data-testid="button-logout"
+                className="w-7 h-7 rounded-md flex items-center justify-center hover:bg-red-500/10 transition-colors group flex-shrink-0"
+                title="Sign out"
+              >
+                <LogOut className="w-3.5 h-3.5 text-sidebar-foreground/40 group-hover:text-red-400 transition-colors" />
+              </a>
+            </>
+          )}
         </div>
       </SidebarFooter>
     </Sidebar>
