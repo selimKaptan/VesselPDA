@@ -13,8 +13,6 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)]
 );
 
-// User storage table.
-// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
@@ -27,6 +25,12 @@ export const users = pgTable("users", {
   subscriptionPlan: varchar("subscription_plan").notNull().default("free"),
   proformaCount: integer("proforma_count").notNull().default(0),
   proformaLimit: integer("proforma_limit").notNull().default(1),
+  passwordHash: text("password_hash"),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  verificationToken: text("verification_token"),
+  verificationTokenExpiry: timestamp("verification_token_expiry"),
+  resetPasswordToken: text("reset_password_token"),
+  resetPasswordTokenExpiry: timestamp("reset_password_token_expiry"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -478,3 +478,179 @@ export async function sendNominationEmail(data: NominationEmailData): Promise<bo
     return false;
   }
 }
+
+export async function sendVerificationEmail(
+  to: string,
+  firstName: string,
+  token: string
+): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) {
+    console.warn("[email] No Resend credentials — skipping verification email");
+    return false;
+  }
+
+  const resend = new Resend(creds.apiKey);
+  const verifyUrl = `https://vesselpda.com/verify-email?token=${token}`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Email Verification — VesselPDA</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:32px 16px">
+        <table width="580" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.12)">
+          <tr>
+            <td style="background:linear-gradient(135deg,#003D7A,#0077BE);padding:28px 32px">
+              <p style="margin:0;color:#fff;font-size:20px;font-weight:700">⚓ VesselPDA</p>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,.8);font-size:14px">Email Verification / Email Doğrulama</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px">
+              <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#0f172a">Welcome, ${firstName}!</p>
+              <p style="margin:0 0 8px;color:#475569;font-size:15px;line-height:1.6">
+                Thank you for joining VesselPDA. Please verify your email address to activate your account.
+              </p>
+              <p style="margin:0 0 24px;color:#475569;font-size:14px;line-height:1.6">
+                Hesabınızı etkinleştirmek için lütfen e-posta adresinizi doğrulayın.
+              </p>
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background:#003D7A;border-radius:8px;padding:0">
+                    <a href="${verifyUrl}" style="display:inline-block;padding:14px 28px;color:#fff;font-size:15px;font-weight:700;text-decoration:none;border-radius:8px">
+                      ✓ Verify Email / Emaili Doğrula
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:24px 0 0;color:#94a3b8;font-size:12px;line-height:1.6">
+                This link expires in 24 hours. If you didn't create an account, please ignore this email.<br>
+                Bu link 24 saat içinde geçerliliğini yitirir. Hesap oluşturmadıysanız bu emaili görmezden gelin.
+              </p>
+              <div style="margin-top:16px;padding:12px 16px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0">
+                <p style="margin:0;color:#64748b;font-size:11px;word-break:break-all">Or copy: ${verifyUrl}</p>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0">
+              <p style="margin:0;color:#94a3b8;font-size:12px">© ${new Date().getFullYear()} VesselPDA · <a href="https://vesselpda.com" style="color:#0077BE;text-decoration:none">vesselpda.com</a></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: `VesselPDA <${creds.fromEmail}>`,
+      to: [to],
+      subject: "VesselPDA — Email Adresinizi Doğrulayın / Verify Your Email",
+      html,
+    });
+
+    if (error) {
+      console.error("[email] Resend verification error:", error);
+      return false;
+    }
+
+    console.log(`[email] Verification email sent to ${to}`);
+    return true;
+  } catch (err) {
+    console.error("[email] Failed to send verification email:", err);
+    return false;
+  }
+}
+
+export async function sendPasswordResetEmail(
+  to: string,
+  firstName: string,
+  token: string
+): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) {
+    console.warn("[email] No Resend credentials — skipping password reset email");
+    return false;
+  }
+
+  const resend = new Resend(creds.apiKey);
+  const resetUrl = `https://vesselpda.com/reset-password?token=${token}`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Password Reset — VesselPDA</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:32px 16px">
+        <table width="580" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.12)">
+          <tr>
+            <td style="background:linear-gradient(135deg,#003D7A,#0077BE);padding:28px 32px">
+              <p style="margin:0;color:#fff;font-size:20px;font-weight:700">⚓ VesselPDA</p>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,.8);font-size:14px">Password Reset / Şifre Sıfırlama</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px">
+              <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#0f172a">Hello, ${firstName}</p>
+              <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.6">
+                We received a request to reset your VesselPDA password. Click the button below to set a new password.<br><br>
+                VesselPDA şifrenizi sıfırlamak için bir istek aldık. Yeni şifre belirlemek için aşağıdaki butona tıklayın.
+              </p>
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background:#003D7A;border-radius:8px;padding:0">
+                    <a href="${resetUrl}" style="display:inline-block;padding:14px 28px;color:#fff;font-size:15px;font-weight:700;text-decoration:none;border-radius:8px">
+                      Reset Password / Şifreyi Sıfırla
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:24px 0 0;color:#94a3b8;font-size:12px;line-height:1.6">
+                This link expires in 1 hour. If you didn't request a password reset, please ignore this email — your account is safe.<br>
+                Bu link 1 saat içinde geçerliliğini yitirir. Şifre sıfırlama isteği siz yapmadıysanız bu emaili görmezden gelin.
+              </p>
+              <div style="margin-top:16px;padding:12px 16px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0">
+                <p style="margin:0;color:#64748b;font-size:11px;word-break:break-all">Or copy: ${resetUrl}</p>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0">
+              <p style="margin:0;color:#94a3b8;font-size:12px">© ${new Date().getFullYear()} VesselPDA · <a href="https://vesselpda.com" style="color:#0077BE;text-decoration:none">vesselpda.com</a></p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: `VesselPDA <${creds.fromEmail}>`,
+      to: [to],
+      subject: "VesselPDA — Şifre Sıfırlama / Password Reset",
+      html,
+    });
+
+    if (error) {
+      console.error("[email] Resend password reset error:", error);
+      return false;
+    }
+
+    console.log(`[email] Password reset email sent to ${to}`);
+    return true;
+  } catch (err) {
+    console.error("[email] Failed to send password reset email:", err);
+    return false;
+  }
+}

@@ -10,7 +10,7 @@ I prefer detailed explanations and iterative development. Ask before making majo
 The platform is built with a modern web stack:
 - **Frontend**: React, Vite, Tailwind CSS, and Shadcn UI, ensuring a responsive and intuitive user experience. The UI/UX is maritime-themed, predominantly using a deep blue color palette (primary: #003D7A, secondary: #0077BE, accent: #00A8E1) with design tokens for a professional aesthetic, including maritime-gold accents and stronger shadows.
 - **Backend**: Express.js with PostgreSQL as the database, managed via Drizzle ORM.
-- **Authentication**: Replit Auth, utilizing OpenID Connect for secure user access with a role-based system.
+- **Authentication**: Custom email/password authentication with email verification flow (Replit OAuth removed). Users register with email + password, receive verification email via Resend, then log in. Session-based auth using connect-pg-simple (PostgreSQL session store). Includes forgot-password / reset-password flows. Password hashing with bcryptjs. Existing users auto-marked as email-verified on startup.
 - **Core Features**:
     - **User Management**: Role-based authentication (Admin, Shipowner/Broker, Ship Agent, Service Provider) with distinct dashboards and navigation.
     - **Vessel Management**: CRUD operations for vessels, including a fleet dashboard and personal watchlists.
@@ -29,7 +29,7 @@ The platform is built with a modern web stack:
 
 ## External Dependencies
 - **PostgreSQL**: Primary database for all application data, managed with Drizzle ORM.
-- **Replit Auth**: For user authentication and authorization.
+- **bcryptjs**: Password hashing library for secure credential storage.
 - **AISStream.io**: WebSocket-based API for live AIS vessel tracking data.
 - **RapidAPI (Zyla Labs Vessel Information API)**: For vessel IMO lookup and retrieving detailed vessel information (name, type, flag, tonnage, dimensions).
 - **Turkish Central Bank (TCMB)**: Public XML feed for fetching live USD/TRY and EUR/TRY exchange rates.

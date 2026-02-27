@@ -5,7 +5,7 @@ import fs from "fs";
 import multer from "multer";
 import { sendNominationEmail, sendContactEmail, sendBidReceivedEmail, sendBidSelectedEmail, sendNewTenderEmail } from "./email";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
+import { setupAuth, isAuthenticated, registerAuthRoutes, authStorage } from "./replit_integrations/auth";
 import type { ProformaLineItem } from "@shared/schema";
 import { calculateProforma, type CalculationInput } from "./proforma-calculator";
 import { startAISStream, getPositions, searchVessels, isConnected, getCacheSize } from "./ais-stream";
@@ -45,6 +45,10 @@ export async function registerRoutes(
   await setupAuth(app);
   registerAuthRoutes(app);
   startAISStream();
+
+  authStorage.markExistingUsersVerified().catch((err) =>
+    console.error("[auth] Failed to mark existing users verified:", err)
+  );
 
   app.use("/uploads", (await import("express")).default.static(path.join(process.cwd(), "uploads")));
 

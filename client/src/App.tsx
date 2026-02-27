@@ -30,6 +30,11 @@ import Contact from "@/pages/contact";
 import VesselTrack from "@/pages/vessel-track";
 import PortInfo from "@/pages/port-info";
 import { LanguageProvider } from "@/lib/i18n";
+import LoginPage from "@/pages/login";
+import RegisterPage from "@/pages/register";
+import VerifyEmailPage from "@/pages/verify-email";
+import ForgotPasswordPage from "@/pages/forgot-password";
+import ResetPasswordPage from "@/pages/reset-password";
 
 function AuthenticatedRouter() {
   return (
@@ -84,6 +89,11 @@ function AuthenticatedLayout() {
 function PublicDirectoryPage() {
   return (
     <Switch>
+      <Route path="/login" component={LoginPage} />
+      <Route path="/register" component={RegisterPage} />
+      <Route path="/verify-email" component={VerifyEmailPage} />
+      <Route path="/forgot-password" component={ForgotPasswordPage} />
+      <Route path="/reset-password" component={ResetPasswordPage} />
       <Route path="/directory" component={Directory} />
       <Route path="/directory/:id" component={DirectoryProfile} />
       <Route path="/service-ports" component={ServicePorts} />

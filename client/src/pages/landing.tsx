@@ -231,16 +231,16 @@ export default function Landing() {
           <div className="flex items-center gap-2">
             {/* Desktop auth buttons */}
             <div className="hidden md:flex items-center gap-2">
-              <a href="/api/login">
+              <a href="/login">
                 <Button size="sm" variant="outline" data-testid="button-login">Log in</Button>
               </a>
-              <a href="/api/login">
+              <a href="/register">
                 <Button size="sm" className="shadow-sm" data-testid="button-signup">Sign up</Button>
               </a>
             </div>
 
             {/* Mobile: sign up + hamburger */}
-            <a href="/api/login" className="md:hidden">
+            <a href="/register" className="md:hidden">
               <Button size="sm" data-testid="button-signup-mobile">Sign up</Button>
             </a>
             <button
@@ -280,7 +280,7 @@ export default function Landing() {
                 </a>
               ))}
               <div className="pt-2 pb-1 border-t border-border/60 mt-1">
-                <a href="/api/login">
+                <a href="/login">
                   <Button variant="outline" className="w-full" size="sm" data-testid="button-login-mobile">Log in</Button>
                 </a>
               </div>
@@ -319,7 +319,7 @@ export default function Landing() {
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                <a href="/api/login">
+                <a href="/register">
                   <Button size="lg" className="gap-2 shadow-md shadow-[hsl(var(--maritime-primary)/0.25)] bg-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-primary)/0.9)]" data-testid="button-get-started">
                     Get Started Free
                     <ArrowRight className="w-4 h-4" />
@@ -655,7 +655,7 @@ export default function Landing() {
                 <p className="font-semibold text-emerald-900 dark:text-emerald-200 text-sm">Your proforma is ready to share</p>
                 <p className="text-emerald-700 dark:text-emerald-400 text-xs mt-0.5">22 line items · Official tariff rates · Instant PDF export</p>
               </div>
-              <a href="/api/login" className="flex-shrink-0">
+              <a href="/register" className="flex-shrink-0">
                 <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5" data-testid="button-hiw-cta">
                   Try It Free <ArrowRight className="w-3.5 h-3.5" />
                 </Button>
@@ -709,7 +709,7 @@ export default function Landing() {
                     </li>
                   ))}
                 </ul>
-                <a href="/api/login" className="block">
+                <a href="/register" className="block">
                   <Button variant="outline" className="w-full border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/40" size="lg" data-testid="button-plan-free">
                     Get Started Free
                   </Button>
@@ -749,7 +749,7 @@ export default function Landing() {
                     </li>
                   ))}
                 </ul>
-                <a href="/api/login" className="block">
+                <a href="/register" className="block">
                   <Button className="w-full bg-[hsl(var(--maritime-gold))] hover:bg-[hsl(var(--maritime-gold)/0.9)] text-white shadow-md shadow-[hsl(var(--maritime-gold)/0.3)]" size="lg" data-testid="button-plan-standard">
                     Choose Standard
                   </Button>
@@ -784,7 +784,7 @@ export default function Landing() {
                     </li>
                   ))}
                 </ul>
-                <a href="/api/login" className="block">
+                <a href="/register" className="block">
                   <Button variant="outline" className="w-full border-[hsl(var(--maritime-primary)/0.4)] text-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-primary)/0.05)]" size="lg" data-testid="button-plan-unlimited">
                     Choose Unlimited
                   </Button>
@@ -812,7 +812,7 @@ export default function Landing() {
             Join maritime professionals who trust VesselPDA for accurate and instant proforma generation. Free to start, no credit card required.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-            <a href="/api/login">
+            <a href="/register">
               <Button size="lg" variant="secondary" className="gap-2 bg-white text-[hsl(var(--maritime-primary))] hover:bg-white/90 shadow-lg font-semibold px-8" data-testid="button-cta-bottom">
                 Get Started Free
                 <ArrowRight className="w-4 h-4" />
@@ -843,7 +843,7 @@ export default function Landing() {
                   { href: "/directory", label: "Directory" },
                   { href: "/service-ports", label: "Service Ports" },
                   { href: "/forum", label: "Forum" },
-                  { href: "/api/login", label: "Sign Up Free" },
+                  { href: "/register", label: "Sign Up Free" },
                 ].map((l) => (
                   <li key={l.label}><a href={l.href} className="text-sm text-muted-foreground hover:text-foreground transition-colors">{l.label}</a></li>
                 ))}
