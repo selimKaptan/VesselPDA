@@ -19,7 +19,7 @@ import {
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
-import { eq, and, lte, gte, or, isNull, desc, asc, sql, count, countDistinct } from "drizzle-orm";
+import { eq, and, lte, gte, or, isNull, desc, asc, sql, count, countDistinct, ilike } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -37,6 +37,8 @@ export interface IStorage {
   deleteVesselById(id: number): Promise<boolean>;
 
   getPorts(): Promise<Port[]>;
+  searchPorts(query: string): Promise<Port[]>;
+  getPortByCode(code: string): Promise<Port | undefined>;
   getPort(id: number): Promise<Port | undefined>;
   createPort(port: InsertPort): Promise<Port>;
 
@@ -155,6 +157,20 @@ export class DatabaseStorage implements IStorage {
 
   async getPorts(): Promise<Port[]> {
     return db.select().from(ports);
+  }
+
+  async searchPorts(query: string): Promise<Port[]> {
+    return db.select().from(ports)
+      .where(or(
+        ilike(ports.name, `%${query}%`),
+        ilike(ports.code, `%${query}%`)
+      ))
+      .limit(20);
+  }
+
+  async getPortByCode(code: string): Promise<Port | undefined> {
+    const [port] = await db.select().from(ports).where(ilike(ports.code, code));
+    return port;
   }
 
   async getPort(id: number): Promise<Port | undefined> {

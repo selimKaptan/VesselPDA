@@ -124,10 +124,63 @@ export async function registerRoutes(
 
   app.get("/api/ports", async (req, res) => {
     try {
+      const q = req.query.q as string | undefined;
+      if (q && q.trim().length > 0) {
+        const results = await storage.searchPorts(q.trim());
+        return res.json(results);
+      }
       const ports = await storage.getPorts();
       res.json(ports);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch ports" });
+    }
+  });
+
+  app.get("/api/port-info/:locode", async (req, res) => {
+    try {
+      const locode = req.params.locode.toUpperCase();
+      const dbPort = await storage.getPortByCode(locode);
+
+      let extended: any = null;
+      const apiKey = process.env.VESSEL_API_KEY;
+      if (apiKey) {
+        try {
+          const response = await fetch(
+            `https://port-info.p.rapidapi.com/port?code=${locode}`,
+            {
+              headers: {
+                "X-RapidAPI-Key": apiKey,
+                "X-RapidAPI-Host": "port-info.p.rapidapi.com",
+              },
+              signal: AbortSignal.timeout(6000),
+            }
+          );
+          if (response.ok) {
+            const data = await response.json();
+            if (data && !data.message) {
+              extended = {
+                lat: data.lat ?? data.latitude ?? null,
+                lng: data.lng ?? data.longitude ?? null,
+                timezone: data.timezone ?? null,
+                maxDraft: data.maxDraft ?? data.max_draft ?? null,
+                facilities: data.facilities ?? data.services ?? null,
+                city: data.city ?? data.municipality ?? null,
+                country: data.country ?? null,
+              };
+            }
+          }
+        } catch {
+        }
+      }
+
+      if (!dbPort && !extended) {
+        return res.status(404).json({ message: "Port not found" });
+      }
+
+      res.json({ port: dbPort || null, extended });
+    } catch (error) {
+      console.error("Port info error:", error);
+      res.status(500).json({ message: "Failed to fetch port info" });
     }
   });
 

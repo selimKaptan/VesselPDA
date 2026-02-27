@@ -78,6 +78,7 @@ export function AppSidebar() {
   if (isAdminUser || effectiveRole !== "provider") {
     toolsNav.push({ title: "Vessel Track", url: "/vessel-track", icon: Navigation });
   }
+  toolsNav.push({ title: "Port Info", url: "/port-info", icon: Anchor });
   if (isAdminUser || effectiveRole === "agent" || effectiveRole === "provider") {
     toolsNav.push({ title: "My Profile", url: "/company-profile", icon: Building2 });
   }

@@ -21,6 +21,7 @@ A professional web-based maritime platform (VesselPDA) for ship agents to create
 - 3-tier subscription system (Free/Standard/Unlimited) with usage tracking
 - Role-aware dashboard and navigation
 - **Vessel Track**: Interactive Leaflet map with vessel tracking, personal watchlist, role-based fleet views, AIS API integration hook
+- **Port Info**: Search tool for 804 Turkish ports with LOCODE lookup; extended data (coordinates, timezone, max draft, facilities) via external API when available
 
 ## User Roles
 - **Admin**: Full system access - sees ALL vessels, proformas, users, company profiles. No proforma limits. Has dedicated Admin Panel (/admin)
