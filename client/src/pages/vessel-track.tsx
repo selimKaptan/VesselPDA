@@ -289,13 +289,14 @@ export default function VesselTrack() {
   ];
 
   const defaultTab = isAgent ? "agency" : "fleet";
+  const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
 
   return (
-    <div className="flex h-full" style={{ height: "calc(100vh - 56px)" }}>
+    <div className="flex flex-col md:flex-row h-full" style={{ height: "calc(100vh - 56px)" }}>
       <PageMeta title="Vessel Track | VesselPDA" description="Track live vessel positions in Turkish waters with AIS data." />
 
       {/* Left panel */}
-      <div className="w-80 flex-shrink-0 border-r flex flex-col bg-background overflow-hidden" data-testid="panel-vessel-list">
+      <div className={`${mobileView === 'map' ? 'hidden md:flex' : 'flex'} w-full md:w-80 flex-shrink-0 md:border-r flex-col bg-background overflow-hidden`} data-testid="panel-vessel-list">
         <div className="px-4 py-3 border-b flex-shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0">
@@ -319,6 +320,22 @@ export default function VesselTrack() {
               </Badge>
             )}
           </div>
+        </div>
+
+        {/* Mobile map toggle */}
+        <div className="flex md:hidden border-b flex-shrink-0">
+          <button
+            onClick={() => setMobileView('list')}
+            className={`flex-1 py-2 text-xs font-semibold transition-colors ${mobileView === 'list' ? 'bg-[hsl(var(--maritime-primary))] text-white' : 'text-muted-foreground hover:bg-muted'}`}
+          >
+            List
+          </button>
+          <button
+            onClick={() => setMobileView('map')}
+            className={`flex-1 py-2 text-xs font-semibold transition-colors ${mobileView === 'map' ? 'bg-[hsl(var(--maritime-primary))] text-white' : 'text-muted-foreground hover:bg-muted'}`}
+          >
+            Map
+          </button>
         </div>
 
         {/* Vessel Search Bar */}
@@ -540,7 +557,7 @@ export default function VesselTrack() {
       </div>
 
       {/* Map panel */}
-      <div className="flex-1 relative overflow-hidden" data-testid="panel-map">
+      <div className={`${mobileView === 'list' ? 'hidden md:block' : 'block'} flex-1 relative overflow-hidden`} data-testid="panel-map" style={mobileView === 'map' ? { height: 'calc(100vh - 56px - 40px)' } : undefined}>
         {/* Demo data banner */}
         {!demoBarDismissed && (
           <div className="absolute bottom-0 left-0 right-0 z-[1000] bg-amber-50 dark:bg-amber-950/40 border-t border-amber-200 dark:border-amber-800 px-4 py-2 flex items-center gap-2 text-xs">
