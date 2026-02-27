@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
 import multer from "multer";
-import { sendNominationEmail, sendContactEmail } from "./email";
+import { sendNominationEmail, sendContactEmail, sendBidReceivedEmail, sendBidSelectedEmail, sendNewTenderEmail } from "./email";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
 import type { ProformaLineItem } from "@shared/schema";
@@ -647,11 +647,49 @@ export async function registerRoutes(
       const allVessels = await storage.getAllVessels();
       const allProformas = await storage.getAllProformas();
       const allProfiles = await storage.getAllCompanyProfiles();
+      const allTenders = await storage.getPortTenders({});
+      const allBids: any[] = [];
+      for (const tender of allTenders) {
+        const bids = await storage.getTenderBids(tender.id);
+        allBids.push(...bids);
+      }
+
+      // Tenders by port (top 10)
+      const portTenderCount: Record<string, number> = {};
+      for (const t of allTenders) {
+        const pn = (t as any).portName || `Port #${t.portId}`;
+        portTenderCount[pn] = (portTenderCount[pn] || 0) + 1;
+      }
+      const tendersByPort = Object.entries(portTenderCount)
+        .sort((a, b) => b[1] - a[1]).slice(0, 10)
+        .map(([port, count]) => ({ port, count }));
+
+      // Bid conversion
+      const selectedBids = allBids.filter(b => b.status === "selected").length;
+      const bidConversionRate = allBids.length > 0 ? Math.round((selectedBids / allBids.length) * 100) : 0;
+
+      // Monthly proformas (last 6 months)
+      const now = new Date();
+      const monthlyProformas = Array.from({ length: 6 }, (_, i) => {
+        const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+        const label = d.toLocaleString("en-US", { month: "short", year: "2-digit" });
+        const count = allProformas.filter(p => {
+          const pd = new Date((p as any).createdAt || 0);
+          return pd.getFullYear() === d.getFullYear() && pd.getMonth() === d.getMonth();
+        }).length;
+        return { month: label, count };
+      });
+
       res.json({
         totalUsers: allUsers.length,
         totalVessels: allVessels.length,
         totalProformas: allProformas.length,
         totalCompanyProfiles: allProfiles.length,
+        totalTenders: allTenders.length,
+        totalBids: allBids.length,
+        bidConversionRate,
+        tendersByPort,
+        monthlyProformas,
         usersByRole: {
           shipowner: allUsers.filter(u => u.userRole === "shipowner").length,
           agent: allUsers.filter(u => u.userRole === "agent").length,
@@ -666,6 +704,33 @@ export async function registerRoutes(
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch admin stats" });
+    }
+  });
+
+  app.get("/api/agent-stats/:companyProfileId", async (req, res) => {
+    try {
+      const companyProfileId = parseInt(req.params.companyProfileId);
+      const profile = await storage.getCompanyProfile(companyProfileId);
+      if (!profile) return res.status(404).json({ message: "Profile not found" });
+
+      const bids = await storage.getTenderBidsByAgent(profile.userId);
+      const selectedBids = bids.filter(b => b.status === "selected").length;
+      const winRate = bids.length > 0 ? Math.round((selectedBids / bids.length) * 100) : 0;
+
+      const reviews = await storage.getReviewsByCompany(companyProfileId);
+      const avgRating = reviews.length > 0
+        ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10
+        : 0;
+
+      res.json({
+        totalBids: bids.length,
+        selectedBids,
+        winRate,
+        avgRating,
+        totalReviews: reviews.length,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch agent stats" });
     }
   });
 
@@ -1122,6 +1187,26 @@ export async function registerRoutes(
 
       const agents = await storage.getAgentsByPort(Number(portId));
       res.json({ tender, agentCount: agents.length });
+
+      // Notify agents serving this port — async, non-blocking
+      try {
+        const port = await storage.getPort(Number(portId));
+        const agentUsers = await Promise.all(agents.slice(0, 50).map((a: any) => storage.getUser(a.userId)));
+        for (const agentUser of agentUsers) {
+          if (agentUser?.email) {
+            sendNewTenderEmail({
+              agentEmail: agentUser.email,
+              agentName: agentUser.firstName || undefined,
+              portName: (port as any)?.name || `Port #${portId}`,
+              vesselName: vesselName || undefined,
+              cargoType: cargoType || undefined,
+              cargoQuantity: cargoQuantity || undefined,
+              expiryHours: Number(expiryHours),
+              tenderId: tender.id,
+            }).catch(e => console.warn("[email] sendNewTenderEmail failed:", e));
+          }
+        }
+      } catch (emailErr) { console.warn("[email] sendNewTenderEmail batch failed (non-critical):", emailErr); }
     } catch (error) {
       console.error("Create tender error:", error);
       res.status(500).json({ message: "Failed to create tender" });
@@ -1270,6 +1355,24 @@ export async function registerRoutes(
       });
 
       res.json(bid);
+
+      // Notify tender owner — async, non-blocking
+      try {
+        const owner = await storage.getUser(tender.userId);
+        const port = await storage.getPort(tender.portId);
+        if (owner?.email) {
+          await sendBidReceivedEmail({
+            ownerEmail: owner.email,
+            ownerName: owner.firstName || owner.email,
+            agentName: profile?.companyName || user.firstName || undefined,
+            portName: (port as any)?.name || `Port #${tender.portId}`,
+            vesselName: tender.vesselName || undefined,
+            totalAmount: totalAmount || undefined,
+            currency: currency || "USD",
+            tenderId,
+          });
+        }
+      } catch (emailErr) { console.warn("[email] sendBidReceivedEmail failed (non-critical):", emailErr); }
     } catch (error) {
       console.error("Create bid error:", error);
       res.status(500).json({ message: "Failed to submit bid" });
@@ -1296,6 +1399,23 @@ export async function registerRoutes(
 
       const selectedBid = bids.find(b => b.id === bidId);
       res.json({ success: true, selectedBid });
+
+      // Notify the winning agent — async, non-blocking
+      try {
+        if (selectedBid) {
+          const agent = await storage.getUser(selectedBid.agentUserId);
+          const port = await storage.getPort(tender.portId);
+          if (agent?.email) {
+            await sendBidSelectedEmail({
+              agentEmail: agent.email,
+              agentName: agent.firstName || undefined,
+              portName: (port as any)?.name || `Port #${tender.portId}`,
+              vesselName: tender.vesselName || undefined,
+              tenderId,
+            });
+          }
+        }
+      } catch (emailErr) { console.warn("[email] sendBidSelectedEmail failed (non-critical):", emailErr); }
     } catch (error) {
       console.error("Select bid error:", error);
       res.status(500).json({ message: "Failed to select bid" });

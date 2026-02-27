@@ -112,6 +112,16 @@ export default function DirectoryProfilePage() {
     },
   });
 
+  const { data: agentStats } = useQuery<any>({
+    queryKey: ["/api/agent-stats", profileId],
+    queryFn: async () => {
+      const res = await fetch(`/api/agent-stats/${profileId}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!profileId,
+  });
+
   const { data: ports } = useQuery<Port[]>({ queryKey: ["/api/ports"] });
 
   const [rating, setRating] = useState(0);
@@ -245,6 +255,33 @@ export default function DirectoryProfilePage() {
           </>
         )}
       </Card>
+
+      {/* Agent Performance Metrics */}
+      {profile.companyType === "agent" && agentStats && (agentStats.totalBids > 0 || agentStats.totalReviews > 0) && (
+        <Card className="p-5" data-testid="card-agent-metrics">
+          <h3 className="text-sm font-semibold mb-3 flex items-center gap-1.5">
+            <Star className="w-3.5 h-3.5 text-amber-500" /> Agent Performance
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="text-center p-3 bg-muted/40 rounded-lg">
+              <p className="text-2xl font-bold text-[hsl(var(--maritime-primary))]">{agentStats.winRate}%</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Win Rate</p>
+            </div>
+            <div className="text-center p-3 bg-muted/40 rounded-lg">
+              <p className="text-2xl font-bold">{agentStats.totalBids}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Total Bids</p>
+            </div>
+            <div className="text-center p-3 bg-muted/40 rounded-lg">
+              <p className="text-2xl font-bold text-amber-500">{agentStats.avgRating > 0 ? agentStats.avgRating : "—"}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Avg Rating</p>
+            </div>
+            <div className="text-center p-3 bg-muted/40 rounded-lg">
+              <p className="text-2xl font-bold">{agentStats.totalReviews}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Reviews</p>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Ports & Services */}
       {(servedPorts.length > 0 || serviceTypes.length > 0) && (

@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Download, Printer, Ship, Globe, FileText, Calendar, Package } from "lucide-react";
+import { ArrowLeft, Download, Printer, Ship, Globe, FileText, Calendar, Package, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +9,39 @@ import { Separator } from "@/components/ui/separator";
 import { Link, useParams } from "wouter";
 import type { Proforma, Vessel, Port } from "@shared/schema";
 
+async function downloadProformaPDF(refNumber: string) {
+  const el = document.getElementById("proforma-document");
+  if (!el) return;
+  const { default: jsPDF } = await import("jspdf");
+  const { default: html2canvas } = await import("html2canvas");
+  const canvas = await html2canvas(el, { scale: 2, useCORS: true, logging: false });
+  const imgData = canvas.toDataURL("image/png");
+  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const ratio = canvas.width / canvas.height;
+  const imgH = pageW / ratio;
+  let y = 0;
+  if (imgH <= pageH) {
+    pdf.addImage(imgData, "PNG", 0, 0, pageW, imgH);
+  } else {
+    while (y < canvas.height) {
+      const sliceH = Math.min(canvas.height - y, (pageH * canvas.width) / pageW);
+      const sliceCanvas = document.createElement("canvas");
+      sliceCanvas.width = canvas.width;
+      sliceCanvas.height = sliceH;
+      const ctx = sliceCanvas.getContext("2d")!;
+      ctx.drawImage(canvas, 0, -y);
+      pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", 0, 0, pageW, (sliceH * pageW) / canvas.width);
+      y += sliceH;
+      if (y < canvas.height) pdf.addPage();
+    }
+  }
+  pdf.save(`${refNumber || "proforma"}.pdf`);
+}
+
 export default function ProformaView() {
+  const [pdfLoading, setPdfLoading] = useState(false);
   const params = useParams<{ id: string }>();
   const { data: proforma, isLoading } = useQuery<Proforma & { vessel?: Vessel; port?: Port }>({
     queryKey: ["/api/proformas", params.id],
@@ -61,26 +94,18 @@ export default function ProformaView() {
             variant="outline"
             className="gap-2"
             data-testid="button-download"
-            onClick={() => {
-              const doc = document.getElementById("proforma-document");
-              if (!doc) return;
-              const printWindow = window.open("", "_blank");
-              if (!printWindow) return;
-              const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-                .map(el => el.outerHTML).join("\n");
-              printWindow.document.write(`<!DOCTYPE html><html><head><title>${proforma.referenceNumber || "Proforma"}</title>${styles}<style>
-                body { padding: 32px; font-family: system-ui, -apple-system, sans-serif; }
-                @media print { body { padding: 0; } }
-                .print-hide { display: none !important; }
-              </style></head><body>${doc.outerHTML}</body></html>`);
-              printWindow.document.close();
-              setTimeout(() => {
-                printWindow.print();
-                setTimeout(() => printWindow.close(), 1000);
-              }, 500);
+            disabled={pdfLoading}
+            onClick={async () => {
+              setPdfLoading(true);
+              try {
+                await downloadProformaPDF(proforma.referenceNumber || "proforma");
+              } finally {
+                setPdfLoading(false);
+              }
             }}
           >
-            <Download className="w-4 h-4" /> Download PDF
+            {pdfLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {pdfLoading ? "Generating..." : "Download PDF"}
           </Button>
         </div>
       </div>

@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Gavel, ArrowLeft, Clock, Ship, FileText, Upload, CheckCircle2,
-  XCircle, Building2, Trophy, Mail, AlertCircle, Eye, Send, Star, Users
+  XCircle, Building2, Trophy, Mail, AlertCircle, Eye, Send, Star, Users, Download
 } from "lucide-react";
 
 function useCountdown(createdAt: string, expiryHours: number) {
@@ -270,6 +270,7 @@ export default function TenderDetailPage() {
   const [selectBidId, setSelectBidId] = useState<number | null>(null);
   const [showNomination, setShowNomination] = useState(false);
   const [nominationData, setNominationData] = useState<any>(null);
+  const [showQ88, setShowQ88] = useState(false);
   const [nominationNote, setNominationNote] = useState("");
   const [nominationExtraEmails, setNominationExtraEmails] = useState("");
 
@@ -487,22 +488,31 @@ export default function TenderDetailPage() {
           </div>
         </div>
 
-        {/* Q88 Download */}
+        {/* Q88 Viewer */}
         {tender.q88Base64 && (
           <>
             <Separator className="my-4" />
             <div className="flex items-center gap-3">
               <FileText className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              <span className="text-sm font-medium">Q88 Form</span>
-              <a
-                href={tender.q88Base64}
-                download="Q88_Form"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-auto text-xs text-[hsl(var(--maritime-primary))] hover:underline font-medium flex items-center gap-1"
-              >
-                <Eye className="w-3.5 h-3.5" /> View / Download
-              </a>
+              <span className="text-sm font-medium">Q88 Vessel Form</span>
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 text-xs h-7"
+                  data-testid="button-view-q88"
+                  onClick={() => setShowQ88(true)}
+                >
+                  <Eye className="w-3.5 h-3.5" /> View Document
+                </Button>
+                <a
+                  href={tender.q88Base64}
+                  download="Q88_Form"
+                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                >
+                  Download
+                </a>
+              </div>
             </div>
           </>
         )}
@@ -804,6 +814,46 @@ export default function TenderDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Q88 Document Viewer Dialog */}
+      {tender && tender.q88Base64 && (
+        <Dialog open={showQ88} onOpenChange={setShowQ88}>
+          <DialogContent className="max-w-4xl h-[85vh] flex flex-col" data-testid="dialog-q88-viewer">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
+                Q88 Vessel Form — {tender.vesselName}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 min-h-0">
+              {tender.q88Base64.startsWith("data:application/pdf") || tender.q88Base64.startsWith("data:application/octet") ? (
+                <iframe
+                  src={tender.q88Base64}
+                  className="w-full h-full rounded border"
+                  title="Q88 Vessel Form"
+                />
+              ) : tender.q88Base64.startsWith("data:image") ? (
+                <div className="w-full h-full overflow-auto flex items-center justify-center bg-muted rounded">
+                  <img src={tender.q88Base64} alt="Q88 Form" className="max-w-full object-contain" />
+                </div>
+              ) : (
+                <iframe
+                  src={tender.q88Base64}
+                  className="w-full h-full rounded border"
+                  title="Q88 Vessel Form"
+                />
+              )}
+            </div>
+            <DialogFooter>
+              <a href={tender.q88Base64} download="Q88_Form">
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Download className="w-4 h-4" /> Download
+                </Button>
+              </a>
+              <Button variant="ghost" size="sm" onClick={() => setShowQ88(false)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

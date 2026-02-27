@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Shield, Users, Ship, FileText, Building2, Search } from "lucide-react";
+import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,6 +9,10 @@ import { useAuth } from "@/hooks/use-auth";
 import { useState } from "react";
 import type { User } from "@shared/models/auth";
 import type { Vessel, Proforma, CompanyProfile } from "@shared/schema";
+import {
+  BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Legend
+} from "recharts";
 
 const ROLE_BADGES: Record<string, string> = {
   shipowner: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -127,6 +131,7 @@ export default function AdminPanel() {
           <TabsTrigger value="vessels" data-testid="tab-vessels">Vessels ({allVessels?.length || 0})</TabsTrigger>
           <TabsTrigger value="proformas" data-testid="tab-proformas">Proformas ({allProformas?.length || 0})</TabsTrigger>
           <TabsTrigger value="profiles" data-testid="tab-profiles">Profiles ({allProfiles?.length || 0})</TabsTrigger>
+          <TabsTrigger value="analytics" data-testid="tab-analytics">Analytics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
@@ -313,6 +318,120 @@ export default function AdminPanel() {
                 </table>
               </div>
             </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="analytics" className="space-y-6" data-testid="tab-content-analytics">
+          {statsLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24" />)}
+            </div>
+          ) : stats && (
+            <>
+              {/* KPI Row */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card className="p-4" data-testid="kpi-tenders">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Tenders</p>
+                      <p className="text-2xl font-bold font-serif">{stats.totalTenders || 0}</p>
+                    </div>
+                    <Gavel className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
+                  </div>
+                </Card>
+                <Card className="p-4" data-testid="kpi-bids">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Bids</p>
+                      <p className="text-2xl font-bold font-serif">{stats.totalBids || 0}</p>
+                    </div>
+                    <BarChart3 className="w-5 h-5 text-[hsl(var(--maritime-secondary))]" />
+                  </div>
+                </Card>
+                <Card className="p-4" data-testid="kpi-conversion">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Bid Conversion</p>
+                      <p className="text-2xl font-bold font-serif">{stats.bidConversionRate || 0}%</p>
+                    </div>
+                    <Target className="w-5 h-5 text-emerald-600" />
+                  </div>
+                </Card>
+                <Card className="p-4" data-testid="kpi-proformas">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Proformas</p>
+                      <p className="text-2xl font-bold font-serif">{stats.totalProformas}</p>
+                    </div>
+                    <TrendingUp className="w-5 h-5 text-amber-500" />
+                  </div>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Subscription Distribution Pie */}
+                <Card className="p-5" data-testid="chart-subscriptions">
+                  <h3 className="font-semibold mb-4 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                    Subscription Plans
+                  </h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: "Free", value: stats.usersByPlan?.free || 0 },
+                          { name: "Standard", value: stats.usersByPlan?.standard || 0 },
+                          { name: "Unlimited", value: stats.usersByPlan?.unlimited || 0 },
+                        ]}
+                        cx="50%" cy="50%" outerRadius={75}
+                        dataKey="value" label={({ name, value }) => `${name}: ${value}`}
+                      >
+                        <Cell fill="#003D7A" />
+                        <Cell fill="#0077BE" />
+                        <Cell fill="#F59E0B" />
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Card>
+
+                {/* Monthly Proformas Bar Chart */}
+                <Card className="p-5" data-testid="chart-monthly-proformas">
+                  <h3 className="font-semibold mb-4 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                    Monthly Proformas (Last 6 Months)
+                  </h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={stats.monthlyProformas || []}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                      <Tooltip />
+                      <Bar dataKey="count" fill="#003D7A" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Card>
+
+                {/* Tenders by Port Bar Chart */}
+                {stats.tendersByPort?.length > 0 && (
+                  <Card className="p-5 lg:col-span-2" data-testid="chart-tenders-by-port">
+                    <h3 className="font-semibold mb-4 flex items-center gap-2">
+                      <Gavel className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                      Tenders by Port (Top 10)
+                    </h3>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={stats.tendersByPort} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis type="number" tick={{ fontSize: 12 }} allowDecimals={false} />
+                        <YAxis type="category" dataKey="port" tick={{ fontSize: 11 }} width={120} />
+                        <Tooltip />
+                        <Bar dataKey="count" fill="#0077BE" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </Card>
+                )}
+              </div>
+            </>
           )}
         </TabsContent>
       </Tabs>

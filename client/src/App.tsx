@@ -29,6 +29,7 @@ import DirectoryProfile from "@/pages/directory-profile";
 import Contact from "@/pages/contact";
 import VesselTrack from "@/pages/vessel-track";
 import PortInfo from "@/pages/port-info";
+import { LanguageProvider } from "@/lib/i18n";
 
 function AuthenticatedRouter() {
   return (
@@ -122,10 +123,12 @@ function AppContent() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <AppContent />
-      </TooltipProvider>
+      <LanguageProvider>
+        <TooltipProvider>
+          <Toaster />
+          <AppContent />
+        </TooltipProvider>
+      </LanguageProvider>
     </QueryClientProvider>
   );
 }

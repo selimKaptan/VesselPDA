@@ -200,6 +200,160 @@ export async function sendContactEmail(data: ContactEmailData): Promise<boolean>
   }
 }
 
+function emailHeader(subtitle: string) {
+  return `<td style="background:linear-gradient(135deg,#003D7A,#0077BE);padding:28px 32px">
+      <p style="margin:0;color:#fff;font-size:20px;font-weight:700">⚓ VesselPDA</p>
+      <p style="margin:6px 0 0;color:rgba(255,255,255,.8);font-size:14px">${subtitle}</p>
+    </td>`;
+}
+function emailFooter() {
+  return `<td style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0">
+      <p style="margin:0;color:#94a3b8;font-size:12px">© ${new Date().getFullYear()} VesselPDA · <a href="https://vesselpda.com" style="color:#0077BE;text-decoration:none">vesselpda.com</a></p>
+    </td>`;
+}
+function emailWrapper(rows: string) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9">
+  <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
+    <table width="580" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.12)">
+      ${rows}
+    </table>
+  </td></tr></table>
+</body></html>`;
+}
+
+export interface BidNotificationData {
+  ownerEmail?: string;
+  ownerName?: string;
+  agentEmail?: string;
+  agentName?: string;
+  portName: string;
+  vesselName?: string;
+  totalAmount?: string;
+  currency?: string;
+  tenderId: number;
+}
+
+export async function sendBidReceivedEmail(data: BidNotificationData): Promise<boolean> {
+  if (!data.ownerEmail) return false;
+  const creds = await getResendCredentials();
+  if (!creds) { console.warn("[email] No credentials — skipping sendBidReceivedEmail"); return false; }
+  const resend = new Resend(creds.apiKey);
+  const html = emailWrapper(`
+    <tr>${emailHeader("New Bid Received")}</tr>
+    <tr><td style="padding:32px">
+      <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#0f172a">You received a new bid!</p>
+      <p style="margin:0 0 20px;color:#334155;font-size:15px;line-height:1.7">
+        A bid has been submitted for your tender at <strong>${data.portName}</strong>${data.vesselName ? ` for vessel <strong>${data.vesselName}</strong>` : ""}.
+      </p>
+      <div style="background:#f8fafc;border-radius:8px;padding:16px 20px;margin-bottom:20px">
+        <table style="width:100%;border-collapse:collapse;font-size:14px">
+          ${data.agentName ? `<tr><td style="color:#64748b;padding:4px 12px 4px 0">Agent</td><td style="font-weight:600">${data.agentName}</td></tr>` : ""}
+          ${data.totalAmount ? `<tr><td style="color:#64748b;padding:4px 12px 4px 0">Offered Amount</td><td style="font-weight:600;color:#003D7A">${data.totalAmount} ${data.currency || "USD"}</td></tr>` : ""}
+        </table>
+      </div>
+      <table cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background:#003D7A">
+        <a href="https://vesselpda.com/tenders/${data.tenderId}" style="display:inline-block;padding:12px 24px;color:#fff;font-size:14px;font-weight:600;text-decoration:none">Review Bid →</a>
+      </td></tr></table>
+    </td></tr>
+    <tr>${emailFooter()}</tr>
+  `);
+  try {
+    const { error } = await resend.emails.send({
+      from: `VesselPDA <${creds.fromEmail}>`,
+      to: [data.ownerEmail],
+      subject: `[VesselPDA] New bid received — ${data.portName}`,
+      html,
+    });
+    if (error) { console.error("[email] sendBidReceivedEmail error:", error); return false; }
+    console.log(`[email] Bid received email sent to ${data.ownerEmail}`);
+    return true;
+  } catch (err) { console.error("[email] sendBidReceivedEmail failed:", err); return false; }
+}
+
+export async function sendBidSelectedEmail(data: BidNotificationData): Promise<boolean> {
+  if (!data.agentEmail) return false;
+  const creds = await getResendCredentials();
+  if (!creds) { console.warn("[email] No credentials — skipping sendBidSelectedEmail"); return false; }
+  const resend = new Resend(creds.apiKey);
+  const html = emailWrapper(`
+    <tr>${emailHeader("Bid Selected")}</tr>
+    <tr><td style="padding:32px">
+      <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#0f172a">Congratulations — Your bid was selected!</p>
+      <p style="margin:0 0 20px;color:#334155;font-size:15px;line-height:1.7">
+        Your proforma bid for the port call tender at <strong>${data.portName}</strong>${data.vesselName ? ` (${data.vesselName})` : ""} has been selected by the shipowner.
+      </p>
+      <div style="background:#ecfdf5;border-left:3px solid #10b981;border-radius:0 8px 8px 0;padding:16px 20px;margin-bottom:20px">
+        <p style="margin:0;color:#065f46;font-size:14px;font-weight:600">You will be contacted by the shipowner for the next steps.</p>
+      </div>
+      <table cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background:#003D7A">
+        <a href="https://vesselpda.com/tenders/${data.tenderId}" style="display:inline-block;padding:12px 24px;color:#fff;font-size:14px;font-weight:600;text-decoration:none">View Tender →</a>
+      </td></tr></table>
+    </td></tr>
+    <tr>${emailFooter()}</tr>
+  `);
+  try {
+    const { error } = await resend.emails.send({
+      from: `VesselPDA <${creds.fromEmail}>`,
+      to: [data.agentEmail],
+      subject: `[VesselPDA] 🎉 Your bid was selected — ${data.portName}`,
+      html,
+    });
+    if (error) { console.error("[email] sendBidSelectedEmail error:", error); return false; }
+    console.log(`[email] Bid selected email sent to ${data.agentEmail}`);
+    return true;
+  } catch (err) { console.error("[email] sendBidSelectedEmail failed:", err); return false; }
+}
+
+export interface NewTenderEmailData {
+  agentEmail: string;
+  agentName?: string;
+  portName: string;
+  vesselName?: string;
+  cargoType?: string;
+  cargoQuantity?: string;
+  expiryHours: number;
+  tenderId: number;
+}
+
+export async function sendNewTenderEmail(data: NewTenderEmailData): Promise<boolean> {
+  if (!data.agentEmail) return false;
+  const creds = await getResendCredentials();
+  if (!creds) return false;
+  const resend = new Resend(creds.apiKey);
+  const html = emailWrapper(`
+    <tr>${emailHeader("New Tender Available")}</tr>
+    <tr><td style="padding:32px">
+      <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#0f172a">New tender at ${data.portName}</p>
+      <p style="margin:0 0 20px;color:#334155;font-size:15px;line-height:1.7">
+        A shipowner has posted a new port call tender at <strong>${data.portName}</strong> — a port you serve. Submit your proforma bid quickly as this tender expires in <strong>${data.expiryHours} hours</strong>.
+      </p>
+      <div style="background:#f8fafc;border-radius:8px;padding:16px 20px;margin-bottom:20px">
+        <table style="width:100%;border-collapse:collapse;font-size:14px">
+          ${data.vesselName ? `<tr><td style="color:#64748b;padding:4px 12px 4px 0">Vessel</td><td style="font-weight:600">${data.vesselName}</td></tr>` : ""}
+          ${data.cargoType ? `<tr><td style="color:#64748b;padding:4px 12px 4px 0">Cargo Type</td><td style="font-weight:600">${data.cargoType}</td></tr>` : ""}
+          ${data.cargoQuantity ? `<tr><td style="color:#64748b;padding:4px 12px 4px 0">Quantity</td><td style="font-weight:600">${data.cargoQuantity}</td></tr>` : ""}
+          <tr><td style="color:#64748b;padding:4px 12px 4px 0">Deadline</td><td style="font-weight:600;color:#dc2626">${data.expiryHours}h from posting</td></tr>
+        </table>
+      </div>
+      <table cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background:#003D7A">
+        <a href="https://vesselpda.com/tenders/${data.tenderId}" style="display:inline-block;padding:12px 24px;color:#fff;font-size:14px;font-weight:600;text-decoration:none">View & Submit Bid →</a>
+      </td></tr></table>
+    </td></tr>
+    <tr>${emailFooter()}</tr>
+  `);
+  try {
+    const { error } = await resend.emails.send({
+      from: `VesselPDA <${creds.fromEmail}>`,
+      to: [data.agentEmail],
+      subject: `[VesselPDA] New tender at ${data.portName} — ${data.expiryHours}h deadline`,
+      html,
+    });
+    if (error) { console.error("[email] sendNewTenderEmail error:", error); return false; }
+    return true;
+  } catch (err) { console.error("[email] sendNewTenderEmail failed:", err); return false; }
+}
+
 export interface NominationEmailData {
   agentEmail: string;
   agentCompanyName: string;

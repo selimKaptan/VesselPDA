@@ -1,4 +1,5 @@
-import { Ship, FileText, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin, Shield, ChevronDown, MessageSquare, Anchor, Gavel, Navigation } from "lucide-react";
+import { Ship, FileText, Globe, LogOut, LayoutDashboard, Building2, Users, Crown, MapPin, Shield, ChevronDown, MessageSquare, Anchor, Gavel, Navigation, Languages } from "lucide-react";
+import { useLanguage } from "@/lib/i18n";
 import { useLocation, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -33,6 +34,7 @@ const PLAN_BADGE: Record<string, string> = {
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { lang, setLang, t } = useLanguage();
   const { user } = useAuth();
   const userRole = (user as any)?.userRole || "shipowner";
   const activeRole = (user as any)?.activeRole || "agent";
@@ -43,9 +45,9 @@ export function AppSidebar() {
     : "U";
 
   const mainNav = [
-    { title: "Dashboard", url: "/", icon: LayoutDashboard },
-    { title: "Directory", url: "/directory", icon: Users },
-    { title: "Forum", url: "/forum", icon: MessageSquare },
+    { title: t("nav.dashboard"), url: "/", icon: LayoutDashboard },
+    { title: t("nav.directory"), url: "/directory", icon: Users },
+    { title: t("nav.forum"), url: "/forum", icon: MessageSquare },
   ];
 
   const isAdminUser = userRole === "admin";
@@ -67,24 +69,24 @@ export function AppSidebar() {
   });
   const tenderCount = tenderBadge?.count || 0;
 
-  const toolsNav = [];
+  const toolsNav: any[] = [];
   if (isAdminUser || effectiveRole !== "provider") {
-    toolsNav.push({ title: "Vessels", url: "/vessels", icon: Ship });
-    toolsNav.push({ title: "Proformas", url: "/proformas", icon: FileText });
+    toolsNav.push({ title: t("nav.vessels"), url: "/vessels", icon: Ship });
+    toolsNav.push({ title: t("nav.proformas"), url: "/proformas", icon: FileText });
   }
   if (isAdminUser || effectiveRole !== "provider") {
-    toolsNav.push({ title: "Tenders", url: "/tenders", icon: Gavel, badge: tenderCount });
+    toolsNav.push({ title: t("nav.tenders"), url: "/tenders", icon: Gavel, badge: tenderCount });
   }
   if (isAdminUser || effectiveRole !== "provider") {
-    toolsNav.push({ title: "Vessel Track", url: "/vessel-track", icon: Navigation });
+    toolsNav.push({ title: t("nav.vesselTrack"), url: "/vessel-track", icon: Navigation });
   }
-  toolsNav.push({ title: "Port Info", url: "/port-info", icon: Anchor });
+  toolsNav.push({ title: t("nav.portInfo"), url: "/port-info", icon: Anchor });
   if (isAdminUser || effectiveRole === "agent" || effectiveRole === "provider") {
-    toolsNav.push({ title: "My Profile", url: "/company-profile", icon: Building2 });
+    toolsNav.push({ title: t("nav.companyProfile"), url: "/company-profile", icon: Building2 });
   }
 
   const adminNav = isAdminUser ? [
-    { title: "Admin Panel", url: "/admin", icon: Shield },
+    { title: t("nav.admin"), url: "/admin", icon: Shield },
   ] : [];
 
   const roleLabel = isAdminUser
@@ -347,6 +349,27 @@ export function AppSidebar() {
             </DropdownMenu>
           </div>
         )}
+
+        {/* Language toggle */}
+        <div className="flex items-center gap-2">
+          <Languages className="w-3.5 h-3.5 text-sidebar-foreground/40" />
+          <div className="flex rounded-md border border-sidebar-border/60 text-[11px] overflow-hidden">
+            <button
+              onClick={() => setLang("en")}
+              className={`px-2.5 py-1 font-medium transition-colors ${lang === "en" ? "bg-[hsl(var(--maritime-primary))] text-white" : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40"}`}
+              data-testid="button-lang-en"
+            >
+              EN
+            </button>
+            <button
+              onClick={() => setLang("tr")}
+              className={`px-2.5 py-1 font-medium transition-colors ${lang === "tr" ? "bg-[hsl(var(--maritime-primary))] text-white" : "text-sidebar-foreground/60 hover:bg-sidebar-accent/40"}`}
+              data-testid="button-lang-tr"
+            >
+              TR
+            </button>
+          </div>
+        </div>
 
         {/* User info */}
         <div className="flex items-center gap-3">

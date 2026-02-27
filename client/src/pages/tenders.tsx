@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Gavel, Plus, Clock, FileText, Ship, MapPin, ChevronRight,
-  AlertCircle, CheckCircle2, XCircle, Inbox, Send, Anchor, Upload, X
+  AlertCircle, CheckCircle2, XCircle, Inbox, Send, Anchor, Upload, X, Search
 } from "lucide-react";
 import type { Vessel } from "@shared/schema";
 
@@ -472,19 +472,36 @@ function CreateTenderDialog() {
 export default function TendersPage() {
   const { data, isLoading } = useQuery<{ role: string; tenders: any[]; ownUserId?: string }>({ queryKey: ["/api/tenders"] });
   const { data: myBids } = useQuery<any[]>({ queryKey: ["/api/tenders/my-bids"] });
+  const [searchText, setSearchText] = useState("");
+  const [cargoFilter, setCargoFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "closed">("all");
 
   const role = data?.role || "shipowner";
   const tenders = data?.tenders || [];
   const ownUserId = data?.ownUserId;
 
-  const openTenders = tenders.filter(t => t.status === "open");
-  const closedTenders = tenders.filter(t => t.status !== "open");
+  const filtered = tenders.filter(t => {
+    const q = searchText.toLowerCase();
+    const matchesSearch = !q || (t.vesselName || "").toLowerCase().includes(q) || (t.portName || "").toLowerCase().includes(q);
+    const matchesCargo = !cargoFilter || (t.cargoType || "").toLowerCase().includes(cargoFilter.toLowerCase());
+    const matchesStatus = statusFilter === "all" || (statusFilter === "open" ? t.status === "open" : t.status !== "open");
+    return matchesSearch && matchesCargo && matchesStatus;
+  });
+
+  const openTenders = filtered.filter(t => t.status === "open");
+  const closedTenders = filtered.filter(t => t.status !== "open").sort((a, b) =>
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
+  const activeFilters = [searchText, cargoFilter, statusFilter !== "all" ? statusFilter : ""].filter(Boolean).length;
 
   const getMyBidStatus = (tenderId: number) => {
     if (!myBids) return undefined;
     const bid = myBids.find((b: any) => b.tenderId === tenderId);
     return bid?.status;
   };
+
+  const clearFilters = () => { setSearchText(""); setCargoFilter(""); setStatusFilter("all"); };
 
   return (
     <div className="flex flex-col gap-6 p-6 max-w-4xl mx-auto">
@@ -501,6 +518,49 @@ export default function TendersPage() {
           </p>
         </div>
         {role !== "agent" && <CreateTenderDialog />}
+      </div>
+
+      {/* Search & Filter Bar */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search vessel or port..."
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            className="pl-9 h-9"
+            data-testid="input-tender-search"
+          />
+        </div>
+        <Input
+          placeholder="Cargo type..."
+          value={cargoFilter}
+          onChange={e => setCargoFilter(e.target.value)}
+          className="h-9 w-36"
+          data-testid="input-cargo-filter"
+        />
+        <div className="flex rounded-md border text-xs overflow-hidden">
+          {(["all", "open", "closed"] as const).map(s => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1.5 capitalize transition-colors ${statusFilter === s ? "bg-[hsl(var(--maritime-primary))] text-white" : "bg-background hover:bg-muted"}`}
+              data-testid={`filter-status-${s}`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+        {activeFilters > 0 && (
+          <button
+            onClick={clearFilters}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            data-testid="button-clear-filters"
+          >
+            <X className="w-3.5 h-3.5" />
+            Clear ({activeFilters})
+          </button>
+        )}
       </div>
 
       {isLoading ? (
