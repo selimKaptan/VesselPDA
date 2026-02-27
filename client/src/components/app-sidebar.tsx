@@ -99,7 +99,7 @@ export function AppSidebar() {
     <Sidebar>
       {/* Header */}
       <SidebarHeader className="px-4 py-5 border-b border-sidebar-border/60">
-        <div className="flex items-center gap-3">
+        <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
           <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 ring-1 ring-white/10">
             <img src="/logo-v2.png" alt="VesselPDA" className="w-full h-full object-contain" />
           </div>
@@ -107,7 +107,7 @@ export function AppSidebar() {
             <p className="font-serif font-bold text-sm tracking-tight truncate text-sidebar-foreground">VesselPDA</p>
             <p className="text-[10px] font-medium uppercase tracking-widest text-sidebar-foreground/45 truncate mt-0.5">Maritime Platform</p>
           </div>
-        </div>
+        </Link>
       </SidebarHeader>
 
       <SidebarContent className="py-3">
