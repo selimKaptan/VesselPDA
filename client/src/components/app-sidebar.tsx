@@ -105,8 +105,8 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       {/* Header */}
-      <SidebarHeader className="px-4 py-5 border-b border-sidebar-border/60">
-        <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity overflow-hidden">
+      <SidebarHeader className={`border-b border-sidebar-border/60 ${isCollapsed ? "px-1 py-3" : "px-4 py-5"}`}>
+        <Link href="/" className={`flex items-center hover:opacity-80 transition-opacity ${isCollapsed ? "justify-center" : "gap-3 overflow-hidden"}`}>
           <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 ring-1 ring-white/10">
             <img src="/logo-v2.png" alt="VesselPDA" className="w-full h-full object-contain" />
           </div>
@@ -265,7 +265,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       {/* Footer */}
-      <SidebarFooter className="border-t border-sidebar-border/60 p-3">
+      <SidebarFooter className={`border-t border-sidebar-border/60 ${isCollapsed ? "p-1" : "p-3"}`}>
         {/* Admin role dropdown — hidden when collapsed */}
         {isAdminUser && !isCollapsed && (
           <div className="mb-2">
@@ -328,7 +328,11 @@ export function AppSidebar() {
           <DropdownMenuTrigger asChild>
             <button
               data-testid="button-user-menu"
-              className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-sidebar-accent/60 transition-colors text-left overflow-hidden"
+              className={`flex items-center rounded-lg hover:bg-sidebar-accent/60 transition-colors ${
+                isCollapsed
+                  ? "w-full justify-center py-1.5"
+                  : "w-full gap-3 px-2 py-2 text-left"
+              }`}
             >
               <Avatar className="w-8 h-8 ring-2 ring-sidebar-primary/20 flex-shrink-0">
                 <AvatarImage src={user?.profileImageUrl || undefined} />
