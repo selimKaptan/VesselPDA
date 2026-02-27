@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Link, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,6 +7,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Moon, Sun, Menu, LayoutDashboard, Ship, Anchor, FileText, Building2, Gavel, MessageSquare, Navigation, MapPin, Settings, Star, Users } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import RoleSelection from "@/pages/role-selection";
@@ -37,6 +40,84 @@ import ForgotPasswordPage from "@/pages/forgot-password";
 import ResetPasswordPage from "@/pages/reset-password";
 import { NotificationBell } from "@/components/notification-bell";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { ThemeProvider, useTheme } from "@/components/theme-provider";
+import { useState } from "react";
+
+function DarkModeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={toggleTheme}
+      data-testid="button-dark-mode-toggle"
+      aria-label="Toggle dark mode"
+    >
+      {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+    </Button>
+  );
+}
+
+function MobileNavLink({ href, icon: Icon, label, onClick }: { href: string; icon: any; label: string; onClick: () => void }) {
+  const [location] = useLocation();
+  const active = location === href;
+  return (
+    <Link href={href} onClick={onClick}>
+      <div className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${active ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground"}`}>
+        <Icon className="w-5 h-5 flex-shrink-0" />
+        <span>{label}</span>
+      </div>
+    </Link>
+  );
+}
+
+function MobileNav({ user }: { user: any }) {
+  const [open, setOpen] = useState(false);
+  const close = () => setOpen(false);
+  const role = user?.activeRole || user?.userRole;
+  const isAdmin = user?.userRole === "admin";
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" className="md:hidden" data-testid="button-mobile-nav" aria-label="Open navigation">
+          <Menu className="w-5 h-5" />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-72 p-0">
+        <div className="flex flex-col h-full">
+          <div className="px-4 py-5 border-b flex items-center gap-3">
+            <img src="/logo-v2.png" alt="VesselPDA" className="w-9 h-9 rounded-md object-contain" />
+            <div>
+              <div className="font-serif font-bold text-base">VesselPDA</div>
+              <div className="text-xs text-muted-foreground capitalize">{role}</div>
+            </div>
+          </div>
+          <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
+            <MobileNavLink href="/" icon={LayoutDashboard} label="Dashboard" onClick={close} />
+            {(role === "shipowner" || role === "agent") && (
+              <MobileNavLink href="/vessels" icon={Ship} label="My Vessels" onClick={close} />
+            )}
+            <MobileNavLink href="/proformas" icon={FileText} label="Proformas" onClick={close} />
+            <MobileNavLink href="/tenders" icon={Gavel} label="Tenders" onClick={close} />
+            <MobileNavLink href="/vessel-track" icon={Navigation} label="Vessel Track" onClick={close} />
+            <MobileNavLink href="/port-info" icon={MapPin} label="Port Info" onClick={close} />
+            <MobileNavLink href="/directory" icon={Building2} label="Directory" onClick={close} />
+            <MobileNavLink href="/forum" icon={MessageSquare} label="Forum" onClick={close} />
+            {(role === "agent" || role === "provider") && (
+              <MobileNavLink href="/company-profile" icon={Star} label="Company Profile" onClick={close} />
+            )}
+            <MobileNavLink href="/pricing" icon={Anchor} label="Pricing" onClick={close} />
+            {isAdmin && <MobileNavLink href="/admin" icon={Users} label="Admin Panel" onClick={close} />}
+          </nav>
+          <div className="p-4 border-t text-xs text-muted-foreground">
+            {user?.firstName} {user?.lastName}
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
 
 function AuthenticatedRouter() {
   return (
@@ -66,6 +147,7 @@ function AuthenticatedRouter() {
 }
 
 function AuthenticatedLayout() {
+  const { user } = useAuth();
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -76,9 +158,13 @@ function AuthenticatedLayout() {
       <div className="flex h-screen w-full">
         <AppSidebar />
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center justify-between gap-2 px-3 border-b h-14 flex-shrink-0">
-            <SidebarTrigger data-testid="button-sidebar-toggle" />
+          <header className="flex items-center justify-between gap-2 px-3 border-b h-14 flex-shrink-0 bg-background">
             <div className="flex items-center gap-1">
+              <MobileNav user={user} />
+              <SidebarTrigger data-testid="button-sidebar-toggle" className="hidden md:flex" />
+            </div>
+            <div className="flex items-center gap-1">
+              <DarkModeToggle />
               <NotificationBell />
             </div>
           </header>
@@ -140,12 +226,14 @@ function AppContent() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <LanguageProvider>
-        <TooltipProvider>
-          <Toaster />
-          <AppContent />
-        </TooltipProvider>
-      </LanguageProvider>
+      <ThemeProvider>
+        <LanguageProvider>
+          <TooltipProvider>
+            <Toaster />
+            <AppContent />
+          </TooltipProvider>
+        </LanguageProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

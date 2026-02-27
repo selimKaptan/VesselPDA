@@ -106,6 +106,10 @@ export function registerAuthRoutes(app: Express): void {
         return res.status(403).json({ message: "email_not_verified", email: user.email });
       }
 
+      if ((user as any).isSuspended) {
+        return res.status(403).json({ message: "Account suspended. Please contact support." });
+      }
+
       req.session.userId = user.id;
       res.json(user);
     } catch (error) {

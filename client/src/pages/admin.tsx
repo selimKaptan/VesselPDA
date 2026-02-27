@@ -1,10 +1,11 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock, Ban, UserCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { useState } from "react";
@@ -40,6 +41,30 @@ export default function AdminPanel() {
   const { data: allProformas, isLoading: proformasLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"] });
   const { data: allProfiles, isLoading: profilesLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/admin/company-profiles"] });
   const { data: pendingProfiles, isLoading: pendingLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/admin/companies/pending"] });
+
+  const updatePlanMutation = useMutation({
+    mutationFn: async ({ userId, plan }: { userId: string; plan: string }) => {
+      const res = await apiRequest("PATCH", `/api/admin/users/${userId}/plan`, { plan });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ title: "Plan updated" });
+    },
+    onError: () => toast({ title: "Failed to update plan", variant: "destructive" }),
+  });
+
+  const suspendMutation = useMutation({
+    mutationFn: async ({ userId, suspended }: { userId: string; suspended: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/admin/users/${userId}/suspend`, { suspended });
+      return res.json();
+    },
+    onSuccess: (_, { suspended }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ title: suspended ? "User suspended" : "User reactivated" });
+    },
+    onError: () => toast({ title: "Failed to update user", variant: "destructive" }),
+  });
 
   const approveMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -195,31 +220,65 @@ export default function AdminPanel() {
                   <thead>
                     <tr className="border-b text-left">
                       <th className="p-3 font-medium">Name</th>
-                      <th className="p-3 font-medium">Email</th>
+                      <th className="p-3 font-medium hidden md:table-cell">Email</th>
                       <th className="p-3 font-medium">Role</th>
                       <th className="p-3 font-medium">Plan</th>
-                      <th className="p-3 font-medium">Proformas</th>
+                      <th className="p-3 font-medium hidden sm:table-cell">Proformas</th>
+                      <th className="p-3 font-medium text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredUsers.map(u => (
-                      <tr key={u.id} className="border-b last:border-0 hover:bg-muted/50" data-testid={`row-user-${u.id}`}>
-                        <td className="p-3">
-                          <div className="flex items-center gap-2">
-                            {u.profileImageUrl && <img src={u.profileImageUrl} className="w-6 h-6 rounded-full" alt="" />}
-                            <span className="font-medium">{u.firstName || ""} {u.lastName || ""}</span>
-                          </div>
-                        </td>
-                        <td className="p-3 text-muted-foreground">{u.email || "-"}</td>
-                        <td className="p-3">
-                          <Badge className={`text-[10px] ${ROLE_BADGES[u.userRole] || ""}`}>{u.userRole}</Badge>
-                        </td>
-                        <td className="p-3">
-                          <Badge variant="outline" className="text-[10px]">{u.subscriptionPlan}</Badge>
-                        </td>
-                        <td className="p-3 text-muted-foreground">{u.proformaCount}/{u.proformaLimit}</td>
-                      </tr>
-                    ))}
+                    {filteredUsers.map(u => {
+                      const isSuspended = (u as any).isSuspended;
+                      return (
+                        <tr key={u.id} className={`border-b last:border-0 hover:bg-muted/50 ${isSuspended ? "opacity-60 bg-red-50/50 dark:bg-red-950/10" : ""}`} data-testid={`row-user-${u.id}`}>
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              {u.profileImageUrl && <img src={u.profileImageUrl} className="w-6 h-6 rounded-full" alt="" />}
+                              <div>
+                                <span className="font-medium">{u.firstName || ""} {u.lastName || ""}</span>
+                                {isSuspended && <Badge variant="destructive" className="ml-2 text-[9px] px-1 py-0">Suspended</Badge>}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3 text-muted-foreground hidden md:table-cell">{u.email || "-"}</td>
+                          <td className="p-3">
+                            <Badge className={`text-[10px] ${ROLE_BADGES[u.userRole] || ""}`}>{u.userRole}</Badge>
+                          </td>
+                          <td className="p-3">
+                            <Select
+                              value={u.subscriptionPlan}
+                              onValueChange={(plan) => updatePlanMutation.mutate({ userId: u.id, plan })}
+                              disabled={updatePlanMutation.isPending}
+                            >
+                              <SelectTrigger className="h-7 text-xs w-28" data-testid={`select-plan-${u.id}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="free">Free</SelectItem>
+                                <SelectItem value="standard">Standard</SelectItem>
+                                <SelectItem value="unlimited">Unlimited</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="p-3 text-muted-foreground hidden sm:table-cell">{u.proformaCount}/{u.proformaLimit}</td>
+                          <td className="p-3 text-right">
+                            <Button
+                              size="sm"
+                              variant={isSuspended ? "outline" : "ghost"}
+                              className={isSuspended ? "text-green-600 border-green-300" : "text-red-600 hover:text-red-700"}
+                              onClick={() => suspendMutation.mutate({ userId: u.id, suspended: !isSuspended })}
+                              disabled={suspendMutation.isPending || u.userRole === "admin"}
+                              data-testid={`button-suspend-${u.id}`}
+                              title={isSuspended ? "Activate account" : "Suspend account"}
+                            >
+                              {isSuspended ? <UserCheck className="w-3.5 h-3.5 mr-1" /> : <Ban className="w-3.5 h-3.5 mr-1" />}
+                              {isSuspended ? "Activate" : "Suspend"}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

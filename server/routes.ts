@@ -512,6 +512,18 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/proformas/:id/duplicate", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const id = parseInt(req.params.id);
+      const duplicated = await storage.duplicateProforma(id, userId);
+      if (!duplicated) return res.status(404).json({ message: "Proforma not found" });
+      res.json(duplicated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to duplicate proforma" });
+    }
+  });
+
   app.patch("/api/user/role", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -688,6 +700,31 @@ export async function registerRoutes(
       res.json(allUsers);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/plan", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const { plan } = req.body;
+      if (!["free", "standard", "unlimited"].includes(plan)) return res.status(400).json({ message: "Invalid plan" });
+      const updated = await storage.updateUserSubscription(req.params.id, plan);
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update plan" });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/suspend", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const { suspended } = req.body;
+      const updated = await storage.suspendUser(req.params.id, !!suspended);
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update suspension status" });
     }
   });
 

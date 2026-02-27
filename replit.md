@@ -24,6 +24,11 @@ The platform is built with a modern web stack:
     - **Forum/Discussion Board**: A comprehensive discussion platform with categories, topics, replies, search, and filtering, accessible to all users for collaborative communication. Supports anonymous posting.
     - **Notification System**: Real-time in-app notifications (bell icon in top-right header). Notifies users of forum replies on their topics, incoming bids on tenders, selected bids, and nominations. Unread count badge, mark-all-read, click-to-navigate. `notifications` table in DB. Auto-polls every 30 seconds.
     - **Internationalization**: TR/EN language toggle with content translation.
+    - **Dark Mode**: Full dark/light mode toggle with localStorage persistence (`vpda-theme`). ThemeProvider context in `client/src/components/theme-provider.tsx`. Toggle button (Moon/Sun) in header.
+    - **Mobile Navigation**: Sheet-based hamburger drawer for small screens. Opens/closes on nav link click. Visible on `md:hidden` breakpoint.
+    - **Admin User Management**: Plan change (free/standard/unlimited) inline dropdown per user, suspend/activate users (sets `isSuspended` flag, blocks login with 403). `users.is_suspended` column in DB.
+    - **Proforma List Enhancements**: Status filter, vessel filter, text search. Duplicate/clone proforma action (POST /api/proformas/:id/duplicate).
+    - **AIS WebSocket Heartbeat**: 30s ping interval with 10s pong timeout to detect/terminate dead connections (fixes frequent code 1006 disconnects).
 - **Design Choices**: Global design tokens, professional UI redesign across all pages, including revamped landing page, dashboards, and forms.
 - **Data Storage**: Logo images are stored as base64 data URIs in the database to ensure persistence.
 - **API Integration**: Integration with various external services for enhanced functionality (e.g., AIS data, vessel information, exchange rates).

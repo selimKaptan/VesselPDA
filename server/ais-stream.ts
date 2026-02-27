@@ -21,6 +21,8 @@ let wsConnected = false;
 let wsInstance: WebSocket | null = null;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let reconnectDelay = 5000;
+let pingInterval: ReturnType<typeof setInterval> | null = null;
+let pongTimeout: ReturnType<typeof setTimeout> | null = null;
 
 const TURKEY_BBOX = [[[35.0, 25.0], [42.5, 45.0]]];
 
@@ -171,6 +173,22 @@ function connect(apiKey: string) {
     };
     console.log("AISStream: sending subscribe:", JSON.stringify(subscribeMsg));
     ws.send(JSON.stringify(subscribeMsg));
+
+    // Ping/pong heartbeat — keeps the connection alive and detects zombie connections
+    if (pingInterval) clearInterval(pingInterval);
+    pingInterval = setInterval(() => {
+      if (ws.readyState === ws.OPEN) {
+        ws.ping();
+        pongTimeout = setTimeout(() => {
+          console.log("AISStream: pong timeout — terminating dead connection");
+          ws.terminate();
+        }, 10000);
+      }
+    }, 30000);
+  });
+
+  ws.on("pong", () => {
+    if (pongTimeout) { clearTimeout(pongTimeout); pongTimeout = null; }
   });
 
   ws.on("message", (data) => {
@@ -192,6 +210,8 @@ function connect(apiKey: string) {
   ws.on("close", (code, reason) => {
     wsConnected = false;
     wsInstance = null;
+    if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
+    if (pongTimeout) { clearTimeout(pongTimeout); pongTimeout = null; }
     const reasonStr = reason?.toString() || "";
     console.log(`AISStream: disconnected (code ${code}${reasonStr ? `, reason: ${reasonStr}` : ""}). Reconnecting in ${reconnectDelay / 1000}s...`);
     reconnectTimeout = setTimeout(() => {

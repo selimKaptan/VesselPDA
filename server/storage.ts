@@ -55,11 +55,14 @@ export interface IStorage {
   getProforma(id: number, userId: string): Promise<(Proforma & { vessel?: Vessel; port?: Port }) | undefined>;
   getProformaById(id: number): Promise<(Proforma & { vessel?: Vessel; port?: Port }) | undefined>;
   createProforma(proforma: InsertProforma): Promise<Proforma>;
+  duplicateProforma(id: number, userId: string): Promise<Proforma | undefined>;
   deleteProforma(id: number, userId: string): Promise<boolean>;
 
   getAllVessels(): Promise<Vessel[]>;
   getAllUsers(): Promise<User[]>;
   getAllCompanyProfiles(): Promise<CompanyProfile[]>;
+  updateUserSubscription(userId: string, plan: string): Promise<User | undefined>;
+  suspendUser(userId: string, suspended: boolean): Promise<User | undefined>;
 
   getCompanyProfileByUser(userId: string): Promise<CompanyProfile | undefined>;
   getCompanyProfile(id: number): Promise<CompanyProfile | undefined>;
@@ -264,6 +267,24 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(users).orderBy(desc(users.createdAt));
   }
 
+  async updateUserSubscription(userId: string, plan: string): Promise<User | undefined> {
+    const limitMap: Record<string, number> = { free: 1, standard: 10, unlimited: 9999 };
+    const limit = limitMap[plan] ?? 1;
+    const [updated] = await db.update(users)
+      .set({ subscriptionPlan: plan, proformaLimit: limit, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async suspendUser(userId: string, suspended: boolean): Promise<User | undefined> {
+    const [updated] = await db.update(users)
+      .set({ isSuspended: suspended, updatedAt: new Date() } as any)
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
   async getAllCompanyProfiles(): Promise<CompanyProfile[]> {
     return db.select().from(companyProfiles).orderBy(desc(companyProfiles.createdAt));
   }
@@ -278,6 +299,16 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(proformas.id, id), eq(proformas.userId, userId)))
       .returning();
     return result.length > 0;
+  }
+
+  async duplicateProforma(id: number, userId: string): Promise<Proforma | undefined> {
+    const [original] = await db.select().from(proformas).where(and(eq(proformas.id, id), eq(proformas.userId, userId)));
+    if (!original) return undefined;
+    const { id: _id, createdAt: _createdAt, referenceNumber, ...rest } = original;
+    const ts = Date.now().toString().slice(-6);
+    const newRef = `${referenceNumber}-COPY-${ts}`;
+    const [created] = await db.insert(proformas).values({ ...rest, referenceNumber: newRef, status: "draft" }).returning();
+    return created;
   }
 
   async updateUserRole(userId: string, role: string): Promise<User | undefined> {
