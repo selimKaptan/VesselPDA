@@ -55,6 +55,16 @@ declare module "http" {
   }
 }
 
+if (process.env.NODE_ENV === "production") {
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.hostname.startsWith("www.")) {
+      const nonWwwHost = req.hostname.slice(4);
+      return res.redirect(301, `https://${nonWwwHost}${req.originalUrl}`);
+    }
+    next();
+  });
+}
+
 app.use("/api/auth", authLimiter);
 app.use("/api", apiLimiter);
 
