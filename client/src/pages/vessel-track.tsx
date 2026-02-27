@@ -1,7 +1,7 @@
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Navigation, Search, Plus, X, Anchor, Ship, MapPin, ArrowRight, AlertTriangle, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,13 @@ interface AISVessel {
   isOwnVessel?: boolean;
   isAgencyVessel?: boolean;
   imo?: string | null;
+}
+
+function seededRandom(seed: number): number {
+  let t = (seed ^ 0x6D2B79F5) >>> 0;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -247,26 +254,32 @@ export default function VesselTrack() {
     return () => { if (wlSearchTimeout.current) clearTimeout(wlSearchTimeout.current); };
   }, [wlSearch, doSearch]);
 
-  const watchlistOnMap: AISVessel[] = (watchlist as VesselWatchlistItem[]).map((w) => {
-    const match = positions.find(p => p.mmsi === w.mmsi);
-    if (match) return { ...match, id: `wl-${w.id}` };
-    const idx = w.id % positions.length;
-    const base = positions[idx] || positions[0];
-    return {
-      id: `wl-${w.id}`,
-      mmsi: w.mmsi,
-      vesselName: w.vesselName,
-      flag: w.flag || "🌐",
-      vesselType: w.vesselType || "Unknown",
-      lat: base?.lat ? base.lat + (Math.random() - 0.5) * 3 : 39 + Math.random() * 3,
-      lng: base?.lng ? base.lng + (Math.random() - 0.5) * 3 : 28 + Math.random() * 6,
-      heading: Math.floor(Math.random() * 360),
-      speed: Math.round(Math.random() * 12 * 10) / 10,
-      destination: "Unknown",
-      eta: null,
-      status: "underway",
-    };
-  });
+  const watchlistOnMap: AISVessel[] = useMemo(() =>
+    (watchlist as VesselWatchlistItem[]).map((w) => {
+      const match = positions.find(p => p.mmsi === w.mmsi);
+      if (match) return { ...match, id: `wl-${w.id}` };
+      const idx = w.id % Math.max(positions.length, 1);
+      const base = positions[idx] || positions[0];
+      const r1 = seededRandom(w.id * 3000 + 1);
+      const r2 = seededRandom(w.id * 3000 + 2);
+      const r3 = seededRandom(w.id * 3000 + 3);
+      const r4 = seededRandom(w.id * 3000 + 4);
+      return {
+        id: `wl-${w.id}`,
+        mmsi: w.mmsi,
+        vesselName: w.vesselName,
+        flag: w.flag || "🌐",
+        vesselType: w.vesselType || "Unknown",
+        lat: base?.lat ? base.lat + (r1 - 0.5) * 3 : 39 + r1 * 3,
+        lng: base?.lng ? base.lng + (r2 - 0.5) * 3 : 28 + r2 * 6,
+        heading: Math.floor(r3 * 360),
+        speed: Math.round(r4 * 12 * 10) / 10,
+        destination: "Unknown",
+        eta: null,
+        status: "underway" as const,
+      };
+    }),
+  [watchlist, positions]);
 
   const allMapVessels: AISVessel[] = [
     ...positions,

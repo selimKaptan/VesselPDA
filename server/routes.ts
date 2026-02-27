@@ -1606,6 +1606,13 @@ export async function registerRoutes(
   });
 
   // ─── VESSEL TRACK ─────────────────────────────────────────────────────────────
+  function seededRandom(seed: number): number {
+    let t = (seed ^ 0x6D2B79F5) >>> 0;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
   // TODO: Replace MOCK_AIS_DATA with real AIS API call when API key is available
   // Compatible with: MarineTraffic API v2, VesselFinder, AISHub, or any MMSI/position-based AIS provider
   // Integration point: replace the MOCK_AIS_DATA array + the search filter below
@@ -1702,13 +1709,13 @@ export async function registerRoutes(
           flag: v.flag,
           vesselType: v.vesselType,
           grt: v.grt,
-          lat: mock.lat + (Math.random() - 0.5) * 2,
-          lng: mock.lng + (Math.random() - 0.5) * 2,
-          heading: Math.floor(Math.random() * 360),
-          speed: Math.round(Math.random() * 14 * 10) / 10,
+          lat: mock.lat + (seededRandom(v.id * 1000 + 1) - 0.5) * 2,
+          lng: mock.lng + (seededRandom(v.id * 1000 + 2) - 0.5) * 2,
+          heading: Math.floor(seededRandom(v.id * 1000 + 3) * 360),
+          speed: Math.round(seededRandom(v.id * 1000 + 4) * 14 * 10) / 10,
           destination: mock.destination,
           eta: mock.eta,
-          status: ["underway", "anchored", "moored"][Math.floor(Math.random() * 3)] as string,
+          status: ["underway", "anchored", "moored"][Math.floor(seededRandom(v.id * 1000 + 5) * 3)] as string,
           isOwnVessel: true,
         };
       });
@@ -1736,10 +1743,10 @@ export async function registerRoutes(
           vesselType: t.cargoType || "General Cargo",
           tenderId: t.id,
           portName: t.port?.name,
-          lat: mock.lat + (Math.random() - 0.5) * 1.5,
-          lng: mock.lng + (Math.random() - 0.5) * 1.5,
-          heading: Math.floor(Math.random() * 360),
-          speed: Math.round(Math.random() * 12 * 10) / 10,
+          lat: mock.lat + (seededRandom(t.id * 2000 + 1) - 0.5) * 1.5,
+          lng: mock.lng + (seededRandom(t.id * 2000 + 2) - 0.5) * 1.5,
+          heading: Math.floor(seededRandom(t.id * 2000 + 3) * 360),
+          speed: Math.round(seededRandom(t.id * 2000 + 4) * 12 * 10) / 10,
           destination: t.port?.name || "Unknown",
           eta: null,
           status: "underway",
