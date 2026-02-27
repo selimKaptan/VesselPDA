@@ -4,6 +4,8 @@ import { Resend } from "resend";
 let _connectionSettings: any;
 
 async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: string } | null> {
+  const FROM_EMAIL = "noreply@vesselpda.com";
+
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
     ? "repl " + process.env.REPL_IDENTITY
@@ -13,7 +15,7 @@ async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: stri
 
   if (!hostname || !xReplitToken) {
     const fallback = process.env.RESEND_API_KEY;
-    if (fallback) return { apiKey: fallback, fromEmail: "noreply@vesselpda.com" };
+    if (fallback) return { apiKey: fallback, fromEmail: FROM_EMAIL };
     return null;
   }
 
@@ -37,7 +39,7 @@ async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: stri
 
     return {
       apiKey: _connectionSettings.settings.api_key,
-      fromEmail: _connectionSettings.settings.from_email || "noreply@vesselpda.com",
+      fromEmail: FROM_EMAIL,
     };
   } catch (err) {
     console.error("[email] Failed to fetch Resend credentials:", err);
