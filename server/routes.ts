@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
 import multer from "multer";
-import { sendNominationEmail, sendContactEmail, sendBidReceivedEmail, sendBidSelectedEmail, sendNewTenderEmail } from "./email";
+import { sendNominationEmail, sendContactEmail, sendBidReceivedEmail, sendBidSelectedEmail, sendNewTenderEmail, sendForumReplyEmail, sendProformaEmail } from "./email";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, registerAuthRoutes, authStorage } from "./replit_integrations/auth";
 import type { ProformaLineItem } from "@shared/schema";
@@ -524,6 +524,45 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/proformas/:id/send-email", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const id = parseInt(req.params.id);
+      const { toEmail, subject, message } = req.body;
+      if (!toEmail || !subject) return res.status(400).json({ message: "toEmail and subject are required" });
+
+      const proforma = await storage.getProforma(id);
+      if (!proforma || proforma.userId !== userId) return res.status(404).json({ message: "Proforma not found" });
+
+      const vessel = proforma.vesselId ? await storage.getVessel(proforma.vesselId, userId) : null;
+      const port = proforma.portId ? await storage.getPort(proforma.portId) : null;
+      const exchangeRate = proforma.exchangeRate || 1.1593;
+
+      const ok = await sendProformaEmail({
+        toEmail,
+        subject,
+        message,
+        referenceNumber: proforma.referenceNumber || `#${id}`,
+        vesselName: vessel?.name || `Vessel #${proforma.vesselId}`,
+        portName: port?.name || `Port #${proforma.portId}`,
+        purposeOfCall: proforma.purposeOfCall || "-",
+        totalUsd: proforma.totalUsd || 0,
+        totalEur: proforma.totalEur || (proforma.totalUsd || 0) / exchangeRate,
+        exchangeRate,
+        lineItems: (proforma.lineItems as any[]) || [],
+        bankDetails: proforma.bankDetails as any,
+        createdAt: proforma.createdAt?.toString() || new Date().toISOString(),
+        toCompany: proforma.toCompany || undefined,
+      });
+
+      if (!ok) return res.status(500).json({ message: "Failed to send email" });
+      res.json({ message: "Email sent successfully" });
+    } catch (error) {
+      console.error("Send proforma email error:", error);
+      res.status(500).json({ message: "Failed to send proforma email" });
+    }
+  });
+
   app.patch("/api/user/role", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -829,12 +868,18 @@ export async function registerRoutes(
         return { month: label, count };
       });
 
+      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const weeklyUsers = allUsers.filter(u => u.createdAt && new Date(u.createdAt) > oneWeekAgo).length;
+      const openTendersCount = allTenders.filter(t => t.status === "open").length;
+
       res.json({
         totalUsers: allUsers.length,
+        weeklyUsers,
         totalVessels: allVessels.length,
         totalProformas: allProformas.length,
         totalCompanyProfiles: allProfiles.length,
         totalTenders: allTenders.length,
+        openTendersCount,
         totalBids: allBids.length,
         bidConversionRate,
         tendersByPort,
@@ -929,7 +974,27 @@ export async function registerRoutes(
       const companyType = req.query.type as string | undefined;
       const portId = req.query.portId ? parseInt(req.query.portId as string) : undefined;
       const profiles = await storage.getPublicCompanyProfiles({ companyType, portId });
-      res.json(profiles);
+      // Attach avgRating and reviewCount for agent profiles
+      const agentProfiles = profiles.filter(p => p.companyType === "agent");
+      if (agentProfiles.length > 0) {
+        const reviewsMap = new Map<number, { sum: number; count: number }>();
+        await Promise.all(agentProfiles.map(async (p) => {
+          const reviews = await storage.getReviewsByCompany(p.id);
+          if (reviews.length > 0) {
+            const sum = reviews.reduce((acc: number, r: any) => acc + (r.rating || 0), 0);
+            reviewsMap.set(p.id, { sum, count: reviews.length });
+          }
+        }));
+        const enriched = profiles.map(p => {
+          const rating = reviewsMap.get(p.id);
+          return rating
+            ? { ...p, avgRating: Math.round((rating.sum / rating.count) * 10) / 10, reviewCount: rating.count }
+            : { ...p, avgRating: null, reviewCount: 0 };
+        });
+        res.json(enriched);
+      } else {
+        res.json(profiles.map(p => ({ ...p, avgRating: null, reviewCount: 0 })));
+      }
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch directory" });
     }
@@ -1257,8 +1322,11 @@ export async function registerRoutes(
       // Notify topic author if different from replier
       try {
         if (topic.userId && topic.userId !== userId) {
-          const replier = await storage.getUser(userId);
-          const replierName = replier ? `${replier.firstName || ""} ${replier.lastName || ""}`.trim() || replier.email : "Someone";
+          const [replier, topicAuthor] = await Promise.all([
+            storage.getUser(userId),
+            storage.getUser(topic.userId),
+          ]);
+          const replierName = replier ? `${replier.firstName || ""} ${replier.lastName || ""}`.trim() || replier.email || "Someone" : "Someone";
           await storage.createNotification({
             userId: topic.userId,
             type: "forum_reply",
@@ -1266,6 +1334,17 @@ export async function registerRoutes(
             message: `${replierName} replied to "${topic.title}"`,
             link: `/forum/${topicId}`,
           });
+          // Send email notification to topic author
+          if (topicAuthor?.email) {
+            const preview = content.trim().slice(0, 200) + (content.trim().length > 200 ? "..." : "");
+            sendForumReplyEmail({
+              toEmail: topicAuthor.email,
+              topicTitle: topic.title,
+              topicId,
+              replyAuthor: replierName,
+              replyPreview: preview,
+            }).catch(() => {});
+          }
         }
       } catch (e) { /* non-critical */ }
     } catch (error) {

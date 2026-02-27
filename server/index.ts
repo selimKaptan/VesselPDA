@@ -9,7 +9,25 @@ const app = express();
 const httpServer = createServer(app);
 
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: [
+        "'self'",
+        "wss://stream.aisstream.io",
+        "https://stream.aisstream.io",
+        "https://evds2.tcmb.gov.tr",
+        "https://api.zylalabs.com",
+        "https://api.resend.com",
+      ],
+      fontSrc: ["'self'", "data:"],
+      frameAncestors: ["'none'"],
+      objectSrc: ["'none'"],
+    },
+  },
   crossOriginEmbedderPolicy: false,
 }));
 

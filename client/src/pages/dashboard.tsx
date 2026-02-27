@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Ship, FileText, TrendingUp, Plus, ArrowRight, Crown, Zap, Users, Building2, Anchor, Star, Shield, BarChart3, Activity, Navigation } from "lucide-react";
+import { Ship, FileText, TrendingUp, Plus, ArrowRight, Crown, Zap, Users, Building2, Anchor, Star, Shield, BarChart3, Activity, Navigation, Gavel, Bell } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -39,7 +39,7 @@ function StatCard({
   label: string;
   value: React.ReactNode;
   loading?: boolean;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
   color: string;
   accent: string;
   href: string;
@@ -120,8 +120,15 @@ export default function Dashboard() {
   const { data: featured, isLoading: featuredLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/directory/featured"] });
   const { data: myProfile } = useQuery<CompanyProfile | null>({ queryKey: ["/api/company-profile/me"], enabled: isAdmin || userRole === "agent" || userRole === "provider" });
   const { data: adminStats } = useQuery<any>({ queryKey: ["/api/admin/stats"], enabled: isAdmin });
+  const { data: tendersData } = useQuery<any>({ queryKey: ["/api/tenders"], enabled: isAdmin || userRole !== "provider" });
+  const { data: notificationsData } = useQuery<any>({ queryKey: ["/api/notifications"] });
+  const { data: myBidsData } = useQuery<any>({ queryKey: ["/api/tenders/my-bids"], enabled: userRole === "agent" || (isAdmin && activeRole === "agent") });
 
+  const tenders: any[] = tendersData?.tenders || [];
   const recentProformas = proformas?.slice(0, 5) || [];
+  const openTenders = tenders.filter((t: any) => t.status === "open").length;
+  const unreadNotifications = notificationsData?.unreadCount ?? 0;
+  const myBids = Array.isArray(myBidsData) ? myBidsData.filter((b: any) => b.status === "pending").length : 0;
 
   const proformaCount = (user as any)?.proformaCount ?? 0;
   const proformaLimit = (user as any)?.proformaLimit ?? 1;
@@ -233,18 +240,20 @@ export default function Dashboard() {
 
       {/* Admin Stats */}
       {isAdmin && adminStats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           {[
             { label: "Total Users", value: adminStats.totalUsers, icon: Users, color: "var(--maritime-primary)", testId: "card-admin-users" },
-            { label: "Total Vessels", value: adminStats.totalVessels, icon: Ship, color: "var(--maritime-secondary)", testId: "card-admin-vessels" },
-            { label: "Total Proformas", value: adminStats.totalProformas, icon: FileText, color: "var(--maritime-accent)", testId: "card-admin-proformas" },
-            { label: "Company Profiles", value: adminStats.totalCompanyProfiles, icon: Building2, color: "38 92% 50%", testId: "card-admin-profiles" },
+            { label: "New This Week", value: adminStats.weeklyUsers, icon: TrendingUp, color: "var(--maritime-secondary)", testId: "card-admin-weekly-users" },
+            { label: "Total Vessels", value: adminStats.totalVessels, icon: Ship, color: "var(--maritime-accent)", testId: "card-admin-vessels" },
+            { label: "Total Proformas", value: adminStats.totalProformas, icon: FileText, color: "38 92% 50%", testId: "card-admin-proformas" },
+            { label: "Active Tenders", value: adminStats.openTendersCount, icon: Gavel, color: "142 71% 30%", testId: "card-admin-tenders" },
+            { label: "Company Profiles", value: adminStats.totalCompanyProfiles, icon: Building2, color: "0 72% 40%", testId: "card-admin-profiles" },
           ].map((s) => (
             <Card key={s.testId} className="p-4" data-testid={s.testId} style={{ borderLeft: `3px solid hsl(${s.color} / 0.4)` }}>
               <div className="flex items-center justify-between gap-2">
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground font-medium">{s.label}</p>
-                  <p className="text-2xl font-bold font-serif">{s.value}</p>
+                  <p className="text-2xl font-bold font-serif">{s.value ?? 0}</p>
                 </div>
                 <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `hsl(${s.color} / 0.1)` }}>
                   <s.icon className="w-5 h-5" style={{ color: `hsl(${s.color})` } as React.CSSProperties} />
@@ -304,7 +313,7 @@ export default function Dashboard() {
 
       {/* Stat Cards */}
       {(isAdmin || userRole !== "provider") && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard
             label="Vessels"
             value={vessels?.length || 0}
@@ -326,17 +335,85 @@ export default function Dashboard() {
             testId="card-stat-proformas"
           />
           <StatCard
-            label="Directory"
-            value={<Users className="w-8 h-8" style={{ color: "hsl(var(--maritime-accent))" }} />}
-            icon={Building2}
+            label="Open Tenders"
+            value={openTenders}
+            icon={Gavel}
+            color="38 92% 50%"
+            accent="gold"
+            href="/tenders"
+            testId="card-stat-tenders"
+          />
+          <StatCard
+            label="Unread Alerts"
+            value={unreadNotifications}
+            icon={Bell}
             color="var(--maritime-accent)"
             accent="accent"
-            href="/directory"
-            testId="card-stat-directory"
+            href="/forum"
+            testId="card-stat-notifications"
           />
         </div>
       )}
 
+      {/* Agent-specific: Pending Bids */}
+      {effectiveRole === "agent" && myBids > 0 && (
+        <Card className="p-4 border-[hsl(var(--maritime-secondary)/0.25)] bg-[hsl(var(--maritime-secondary)/0.03)]" data-testid="card-agent-pending-bids">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-[hsl(var(--maritime-secondary)/0.1)]">
+              <Gavel className="w-5 h-5 text-[hsl(var(--maritime-secondary))]" />
+            </div>
+            <div className="flex-1">
+              <p className="font-medium text-sm">You have <span className="font-bold text-[hsl(var(--maritime-secondary))]">{myBids}</span> pending bid{myBids !== 1 ? "s" : ""} awaiting shipowner decision</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Track your bids in the Tenders section</p>
+            </div>
+            <Link href="/tenders">
+              <Button variant="outline" size="sm" className="gap-1.5 hover:border-[hsl(var(--maritime-secondary)/0.4)]" data-testid="button-view-my-bids">
+                View Tenders <ArrowRight className="w-3.5 h-3.5" />
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      )}
+
+      {/* Provider: Profile Completion */}
+      {effectiveRole === "provider" && myProfile && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4" data-testid="section-provider-completion">
+          {[
+            {
+              label: "Logo",
+              done: !!(myProfile as any).logoUrl,
+              desc: (myProfile as any).logoUrl ? "Company logo uploaded" : "Upload a logo to stand out",
+              testId: "card-completion-logo"
+            },
+            {
+              label: "Description",
+              done: !!(myProfile as any).description,
+              desc: (myProfile as any).description ? "Profile description set" : "Add a company description",
+              testId: "card-completion-desc"
+            },
+            {
+              label: "Services",
+              done: !!(myProfile as any).serviceTypes?.length,
+              desc: (myProfile as any).serviceTypes?.length ? `${(myProfile as any).serviceTypes.length} service type(s) listed` : "Add the services you offer",
+              testId: "card-completion-services"
+            },
+          ].map((item) => (
+            <Card key={item.testId} className={`p-4 ${item.done ? "border-green-200/60 dark:border-green-800/40 bg-green-50/30 dark:bg-green-950/10" : "border-amber-200/60 dark:border-amber-800/40 bg-amber-50/30 dark:bg-amber-950/10"}`} data-testid={item.testId}>
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${item.done ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"}`}>
+                  {item.done ? "✓" : "!"}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">{item.label}</p>
+                  <p className="text-xs text-muted-foreground truncate">{item.desc}</p>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Provider: no profile yet — show simple setup CTA below */}
       {/* Create Profile CTA */}
       {(isAdmin || effectiveRole === "agent" || effectiveRole === "provider") && !myProfile && (
         <Card className="p-6 border-dashed border-2 border-[hsl(var(--maritime-primary)/0.25)] bg-[hsl(var(--maritime-primary)/0.02)]" data-testid="card-setup-profile-cta">

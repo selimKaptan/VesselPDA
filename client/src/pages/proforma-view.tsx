@@ -1,13 +1,19 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Download, Printer, Ship, Globe, FileText, Calendar, Package, Loader2 } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { ArrowLeft, Download, Printer, Ship, Globe, FileText, Calendar, Package, Loader2, Mail } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Link, useParams } from "wouter";
-import type { Proforma, Vessel, Port } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import type { Proforma, Vessel, Port, CompanyProfile } from "@shared/schema";
 
 async function downloadProformaPDF(refNumber: string) {
   const el = document.getElementById("proforma-document");
@@ -42,9 +48,39 @@ async function downloadProformaPDF(refNumber: string) {
 
 export default function ProformaView() {
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
   const params = useParams<{ id: string }>();
+  const { toast } = useToast();
+
   const { data: proforma, isLoading } = useQuery<Proforma & { vessel?: Vessel; port?: Port }>({
     queryKey: ["/api/proformas", params.id],
+  });
+
+  const { data: myProfile } = useQuery<CompanyProfile | null>({
+    queryKey: ["/api/company-profile/me"],
+  });
+
+  const sendEmailMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/proformas/${params.id}/send-email`, {
+        toEmail: emailTo,
+        subject: emailSubject,
+        message: emailMessage || undefined,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Email sent", description: `Proforma sent to ${emailTo}` });
+      setEmailOpen(false);
+      setEmailTo("");
+      setEmailMessage("");
+    },
+    onError: () => {
+      toast({ title: "Failed to send", description: "Please try again.", variant: "destructive" });
+    },
   });
 
   if (isLoading) {
@@ -69,9 +105,15 @@ export default function ProformaView() {
   }
 
   const exchangeRate = proforma.exchangeRate || 1.1593;
+  const logoSrc = myProfile?.logoUrl || "/logo-v2.png";
+
+  const openEmailDialog = () => {
+    setEmailSubject(`Proforma D/A — ${proforma.referenceNumber || `#${params.id}`}`);
+    setEmailOpen(true);
+  };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">
           <Link href="/proformas">
@@ -80,18 +122,28 @@ export default function ProformaView() {
             </Button>
           </Link>
           <div>
-            <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-proforma-ref">
+            <h1 className="font-serif text-xl sm:text-2xl font-bold tracking-tight" data-testid="text-proforma-ref">
               {proforma.referenceNumber}
             </h1>
             <Badge variant="secondary" className="capitalize">{proforma.status}</Badge>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => window.print()} data-testid="button-print">
-            <Printer className="w-4 h-4" /> Print
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()} data-testid="button-print">
+            <Printer className="w-4 h-4" /> <span className="hidden sm:inline">Print</span>
           </Button>
           <Button
             variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={openEmailDialog}
+            data-testid="button-send-email"
+          >
+            <Mail className="w-4 h-4" /> <span className="hidden sm:inline">Send Email</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             className="gap-2"
             data-testid="button-download"
             disabled={pdfLoading}
@@ -105,32 +157,32 @@ export default function ProformaView() {
             }}
           >
             {pdfLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            {pdfLoading ? "Generating..." : "Download PDF"}
+            <span className="hidden sm:inline">{pdfLoading ? "Generating..." : "Download PDF"}</span>
           </Button>
         </div>
       </div>
 
-      <Card className="p-8 space-y-8 print:shadow-none print:border-none" id="proforma-document" data-testid="card-proforma-document">
-        <div className="flex items-start justify-between gap-6">
+      <Card className="p-6 sm:p-8 space-y-6 sm:space-y-8 print:shadow-none print:border-none" id="proforma-document" data-testid="card-proforma-document">
+        <div className="flex items-start justify-between gap-4 sm:gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <img src="/logo-v2.png" alt="VesselPDA" className="w-10 h-10 rounded-md object-contain" />
+              <img src={logoSrc} alt="Company Logo" className="w-10 h-10 rounded-md object-contain" />
               <div>
-                <h2 className="font-serif font-bold text-lg">PROFORMA D/A - INVOICE</h2>
-                <p className="text-xs text-muted-foreground">VesselPDA Professional</p>
+                <h2 className="font-serif font-bold text-base sm:text-lg">PROFORMA D/A - INVOICE</h2>
+                <p className="text-xs text-muted-foreground">{myProfile?.companyName || "VesselPDA Professional"}</p>
               </div>
             </div>
           </div>
-          <div className="text-right text-sm">
+          <div className="text-right text-sm flex-shrink-0">
             <p className="font-medium">{proforma.createdAt ? new Date(proforma.createdAt).toLocaleDateString("en-GB") : ""}</p>
-            <p className="text-muted-foreground">{proforma.referenceNumber}</p>
+            <p className="text-muted-foreground text-xs">{proforma.referenceNumber}</p>
           </div>
         </div>
 
         <Separator />
 
         {proforma.toCompany && (
-          <div className="grid grid-cols-2 gap-6 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">To</p>
               <p className="font-medium">{proforma.toCompany}</p>
@@ -139,61 +191,61 @@ export default function ProformaView() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-md bg-muted/50">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 p-3 sm:p-4 rounded-md bg-muted/50">
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground flex items-center gap-1"><Ship className="w-3 h-3" /> Vessel</p>
-            <p className="font-medium text-sm" data-testid="text-vessel-info">{proforma.vessel?.name || `Vessel #${proforma.vesselId}`}</p>
+            <p className="font-medium text-xs sm:text-sm" data-testid="text-vessel-info">{proforma.vessel?.name || `Vessel #${proforma.vesselId}`}</p>
             <p className="text-xs text-muted-foreground">
               Flag: {proforma.vessel?.flag || "-"} | NRT/GRT: {proforma.vessel?.nrt?.toLocaleString()}/{proforma.vessel?.grt?.toLocaleString()}
             </p>
           </div>
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground flex items-center gap-1"><Globe className="w-3 h-3" /> Port</p>
-            <p className="font-medium text-sm">{proforma.port?.name || `Port #${proforma.portId}`}</p>
+            <p className="font-medium text-xs sm:text-sm">{proforma.port?.name || `Port #${proforma.portId}`}</p>
           </div>
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground flex items-center gap-1"><Package className="w-3 h-3" /> Cargo</p>
-            <p className="font-medium text-sm">{proforma.purposeOfCall}: {proforma.cargoType || "-"}</p>
+            <p className="font-medium text-xs sm:text-sm">{proforma.purposeOfCall}: {proforma.cargoType || "-"}</p>
             <p className="text-xs text-muted-foreground">
               {proforma.cargoQuantity ? `${proforma.cargoQuantity.toLocaleString()} ${proforma.cargoUnit}` : "-"}
             </p>
           </div>
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="w-3 h-3" /> Stay</p>
-            <p className="font-medium text-sm">{proforma.berthStayDays} Day(s)</p>
+            <p className="font-medium text-xs sm:text-sm">{proforma.berthStayDays} Day(s)</p>
           </div>
         </div>
 
         <div className="space-y-1">
-          <div className="text-sm text-muted-foreground text-right mb-2">
-            $1 = €{(1 / exchangeRate).toFixed(4)}
+          <div className="text-xs text-muted-foreground text-right mb-2">
+            Exchange Rate: $1 = €{(1 / exchangeRate).toFixed(4)} &nbsp;|&nbsp; Date: {proforma.createdAt ? new Date(proforma.createdAt).toLocaleDateString("en-GB") : ""}
           </div>
-          <div className="border rounded-md">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto border rounded-md">
+            <table className="w-full text-xs sm:text-sm">
               <thead>
-                <tr className="border-b bg-muted/30">
-                  <th className="text-left p-3 font-medium text-xs uppercase tracking-wider">Description</th>
-                  <th className="text-right p-3 font-medium text-xs uppercase tracking-wider">USD</th>
-                  <th className="text-right p-3 font-medium text-xs uppercase tracking-wider">EUR</th>
+                <tr className="border-b" style={{ background: "#003D7A" }}>
+                  <th className="text-left p-2 sm:p-3 font-semibold text-xs uppercase tracking-wider whitespace-nowrap" style={{ color: "#fff", minWidth: "180px" }}>Description</th>
+                  <th className="text-right p-2 sm:p-3 font-semibold text-xs uppercase tracking-wider whitespace-nowrap" style={{ color: "#fff", minWidth: "90px" }}>USD</th>
+                  <th className="text-right p-2 sm:p-3 font-semibold text-xs uppercase tracking-wider whitespace-nowrap" style={{ color: "#fff", minWidth: "90px" }}>EUR</th>
                 </tr>
               </thead>
               <tbody>
                 {(proforma.lineItems as any[])?.map((item: any, i: number) => (
-                  <tr key={i} className="border-b last:border-0">
-                    <td className="p-3">
+                  <tr key={i} className="border-b last:border-0 hover:bg-muted/20">
+                    <td className="p-2 sm:p-3 whitespace-nowrap">
                       {item.description}
                       {item.notes && <span className="text-xs text-muted-foreground ml-2">({item.notes})</span>}
                     </td>
-                    <td className="p-3 text-right font-mono">{item.amountUsd?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td className="p-3 text-right font-mono">{(item.amountEur || (item.amountUsd / exchangeRate))?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="p-2 sm:p-3 text-right font-mono whitespace-nowrap">{item.amountUsd?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="p-2 sm:p-3 text-right font-mono whitespace-nowrap">{(item.amountEur || (item.amountUsd / exchangeRate))?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="bg-[hsl(var(--maritime-primary)/0.05)] font-bold">
-                  <td className="p-3">Total Port Expenses</td>
-                  <td className="p-3 text-right font-mono">${proforma.totalUsd?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td className="p-3 text-right font-mono">€{(proforma.totalEur || proforma.totalUsd / exchangeRate)?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <tr className="font-bold" style={{ background: "hsl(var(--maritime-primary) / 0.07)" }}>
+                  <td className="p-2 sm:p-3 whitespace-nowrap">Total Port Expenses</td>
+                  <td className="p-2 sm:p-3 text-right font-mono whitespace-nowrap">${proforma.totalUsd?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="p-2 sm:p-3 text-right font-mono whitespace-nowrap">€{(proforma.totalEur || proforma.totalUsd / exchangeRate)?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 </tr>
               </tfoot>
             </table>
@@ -203,7 +255,7 @@ export default function ProformaView() {
         {proforma.notes && (
           <div className="text-sm space-y-1">
             <p className="font-medium">Notes:</p>
-            <p className="text-muted-foreground whitespace-pre-wrap">{proforma.notes}</p>
+            <p className="text-muted-foreground whitespace-pre-wrap text-xs sm:text-sm">{proforma.notes}</p>
           </div>
         )}
 
@@ -211,19 +263,94 @@ export default function ProformaView() {
           <>
             <Separator />
             <div className="text-sm space-y-2">
-              <p className="font-medium">Bank Details</p>
-              <div className="grid grid-cols-2 gap-2 text-muted-foreground text-xs">
-                <p>Bank: {(proforma.bankDetails as any).bankName}</p>
-                <p>Branch: {(proforma.bankDetails as any).branch}</p>
-                <p>SWIFT: {(proforma.bankDetails as any).swiftCode}</p>
-                <p>USD IBAN: {(proforma.bankDetails as any).usdIban}</p>
-                <p>EUR IBAN: {(proforma.bankDetails as any).eurIban}</p>
-                <p>Beneficiary: {(proforma.bankDetails as any).beneficiary}</p>
+              <p className="font-medium text-xs uppercase tracking-wider text-muted-foreground">Bank Details</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-muted-foreground text-xs bg-muted/30 p-3 rounded-md">
+                <p><span className="font-medium text-foreground">Bank:</span> {(proforma.bankDetails as any).bankName}</p>
+                <p><span className="font-medium text-foreground">Branch:</span> {(proforma.bankDetails as any).branch}</p>
+                <p><span className="font-medium text-foreground">SWIFT:</span> {(proforma.bankDetails as any).swiftCode}</p>
+                <p className="break-all"><span className="font-medium text-foreground">USD IBAN:</span> {(proforma.bankDetails as any).usdIban}</p>
+                <p className="break-all"><span className="font-medium text-foreground">EUR IBAN:</span> {(proforma.bankDetails as any).eurIban}</p>
+                <p><span className="font-medium text-foreground">Beneficiary:</span> {(proforma.bankDetails as any).beneficiary}</p>
               </div>
             </div>
           </>
         )}
+
+        <Separator />
+
+        <div className="grid grid-cols-2 gap-8 pt-4">
+          <div className="space-y-2">
+            <div className="border-b border-foreground/20 pb-1 mb-2 h-10" />
+            <p className="text-xs font-medium">Authorized Signature</p>
+            <p className="text-xs text-muted-foreground">{myProfile?.companyName || "Ship Agent"}</p>
+            <p className="text-xs text-muted-foreground">Date: ___________</p>
+          </div>
+          <div className="space-y-2">
+            <div className="border-b border-foreground/20 pb-1 mb-2 h-10" />
+            <p className="text-xs font-medium">Agent Stamp</p>
+            <p className="text-xs text-muted-foreground">&nbsp;</p>
+            <p className="text-xs text-muted-foreground">&nbsp;</p>
+          </div>
+        </div>
+
+        <div className="p-3 rounded-md bg-muted/30 text-xs text-muted-foreground italic">
+          This proforma disbursement account is an estimate only. Actual charges are subject to change based on vessel call conditions and applicable port tariffs.
+        </div>
       </Card>
+
+      <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-send-email">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="w-4 h-4" /> Send Proforma by Email
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="email-to">Recipient Email *</Label>
+              <Input
+                id="email-to"
+                type="email"
+                placeholder="shipowner@example.com"
+                value={emailTo}
+                onChange={e => setEmailTo(e.target.value)}
+                data-testid="input-email-to"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="email-subject">Subject</Label>
+              <Input
+                id="email-subject"
+                value={emailSubject}
+                onChange={e => setEmailSubject(e.target.value)}
+                data-testid="input-email-subject"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="email-message">Message (optional)</Label>
+              <Textarea
+                id="email-message"
+                placeholder="Add a personal message..."
+                value={emailMessage}
+                onChange={e => setEmailMessage(e.target.value)}
+                rows={3}
+                data-testid="input-email-message"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => sendEmailMutation.mutate()}
+              disabled={!emailTo || !emailSubject || sendEmailMutation.isPending}
+              data-testid="button-send-email-submit"
+            >
+              {sendEmailMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Mail className="w-4 h-4 mr-2" />}
+              Send Email
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

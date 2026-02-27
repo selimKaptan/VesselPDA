@@ -502,6 +502,15 @@ function CompanyCard({ profile, getPortName, isFeatured }: { profile: CompanyPro
           </div>
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-2">
+            {profile.companyType === "agent" && (
+              <span className="flex items-center gap-1" data-testid={`text-rating-${profile.id}`}>
+                <Star className={`w-3.5 h-3.5 ${(profile as any).avgRating ? "text-amber-500 fill-amber-400" : "text-muted-foreground/40"}`} />
+                {(profile as any).avgRating
+                  ? <><span className="font-medium text-foreground">{(profile as any).avgRating}</span><span className="text-xs"> ({(profile as any).reviewCount} review{(profile as any).reviewCount !== 1 ? "s" : ""})</span></>
+                  : <span className="text-xs text-muted-foreground/60">No reviews yet</span>
+                }
+              </span>
+            )}
             {servedPorts.length > 0 && (
               <span className="flex items-center gap-1">
                 <Ship className="w-3.5 h-3.5" />

@@ -654,3 +654,164 @@ export async function sendPasswordResetEmail(
     return false;
   }
 }
+
+export interface ForumReplyEmailData {
+  toEmail: string;
+  topicTitle: string;
+  topicId: number;
+  replyAuthor: string;
+  replyPreview: string;
+}
+
+export async function sendForumReplyEmail(data: ForumReplyEmailData): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) { console.warn("[email] No credentials — skipping sendForumReplyEmail"); return false; }
+  const resend = new Resend(creds.apiKey);
+  const html = emailWrapper(`
+    <tr>${emailHeader("New Reply on Your Topic")}</tr>
+    <tr><td style="padding:32px">
+      <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#0f172a">Someone replied to your topic</p>
+      <p style="margin:0 0 8px;color:#64748b;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Topic</p>
+      <p style="margin:0 0 20px;color:#1e293b;font-size:15px;font-weight:500">${data.topicTitle}</p>
+      <div style="background:#f8fafc;border-left:3px solid #003D7A;border-radius:0 8px 8px 0;padding:16px 20px;margin-bottom:24px">
+        <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em">${data.replyAuthor} wrote</p>
+        <p style="margin:0;color:#334155;font-size:14px;line-height:1.6">${data.replyPreview}</p>
+      </div>
+      <table cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background:#003D7A">
+        <a href="https://vesselpda.com/forum/${data.topicId}" style="display:inline-block;padding:12px 24px;color:#fff;font-size:14px;font-weight:600;text-decoration:none">View Reply →</a>
+      </td></tr></table>
+      <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0">
+        <p style="margin:0;color:#94a3b8;font-size:12px">You are receiving this because someone replied to your forum topic on VesselPDA.</p>
+      </div>
+    </td></tr>
+    <tr>${emailFooter()}</tr>
+  `);
+  try {
+    const { error } = await resend.emails.send({
+      from: `VesselPDA <${creds.fromEmail}>`,
+      to: [data.toEmail],
+      subject: `[VesselPDA Forum] New reply: "${data.topicTitle}"`,
+      html,
+    });
+    if (error) { console.error("[email] sendForumReplyEmail error:", error); return false; }
+    console.log(`[email] Forum reply notification sent to ${data.toEmail}`);
+    return true;
+  } catch (err) { console.error("[email] sendForumReplyEmail failed:", err); return false; }
+}
+
+export interface ProformaEmailData {
+  toEmail: string;
+  subject: string;
+  message?: string;
+  referenceNumber: string;
+  vesselName: string;
+  portName: string;
+  purposeOfCall: string;
+  totalUsd: number;
+  totalEur: number;
+  exchangeRate: number;
+  lineItems: Array<{ description: string; amountUsd: number; notes?: string }>;
+  bankDetails?: {
+    bankName?: string;
+    swiftCode?: string;
+    usdIban?: string;
+    eurIban?: string;
+    beneficiary?: string;
+    branch?: string;
+  };
+  createdAt: string;
+  toCompany?: string;
+}
+
+export async function sendProformaEmail(data: ProformaEmailData): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) { console.warn("[email] No credentials — skipping sendProformaEmail"); return false; }
+  const resend = new Resend(creds.apiKey);
+
+  const lineItemRows = data.lineItems.map(item => `
+    <tr style="border-bottom:1px solid #e2e8f0">
+      <td style="padding:8px 12px;font-size:13px;color:#1e293b">${item.description}${item.notes ? ` <span style="color:#94a3b8;font-size:11px">(${item.notes})</span>` : ""}</td>
+      <td style="padding:8px 12px;font-size:13px;color:#1e293b;text-align:right;font-family:monospace">$${item.amountUsd.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+      <td style="padding:8px 12px;font-size:13px;color:#1e293b;text-align:right;font-family:monospace">€${(item.amountUsd / data.exchangeRate).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+    </tr>`).join("");
+
+  const bankSection = data.bankDetails ? `
+    <div style="margin-top:24px;background:#f8fafc;border-radius:8px;padding:16px 20px">
+      <p style="margin:0 0 10px;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Bank Details</p>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        ${data.bankDetails.bankName ? `<tr><td style="color:#64748b;padding:3px 12px 3px 0">Bank</td><td style="color:#1e293b;font-weight:500">${data.bankDetails.bankName}</td></tr>` : ""}
+        ${data.bankDetails.swiftCode ? `<tr><td style="color:#64748b;padding:3px 12px 3px 0">SWIFT</td><td style="color:#1e293b;font-weight:500">${data.bankDetails.swiftCode}</td></tr>` : ""}
+        ${data.bankDetails.usdIban ? `<tr><td style="color:#64748b;padding:3px 12px 3px 0">USD IBAN</td><td style="color:#1e293b;font-weight:500;word-break:break-all">${data.bankDetails.usdIban}</td></tr>` : ""}
+        ${data.bankDetails.eurIban ? `<tr><td style="color:#64748b;padding:3px 12px 3px 0">EUR IBAN</td><td style="color:#1e293b;font-weight:500;word-break:break-all">${data.bankDetails.eurIban}</td></tr>` : ""}
+        ${data.bankDetails.beneficiary ? `<tr><td style="color:#64748b;padding:3px 12px 3px 0">Beneficiary</td><td style="color:#1e293b;font-weight:500">${data.bankDetails.beneficiary}</td></tr>` : ""}
+      </table>
+    </div>` : "";
+
+  const messageSection = data.message ? `
+    <div style="margin-bottom:24px;background:#f0f9ff;border-left:3px solid #0077BE;border-radius:0 8px 8px 0;padding:14px 18px">
+      <p style="margin:0 0 4px;font-size:12px;font-weight:600;color:#0369a1;text-transform:uppercase;letter-spacing:.05em">Message</p>
+      <p style="margin:0;color:#0c4a6e;font-size:14px;white-space:pre-wrap">${data.message}</p>
+    </div>` : "";
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${data.subject}</title></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9">
+  <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
+    <table width="620" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.12)">
+      <tr><td style="background:linear-gradient(135deg,#003D7A,#0077BE);padding:28px 32px">
+        <table width="100%"><tr>
+          <td><p style="margin:0;color:#fff;font-size:20px;font-weight:700">⚓ VesselPDA</p><p style="margin:6px 0 0;color:rgba(255,255,255,.8);font-size:13px">Proforma Disbursement Account</p></td>
+          <td style="text-align:right;vertical-align:top"><p style="margin:0;color:rgba(255,255,255,.9);font-size:13px;font-weight:600">${data.referenceNumber}</p><p style="margin:4px 0 0;color:rgba(255,255,255,.7);font-size:12px">${new Date(data.createdAt).toLocaleDateString("en-GB")}</p></td>
+        </tr></table>
+      </td></tr>
+      <tr><td style="padding:28px 32px">
+        ${messageSection}
+        <div style="background:#f8fafc;border-radius:8px;padding:16px 20px;margin-bottom:24px">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <tr><td style="color:#64748b;padding:4px 12px 4px 0">Vessel</td><td style="font-weight:600;color:#1e293b">${data.vesselName}</td></tr>
+            <tr><td style="color:#64748b;padding:4px 12px 4px 0">Port</td><td style="font-weight:600;color:#1e293b">${data.portName}</td></tr>
+            <tr><td style="color:#64748b;padding:4px 12px 4px 0">Purpose</td><td style="font-weight:600;color:#1e293b">${data.purposeOfCall}</td></tr>
+            ${data.toCompany ? `<tr><td style="color:#64748b;padding:4px 12px 4px 0">Addressed To</td><td style="font-weight:600;color:#1e293b">${data.toCompany}</td></tr>` : ""}
+            <tr><td style="color:#64748b;padding:4px 12px 4px 0">Exchange Rate</td><td style="font-weight:600;color:#1e293b">1 USD = ${data.exchangeRate.toFixed(4)} EUR</td></tr>
+          </table>
+        </div>
+        <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px">
+          <thead>
+            <tr style="background:#003D7A">
+              <th style="padding:10px 12px;font-size:11px;color:#fff;text-align:left;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Description</th>
+              <th style="padding:10px 12px;font-size:11px;color:#fff;text-align:right;font-weight:600;text-transform:uppercase;letter-spacing:.05em">USD</th>
+              <th style="padding:10px 12px;font-size:11px;color:#fff;text-align:right;font-weight:600;text-transform:uppercase;letter-spacing:.05em">EUR</th>
+            </tr>
+          </thead>
+          <tbody>${lineItemRows}</tbody>
+          <tfoot>
+            <tr style="background:#eff6ff">
+              <td style="padding:10px 12px;font-size:14px;font-weight:700;color:#1e3a5f">Total Port Expenses</td>
+              <td style="padding:10px 12px;font-size:14px;font-weight:700;color:#1e3a5f;text-align:right;font-family:monospace">$${data.totalUsd.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              <td style="padding:10px 12px;font-size:14px;font-weight:700;color:#1e3a5f;text-align:right;font-family:monospace">€${data.totalEur.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            </tr>
+          </tfoot>
+        </table>
+        ${bankSection}
+        <div style="margin-top:20px;padding:12px 16px;background:#fafafa;border-radius:6px">
+          <p style="margin:0;color:#94a3b8;font-size:11px;font-style:italic">This proforma disbursement account is an estimate only. Actual charges are subject to change based on vessel call conditions and applicable tariffs.</p>
+        </div>
+      </td></tr>
+      <tr><td style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0">
+        <p style="margin:0;color:#94a3b8;font-size:12px">© ${new Date().getFullYear()} VesselPDA · <a href="https://vesselpda.com" style="color:#0077BE;text-decoration:none">vesselpda.com</a></p>
+      </td></tr>
+    </table>
+  </td></tr></table>
+</body></html>`;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: `VesselPDA <${creds.fromEmail}>`,
+      to: [data.toEmail],
+      subject: data.subject,
+      html,
+    });
+    if (error) { console.error("[email] sendProformaEmail error:", error); return false; }
+    console.log(`[email] Proforma email sent to ${data.toEmail}`);
+    return true;
+  } catch (err) { console.error("[email] sendProformaEmail failed:", err); return false; }
+}

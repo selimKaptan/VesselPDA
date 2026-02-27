@@ -31,7 +31,7 @@ function StarRating({ value, onChange, readonly = false }: { value: number; onCh
           data-testid={readonly ? undefined : `star-${star}`}
         >
           <Star
-            className={`w-5 h-5 ${(hovered || value) >= star ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`}
+            className={`w-5 h-5 transition-all duration-150 ${!readonly && "group-hover:scale-110"} ${(hovered || value) >= star ? "fill-amber-400 text-amber-400 drop-shadow-sm" : "text-muted-foreground/30 hover:text-amber-300"}`}
           />
         </button>
       ))}

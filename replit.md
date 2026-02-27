@@ -29,6 +29,12 @@ The platform is built with a modern web stack:
     - **Admin User Management**: Plan change (free/standard/unlimited) inline dropdown per user, suspend/activate users (sets `isSuspended` flag, blocks login with 403). `users.is_suspended` column in DB.
     - **Proforma List Enhancements**: Status filter, vessel filter, text search. Duplicate/clone proforma action (POST /api/proformas/:id/duplicate).
     - **AIS WebSocket Heartbeat**: 30s ping interval with 10s pong timeout to detect/terminate dead connections (fixes frequent code 1006 disconnects).
+    - **Dashboard Role Cards**: Dynamic stat cards per role — Open Tenders + Unread Alerts for all; Agent "Pending Bids" banner; Provider profile completion cards (Logo / Description / Services with green/amber status). Admin gets 6-card stats grid including "New This Week" users and "Active Tenders".
+    - **Directory Ratings**: Agent cards in `/directory` now display avgRating (star icon + score + review count) or "No reviews yet". Backend `/api/directory` enriched with `avgRating` and `reviewCount` per profile.
+    - **Star Rating UX**: `StarRating` component in directory-profile has smooth `transition-all` animation, `drop-shadow` on filled stars, and hover preview color (`text-amber-300`) on unfilled stars.
+    - **Security (CSP)**: Helmet Content-Security-Policy headers enabled in `server/index.ts` — `connect-src` covers AIS WSS, TCMB, Resend, Zyla; `frame-ancestors: none`; `crossOriginEmbedderPolicy: false` kept for Leaflet.
+    - **Proforma View**: Rewritten with dynamic company logo from `/api/company-profile/me`, email-send dialog (Resend), signature/stamp area, disclaimer text, navy blue table header, exchange rate line, mobile `overflow-x-auto` + `break-all` for IBANs.
+    - **Email Features**: `sendForumReplyEmail()` and `sendProformaEmail()` in `server/email.ts`. Forum reply route emails topic author on new replies. `POST /api/proformas/:id/send-email` sends HTML proforma email via Resend.
 - **Design Choices**: Global design tokens, professional UI redesign across all pages, including revamped landing page, dashboards, and forms.
 - **Data Storage**: Logo images are stored as base64 data URIs in the database to ensure persistence.
 - **API Integration**: Integration with various external services for enhanced functionality (e.g., AIS data, vessel information, exchange rates).
@@ -39,7 +45,7 @@ The platform is built with a modern web stack:
 - **AISStream.io**: WebSocket-based API for live AIS vessel tracking data.
 - **RapidAPI (Zyla Labs Vessel Information API)**: For vessel IMO lookup and retrieving detailed vessel information (name, type, flag, tonnage, dimensions).
 - **Turkish Central Bank (TCMB)**: Public XML feed for fetching live USD/TRY and EUR/TRY exchange rates.
-- **Resend**: Transactional email service for sending various notifications (nominations, contact forms, bid-related alerts).
+- **Resend**: Transactional email service for sending various notifications (nominations, contact forms, bid-related alerts, proforma emails, forum reply notifications).
 - **jsPDF + html2canvas**: Client-side libraries for generating multi-page PDF exports of proformas.
 - **Leaflet**: JavaScript library for interactive maps, used in the Vessel Track feature.
 - **Vite**: Frontend build tool.
