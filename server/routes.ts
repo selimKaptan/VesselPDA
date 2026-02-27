@@ -181,7 +181,52 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Port not found" });
       }
 
-      res.json({ port: dbPort || null, extended });
+      // Try Nominatim geocoding if no coordinates yet
+      if ((!extended?.lat || !extended?.lng) && dbPort?.name) {
+        try {
+          const portName = encodeURIComponent(dbPort.name);
+          const geoRes = await fetch(
+            `https://nominatim.openstreetmap.org/search?q=${portName}&format=json&limit=1&countrycodes=tr`,
+            {
+              headers: { "User-Agent": "VesselPDA/1.0 (info@vesselpda.com)" },
+              signal: AbortSignal.timeout(5000),
+            }
+          );
+          if (geoRes.ok) {
+            const geoData = await geoRes.json();
+            if (geoData?.[0]?.lat && geoData?.[0]?.lon) {
+              extended = extended || {};
+              extended.lat = extended.lat ?? parseFloat(geoData[0].lat);
+              extended.lng = extended.lng ?? parseFloat(geoData[0].lon);
+              extended.displayName = extended.displayName ?? geoData[0].display_name;
+            }
+          }
+        } catch {
+          // Nominatim unavailable — skip
+        }
+      }
+
+      // Derive timezone for Turkey if not set
+      if (extended && !extended.timezone) {
+        extended.timezone = "Europe/Istanbul (UTC+3)";
+      } else if (!extended) {
+        extended = { timezone: "Europe/Istanbul (UTC+3)", lat: null, lng: null, maxDraft: null, facilities: null, city: null, country: "Turkey" };
+      }
+
+      // Get agents serving this port from our directory
+      let agents: any[] = [];
+      if (dbPort?.id) {
+        agents = await storage.getAgentsByPort(dbPort.id);
+      }
+
+      // Get open tenders at this port
+      let openTenders: any[] = [];
+      if (dbPort?.id) {
+        const allTenders = await storage.getPortTenders({ portId: dbPort.id, status: "open" });
+        openTenders = allTenders.slice(0, 5);
+      }
+
+      res.json({ port: dbPort || null, extended, agents, openTenders });
     } catch (error) {
       console.error("Port info error:", error);
       res.status(500).json({ message: "Failed to fetch port info" });
