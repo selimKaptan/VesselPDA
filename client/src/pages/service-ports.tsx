@@ -97,15 +97,15 @@ export default function ServicePorts() {
               <a href="/forum" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-nav-forum">Forum</a>
             </div>
             <div className="hidden md:flex items-center gap-3">
-              <a href="/api/login">
+              <a href="/login">
                 <Button variant="outline" data-testid="button-service-ports-login">Log in</Button>
               </a>
-              <a href="/api/login">
+              <a href="/login">
                 <Button data-testid="button-service-ports-signup">Sign up</Button>
               </a>
             </div>
             <div className="flex md:hidden items-center gap-2">
-              <a href="/api/login">
+              <a href="/login">
                 <Button size="sm" data-testid="button-service-ports-signup-mobile">Sign up</Button>
               </a>
               <button
@@ -134,7 +134,7 @@ export default function ServicePorts() {
                   >{item.label}</a>
                 ))}
                 <div className="pt-2 border-t border-border mt-1">
-                  <a href="/api/login" className="block">
+                  <a href="/login" className="block">
                     <Button variant="outline" className="w-full mb-2" size="sm">Log in</Button>
                   </a>
                 </div>

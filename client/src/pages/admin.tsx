@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock, Ban, UserCheck } from "lucide-react";
+import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock, Ban, UserCheck, MessageSquarePlus, Bug, Lightbulb, MessageCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,6 +41,7 @@ export default function AdminPanel() {
   const { data: allProformas, isLoading: proformasLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"] });
   const { data: allProfiles, isLoading: profilesLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/admin/company-profiles"] });
   const { data: pendingProfiles, isLoading: pendingLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/admin/companies/pending"] });
+  const { data: allFeedbacks, isLoading: feedbacksLoading } = useQuery<any[]>({ queryKey: ["/api/admin/feedback"] });
 
   const updatePlanMutation = useMutation({
     mutationFn: async ({ userId, plan }: { userId: string; plan: string }) => {
@@ -198,6 +199,14 @@ export default function AdminPanel() {
             )}
           </TabsTrigger>
           <TabsTrigger value="analytics" data-testid="tab-analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="feedback" data-testid="tab-feedback" className="relative">
+            Feedback
+            {(allFeedbacks?.length ?? 0) > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold rounded-full bg-blue-500 text-white">
+                {allFeedbacks!.length}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
@@ -604,6 +613,58 @@ export default function AdminPanel() {
                 )}
               </div>
             </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="feedback" className="space-y-4">
+          {feedbacksLoading ? (
+            <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-20" />)}</div>
+          ) : !allFeedbacks?.length ? (
+            <Card className="p-10 text-center">
+              <MessageSquarePlus className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-sm font-medium text-muted-foreground">No feedback submitted yet</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">Feedback from users will appear here</p>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {allFeedbacks.map((fb: any) => {
+                const catConfig = {
+                  bug: { icon: Bug, label: "Bug Report", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+                  feature: { icon: Lightbulb, label: "Feature Request", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+                  other: { icon: MessageCircle, label: "Other", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+                };
+                const cat = catConfig[fb.category as keyof typeof catConfig] || catConfig.other;
+                const CatIcon = cat.icon;
+                const timeAgo = fb.createdAt ? (() => {
+                  const diff = Date.now() - new Date(fb.createdAt).getTime();
+                  const h = Math.floor(diff / 3600000);
+                  const d = Math.floor(diff / 86400000);
+                  return d > 0 ? `${d}d ago` : h > 0 ? `${h}h ago` : "just now";
+                })() : "";
+                return (
+                  <Card key={fb.id} className="p-4" data-testid={`card-feedback-${fb.id}`}>
+                    <div className="flex items-start gap-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${cat.color}`}>
+                        <CatIcon className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <Badge className={`text-[10px] px-2 py-0 border-0 ${cat.color}`}>{cat.label}</Badge>
+                          {fb.pageUrl && (
+                            <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[200px]">{fb.pageUrl}</span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground ml-auto flex-shrink-0">{timeAgo}</span>
+                        </div>
+                        <p className="text-sm text-foreground leading-relaxed">{fb.message}</p>
+                        {fb.userId && (
+                          <p className="text-[10px] text-muted-foreground mt-1">User ID: {fb.userId}</p>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
           )}
         </TabsContent>
       </Tabs>

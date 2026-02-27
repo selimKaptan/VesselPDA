@@ -138,7 +138,7 @@ export default function ProformaNew() {
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
         toast({ title: "Session expired", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        setTimeout(() => { window.location.href = "/login"; }, 500);
         return;
       }
       toast({ title: "Calculation failed", description: error.message, variant: "destructive" });
@@ -158,7 +158,7 @@ export default function ProformaNew() {
     onError: (error: any) => {
       if (isUnauthorizedError(error)) {
         toast({ title: "Session expired", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        setTimeout(() => { window.location.href = "/login"; }, 500);
         return;
       }
       if (error.message?.includes("limit reached") || error.message?.includes("LIMIT_REACHED") || error.message?.includes("upgrade")) {

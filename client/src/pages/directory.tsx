@@ -148,15 +148,15 @@ export default function Directory() {
               <a href="/forum" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Forum</a>
             </div>
             <div className="hidden md:flex items-center gap-3">
-              <a href="/api/login">
+              <a href="/login">
                 <Button variant="outline" data-testid="button-directory-login">Log in</Button>
               </a>
-              <a href="/api/login">
+              <a href="/login">
                 <Button data-testid="button-directory-signup">Sign up</Button>
               </a>
             </div>
             <div className="flex md:hidden items-center gap-2">
-              <a href="/api/login">
+              <a href="/login">
                 <Button size="sm" data-testid="button-directory-signup-mobile">Sign up</Button>
               </a>
               <button
@@ -185,7 +185,7 @@ export default function Directory() {
                   >{item.label}</a>
                 ))}
                 <div className="pt-2 border-t border-border mt-1">
-                  <a href="/api/login" className="block">
+                  <a href="/login" className="block">
                     <Button variant="outline" className="w-full mb-2" size="sm">Log in</Button>
                   </a>
                 </div>
@@ -429,7 +429,7 @@ export default function Directory() {
                     {searchQuery || serviceFilter ? "Try adjusting your search criteria or filters." : "No companies have registered yet. Be the first!"}
                   </p>
                   {!user && (
-                    <a href="/api/login">
+                    <a href="/login">
                       <Button className="mt-4 gap-2" data-testid="button-register-cta">
                         Register Your Company
                         <ArrowRight className="w-4 h-4" />

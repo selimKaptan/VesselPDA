@@ -294,7 +294,7 @@ export default function Vessels() {
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
         toast({ title: "Session expired", description: "Please login again", variant: "destructive" });
-        setTimeout(() => { window.location.href = "/api/login"; }, 500);
+        setTimeout(() => { window.location.href = "/login"; }, 500);
         return;
       }
       toast({ title: "Failed to add vessel", description: error.message, variant: "destructive" });
