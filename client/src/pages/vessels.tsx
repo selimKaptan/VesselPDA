@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/auth-utils";
@@ -272,6 +273,7 @@ function VesselForm({
 export default function Vessels() {
   const [showForm, setShowForm] = useState(false);
   const [editingVessel, setEditingVessel] = useState<Vessel | null>(null);
+  const [deleteVesselId, setDeleteVesselId] = useState<number | null>(null);
   const { toast } = useToast();
   const [location] = useLocation();
 
@@ -398,8 +400,7 @@ export default function Vessels() {
                     size="icon"
                     variant="ghost"
                     className="h-7 w-7 text-destructive hover:text-destructive"
-                    onClick={() => deleteMutation.mutate(vessel.id)}
-                    disabled={deleteMutation.isPending}
+                    onClick={() => setDeleteVesselId(vessel.id)}
                     data-testid={`button-delete-vessel-${vessel.id}`}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -438,6 +439,28 @@ export default function Vessels() {
           </Button>
         </div>
       )}
+
+      <AlertDialog open={!!deleteVesselId} onOpenChange={(open) => { if (!open) setDeleteVesselId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Gemi Silinecek</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bu gemiyi kalıcı olarak silmek istediğinizden emin misiniz? Bu işlem geri alınamaz ve gemiye ait tüm proformalar da silinecektir.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-vessel">Vazgeç</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (deleteVesselId) { deleteMutation.mutate(deleteVesselId); setDeleteVesselId(null); } }}
+              disabled={deleteMutation.isPending}
+              data-testid="button-confirm-delete-vessel"
+            >
+              {deleteMutation.isPending ? "Siliniyor..." : "Evet, Sil"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
