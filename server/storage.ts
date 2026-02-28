@@ -137,6 +137,7 @@ export interface IStorage {
   createVoyage(data: InsertVoyage): Promise<Voyage>;
   getVoyagesByUser(userId: string, role: string, agentUserId?: string): Promise<any[]>;
   getVoyageById(id: number): Promise<any | undefined>;
+  getVoyageByTenderId(tenderId: number): Promise<Voyage | undefined>;
   updateVoyageStatus(id: number, status: string): Promise<Voyage | undefined>;
   createChecklistItem(data: InsertVoyageChecklist): Promise<VoyageChecklist>;
   getChecklistByVoyage(voyageId: number): Promise<VoyageChecklist[]>;
@@ -1008,6 +1009,11 @@ export class DatabaseStorage implements IStorage {
 
   async createVoyage(data: InsertVoyage): Promise<Voyage> {
     const [row] = await db.insert(voyages).values(data).returning();
+    return row;
+  }
+
+  async getVoyageByTenderId(tenderId: number): Promise<Voyage | undefined> {
+    const [row] = await db.select().from(voyages).where(eq(voyages.tenderId, tenderId)).limit(1);
     return row;
   }
 

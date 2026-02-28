@@ -1820,6 +1820,47 @@ export async function registerRoutes(
         link: `/tenders/${tenderId}`,
       });
 
+      // Auto-create voyage for both shipowner and agent
+      let autoVoyageId: number | null = null;
+      let autoConversationId: number | null = null;
+      try {
+        const existingVoyage = await storage.getVoyageByTenderId(tenderId);
+        let voyage = existingVoyage;
+        if (!voyage) {
+          voyage = await storage.createVoyage({
+            userId: tender.userId,
+            agentUserId: selectedBid.agentUserId,
+            tenderId,
+            portId: tender.portId,
+            vesselName: tender.vesselName ?? null,
+            flag: tender.flag ?? null,
+            grt: tender.grt ?? null,
+            status: "planned",
+            purposeOfCall: tender.cargoType || "Loading",
+          } as any);
+        }
+        autoVoyageId = voyage.id;
+
+        // Create or get conversation linked to voyage
+        const conversation = await storage.getOrCreateConversation(
+          tender.userId,
+          selectedBid.agentUserId,
+          voyage.id
+        );
+        autoConversationId = conversation.id;
+
+        // Notify agent about the new conversation
+        await storage.createNotification({
+          userId: selectedBid.agentUserId,
+          type: "message",
+          title: "Sohbet Açıldı",
+          message: `Nominasyon seferi için armatörle yeni bir sohbet oluşturuldu.`,
+          link: `/messages/${conversation.id}`,
+        });
+      } catch (voyageErr) {
+        console.error("[nominate] Voyage/conversation auto-create failed (non-blocking):", voyageErr);
+      }
+
       const extraEmailsList: string[] = Array.isArray(extraEmails)
         ? extraEmails
         : typeof extraEmails === "string"
@@ -1854,10 +1895,32 @@ export async function registerRoutes(
         note: note || null,
         extraEmails: extraEmailsList,
         emailSent: !!selectedBid.agentEmail,
+        voyageId: autoVoyageId,
+        conversationId: autoConversationId,
       });
     } catch (error) {
       console.error("Nominate error:", error);
       res.status(500).json({ message: "Failed to process nomination" });
+    }
+  });
+
+  // Fetch voyage + conversation linked to a tender (for post-nomination UI)
+  app.get("/api/tenders/:id/voyage", isAuthenticated, async (req: any, res) => {
+    try {
+      const tenderId = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      const voyage = await storage.getVoyageByTenderId(tenderId);
+      if (!voyage) return res.json(null);
+      // Only participants can see this
+      if (voyage.userId !== userId && voyage.agentUserId !== userId && !(await isAdmin(req))) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      // Find conversation between the two parties
+      const conversation = await storage.getOrCreateConversation(voyage.userId, voyage.agentUserId!, voyage.id);
+      res.json({ voyageId: voyage.id, conversationId: conversation.id });
+    } catch (err) {
+      console.error("GET /api/tenders/:id/voyage error:", err);
+      res.status(500).json({ message: "Failed to fetch voyage info" });
     }
   });
 

@@ -22,7 +22,8 @@ import {
 } from "@/components/ui/dialog";
 import {
   Gavel, ArrowLeft, Clock, Ship, FileText, Upload, CheckCircle2,
-  XCircle, Building2, Trophy, Mail, AlertCircle, Eye, Send, Star, Users, Download
+  XCircle, Building2, Trophy, Mail, AlertCircle, Eye, Send, Star, Users, Download,
+  MessageCircle, Anchor
 } from "lucide-react";
 
 function useCountdown(createdAt: string, expiryHours: number) {
@@ -273,6 +274,8 @@ export default function TenderDetailPage() {
   const [showQ88, setShowQ88] = useState(false);
   const [nominationNote, setNominationNote] = useState("");
   const [nominationExtraEmails, setNominationExtraEmails] = useState("");
+  const [autoVoyageId, setAutoVoyageId] = useState<number | null>(null);
+  const [autoConversationId, setAutoConversationId] = useState<number | null>(null);
 
   const userRole = (user as any)?.userRole;
   const activeRole = (user as any)?.activeRole;
@@ -287,6 +290,16 @@ export default function TenderDetailPage() {
       if (!res.ok) throw new Error("Not found");
       return res.json();
     },
+  });
+
+  const { data: tenderVoyage } = useQuery<{ voyageId: number; conversationId: number } | null>({
+    queryKey: ["/api/tenders", tenderId, "voyage"],
+    queryFn: async () => {
+      const res = await fetch(`/api/tenders/${tenderId}/voyage`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!data && data?.tender?.status === "nominated",
   });
 
   const selectMutation = useMutation({
@@ -316,6 +329,8 @@ export default function TenderDetailPage() {
     onSuccess: async (res: any) => {
       const d = await res.json();
       setNominationData(d.nominatedAgent);
+      if (d.voyageId) setAutoVoyageId(d.voyageId);
+      if (d.conversationId) setAutoConversationId(d.conversationId);
       setShowNomination(false);
       setNominationNote("");
       setNominationExtraEmails("");
@@ -521,14 +536,37 @@ export default function TenderDetailPage() {
       {/* Nomination success banner */}
       {nominationData && (
         <Card className="p-5 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800">
-          <div className="flex items-center gap-3">
-            <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-            <div>
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
               <p className="font-semibold text-emerald-800 dark:text-emerald-300">Nomination Complete</p>
-              <p className="text-sm text-emerald-700 dark:text-emerald-400">
+              <p className="text-sm text-emerald-700 dark:text-emerald-400 mb-3">
                 <strong>{nominationData.companyName}</strong> has been nominated.
                 {nominationData.email && ` (${nominationData.email})`}
               </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                {autoVoyageId && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 border-emerald-400 text-emerald-700 hover:bg-emerald-100"
+                    onClick={() => navigate(`/voyages/${autoVoyageId}`)}
+                    data-testid="button-view-voyage"
+                  >
+                    <Anchor className="w-3.5 h-3.5" /> Seferi Görüntüle
+                  </Button>
+                )}
+                {autoConversationId && (
+                  <Button
+                    size="sm"
+                    className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+                    onClick={() => navigate(`/messages/${autoConversationId}`)}
+                    data-testid="button-open-chat"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" /> Sohbet Aç
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </Card>
@@ -537,25 +575,48 @@ export default function TenderDetailPage() {
       {/* Tender closed/nominated status */}
       {tender.status === "nominated" && !nominationData && (
         <Card className="p-5 bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="w-6 h-6 text-purple-600" />
-              <p className="font-medium text-purple-800 dark:text-purple-300">Nomination has been completed for this tender.</p>
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="w-6 h-6 text-purple-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-purple-800 dark:text-purple-300 mb-2">Nomination has been completed for this tender.</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                {tenderVoyage?.voyageId && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-100"
+                    onClick={() => navigate(`/voyages/${tenderVoyage.voyageId}`)}
+                    data-testid="button-view-voyage-nominated"
+                  >
+                    <Anchor className="w-3.5 h-3.5" /> Seferi Görüntüle
+                  </Button>
+                )}
+                {tenderVoyage?.conversationId && (
+                  <Button
+                    size="sm"
+                    className="gap-1.5 bg-purple-600 hover:bg-purple-700"
+                    onClick={() => navigate(`/messages/${tenderVoyage.conversationId}`)}
+                    data-testid="button-open-chat-nominated"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" /> Sohbet Aç
+                  </Button>
+                )}
+                {isOwner && effectiveRole === "shipowner" && (() => {
+                  const nominatedBid = allBids?.find((b: any) => b.status === "selected");
+                  return nominatedBid?.agentCompanyId ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-100"
+                      onClick={() => navigate(`/directory/${nominatedBid.agentCompanyId}`)}
+                      data-testid="button-review-agent"
+                    >
+                      <Star className="w-3.5 h-3.5" /> Rate This Agent
+                    </Button>
+                  ) : null;
+                })()}
+              </div>
             </div>
-            {isOwner && effectiveRole === "shipowner" && (() => {
-              const nominatedBid = allBids?.find((b: any) => b.status === "selected");
-              return nominatedBid?.agentCompanyId ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 border-purple-300 text-purple-700 hover:bg-purple-100"
-                  onClick={() => navigate(`/directory/${nominatedBid.agentCompanyId}`)}
-                  data-testid="button-review-agent"
-                >
-                  <Star className="w-3.5 h-3.5" /> Rate This Agent
-                </Button>
-              ) : null;
-            })()}
           </div>
         </Card>
       )}
@@ -664,13 +725,36 @@ export default function TenderDetailPage() {
                 <div className="mt-4 p-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-300 dark:border-emerald-700">
                   <div className="flex items-start gap-3">
                     <Trophy className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="font-bold text-emerald-800 dark:text-emerald-300 text-sm">
                         Tebrikler! Resmi Olarak Aday Gösterildiniz 🎉
                       </p>
-                      <p className="text-sm text-emerald-700 dark:text-emerald-400 mt-0.5">
+                      <p className="text-sm text-emerald-700 dark:text-emerald-400 mt-0.5 mb-3">
                         <strong>{tender.portName}</strong>{tender.vesselName ? ` — ${tender.vesselName}` : ""} için nominasyon onaylandı. Armatör sizi resmi acente olarak atadı.
                       </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {tenderVoyage?.voyageId && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 border-emerald-400 text-emerald-700 hover:bg-emerald-100"
+                            onClick={() => navigate(`/voyages/${tenderVoyage.voyageId}`)}
+                            data-testid="button-agent-view-voyage"
+                          >
+                            <Anchor className="w-3.5 h-3.5" /> Seferi Görüntüle
+                          </Button>
+                        )}
+                        {tenderVoyage?.conversationId && (
+                          <Button
+                            size="sm"
+                            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+                            onClick={() => navigate(`/messages/${tenderVoyage.conversationId}`)}
+                            data-testid="button-agent-open-chat"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" /> Armatörle Sohbet
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
