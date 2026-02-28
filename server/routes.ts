@@ -1809,6 +1809,17 @@ export async function registerRoutes(
 
       await storage.updatePortTenderStatus(tenderId, "nominated", selectedBid.agentUserId);
 
+      // In-app notification for the nominated agent
+      const port = await storage.getPort(tender.portId);
+      const portNameForNotif = (port as any)?.name || tender.portName || `Port #${tender.portId}`;
+      await storage.createNotification({
+        userId: selectedBid.agentUserId,
+        type: "nomination",
+        title: "Tebrikler! Nominasyon Onaylandı",
+        message: `${portNameForNotif}${tender.vesselName ? ` — ${tender.vesselName}` : ""} için nominasyon resmi olarak onaylandı.`,
+        link: `/tenders/${tenderId}`,
+      });
+
       const extraEmailsList: string[] = Array.isArray(extraEmails)
         ? extraEmails
         : typeof extraEmails === "string"
