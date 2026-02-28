@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Ship, Plus, MapPin, Calendar, ChevronRight, Anchor, CheckCircle2, Clock, XCircle, PlayCircle } from "lucide-react";
+import { Ship, Plus, MapPin, Calendar, ChevronRight, Anchor, CheckCircle2, Clock, XCircle, PlayCircle, Search, X, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,24 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
 
 const PURPOSE_OPTIONS = ["Loading", "Discharging", "Transit", "Bunkering", "Repair", "Crew Change", "Inspection"];
 
+const FLAG_EMOJI: Record<string, string> = {
+  "Turkey": "🇹🇷", "Malta": "🇲🇹", "Panama": "🇵🇦", "Liberia": "🇱🇷",
+  "Marshall Islands": "🇲🇭", "Bahamas": "🇧🇸", "Greece": "🇬🇷", "Cyprus": "🇨🇾",
+  "Singapore": "🇸🇬", "Hong Kong": "🇭🇰", "Norway": "🇳🇴", "United Kingdom": "🇬🇧",
+  "Antigua & Barbuda": "🇦🇬", "Belize": "🇧🇿", "Comoros": "🇰🇲",
+};
+
+interface VesselInfo {
+  name: string;
+  flag: string;
+  vesselType: string;
+  imoNumber: string;
+  mmsi: string | null;
+  callSign: string;
+  grt: number | null;
+  dwt: number | null;
+}
+
 function PortSearch({ value, onChange }: { value: string; onChange: (portId: number, portName: string) => void }) {
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
@@ -46,6 +64,7 @@ function PortSearch({ value, onChange }: { value: string; onChange: (portId: num
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
         placeholder="Liman adı veya LOCODE ara..."
         onFocus={() => setOpen(true)}
+        data-testid="input-port-search"
       />
       {open && ports && ports.length > 0 && (
         <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
@@ -70,22 +89,30 @@ function PortSearch({ value, onChange }: { value: string; onChange: (portId: num
   );
 }
 
+const EMPTY_FORM = {
+  portId: 0,
+  portName: "",
+  vesselId: null as number | null,
+  vesselName: "",
+  agentUserId: "",
+  status: "planned",
+  eta: "",
+  etd: "",
+  purposeOfCall: "Loading",
+  notes: "",
+};
+
 export default function Voyages() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({
-    portId: 0,
-    portName: "",
-    vesselId: null as number | null,
-    vesselName: "",
-    agentUserId: "",
-    status: "planned",
-    eta: "",
-    etd: "",
-    purposeOfCall: "Loading",
-    notes: "",
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
+
+  // IMO lookup state
+  const [imoQuery, setImoQuery] = useState("");
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState("");
+  const [vesselInfo, setVesselInfo] = useState<VesselInfo | null>(null);
 
   const role = (user as any)?.activeRole || (user as any)?.userRole || "shipowner";
 
@@ -97,6 +124,67 @@ export default function Voyages() {
     queryKey: ["/api/vessels"],
     enabled: role !== "agent",
   });
+
+  const handleImoLookup = async () => {
+    const imo = imoQuery.replace(/\D/g, "");
+    if (imo.length < 5) {
+      setLookupError("Geçerli bir IMO numarası girin (5-7 rakam)");
+      return;
+    }
+    setLookupLoading(true);
+    setLookupError("");
+    setVesselInfo(null);
+    try {
+      const res = await fetch(`/api/vessels/lookup?imo=${imo}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setLookupError(data.message || "Gemi bulunamadı. Manuel olarak girebilirsiniz.");
+        return;
+      }
+      setVesselInfo(data);
+      setForm(f => ({ ...f, vesselName: data.name, vesselId: null }));
+    } catch {
+      setLookupError("Bağlantı hatası. Tekrar deneyin veya manuel girin.");
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const handleFleetSelect = (id: string) => {
+    const v = vessels?.find(v => String(v.id) === id);
+    if (!v) return;
+    const info: VesselInfo = {
+      name: v.name,
+      flag: v.flag || "",
+      vesselType: v.vesselType || "",
+      imoNumber: v.imoNumber || "",
+      mmsi: null,
+      callSign: v.callSign || "",
+      grt: v.grt || null,
+      dwt: v.dwt || null,
+    };
+    setVesselInfo(info);
+    setImoQuery(v.imoNumber || "");
+    setForm(f => ({ ...f, vesselId: v.id, vesselName: v.name }));
+    setLookupError("");
+  };
+
+  const clearVesselInfo = () => {
+    setVesselInfo(null);
+    setImoQuery("");
+    setLookupError("");
+    setForm(f => ({ ...f, vesselId: null, vesselName: "" }));
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setShowCreate(open);
+    if (!open) {
+      setForm(EMPTY_FORM);
+      setVesselInfo(null);
+      setImoQuery("");
+      setLookupError("");
+    }
+  };
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -111,22 +199,22 @@ export default function Voyages() {
       if (form.agentUserId) payload.agentUserId = form.agentUserId;
       if (form.eta) payload.eta = form.eta;
       if (form.etd) payload.etd = form.etd;
+      if (vesselInfo?.imoNumber) payload.imoNumber = vesselInfo.imoNumber;
+      if (vesselInfo?.flag) payload.flag = vesselInfo.flag;
+      if (vesselInfo?.vesselType) payload.vesselType = vesselInfo.vesselType;
+      if (vesselInfo?.grt) payload.grt = vesselInfo.grt;
+      if (vesselInfo?.mmsi) payload.mmsi = vesselInfo.mmsi;
+      if (vesselInfo?.callSign) payload.callSign = vesselInfo.callSign;
       const res = await apiRequest("POST", "/api/voyages", payload);
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages"] });
       toast({ title: "Sefer oluşturuldu" });
-      setShowCreate(false);
-      setForm({ portId: 0, portName: "", vesselId: null, vesselName: "", agentUserId: "", status: "planned", eta: "", etd: "", purposeOfCall: "Loading", notes: "" });
+      handleDialogClose(false);
     },
     onError: () => toast({ title: "Hata", description: "Sefer oluşturulamadı", variant: "destructive" }),
   });
-
-  const handleVesselSelect = (id: string) => {
-    const v = vessels?.find(v => String(v.id) === id);
-    setForm(f => ({ ...f, vesselId: v?.id || null, vesselName: v?.name || "" }));
-  };
 
   return (
     <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
@@ -182,6 +270,11 @@ export default function Voyages() {
                         <span>ETA: {new Date(v.eta).toLocaleDateString("tr-TR")}</span>
                       </div>
                     )}
+                    {v.imoNumber && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded">IMO {v.imoNumber}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-end mt-3 text-primary opacity-0 group-hover:opacity-100 transition-opacity">
@@ -211,88 +304,214 @@ export default function Voyages() {
       )}
 
       {/* Create Voyage Dialog */}
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+      <Dialog open={showCreate} onOpenChange={handleDialogClose}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-serif">Yeni Sefer Oluştur</DialogTitle>
+            <DialogTitle className="font-serif text-lg">Yeni Sefer Oluştur</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>Liman *</Label>
-              <PortSearch
-                value={form.portName}
-                onChange={(id, name) => setForm(f => ({ ...f, portId: id, portName: name }))}
-              />
+
+          <div className="space-y-5 py-1">
+
+            {/* ── SECTION 1: Gemi Tanımlama ─────────────────────── */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-[hsl(var(--maritime-primary))] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">1</div>
+                <span className="text-sm font-semibold">Gemi Tanımlama</span>
+              </div>
+
+              {vesselInfo ? (
+                /* ── Gemi Bilgi Kartı ── */
+                <div className="rounded-lg border-2 border-green-500/30 bg-green-500/5 dark:bg-green-900/10 p-4 relative" data-testid="card-vessel-info">
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                      <span className="text-[10px] font-bold text-green-600 dark:text-green-400 uppercase tracking-wide">Doğrulandı</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearVesselInfo}
+                      className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                      data-testid="button-clear-vessel"
+                    >
+                      <X className="w-3 h-3" /> Değiştir
+                    </button>
+                  </div>
+
+                  <div className="mb-2">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-lg">{FLAG_EMOJI[vesselInfo.flag] || "🚢"}</span>
+                      <Input
+                        value={form.vesselName}
+                        onChange={e => setForm(f => ({ ...f, vesselName: e.target.value }))}
+                        className="font-semibold text-sm h-8 border-0 border-b rounded-none bg-transparent px-0 focus-visible:ring-0 focus-visible:border-primary"
+                        data-testid="input-vessel-name"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {vesselInfo.vesselType && (
+                      <Badge variant="secondary" className="text-[10px] font-medium">{vesselInfo.vesselType}</Badge>
+                    )}
+                    {vesselInfo.flag && (
+                      <Badge variant="secondary" className="text-[10px] font-medium">{vesselInfo.flag}</Badge>
+                    )}
+                    {vesselInfo.grt && (
+                      <Badge variant="outline" className="text-[10px] font-mono">GRT {vesselInfo.grt.toLocaleString()}</Badge>
+                    )}
+                    {vesselInfo.dwt && (
+                      <Badge variant="outline" className="text-[10px] font-mono">DWT {vesselInfo.dwt.toLocaleString()}</Badge>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3 mt-3 text-xs text-muted-foreground font-mono">
+                    {vesselInfo.imoNumber && <span>IMO: <span className="text-foreground font-semibold">{vesselInfo.imoNumber}</span></span>}
+                    {vesselInfo.mmsi && <span>MMSI: <span className="text-foreground">{vesselInfo.mmsi}</span></span>}
+                    {vesselInfo.callSign && <span>CS: <span className="text-foreground">{vesselInfo.callSign}</span></span>}
+                  </div>
+                </div>
+              ) : (
+                /* ── IMO Arama + Filo ── */
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">IMO Numarası ile Otomatik Doldur</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={imoQuery}
+                        onChange={e => { setImoQuery(e.target.value); setLookupError(""); }}
+                        onKeyDown={e => e.key === "Enter" && handleImoLookup()}
+                        placeholder="örn. 9123456"
+                        className="font-mono"
+                        data-testid="input-imo-number"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleImoLookup}
+                        disabled={lookupLoading || imoQuery.length < 5}
+                        className="gap-1.5 shrink-0"
+                        data-testid="button-imo-lookup"
+                      >
+                        {lookupLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Search className="w-4 h-4" />
+                        )}
+                        {lookupLoading ? "Aranıyor..." : "Sorgula"}
+                      </Button>
+                    </div>
+                    {lookupError && (
+                      <div className="flex items-center gap-1.5 text-xs text-destructive" data-testid="text-lookup-error">
+                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                        {lookupError}
+                      </div>
+                    )}
+                  </div>
+
+                  {vessels && vessels.length > 0 && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-px bg-border" />
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">veya filomdan seç</span>
+                        <div className="flex-1 h-px bg-border" />
+                      </div>
+                      <Select onValueChange={handleFleetSelect}>
+                        <SelectTrigger data-testid="select-vessel" className="text-sm">
+                          <SelectValue placeholder="Filomdan gemi seç..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {vessels.map(v => (
+                            <SelectItem key={v.id} value={String(v.id)}>
+                              <span className="font-medium">{v.name}</span>
+                              <span className="ml-2 text-muted-foreground text-xs">{v.vesselType}</span>
+                              {v.imoNumber && <span className="ml-2 font-mono text-xs text-muted-foreground">IMO {v.imoNumber}</span>}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </>
+                  )}
+
+                  {/* Manuel giriş (IMO bulunamazsa) */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      {vessels && vessels.length > 0 ? "veya gemi adını manuel girin" : "Gemi Adı"}
+                    </Label>
+                    <Input
+                      value={form.vesselName}
+                      onChange={e => setForm(f => ({ ...f, vesselName: e.target.value }))}
+                      placeholder="Gemi adı girin"
+                      data-testid="input-vessel-name-manual"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
-            {vessels && vessels.length > 0 && (
+            {/* ── Divider ─────────────────────────────────────── */}
+            <div className="h-px bg-border" />
+
+            {/* ── SECTION 2: Sefer Detayları ───────────────────── */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-[hsl(var(--maritime-primary))] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">2</div>
+                <span className="text-sm font-semibold">Sefer Detayları</span>
+              </div>
+
               <div className="space-y-1.5">
-                <Label>Gemi (Filomdan Seç)</Label>
-                <Select onValueChange={handleVesselSelect}>
-                  <SelectTrigger data-testid="select-vessel">
-                    <SelectValue placeholder="Gemi seçin (opsiyonel)" />
+                <Label>Liman <span className="text-destructive">*</span></Label>
+                <PortSearch
+                  value={form.portName}
+                  onChange={(id, name) => setForm(f => ({ ...f, portId: id, portName: name }))}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Amaç <span className="text-destructive">*</span></Label>
+                <Select value={form.purposeOfCall} onValueChange={v => setForm(f => ({ ...f, purposeOfCall: v }))}>
+                  <SelectTrigger data-testid="select-purpose">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {vessels.map(v => (
-                      <SelectItem key={v.id} value={String(v.id)}>{v.name} — {v.vesselType}</SelectItem>
-                    ))}
+                    {PURPOSE_OPTIONS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-            )}
 
-            <div className="space-y-1.5">
-              <Label>Gemi Adı</Label>
-              <Input
-                value={form.vesselName}
-                onChange={e => setForm(f => ({ ...f, vesselName: e.target.value }))}
-                placeholder="Gemi adı girin"
-                data-testid="input-vessel-name"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Amaç *</Label>
-              <Select value={form.purposeOfCall} onValueChange={v => setForm(f => ({ ...f, purposeOfCall: v }))}>
-                <SelectTrigger data-testid="select-purpose">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PURPOSE_OPTIONS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>ETA</Label>
-                <Input type="datetime-local" value={form.eta} onChange={e => setForm(f => ({ ...f, eta: e.target.value }))} data-testid="input-eta" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>ETA</Label>
+                  <Input type="datetime-local" value={form.eta} onChange={e => setForm(f => ({ ...f, eta: e.target.value }))} data-testid="input-eta" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>ETD</Label>
+                  <Input type="datetime-local" value={form.etd} onChange={e => setForm(f => ({ ...f, etd: e.target.value }))} data-testid="input-etd" />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>ETD</Label>
-                <Input type="datetime-local" value={form.etd} onChange={e => setForm(f => ({ ...f, etd: e.target.value }))} data-testid="input-etd" />
-              </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <Label>Notlar</Label>
-              <Textarea
-                value={form.notes}
-                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                placeholder="Ek notlar..."
-                rows={3}
-                data-testid="textarea-notes"
-              />
+              <div className="space-y-1.5">
+                <Label>Notlar</Label>
+                <Textarea
+                  value={form.notes}
+                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                  placeholder="Ek notlar..."
+                  rows={2}
+                  data-testid="textarea-notes"
+                />
+              </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreate(false)}>İptal</Button>
+
+          <DialogFooter className="pt-2">
+            <Button variant="outline" onClick={() => handleDialogClose(false)}>İptal</Button>
             <Button
               onClick={() => createMutation.mutate()}
               disabled={createMutation.isPending || !form.portId}
               data-testid="button-save-voyage"
             >
-              {createMutation.isPending ? "Oluşturuluyor..." : "Oluştur"}
+              {createMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Oluşturuluyor...</>
+              ) : "Oluştur"}
             </Button>
           </DialogFooter>
         </DialogContent>
