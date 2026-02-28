@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Anchor, Gavel, Star, TrendingUp, ArrowRight, Building2, CheckCircle2, AlertCircle, Activity, Navigation, MapPin, FileText, MessageSquare } from "lucide-react";
+import { Anchor, Gavel, Star, TrendingUp, ArrowRight, Building2, Activity, Navigation, MapPin, FileText, MessageSquare } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,14 +36,6 @@ function StatCard({ label, value, loading, icon: Icon, color, href, testId }: {
   );
 }
 
-const COMPLETION_FIELDS = [
-  { key: "logoUrl", label: "Logo" },
-  { key: "description", label: "Description" },
-  { key: "serviceTypes", label: "Services", isArray: true },
-  { key: "servedPorts", label: "Served Ports", isArray: true },
-  { key: "phone", label: "Phone" },
-];
-
 function daysSince(dateStr: string) {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
 }
@@ -69,13 +61,6 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
   const selectedBids = allBids.filter((b) => b.status === "selected");
   const servedPorts = ((myProfile as any)?.servedPorts as number[]) || [];
   const unread = notificationsData?.unreadCount ?? 0;
-
-  const completionItems = COMPLETION_FIELDS.map((f) => {
-    const val = (myProfile as any)?.[f.key];
-    const done = f.isArray ? Array.isArray(val) && val.length > 0 : !!val;
-    return { ...f, done };
-  });
-  const completionPct = myProfile ? Math.round((completionItems.filter((i) => i.done).length / completionItems.length) * 100) : 0;
 
   const quickActions = [
     { href: "/tenders", icon: Gavel, label: "View Tenders", desc: "Browse open port call tenders", color: "38 92% 50%", testId: "qa-tenders" },
@@ -249,36 +234,6 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
               <p className="text-xs text-muted-foreground text-center py-3">
                 {!myProfile ? "Create a profile to track performance" : "No bids yet — submit your first bid!"}
               </p>
-            )}
-          </Card>
-
-          {/* Profile Completion */}
-          <Card className="p-5 space-y-3" data-testid="card-profile-completion">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif font-semibold text-sm">Profile Completion</h2>
-              <span className={`text-sm font-bold ${completionPct === 100 ? "text-emerald-600" : "text-amber-600"}`}>{completionPct}%</span>
-            </div>
-            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-              <div className={`h-full rounded-full transition-all duration-700 ${completionPct === 100 ? "bg-emerald-500" : "bg-amber-500"}`}
-                style={{ width: `${completionPct}%` }} />
-            </div>
-            <div className="space-y-1.5">
-              {completionItems.map((item) => (
-                <div key={item.key} className="flex items-center gap-2 text-xs">
-                  {item.done
-                    ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                    : <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                  }
-                  <span className={item.done ? "text-foreground" : "text-muted-foreground"}>{item.label}</span>
-                </div>
-              ))}
-            </div>
-            {completionPct < 100 && (
-              <Link href="/company-profile">
-                <Button size="sm" className="w-full text-xs gap-1.5 bg-[hsl(var(--maritime-primary))] text-white hover:bg-[hsl(var(--maritime-primary)/0.9)]">
-                  Complete Profile
-                </Button>
-              </Link>
             )}
           </Card>
 

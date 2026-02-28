@@ -1,17 +1,10 @@
 import { Link } from "wouter";
-import { Building2, ArrowRight, Star, Phone, Mail, Globe, MapPin, CheckCircle2, AlertCircle, Activity, MessageSquare, Crown } from "lucide-react";
+import { Building2, ArrowRight, Star, Phone, Mail, Globe, MapPin, Activity, MessageSquare, Crown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { CompanyProfile } from "@shared/schema";
 
-const COMPLETION_FIELDS = [
-  { key: "logoUrl", label: "Company Logo", hint: "Upload a logo to build trust", href: "/company-profile" },
-  { key: "description", label: "Company Description", hint: "Describe your services and expertise", href: "/company-profile" },
-  { key: "serviceTypes", label: "Service Types", hint: "List the services you offer", href: "/company-profile", isArray: true },
-  { key: "phone", label: "Phone Number", hint: "Add contact phone", href: "/company-profile" },
-  { key: "email", label: "Contact Email", hint: "Add contact email", href: "/company-profile" },
-];
 
 export function ProviderDashboard({ user, myProfile }: { user: any; myProfile?: CompanyProfile | null }) {
   if (!myProfile) {
@@ -39,76 +32,14 @@ export function ProviderDashboard({ user, myProfile }: { user: any; myProfile?: 
     );
   }
 
-  const completionItems = COMPLETION_FIELDS.map((f) => {
-    const val = (myProfile as any)[f.key];
-    const done = f.isArray ? Array.isArray(val) && val.length > 0 : !!val;
-    return { ...f, done };
-  });
-  const doneCount = completionItems.filter((i) => i.done).length;
-  const completionPct = Math.round((doneCount / completionItems.length) * 100);
   const serviceTypes = ((myProfile as any).serviceTypes as string[]) || [];
   const servedPorts = ((myProfile as any).servedPorts as number[]) || [];
 
   return (
     <div className="space-y-6">
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Left: Profile Completion */}
+        {/* Left col */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Profile Completion Hero */}
-          <Card className="p-6 space-y-4" data-testid="card-profile-completion">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h2 className="font-serif font-semibold text-base flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-muted-foreground/60" /> Profile Completion
-                </h2>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {completionPct === 100 ? "Your profile is complete!" : `${doneCount} of ${completionItems.length} fields completed`}
-                </p>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <span className={`text-2xl font-bold font-serif ${completionPct === 100 ? "text-emerald-600" : completionPct >= 60 ? "text-amber-600" : "text-red-500"}`}>
-                  {completionPct}%
-                </span>
-              </div>
-            </div>
-
-            <div className="h-2 bg-muted rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-700 ${completionPct === 100 ? "bg-emerald-500" : completionPct >= 60 ? "bg-amber-500" : "bg-red-400"}`}
-                style={{ width: `${completionPct}%` }}
-              />
-            </div>
-
-            <div className="space-y-2">
-              {completionItems.map((item) => (
-                <div key={item.key} className={`flex items-center justify-between gap-3 p-3 rounded-lg border ${item.done ? "border-green-200/60 bg-green-50/30 dark:border-green-800/40 dark:bg-green-950/10" : "border-amber-200/60 bg-amber-50/30 dark:border-amber-800/40 dark:bg-amber-950/10"}`}
-                  data-testid={`completion-${item.key}`}>
-                  <div className="flex items-center gap-3 min-w-0">
-                    {item.done
-                      ? <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-                      : <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                    }
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">{item.label}</p>
-                      {!item.done && <p className="text-xs text-muted-foreground">{item.hint}</p>}
-                    </div>
-                  </div>
-                  {!item.done && (
-                    <Link href={item.href}>
-                      <Button variant="outline" size="sm" className="text-xs h-7 px-3 flex-shrink-0">Add</Button>
-                    </Link>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <Link href="/company-profile">
-              <Button className="w-full gap-2 bg-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-primary)/0.9)] text-white" data-testid="button-edit-profile">
-                <Building2 className="w-4 h-4" /> {completionPct === 100 ? "Edit Profile" : "Complete Profile"}
-              </Button>
-            </Link>
-          </Card>
-
           {/* Services + Contact */}
           <div className="grid sm:grid-cols-2 gap-4">
             {/* Services */}
