@@ -137,6 +137,8 @@ export default function Nominations() {
 
   const { data, isLoading } = useQuery<{ sent: any[]; received: any[] }>({
     queryKey: ["/api/nominations"],
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
   });
 
   const respondMutation = useMutation({

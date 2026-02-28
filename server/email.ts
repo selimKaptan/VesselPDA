@@ -479,6 +479,88 @@ export async function sendNominationEmail(data: NominationEmailData): Promise<bo
   }
 }
 
+export interface NominationResponseEmailData {
+  nominatorEmail: string;
+  nominatorName: string;
+  agentCompanyName: string;
+  status: "accepted" | "declined";
+  portName: string;
+  vesselName?: string;
+  eta?: string;
+  notes?: string;
+}
+
+export async function sendNominationResponseEmail(data: NominationResponseEmailData): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) {
+    console.warn("[email] No credentials — skipping sendNominationResponseEmail");
+    return false;
+  }
+  const resend = new Resend(creds.apiKey);
+
+  const accepted = data.status === "accepted";
+  const statusColor = accepted ? "#16a34a" : "#dc2626";
+  const statusBg = accepted ? "#f0fdf4" : "#fef2f2";
+  const statusBorder = accepted ? "#bbf7d0" : "#fecaca";
+  const statusLabel = accepted ? "Kabul Edildi ✓" : "Reddedildi ✗";
+  const statusMessage = accepted
+    ? `<strong>${data.agentCompanyName}</strong> nominasyonunuzu kabul etti. Acente, <strong>${data.portName}</strong> limanındaki operasyonlarınız için artık hazır.`
+    : `<strong>${data.agentCompanyName}</strong> bu sefer nominasyonunuzu kabul edemedi. Lütfen dizin sayfasından farklı bir acente ile iletişime geçin.`;
+
+  const detailRows = [
+    `<tr><td style="color:#64748b;padding:4px 12px 4px 0;font-size:14px">Liman</td><td style="font-weight:600;font-size:14px">${data.portName}</td></tr>`,
+    data.vesselName ? `<tr><td style="color:#64748b;padding:4px 12px 4px 0;font-size:14px">Gemi</td><td style="font-weight:600;font-size:14px">${data.vesselName}</td></tr>` : "",
+    data.eta ? `<tr><td style="color:#64748b;padding:4px 12px 4px 0;font-size:14px">ETA</td><td style="font-weight:600;font-size:14px">${data.eta}</td></tr>` : "",
+  ].filter(Boolean).join("");
+
+  const noteSection = data.notes
+    ? `<div style="margin-top:16px;background:#f8fafc;border-left:3px solid #003D7A;padding:12px 16px;border-radius:0 6px 6px 0">
+        <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Notlar</p>
+        <p style="margin:0;color:#1e293b;font-size:14px">${data.notes}</p>
+       </div>`
+    : "";
+
+  const html = emailWrapper(`
+    <tr>${emailHeader("Nominasyon Yanıtı")}</tr>
+    <tr><td style="padding:32px">
+      <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#0f172a">Merhaba, ${data.nominatorName}</p>
+      <p style="margin:0 0 24px;color:#64748b;font-size:14px">Nominasyonunuz yanıtlandı.</p>
+
+      <div style="background:${statusBg};border:1px solid ${statusBorder};border-radius:8px;padding:14px 18px;margin-bottom:20px">
+        <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:${statusColor}">${statusLabel}</p>
+        <p style="margin:0;color:#334155;font-size:14px;line-height:1.6">${statusMessage}</p>
+      </div>
+
+      <div style="background:#f8fafc;border-radius:8px;padding:16px 20px;margin-bottom:16px">
+        <p style="margin:0 0 10px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Sefer Detayları</p>
+        <table style="width:100%;border-collapse:collapse">${detailRows}</table>
+      </div>
+
+      ${noteSection}
+
+      <div style="margin-top:28px;padding-top:20px;border-top:1px solid #e2e8f0">
+        <p style="margin:0;color:#94a3b8;font-size:12px">Bu e-posta VesselPDA platformu üzerinden otomatik olarak gönderilmiştir.</p>
+      </div>
+    </td></tr>
+    <tr>${emailFooter()}</tr>
+  `);
+
+  try {
+    const { error } = await resend.emails.send({
+      from: `VesselPDA <${creds.fromEmail}>`,
+      to: [data.nominatorEmail],
+      subject: `[VesselPDA] Nominasyon ${accepted ? "Kabul Edildi" : "Reddedildi"} — ${data.portName}${data.vesselName ? ` / ${data.vesselName}` : ""}`,
+      html,
+    });
+    if (error) { console.error("[email] sendNominationResponseEmail error:", error); return false; }
+    console.log(`[email] Nomination response email sent to: ${data.nominatorEmail}`);
+    return true;
+  } catch (err) {
+    console.error("[email] Failed to send nomination response email:", err);
+    return false;
+  }
+}
+
 export async function sendVerificationEmail(
   to: string,
   firstName: string,

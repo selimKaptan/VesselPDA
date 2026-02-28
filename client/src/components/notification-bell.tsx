@@ -30,7 +30,8 @@ export function NotificationBell() {
 
   const { data } = useQuery<{ notifications: Notification[]; unreadCount: number }>({
     queryKey: ["/api/notifications"],
-    refetchInterval: 30000,
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
   });
 
   const notifications = data?.notifications ?? [];

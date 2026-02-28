@@ -79,7 +79,8 @@ export function AppSidebar() {
 
   const { data: nomBadge } = useQuery<{ count: number }>({
     queryKey: ["/api/nominations/pending-count"],
-    refetchInterval: 30000,
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
     enabled: effectiveRole === "agent",
   });
   const pendingNominations = nomBadge?.count || 0;

@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import path from "path";
 import fs from "fs";
 import multer from "multer";
-import { sendNominationEmail, sendContactEmail, sendBidReceivedEmail, sendBidSelectedEmail, sendNewTenderEmail, sendForumReplyEmail, sendProformaEmail } from "./email";
+import { sendNominationEmail, sendNominationResponseEmail, sendContactEmail, sendBidReceivedEmail, sendBidSelectedEmail, sendNewTenderEmail, sendForumReplyEmail, sendProformaEmail } from "./email";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, registerAuthRoutes, authStorage } from "./replit_integrations/auth";
 import type { ProformaLineItem } from "@shared/schema";
@@ -2430,7 +2430,7 @@ export async function registerRoutes(
         etd: etd ? new Date(etd) : null,
         notes: notes ?? null,
       });
-      // Notify agent
+      // Notify agent (in-app)
       await storage.createNotification({
         userId: agentUserId,
         type: "nomination",
@@ -2438,6 +2438,22 @@ export async function registerRoutes(
         message: `${req.user.name || "Bir armatör"} sizi ${vesselName} gemisi için nomine etti`,
         link: "/nominations",
       });
+
+      // Notify agent (email)
+      const agentUser = await storage.getUser(agentUserId);
+      if (agentUser?.email) {
+        const enriched = await storage.getNominationById(nom.id);
+        sendNominationEmail({
+          agentEmail: agentUser.email,
+          agentCompanyName: enriched?.agentCompanyName || agentUser.name || agentUserId,
+          portName: enriched?.portName || `Port #${portId}`,
+          vesselName: vesselName,
+          eta: eta ? new Date(eta).toLocaleString("tr-TR") : undefined,
+          note: notes || undefined,
+          shipownerName: req.user.name || undefined,
+        }).catch(err => console.error("[email] Nomination email failed (non-blocking):", err));
+      }
+
       res.status(201).json(nom);
     } catch (error) {
       res.status(500).json({ message: "Failed to create nomination" });
@@ -2470,15 +2486,31 @@ export async function registerRoutes(
       if (nom.agentUserId !== req.user.id) return res.status(403).json({ message: "Forbidden" });
       if (nom.status !== "pending") return res.status(409).json({ message: "Already responded" });
       const updated = await storage.updateNominationStatus(id, status);
-      // Notify nominator
+      // Notify nominator (in-app)
       const statusLabel = status === "accepted" ? "kabul etti" : "reddetti";
       await storage.createNotification({
         userId: nom.nominatorUserId,
         type: "nomination_response",
         title: "Nominasyon Yanıtlandı",
-        message: `${nom.agentName} nominasyonunuzu ${statusLabel}`,
+        message: `${nom.agentName || nom.agentCompanyName || "Acente"} nominasyonunuzu ${statusLabel}`,
         link: "/nominations",
       });
+
+      // Notify nominator (email)
+      const nominatorUser = await storage.getUser(nom.nominatorUserId);
+      if (nominatorUser?.email) {
+        sendNominationResponseEmail({
+          nominatorEmail: nominatorUser.email,
+          nominatorName: nominatorUser.name || "Sayın Kullanıcı",
+          agentCompanyName: nom.agentCompanyName || nom.agentName || "Acente",
+          status: status as "accepted" | "declined",
+          portName: nom.portName || `Port #${nom.portId}`,
+          vesselName: nom.vesselName,
+          eta: nom.eta ? new Date(nom.eta).toLocaleString("tr-TR") : undefined,
+          notes: nom.notes || undefined,
+        }).catch(err => console.error("[email] Nomination response email failed (non-blocking):", err));
+      }
+
       res.json(updated);
     } catch (error) {
       res.status(500).json({ message: "Failed to respond to nomination" });
