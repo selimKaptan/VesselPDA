@@ -43,10 +43,10 @@ function PortSearch({ value, onChange }: { value: string; onChange: (portId: num
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
   const { data: ports } = useQuery<Port[]>({
-    queryKey: ["/api/ports/search", query],
+    queryKey: ["/api/ports", query],
     queryFn: async () => {
       if (query.length < 2) return [];
-      const res = await fetch(`/api/ports/search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/ports?q=${encodeURIComponent(query)}`);
       return res.json();
     },
     enabled: query.length >= 2,

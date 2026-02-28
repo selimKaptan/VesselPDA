@@ -181,10 +181,10 @@ export default function DirectoryProfilePage() {
     && (effectiveRole === "shipowner" || (user as any)?.userRole === "admin");
 
   const { data: portSearchResults } = useQuery<Port[]>({
-    queryKey: ["/api/ports/search", portQuery],
+    queryKey: ["/api/ports", portQuery],
     queryFn: async () => {
       if (portQuery.length < 2) return [];
-      const res = await fetch(`/api/ports/search?q=${encodeURIComponent(portQuery)}`);
+      const res = await fetch(`/api/ports?q=${encodeURIComponent(portQuery)}`);
       return res.json();
     },
     enabled: portQuery.length >= 2,
