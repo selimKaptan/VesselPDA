@@ -1,0 +1,428 @@
+import { useState } from "react";
+
+const mockTasks = [];
+const mockServices = [];
+const mockDocs = [];
+const mockMessages = [
+  { id: 1, sender: "barbaros", text: "barbaros", time: "28/02 17:52", isMe: false },
+  { id: 2, sender: "barbaros", text: "bu geminin evraklaar eksik amk", time: "28/02 17:54", isMe: true },
+];
+
+const tabs = ["Operasyon", "Dokümanlar", "İletişim"];
+
+function StatusBadge({ status }) {
+  const map = {
+    Tamamlandı: "bg-emerald-100 text-emerald-700 border-emerald-200",
+    Aktif: "bg-blue-100 text-blue-700 border-blue-200",
+    Beklemede: "bg-amber-100 text-amber-700 border-amber-200",
+  };
+  return (
+    <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${map[status] || map["Beklemede"]}`}>
+      {status}
+    </span>
+  );
+}
+
+function WeatherCard() {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      {/* Port Conditions Header */}
+      <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-4 py-3 flex items-center justify-between">
+        <div>
+          <p className="text-slate-400 text-xs font-medium uppercase tracking-wider">Liman</p>
+          <p className="text-white text-sm font-semibold">TDİ TEKİRDAĞ LİMANI</p>
+        </div>
+        <div className="text-right">
+          <div className="flex items-center gap-1.5 justify-end">
+            <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+            <span className="text-emerald-400 text-xs font-semibold">ETA Uygun</span>
+          </div>
+          <p className="text-slate-400 text-xs mt-0.5">28.02.2026 - 03.03.2026</p>
+        </div>
+      </div>
+
+      {/* Yanaşma Puanı */}
+      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <p className="text-xs text-slate-500 font-medium">Yanaşma Güvenliği</p>
+          <p className="text-sm font-bold text-emerald-600">Mükemmel</p>
+          <p className="text-xs text-slate-400 mt-0.5">Tüm gemi tipleri için ideal</p>
+        </div>
+        <div className="flex items-end gap-1">
+          <span className="text-4xl font-black text-slate-800">8</span>
+          <span className="text-slate-400 text-sm mb-1">/10</span>
+        </div>
+      </div>
+
+      {/* Weather Grid */}
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Hava & Deniz</p>
+          <span className="text-xs text-slate-400">Open-Meteo · Gerçek zamanlı</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { icon: "🌤️", label: "Hava", value: "Parçalı Bulutlu", sub: "6.5°C" },
+            { icon: "💨", label: "Rüzgar", value: "9.5 kn", sub: "Yön: KD" },
+            { icon: "🌊", label: "Dalga", value: "0.36 m", sub: "Periyot: 2.8s" },
+            { icon: "🌡️", label: "Sıcaklık", value: "6.5°C", sub: "Dalga yönü: KD" },
+          ].map((w) => (
+            <div key={w.label} className="bg-slate-50 rounded-xl p-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-base">{w.icon}</span>
+                <span className="text-xs text-slate-500 font-medium">{w.label}</span>
+              </div>
+              <p className="text-sm font-bold text-slate-800">{w.value}</p>
+              <p className="text-xs text-slate-400">{w.sub}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OperasyonTab() {
+  const [newTask, setNewTask] = useState("");
+  const [tasks, setTasks] = useState([
+    { id: 1, text: "Manifest hazırla", done: true },
+    { id: 2, text: "Gümrük bildirimi gönder", done: false },
+  ]);
+
+  return (
+    <div className="space-y-5">
+      {/* Görev Listesi */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+            <span className="text-base">✅</span> Görev Listesi
+          </h3>
+          <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
+            {tasks.filter((t) => t.done).length}/{tasks.length}
+          </span>
+        </div>
+
+        {/* Progress bar */}
+        <div className="h-1.5 bg-slate-100 rounded-full mb-4 overflow-hidden">
+          <div
+            className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+            style={{ width: `${tasks.length ? (tasks.filter((t) => t.done).length / tasks.length) * 100 : 0}%` }}
+          />
+        </div>
+
+        <div className="space-y-2 mb-4">
+          {tasks.length === 0 && (
+            <p className="text-sm text-slate-400 text-center py-4">Henüz görev yok. Aşağıdan ekleyin.</p>
+          )}
+          {tasks.map((task) => (
+            <div
+              key={task.id}
+              className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer group"
+              onClick={() => setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, done: !t.done } : t)))}
+            >
+              <div
+                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                  task.done ? "bg-emerald-500 border-emerald-500" : "border-slate-300 group-hover:border-slate-400"
+                }`}
+              >
+                {task.done && <span className="text-white text-xs">✓</span>}
+              </div>
+              <span className={`text-sm ${task.done ? "line-through text-slate-400" : "text-slate-700"}`}>
+                {task.text}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-2">
+          <input
+            value={newTask}
+            onChange={(e) => setNewTask(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && newTask.trim()) {
+                setTasks((prev) => [...prev, { id: Date.now(), text: newTask.trim(), done: false }]);
+                setNewTask("");
+              }
+            }}
+            placeholder="Yeni görev ekle..."
+            className="flex-1 text-sm border border-slate-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <button
+            onClick={() => {
+              if (newTask.trim()) {
+                setTasks((prev) => [...prev, { id: Date.now(), text: newTask.trim(), done: false }]);
+                setNewTask("");
+              }
+            }}
+            className="w-10 h-10 bg-slate-800 text-white rounded-xl flex items-center justify-center hover:bg-slate-700 transition-colors font-bold text-lg"
+          >
+            +
+          </button>
+        </div>
+      </div>
+
+      {/* Hizmet Talepleri */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+            <span className="text-base">🔧</span> Hizmet Talepleri
+          </h3>
+          <button className="flex items-center gap-1.5 text-xs font-semibold bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors">
+            + Talep Oluştur
+          </button>
+        </div>
+
+        {mockServices.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="text-3xl mb-2">🔧</div>
+            <p className="text-sm text-slate-400">Bu sefere ait hizmet talebi yok.</p>
+            <p className="text-xs text-slate-300 mt-1">Yakıt, tamir, provizyonlama gibi talepler buraya gelir.</p>
+          </div>
+        ) : null}
+
+        {/* Quick service buttons */}
+        <div className="flex flex-wrap gap-2 mt-3">
+          {["⛽ Yakıt", "🛠️ Teknik", "🍱 Provizyon", "👥 Mürettebat"].map((s) => (
+            <button
+              key={s}
+              className="text-xs text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors font-medium"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DokumanlarTab() {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+          <span className="text-base">📁</span> Dokümanlar
+        </h3>
+        <button className="flex items-center gap-1.5 text-xs font-semibold border border-slate-300 text-slate-700 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+          ↑ Yükle
+        </button>
+      </div>
+
+      {/* Categories */}
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {["Tümü", "Manifest", "Bill of Lading", "Sertifikalar", "Diğer"].map((c) => (
+          <button
+            key={c}
+            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+              c === "Tümü" ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            {c}
+          </button>
+        ))}
+      </div>
+
+      <div className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center">
+        <div className="text-4xl mb-3">📄</div>
+        <p className="text-sm text-slate-500 font-medium">Henüz doküman yok</p>
+        <p className="text-xs text-slate-400 mt-1">Dosyaları buraya sürükleyin veya "Yükle" butonunu kullanın</p>
+        <button className="mt-4 text-sm font-semibold text-blue-600 hover:text-blue-700">Dosya Seç</button>
+      </div>
+    </div>
+  );
+}
+
+function IletisimTab() {
+  const [messages, setMessages] = useState(mockMessages);
+  const [input, setInput] = useState("");
+
+  const send = () => {
+    if (!input.trim()) return;
+    setMessages((prev) => [
+      ...prev,
+      { id: Date.now(), sender: "Sen", text: input.trim(), time: "Şimdi", isMe: true },
+    ]);
+    setInput("");
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col" style={{ height: 420 }}>
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+          <span>💬</span> Ekip Chat
+        </h3>
+        <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-medium">
+          {messages.length} mesaj
+        </span>
+      </div>
+
+      {/* Members */}
+      <div className="px-5 py-2 border-b border-slate-100 flex items-center gap-2">
+        <span className="text-xs text-slate-400">Katılımcılar:</span>
+        {["B", "K"].map((m) => (
+          <div
+            key={m}
+            className="w-6 h-6 bg-slate-700 text-white rounded-full flex items-center justify-center text-xs font-bold"
+          >
+            {m}
+          </div>
+        ))}
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+        {messages.map((msg) => (
+          <div key={msg.id} className={`flex ${msg.isMe ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-xs ${msg.isMe ? "" : "flex gap-2"}`}>
+              {!msg.isMe && (
+                <div className="w-7 h-7 bg-slate-700 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                  {msg.sender[0].toUpperCase()}
+                </div>
+              )}
+              <div>
+                {!msg.isMe && <p className="text-xs text-slate-500 mb-1 ml-1">{msg.sender}</p>}
+                <div
+                  className={`px-3.5 py-2.5 rounded-2xl text-sm ${
+                    msg.isMe
+                      ? "bg-slate-800 text-white rounded-br-sm"
+                      : "bg-slate-100 text-slate-800 rounded-bl-sm"
+                  }`}
+                >
+                  {msg.text}
+                </div>
+                <p className={`text-xs text-slate-400 mt-1 ${msg.isMe ? "text-right" : "ml-1"}`}>{msg.time}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="px-4 py-3 border-t border-slate-100 flex gap-2">
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && send()}
+          placeholder="Mesaj yazın..."
+          className="flex-1 text-sm border border-slate-200 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+        <button
+          onClick={send}
+          className="px-4 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors"
+        >
+          Gönder
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function VoyageDetail() {
+  const [activeTab, setActiveTab] = useState("Operasyon");
+
+  return (
+    <div className="min-h-screen bg-slate-50 font-sans">
+      {/* Top Nav */}
+      <div className="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-2">
+        <button className="text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-1.5 text-sm font-medium">
+          ← Seferler
+        </button>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-6 py-6">
+        {/* Ship Header Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-6 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-slate-800 rounded-2xl flex items-center justify-center text-2xl">🚢</div>
+              <div>
+                <h1 className="text-xl font-bold text-slate-900 tracking-tight">BC MIKLAGARD</h1>
+                <span className="text-sm text-slate-500 font-medium">Loading</span>
+              </div>
+            </div>
+            <StatusBadge status="Tamamlandı" />
+          </div>
+
+          {/* Key Info Row */}
+          <div className="mt-5 grid grid-cols-3 gap-4">
+            <div className="bg-slate-50 rounded-xl px-4 py-3">
+              <p className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">📍 Liman</p>
+              <p className="text-sm font-semibold text-slate-800">TDİ TEKİRDAĞ LİMANI</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl px-4 py-3">
+              <p className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">⚓ ETA</p>
+              <p className="text-sm font-semibold text-slate-800">28.02.2026</p>
+            </div>
+            <div className="bg-slate-50 rounded-xl px-4 py-3">
+              <p className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">🏁 ETD</p>
+              <p className="text-sm font-semibold text-slate-800">03.03.2026</p>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div className="mt-3 px-4 py-3 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-2">
+            <span className="text-amber-500 text-sm mt-0.5">📝</span>
+            <div>
+              <p className="text-xs text-amber-600 font-semibold uppercase tracking-wide mb-0.5">Not</p>
+              <p className="text-sm text-amber-800">kşlşşl</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 2-Column Layout */}
+        <div className="grid grid-cols-3 gap-6">
+          {/* LEFT — Main Content (2/3) */}
+          <div className="col-span-2">
+            {/* Tabs */}
+            <div className="flex gap-1 bg-slate-200 p-1 rounded-xl mb-5">
+              {tabs.map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
+                    activeTab === tab
+                      ? "bg-white text-slate-800 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  {tab === "Operasyon" && "✅ "}
+                  {tab === "Dokümanlar" && "📁 "}
+                  {tab === "İletişim" && "💬 "}
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            {activeTab === "Operasyon" && <OperasyonTab />}
+            {activeTab === "Dokümanlar" && <DokumanlarTab />}
+            {activeTab === "İletişim" && <IletisimTab />}
+          </div>
+
+          {/* RIGHT — Sidebar (1/3) */}
+          <div className="col-span-1">
+            <WeatherCard />
+
+            {/* Quick Actions */}
+            <div className="mt-4 bg-white rounded-2xl border border-slate-200 p-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Hızlı İşlemler</p>
+              <div className="space-y-2">
+                {[
+                  { icon: "📋", label: "Disbursement Hesabı Oluştur" },
+                  { icon: "📤", label: "Armatöre Rapor Gönder" },
+                  { icon: "🔔", label: "Hatırlatıcı Kur" },
+                ].map((a) => (
+                  <button
+                    key={a.label}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors text-left group"
+                  >
+                    <span className="text-base">{a.icon}</span>
+                    <span className="text-sm text-slate-700 font-medium group-hover:text-slate-900">{a.label}</span>
+                    <span className="ml-auto text-slate-300 group-hover:text-slate-400 text-sm">→</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
