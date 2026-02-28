@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Cloud, Wind, Waves, Thermometer,
   ShieldCheck, ShieldAlert, ShieldX,
+  AlertTriangle, CheckCircle2, CalendarCheck, Calendar,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -134,6 +135,135 @@ export function usePortWeather(lat: number | null | undefined, lng: number | nul
     enabled, staleTime: 15 * 60 * 1000,
   });
   return { marine, weather, isLoading: marineLoading || weatherLoading };
+}
+
+interface ForecastDay {
+  date: string;
+  waveMax: number;
+  windMax: number;
+  safety: SafetyLevel;
+}
+
+function useEtaForecast(lat: number | null | undefined, lng: number | null | undefined) {
+  const enabled = !!lat && !!lng;
+  const { data: marineForecast, isLoading: marineLoading } = useQuery<{ daily: { time: string[]; wave_height_max: number[] } }>({
+    queryKey: ["marine-forecast", lat, lng],
+    queryFn: async () => {
+      const res = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&daily=wave_height_max&timezone=Europe%2FIstanbul&forecast_days=7`);
+      if (!res.ok) throw new Error("Marine forecast error");
+      return res.json();
+    },
+    enabled, staleTime: 60 * 60 * 1000,
+  });
+  const { data: weatherForecast, isLoading: weatherLoading } = useQuery<{ daily: { time: string[]; wind_speed_10m_max: number[] } }>({
+    queryKey: ["weather-forecast", lat, lng],
+    queryFn: async () => {
+      const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=wind_speed_10m_max&wind_speed_unit=kn&timezone=Europe%2FIstanbul&forecast_days=7`);
+      if (!res.ok) throw new Error("Weather forecast error");
+      return res.json();
+    },
+    enabled, staleTime: 60 * 60 * 1000,
+  });
+
+  const days: ForecastDay[] = [];
+  if (marineForecast && weatherForecast) {
+    const times = marineForecast.daily.time;
+    for (let i = 0; i < times.length; i++) {
+      const waveMax = marineForecast.daily.wave_height_max[i] ?? 0;
+      const windMax = weatherForecast.daily.wind_speed_10m_max[i] ?? 0;
+      days.push({ date: times[i], waveMax, windMax, safety: getSafetyLevel(waveMax, windMax) });
+    }
+  }
+  return { days, isLoading: marineLoading || weatherLoading };
+}
+
+function formatDateTR(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00");
+  return d.toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long" });
+}
+
+export function EtaWeatherAlert({ lat, lng, eta }: { lat: number; lng: number; eta: string | null }) {
+  const { days, isLoading } = useEtaForecast(lat, lng);
+
+  if (!eta || isLoading || days.length === 0) return null;
+
+  const etaDate = new Date(eta);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  etaDate.setHours(0, 0, 0, 0);
+
+  if (etaDate < today) return null;
+
+  const etaDateStr = etaDate.toISOString().split("T")[0];
+  const etaDay = days.find(d => d.date === etaDateStr);
+  if (!etaDay) return null;
+
+  const { safety, waveMax, windMax } = etaDay;
+
+  const nearestSafeDay = days.find(d => {
+    const dDate = new Date(d.date + "T12:00:00");
+    dDate.setHours(0, 0, 0, 0);
+    return dDate > etaDate && (d.safety === "excellent" || d.safety === "good");
+  });
+
+  if (safety === "excellent" || safety === "good") {
+    return (
+      <div className="flex items-start gap-3 p-3 rounded-lg border bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/50">
+        <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+        <div className="min-w-0">
+          <p className="font-semibold text-xs text-emerald-700 dark:text-emerald-400">ETA tarihinde yanaşma koşulları uygun</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Dalga: {waveMax.toFixed(2)} m · Rüzgar: {windMax.toFixed(1)} kn · Durum: {SAFETY_CONFIG[safety].label}
+          </p>
+        </div>
+        <CalendarCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+      </div>
+    );
+  }
+
+  if (safety === "moderate") {
+    return (
+      <div className="flex items-start gap-3 p-3 rounded-lg border bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/50">
+        <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+        <div className="min-w-0">
+          <p className="font-semibold text-xs text-amber-700 dark:text-amber-400">ETA tarihinde dikkatli yanaşma önerilir</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Dalga: {waveMax.toFixed(2)} m · Rüzgar: {windMax.toFixed(1)} kn — Kılavuz kaptan önerilir
+          </p>
+          {nearestSafeDay && (
+            <p className="text-xs text-amber-700 dark:text-amber-400 mt-1 flex items-center gap-1">
+              <Calendar className="w-3 h-3" />
+              En rahat yanaşma: <span className="font-semibold">{formatDateTR(nearestSafeDay.date)}</span>
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-start gap-3 p-3 rounded-lg border bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800/50">
+      <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold text-xs text-red-700 dark:text-red-400">
+          ⚠️ ETA tarihinde fırtına bekleniyor! Yanaşma güçlüğü yaşanabilir
+        </p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Dalga: {waveMax.toFixed(2)} m · Rüzgar: {windMax.toFixed(1)} kn · Durum: {SAFETY_CONFIG[safety].label}
+        </p>
+        {nearestSafeDay ? (
+          <div className="mt-2 flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/60 dark:bg-black/20 border border-red-200 dark:border-red-800/40 w-fit">
+            <Calendar className="w-3.5 h-3.5 text-red-600 dark:text-red-400 flex-shrink-0" />
+            <p className="text-xs text-red-700 dark:text-red-300">
+              En yakın uygun tarih: <span className="font-bold">{formatDateTR(nearestSafeDay.date)}</span>
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs text-red-600 dark:text-red-400 mt-1">7 günlük tahmin içinde uygun koşul bulunamadı.</p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function WeatherPanel({ lat, lng }: { lat: number; lng: number }) {

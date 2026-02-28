@@ -7,7 +7,7 @@ import {
   Sparkles, HelpCircle, Clock, PlayCircle, XCircle, ClipboardList,
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud
 } from "lucide-react";
-import { WeatherPanel } from "@/components/port-weather-panel";
+import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -583,7 +583,10 @@ export default function VoyageDetail() {
             </div>
           </Card>
         ) : portData.latitude && portData.longitude ? (
-          <WeatherPanel lat={portData.latitude} lng={portData.longitude} />
+          <div className="space-y-3">
+            <EtaWeatherAlert lat={portData.latitude} lng={portData.longitude} eta={voyage.eta ?? null} />
+            <WeatherPanel lat={portData.latitude} lng={portData.longitude} />
+          </div>
         ) : (
           <Card className="p-4 flex items-center gap-2 text-muted-foreground text-sm">
             <Cloud className="w-4 h-4 opacity-40" />
