@@ -553,7 +553,7 @@ export async function registerRoutes(
       const { toEmail, subject, message } = req.body;
       if (!toEmail || !subject) return res.status(400).json({ message: "toEmail and subject are required" });
 
-      const proforma = await storage.getProforma(id);
+      const proforma = await storage.getProformaById(id);
       if (!proforma || proforma.userId !== userId) return res.status(404).json({ message: "Proforma not found" });
 
       const vessel = proforma.vesselId ? await storage.getVessel(proforma.vesselId, userId) : null;
