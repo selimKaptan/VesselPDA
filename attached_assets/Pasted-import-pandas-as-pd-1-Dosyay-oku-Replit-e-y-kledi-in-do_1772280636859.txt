@@ -1,0 +1,60 @@
+import pandas as pd
+
+# 1. Dosyayı oku (Replit'e yüklediğin dosya adı)
+input_file = "limankodlari-türkiye (1).xlsx - Sheet 1.csv"
+output_file = "liman_koordinatli_liste.csv"
+
+# 2. Bölge bazlı koordinat eşleme sözlüğü
+# Liman kodlarının ilk 5 karakteri bölgeyi belirler (Örn: TRALA = Alanya)
+region_map = {
+    "TRALA": (36.5444, 32.0011), # Alanya
+    "TRALI": (38.8235, 26.9312), # Aliağa
+    "TRAMB": (40.9667, 28.6667), # Ambarlı
+    "TR092": (40.8400, 29.2800), # Tuzla / Pendik
+    "TRMER": (36.7952, 34.6425), # Mersin
+    "TRISK": (36.5967, 36.1833), # İskenderun
+    "TRGEM": (40.4274, 29.1155), # Gemlik
+    "TRIZT": (40.7594, 29.7608), # İzmit
+    "TRSSX": (41.3106, 36.3394), # Samsun
+    "TRTZX": (41.0028, 39.7364), # Trabzon
+    "TRDER": (40.7483, 29.8283), # Derince
+    "TRHAY": (41.0020, 29.0148), # Haydarpaşa
+    "TRBAN": (40.3556, 27.9772), # Bandırma
+    "TRZNG": (41.4500, 31.7900), # Zonguldak
+    "TRKOC": (40.7600, 29.9200), # Kocaeli Genel
+    "TRIST": (41.0000, 28.9700), # İstanbul Genel
+    "TRIZM": (38.4200, 27.1400), # İzmir Genel
+}
+
+def assign_coords(row):
+    # Liman kodunun ilk 5 karakterini al (Bölge kodu)
+    code_prefix = str(row['limanTurkKodu'])[:5]
+    
+    # Eğer haritada varsa koordinatı dön, yoksa genel Türkiye koordinatı ver
+    if code_prefix in region_map:
+        return pd.Series(region_map[code_prefix])
+    else:
+        # Kod bulunamazsa liman adına göre ara
+        name = str(row['limanTurkAdi']).upper()
+        for key in region_map:
+            # region_map anahtarları TRALA gibi olduğu için isme bakıyoruz
+            if "TUZLA" in name: return pd.Series(region_map["TR092"])
+            if "ALANYA" in name: return pd.Series(region_map["TRALA"])
+            if "ALIAĞA" in name or "ALİAĞA" in name: return pd.Series(region_map["TRALI"])
+            
+        return pd.Series((39.0000, 35.0000)) # Default (Bulunamazsa)
+
+try:
+    print("İşlem başlıyor...")
+    df = pd.read_csv(input_file)
+    
+    # Koordinatları uygula
+    df[['latitude', 'longitude']] = df.apply(assign_coords, axis=1)
+    
+    # Yeni dosyayı kaydet
+    df.to_csv(output_file, index=False)
+    print(f"Başarılı! {len(df)} kayıt işlendi.")
+    print(f"Dosya oluşturuldu: {output_file}")
+
+except Exception as e:
+    print(f"Bir hata oluştu: {e}")
