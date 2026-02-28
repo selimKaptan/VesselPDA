@@ -315,6 +315,22 @@ export default function VesselTrack() {
     map.addControl(new mapboxgl.ScaleControl({ maxWidth: 100, unit: "nautical" }), "bottom-left");
     map.on("load", () => {
       mapReadyRef.current = true;
+
+      // Su katmanlarını lacivert yap — dark-v11 varsayılan rengi çok koyu/gri
+      const fillWaterLayers = ["water", "water-shadow"];
+      fillWaterLayers.forEach(layerId => {
+        if (map.getLayer(layerId)) {
+          map.setPaintProperty(layerId, "fill-color", "#0d2d48");
+        }
+      });
+      if (map.getLayer("waterway")) {
+        map.setPaintProperty("waterway", "line-color", "#0e3352");
+      }
+      if (map.getLayer("waterway-shadow")) {
+        map.setPaintProperty("waterway-shadow", "line-color", "#0e3352");
+      }
+
+      // OpenSeaMap denizcilik sembolleri
       map.addSource("openseamap", {
         type: "raster",
         tiles: ["https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png"],
@@ -325,7 +341,7 @@ export default function VesselTrack() {
         id: "openseamap-layer",
         type: "raster",
         source: "openseamap",
-        paint: { "raster-opacity": 0.85 },
+        paint: { "raster-opacity": 0.9 },
       });
     });
     mapRef.current = map;
