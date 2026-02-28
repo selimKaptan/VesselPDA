@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { FileText, Plus, Eye, Trash2, Search, Copy } from "lucide-react";
+import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,11 +7,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
 import { PageMeta } from "@/components/page-meta";
+import { useAuth } from "@/hooks/use-auth";
 import type { Proforma, Vessel } from "@shared/schema";
 
 export default function Proformas() {
@@ -20,9 +22,19 @@ export default function Proformas() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [vesselFilter, setVesselFilter] = useState("all");
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  const userRole = (user as any)?.userRole;
+  const activeRole = (user as any)?.activeRole;
+  const effectiveRole = userRole === "admin" ? (activeRole || "shipowner") : userRole;
+  const isAgent = effectiveRole === "agent";
 
   const { data: proformas, isLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"] });
   const { data: vessels } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
+  const { data: myBids, isLoading: bidsLoading } = useQuery<any[]>({
+    queryKey: ["/api/tenders/my-bids"],
+    enabled: isAgent,
+  });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/proformas/${id}`); },
@@ -67,22 +79,28 @@ export default function Proformas() {
     approved: "default",
   };
 
-  return (
-    <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
-      <PageMeta title="Proformas | VesselPDA" description="Manage your proforma disbursement accounts." />
+  const getBidStatusBadge = (bid: any) => {
+    const won = bid.status === "selected" && bid.tenderStatus === "nominated";
+    if (won) return { label: "Kazandı 🏆", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" };
+    if (bid.status === "selected") return { label: "Seçildi", cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" };
+    if (bid.status === "rejected") return { label: "Reddedildi", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" };
+    return { label: "İnceleniyor", cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" };
+  };
 
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-proformas-title">Proforma Invoices</h1>
-          <p className="text-muted-foreground text-sm">Manage your proforma disbursement accounts.</p>
-        </div>
-        <Link href="/proformas/new">
-          <Button className="gap-2" data-testid="button-new-proforma">
-            <Plus className="w-4 h-4" /> New Proforma
-          </Button>
-        </Link>
-      </div>
+  const handleViewPdf = (bid: any) => {
+    if (!bid.proformaPdfBase64) return;
+    const win = window.open();
+    if (win) {
+      win.document.write(
+        `<iframe src="${bid.proformaPdfBase64}" width="100%" height="100%" style="border:none;margin:0;padding:0;height:100vh;"></iframe>`
+      );
+    }
+  };
 
+  const wonBids = (myBids || []).filter(b => b.status === "selected" && b.tenderStatus === "nominated");
+
+  const proformaList = (
+    <div className="space-y-4">
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-48">
@@ -211,6 +229,163 @@ export default function Proformas() {
             </Link>
           )}
         </Card>
+      )}
+    </div>
+  );
+
+  const bidsList = (
+    <div className="space-y-4">
+      {wonBids.length > 0 && (
+        <Card className="p-4 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800">
+          <div className="flex items-center gap-2 mb-1">
+            <Trophy className="w-4 h-4 text-emerald-600" />
+            <p className="font-semibold text-emerald-800 dark:text-emerald-300 text-sm">
+              {wonBids.length} Kazanılan Tender
+            </p>
+          </div>
+          <p className="text-xs text-emerald-700 dark:text-emerald-400">
+            Tekliflerinizden {wonBids.length} tanesi resmi olarak kabul edildi.
+          </p>
+        </Card>
+      )}
+
+      {bidsLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
+        </div>
+      ) : (myBids || []).length > 0 ? (
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Liman</TableHead>
+                <TableHead className="hidden md:table-cell">Gemi</TableHead>
+                <TableHead>Teklif</TableHead>
+                <TableHead className="hidden sm:table-cell">Gönderim Tarihi</TableHead>
+                <TableHead>Durum</TableHead>
+                <TableHead className="hidden lg:table-cell">Kazanma Tarihi</TableHead>
+                <TableHead className="text-right">İşlemler</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(myBids || []).map((bid: any) => {
+                const badge = getBidStatusBadge(bid);
+                return (
+                  <TableRow key={bid.id} data-testid={`row-bid-${bid.id}`}>
+                    <TableCell className="font-medium">{bid.portName || "-"}</TableCell>
+                    <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
+                      {bid.vesselName || "-"}
+                    </TableCell>
+                    <TableCell className="font-semibold text-[hsl(var(--maritime-primary))]">
+                      {bid.totalAmount
+                        ? `${bid.totalAmount} ${bid.currency || "USD"}`
+                        : "-"}
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
+                      {bid.createdAt ? new Date(bid.createdAt).toLocaleDateString("tr-TR") : "-"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={`text-[10px] border-0 ${badge.cls}`}>
+                        {badge.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
+                      {bid.nominatedAt
+                        ? new Date(bid.nominatedAt).toLocaleDateString("tr-TR")
+                        : "-"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {bid.proformaPdfBase64 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="gap-1 text-xs h-8"
+                            onClick={() => handleViewPdf(bid)}
+                            data-testid={`button-view-bid-pdf-${bid.id}`}
+                          >
+                            <Eye className="w-3.5 h-3.5" /> PDF
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1 text-xs h-8"
+                          onClick={() => navigate(`/tenders/${bid.tenderId}`)}
+                          data-testid={`button-view-tender-${bid.id}`}
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" /> Tender
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </Card>
+      ) : (
+        <Card className="p-12 text-center space-y-4">
+          <Gavel className="w-16 h-16 text-muted-foreground/20 mx-auto" />
+          <div>
+            <h3 className="font-serif font-semibold text-lg">Henüz Teklif Gönderilmedi</h3>
+            <p className="text-muted-foreground text-sm mt-1">
+              Tender'lara teklif gönderdiğinizde burada görünecek.
+            </p>
+          </div>
+          <Button variant="outline" className="gap-2" onClick={() => navigate("/tenders")} data-testid="button-go-tenders">
+            <Gavel className="w-4 h-4" /> Tender'lara Git
+          </Button>
+        </Card>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
+      <PageMeta title="Proformas | VesselPDA" description="Manage your proforma disbursement accounts." />
+
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-proformas-title">
+            {isAgent ? "Proformalar & Teklifler" : "Proforma Invoices"}
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            {isAgent
+              ? "Proforma faturalarınız ve tender teklifleriniz."
+              : "Manage your proforma disbursement accounts."}
+          </p>
+        </div>
+        <Link href="/proformas/new">
+          <Button className="gap-2" data-testid="button-new-proforma">
+            <Plus className="w-4 h-4" /> New Proforma
+          </Button>
+        </Link>
+      </div>
+
+      {isAgent ? (
+        <Tabs defaultValue="proformas">
+          <TabsList className="mb-4">
+            <TabsTrigger value="proformas" className="gap-2" data-testid="tab-proformas">
+              <FileText className="w-4 h-4" />
+              Proformalar
+              {(proformas || []).length > 0 && (
+                <Badge variant="secondary" className="ml-1 text-[10px]">{(proformas || []).length}</Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="bids" className="gap-2" data-testid="tab-bids">
+              <Gavel className="w-4 h-4" />
+              Tender Tekliflerim
+              {wonBids.length > 0 && (
+                <Badge className="ml-1 text-[10px] bg-emerald-100 text-emerald-700 border-0">{wonBids.length} kazandı</Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="proformas">{proformaList}</TabsContent>
+          <TabsContent value="bids">{bidsList}</TabsContent>
+        </Tabs>
+      ) : (
+        proformaList
       )}
     </div>
   );

@@ -880,6 +880,7 @@ export class DatabaseStorage implements IStorage {
         tenderStatus: portTenders.status,
         tenderCreatedAt: portTenders.createdAt,
         expiryHours: portTenders.expiryHours,
+        nominatedAt: portTenders.nominatedAt,
       })
       .from(tenderBids)
       .innerJoin(portTenders, eq(tenderBids.tenderId, portTenders.id))
