@@ -4,7 +4,7 @@ import { Link } from "wouter";
 import {
   Wrench, Fuel, ShoppingCart, Users as UsersIcon, Sparkles, HelpCircle,
   Plus, MapPin, Calendar, Ship, CheckCircle2, Clock, ChevronRight,
-  Send, Loader2
+  Send, Loader2, ChevronsUpDown, Check, PenLine
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -16,11 +16,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
 import { useAuth } from "@/hooks/use-auth";
-import type { Port } from "@shared/schema";
+import type { Port, Vessel } from "@shared/schema";
 
 const SERVICE_TYPE_CONFIG: Record<string, { label: string; icon: any; color: string; bg: string }> = {
   fuel:         { label: "Yakıt / Bunker", icon: Fuel,         color: "text-orange-500", bg: "bg-orange-100 dark:bg-orange-900/20" },
@@ -40,9 +42,10 @@ const REQ_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 };
 
 function PortSearch({ value, onChange }: { value: string; onChange: (portId: number, portName: string) => void }) {
-  const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
-  const { data: ports } = useQuery<Port[]>({
+  const [query, setQuery] = useState("");
+
+  const { data: ports = [], isFetching } = useQuery<Port[]>({
     queryKey: ["/api/ports", query],
     queryFn: async () => {
       if (query.length < 2) return [];
@@ -51,18 +54,150 @@ function PortSearch({ value, onChange }: { value: string; onChange: (portId: num
     },
     enabled: query.length >= 2,
   });
+
   return (
-    <div className="relative">
-      <Input value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }} placeholder="Liman ara..." onFocus={() => setOpen(true)} />
-      {open && ports && ports.length > 0 && (
-        <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
-          {ports.map(p => (
-            <button key={p.id} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-muted" onMouseDown={() => { onChange(p.id, p.name); setQuery(p.name); setOpen(false); }}>
-              <span className="font-medium">{p.name}</span>{p.code && <span className="ml-2 text-xs text-muted-foreground">{p.code}</span>}
-            </button>
-          ))}
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between font-normal h-10"
+          data-testid="port-search-trigger"
+        >
+          <span className={value ? "text-foreground" : "text-muted-foreground"}>
+            {value || "Liman ara..."}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Liman adı veya kod girin..."
+            value={query}
+            onValueChange={setQuery}
+          />
+          <CommandList>
+            {query.length < 2 && (
+              <CommandEmpty className="py-4 text-center text-sm text-muted-foreground">
+                Aramak için en az 2 karakter girin
+              </CommandEmpty>
+            )}
+            {query.length >= 2 && isFetching && (
+              <CommandEmpty className="py-4 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+                <Loader2 className="w-3 h-3 animate-spin" /> Aranıyor...
+              </CommandEmpty>
+            )}
+            {query.length >= 2 && !isFetching && ports.length === 0 && (
+              <CommandEmpty>Liman bulunamadı</CommandEmpty>
+            )}
+            {ports.length > 0 && (
+              <CommandGroup>
+                {ports.map((p) => (
+                  <CommandItem
+                    key={p.id}
+                    value={p.name}
+                    onSelect={() => {
+                      onChange(p.id, p.name);
+                      setOpen(false);
+                      setQuery("");
+                    }}
+                    data-testid={`port-option-${p.id}`}
+                  >
+                    <Check className={`mr-2 h-4 w-4 ${value === p.name ? "opacity-100" : "opacity-0"}`} />
+                    <span className="font-medium">{p.name}</span>
+                    {p.code && <span className="ml-2 text-xs text-muted-foreground">{p.code}</span>}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ─── Vessel Select ────────────────────────────────────────────────────────────
+
+const FLAG_EMOJI: Record<string, string> = {
+  "Turkey": "🇹🇷", "Malta": "🇲🇹", "Panama": "🇵🇦", "Liberia": "🇱🇷",
+  "Marshall Islands": "🇲🇭", "Bahamas": "🇧🇸", "Greece": "🇬🇷",
+  "Cyprus": "🇨🇾", "Singapore": "🇸🇬", "Hong Kong": "🇭🇰",
+  "Norway": "🇳🇴", "United Kingdom": "🇬🇧",
+};
+
+function VesselSelect({ value, onChange }: { value: string; onChange: (name: string) => void }) {
+  const [mode, setMode] = useState<"fleet" | "manual">("fleet");
+  const { data: vessels = [] } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
+
+  if (mode === "manual") {
+    return (
+      <div className="space-y-1.5">
+        <Input
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="Gemi adını girin..."
+          data-testid="input-vessel-manual"
+          autoFocus
+        />
+        {vessels.length > 0 && (
+          <button
+            type="button"
+            className="text-xs text-[hsl(var(--maritime-primary))] hover:underline flex items-center gap-1"
+            onClick={() => { setMode("fleet"); onChange(""); }}
+          >
+            <Ship className="w-3 h-3" /> Filomdan seç
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (vessels.length === 0) {
+    return (
+      <div className="space-y-1.5">
+        <div className="border border-dashed rounded-lg px-3 py-2.5 text-sm text-muted-foreground flex items-center gap-2">
+          <Ship className="w-4 h-4 flex-shrink-0" />
+          <span>Filonuzda gemi yok</span>
         </div>
-      )}
+        <button
+          type="button"
+          className="text-xs text-[hsl(var(--maritime-primary))] hover:underline flex items-center gap-1"
+          onClick={() => setMode("manual")}
+        >
+          <PenLine className="w-3 h-3" /> Manuel giriş
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger data-testid="select-vessel-fleet">
+          <SelectValue placeholder="Filo gemisi seç..." />
+        </SelectTrigger>
+        <SelectContent>
+          {vessels.map((v) => (
+            <SelectItem key={v.id} value={v.name} data-testid={`vessel-option-${v.id}`}>
+              <span className="flex items-center gap-2">
+                <span>{FLAG_EMOJI[v.flag || ""] || "🏳️"}</span>
+                <span className="font-medium">{v.name}</span>
+                <span className="text-xs text-muted-foreground">{v.vesselType}</span>
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <button
+        type="button"
+        className="text-xs text-muted-foreground hover:text-foreground hover:underline flex items-center gap-1"
+        onClick={() => { setMode("manual"); onChange(""); }}
+      >
+        <PenLine className="w-3 h-3" /> Filo dışı gemi (manuel giriş)
+      </button>
     </div>
   );
 }
@@ -330,8 +465,11 @@ export default function ServiceRequests() {
               <PortSearch value={createForm.portName} onChange={(id, name) => setCreateForm(f => ({ ...f, portId: id, portName: name }))} />
             </div>
             <div className="space-y-1.5">
-              <Label>Gemi Adı *</Label>
-              <Input value={createForm.vesselName} onChange={e => setCreateForm(f => ({ ...f, vesselName: e.target.value }))} placeholder="Gemi adı" />
+              <Label>Gemi *</Label>
+              <VesselSelect
+                value={createForm.vesselName}
+                onChange={(name) => setCreateForm(f => ({ ...f, vesselName: name }))}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Açıklama *</Label>
