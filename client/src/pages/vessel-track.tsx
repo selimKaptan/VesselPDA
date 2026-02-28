@@ -2,7 +2,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Navigation, Search, X, Ship, MapPin, ArrowRight, AlertTriangle, Loader2, List, Map, ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react";
+import { Navigation, Search, X, Ship, MapPin, ArrowRight, AlertTriangle, Loader2, List, Map as MapIcon, ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -680,7 +680,7 @@ export default function VesselTrack() {
                 : "text-muted-foreground hover:bg-muted"
             }`}
           >
-            <Map className="w-3.5 h-3.5" />
+            <MapIcon className="w-3.5 h-3.5" />
             Map
           </button>
           <button
