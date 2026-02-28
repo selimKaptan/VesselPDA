@@ -63,17 +63,20 @@ interface MyLikes {
   replyIds: number[];
 }
 
+const TR_MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+
 function timeAgo(timestamp: string | null): string {
   if (!timestamp) return "";
   const diff = Date.now() - new Date(timestamp).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return "az önce";
+  if (mins < 60) return `${mins} dk`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `${hours} sa`;
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(timestamp).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  if (days < 30) return `${days} g`;
+  const d = new Date(timestamp);
+  return `${TR_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 function getUrlParams() {
@@ -390,40 +393,38 @@ export default function Forum() {
 
       <div className="max-w-7xl mx-auto px-3 py-5">
 
-        {/* Sort tabs + search bar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
-          <div className="flex items-center gap-1 p-1 bg-muted rounded-lg flex-shrink-0">
-            <button
-              onClick={() => setActiveTab("latest")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                activeTab === "latest"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              data-testid="tab-latest"
-            >
-              <Clock className="w-3.5 h-3.5" /> Latest
-            </button>
-            <button
-              onClick={() => setActiveTab("popular")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                activeTab === "popular"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              data-testid="tab-popular"
-            >
-              <Flame className="w-3.5 h-3.5" /> Popular
-            </button>
-          </div>
-
-          <div className="relative flex-1 w-full sm:w-auto">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        {/* Discourse-style tab bar */}
+        <div className="flex items-center gap-0 border-b mb-0 -mx-3 px-3">
+          <button
+            onClick={() => setActiveTab("latest")}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-all -mb-px ${
+              activeTab === "latest"
+                ? "border-[hsl(var(--maritime-primary))] text-[hsl(var(--maritime-primary))]"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+            }`}
+            data-testid="tab-latest"
+          >
+            <Clock className="w-3.5 h-3.5" /> En son
+          </button>
+          <button
+            onClick={() => setActiveTab("popular")}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-all -mb-px ${
+              activeTab === "popular"
+                ? "border-[hsl(var(--maritime-primary))] text-[hsl(var(--maritime-primary))]"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+            }`}
+            data-testid="tab-popular"
+          >
+            <Flame className="w-3.5 h-3.5" /> Popüler
+          </button>
+          <div className="flex-1" />
+          <div className="relative w-44 sm:w-56 flex-shrink-0 pb-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search topics..."
+              placeholder="Konu ara..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              className="pl-9 h-8 text-sm"
               data-testid="input-search-forum"
             />
           </div>
@@ -444,7 +445,7 @@ export default function Forum() {
             }`}
             data-testid="pill-category-all"
           >
-            All
+            Tümü
             {allTopics.length > 0 && <span className="ml-1 opacity-70">({allTopics.length}{hasMore ? "+" : ""})</span>}
           </button>
           {categories?.map(cat => (
@@ -490,7 +491,7 @@ export default function Forum() {
               className="text-xs text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
               data-testid="button-clear-category"
             >
-              Clear ×
+              Temizle ×
             </button>
           </div>
         )}
@@ -529,136 +530,180 @@ export default function Forum() {
 
         {/* Topic list */}
         {isLoading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-20 w-full rounded-lg" />
+          <div className="divide-y">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 py-3">
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/3" />
+                </div>
+                <Skeleton className="h-6 w-20 hidden sm:block" />
+                <Skeleton className="h-4 w-8 hidden sm:block" />
+                <Skeleton className="h-4 w-8 hidden sm:block" />
+                <Skeleton className="h-4 w-12" />
+              </div>
             ))}
           </div>
         ) : !filteredTopics?.length ? (
-          <Card className="p-10 text-center border-dashed">
+          <Card className="p-10 text-center border-dashed mt-4">
             <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-muted/50 flex items-center justify-center">
               <MessageSquare className="w-6 h-6 text-muted-foreground/50" />
             </div>
             <h3 className="text-base font-semibold mb-1">
-              {searchQuery ? "No matching topics found" : activeCategoryObj ? `No topics in ${activeCategoryObj.name} yet` : "No topics yet"}
+              {searchQuery ? "Konu bulunamadı" : activeCategoryObj ? `${activeCategoryObj.name} kategorisinde henüz konu yok` : "Henüz konu yok"}
             </h3>
             <p className="text-sm text-muted-foreground mb-5">
-              {searchQuery
-                ? "Try a different search term or browse all categories."
-                : "Be the first to start a discussion!"}
+              {searchQuery ? "Farklı bir arama terimi deneyin." : "İlk konuyu başlatan siz olun!"}
             </p>
             {user ? (
               <Button onClick={openNewTopicWithCategory} className="gap-2 mx-auto" data-testid="button-new-topic-empty">
                 <Plus className="w-4 h-4" />
-                {activeCategoryObj ? `${activeCategoryObj.name} — Start Topic` : "Start Topic"}
+                {activeCategoryObj ? `${activeCategoryObj.name} — Konu Başlat` : "Konu Başlat"}
               </Button>
             ) : (
               <a href="/login">
                 <Button variant="outline" className="gap-2 mx-auto" data-testid="button-login-empty">
-                  <Plus className="w-4 h-4" /> Sign in to join the discussion
+                  <Plus className="w-4 h-4" /> Tartışmaya katılmak için giriş yapın
                 </Button>
               </a>
             )}
           </Card>
         ) : (
           <>
-          <div className="space-y-2" data-testid="forum-topic-list">
+          {/* Table header */}
+          <div className="hidden sm:grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b bg-muted/30">
+            <span>Konu</span>
+            <span className="w-24 text-center">Katılımcılar</span>
+            <span className="w-12 text-center">Yanıtlar</span>
+            <span className="w-14 text-center">Görüntü</span>
+            <span className="w-16 text-right">Aktivite</span>
+          </div>
+
+          <div className="divide-y" data-testid="forum-topic-list">
             {filteredTopics.map(topic => {
               const likeState = localLikes[topic.id] ?? { liked: false, count: topic.likeCount ?? 0 };
+
+              // Build participant list: OP first, then reply authors (deduped)
+              const opParticipant: TopicParticipant = {
+                userId: topic.userId,
+                firstName: topic.authorFirstName,
+                lastName: topic.authorLastName,
+                profileImageUrl: topic.authorImage,
+              };
+              const allParticipants: TopicParticipant[] = topic.isAnonymous
+                ? []
+                : [opParticipant, ...(topic.participants || []).filter(p => p.userId !== topic.userId)];
+              const visibleParticipants = allParticipants.slice(0, 4);
+              const extraCount = allParticipants.length - visibleParticipants.length;
+
               return (
                 <Link key={topic.id} href={`/forum/${topic.id}`} data-testid={`link-topic-${topic.id}`}>
-                  <div
-                    className="group flex gap-3 sm:gap-4 p-4 rounded-lg border bg-card hover:shadow-sm hover:border-[hsl(var(--maritime-primary)/0.25)] transition-all cursor-pointer"
-                    style={{ borderLeft: `3px solid ${topic.categoryColor}60` }}
-                  >
-                    {/* Author avatar */}
-                    <div className="flex-shrink-0 pt-0.5">
-                      {topic.isAnonymous ? (
-                        <Avatar className="w-8 h-8">
-                          <AvatarFallback className="text-xs bg-muted text-muted-foreground">?</AvatarFallback>
-                        </Avatar>
-                      ) : (
-                        <Avatar className="w-8 h-8">
-                          <AvatarImage src={topic.authorImage || undefined} />
-                          <AvatarFallback className="text-xs bg-[hsl(var(--maritime-primary))] text-white">
-                            {(topic.authorFirstName?.[0] || "") + (topic.authorLastName?.[0] || "")}
-                          </AvatarFallback>
-                        </Avatar>
-                      )}
-                    </div>
+                  <div className="group grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_auto_auto_auto] gap-x-4 gap-y-0 items-center px-3 py-3 hover:bg-muted/40 transition-colors cursor-pointer">
 
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2 mb-1.5">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                            {topic.isPinned && <Pin className="w-3 h-3 text-[hsl(var(--maritime-primary))] flex-shrink-0" />}
-                            {topic.isLocked && <Lock className="w-3 h-3 text-muted-foreground flex-shrink-0" />}
-                            <span className="font-semibold text-sm leading-snug line-clamp-2" data-testid={`text-topic-title-${topic.id}`}>
-                              {topic.title}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] px-1.5 py-0 h-4 gap-1 flex-shrink-0"
-                              style={{ borderColor: topic.categoryColor + "50", color: topic.categoryColor }}
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: topic.categoryColor }} />
-                              {topic.categoryName}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {topic.isAnonymous ? "Anonymous" : `${topic.authorFirstName || ""} ${topic.authorLastName || ""}`.trim()}
-                            </span>
-                            <span className="text-xs text-muted-foreground hidden sm:inline">{timeAgo(topic.lastActivityAt)}</span>
-                          </div>
-                        </div>
-
-                        {/* Delete button (desktop hover) */}
+                    {/* Topic title + meta (left col) */}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                        {topic.isPinned && <Pin className="w-3 h-3 text-[hsl(var(--maritime-primary))] flex-shrink-0" />}
+                        {topic.isLocked && <Lock className="w-3 h-3 text-muted-foreground flex-shrink-0" />}
+                        <span
+                          className="font-semibold text-sm leading-snug line-clamp-1 group-hover:text-[hsl(var(--maritime-primary))] transition-colors"
+                          data-testid={`text-topic-title-${topic.id}`}
+                        >
+                          {topic.title}
+                        </span>
+                        {/* Delete on hover */}
                         {user && (user.id === topic.userId || (user as any).userRole === "admin") && (
                           <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setDeleteTopicId(topic.id);
-                            }}
-                            className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-destructive/10 hover:text-destructive text-muted-foreground"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTopicId(topic.id); }}
+                            className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-destructive/10 hover:text-destructive text-muted-foreground ml-1"
                             data-testid={`button-delete-topic-${topic.id}`}
-                            title="Delete topic"
+                            title="Sil"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-3 h-3" />
                           </button>
                         )}
                       </div>
-
-                      {/* Stats row */}
-                      <div className="flex items-center gap-3 flex-wrap">
-                        {/* Like button */}
-                        <button
-                          onClick={(e) => handleLike(e, topic.id)}
-                          className={`flex items-center gap-1.5 text-xs transition-all rounded border px-2 py-1 -ml-1.5 font-medium ${
-                            likeState.liked
-                              ? "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-400"
-                              : "border-border text-muted-foreground hover:border-blue-200 hover:text-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-950/20"
-                          }`}
-                          data-testid={`button-like-topic-${topic.id}`}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 h-4 gap-1 flex-shrink-0"
+                          style={{ borderColor: topic.categoryColor + "50", color: topic.categoryColor }}
                         >
-                          <ThumbsUp className="w-3.5 h-3.5" />
-                          <span>{likeState.liked ? "Unlike" : "Like"}</span>
-                          <span className="opacity-70">· {likeState.count}</span>
-                        </button>
-
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <MessageSquare className="w-3.5 h-3.5" />
-                          {topic.replyCount}
+                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: topic.categoryColor }} />
+                          {topic.categoryName}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {topic.isAnonymous ? "Anonim Kullanıcı" : `${topic.authorFirstName || ""} ${topic.authorLastName || ""}`.trim()}
                         </span>
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Eye className="w-3.5 h-3.5" />
-                          {topic.viewCount}
-                        </span>
-                        <span className="text-xs text-muted-foreground sm:hidden">{timeAgo(topic.lastActivityAt)}</span>
+                        {/* Like pill (inline with meta) */}
+                        {likeState.count > 0 && (
+                          <button
+                            onClick={(e) => handleLike(e, topic.id)}
+                            className={`flex items-center gap-1 text-[10px] transition-all rounded px-1.5 py-0.5 font-medium ${
+                              likeState.liked
+                                ? "bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400"
+                                : "text-muted-foreground hover:text-blue-600"
+                            }`}
+                            data-testid={`button-like-topic-${topic.id}`}
+                          >
+                            <ThumbsUp className="w-3 h-3" />
+                            {likeState.count}
+                          </button>
+                        )}
+                        {likeState.count === 0 && (
+                          <button
+                            onClick={(e) => handleLike(e, topic.id)}
+                            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-blue-600 transition-colors px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100"
+                            data-testid={`button-like-topic-${topic.id}`}
+                          >
+                            <ThumbsUp className="w-3 h-3" /> Beğen
+                          </button>
+                        )}
                       </div>
                     </div>
+
+                    {/* Participants avatar stack (hidden on mobile) */}
+                    <div className="hidden sm:flex items-center justify-center w-24">
+                      <div className="flex -space-x-2">
+                        {topic.isAnonymous ? (
+                          <Avatar className="w-7 h-7 border-2 border-background ring-1 ring-border">
+                            <AvatarFallback className="text-[9px] bg-muted text-muted-foreground">?</AvatarFallback>
+                          </Avatar>
+                        ) : (
+                          <>
+                            {visibleParticipants.map((p, idx) => (
+                              <Avatar key={p.userId + idx} className="w-7 h-7 border-2 border-background ring-1 ring-border">
+                                <AvatarImage src={p.profileImageUrl || undefined} />
+                                <AvatarFallback className="text-[9px] bg-[hsl(var(--maritime-primary))] text-white">
+                                  {(p.firstName?.[0] || "") + (p.lastName?.[0] || "")}
+                                </AvatarFallback>
+                              </Avatar>
+                            ))}
+                            {extraCount > 0 && (
+                              <div className="w-7 h-7 rounded-full border-2 border-background ring-1 ring-border bg-muted flex items-center justify-center text-[9px] font-semibold text-muted-foreground">
+                                +{extraCount}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Reply count (hidden on mobile) */}
+                    <div className="hidden sm:flex items-center justify-center w-12">
+                      <span className="text-sm text-muted-foreground font-medium">{topic.replyCount}</span>
+                    </div>
+
+                    {/* View count (hidden on mobile) */}
+                    <div className="hidden sm:flex items-center justify-center w-14">
+                      <span className="text-sm text-muted-foreground">{topic.viewCount}</span>
+                    </div>
+
+                    {/* Activity (shown on all) */}
+                    <div className="flex items-center justify-end w-16 sm:w-16">
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">{timeAgo(topic.lastActivityAt)}</span>
+                    </div>
+
                   </div>
                 </Link>
               );
@@ -672,7 +717,7 @@ export default function Forum() {
                 disabled={isFetching}
                 data-testid="button-load-more-topics"
               >
-                {isFetching ? "Loading..." : "Load More Topics"}
+                {isFetching ? "Yükleniyor..." : "Daha Fazla Konu Yükle"}
               </Button>
             </div>
           )}
