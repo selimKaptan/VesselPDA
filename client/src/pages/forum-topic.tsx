@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useMemo, useEffect } from "react";
 import { Link, useParams, useLocation } from "wouter";
-import { MessageSquare, Eye, ArrowLeft, Clock, Pin, Lock, Send, Trash2, ThumbsUp } from "lucide-react";
+import { MessageSquare, Eye, ArrowLeft, Clock, Pin, Lock, Send, Trash2, ThumbsUp, ThumbsDown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -344,8 +344,11 @@ export default function ForumTopic() {
                       }`}
                       data-testid="button-like-topic-detail"
                     >
-                      <ThumbsUp className="w-4 h-4" />
-                      <span>{topicLike?.liked ? "Unlike" : "Like"}</span>
+                      {topicLike?.liked
+                        ? <ThumbsDown className="w-4 h-4" />
+                        : <ThumbsUp className="w-4 h-4" />
+                      }
+                      <span>{topicLike?.liked ? "Beğeniyi Geri Al" : "Beğen"}</span>
                       <span className="text-xs opacity-80">· {topicLike?.count ?? 0}</span>
                     </button>
                     {!user && (
@@ -393,8 +396,11 @@ export default function ForumTopic() {
                             }`}
                             data-testid={`button-like-reply-${reply.id}`}
                           >
-                            <ThumbsUp className="w-3 h-3" />
-                            <span>{replyLike.liked ? "Unlike" : "Like"}</span>
+                            {replyLike.liked
+                              ? <ThumbsDown className="w-3 h-3" />
+                              : <ThumbsUp className="w-3 h-3" />
+                            }
+                            <span>{replyLike.liked ? "Geri Al" : "Beğen"}</span>
                             <span className="opacity-70">· {replyLike.count}</span>
                           </button>
                         </div>
