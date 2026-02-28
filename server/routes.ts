@@ -1417,18 +1417,48 @@ export async function registerRoutes(
     }
   });
 
-  // Get current user's liked topic IDs and reply IDs
+  // Get current user's liked topic IDs and reply IDs (+ dislikes)
   app.get("/api/forum/my-likes", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const [topicIds, replyIds] = await Promise.all([
+      const [topicIds, replyIds, dislikedTopicIds, dislikedReplyIds] = await Promise.all([
         storage.getUserTopicLikes(userId),
         storage.getUserReplyLikes(userId),
+        storage.getUserTopicDislikes(userId),
+        storage.getUserReplyDislikes(userId),
       ]);
-      res.json({ topicIds, replyIds });
+      res.json({ topicIds, replyIds, dislikedTopicIds, dislikedReplyIds });
     } catch (error) {
       console.error("Get user likes error:", error);
       res.status(500).json({ message: "Failed to get likes" });
+    }
+  });
+
+  // Dislike/undislike forum topics
+  app.post("/api/forum/topics/:id/dislike", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const topicId = parseInt(req.params.id);
+      if (!topicId) return res.status(400).json({ message: "Invalid topic ID" });
+      const result = await storage.toggleTopicDislike(userId, topicId);
+      res.json(result);
+    } catch (error) {
+      console.error("Toggle topic dislike error:", error);
+      res.status(500).json({ message: "Failed to toggle dislike" });
+    }
+  });
+
+  // Dislike/undislike forum replies
+  app.post("/api/forum/replies/:id/dislike", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const replyId = parseInt(req.params.id);
+      if (!replyId) return res.status(400).json({ message: "Invalid reply ID" });
+      const result = await storage.toggleReplyDislike(userId, replyId);
+      res.json(result);
+    } catch (error) {
+      console.error("Toggle reply dislike error:", error);
+      res.status(500).json({ message: "Failed to toggle dislike" });
     }
   });
 

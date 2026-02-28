@@ -19,6 +19,7 @@ interface Reply {
   id: number;
   content: string;
   likeCount: number;
+  dislikeCount: number;
   createdAt: string | null;
   topicId: number;
   userId: string;
@@ -36,6 +37,7 @@ interface TopicDetail {
   viewCount: number;
   replyCount: number;
   likeCount: number;
+  dislikeCount: number;
   isPinned: boolean;
   isLocked: boolean;
   lastActivityAt: string | null;
@@ -53,6 +55,8 @@ interface TopicDetail {
 interface MyLikes {
   topicIds: number[];
   replyIds: number[];
+  dislikedTopicIds: number[];
+  dislikedReplyIds: number[];
 }
 
 function formatDateTime(timestamp: string | null): string {
@@ -84,9 +88,11 @@ export default function ForumTopic() {
   const [replyContent, setReplyContent] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Optimistic like states
+  // Optimistic like/dislike states
   const [topicLike, setTopicLike] = useState<{ liked: boolean; count: number } | null>(null);
   const [replyLikes, setReplyLikes] = useState<Record<number, { liked: boolean; count: number }>>({});
+  const [topicDislike, setTopicDislike] = useState<{ disliked: boolean; count: number } | null>(null);
+  const [replyDislikes, setReplyDislikes] = useState<Record<number, { disliked: boolean; count: number }>>({});
 
   const forumReturnUrl = useMemo(() => {
     const saved = sessionStorage.getItem("forumReturnSearch");
@@ -103,39 +109,51 @@ export default function ForumTopic() {
     enabled: !!user,
     queryFn: async () => {
       const res = await fetch("/api/forum/my-likes", { credentials: "include" });
-      if (!res.ok) return { topicIds: [], replyIds: [] };
+      if (!res.ok) return { topicIds: [], replyIds: [], dislikedTopicIds: [], dislikedReplyIds: [] };
       return res.json();
     },
   });
 
-  // Sync server likes into local state
+  // Sync server likes + dislikes into local state
   useEffect(() => {
     if (!myLikes || !topic) return;
     const likedTopicSet = new Set(myLikes.topicIds);
     const likedReplySet = new Set(myLikes.replyIds);
+    const dislikedTopicSet = new Set(myLikes.dislikedTopicIds ?? []);
+    const dislikedReplySet = new Set(myLikes.dislikedReplyIds ?? []);
 
     setTopicLike({ liked: likedTopicSet.has(topic.id), count: topic.likeCount ?? 0 });
+    setTopicDislike({ disliked: dislikedTopicSet.has(topic.id), count: topic.dislikeCount ?? 0 });
 
     const newReplyLikes: Record<number, { liked: boolean; count: number }> = {};
+    const newReplyDislikes: Record<number, { disliked: boolean; count: number }> = {};
     for (const r of topic.replies || []) {
       newReplyLikes[r.id] = { liked: likedReplySet.has(r.id), count: r.likeCount ?? 0 };
+      newReplyDislikes[r.id] = { disliked: dislikedReplySet.has(r.id), count: r.dislikeCount ?? 0 };
     }
     setReplyLikes(newReplyLikes);
+    setReplyDislikes(newReplyDislikes);
   }, [myLikes, topic]);
 
   // Also init from topic data (before likes load)
   useEffect(() => {
     if (!topic) return;
     setTopicLike(prev => prev ?? { liked: false, count: topic.likeCount ?? 0 });
+    setTopicDislike(prev => prev ?? { disliked: false, count: topic.dislikeCount ?? 0 });
     const newReplyLikes: Record<number, { liked: boolean; count: number }> = {};
+    const newReplyDislikes: Record<number, { disliked: boolean; count: number }> = {};
     for (const r of topic.replies || []) {
       newReplyLikes[r.id] = { liked: false, count: r.likeCount ?? 0 };
+      newReplyDislikes[r.id] = { disliked: false, count: r.dislikeCount ?? 0 };
     }
     setReplyLikes(prev => {
       const merged: Record<number, { liked: boolean; count: number }> = { ...newReplyLikes };
-      for (const [id, val] of Object.entries(prev)) {
-        merged[Number(id)] = val;
-      }
+      for (const [id, val] of Object.entries(prev)) { merged[Number(id)] = val; }
+      return merged;
+    });
+    setReplyDislikes(prev => {
+      const merged: Record<number, { disliked: boolean; count: number }> = { ...newReplyDislikes };
+      for (const [id, val] of Object.entries(prev)) { merged[Number(id)] = val; }
       return merged;
     });
   }, [topic]);
@@ -171,6 +189,36 @@ export default function ForumTopic() {
     },
   });
 
+  const dislikeTopicMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/forum/topics/${topicId}/dislike`);
+      return res.json();
+    },
+    onSuccess: (data: { disliked: boolean; dislikeCount: number }) => {
+      setTopicDislike({ disliked: data.disliked, count: data.dislikeCount });
+      queryClient.invalidateQueries({ queryKey: ["/api/forum/my-likes"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/forum/topics/${topicId}`] });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Could not update dislike.", variant: "destructive" });
+    },
+  });
+
+  const dislikeReplyMutation = useMutation({
+    mutationFn: async (replyId: number) => {
+      const res = await apiRequest("POST", `/api/forum/replies/${replyId}/dislike`);
+      return res.json() as Promise<{ disliked: boolean; dislikeCount: number }>;
+    },
+    onSuccess: (data, replyId) => {
+      setReplyDislikes(prev => ({ ...prev, [replyId]: { disliked: data.disliked, count: data.dislikeCount } }));
+      queryClient.invalidateQueries({ queryKey: ["/api/forum/my-likes"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/forum/topics/${topicId}`] });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Could not update dislike.", variant: "destructive" });
+    },
+  });
+
   const handleLikeTopic = () => {
     if (!user) {
       toast({ title: "Sign in required", description: "Log in to like topics." });
@@ -179,6 +227,16 @@ export default function ForumTopic() {
     const current = topicLike ?? { liked: false, count: 0 };
     setTopicLike({ liked: !current.liked, count: current.liked ? current.count - 1 : current.count + 1 });
     likeTopicMutation.mutate();
+  };
+
+  const handleDislikeTopic = () => {
+    if (!user) {
+      toast({ title: "Sign in required", description: "Log in to dislike topics." });
+      return;
+    }
+    const current = topicDislike ?? { disliked: false, count: 0 };
+    setTopicDislike({ disliked: !current.disliked, count: current.disliked ? current.count - 1 : current.count + 1 });
+    dislikeTopicMutation.mutate();
   };
 
   const handleLikeReply = (replyId: number) => {
@@ -192,6 +250,19 @@ export default function ForumTopic() {
       [replyId]: { liked: !current.liked, count: current.liked ? current.count - 1 : current.count + 1 },
     }));
     likeReplyMutation.mutate(replyId);
+  };
+
+  const handleDislikeReply = (replyId: number) => {
+    if (!user) {
+      toast({ title: "Sign in required", description: "Log in to dislike replies." });
+      return;
+    }
+    const current = replyDislikes[replyId] ?? { disliked: false, count: 0 };
+    setReplyDislikes(prev => ({
+      ...prev,
+      [replyId]: { disliked: !current.disliked, count: current.disliked ? current.count - 1 : current.count + 1 },
+    }));
+    dislikeReplyMutation.mutate(replyId);
   };
 
   const replyMutation = useMutation({
@@ -333,7 +404,7 @@ export default function ForumTopic() {
                     {topic.content}
                   </div>
 
-                  {/* Topic like button */}
+                  {/* Topic like / dislike buttons */}
                   <div className="flex items-center gap-2 pt-3 border-t border-border/50">
                     <button
                       onClick={handleLikeTopic}
@@ -344,16 +415,26 @@ export default function ForumTopic() {
                       }`}
                       data-testid="button-like-topic-detail"
                     >
-                      {topicLike?.liked
-                        ? <ThumbsDown className="w-4 h-4" />
-                        : <ThumbsUp className="w-4 h-4" />
-                      }
-                      <span>{topicLike?.liked ? "Beğeniyi Geri Al" : "Beğen"}</span>
+                      <ThumbsUp className="w-4 h-4" />
+                      <span>Beğen</span>
                       <span className="text-xs opacity-80">· {topicLike?.count ?? 0}</span>
+                    </button>
+                    <button
+                      onClick={handleDislikeTopic}
+                      className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-all font-medium ${
+                        topicDislike?.disliked
+                          ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/30 dark:border-red-800 dark:text-red-400"
+                          : "border-border text-muted-foreground hover:border-red-200 hover:text-red-500 hover:bg-red-50/50 dark:hover:bg-red-950/20"
+                      }`}
+                      data-testid="button-dislike-topic-detail"
+                    >
+                      <ThumbsDown className="w-4 h-4" />
+                      <span>Beğenme</span>
+                      <span className="text-xs opacity-80">· {topicDislike?.count ?? 0}</span>
                     </button>
                     {!user && (
                       <span className="text-xs text-muted-foreground">
-                        <a href="/login" className="underline hover:text-foreground">Sign in</a> to like
+                        <a href="/login" className="underline hover:text-foreground">Sign in</a> to vote
                       </span>
                     )}
                   </div>
@@ -386,23 +467,35 @@ export default function ForumTopic() {
                           <div className="text-sm leading-relaxed whitespace-pre-wrap mb-3" data-testid={`text-reply-content-${reply.id}`}>
                             {reply.content}
                           </div>
-                          {/* Reply like button */}
-                          <button
-                            onClick={() => handleLikeReply(reply.id)}
-                            className={`flex items-center gap-1.5 text-xs transition-all rounded border px-2 py-1 font-medium ${
-                              replyLike.liked
-                                ? "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-400"
-                                : "border-border text-muted-foreground hover:border-blue-200 hover:text-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-950/20"
-                            }`}
-                            data-testid={`button-like-reply-${reply.id}`}
-                          >
-                            {replyLike.liked
-                              ? <ThumbsDown className="w-3 h-3" />
-                              : <ThumbsUp className="w-3 h-3" />
-                            }
-                            <span>{replyLike.liked ? "Geri Al" : "Beğen"}</span>
-                            <span className="opacity-70">· {replyLike.count}</span>
-                          </button>
+                          {/* Reply like / dislike buttons */}
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleLikeReply(reply.id)}
+                              className={`flex items-center gap-1 text-xs transition-all rounded border px-2 py-1 font-medium ${
+                                replyLike.liked
+                                  ? "border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/30 dark:border-blue-800 dark:text-blue-400"
+                                  : "border-border text-muted-foreground hover:border-blue-200 hover:text-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-950/20"
+                              }`}
+                              data-testid={`button-like-reply-${reply.id}`}
+                            >
+                              <ThumbsUp className="w-3 h-3" />
+                              <span>Beğen</span>
+                              <span className="opacity-70">· {replyLike.count}</span>
+                            </button>
+                            <button
+                              onClick={() => handleDislikeReply(reply.id)}
+                              className={`flex items-center gap-1 text-xs transition-all rounded border px-2 py-1 font-medium ${
+                                (replyDislikes[reply.id] ?? { disliked: false }).disliked
+                                  ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/30 dark:border-red-800 dark:text-red-400"
+                                  : "border-border text-muted-foreground hover:border-red-200 hover:text-red-500 hover:bg-red-50/50 dark:hover:bg-red-950/20"
+                              }`}
+                              data-testid={`button-dislike-reply-${reply.id}`}
+                            >
+                              <ThumbsDown className="w-3 h-3" />
+                              <span>Beğenme</span>
+                              <span className="opacity-70">· {(replyDislikes[reply.id] ?? { count: reply.dislikeCount ?? 0 }).count}</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </Card>

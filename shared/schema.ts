@@ -133,6 +133,7 @@ export const forumTopics = pgTable("forum_topics", {
   viewCount: integer("view_count").notNull().default(0),
   replyCount: integer("reply_count").notNull().default(0),
   likeCount: integer("like_count").notNull().default(0),
+  dislikeCount: integer("dislike_count").notNull().default(0),
   isPinned: boolean("is_pinned").notNull().default(false),
   isLocked: boolean("is_locked").notNull().default(false),
   lastActivityAt: timestamp("last_activity_at").defaultNow(),
@@ -151,6 +152,7 @@ export const forumReplies = pgTable("forum_replies", {
   userId: varchar("user_id").notNull().references(() => users.id),
   content: text("content").notNull(),
   likeCount: integer("like_count").notNull().default(0),
+  dislikeCount: integer("dislike_count").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -166,6 +168,16 @@ export const forumLikes = pgTable("forum_likes", {
   replyId: integer("reply_id").references(() => forumReplies.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+export const forumDislikes = pgTable("forum_dislikes", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  topicId: integer("topic_id").references(() => forumTopics.id),
+  replyId: integer("reply_id").references(() => forumReplies.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ForumDislike = typeof forumDislikes.$inferSelect;
 
 export const insertVesselSchema = createInsertSchema(vessels).omit({ id: true, createdAt: true });
 export const insertPortSchema = createInsertSchema(ports).omit({ id: true, createdAt: true });

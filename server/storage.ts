@@ -26,7 +26,7 @@ import {
   type DirectNomination, type InsertDirectNomination,
   type VoyageChatMessage, type InsertVoyageChatMessage,
   vessels, ports, tariffCategories, tariffRates, proformas,
-  forumCategories, forumTopics, forumReplies, forumLikes,
+  forumCategories, forumTopics, forumReplies, forumLikes, forumDislikes,
   portTenders, tenderBids, agentReviews, vesselWatchlist,
   notifications, feedbacks,
   voyages, voyageChecklists, serviceRequests, serviceOffers,
@@ -100,6 +100,10 @@ export interface IStorage {
   getUserReplyLikes(userId: string): Promise<number[]>;
   toggleTopicLike(userId: string, topicId: number): Promise<{ liked: boolean; likeCount: number }>;
   toggleReplyLike(userId: string, replyId: number): Promise<{ liked: boolean; likeCount: number }>;
+  getUserTopicDislikes(userId: string): Promise<number[]>;
+  getUserReplyDislikes(userId: string): Promise<number[]>;
+  toggleTopicDislike(userId: string, topicId: number): Promise<{ disliked: boolean; dislikeCount: number }>;
+  toggleReplyDislike(userId: string, replyId: number): Promise<{ disliked: boolean; dislikeCount: number }>;
   getTopicParticipants(topicId: number, limit?: number): Promise<any[]>;
 
   getPortTenders(filters?: { userId?: string; portId?: number; status?: string }): Promise<any[]>;
@@ -677,6 +681,66 @@ export class DatabaseStorage implements IStorage {
         .where(eq(forumReplies.id, replyId))
         .returning({ likeCount: forumReplies.likeCount });
       return { liked: true, likeCount: updated?.likeCount ?? 1 };
+    }
+  }
+
+  async getUserTopicDislikes(userId: string): Promise<number[]> {
+    const rows = await db.select({ topicId: forumDislikes.topicId })
+      .from(forumDislikes)
+      .where(and(eq(forumDislikes.userId, userId), isNull(forumDislikes.replyId)));
+    return rows.map(r => r.topicId!).filter(Boolean);
+  }
+
+  async getUserReplyDislikes(userId: string): Promise<number[]> {
+    const rows = await db.select({ replyId: forumDislikes.replyId })
+      .from(forumDislikes)
+      .where(and(eq(forumDislikes.userId, userId), isNull(forumDislikes.topicId)));
+    return rows.map(r => r.replyId!).filter(Boolean);
+  }
+
+  async toggleTopicDislike(userId: string, topicId: number): Promise<{ disliked: boolean; dislikeCount: number }> {
+    const existing = await db.select()
+      .from(forumDislikes)
+      .where(and(eq(forumDislikes.userId, userId), eq(forumDislikes.topicId, topicId), isNull(forumDislikes.replyId)))
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db.delete(forumDislikes).where(eq(forumDislikes.id, existing[0].id));
+      const [updated] = await db.update(forumTopics)
+        .set({ dislikeCount: sql`GREATEST(${forumTopics.dislikeCount} - 1, 0)` })
+        .where(eq(forumTopics.id, topicId))
+        .returning({ dislikeCount: forumTopics.dislikeCount });
+      return { disliked: false, dislikeCount: updated?.dislikeCount ?? 0 };
+    } else {
+      await db.insert(forumDislikes).values({ userId, topicId });
+      const [updated] = await db.update(forumTopics)
+        .set({ dislikeCount: sql`${forumTopics.dislikeCount} + 1` })
+        .where(eq(forumTopics.id, topicId))
+        .returning({ dislikeCount: forumTopics.dislikeCount });
+      return { disliked: true, dislikeCount: updated?.dislikeCount ?? 1 };
+    }
+  }
+
+  async toggleReplyDislike(userId: string, replyId: number): Promise<{ disliked: boolean; dislikeCount: number }> {
+    const existing = await db.select()
+      .from(forumDislikes)
+      .where(and(eq(forumDislikes.userId, userId), eq(forumDislikes.replyId, replyId), isNull(forumDislikes.topicId)))
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db.delete(forumDislikes).where(eq(forumDislikes.id, existing[0].id));
+      const [updated] = await db.update(forumReplies)
+        .set({ dislikeCount: sql`GREATEST(${forumReplies.dislikeCount} - 1, 0)` })
+        .where(eq(forumReplies.id, replyId))
+        .returning({ dislikeCount: forumReplies.dislikeCount });
+      return { disliked: false, dislikeCount: updated?.dislikeCount ?? 0 };
+    } else {
+      await db.insert(forumDislikes).values({ userId, replyId });
+      const [updated] = await db.update(forumReplies)
+        .set({ dislikeCount: sql`${forumReplies.dislikeCount} + 1` })
+        .where(eq(forumReplies.id, replyId))
+        .returning({ dislikeCount: forumReplies.dislikeCount });
+      return { disliked: true, dislikeCount: updated?.dislikeCount ?? 1 };
     }
   }
 
