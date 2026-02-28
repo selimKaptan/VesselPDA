@@ -177,9 +177,6 @@ export default function DirectoryProfilePage() {
     onError: () => toast({ title: "Mesaj gönderilemedi", variant: "destructive" }),
   });
 
-  const effectiveRole = (user as any)?.userRole === "admin"
-    ? ((user as any)?.activeRole || "shipowner")
-    : (user as any)?.userRole;
   const canNominate = user && profile?.companyType === "agent" && profile?.userId !== currentUserId
     && (effectiveRole === "shipowner" || (user as any)?.userRole === "admin");
 
