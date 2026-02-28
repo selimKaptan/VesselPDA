@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   Anchor, Search, MapPin, Globe, Info, Loader2,
-  Navigation, Clock, Waves, Building2, X, Users, FileText,
+  Waves, Building2, X, Users, FileText,
   ExternalLink, Ship, DollarSign, Wind, Thermometer,
   ShieldCheck, ShieldAlert, ShieldX, AlertTriangle, Cloud, ChevronLeft
 } from "lucide-react";
@@ -225,14 +225,12 @@ function PortDetailPanel({
         ) : portInfoData ? (
           <>
             {/* Info cards */}
-            <div className="grid grid-cols-2 gap-2">
-              <InfoCard icon={<Clock className="w-3.5 h-3.5 text-[hsl(var(--maritime-accent))]" />} label="Saat Dilimi" value={<span className="text-xs">{portInfoData.extended?.timezone || "Europe/Istanbul"}</span>} />
-              {portInfoData.port?.code && <InfoCard icon={<MapPin className="w-3.5 h-3.5 text-[hsl(var(--maritime-accent))]" />} label="UN/LOCODE" value={<span className="font-mono text-xs">{portInfoData.port.code}</span>} />}
-              {hasCoords && <InfoCard icon={<Navigation className="w-3.5 h-3.5 text-[hsl(var(--maritime-accent))]" />} label="Koordinatlar" value={<span className="font-mono text-[11px]">{lat!.toFixed(4)}°N, {lng!.toFixed(4)}°E</span>} />}
-              {portInfoData.extended?.maxDraft && <InfoCard icon={<Waves className="w-3.5 h-3.5 text-[hsl(var(--maritime-accent))]" />} label="Maks. Draft" value={`${portInfoData.extended.maxDraft}m`} />}
-              <InfoCard icon={<Ship className="w-3.5 h-3.5 text-[hsl(var(--maritime-accent))]" />} label="Ülke" value={portInfoData.extended?.country || "Turkey"} />
-              {portInfoData.port?.currency && <InfoCard icon={<DollarSign className="w-3.5 h-3.5 text-[hsl(var(--maritime-accent))]" />} label="Para Birimi" value={portInfoData.port.currency} />}
-            </div>
+            {(portInfoData.extended?.maxDraft || portInfoData.port?.currency) && (
+              <div className="grid grid-cols-2 gap-2">
+                {portInfoData.extended?.maxDraft && <InfoCard icon={<Waves className="w-3.5 h-3.5 text-[hsl(var(--maritime-accent))]" />} label="Maks. Draft" value={`${portInfoData.extended.maxDraft}m`} />}
+                {portInfoData.port?.currency && <InfoCard icon={<DollarSign className="w-3.5 h-3.5 text-[hsl(var(--maritime-accent))]" />} label="Para Birimi" value={portInfoData.port.currency} />}
+              </div>
+            )}
 
             {/* Facilities */}
             {facilityList.length > 0 && (
