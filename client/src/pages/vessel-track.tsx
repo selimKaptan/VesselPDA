@@ -98,12 +98,18 @@ function VesselListView({
   onShowOnMap: (v: AISVessel) => void;
 }) {
   const [search, setSearch] = useState("");
+  const [committedSearch, setCommittedSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<"name" | "speed" | "type">("name");
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const PAGE_SIZE = 10;
+
+  const commitSearch = () => {
+    setCommittedSearch(search);
+    setPage(1);
+  };
 
   const toggleStatus = (s: string) => {
     setStatusFilters(prev => {
@@ -116,11 +122,12 @@ function VesselListView({
 
   const filtered = useMemo(() => {
     let list = [...positions];
-    if (search.trim()) {
-      const q = search.toLowerCase();
+    if (committedSearch.trim()) {
+      const q = committedSearch.toLowerCase();
       list = list.filter(v =>
         (v.vesselName || v.name || "").toLowerCase().includes(q) ||
-        (v.mmsi || "").includes(q)
+        (v.mmsi || "").includes(q) ||
+        (v.imo || "").toLowerCase().includes(q)
       );
     }
     if (typeFilter) {
@@ -138,7 +145,7 @@ function VesselListView({
       return (a.vesselName || a.name || "").localeCompare(b.vesselName || b.name || "");
     });
     return list;
-  }, [positions, search, typeFilter, statusFilters, sortBy]);
+  }, [positions, committedSearch, typeFilter, statusFilters, sortBy]);
 
   const paginated = filtered.slice(0, page * PAGE_SIZE);
   const hasMore = paginated.length < filtered.length;
@@ -237,24 +244,37 @@ function VesselListView({
 
         {/* Search + Sort bar */}
         <div className="px-6 py-3 border-b flex-shrink-0 flex items-center gap-3">
-          <div className="relative flex-1 max-w-xl">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            <Input
-              placeholder="Search by vessel name or MMSI..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className="pl-9 h-9"
-              data-testid="input-list-search"
-            />
-            {search && (
-              <button
-                onClick={() => { setSearch(""); setPage(1); }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                data-testid="button-clear-list-search"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+          <div className="flex items-center gap-2 flex-1 max-w-xl">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Search by name, MMSI or IMO..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") commitSearch(); }}
+                className="pl-9 pr-8 h-9"
+                data-testid="input-list-search"
+              />
+              {search && (
+                <button
+                  onClick={() => { setSearch(""); setCommittedSearch(""); setPage(1); }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  data-testid="button-clear-list-search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <Button
+              onClick={commitSearch}
+              size="sm"
+              className="h-9 px-4 font-semibold flex-shrink-0"
+              style={{ background: "#003D7A" }}
+              data-testid="button-list-search"
+            >
+              <Search className="w-3.5 h-3.5 mr-1.5" />
+              Search
+            </Button>
           </div>
           <div className="flex items-center gap-1">
             <span className="text-xs text-muted-foreground whitespace-nowrap">Sort by</span>
