@@ -206,6 +206,13 @@ export async function registerRoutes(
         }
       }
 
+      // Use DB coordinates as final fallback
+      if ((!extended?.lat || !extended?.lng) && dbPort?.latitude && dbPort?.longitude) {
+        extended = extended || {} as any;
+        extended.lat = extended.lat ?? dbPort.latitude;
+        extended.lng = extended.lng ?? dbPort.longitude;
+      }
+
       // Derive timezone for Turkey if not set
       if (extended && !extended.timezone) {
         extended.timezone = "Europe/Istanbul (UTC+3)";

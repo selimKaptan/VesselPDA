@@ -32,6 +32,8 @@ export const ports = pgTable("ports", {
   country: text("country").notNull(),
   code: text("code"),
   currency: text("currency").notNull().default("USD"),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

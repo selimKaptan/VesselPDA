@@ -56,6 +56,7 @@ export interface IStorage {
   getPortByCode(code: string): Promise<Port | undefined>;
   getPort(id: number): Promise<Port | undefined>;
   createPort(port: InsertPort): Promise<Port>;
+  updatePortCoords(id: number, lat: number, lng: number): Promise<void>;
 
   getTariffCategories(portId: number): Promise<TariffCategory[]>;
   createTariffCategory(cat: InsertTariffCategory): Promise<TariffCategory>;
@@ -257,6 +258,10 @@ export class DatabaseStorage implements IStorage {
   async createPort(port: InsertPort): Promise<Port> {
     const [created] = await db.insert(ports).values(port).returning();
     return created;
+  }
+
+  async updatePortCoords(id: number, lat: number, lng: number): Promise<void> {
+    await db.update(ports).set({ latitude: lat, longitude: lng }).where(eq(ports.id, id));
   }
 
   async getTariffCategories(portId: number): Promise<TariffCategory[]> {

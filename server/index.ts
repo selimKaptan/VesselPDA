@@ -156,9 +156,10 @@ app.use((req, res, next) => {
     () => {
       log(`serving on port ${port}`);
 
-      import("./seed").then(({ seedDatabase, seedForumCategories }) => {
+      import("./seed").then(({ seedDatabase, seedForumCategories, seedPortCoordinates }) => {
         seedDatabase().catch((err: Error) => console.error("Seed error:", err));
         seedForumCategories().catch((err: Error) => console.error("Forum seed error:", err));
+        seedPortCoordinates().catch((err: Error) => console.error("Port coords seed error:", err));
       });
     },
   );

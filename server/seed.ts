@@ -297,6 +297,87 @@ export async function seedDatabase() {
   console.log(`Database seeded successfully with ${totalInserted} Turkish ports and tariff data.`);
 }
 
+const LOCODE_COORDS: Record<string, [number, number]> = {
+  "TRALA": [36.5444, 32.0011],
+  "TRALI": [38.8235, 26.9312],
+  "TRAMB": [40.9667, 28.6667],
+  "TRANT": [36.8969, 30.7133],
+  "TRBAN": [40.3556, 27.9772],
+  "TRBOD": [37.0344, 27.4305],
+  "TRCAN": [40.1500, 26.4167],
+  "TRCES": [38.3235, 26.3065],
+  "TRCNK": [40.1500, 26.4167],
+  "TRDER": [40.7483, 29.8283],
+  "TRDID": [37.3726, 27.2693],
+  "TREGT": [41.2800, 31.4200],
+  "TRERE": [41.2800, 31.4200],
+  "TRFET": [36.6224, 29.1151],
+  "TRFIN": [36.2963, 30.1553],
+  "TRGEB": [40.8031, 29.4308],
+  "TRGEM": [40.4274, 29.1155],
+  "TRGIR": [40.9128, 38.3895],
+  "TRHAY": [41.0020, 29.0148],
+  "TRISK": [36.5967, 36.1833],
+  "TRIST": [41.0082, 28.9784],
+  "TRIZM": [38.4192, 27.1287],
+  "TRIZT": [40.7594, 29.7608],
+  "TRKAR": [41.0800, 36.9000],
+  "TRKOC": [40.7600, 29.9200],
+  "TRKRG": [40.7833, 29.9167],
+  "TRKUS": [37.8577, 27.2594],
+  "TRMAR": [36.8553, 28.2635],
+  "TRMAM": [36.8553, 28.2635],
+  "TRMER": [36.7952, 34.6425],
+  "TRMRS": [36.7952, 34.6425],
+  "TRMUD": [40.3758, 28.8833],
+  "TRMUR": [37.2153, 28.3636],
+  "TRORD": [40.9841, 37.8772],
+  "TROTS": [41.0200, 37.8773],
+  "TRPEN": [40.8760, 29.2305],
+  "TRRZE": [41.0201, 40.5234],
+  "TRSAM": [41.2867, 36.3300],
+  "TRSSX": [41.3106, 36.3394],
+  "TRSIN": [42.0269, 35.1553],
+  "TRTEK": [40.9781, 27.5107],
+  "TRTZX": [41.0028, 39.7364],
+  "TRTUZ": [40.8400, 29.2800],
+  "TRTRD": [40.9667, 28.6667],
+  "TRUNS": [41.1333, 37.2667],
+  "TRZNG": [41.4500, 31.7900],
+  "TR092": [40.8400, 29.2800],
+  "TRADB": [40.7833, 30.4000],
+  "TRACN": [37.0622, 35.7689],
+  "TRANM": [37.0622, 35.7689],
+  "TRALP": [36.5444, 32.0011],
+  "TRBAR": [40.3556, 27.9772],
+  "TRBUR": [40.1885, 29.0610],
+  "TRDAT": [36.7200, 28.1300],
+  "TRIKM": [40.7600, 29.9200],
+  "TRIKZ": [40.7594, 29.7608],
+  "TRIKD": [40.7483, 29.8283],
+  "TRMEN": [38.5833, 28.0000],
+  "TRROE": [40.9667, 28.6667],
+  "TRSAR": [41.2000, 31.4500],
+  "TRSIL": [36.3789, 36.2011],
+  "TRYAV": [38.3578, 26.2342],
+};
+
+export async function seedPortCoordinates() {
+  const allPorts = await db.select().from(ports);
+  let updated = 0;
+  for (const port of allPorts) {
+    if (port.latitude && port.longitude) continue;
+    if (!port.code) continue;
+    const prefix = port.code.substring(0, 5).toUpperCase();
+    const coords = LOCODE_COORDS[prefix];
+    if (coords) {
+      await db.update(ports).set({ latitude: coords[0], longitude: coords[1] }).where(eq(ports.id, port.id));
+      updated++;
+    }
+  }
+  if (updated > 0) console.log(`[ports] ${updated} liman koordinatı güncellendi.`);
+}
+
 export async function seedForumCategories() {
   const [{ value: catCount }] = await db.select({ value: count() }).from(forumCategories);
   if (catCount > 0) return;

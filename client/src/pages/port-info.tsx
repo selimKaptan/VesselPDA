@@ -336,8 +336,8 @@ export default function PortInfo() {
     ? facilities.split(",").map(f => f.trim()).filter(Boolean)
     : [];
 
-  const lat = portInfoData?.extended?.lat;
-  const lng = portInfoData?.extended?.lng;
+  const lat = portInfoData?.extended?.lat ?? (portInfoData?.port as any)?.latitude ?? null;
+  const lng = portInfoData?.extended?.lng ?? (portInfoData?.port as any)?.longitude ?? null;
   const hasCoords = lat && lng;
 
   const mapSrc = hasCoords
