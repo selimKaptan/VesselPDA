@@ -5,8 +5,9 @@ import {
   Ship, MapPin, Calendar, ArrowLeft, CheckCircle2, Circle, Trash2,
   Plus, Loader2, ChevronDown, Wrench, Fuel, ShoppingCart, Users as UsersIcon,
   Sparkles, HelpCircle, Clock, PlayCircle, XCircle, ClipboardList,
-  FileText, Upload, Download, Star, MessageCircle, FolderOpen
+  FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud
 } from "lucide-react";
+import { WeatherPanel } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -113,6 +115,7 @@ export default function VoyageDetail() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [newTask, setNewTask] = useState("");
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [showServiceDialog, setShowServiceDialog] = useState(false);
   const [showDocDialog, setShowDocDialog] = useState(false);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
@@ -147,6 +150,15 @@ export default function VoyageDetail() {
       return res.json();
     },
     enabled: !!voyageId,
+  });
+
+  const { data: portData } = useQuery<any>({
+    queryKey: ["/api/ports", voyage?.portId],
+    queryFn: async () => {
+      const res = await fetch(`/api/ports/${voyage.portId}`);
+      return res.json();
+    },
+    enabled: !!voyage?.portId,
   });
 
   const userId = (user as any)?.id || (user as any)?.claims?.sub;
@@ -356,7 +368,11 @@ export default function VoyageDetail() {
                     const cfg = STATUS_CONFIG[t];
                     const TIcon = cfg?.icon;
                     return (
-                      <DropdownMenuItem key={t} onClick={() => statusMutation.mutate(t)} className="gap-2">
+                      <DropdownMenuItem
+                        key={t}
+                        onClick={() => (t === "completed" || t === "cancelled") ? setPendingStatus(t) : statusMutation.mutate(t)}
+                        className="gap-2"
+                      >
                         {TIcon && <TIcon className="w-4 h-4" />}{cfg?.label}
                       </DropdownMenuItem>
                     );
@@ -546,6 +562,36 @@ export default function VoyageDetail() {
         )}
       </Card>
 
+      {/* Port Weather & Berthing Panel */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 px-1">
+          <Anchor className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+          <h2 className="font-semibold text-sm">Liman Koşulları</h2>
+          {portData?.name && (
+            <span className="ml-auto text-xs text-muted-foreground">{portData.name}</span>
+          )}
+        </div>
+        {!voyage?.portId ? (
+          <Card className="p-4 flex items-center gap-2 text-muted-foreground text-sm">
+            <Cloud className="w-4 h-4 opacity-40" />
+            <span>Liman bilgisi bulunamadı.</span>
+          </Card>
+        ) : !portData ? (
+          <Card className="p-4">
+            <div className="grid grid-cols-2 gap-2">
+              {[1,2,3,4].map(i => <div key={i} className="h-16 rounded-lg bg-muted/40 animate-pulse" />)}
+            </div>
+          </Card>
+        ) : portData.latitude && portData.longitude ? (
+          <WeatherPanel lat={portData.latitude} lng={portData.longitude} />
+        ) : (
+          <Card className="p-4 flex items-center gap-2 text-muted-foreground text-sm">
+            <Cloud className="w-4 h-4 opacity-40" />
+            <span>Bu liman için koordinat bilgisi bulunamadı, hava durumu gösterilemiyor.</span>
+          </Card>
+        )}
+      </div>
+
       {/* Reviews Panel */}
       {reviews.length > 0 && (
         <Card className="p-5 space-y-4">
@@ -734,6 +780,32 @@ export default function VoyageDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Status Confirmation Dialog */}
+      <AlertDialog open={pendingStatus !== null} onOpenChange={open => { if (!open) setPendingStatus(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingStatus === "completed" ? "Sefer Tamamlandı mı?" : "Sefer İptal Edilsin mi?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingStatus === "completed"
+                ? "Bu sefer tamamlandı olarak işaretlenecek. Bu işlem geri alınamaz ve sefer durumu artık değiştirilemez."
+                : "Bu sefer iptal edildi olarak işaretlenecek. Bu işlem geri alınamaz."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingStatus(null)} data-testid="button-cancel-status">Vazgeç</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { if (pendingStatus) { statusMutation.mutate(pendingStatus); setPendingStatus(null); } }}
+              className={pendingStatus === "completed" ? "bg-gray-700 hover:bg-gray-800" : "bg-red-600 hover:bg-red-700"}
+              data-testid="button-confirm-status"
+            >
+              {pendingStatus === "completed" ? "Evet, Tamamla" : "Evet, İptal Et"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

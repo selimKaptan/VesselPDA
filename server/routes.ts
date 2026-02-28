@@ -140,6 +140,18 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/ports/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
+      const port = await storage.getPort(id);
+      if (!port) return res.status(404).json({ message: "Port not found" });
+      res.json(port);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch port" });
+    }
+  });
+
   app.get("/api/port-info/:locode", async (req, res) => {
     try {
       const locode = req.params.locode.toUpperCase();
