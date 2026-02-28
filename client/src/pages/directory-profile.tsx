@@ -233,7 +233,7 @@ export default function DirectoryProfilePage() {
 
   if (profileLoading) {
     return (
-      <div className="p-6 max-w-3xl mx-auto space-y-4">
+      <div className="p-6 max-w-5xl mx-auto space-y-4">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-40 w-full" />
@@ -243,7 +243,7 @@ export default function DirectoryProfilePage() {
 
   if (!profile) {
     return (
-      <div className="p-6 max-w-3xl mx-auto text-center">
+      <div className="p-6 max-w-5xl mx-auto text-center">
         <p className="text-muted-foreground">Company profile not found.</p>
         <Button variant="outline" className="mt-4" onClick={() => navigate("/directory")}>
           Back to Directory
@@ -253,7 +253,7 @@ export default function DirectoryProfilePage() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-5">
+    <div className="p-6 max-w-5xl mx-auto space-y-5">
       <Button variant="ghost" size="sm" className="gap-1.5 -ml-2" onClick={() => navigate("/directory")} data-testid="button-back-directory">
         <ArrowLeft className="w-4 h-4" /> Back to Directory
       </Button>

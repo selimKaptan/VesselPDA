@@ -346,7 +346,7 @@ export default function TenderDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-6 max-w-6xl mx-auto">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-muted rounded w-1/3" />
           <div className="h-32 bg-muted rounded" />
@@ -395,7 +395,7 @@ export default function TenderDetailPage() {
   }[tender.status as string] || tender.status;
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-4xl mx-auto">
+    <div className="flex flex-col gap-6 p-6 max-w-6xl mx-auto">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate("/tenders")} data-testid="button-back">
           <ArrowLeft className="w-4 h-4 mr-1" /> Back

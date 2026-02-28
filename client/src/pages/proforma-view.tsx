@@ -85,7 +85,7 @@ export default function ProformaView() {
 
   if (isLoading) {
     return (
-      <div className="p-6 max-w-4xl mx-auto space-y-6">
+      <div className="p-6 max-w-6xl mx-auto space-y-6">
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-[600px] w-full" />
       </div>
@@ -94,7 +94,7 @@ export default function ProformaView() {
 
   if (!proforma) {
     return (
-      <div className="p-6 max-w-4xl mx-auto text-center py-20">
+      <div className="p-6 max-w-6xl mx-auto text-center py-20">
         <FileText className="w-16 h-16 text-muted-foreground/20 mx-auto mb-4" />
         <h2 className="font-serif text-xl font-bold">Proforma Not Found</h2>
         <Link href="/proformas">
@@ -113,7 +113,7 @@ export default function ProformaView() {
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4">
           <Link href="/proformas">

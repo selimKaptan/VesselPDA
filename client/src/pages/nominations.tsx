@@ -163,7 +163,7 @@ export default function Nominations() {
   const defaultTab = effectiveRole === "agent" ? "received" : "sent";
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-5">
+    <div className="p-6 max-w-5xl mx-auto space-y-5">
       <PageMeta title="Nominasyonlar | VesselPDA" description="Doğrudan acente nominasyon sistemi" />
 
       <div className="flex items-center justify-between flex-wrap gap-3">

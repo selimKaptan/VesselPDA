@@ -362,7 +362,7 @@ export default function Forum() {
 
       {/* Header */}
       <div className={`border-b bg-gradient-to-br from-[hsl(var(--maritime-primary)/0.06)] via-[hsl(var(--maritime-primary)/0.03)] to-transparent ${!user ? "mt-16" : ""}`}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[hsl(var(--maritime-primary)/0.15)] to-[hsl(var(--maritime-primary)/0.05)] border border-[hsl(var(--maritime-primary)/0.2)] flex items-center justify-center flex-shrink-0">
@@ -388,7 +388,7 @@ export default function Forum() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5">
 
         {/* Sort tabs + search bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">

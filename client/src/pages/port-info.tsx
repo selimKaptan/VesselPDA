@@ -345,7 +345,7 @@ export default function PortInfo() {
     : null;
 
   return (
-    <div className="p-6 space-y-5 max-w-5xl mx-auto">
+    <div className="p-6 space-y-5 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-lg bg-[hsl(var(--maritime-accent)/0.15)] flex items-center justify-center">
