@@ -1,15 +1,18 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { useState } from "react";
-import { Building2, Phone, Mail, Globe, MapPin, Star, Ship, Anchor, ArrowLeft, MessageSquare, FileText, MessageCircle, Loader2 } from "lucide-react";
+import { Building2, Phone, Mail, Globe, MapPin, Star, Ship, Anchor, ArrowLeft, MessageSquare, FileText, MessageCircle, Loader2, UserCheck, Calendar } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -91,6 +94,13 @@ export default function DirectoryProfilePage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
+  const [showNominateDialog, setShowNominateDialog] = useState(false);
+  const [portQuery, setPortQuery] = useState("");
+  const [portSearchOpen, setPortSearchOpen] = useState(false);
+  const [nomForm, setNomForm] = useState({
+    portId: 0, portName: "", vesselName: "",
+    purposeOfCall: "other", eta: "", etd: "", notes: "",
+  });
 
   const profileId = parseInt(id!);
 
@@ -165,6 +175,46 @@ export default function DirectoryProfilePage() {
       navigate(`/messages/${data.conversationId}`);
     },
     onError: () => toast({ title: "Mesaj gönderilemedi", variant: "destructive" }),
+  });
+
+  const effectiveRole = (user as any)?.userRole === "admin"
+    ? ((user as any)?.activeRole || "shipowner")
+    : (user as any)?.userRole;
+  const canNominate = user && profile?.companyType === "agent" && profile?.userId !== currentUserId
+    && (effectiveRole === "shipowner" || (user as any)?.userRole === "admin");
+
+  const { data: portSearchResults } = useQuery<Port[]>({
+    queryKey: ["/api/ports/search", portQuery],
+    queryFn: async () => {
+      if (portQuery.length < 2) return [];
+      const res = await fetch(`/api/ports/search?q=${encodeURIComponent(portQuery)}`);
+      return res.json();
+    },
+    enabled: portQuery.length >= 2,
+  });
+
+  const nominateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/nominations", {
+        agentUserId: profile!.userId,
+        agentCompanyId: profileId,
+        portId: nomForm.portId,
+        vesselName: nomForm.vesselName,
+        purposeOfCall: nomForm.purposeOfCall,
+        eta: nomForm.eta || undefined,
+        etd: nomForm.etd || undefined,
+        notes: nomForm.notes || undefined,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Nominasyon gönderildi", description: `${profile!.companyName} acentesi bilgilendirildi.` });
+      setShowNominateDialog(false);
+      setNomForm({ portId: 0, portName: "", vesselName: "", purposeOfCall: "other", eta: "", etd: "", notes: "" });
+      setPortQuery("");
+      navigate("/nominations");
+    },
+    onError: () => toast({ title: "Nominasyon gönderilemedi", variant: "destructive" }),
   });
 
   const handleSubmitReview = () => {
@@ -263,19 +313,32 @@ export default function DirectoryProfilePage() {
               )}
             </div>
 
-            {canMessage && (
-              <div className="mt-3">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-2 h-8 text-xs"
-                  onClick={() => messageMutation.mutate()}
-                  disabled={messageMutation.isPending}
-                  data-testid="button-send-message"
-                >
-                  {messageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
-                  Mesaj Gönder
-                </Button>
+            {(canMessage || canNominate) && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {canMessage && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2 h-8 text-xs"
+                    onClick={() => messageMutation.mutate()}
+                    disabled={messageMutation.isPending}
+                    data-testid="button-send-message"
+                  >
+                    {messageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                    Mesaj Gönder
+                  </Button>
+                )}
+                {canNominate && (
+                  <Button
+                    size="sm"
+                    className="gap-2 h-8 text-xs bg-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-secondary))]"
+                    onClick={() => setShowNominateDialog(true)}
+                    data-testid="button-nominate-agent"
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    Nomine Et
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -419,6 +482,130 @@ export default function DirectoryProfilePage() {
           </div>
         )}
       </div>
+
+      {/* Nomination Dialog */}
+      <Dialog open={showNominateDialog} onOpenChange={setShowNominateDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
+              {profile?.companyName}'i Nomine Et
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Port Search */}
+            <div className="space-y-1.5">
+              <Label>Liman *</Label>
+              <div className="relative">
+                <Input
+                  value={portQuery}
+                  onChange={e => { setPortQuery(e.target.value); setPortSearchOpen(true); }}
+                  onFocus={() => setPortSearchOpen(true)}
+                  placeholder="Liman ara... (en az 2 harf)"
+                  data-testid="input-nom-port"
+                />
+                {nomForm.portId > 0 && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-green-600 font-medium">✓</span>
+                )}
+                {portSearchOpen && portSearchResults && portSearchResults.length > 0 && (
+                  <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-40 overflow-y-auto">
+                    {portSearchResults.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                        onMouseDown={() => {
+                          setNomForm(f => ({ ...f, portId: p.id, portName: p.name }));
+                          setPortQuery(p.name + (p.code ? ` (${p.code})` : ""));
+                          setPortSearchOpen(false);
+                        }}
+                      >
+                        <span className="font-medium">{p.name}</span>
+                        {p.code && <span className="ml-2 text-xs text-muted-foreground">{p.code}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Vessel Name */}
+            <div className="space-y-1.5">
+              <Label>Gemi Adı *</Label>
+              <Input
+                value={nomForm.vesselName}
+                onChange={e => setNomForm(f => ({ ...f, vesselName: e.target.value }))}
+                placeholder="Gemi adı girin"
+                data-testid="input-nom-vessel"
+              />
+            </div>
+
+            {/* Purpose */}
+            <div className="space-y-1.5">
+              <Label>Seferin Amacı *</Label>
+              <Select value={nomForm.purposeOfCall} onValueChange={v => setNomForm(f => ({ ...f, purposeOfCall: v }))}>
+                <SelectTrigger data-testid="select-nom-purpose">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="loading">Yükleme</SelectItem>
+                  <SelectItem value="unloading">Boşaltma</SelectItem>
+                  <SelectItem value="bunkering">Yakıt İkmali</SelectItem>
+                  <SelectItem value="crew_change">Mürettebat Değişimi</SelectItem>
+                  <SelectItem value="transit">Transit</SelectItem>
+                  <SelectItem value="other">Diğer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* ETA / ETD */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> ETA *</Label>
+                <Input
+                  type="datetime-local"
+                  value={nomForm.eta}
+                  onChange={e => setNomForm(f => ({ ...f, eta: e.target.value }))}
+                  data-testid="input-nom-eta"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> ETD</Label>
+                <Input
+                  type="datetime-local"
+                  value={nomForm.etd}
+                  onChange={e => setNomForm(f => ({ ...f, etd: e.target.value }))}
+                  data-testid="input-nom-etd"
+                />
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-1.5">
+              <Label>Notlar</Label>
+              <Textarea
+                value={nomForm.notes}
+                onChange={e => setNomForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Acente için ek bilgi veya talepler..."
+                rows={2}
+                data-testid="textarea-nom-notes"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNominateDialog(false)}>İptal</Button>
+            <Button
+              onClick={() => nominateMutation.mutate()}
+              disabled={nominateMutation.isPending || !nomForm.portId || !nomForm.vesselName.trim() || !nomForm.eta}
+              className="bg-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-secondary))]"
+              data-testid="button-confirm-nominate"
+            >
+              {nominateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <UserCheck className="w-4 h-4 mr-2" />}
+              Nominasyonu Gönder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

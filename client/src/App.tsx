@@ -39,6 +39,7 @@ import ServiceRequests from "@/pages/service-requests";
 import ServiceRequestDetail from "@/pages/service-request-detail";
 import Messages from "@/pages/messages";
 import MessageThread from "@/pages/message-thread";
+import Nominations from "@/pages/nominations";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -212,6 +213,7 @@ function AuthenticatedRouter() {
       <Route path="/service-requests/:id" component={ServiceRequestDetail} />
       <Route path="/messages" component={Messages} />
       <Route path="/messages/:id" component={MessageThread} />
+      <Route path="/nominations" component={Nominations} />
       <Route component={NotFound} />
     </Switch>
   );

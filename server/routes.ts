@@ -2386,5 +2386,104 @@ export async function registerRoutes(
     }
   });
 
+  // ─── DIRECT NOMINATIONS ──────────────────────────────────────────────────────
+
+  app.get("/api/nominations/pending-count", isAuthenticated, async (req: any, res) => {
+    try {
+      const cnt = await storage.getPendingNominationCountForAgent(req.user.id);
+      res.json({ count: cnt });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get pending count" });
+    }
+  });
+
+  app.get("/api/nominations", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const role = req.user.userRole || req.user.activeRole;
+      const sent = await storage.getNominationsByNominator(userId);
+      const received = await storage.getNominationsByAgent(userId);
+      res.json({ sent, received });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get nominations" });
+    }
+  });
+
+  app.post("/api/nominations", isAuthenticated, async (req: any, res) => {
+    try {
+      const { agentUserId, agentCompanyId, portId, vesselName, vesselId, purposeOfCall, eta, etd, notes } = req.body;
+      if (!agentUserId || !portId || !vesselName || !purposeOfCall) {
+        return res.status(400).json({ message: "agentUserId, portId, vesselName, purposeOfCall zorunludur" });
+      }
+      if (agentUserId === req.user.id) {
+        return res.status(400).json({ message: "Kendinizi nomine edemezsiniz" });
+      }
+      const nom = await storage.createNomination({
+        nominatorUserId: req.user.id,
+        agentUserId,
+        agentCompanyId: agentCompanyId ?? null,
+        portId: parseInt(portId),
+        vesselName,
+        vesselId: vesselId ?? null,
+        purposeOfCall,
+        eta: eta ? new Date(eta) : null,
+        etd: etd ? new Date(etd) : null,
+        notes: notes ?? null,
+      });
+      // Notify agent
+      await storage.createNotification({
+        userId: agentUserId,
+        type: "nomination",
+        title: "Yeni Nominasyon",
+        message: `${req.user.name || "Bir armatör"} sizi ${vesselName} gemisi için nomine etti`,
+        link: "/nominations",
+      });
+      res.status(201).json(nom);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create nomination" });
+    }
+  });
+
+  app.get("/api/nominations/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const nom = await storage.getNominationById(id);
+      if (!nom) return res.status(404).json({ message: "Nomination not found" });
+      if (nom.nominatorUserId !== req.user.id && nom.agentUserId !== req.user.id) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      res.json(nom);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get nomination" });
+    }
+  });
+
+  app.patch("/api/nominations/:id/respond", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { status } = req.body;
+      if (!["accepted", "declined"].includes(status)) {
+        return res.status(400).json({ message: "status must be accepted or declined" });
+      }
+      const nom = await storage.getNominationById(id);
+      if (!nom) return res.status(404).json({ message: "Nomination not found" });
+      if (nom.agentUserId !== req.user.id) return res.status(403).json({ message: "Forbidden" });
+      if (nom.status !== "pending") return res.status(409).json({ message: "Already responded" });
+      const updated = await storage.updateNominationStatus(id, status);
+      // Notify nominator
+      const statusLabel = status === "accepted" ? "kabul etti" : "reddetti";
+      await storage.createNotification({
+        userId: nom.nominatorUserId,
+        type: "nomination_response",
+        title: "Nominasyon Yanıtlandı",
+        message: `${nom.agentName} nominasyonunuzu ${statusLabel}`,
+        link: "/nominations",
+      });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to respond to nomination" });
+    }
+  });
+
   return httpServer;
 }

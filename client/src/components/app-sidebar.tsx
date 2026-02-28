@@ -1,4 +1,4 @@
-import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, MessageCircle, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench } from "lucide-react";
+import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, MessageCircle, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench, UserCheck } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -77,6 +77,13 @@ export function AppSidebar() {
   });
   const unreadMessages = msgBadge?.count || 0;
 
+  const { data: nomBadge } = useQuery<{ count: number }>({
+    queryKey: ["/api/nominations/pending-count"],
+    refetchInterval: 30000,
+    enabled: effectiveRole === "agent",
+  });
+  const pendingNominations = nomBadge?.count || 0;
+
   const toolsNav: any[] = [];
   if (isAdminUser || effectiveRole !== "provider") {
     toolsNav.push({ title: t("nav.vessels"), url: "/vessels", icon: Ship });
@@ -92,6 +99,9 @@ export function AppSidebar() {
     toolsNav.push({ title: "Seferler", url: "/voyages", icon: Ship });
   }
   toolsNav.push({ title: "Hizmet Talepleri", url: "/service-requests", icon: Wrench });
+  if (isAdminUser || effectiveRole === "shipowner" || effectiveRole === "agent") {
+    toolsNav.push({ title: "Nominasyonlar", url: "/nominations", icon: UserCheck, badge: pendingNominations });
+  }
   toolsNav.push({ title: "Mesajlar", url: "/messages", icon: MessageCircle, badge: unreadMessages });
   toolsNav.push({ title: t("nav.portInfo"), url: "/port-info", icon: Anchor });
   toolsNav.push({ title: t("nav.servicePorts"), url: "/service-ports", icon: MapPin });

@@ -481,6 +481,32 @@ export const messageRelations = relations(messages, ({ one }) => ({
   sender: one(users, { fields: [messages.senderId], references: [users.id] }),
 }));
 
+// ─── DIRECT NOMINATIONS ───────────────────────────────────────────────────────
+
+export const directNominations = pgTable("direct_nominations", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  nominatorUserId: varchar("nominator_user_id").notNull().references(() => users.id),
+  agentUserId: varchar("agent_user_id").notNull().references(() => users.id),
+  agentCompanyId: integer("agent_company_id").references(() => companyProfiles.id),
+  portId: integer("port_id").notNull().references(() => ports.id),
+  vesselName: text("vessel_name").notNull(),
+  vesselId: integer("vessel_id").references(() => vessels.id),
+  purposeOfCall: text("purpose_of_call").notNull(),
+  eta: timestamp("eta"),
+  etd: timestamp("etd"),
+  notes: text("notes"),
+  status: text("status").notNull().default("pending"),
+  respondedAt: timestamp("responded_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const directNominationRelations = relations(directNominations, ({ one }) => ({
+  nominator: one(users, { fields: [directNominations.nominatorUserId], references: [users.id] }),
+  agent: one(users, { fields: [directNominations.agentUserId], references: [users.id] }),
+  agentCompany: one(companyProfiles, { fields: [directNominations.agentCompanyId], references: [companyProfiles.id] }),
+  port: one(ports, { fields: [directNominations.portId], references: [ports.id] }),
+}));
+
 // ─── SCHEMA EXPORTS ───────────────────────────────────────────────────────────
 
 export const insertVoyageSchema = createInsertSchema(voyages).omit({ id: true, createdAt: true });
@@ -508,3 +534,7 @@ export type InsertServiceRequest = z.infer<typeof insertServiceRequestSchema>;
 export type ServiceRequest = typeof serviceRequests.$inferSelect;
 export type InsertServiceOffer = z.infer<typeof insertServiceOfferSchema>;
 export type ServiceOffer = typeof serviceOffers.$inferSelect;
+
+export const insertDirectNominationSchema = createInsertSchema(directNominations).omit({ id: true, createdAt: true, status: true, respondedAt: true });
+export type InsertDirectNomination = z.infer<typeof insertDirectNominationSchema>;
+export type DirectNomination = typeof directNominations.$inferSelect;
