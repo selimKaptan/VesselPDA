@@ -954,6 +954,8 @@ export class DatabaseStorage implements IStorage {
         .select({
           voyage: voyages,
           portName: ports.name,
+          portLat: ports.latitude,
+          portLng: ports.longitude,
         })
         .from(voyages)
         .leftJoin(ports, eq(voyages.portId, ports.id))
@@ -963,6 +965,8 @@ export class DatabaseStorage implements IStorage {
         .select({
           voyage: voyages,
           portName: ports.name,
+          portLat: ports.latitude,
+          portLng: ports.longitude,
         })
         .from(voyages)
         .leftJoin(ports, eq(voyages.portId, ports.id))
@@ -973,13 +977,15 @@ export class DatabaseStorage implements IStorage {
         .select({
           voyage: voyages,
           portName: ports.name,
+          portLat: ports.latitude,
+          portLng: ports.longitude,
         })
         .from(voyages)
         .leftJoin(ports, eq(voyages.portId, ports.id))
         .where(eq(voyages.userId, userId))
         .orderBy(desc(voyages.createdAt));
     }
-    return rows.map(r => ({ ...r.voyage, portName: r.portName }));
+    return rows.map(r => ({ ...r.voyage, portName: r.portName, portLat: r.portLat, portLng: r.portLng }));
   }
 
   async getVoyageById(id: number): Promise<any | undefined> {

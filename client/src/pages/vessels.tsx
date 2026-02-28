@@ -1,9 +1,12 @@
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Ship, Plus, Trash2, Edit2, Search, Loader2,
   ArrowRight, Anchor, MapPin, Calendar,
-  FileText, ChevronRight, Activity, ChevronDown
+  FileText, ChevronRight, Activity, ChevronDown,
+  LayoutGrid, Map as MapIcon,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,16 +15,16 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -29,6 +32,8 @@ import { isUnauthorizedError } from "@/lib/auth-utils";
 import { PageMeta } from "@/components/page-meta";
 import type { Vessel } from "@shared/schema";
 import { useLocation, Link } from "wouter";
+
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -68,50 +73,42 @@ const FLEET_STATUS_CFG: Record<FleetStatusKey, StatusCfg> = {
   ballast_to_load: {
     bar: "#3b82f6",
     badge: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800",
-    dot: "bg-blue-500", label: "Yükleme'ye Gidiyor (Balast)", emoji: "🔵",
-    group: "underway",
+    dot: "bg-blue-500", label: "Yükleme'ye Gidiyor (Balast)", emoji: "🔵", group: "underway",
   },
   laden_to_discharge: {
     bar: "#10b981",
     badge: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800",
-    dot: "bg-emerald-500", label: "Boşaltma'ya Gidiyor (Yüklü)", emoji: "🟢",
-    group: "underway",
+    dot: "bg-emerald-500", label: "Boşaltma'ya Gidiyor (Yüklü)", emoji: "🟢", group: "underway",
   },
   anchored: {
     bar: "#f59e0b",
     badge: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800",
-    dot: "bg-amber-500", label: "Demirede", emoji: "⚓",
-    group: "anchored",
+    dot: "bg-amber-500", label: "Demirede", emoji: "⚓", group: "anchored",
   },
   anchor_spot: {
     bar: "#f97316",
     badge: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800",
-    dot: "bg-orange-500", label: "Demirede – Spot Bekliyor", emoji: "🟠",
-    group: "anchored",
+    dot: "bg-orange-500", label: "Demirede – Spot Bekliyor", emoji: "🟠", group: "anchored",
   },
   loading: {
     bar: "#6366f1",
     badge: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-800",
-    dot: "bg-indigo-500", label: "Yükleniyor", emoji: "🟣",
-    group: "port",
+    dot: "bg-indigo-500", label: "Yükleniyor", emoji: "🟣", group: "port",
   },
   discharging: {
     bar: "#f43f5e",
     badge: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800",
-    dot: "bg-rose-500", label: "Boşaltılıyor", emoji: "🔴",
-    group: "port",
+    dot: "bg-rose-500", label: "Boşaltılıyor", emoji: "🔴", group: "port",
   },
   moored: {
     bar: "#64748b",
     badge: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800/40 dark:text-slate-300 dark:border-slate-600",
-    dot: "bg-slate-500", label: "Limanda", emoji: "🚢",
-    group: "port",
+    dot: "bg-slate-500", label: "Limanda", emoji: "🚢", group: "port",
   },
   idle: {
     bar: "#94a3b8",
     badge: "bg-muted text-muted-foreground border-border",
-    dot: "bg-muted-foreground", label: "Durum Belirtilmemiş", emoji: "—",
-    group: "idle",
+    dot: "bg-muted-foreground", label: "Durum Belirtilmemiş", emoji: "—", group: "idle",
   },
 };
 
@@ -228,10 +225,12 @@ function VesselForm({
               disabled={!form.imoNumber.trim() || lookupMutation.isPending}
               onClick={() => lookupMutation.mutate(form.imoNumber.trim())}
               data-testid="button-lookup-imo">
-              {lookupMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              {lookupMutation.isPending
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <Search className="w-4 h-4" />}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">Enter IMO and click <Search className="w-3 h-3 inline" /> to auto-fill details</p>
+          <p className="text-xs text-muted-foreground">IMO girin ve <Search className="w-3 h-3 inline" /> ile otomatik doldurun</p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="name">Vessel Name *</Label>
@@ -257,12 +256,12 @@ function VesselForm({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="grt">GRT (Gross Tonnage) *</Label>
+          <Label htmlFor="grt">GRT *</Label>
           <Input id="grt" type="number" step="0.01" placeholder="5166" value={form.grt}
             onChange={(e) => set("grt", e.target.value)} required data-testid="input-grt" />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="nrt">NRT (Net Tonnage) *</Label>
+          <Label htmlFor="nrt">NRT *</Label>
           <Input id="nrt" type="number" step="0.01" placeholder="2906" value={form.nrt}
             onChange={(e) => set("nrt", e.target.value)} required data-testid="input-nrt" />
         </div>
@@ -297,7 +296,7 @@ function VesselForm({
   );
 }
 
-// ─── Inline Status Changer ────────────────────────────────────────────────────
+// ─── Inline Status Selector ───────────────────────────────────────────────────
 
 function FleetStatusSelector({ vessel, onUpdated }: { vessel: Vessel; onUpdated?: () => void }) {
   const { toast } = useToast();
@@ -331,11 +330,7 @@ function FleetStatusSelector({ vessel, onUpdated }: { vessel: Vessel; onUpdated?
           <ChevronDown className="w-3 h-3 flex-shrink-0 opacity-60" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="w-60 z-50"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <DropdownMenuContent align="end" className="w-64 z-50" onClick={(e) => e.stopPropagation()}>
         {ALL_STATUSES.map(([key, s]) => (
           <DropdownMenuItem
             key={key}
@@ -353,7 +348,142 @@ function FleetStatusSelector({ vessel, onUpdated }: { vessel: Vessel; onUpdated?
   );
 }
 
-// ─── Rich Vessel Card ─────────────────────────────────────────────────────────
+// ─── Fleet Map ────────────────────────────────────────────────────────────────
+
+function FleetMap({
+  vessels,
+  vesselVoyageMap,
+  onVesselClick,
+}: {
+  vessels: Vessel[];
+  vesselVoyageMap: Map<number, any>;
+  onVesselClick: (v: Vessel) => void;
+}) {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const markersRef = useRef<Map<number, mapboxgl.Marker>>(new Map());
+
+  // init map
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+    const map = new mapboxgl.Map({
+      container: mapContainerRef.current,
+      style: "mapbox://styles/mapbox/dark-v11",
+      center: [35.0, 39.0],
+      zoom: 5,
+    });
+    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), "top-right");
+    map.addControl(new mapboxgl.ScaleControl({ maxWidth: 80, unit: "nautical" }), "bottom-left");
+    mapRef.current = map;
+    return () => {
+      markersRef.current.forEach((m) => m.remove());
+      markersRef.current.clear();
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  // update markers when vessels/voyages change
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const addMarkers = () => {
+      // remove old markers
+      markersRef.current.forEach((m) => m.remove());
+      markersRef.current.clear();
+
+      vessels.forEach((vessel) => {
+        const voyage = vesselVoyageMap.get(vessel.id);
+        const lat = voyage?.portLat;
+        const lng = voyage?.portLng;
+        if (!lat || !lng) return;
+
+        const cfg = getCfg(vessel.fleetStatus);
+        const flag = FLAG_EMOJI[vessel.flag || ""] || "🏳️";
+
+        // marker element
+        const el = document.createElement("div");
+        el.style.cssText = `
+          width: 40px; height: 40px; border-radius: 50%;
+          background: #1e293b; border: 3px solid ${cfg.bar};
+          display: flex; align-items: center; justify-content: center;
+          font-size: 18px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+          transition: transform 0.15s ease;
+        `;
+        el.innerHTML = "🚢";
+        el.title = vessel.name;
+
+        el.addEventListener("mouseenter", () => { el.style.transform = "scale(1.2)"; });
+        el.addEventListener("mouseleave", () => { el.style.transform = "scale(1)"; });
+        el.addEventListener("click", () => onVesselClick(vessel));
+
+        const popup = new mapboxgl.Popup({
+          offset: 24,
+          closeButton: false,
+          className: "fleet-popup",
+        }).setHTML(`
+          <div style="padding:8px 10px; min-width:160px; font-family:sans-serif;">
+            <div style="font-weight:700; font-size:13px; margin-bottom:4px;">${flag} ${vessel.name}</div>
+            <div style="font-size:11px; color:#94a3b8; margin-bottom:2px;">${vessel.vesselType || "—"}</div>
+            <div style="display:flex; align-items:center; gap:5px; margin-top:6px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:${cfg.bar};flex-shrink:0;"></span>
+              <span style="font-size:11px; font-weight:600;">${cfg.label}</span>
+            </div>
+            <div style="font-size:11px; color:#94a3b8; margin-top:4px;">📍 ${voyage?.portName || "—"}</div>
+          </div>
+        `);
+
+        const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
+          .setLngLat([lng, lat])
+          .setPopup(popup)
+          .addTo(map);
+
+        markersRef.current.set(vessel.id, marker);
+      });
+    };
+
+    if (map.isStyleLoaded()) {
+      addMarkers();
+    } else {
+      map.once("load", addMarkers);
+    }
+  }, [vessels, vesselVoyageMap, onVesselClick]);
+
+  const visibleCount = vessels.filter((v) => {
+    const voy = vesselVoyageMap.get(v.id);
+    return voy?.portLat && voy?.portLng;
+  }).length;
+
+  return (
+    <div className="space-y-3">
+      {visibleCount < vessels.length && (
+        <div className="flex items-center gap-2 bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 rounded-xl px-4 py-2.5 text-sm text-amber-700 dark:text-amber-300">
+          <span className="text-base flex-shrink-0">⚠️</span>
+          <span>
+            <strong>{vessels.length - visibleCount}</strong> gemi haritada gösterilemiyor — henüz sefer atanmamış veya limanda koordinat yok.
+            <strong> {visibleCount}</strong> gemi gösteriliyor.
+          </span>
+        </div>
+      )}
+      {visibleCount === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground bg-muted/20 rounded-2xl border-2 border-dashed border-border">
+          <MapIcon className="w-12 h-12 mb-3 opacity-20" />
+          <p className="font-semibold">Haritada gösterilecek gemi yok</p>
+          <p className="text-sm mt-1">Gemilere sefer atayın — seferdeki port konumu haritada görünür.</p>
+        </div>
+      )}
+      <div
+        ref={mapContainerRef}
+        className="w-full rounded-2xl overflow-hidden border border-border"
+        style={{ height: "600px", display: visibleCount === 0 ? "none" : "block" }}
+        data-testid="fleet-map-container"
+      />
+    </div>
+  );
+}
+
+// ─── Vessel Card ──────────────────────────────────────────────────────────────
 
 function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete }: {
   vessel: Vessel;
@@ -373,7 +503,6 @@ function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete }: {
       data-testid={`card-vessel-${vessel.id}`}
     >
       <div className="h-1" style={{ background: cfg.bar }} />
-
       <div className="p-5">
         {/* Header */}
         <div className="flex items-start justify-between mb-3 gap-2">
@@ -397,7 +526,7 @@ function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete }: {
           <span className="text-xs font-medium truncate">{voyage?.portName || "Konum bilinmiyor"}</span>
         </div>
 
-        {/* Voyage progress */}
+        {/* Progress */}
         {voyage ? (
           <div className="mb-3">
             <div className="flex items-center justify-between mb-1.5">
@@ -409,7 +538,7 @@ function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete }: {
               <span className="text-[10px] text-muted-foreground capitalize flex-shrink-0 ml-2">{voyage.purposeOfCall || voyage.status}</span>
             </div>
             <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progress}%`, background: cfg.bar }} />
+              <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: cfg.bar }} />
             </div>
             <div className="flex justify-between mt-1">
               {voyage.etd && <span className="text-[10px] text-muted-foreground">ETD: {new Date(voyage.etd).toLocaleDateString("tr-TR")}</span>}
@@ -439,26 +568,17 @@ function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete }: {
         {/* Footer */}
         <div className="flex items-center justify-between pt-2.5 border-t border-border/50">
           <div className="flex items-center gap-1">
-            <button
-              className="p-1.5 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground"
-              onClick={(e) => { e.stopPropagation(); onEdit(); }}
-              data-testid={`button-edit-vessel-${vessel.id}`}
-            >
+            <button className="p-1.5 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground"
+              onClick={(e) => { e.stopPropagation(); onEdit(); }} data-testid={`button-edit-vessel-${vessel.id}`}>
               <Edit2 className="w-3.5 h-3.5" />
             </button>
-            <button
-              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors text-muted-foreground hover:text-destructive"
-              onClick={(e) => { e.stopPropagation(); onDelete(); }}
-              data-testid={`button-delete-vessel-${vessel.id}`}
-            >
+            <button className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors text-muted-foreground hover:text-destructive"
+              onClick={(e) => { e.stopPropagation(); onDelete(); }} data-testid={`button-delete-vessel-${vessel.id}`}>
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
-          <button
-            className="flex items-center gap-1 text-xs text-[hsl(var(--maritime-primary))] font-medium hover:underline"
-            onClick={onSelect}
-            data-testid={`button-detail-vessel-${vessel.id}`}
-          >
+          <button className="flex items-center gap-1 text-xs text-[hsl(var(--maritime-primary))] font-medium hover:underline"
+            onClick={onSelect} data-testid={`button-detail-vessel-${vessel.id}`}>
             Detay <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -480,6 +600,7 @@ const FILTER_TABS: { key: FilterGroup; label: string }[] = [
 ];
 
 export default function Vessels() {
+  const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [showForm, setShowForm] = useState(false);
   const [editingVessel, setEditingVessel] = useState<Vessel | null>(null);
   const [deleteVesselId, setDeleteVesselId] = useState<number | null>(null);
@@ -511,7 +632,6 @@ export default function Vessels() {
     return map;
   }, [voyages]);
 
-  // Keep selected vessel fresh when vessel list updates
   const selectedVesselFresh = useMemo(
     () => vessels.find((v) => v.id === selectedVessel?.id) ?? null,
     [vessels, selectedVessel?.id],
@@ -522,8 +642,7 @@ export default function Vessels() {
   const filtered = useMemo(() => vessels.filter((v) => {
     if (search.trim() && !v.name.toLowerCase().includes(search.toLowerCase())) return false;
     if (statusFilter === "all") return true;
-    const group = getCfg(v.fleetStatus).group;
-    return group === statusFilter;
+    return getCfg(v.fleetStatus).group === statusFilter;
   }), [vessels, statusFilter, search]);
 
   const stats = useMemo(() => ({
@@ -539,7 +658,11 @@ export default function Vessels() {
       const res = await apiRequest("POST", "/api/vessels", data);
       return res.json();
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/vessels"] }); setShowForm(false); toast({ title: "Gemi eklendi" }); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/vessels"] });
+      setShowForm(false);
+      toast({ title: "Gemi eklendi" });
+    },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) { setTimeout(() => { window.location.href = "/login"; }, 500); return; }
       toast({ title: "Gemi eklenemedi", description: error.message, variant: "destructive" });
@@ -551,14 +674,25 @@ export default function Vessels() {
       const res = await apiRequest("PATCH", `/api/vessels/${id}`, data);
       return res.json();
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/vessels"] }); setEditingVessel(null); toast({ title: "Gemi güncellendi" }); },
-    onError: (error: Error) => { toast({ title: "Güncellenemedi", description: error.message, variant: "destructive" }); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/vessels"] });
+      setEditingVessel(null);
+      toast({ title: "Gemi güncellendi" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Güncellenemedi", description: error.message, variant: "destructive" });
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/vessels/${id}`); },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/vessels"] }); toast({ title: "Gemi silindi" }); },
-    onError: (error: Error) => { toast({ title: "Silinemedi", description: error.message, variant: "destructive" }); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/vessels"] });
+      toast({ title: "Gemi silindi" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Silinemedi", description: error.message, variant: "destructive" });
+    },
   });
 
   const handleSave = (data: Record<string, unknown>) => {
@@ -570,117 +704,165 @@ export default function Vessels() {
     <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
       <PageMeta title="Filo Yönetimi | VesselPDA" description="Filonuzdaki gemileri yönetin ve takip edin." />
 
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-vessels-title">Filo Yönetimi</h1>
+          <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-vessels-title">
+            Filo Yönetimi
+          </h1>
           <p className="text-muted-foreground text-sm">Her geminin statüsünü tek tıkla güncelleyin.</p>
         </div>
-        <Button onClick={() => { setEditingVessel(null); setShowForm(true); }} className="gap-2" data-testid="button-add-vessel">
-          <Plus className="w-4 h-4" /> Gemi Ekle
-        </Button>
-      </div>
-
-      {/* Stat Cards */}
-      {!isLoading && vessels.length > 0 && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          {[
-            { label: "Toplam Gemi",  value: stats.total,    icon: Ship,     color: "bg-[hsl(var(--maritime-primary)/0.1)] text-[hsl(var(--maritime-primary))]", filter: "all" as FilterGroup },
-            { label: "Seyirde",      value: stats.underway, icon: Activity, color: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400", filter: "underway" as FilterGroup },
-            { label: "Demirede",     value: stats.anchored, icon: Anchor,   color: "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400",         filter: "anchored" as FilterGroup },
-            { label: "Limanda",      value: stats.port,     icon: MapPin,   color: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400",     filter: "port" as FilterGroup },
-            { label: "Belirtilmemiş",value: stats.idle,     icon: Calendar, color: "bg-muted text-muted-foreground",                                              filter: "idle" as FilterGroup },
-          ].map(({ label, value, icon: Icon, color, filter }) => (
-            <Card
-              key={label}
-              className={`p-4 flex items-center gap-3 cursor-pointer transition-all hover:shadow-md ${statusFilter === filter ? "ring-2 ring-[hsl(var(--maritime-primary))]" : ""}`}
-              onClick={() => setStatusFilter(filter)}
-              data-testid={`stat-${filter}`}
+        <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex items-center bg-muted/50 p-1 rounded-xl border border-border gap-1">
+            <button
+              onClick={() => setViewMode("list")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === "list"
+                  ? "bg-background shadow-sm text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid="toggle-list-view"
             >
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
-                <Icon className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-black leading-none">{value}</p>
-                <p className="text-[11px] font-medium text-muted-foreground mt-0.5 leading-tight">{label}</p>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Statü Bilgi Notu */}
-      {!isLoading && vessels.length > 0 && (
-        <div className="flex items-start gap-2.5 bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 rounded-xl px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
-          <span className="text-base flex-shrink-0 mt-0.5">ℹ️</span>
-          <span>
-            Gemi statüleri <strong>manuel</strong> olarak belirlenir — her kart üzerindeki statü badge'ine tıklayarak anında değiştirebilirsiniz. Statüler veritabanında kalıcı saklanır.
-          </span>
-        </div>
-      )}
-
-      {/* Search + Filter Bar */}
-      {vessels.length > 0 && (
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Gemi ara..." className="pl-9" data-testid="input-search-vessel" />
+              <LayoutGrid className="w-3.5 h-3.5" />
+              Liste
+            </button>
+            <button
+              onClick={() => setViewMode("map")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                viewMode === "map"
+                  ? "bg-background shadow-sm text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid="toggle-map-view"
+            >
+              <MapIcon className="w-3.5 h-3.5" />
+              Harita
+            </button>
           </div>
-          <div className="flex gap-1 bg-muted/40 p-1 rounded-xl flex-shrink-0 flex-wrap">
-            {FILTER_TABS.map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setStatusFilter(key)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${statusFilter === key ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                data-testid={`filter-${key}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Vessel Grid */}
-      {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-72 rounded-2xl" />)}
-        </div>
-      ) : filtered.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((vessel) => (
-            <VesselCard
-              key={vessel.id}
-              vessel={vessel}
-              voyage={vesselVoyageMap.get(vessel.id) ?? null}
-              onSelect={() => { setSelectedVessel(vessel); setDetailTab("general"); }}
-              onEdit={() => setEditingVessel(vessel)}
-              onDelete={() => setDeleteVesselId(vessel.id)}
-            />
-          ))}
-        </div>
-      ) : vessels.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground" data-testid="text-no-vessels">
-          <Ship className="w-14 h-14 mx-auto mb-4 opacity-20" />
-          <p className="font-semibold text-lg">Filonuzda henüz gemi yok</p>
-          <p className="text-sm mt-2">İlk geminizi ekleyerek başlayın.</p>
-          <Button className="mt-5 gap-2" onClick={() => setShowForm(true)} data-testid="button-add-first-vessel">
-            <Plus className="w-4 h-4" /> İlk Gemiyi Ekle
+          <Button onClick={() => { setEditingVessel(null); setShowForm(true); }} className="gap-2" data-testid="button-add-vessel">
+            <Plus className="w-4 h-4" /> Gemi Ekle
           </Button>
         </div>
-      ) : (
-        <div className="text-center py-12 text-muted-foreground">
-          <Search className="w-10 h-10 mx-auto mb-3 opacity-20" />
-          <p className="font-medium">Sonuç bulunamadı</p>
-          <button className="text-sm text-[hsl(var(--maritime-primary))] mt-2 hover:underline"
-            onClick={() => { setSearch(""); setStatusFilter("all"); }}>
-            Filtreleri temizle
-          </button>
-        </div>
+      </div>
+
+      {/* ── List Mode ── */}
+      {viewMode === "list" && (
+        <>
+          {/* Stat Cards */}
+          {!isLoading && vessels.length > 0 && (
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              {[
+                { label: "Toplam Gemi",   value: stats.total,    icon: Ship,     color: "bg-[hsl(var(--maritime-primary)/0.1)] text-[hsl(var(--maritime-primary))]", filter: "all" as FilterGroup },
+                { label: "Seyirde",       value: stats.underway, icon: Activity, color: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400", filter: "underway" as FilterGroup },
+                { label: "Demirede",      value: stats.anchored, icon: Anchor,   color: "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400",         filter: "anchored" as FilterGroup },
+                { label: "Limanda",       value: stats.port,     icon: MapPin,   color: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400",     filter: "port" as FilterGroup },
+                { label: "Belirtilmemiş", value: stats.idle,     icon: Calendar, color: "bg-muted text-muted-foreground",                                              filter: "idle" as FilterGroup },
+              ].map(({ label, value, icon: Icon, color, filter }) => (
+                <Card
+                  key={label}
+                  className={`p-4 flex items-center gap-3 cursor-pointer transition-all hover:shadow-md ${statusFilter === filter ? "ring-2 ring-[hsl(var(--maritime-primary))]" : ""}`}
+                  onClick={() => setStatusFilter(filter)}
+                  data-testid={`stat-${filter}`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-black leading-none">{value}</p>
+                    <p className="text-[11px] font-medium text-muted-foreground mt-0.5 leading-tight">{label}</p>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Info Note */}
+          {!isLoading && vessels.length > 0 && (
+            <div className="flex items-start gap-2.5 bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 rounded-xl px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
+              <span className="text-base flex-shrink-0 mt-0.5">ℹ️</span>
+              <span>
+                Statüler <strong>manuel</strong> — her kartın üzerindeki badge'e tıklayarak anında değiştirin. Harita modunda gemiler seferdeki liman konumuna göre gösterilir.
+              </span>
+            </div>
+          )}
+
+          {/* Search + Filter */}
+          {vessels.length > 0 && (
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder="Gemi ara..." className="pl-9" data-testid="input-search-vessel" />
+              </div>
+              <div className="flex gap-1 bg-muted/40 p-1 rounded-xl flex-shrink-0 flex-wrap">
+                {FILTER_TABS.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => setStatusFilter(key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${statusFilter === key ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    data-testid={`filter-${key}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Grid */}
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-72 rounded-2xl" />)}
+            </div>
+          ) : filtered.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filtered.map((vessel) => (
+                <VesselCard
+                  key={vessel.id}
+                  vessel={vessel}
+                  voyage={vesselVoyageMap.get(vessel.id) ?? null}
+                  onSelect={() => { setSelectedVessel(vessel); setDetailTab("general"); }}
+                  onEdit={() => setEditingVessel(vessel)}
+                  onDelete={() => setDeleteVesselId(vessel.id)}
+                />
+              ))}
+            </div>
+          ) : vessels.length === 0 ? (
+            <div className="text-center py-20 text-muted-foreground" data-testid="text-no-vessels">
+              <Ship className="w-14 h-14 mx-auto mb-4 opacity-20" />
+              <p className="font-semibold text-lg">Filonuzda henüz gemi yok</p>
+              <p className="text-sm mt-2">İlk geminizi ekleyerek başlayın.</p>
+              <Button className="mt-5 gap-2" onClick={() => setShowForm(true)} data-testid="button-add-first-vessel">
+                <Plus className="w-4 h-4" /> İlk Gemiyi Ekle
+              </Button>
+            </div>
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              <Search className="w-10 h-10 mx-auto mb-3 opacity-20" />
+              <p className="font-medium">Sonuç bulunamadı</p>
+              <button className="text-sm text-[hsl(var(--maritime-primary))] mt-2 hover:underline"
+                onClick={() => { setSearch(""); setStatusFilter("all"); }}>
+                Filtreleri temizle
+              </button>
+            </div>
+          )}
+        </>
       )}
 
-      {/* ── Detail Sheet ──────────────────────────────────────────────────── */}
+      {/* ── Map Mode ── */}
+      {viewMode === "map" && !isLoading && (
+        <FleetMap
+          vessels={vessels}
+          vesselVoyageMap={vesselVoyageMap}
+          onVesselClick={(v) => { setSelectedVessel(v); setDetailTab("general"); }}
+        />
+      )}
+      {viewMode === "map" && isLoading && (
+        <Skeleton className="w-full h-[600px] rounded-2xl" />
+      )}
+
+      {/* ── Detail Sheet ─────────────────────────────────────────────────── */}
       <Sheet open={!!selectedVessel} onOpenChange={(o) => { if (!o) setSelectedVessel(null); }}>
         <SheetContent className="w-full sm:max-w-md overflow-y-auto p-0">
           {selectedVesselFresh && (() => {
@@ -689,6 +871,7 @@ export default function Vessels() {
             const cfg = getCfg(v.fleetStatus);
             const flag = FLAG_EMOJI[v.flag || ""] || "🏳️";
             const progress = getProgress(voy);
+
             return (
               <>
                 <SheetHeader className="px-6 pt-6 pb-4 border-b sticky top-0 bg-background z-10">
@@ -700,9 +883,7 @@ export default function Vessels() {
                     </div>
                   </div>
                   <div className="flex gap-1 bg-muted/40 p-1 rounded-xl mt-3">
-                    {(["general", "voyage", "technical"] as const).map((tab) => ({
-                      general: "Genel", voyage: "Sefer", technical: "Teknik"
-                    })[tab] && (
+                    {(["general", "voyage", "technical"] as const).map((tab) => (
                       <button
                         key={tab}
                         onClick={() => setDetailTab(tab)}
@@ -715,7 +896,6 @@ export default function Vessels() {
                 </SheetHeader>
 
                 <div className="p-6 space-y-4">
-
                   {/* ── Genel ── */}
                   {detailTab === "general" && (
                     <>
@@ -724,7 +904,6 @@ export default function Vessels() {
                         <FleetStatusSelector vessel={v} />
                         <p className="text-[11px] text-muted-foreground">Statüyü değiştirmek için badge'e tıklayın</p>
                       </div>
-
                       <div className="grid grid-cols-2 gap-3">
                         {[
                           { icon: MapPin,   label: "Konum",      value: voy?.portName || "Bilinmiyor" },
@@ -743,7 +922,6 @@ export default function Vessels() {
                           </div>
                         ))}
                       </div>
-
                       <div className="flex gap-2 pt-1">
                         <Button size="sm" variant="outline" className="flex-1 gap-1.5 h-9"
                           onClick={() => { setSelectedVessel(null); setEditingVessel(v); }}>
@@ -765,7 +943,7 @@ export default function Vessels() {
                         <>
                           <div className="bg-muted/30 rounded-2xl p-4 space-y-3">
                             <div className="flex items-center justify-between">
-                              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${getCfg(v.fleetStatus).badge}`}>
+                              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${cfg.badge}`}>
                                 {voy.status === "active" ? "Aktif Sefer" : "Planlanmış"}
                               </span>
                               <span className="text-xs text-muted-foreground">{voy.purposeOfCall}</span>
@@ -780,7 +958,7 @@ export default function Vessels() {
                                 <div className="flex-1 mx-4 relative">
                                   <div className="h-0.5 bg-muted rounded-full" />
                                   <div className="h-0.5 rounded-full absolute top-0 left-0 transition-all"
-                                    style={{ width: `${progress}%`, background: getCfg(v.fleetStatus).bar }} />
+                                    style={{ width: `${progress}%`, background: cfg.bar }} />
                                   <span className="absolute top-2 left-1/2 -translate-x-1/2 text-[10px] text-muted-foreground">{Math.round(progress)}%</span>
                                 </div>
                                 <div className="text-center">
@@ -814,7 +992,7 @@ export default function Vessels() {
                     <div className="grid grid-cols-2 gap-3">
                       {[
                         { label: "IMO No",   value: v.imoNumber || "—" },
-                        { label: "Call Sign",value: v.callSign || "—" },
+                        { label: "Call Sign", value: v.callSign || "—" },
                         { label: "Bayrak",   value: `${flag} ${v.flag || "—"}` },
                         { label: "Tip",      value: v.vesselType || "—" },
                         { label: "GRT",      value: v.grt ? v.grt.toLocaleString("tr-TR") + " GT" : "—" },
