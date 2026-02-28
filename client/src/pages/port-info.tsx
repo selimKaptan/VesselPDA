@@ -357,7 +357,7 @@ export default function PortInfo() {
     }
     const map = new mapboxgl.Map({
       container: portMapContainerRef.current,
-      style: "mapbox://styles/mapbox/streets-v12",
+      style: "mapbox://styles/mapbox/dark-v11",
       center: [lng!, lat!],
       zoom: 12,
       interactive: true,

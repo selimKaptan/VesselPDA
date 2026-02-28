@@ -307,13 +307,27 @@ export default function VesselTrack() {
     if (!mapContainerRef.current || mapRef.current) return;
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
-      style: "mapbox://styles/mapbox/navigation-night-v1",
+      style: "mapbox://styles/mapbox/dark-v11",
       center: [35.5, 38.5],
       zoom: 6,
     });
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
     map.addControl(new mapboxgl.ScaleControl({ maxWidth: 100, unit: "nautical" }), "bottom-left");
-    map.on("load", () => { mapReadyRef.current = true; });
+    map.on("load", () => {
+      mapReadyRef.current = true;
+      map.addSource("openseamap", {
+        type: "raster",
+        tiles: ["https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png"],
+        tileSize: 256,
+        attribution: "© <a href='https://www.openseamap.org' target='_blank'>OpenSeaMap</a> contributors",
+      });
+      map.addLayer({
+        id: "openseamap-layer",
+        type: "raster",
+        source: "openseamap",
+        paint: { "raster-opacity": 0.85 },
+      });
+    });
     mapRef.current = map;
     return () => {
       markersRef.current.forEach(m => m.remove());

@@ -14,7 +14,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:", "https://tiles.openseamap.org"],
       connectSrc: [
         "'self'",
         "wss://stream.aisstream.io",
@@ -27,6 +27,7 @@ app.use(helmet({
         "https://*.tiles.mapbox.com",
         "https://marine-api.open-meteo.com",
         "https://api.open-meteo.com",
+        "https://tiles.openseamap.org",
       ],
       workerSrc: ["'self'", "blob:"],
       fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
