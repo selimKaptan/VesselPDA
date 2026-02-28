@@ -625,9 +625,7 @@ export default function VoyageDetail() {
                   const date = new Date(msg.createdAt).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit" });
                   return (
                     <div key={msg.id} className={`flex flex-col gap-0.5 ${isMine ? "items-end" : "items-start"}`} data-testid={`chat-msg-${msg.id}`}>
-                      {!isMine && (
-                        <span className="text-xs text-muted-foreground px-1">{msg.senderName}</span>
-                      )}
+                      <span className="text-xs text-muted-foreground px-1">{msg.senderName}</span>
                       <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${isMine ? "bg-[hsl(var(--maritime-primary))] text-white rounded-tr-sm" : "bg-muted text-foreground rounded-tl-sm"}`}>
                         {msg.content}
                       </div>
