@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import {
   Ship, MapPin, Calendar, ArrowLeft, CheckCircle2, Circle, Trash2,
   Plus, Loader2, ChevronDown, Wrench, Fuel, ShoppingCart, Users as UsersIcon,
-  Sparkles, HelpCircle, Clock, PlayCircle, XCircle, ClipboardList
+  Sparkles, HelpCircle, Clock, PlayCircle, XCircle, ClipboardList,
+  FileText, Upload, Download, Star, MessageCircle, FolderOpen
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -36,6 +37,14 @@ const SERVICE_TYPE_CONFIG: Record<string, { label: string; icon: any; color: str
   crew_change:  { label: "Mürettebat",     icon: UsersIcon,     color: "text-blue-500" },
   cleaning:     { label: "Temizlik",       icon: Sparkles,      color: "text-purple-500" },
   other:        { label: "Diğer",          icon: HelpCircle,    color: "text-gray-500" },
+};
+
+const DOC_TYPE_CONFIG: Record<string, string> = {
+  manifest:       "Manifesto",
+  bill_of_lading: "Konşimento",
+  certificate:    "Sertifika",
+  port_clearance: "Liman İzni",
+  other:          "Diğer",
 };
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -73,13 +82,42 @@ function PortSearch({ value, onChange }: { value: string; onChange: (portId: num
   );
 }
 
+function StarRatingInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [hovered, setHovered] = useState(0);
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map(i => (
+        <button
+          key={i}
+          type="button"
+          onClick={() => onChange(i)}
+          onMouseEnter={() => setHovered(i)}
+          onMouseLeave={() => setHovered(0)}
+          className="transition-transform hover:scale-110"
+          data-testid={`star-${i}`}
+        >
+          <Star
+            className={`w-7 h-7 ${(hovered || value) >= i ? "fill-amber-400 text-amber-400 drop-shadow" : "text-muted-foreground"} transition-colors`}
+          />
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function VoyageDetail() {
   const { id } = useParams<{ id: string }>();
   const voyageId = parseInt(id || "0");
   const { user } = useAuth();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [newTask, setNewTask] = useState("");
   const [showServiceDialog, setShowServiceDialog] = useState(false);
+  const [showDocDialog, setShowDocDialog] = useState(false);
+  const [showReviewDialog, setShowReviewDialog] = useState(false);
+  const [docForm, setDocForm] = useState({ name: "", docType: "other", notes: "", fileBase64: "", fileName: "" });
+  const [reviewForm, setReviewForm] = useState({ rating: 0, comment: "" });
   const [serviceForm, setServiceForm] = useState({
     portId: 0, portName: "", vesselName: "", serviceType: "other",
     description: "", quantity: "", unit: "", preferredDate: "",
@@ -93,8 +131,30 @@ export default function VoyageDetail() {
     },
   });
 
+  const { data: docs = [], isLoading: docsLoading } = useQuery<any[]>({
+    queryKey: ["/api/voyages", voyageId, "documents"],
+    queryFn: async () => {
+      const res = await fetch(`/api/voyages/${voyageId}/documents`);
+      return res.json();
+    },
+    enabled: !!voyageId,
+  });
+
+  const { data: reviewData } = useQuery<{ reviews: any[]; myReview: any }>({
+    queryKey: ["/api/voyages", voyageId, "reviews"],
+    queryFn: async () => {
+      const res = await fetch(`/api/voyages/${voyageId}/reviews`);
+      return res.json();
+    },
+    enabled: !!voyageId,
+  });
+
   const userId = (user as any)?.id || (user as any)?.claims?.sub;
   const isOwner = voyage?.userId === userId;
+  const isAgent = voyage?.agentUserId === userId;
+
+  const revieweeUserId = isOwner ? voyage?.agentUserId : (isAgent ? voyage?.userId : null);
+  const canReview = voyage?.status === "completed" && (isOwner || isAgent) && revieweeUserId && !reviewData?.myReview;
 
   const statusMutation = useMutation({
     mutationFn: async (status: string) => {
@@ -154,6 +214,72 @@ export default function VoyageDetail() {
     onError: () => toast({ title: "Hata", variant: "destructive" }),
   });
 
+  const uploadDocMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/voyages/${voyageId}/documents`, docForm);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "documents"] });
+      toast({ title: "Doküman yüklendi" });
+      setShowDocDialog(false);
+      setDocForm({ name: "", docType: "other", notes: "", fileBase64: "", fileName: "" });
+    },
+    onError: () => toast({ title: "Yükleme hatası", variant: "destructive" }),
+  });
+
+  const deleteDocMutation = useMutation({
+    mutationFn: async (docId: number) => {
+      await apiRequest("DELETE", `/api/voyages/${voyageId}/documents/${docId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "documents"] });
+      toast({ title: "Doküman silindi" });
+    },
+    onError: () => toast({ title: "Silme hatası", variant: "destructive" }),
+  });
+
+  const createReviewMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/voyages/${voyageId}/reviews`, {
+        revieweeUserId,
+        rating: reviewForm.rating,
+        comment: reviewForm.comment,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "reviews"] });
+      toast({ title: "Değerlendirme kaydedildi" });
+      setShowReviewDialog(false);
+      setReviewForm({ rating: 0, comment: "" });
+    },
+    onError: () => toast({ title: "Değerlendirme hatası", variant: "destructive" }),
+  });
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      setDocForm(f => ({
+        ...f,
+        fileBase64: base64,
+        fileName: file.name,
+        name: f.name || file.name.replace(/\.[^/.]+$/, ""),
+      }));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function downloadDoc(doc: any) {
+    const a = document.createElement("a");
+    a.href = doc.fileBase64;
+    a.download = doc.name;
+    a.click();
+  }
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-4 max-w-4xl mx-auto">
@@ -179,6 +305,7 @@ export default function VoyageDetail() {
   const completed = checklist.filter(c => c.isCompleted).length;
   const serviceReqs: any[] = voyage.serviceRequests || [];
   const transitions = STATUS_TRANSITIONS[voyage.status] || [];
+  const reviews: any[] = reviewData?.reviews || [];
 
   return (
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
@@ -207,6 +334,16 @@ export default function VoyageDetail() {
             <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full ${s.color}`}>
               <StatusIcon className="w-3.5 h-3.5" />{s.label}
             </span>
+            {canReview && (
+              <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => setShowReviewDialog(true)} data-testid="button-review">
+                <Star className="w-3.5 h-3.5" /> Değerlendir
+              </Button>
+            )}
+            {reviewData?.myReview && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" /> Değerlendirdiniz
+              </span>
+            )}
             {isOwner && transitions.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -297,7 +434,7 @@ export default function VoyageDetail() {
                 <span className={`flex-1 text-sm ${item.isCompleted ? "line-through text-muted-foreground" : ""}`}>{item.title}</span>
                 <button
                   onClick={() => deleteTaskMutation.mutate(item.id)}
-                  className="flex-shrink-0 opacity-0 group-hover:opacity-100 hover:text-destructive text-muted-foreground transition-colors"
+                  className="flex-shrink-0 hover:text-destructive text-muted-foreground transition-colors"
                   data-testid={`button-delete-task-${item.id}`}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -363,6 +500,83 @@ export default function VoyageDetail() {
         </Card>
       </div>
 
+      {/* Documents Panel */}
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FolderOpen className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+            <h2 className="font-semibold text-sm">Dokümanlar</h2>
+            {docs.length > 0 && <span className="text-xs text-muted-foreground">({docs.length})</span>}
+          </div>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowDocDialog(true)} data-testid="button-upload-doc">
+            <Upload className="w-3 h-3" /> Yükle
+          </Button>
+        </div>
+
+        {docsLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : docs.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground">
+            <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
+            <p className="text-xs">Henüz doküman yok. "Yükle" butonuyla dosya ekleyin.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {docs.map((doc: any) => (
+              <div key={doc.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30 group" data-testid={`doc-${doc.id}`}>
+                <FileText className="w-4 h-4 flex-shrink-0 text-blue-500" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{doc.name}</p>
+                  <p className="text-xs text-muted-foreground">{DOC_TYPE_CONFIG[doc.docType] || "Diğer"} · {doc.uploaderName} · {new Date(doc.createdAt).toLocaleDateString("tr-TR")}</p>
+                </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => downloadDoc(doc)} className="p-1 hover:text-primary transition-colors" data-testid={`button-download-doc-${doc.id}`}>
+                    <Download className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => deleteDocMutation.mutate(doc.id)} className="p-1 hover:text-destructive transition-colors" data-testid={`button-delete-doc-${doc.id}`}>
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Reviews Panel */}
+      {reviews.length > 0 && (
+        <Card className="p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+            <h2 className="font-semibold text-sm">Değerlendirmeler</h2>
+          </div>
+          <div className="space-y-3">
+            {reviews.map((r: any) => (
+              <div key={r.id} className="flex items-start gap-3 px-3 py-3 rounded-lg bg-muted/30" data-testid={`review-${r.id}`}>
+                <div className="w-8 h-8 rounded-full bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0 text-sm font-bold text-[hsl(var(--maritime-primary))]">
+                  {(r.reviewerName || "?")[0].toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{r.reviewerName || "Kullanıcı"}</span>
+                    <span className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString("tr-TR")}</span>
+                  </div>
+                  <div className="flex gap-0.5 mt-1">
+                    {[1, 2, 3, 4, 5].map(i => (
+                      <Star key={i} className={`w-3.5 h-3.5 ${i <= r.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />
+                    ))}
+                  </div>
+                  {r.comment && <p className="text-sm text-muted-foreground mt-1">{r.comment}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Service Request Dialog */}
       <Dialog open={showServiceDialog} onOpenChange={setShowServiceDialog}>
         <DialogContent className="max-w-lg">
@@ -383,26 +597,14 @@ export default function VoyageDetail() {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-1.5">
               <Label>Gemi Adı *</Label>
-              <Input
-                value={serviceForm.vesselName || voyage?.vesselName || ""}
-                onChange={e => setServiceForm(f => ({ ...f, vesselName: e.target.value }))}
-                placeholder="Gemi adı"
-              />
+              <Input value={serviceForm.vesselName || voyage?.vesselName || ""} onChange={e => setServiceForm(f => ({ ...f, vesselName: e.target.value }))} placeholder="Gemi adı" />
             </div>
-
             <div className="space-y-1.5">
               <Label>Açıklama *</Label>
-              <Textarea
-                value={serviceForm.description}
-                onChange={e => setServiceForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="Hizmet detaylarını girin..."
-                rows={3}
-              />
+              <Textarea value={serviceForm.description} onChange={e => setServiceForm(f => ({ ...f, description: e.target.value }))} placeholder="Hizmet detaylarını girin..." rows={3} />
             </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Miktar</Label>
@@ -413,7 +615,6 @@ export default function VoyageDetail() {
                 <Input value={serviceForm.unit} onChange={e => setServiceForm(f => ({ ...f, unit: e.target.value }))} placeholder="MT, LT, adet..." />
               </div>
             </div>
-
             <div className="space-y-1.5">
               <Label>Tercih Edilen Tarih</Label>
               <Input type="datetime-local" value={serviceForm.preferredDate} onChange={e => setServiceForm(f => ({ ...f, preferredDate: e.target.value }))} />
@@ -421,12 +622,114 @@ export default function VoyageDetail() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowServiceDialog(false)}>İptal</Button>
-            <Button
-              onClick={() => createServiceMutation.mutate()}
-              disabled={createServiceMutation.isPending || !serviceForm.description.trim()}
-              data-testid="button-save-service-request"
-            >
+            <Button onClick={() => createServiceMutation.mutate()} disabled={createServiceMutation.isPending || !serviceForm.description.trim()} data-testid="button-save-service-request">
               {createServiceMutation.isPending ? "Oluşturuluyor..." : "Talep Oluştur"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Document Upload Dialog */}
+      <Dialog open={showDocDialog} onOpenChange={setShowDocDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-serif">Doküman Yükle</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Dosya Seç *</Label>
+              <div
+                className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+                data-testid="doc-dropzone"
+              >
+                {docForm.fileName ? (
+                  <div className="flex items-center justify-center gap-2 text-sm">
+                    <FileText className="w-4 h-4 text-blue-500" />
+                    <span className="font-medium">{docForm.fileName}</span>
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground">
+                    <Upload className="w-6 h-6 mx-auto mb-1 opacity-50" />
+                    <p className="text-xs">PDF, PNG, JPG, DOCX — tıklayın</p>
+                  </div>
+                )}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg,.docx"
+                className="hidden"
+                onChange={handleFileChange}
+                data-testid="input-doc-file"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Doküman Adı *</Label>
+              <Input value={docForm.name} onChange={e => setDocForm(f => ({ ...f, name: e.target.value }))} placeholder="Doküman adı" data-testid="input-doc-name" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Doküman Türü</Label>
+              <Select value={docForm.docType} onValueChange={v => setDocForm(f => ({ ...f, docType: v }))}>
+                <SelectTrigger data-testid="select-doc-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(DOC_TYPE_CONFIG).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notlar</Label>
+              <Input value={docForm.notes} onChange={e => setDocForm(f => ({ ...f, notes: e.target.value }))} placeholder="Opsiyonel notlar" data-testid="input-doc-notes" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDocDialog(false)}>İptal</Button>
+            <Button
+              onClick={() => uploadDocMutation.mutate()}
+              disabled={uploadDocMutation.isPending || !docForm.fileBase64 || !docForm.name.trim()}
+              data-testid="button-save-doc"
+            >
+              {uploadDocMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Yükle"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Review Dialog */}
+      <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif">Sefer Değerlendirmesi</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">Bu seferdeki deneyiminizi değerlendirin.</p>
+            <div className="space-y-1.5">
+              <Label>Puan *</Label>
+              <StarRatingInput value={reviewForm.rating} onChange={v => setReviewForm(f => ({ ...f, rating: v }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Yorum</Label>
+              <Textarea
+                value={reviewForm.comment}
+                onChange={e => setReviewForm(f => ({ ...f, comment: e.target.value }))}
+                placeholder="Deneyiminizi anlatın..."
+                rows={3}
+                data-testid="textarea-review-comment"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReviewDialog(false)}>İptal</Button>
+            <Button
+              onClick={() => createReviewMutation.mutate()}
+              disabled={createReviewMutation.isPending || reviewForm.rating === 0}
+              data-testid="button-save-review"
+            >
+              {createReviewMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Değerlendir"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { useState } from "react";
-import { Building2, Phone, Mail, Globe, MapPin, Star, Ship, Anchor, ArrowLeft, MessageSquare, FileText } from "lucide-react";
+import { Building2, Phone, Mail, Globe, MapPin, Star, Ship, Anchor, ArrowLeft, MessageSquare, FileText, MessageCircle, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -150,6 +150,23 @@ export default function DirectoryProfilePage() {
     },
   });
 
+  const currentUserId = (user as any)?.id || (user as any)?.claims?.sub;
+  const canMessage = user && profile?.userId && profile.userId !== currentUserId;
+
+  const messageMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/messages/start", {
+        targetUserId: profile!.userId,
+        message: `Merhaba, ${profile!.companyName} profilinizi inceledim ve sizinle iletişime geçmek istedim.`,
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      navigate(`/messages/${data.conversationId}`);
+    },
+    onError: () => toast({ title: "Mesaj gönderilemedi", variant: "destructive" }),
+  });
+
   const handleSubmitReview = () => {
     if (rating === 0) {
       toast({ title: "Please rate", description: "Please select a rating between 1 and 5", variant: "destructive" });
@@ -245,6 +262,22 @@ export default function DirectoryProfilePage() {
                 </a>
               )}
             </div>
+
+            {canMessage && (
+              <div className="mt-3">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-2 h-8 text-xs"
+                  onClick={() => messageMutation.mutate()}
+                  disabled={messageMutation.isPending}
+                  data-testid="button-send-message"
+                >
+                  {messageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                  Mesaj Gönder
+                </Button>
+              </div>
+            )}
           </div>
         </div>
 

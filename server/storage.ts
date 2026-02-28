@@ -19,11 +19,16 @@ import {
   type VoyageChecklist, type InsertVoyageChecklist,
   type ServiceRequest, type InsertServiceRequest,
   type ServiceOffer, type InsertServiceOffer,
+  type VoyageDocument, type InsertVoyageDocument,
+  type VoyageReview, type InsertVoyageReview,
+  type Conversation, type InsertConversation,
+  type Message, type InsertMessage,
   vessels, ports, tariffCategories, tariffRates, proformas,
   forumCategories, forumTopics, forumReplies, forumLikes,
   portTenders, tenderBids, agentReviews, vesselWatchlist,
   notifications, feedbacks,
   voyages, voyageChecklists, serviceRequests, serviceOffers,
+  voyageDocuments, voyageReviews, conversations, messages,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
@@ -140,6 +145,21 @@ export interface IStorage {
   selectServiceOffer(offerId: number, requestId: number): Promise<ServiceOffer | undefined>;
   getProviderOffersByUser(providerUserId: string): Promise<any[]>;
   getProviderCompanyIdByUser(userId: string): Promise<number | null>;
+
+  createVoyageDocument(data: InsertVoyageDocument): Promise<VoyageDocument>;
+  getVoyageDocuments(voyageId: number): Promise<any[]>;
+  deleteVoyageDocument(id: number, voyageId: number): Promise<boolean>;
+
+  createVoyageReview(data: InsertVoyageReview): Promise<VoyageReview>;
+  getVoyageReviews(voyageId: number): Promise<any[]>;
+  getMyVoyageReview(voyageId: number, reviewerUserId: string): Promise<VoyageReview | undefined>;
+
+  getOrCreateConversation(user1Id: string, user2Id: string, voyageId?: number, serviceRequestId?: number): Promise<Conversation>;
+  getConversationsByUser(userId: string): Promise<any[]>;
+  getConversationById(id: number, userId: string): Promise<any | undefined>;
+  createMessage(data: InsertMessage): Promise<Message>;
+  markConversationRead(conversationId: number, userId: string): Promise<void>;
+  getUnreadMessageCount(userId: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1118,6 +1138,180 @@ export class DatabaseStorage implements IStorage {
       .from(companyProfiles)
       .where(eq(companyProfiles.userId, userId));
     return row?.id ?? null;
+  }
+
+  // ─── VOYAGE DOCUMENTS ──────────────────────────────────────────────────────
+
+  async createVoyageDocument(data: InsertVoyageDocument): Promise<VoyageDocument> {
+    const [doc] = await db.insert(voyageDocuments).values(data).returning();
+    return doc;
+  }
+
+  async getVoyageDocuments(voyageId: number): Promise<any[]> {
+    const docs = await db
+      .select({
+        id: voyageDocuments.id,
+        voyageId: voyageDocuments.voyageId,
+        name: voyageDocuments.name,
+        docType: voyageDocuments.docType,
+        fileBase64: voyageDocuments.fileBase64,
+        notes: voyageDocuments.notes,
+        uploadedByUserId: voyageDocuments.uploadedByUserId,
+        createdAt: voyageDocuments.createdAt,
+        uploaderName: users.name,
+      })
+      .from(voyageDocuments)
+      .leftJoin(users, eq(voyageDocuments.uploadedByUserId, users.id))
+      .where(eq(voyageDocuments.voyageId, voyageId))
+      .orderBy(desc(voyageDocuments.createdAt));
+    return docs;
+  }
+
+  async deleteVoyageDocument(id: number, voyageId: number): Promise<boolean> {
+    const result = await db
+      .delete(voyageDocuments)
+      .where(and(eq(voyageDocuments.id, id), eq(voyageDocuments.voyageId, voyageId)))
+      .returning();
+    return result.length > 0;
+  }
+
+  // ─── VOYAGE REVIEWS ────────────────────────────────────────────────────────
+
+  async createVoyageReview(data: InsertVoyageReview): Promise<VoyageReview> {
+    const [review] = await db.insert(voyageReviews).values(data).returning();
+    return review;
+  }
+
+  async getVoyageReviews(voyageId: number): Promise<any[]> {
+    const reviews = await db
+      .select({
+        id: voyageReviews.id,
+        voyageId: voyageReviews.voyageId,
+        reviewerUserId: voyageReviews.reviewerUserId,
+        revieweeUserId: voyageReviews.revieweeUserId,
+        rating: voyageReviews.rating,
+        comment: voyageReviews.comment,
+        createdAt: voyageReviews.createdAt,
+        reviewerName: users.name,
+      })
+      .from(voyageReviews)
+      .leftJoin(users, eq(voyageReviews.reviewerUserId, users.id))
+      .where(eq(voyageReviews.voyageId, voyageId))
+      .orderBy(desc(voyageReviews.createdAt));
+    return reviews;
+  }
+
+  async getMyVoyageReview(voyageId: number, reviewerUserId: string): Promise<VoyageReview | undefined> {
+    const [review] = await db
+      .select()
+      .from(voyageReviews)
+      .where(and(eq(voyageReviews.voyageId, voyageId), eq(voyageReviews.reviewerUserId, reviewerUserId)));
+    return review;
+  }
+
+  // ─── MESSAGING ─────────────────────────────────────────────────────────────
+
+  async getOrCreateConversation(user1Id: string, user2Id: string, voyageId?: number, serviceRequestId?: number): Promise<Conversation> {
+    const [existing] = await db
+      .select()
+      .from(conversations)
+      .where(
+        or(
+          and(eq(conversations.user1Id, user1Id), eq(conversations.user2Id, user2Id)),
+          and(eq(conversations.user1Id, user2Id), eq(conversations.user2Id, user1Id))
+        )
+      )
+      .limit(1);
+    if (existing) return existing;
+
+    const [created] = await db.insert(conversations).values({
+      user1Id,
+      user2Id,
+      voyageId: voyageId ?? null,
+      serviceRequestId: serviceRequestId ?? null,
+    }).returning();
+    return created;
+  }
+
+  async getConversationsByUser(userId: string): Promise<any[]> {
+    const rows = await db
+      .select({
+        id: conversations.id,
+        user1Id: conversations.user1Id,
+        user2Id: conversations.user2Id,
+        voyageId: conversations.voyageId,
+        serviceRequestId: conversations.serviceRequestId,
+        lastMessageAt: conversations.lastMessageAt,
+        createdAt: conversations.createdAt,
+      })
+      .from(conversations)
+      .where(or(eq(conversations.user1Id, userId), eq(conversations.user2Id, userId)))
+      .orderBy(desc(conversations.lastMessageAt));
+
+    const result = await Promise.all(rows.map(async (conv) => {
+      const otherId = conv.user1Id === userId ? conv.user2Id : conv.user1Id;
+      const [otherUser] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, otherId));
+      const [lastMsg] = await db.select({ content: messages.content, createdAt: messages.createdAt, senderId: messages.senderId })
+        .from(messages).where(eq(messages.conversationId, conv.id)).orderBy(desc(messages.createdAt)).limit(1);
+      const [unreadRow] = await db.select({ cnt: count() }).from(messages)
+        .where(and(eq(messages.conversationId, conv.id), eq(messages.isRead, false), sql`${messages.senderId} != ${userId}`));
+      return {
+        ...conv,
+        otherUserId: otherId,
+        otherUserName: otherUser?.name ?? otherUser?.email ?? "Kullanıcı",
+        lastMessage: lastMsg?.content ?? null,
+        lastMessageTime: lastMsg?.createdAt ?? conv.createdAt,
+        unreadCount: Number(unreadRow?.cnt ?? 0),
+      };
+    }));
+    return result;
+  }
+
+  async getConversationById(id: number, userId: string): Promise<any | undefined> {
+    const [conv] = await db.select().from(conversations).where(
+      and(
+        eq(conversations.id, id),
+        or(eq(conversations.user1Id, userId), eq(conversations.user2Id, userId))
+      )
+    );
+    if (!conv) return undefined;
+    const otherId = conv.user1Id === userId ? conv.user2Id : conv.user1Id;
+    const [otherUser] = await db.select({ name: users.name, email: users.email, id: users.id }).from(users).where(eq(users.id, otherId));
+    const msgs = await db.select({
+      id: messages.id,
+      conversationId: messages.conversationId,
+      senderId: messages.senderId,
+      content: messages.content,
+      isRead: messages.isRead,
+      createdAt: messages.createdAt,
+    }).from(messages).where(eq(messages.conversationId, id)).orderBy(asc(messages.createdAt));
+    return { ...conv, otherUser, messages: msgs };
+  }
+
+  async createMessage(data: InsertMessage): Promise<Message> {
+    const [msg] = await db.insert(messages).values(data).returning();
+    await db.update(conversations).set({ lastMessageAt: new Date() }).where(eq(conversations.id, data.conversationId));
+    return msg;
+  }
+
+  async markConversationRead(conversationId: number, userId: string): Promise<void> {
+    await db.update(messages)
+      .set({ isRead: true })
+      .where(and(eq(messages.conversationId, conversationId), sql`${messages.senderId} != ${userId}`));
+  }
+
+  async getUnreadMessageCount(userId: string): Promise<number> {
+    const userConvs = await db.select({ id: conversations.id }).from(conversations)
+      .where(or(eq(conversations.user1Id, userId), eq(conversations.user2Id, userId)));
+    if (userConvs.length === 0) return 0;
+    const convIds = userConvs.map(c => c.id);
+    const [row] = await db.select({ cnt: count() }).from(messages)
+      .where(and(
+        sql`${messages.conversationId} = ANY(${sql`ARRAY[${sql.join(convIds.map(id => sql`${id}`), sql`, `)}]::integer[]`})`,
+        eq(messages.isRead, false),
+        sql`${messages.senderId} != ${userId}`
+      ));
+    return Number(row?.cnt ?? 0);
   }
 }
 

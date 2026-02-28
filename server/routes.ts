@@ -2222,5 +2222,169 @@ export async function registerRoutes(
     }
   });
 
+  // ─── VOYAGE DOCUMENTS ──────────────────────────────────────────────────────
+
+  app.get("/api/voyages/:id/documents", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const docs = await storage.getVoyageDocuments(voyageId);
+      res.json(docs);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get documents" });
+    }
+  });
+
+  app.post("/api/voyages/:id/documents", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const { name, docType, fileBase64, notes } = req.body;
+      if (!name || !fileBase64) return res.status(400).json({ message: "name and fileBase64 required" });
+      const doc = await storage.createVoyageDocument({
+        voyageId,
+        name,
+        docType: docType || "other",
+        fileBase64,
+        notes: notes || null,
+        uploadedByUserId: req.user.id,
+      });
+      res.status(201).json(doc);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to upload document" });
+    }
+  });
+
+  app.delete("/api/voyages/:id/documents/:docId", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const docId = parseInt(req.params.docId);
+      const ok = await storage.deleteVoyageDocument(docId, voyageId);
+      if (!ok) return res.status(404).json({ message: "Document not found" });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete document" });
+    }
+  });
+
+  // ─── VOYAGE REVIEWS ────────────────────────────────────────────────────────
+
+  app.get("/api/voyages/:id/reviews", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const reviews = await storage.getVoyageReviews(voyageId);
+      const myReview = await storage.getMyVoyageReview(voyageId, req.user.id);
+      res.json({ reviews, myReview: myReview ?? null });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get reviews" });
+    }
+  });
+
+  app.post("/api/voyages/:id/reviews", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const { revieweeUserId, rating, comment } = req.body;
+      if (!revieweeUserId || !rating) return res.status(400).json({ message: "revieweeUserId and rating required" });
+      const existing = await storage.getMyVoyageReview(voyageId, req.user.id);
+      if (existing) return res.status(409).json({ message: "Already reviewed" });
+      const review = await storage.createVoyageReview({
+        voyageId,
+        reviewerUserId: req.user.id,
+        revieweeUserId,
+        rating: parseInt(rating),
+        comment: comment || null,
+      });
+      res.status(201).json(review);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create review" });
+    }
+  });
+
+  // ─── DIRECT MESSAGING ──────────────────────────────────────────────────────
+
+  app.get("/api/messages/unread-count", isAuthenticated, async (req: any, res) => {
+    try {
+      const cnt = await storage.getUnreadMessageCount(req.user.id);
+      res.json({ count: cnt });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get unread count" });
+    }
+  });
+
+  app.get("/api/messages", isAuthenticated, async (req: any, res) => {
+    try {
+      const convs = await storage.getConversationsByUser(req.user.id);
+      res.json(convs);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get conversations" });
+    }
+  });
+
+  app.post("/api/messages/start", isAuthenticated, async (req: any, res) => {
+    try {
+      const { targetUserId, voyageId, serviceRequestId, message } = req.body;
+      if (!targetUserId || !message) return res.status(400).json({ message: "targetUserId and message required" });
+      if (targetUserId === req.user.id) return res.status(400).json({ message: "Cannot message yourself" });
+      const conv = await storage.getOrCreateConversation(
+        req.user.id,
+        targetUserId,
+        voyageId ? parseInt(voyageId) : undefined,
+        serviceRequestId ? parseInt(serviceRequestId) : undefined
+      );
+      const msg = await storage.createMessage({ conversationId: conv.id, senderId: req.user.id, content: message });
+      await storage.createNotification({
+        userId: targetUserId,
+        type: "message",
+        title: "Yeni Mesaj",
+        message: message.length > 60 ? message.slice(0, 60) + "..." : message,
+        link: `/messages/${conv.id}`,
+      });
+      res.status(201).json({ conversationId: conv.id, message: msg });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to start conversation" });
+    }
+  });
+
+  app.get("/api/messages/:conversationId", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.conversationId);
+      const conv = await storage.getConversationById(id, req.user.id);
+      if (!conv) return res.status(404).json({ message: "Conversation not found" });
+      res.json(conv);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get conversation" });
+    }
+  });
+
+  app.post("/api/messages/:conversationId/send", isAuthenticated, async (req: any, res) => {
+    try {
+      const conversationId = parseInt(req.params.conversationId);
+      const { content } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "content required" });
+      const conv = await storage.getConversationById(conversationId, req.user.id);
+      if (!conv) return res.status(404).json({ message: "Conversation not found" });
+      const msg = await storage.createMessage({ conversationId, senderId: req.user.id, content });
+      const receiverId = conv.user1Id === req.user.id ? conv.user2Id : conv.user1Id;
+      await storage.createNotification({
+        userId: receiverId,
+        type: "message",
+        title: "Yeni Mesaj",
+        message: content.length > 60 ? content.slice(0, 60) + "..." : content,
+        link: `/messages/${conversationId}`,
+      });
+      res.status(201).json(msg);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  app.patch("/api/messages/:conversationId/read", isAuthenticated, async (req: any, res) => {
+    try {
+      const conversationId = parseInt(req.params.conversationId);
+      await storage.markConversationRead(conversationId, req.user.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to mark as read" });
+    }
+  });
+
   return httpServer;
 }

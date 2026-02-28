@@ -1,4 +1,4 @@
-import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench } from "lucide-react";
+import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, MessageCircle, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -71,6 +71,12 @@ export function AppSidebar() {
   });
   const tenderCount = tenderBadge?.count || 0;
 
+  const { data: msgBadge } = useQuery<{ count: number }>({
+    queryKey: ["/api/messages/unread-count"],
+    refetchInterval: 30000,
+  });
+  const unreadMessages = msgBadge?.count || 0;
+
   const toolsNav: any[] = [];
   if (isAdminUser || effectiveRole !== "provider") {
     toolsNav.push({ title: t("nav.vessels"), url: "/vessels", icon: Ship });
@@ -86,6 +92,7 @@ export function AppSidebar() {
     toolsNav.push({ title: "Seferler", url: "/voyages", icon: Ship });
   }
   toolsNav.push({ title: "Hizmet Talepleri", url: "/service-requests", icon: Wrench });
+  toolsNav.push({ title: "Mesajlar", url: "/messages", icon: MessageCircle, badge: unreadMessages });
   toolsNav.push({ title: t("nav.portInfo"), url: "/port-info", icon: Anchor });
   toolsNav.push({ title: t("nav.servicePorts"), url: "/service-ports", icon: MapPin });
 

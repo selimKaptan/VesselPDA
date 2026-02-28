@@ -413,15 +413,97 @@ export const serviceOfferRelations = relations(serviceOffers, ({ one }) => ({
   providerCompany: one(companyProfiles, { fields: [serviceOffers.providerCompanyId], references: [companyProfiles.id] }),
 }));
 
+// ─── VOYAGE DOCUMENTS ─────────────────────────────────────────────────────────
+
+export const voyageDocuments = pgTable("voyage_documents", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  docType: text("doc_type").notNull().default("other"),
+  fileBase64: text("file_base64").notNull(),
+  notes: text("notes"),
+  uploadedByUserId: varchar("uploaded_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const voyageDocumentRelations = relations(voyageDocuments, ({ one }) => ({
+  voyage: one(voyages, { fields: [voyageDocuments.voyageId], references: [voyages.id] }),
+  uploader: one(users, { fields: [voyageDocuments.uploadedByUserId], references: [users.id] }),
+}));
+
+// ─── VOYAGE REVIEWS ────────────────────────────────────────────────────────────
+
+export const voyageReviews = pgTable("voyage_reviews", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  reviewerUserId: varchar("reviewer_user_id").notNull().references(() => users.id),
+  revieweeUserId: varchar("reviewee_user_id").notNull().references(() => users.id),
+  rating: integer("rating").notNull(),
+  comment: text("comment"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const voyageReviewRelations = relations(voyageReviews, ({ one }) => ({
+  voyage: one(voyages, { fields: [voyageReviews.voyageId], references: [voyages.id] }),
+  reviewer: one(users, { fields: [voyageReviews.reviewerUserId], references: [users.id] }),
+  reviewee: one(users, { fields: [voyageReviews.revieweeUserId], references: [users.id] }),
+}));
+
+// ─── MESSAGING ────────────────────────────────────────────────────────────────
+
+export const conversations = pgTable("conversations", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  user1Id: varchar("user1_id").notNull().references(() => users.id),
+  user2Id: varchar("user2_id").notNull().references(() => users.id),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
+  serviceRequestId: integer("service_request_id").references(() => serviceRequests.id, { onDelete: "set null" }),
+  lastMessageAt: timestamp("last_message_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const conversationRelations = relations(conversations, ({ one, many }) => ({
+  user1: one(users, { fields: [conversations.user1Id], references: [users.id] }),
+  user2: one(users, { fields: [conversations.user2Id], references: [users.id] }),
+  messages: many(messages),
+}));
+
+export const messages = pgTable("messages", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  conversationId: integer("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  senderId: varchar("sender_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const messageRelations = relations(messages, ({ one }) => ({
+  conversation: one(conversations, { fields: [messages.conversationId], references: [conversations.id] }),
+  sender: one(users, { fields: [messages.senderId], references: [users.id] }),
+}));
+
+// ─── SCHEMA EXPORTS ───────────────────────────────────────────────────────────
+
 export const insertVoyageSchema = createInsertSchema(voyages).omit({ id: true, createdAt: true });
 export const insertVoyageChecklistSchema = createInsertSchema(voyageChecklists).omit({ id: true, createdAt: true, isCompleted: true, completedAt: true });
 export const insertServiceRequestSchema = createInsertSchema(serviceRequests).omit({ id: true, createdAt: true, status: true });
 export const insertServiceOfferSchema = createInsertSchema(serviceOffers).omit({ id: true, createdAt: true, status: true });
+export const insertVoyageDocumentSchema = createInsertSchema(voyageDocuments).omit({ id: true, createdAt: true });
+export const insertVoyageReviewSchema = createInsertSchema(voyageReviews).omit({ id: true, createdAt: true });
+export const insertConversationSchema = createInsertSchema(conversations).omit({ id: true, createdAt: true, lastMessageAt: true });
+export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true, isRead: true });
 
 export type InsertVoyage = z.infer<typeof insertVoyageSchema>;
 export type Voyage = typeof voyages.$inferSelect;
 export type InsertVoyageChecklist = z.infer<typeof insertVoyageChecklistSchema>;
 export type VoyageChecklist = typeof voyageChecklists.$inferSelect;
+export type InsertVoyageDocument = z.infer<typeof insertVoyageDocumentSchema>;
+export type VoyageDocument = typeof voyageDocuments.$inferSelect;
+export type InsertVoyageReview = z.infer<typeof insertVoyageReviewSchema>;
+export type VoyageReview = typeof voyageReviews.$inferSelect;
+export type InsertConversation = z.infer<typeof insertConversationSchema>;
+export type Conversation = typeof conversations.$inferSelect;
+export type InsertMessage = z.infer<typeof insertMessageSchema>;
+export type Message = typeof messages.$inferSelect;
 export type InsertServiceRequest = z.infer<typeof insertServiceRequestSchema>;
 export type ServiceRequest = typeof serviceRequests.$inferSelect;
 export type InsertServiceOffer = z.infer<typeof insertServiceOfferSchema>;

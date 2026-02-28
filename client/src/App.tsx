@@ -37,6 +37,8 @@ import Voyages from "@/pages/voyages";
 import VoyageDetail from "@/pages/voyage-detail";
 import ServiceRequests from "@/pages/service-requests";
 import ServiceRequestDetail from "@/pages/service-request-detail";
+import Messages from "@/pages/messages";
+import MessageThread from "@/pages/message-thread";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -208,6 +210,8 @@ function AuthenticatedRouter() {
       <Route path="/voyages/:id" component={VoyageDetail} />
       <Route path="/service-requests" component={ServiceRequests} />
       <Route path="/service-requests/:id" component={ServiceRequestDetail} />
+      <Route path="/messages" component={Messages} />
+      <Route path="/messages/:id" component={MessageThread} />
       <Route component={NotFound} />
     </Switch>
   );
