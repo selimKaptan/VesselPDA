@@ -1,6 +1,5 @@
-import "leaflet/dist/leaflet.css";
-import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Navigation, Search, Plus, X, Anchor, Ship, MapPin, ArrowRight, AlertTriangle, ChevronRight, Loader2 } from "lucide-react";
@@ -14,13 +13,7 @@ import { PageMeta } from "@/components/page-meta";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { VesselWatchlistItem } from "@shared/schema";
 
-// Fix Leaflet default icon issue with bundlers
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-});
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
 
 interface AISVessel {
   id?: string | number;
@@ -60,31 +53,44 @@ const STATUS_LABELS: Record<string, string> = {
   moored: "Moored",
 };
 
-function createShipIcon(heading: number, status: string, highlight = false) {
+function createShipSvg(heading: number, status: string, highlight = false): string {
   const color = highlight ? "#FBBF24" : (STATUS_COLORS[status] || "#6B7280");
-  const size = highlight ? 20 : 16;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size + 8}" height="${size + 8}" viewBox="0 0 ${size + 8} ${size + 8}">
-    <g transform="translate(${(size + 8) / 2}, ${(size + 8) / 2}) rotate(${heading})">
-      <polygon points="0,${-size / 2} ${size / 3},${size / 3} 0,${size / 4} ${-size / 3},${size / 3}" fill="${color}" stroke="white" stroke-width="1.5"/>
+  const size = highlight ? 22 : 16;
+  const strokeColor = highlight ? "#FDE68A" : "white";
+  const strokeWidth = highlight ? "2" : "1.5";
+  const total = size + 10;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" viewBox="0 0 ${total} ${total}">
+    <g transform="translate(${total / 2},${total / 2}) rotate(${heading})">
+      <polygon points="0,${-size / 2} ${size / 3},${size / 3} 0,${size / 4} ${-size / 3},${size / 3}" fill="${color}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linejoin="round"/>
     </g>
   </svg>`;
-  return L.divIcon({
-    html: svg,
-    className: "",
-    iconSize: [size + 8, size + 8],
-    iconAnchor: [(size + 8) / 2, (size + 8) / 2],
-    popupAnchor: [0, -((size + 8) / 2)],
-  });
 }
 
-function FlyTo({ target }: { target: [number, number] | null }) {
-  const map = useMap();
-  useEffect(() => {
-    if (target) {
-      map.flyTo(target, 10, { duration: 1.2 });
-    }
-  }, [target, map]);
-  return null;
+function createPopupHtml(v: AISVessel): string {
+  const name = v.vesselName || v.name || "Unknown";
+  const statusLabel = STATUS_LABELS[v.status] || v.status;
+  const statusColor = v.status === "underway" ? "#3B82F6" : v.status === "anchored" ? "#F59E0B" : "#10B981";
+
+  let rows = "";
+  if (v.mmsi) rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0;white-space:nowrap">MMSI</td><td style="font-family:monospace;font-size:11px">${v.mmsi}</td></tr>`;
+  rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0">Flag</td><td>${v.flag}</td></tr>`;
+  rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0">Type</td><td>${v.vesselType}</td></tr>`;
+  rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0">Status</td><td style="color:${statusColor};font-weight:600">${statusLabel}</td></tr>`;
+  if (v.speed !== undefined && v.speed > 0) rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0">Speed</td><td>${v.speed} kn</td></tr>`;
+  if (v.heading !== undefined && v.speed > 0) rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0">Heading</td><td>${v.heading}°</td></tr>`;
+  if (v.destination) rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0">Dest.</td><td style="font-weight:600">${v.destination}</td></tr>`;
+  if (v.eta) {
+    const etaStr = new Date(v.eta).toLocaleDateString("en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0">ETA</td><td>${etaStr}</td></tr>`;
+  }
+
+  return `<div style="min-width:200px;font-size:12px;font-family:system-ui,-apple-system,sans-serif;line-height:1.4">
+    <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;border-bottom:1px solid #f3f4f6;padding-bottom:6px">
+      <span style="width:9px;height:9px;border-radius:50%;background:${statusColor};flex-shrink:0;display:inline-block;box-shadow:0 0 4px ${statusColor}66"></span>
+      <strong style="font-size:13px;color:#111827">${name}</strong>
+    </div>
+    <table style="border-collapse:collapse;font-size:11px;width:100%;color:#374151"><tbody>${rows}</tbody></table>
+  </div>`;
 }
 
 function VesselCard({
@@ -177,6 +183,11 @@ export default function VesselTrack() {
   const isAdmin = userRole === "admin";
   const effectiveRole = isAdmin ? activeRole : userRole;
   const isAgent = effectiveRole === "agent";
+
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const mapReadyRef = useRef(false);
 
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -290,6 +301,102 @@ export default function VesselTrack() {
 
   const defaultTab = isAgent ? "agency" : "fleet";
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
+
+  // Initialize Mapbox map
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+    const map = new mapboxgl.Map({
+      container: mapContainerRef.current,
+      style: "mapbox://styles/mapbox/navigation-night-v1",
+      center: [35.5, 38.5],
+      zoom: 6,
+    });
+    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
+    map.addControl(new mapboxgl.ScaleControl({ maxWidth: 100, unit: "nautical" }), "bottom-left");
+    map.on("load", () => { mapReadyRef.current = true; });
+    mapRef.current = map;
+    return () => {
+      markersRef.current.forEach(m => m.remove());
+      markersRef.current.clear();
+      map.remove();
+      mapRef.current = null;
+      mapReadyRef.current = false;
+    };
+  }, []);
+
+  // Update vessel markers whenever vessels or highlight changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const addMarkersWhenReady = () => {
+      // Remove stale markers
+      const currentIds = new Set(allMapVessels.map((v, i) => String(v.mmsi || v.id || i)));
+      markersRef.current.forEach((marker, id) => {
+        if (!currentIds.has(id)) {
+          marker.remove();
+          markersRef.current.delete(id);
+        }
+      });
+
+      // Add/update markers
+      allMapVessels.forEach((v, i) => {
+        const id = String(v.mmsi || v.id || i);
+        const isHighlighted = highlightedId === id;
+
+        const existing = markersRef.current.get(id);
+        if (existing) {
+          existing.setLngLat([v.lng, v.lat]);
+          const el = existing.getElement();
+          el.innerHTML = createShipSvg(v.heading, v.status, isHighlighted);
+          el.style.zIndex = isHighlighted ? "10" : "1";
+          return;
+        }
+
+        const el = document.createElement("div");
+        el.innerHTML = createShipSvg(v.heading, v.status, isHighlighted);
+        el.style.cursor = "pointer";
+        el.style.zIndex = isHighlighted ? "10" : "1";
+
+        const popup = new mapboxgl.Popup({
+          offset: 14,
+          closeButton: true,
+          maxWidth: "260px",
+          className: "vessel-popup",
+        }).setHTML(createPopupHtml(v));
+
+        const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
+          .setLngLat([v.lng, v.lat])
+          .setPopup(popup)
+          .addTo(map);
+
+        el.addEventListener("click", () => {
+          setHighlightedId(id);
+          setFlyTarget([v.lat, v.lng]);
+        });
+
+        markersRef.current.set(id, marker);
+      });
+    };
+
+    if (map.loaded()) {
+      addMarkersWhenReady();
+    } else {
+      map.once("load", addMarkersWhenReady);
+    }
+  }, [allMapVessels, highlightedId]);
+
+  // flyTo when target changes
+  useEffect(() => {
+    if (flyTarget && mapRef.current) {
+      mapRef.current.flyTo({
+        center: [flyTarget[1], flyTarget[0]],
+        zoom: 10,
+        duration: 1200,
+        essential: true,
+      });
+    }
+  }, [flyTarget]);
 
   return (
     <div className="flex flex-col md:flex-row h-full" style={{ height: "calc(100vh - 56px)" }}>
@@ -477,7 +584,6 @@ export default function VesselTrack() {
 
           {/* Watchlist Tab */}
           <TabsContent value="watchlist" className="flex-1 flex flex-col overflow-hidden mt-0" data-testid="content-watchlist">
-            {/* Inline watchlist search */}
             <div className="px-3 py-2 border-b flex-shrink-0">
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
@@ -529,7 +635,6 @@ export default function VesselTrack() {
                 </div>
               )}
             </div>
-            {/* Watchlist items */}
             <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-2">
               {watchlist.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-center">
@@ -575,64 +680,12 @@ export default function VesselTrack() {
           </div>
         )}
 
-        <MapContainer
-          center={[38.5, 35.5]}
-          zoom={6}
+        <div
+          ref={mapContainerRef}
           style={{ height: "100%", width: "100%" }}
           data-testid="map-container"
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          />
-          <FlyTo target={flyTarget} />
-          {allMapVessels.map((v, i) => {
-            const id = String(v.mmsi || v.id || i);
-            const isHighlighted = highlightedId === id;
-            const vName = v.vesselName || v.name || "Unknown";
-            return (
-              <Marker
-                key={id}
-                position={[v.lat, v.lng]}
-                icon={createShipIcon(v.heading, v.status, isHighlighted)}
-                data-testid={`marker-vessel-${id}`}
-                eventHandlers={{
-                  click: () => {
-                    setHighlightedId(id);
-                    setFlyTarget([v.lat, v.lng]);
-                  },
-                }}
-              >
-                <Popup>
-                  <div className="min-w-[200px] space-y-2 p-1">
-                    <div className="flex items-start gap-2">
-                      <div className={`w-2.5 h-2.5 rounded-full mt-0.5 flex-shrink-0 ${
-                        v.status === "underway" ? "bg-blue-500" : v.status === "anchored" ? "bg-amber-500" : "bg-emerald-500"
-                      }`} />
-                      <p className="font-bold text-sm leading-tight">{vName}</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
-                      {v.mmsi && <><span className="text-gray-500">MMSI</span><span className="font-mono">{v.mmsi}</span></>}
-                      <span className="text-gray-500">Flag</span><span>{v.flag}</span>
-                      <span className="text-gray-500">Type</span><span>{v.vesselType}</span>
-                      <span className="text-gray-500">Status</span>
-                      <span className={`font-semibold ${v.status === "underway" ? "text-blue-600" : v.status === "anchored" ? "text-amber-600" : "text-emerald-600"}`}>
-                        {STATUS_LABELS[v.status]}
-                      </span>
-                      {v.speed !== undefined && <><span className="text-gray-500">Speed</span><span>{v.speed} kn</span></>}
-                      {v.heading !== undefined && <><span className="text-gray-500">Heading</span><span>{v.heading}°</span></>}
-                      {v.destination && <><span className="text-gray-500">Dest.</span><span className="font-semibold">{v.destination}</span></>}
-                      {v.eta && <><span className="text-gray-500">ETA</span><span>{new Date(v.eta).toLocaleDateString("en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span></>}
-                    </div>
-                    <p className="text-[9px] text-gray-400 italic">Demo position data</p>
-                  </div>
-                </Popup>
-              </Marker>
-            );
-          })}
-        </MapContainer>
+        />
       </div>
-
     </div>
   );
 }

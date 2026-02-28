@@ -19,7 +19,7 @@ The platform is built with a modern web stack:
     - **Company Profiles**: Detailed profiles for agents and providers, including contact information, served ports, service types, and optional featured listings. Includes agent performance metrics such as win rate and average rating.
     - **Maritime Directory**: A searchable and filterable directory of maritime companies.
     - **Subscription System**: A 3-tier subscription model (Free, Standard, Unlimited) with usage tracking for proformas and vessels.
-    - **Vessel Tracking**: Interactive Leaflet map with live AIS data (via AISStream.io) for vessel positions in Turkish waters, custom SVG ship markers, and role-based fleet views.
+    - **Vessel Tracking**: Interactive Mapbox GL JS map (Navigation Night style) with live AIS data (via AISStream.io) for vessel positions in Turkish waters, custom SVG ship markers with heading rotation, and role-based fleet views. Token: `VITE_MAPBOX_TOKEN` secret.
     - **Port Call Tender System**: Enables shipowners to create tenders, routes them to relevant agents, allows agents to submit bids, and facilitates bid selection and nomination with email notifications.
     - **Voyage Management (Sefer Yönetimi)**: Full operation file system. Shipowners/agents create voyages (vessel + port + ETA/ETD + purpose). Each voyage has a checklist (add/toggle/delete tasks with progress bar) and linked service requests. Status lifecycle: planned → active → completed/cancelled. Pages: `/voyages` (list), `/voyages/:id` (detail).
     - **Service Request System (Hizmet Talepleri)**: Shipowners/agents post service requests (fuel, repair, provisioning, crew change, cleaning, other) with vessel, port, quantity, preferred date. Service providers in matching ports see open requests and submit price offers. Requester selects the winning offer. Notifications sent on new requests and new offers. Pages: `/service-requests` (role-differentiated list), `/service-requests/:id` (detail with offers). 4 new DB tables: `voyages`, `voyage_checklists`, `service_requests`, `service_offers`.
@@ -37,7 +37,7 @@ The platform is built with a modern web stack:
     - **Role-Specific Dashboards**: `dashboard.tsx` is a clean router that renders a dedicated component per role — `ShipownerDashboard` (fleet widget, active tenders, recent proformas, subscription card, quick actions), `AgentDashboard` (incoming tenders by port, bid status, performance card with win rate/rating, profile completion checklist), `ProviderDashboard` (profile completion hero with 5-field progress bar, services chips, contact summary, directory visibility, featured upsell), `AdminDashboard` (6-stat grid, recent activity feed, user role breakdown). Admin has a role switcher panel (Admin Overview / Shipowner / Agent / Provider). All components in `client/src/components/dashboards/`.
     - **Directory Ratings**: Agent cards in `/directory` now display avgRating (star icon + score + review count) or "No reviews yet". Backend `/api/directory` enriched with `avgRating` and `reviewCount` per profile.
     - **Star Rating UX**: `StarRating` component in directory-profile has smooth `transition-all` animation, `drop-shadow` on filled stars, and hover preview color (`text-amber-300`) on unfilled stars.
-    - **Security (CSP)**: Helmet Content-Security-Policy headers enabled in `server/index.ts` — `connect-src` covers AIS WSS, TCMB, Resend, Zyla; `frame-ancestors: none`; `crossOriginEmbedderPolicy: false` kept for Leaflet.
+    - **Security (CSP)**: Helmet Content-Security-Policy headers enabled in `server/index.ts` — `connect-src` covers AIS WSS, TCMB, Resend, Zyla, Mapbox; `worker-src: blob:` for Mapbox GL workers; `frame-ancestors: none`; `crossOriginEmbedderPolicy: false`.
     - **Proforma View**: Rewritten with dynamic company logo from `/api/company-profile/me`, email-send dialog (Resend), signature/stamp area, disclaimer text, navy blue table header, exchange rate line, mobile `overflow-x-auto` + `break-all` for IBANs.
     - **Email Features**: `sendForumReplyEmail()` and `sendProformaEmail()` in `server/email.ts`. Forum reply route emails topic author on new replies. `POST /api/proformas/:id/send-email` sends HTML proforma email via Resend.
 - **Design Choices**: Global design tokens, professional UI redesign across all pages, including revamped landing page, dashboards, and forms.
@@ -52,7 +52,7 @@ The platform is built with a modern web stack:
 - **Turkish Central Bank (TCMB)**: Public XML feed for fetching live USD/TRY and EUR/TRY exchange rates.
 - **Resend**: Transactional email service for sending various notifications (nominations, contact forms, bid-related alerts, proforma emails, forum reply notifications).
 - **jsPDF + html2canvas**: Client-side libraries for generating multi-page PDF exports of proformas.
-- **Leaflet**: JavaScript library for interactive maps, used in the Vessel Track feature.
+- **Mapbox GL JS**: Professional vector map library for both Vessel Track (Navigation Night style) and Port Info (Streets style). Token: `VITE_MAPBOX_TOKEN`. Free tier: 50k loads/month.
 - **Vite**: Frontend build tool.
 - **Tailwind CSS**: Utility-first CSS framework for styling.
 - **Shadcn UI**: UI component library.

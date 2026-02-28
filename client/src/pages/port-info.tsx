@@ -1,4 +1,6 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
@@ -14,6 +16,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import type { Port } from "@shared/schema";
+
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
 
 interface Agent {
   id: number; companyName: string; companyType: string;
@@ -340,9 +344,36 @@ export default function PortInfo() {
   const lng = portInfoData?.extended?.lng ?? (portInfoData?.port as any)?.longitude ?? null;
   const hasCoords = lat && lng;
 
-  const mapSrc = hasCoords
-    ? `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.15},${lat - 0.12},${lng + 0.15},${lat + 0.12}&layer=mapnik&marker=${lat},${lng}`
-    : null;
+  const portMapContainerRef = useRef<HTMLDivElement>(null);
+  const portMapInstanceRef = useRef<mapboxgl.Map | null>(null);
+  const portMarkerRef = useRef<mapboxgl.Marker | null>(null);
+
+  useEffect(() => {
+    if (!hasCoords || !portMapContainerRef.current) return;
+    if (portMapInstanceRef.current) {
+      portMapInstanceRef.current.flyTo({ center: [lng!, lat!], zoom: 12, duration: 800 });
+      portMarkerRef.current?.setLngLat([lng!, lat!]);
+      return;
+    }
+    const map = new mapboxgl.Map({
+      container: portMapContainerRef.current,
+      style: "mapbox://styles/mapbox/streets-v12",
+      center: [lng!, lat!],
+      zoom: 12,
+      interactive: true,
+    });
+    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+    const marker = new mapboxgl.Marker({ color: "#003D7A" })
+      .setLngLat([lng!, lat!])
+      .addTo(map);
+    portMapInstanceRef.current = map;
+    portMarkerRef.current = marker;
+    return () => {
+      map.remove();
+      portMapInstanceRef.current = null;
+      portMarkerRef.current = null;
+    };
+  }, [hasCoords, lat, lng]);
 
   return (
     <div className="px-3 py-5 space-y-5 max-w-7xl mx-auto">
@@ -560,13 +591,13 @@ export default function PortInfo() {
                     </div>
                   )}
 
-                  {mapSrc && (
+                  {hasCoords && (
                     <div>
                       <div className="flex items-center gap-2 mb-3">
                         <MapPin className="w-4 h-4 text-muted-foreground" />
                         <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Liman Konumu</p>
                         <a
-                          href={`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=13/${lat}/${lng}`}
+                          href={`https://www.google.com/maps?q=${lat},${lng}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="ml-auto text-xs text-[hsl(var(--maritime-accent))] hover:underline flex items-center gap-1"
@@ -575,16 +606,11 @@ export default function PortInfo() {
                           Haritada Aç <ExternalLink className="w-3 h-3" />
                         </a>
                       </div>
-                      <div className="rounded-lg overflow-hidden border border-border h-56" data-testid="map-port-location">
-                        <iframe
-                          src={mapSrc}
-                          width="100%"
-                          height="100%"
-                          style={{ border: 0 }}
-                          title={`Map of ${portInfoData.port?.name || selectedPort.name}`}
-                          loading="lazy"
-                        />
-                      </div>
+                      <div
+                        ref={portMapContainerRef}
+                        className="rounded-lg overflow-hidden border border-border h-64"
+                        data-testid="map-port-location"
+                      />
                     </div>
                   )}
                 </CardContent>
