@@ -24,13 +24,14 @@ import {
   type Conversation, type InsertConversation,
   type Message, type InsertMessage,
   type DirectNomination, type InsertDirectNomination,
+  type VoyageChatMessage, type InsertVoyageChatMessage,
   vessels, ports, tariffCategories, tariffRates, proformas,
   forumCategories, forumTopics, forumReplies, forumLikes,
   portTenders, tenderBids, agentReviews, vesselWatchlist,
   notifications, feedbacks,
   voyages, voyageChecklists, serviceRequests, serviceOffers,
   voyageDocuments, voyageReviews, conversations, messages,
-  directNominations,
+  directNominations, voyageChatMessages,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
@@ -156,6 +157,9 @@ export interface IStorage {
   createVoyageReview(data: InsertVoyageReview): Promise<VoyageReview>;
   getVoyageReviews(voyageId: number): Promise<any[]>;
   getMyVoyageReview(voyageId: number, reviewerUserId: string): Promise<VoyageReview | undefined>;
+
+  getVoyageChatMessages(voyageId: number): Promise<any[]>;
+  createVoyageChatMessage(data: InsertVoyageChatMessage): Promise<VoyageChatMessage>;
 
   getOrCreateConversation(user1Id: string, user2Id: string, voyageId?: number, serviceRequestId?: number): Promise<Conversation>;
   getConversationsByUser(userId: string): Promise<any[]>;
@@ -1230,6 +1234,30 @@ export class DatabaseStorage implements IStorage {
       .from(voyageReviews)
       .where(and(eq(voyageReviews.voyageId, voyageId), eq(voyageReviews.reviewerUserId, reviewerUserId)));
     return review;
+  }
+
+  // ─── VOYAGE CHAT ────────────────────────────────────────────────────────────
+
+  async getVoyageChatMessages(voyageId: number): Promise<any[]> {
+    const msgs = await db
+      .select({
+        id: voyageChatMessages.id,
+        voyageId: voyageChatMessages.voyageId,
+        senderId: voyageChatMessages.senderId,
+        content: voyageChatMessages.content,
+        createdAt: voyageChatMessages.createdAt,
+        senderName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${users.firstName}, ${users.lastName}, 'Kullanıcı')`,
+      })
+      .from(voyageChatMessages)
+      .leftJoin(users, eq(voyageChatMessages.senderId, users.id))
+      .where(eq(voyageChatMessages.voyageId, voyageId))
+      .orderBy(asc(voyageChatMessages.createdAt));
+    return msgs;
+  }
+
+  async createVoyageChatMessage(data: InsertVoyageChatMessage): Promise<VoyageChatMessage> {
+    const [msg] = await db.insert(voyageChatMessages).values(data).returning();
+    return msg;
   }
 
   // ─── MESSAGING ─────────────────────────────────────────────────────────────

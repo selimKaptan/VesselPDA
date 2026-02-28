@@ -2287,6 +2287,48 @@ export async function registerRoutes(
     }
   });
 
+  // ─── VOYAGE CHAT ────────────────────────────────────────────────────────────
+
+  app.get("/api/voyages/:id/chat", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const role = req.user?.claims?.role || req.user?.role;
+      const voyage = await storage.getVoyageById(voyageId);
+      if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+      if (role !== "admin" && voyage.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      const msgs = await storage.getVoyageChatMessages(voyageId);
+      res.json(msgs);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get chat messages" });
+    }
+  });
+
+  app.post("/api/voyages/:id/chat", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const role = req.user?.claims?.role || req.user?.role;
+      const { content } = req.body;
+      if (!content || !content.trim()) return res.status(400).json({ message: "content required" });
+      const voyage = await storage.getVoyageById(voyageId);
+      if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+      if (role !== "admin" && voyage.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      const msg = await storage.createVoyageChatMessage({
+        voyageId,
+        senderId: userId,
+        content: content.trim(),
+      });
+      res.status(201).json(msg);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
   // ─── VOYAGE REVIEWS ────────────────────────────────────────────────────────
 
   app.get("/api/voyages/:id/reviews", isAuthenticated, async (req: any, res) => {

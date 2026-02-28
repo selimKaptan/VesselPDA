@@ -1,7 +1,7 @@
 export * from "./models/auth";
 
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, integer, real, timestamp, jsonb, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, real, timestamp, jsonb, boolean, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users, companyProfiles } from "./models/auth";
@@ -457,6 +457,21 @@ export const voyageReviewRelations = relations(voyageReviews, ({ one }) => ({
   reviewee: one(users, { fields: [voyageReviews.revieweeUserId], references: [users.id] }),
 }));
 
+// ─── VOYAGE CHAT ──────────────────────────────────────────────────────────────
+
+export const voyageChatMessages = pgTable("voyage_chat_messages", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  senderId: text("sender_id").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const voyageChatMessageRelations = relations(voyageChatMessages, ({ one }) => ({
+  voyage: one(voyages, { fields: [voyageChatMessages.voyageId], references: [voyages.id] }),
+  sender: one(users, { fields: [voyageChatMessages.senderId], references: [users.id] }),
+}));
+
 // ─── MESSAGING ────────────────────────────────────────────────────────────────
 
 export const conversations = pgTable("conversations", {
@@ -523,6 +538,7 @@ export const insertServiceRequestSchema = createInsertSchema(serviceRequests).om
 export const insertServiceOfferSchema = createInsertSchema(serviceOffers).omit({ id: true, createdAt: true, status: true });
 export const insertVoyageDocumentSchema = createInsertSchema(voyageDocuments).omit({ id: true, createdAt: true });
 export const insertVoyageReviewSchema = createInsertSchema(voyageReviews).omit({ id: true, createdAt: true });
+export const insertVoyageChatMessageSchema = createInsertSchema(voyageChatMessages).omit({ id: true, createdAt: true });
 export const insertConversationSchema = createInsertSchema(conversations).omit({ id: true, createdAt: true, lastMessageAt: true });
 export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true, isRead: true });
 
@@ -534,6 +550,8 @@ export type InsertVoyageDocument = z.infer<typeof insertVoyageDocumentSchema>;
 export type VoyageDocument = typeof voyageDocuments.$inferSelect;
 export type InsertVoyageReview = z.infer<typeof insertVoyageReviewSchema>;
 export type VoyageReview = typeof voyageReviews.$inferSelect;
+export type InsertVoyageChatMessage = z.infer<typeof insertVoyageChatMessageSchema>;
+export type VoyageChatMessage = typeof voyageChatMessages.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;

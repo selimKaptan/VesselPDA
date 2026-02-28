@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import {
@@ -115,6 +115,8 @@ export default function VoyageDetail() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [newTask, setNewTask] = useState("");
+  const [chatMessage, setChatMessage] = useState("");
+  const chatBottomRef = useRef<HTMLDivElement>(null);
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [showServiceDialog, setShowServiceDialog] = useState(false);
   const [showDocDialog, setShowDocDialog] = useState(false);
@@ -160,6 +162,21 @@ export default function VoyageDetail() {
     },
     enabled: !!voyage?.portId,
   });
+
+  const { data: chatMessages = [], refetch: refetchChat } = useQuery<any[]>({
+    queryKey: ["/api/voyages", voyageId, "chat"],
+    queryFn: async () => {
+      const res = await fetch(`/api/voyages/${voyageId}/chat`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!voyageId,
+    refetchInterval: 10000,
+  });
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
 
   const userId = (user as any)?.id || (user as any)?.claims?.sub;
   const isOwner = voyage?.userId === userId;
@@ -268,6 +285,25 @@ export default function VoyageDetail() {
     },
     onError: () => toast({ title: "Değerlendirme hatası", variant: "destructive" }),
   });
+
+  const sendChatMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/voyages/${voyageId}/chat`, { content: chatMessage });
+      return res.json();
+    },
+    onSuccess: () => {
+      setChatMessage("");
+      refetchChat();
+    },
+    onError: () => toast({ title: "Mesaj gönderilemedi", variant: "destructive" }),
+  });
+
+  function handleChatKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" && !e.shiftKey && chatMessage.trim()) {
+      e.preventDefault();
+      sendChatMutation.mutate();
+    }
+  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -561,6 +597,74 @@ export default function VoyageDetail() {
           </div>
         )}
       </Card>
+
+      {/* Crew Chat Panel */}
+      {(() => {
+        const role = (user as any)?.activeRole || (user as any)?.role;
+        const canChat = isOwner || isAgent || role === "admin";
+        return (
+          <Card className="p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <MessageCircle className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              <h2 className="font-semibold text-sm">Ekip Chat</h2>
+              {chatMessages.length > 0 && (
+                <span className="text-xs text-muted-foreground">({chatMessages.length})</span>
+              )}
+            </div>
+
+            <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+              {chatMessages.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-xs">Henüz mesaj yok. İlk mesajı siz gönderin.</p>
+                </div>
+              ) : (
+                chatMessages.map((msg: any) => {
+                  const isMine = msg.senderId === userId;
+                  const time = new Date(msg.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+                  const date = new Date(msg.createdAt).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit" });
+                  return (
+                    <div key={msg.id} className={`flex flex-col gap-0.5 ${isMine ? "items-end" : "items-start"}`} data-testid={`chat-msg-${msg.id}`}>
+                      {!isMine && (
+                        <span className="text-xs text-muted-foreground px-1">{msg.senderName}</span>
+                      )}
+                      <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${isMine ? "bg-[hsl(var(--maritime-primary))] text-white rounded-tr-sm" : "bg-muted text-foreground rounded-tl-sm"}`}>
+                        {msg.content}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground px-1">{date} {time}</span>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={chatBottomRef} />
+            </div>
+
+            {canChat ? (
+              <div className="flex gap-2 pt-1">
+                <Input
+                  value={chatMessage}
+                  onChange={e => setChatMessage(e.target.value)}
+                  onKeyDown={handleChatKeyDown}
+                  placeholder="Mesaj yazın... (Enter ile gönder)"
+                  className="text-sm h-9"
+                  data-testid="input-chat-message"
+                />
+                <Button
+                  size="sm"
+                  className="h-9 px-3 shrink-0"
+                  onClick={() => sendChatMutation.mutate()}
+                  disabled={!chatMessage.trim() || sendChatMutation.isPending}
+                  data-testid="button-send-chat"
+                >
+                  {sendChatMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Gönder"}
+                </Button>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-2">Bu seferin katılımcısı değilsiniz.</p>
+            )}
+          </Card>
+        );
+      })()}
 
       {/* Port Weather & Berthing Panel */}
       <div className="space-y-2">
