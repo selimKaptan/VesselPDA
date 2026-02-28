@@ -83,6 +83,63 @@ function getSafetyLevel(waveHeight: number, windKnots: number): SafetyLevel {
   if (waveHeight < 2.5 && windKnots < 30) return "rough";
   return "dangerous";
 }
+
+function getSafetyScore(waveHeight: number, windKnots: number): number {
+  const wavePenalty = Math.min(6, waveHeight * 2.4);
+  const windPenalty = Math.min(4, windKnots * 0.133);
+  return Math.max(1, Math.min(10, Math.round(10 - wavePenalty - windPenalty)));
+}
+
+function SafetyGauge({ score }: { score: number }) {
+  const cx = 60, cy = 66, r = 50;
+
+  const toXY = (angleDeg: number, radius = r) => ({
+    x: cx + radius * Math.cos((angleDeg * Math.PI) / 180),
+    y: cy - radius * Math.sin((angleDeg * Math.PI) / 180),
+  });
+
+  const gaugeColor =
+    score >= 8 ? "#10b981" :
+    score >= 6 ? "#22c55e" :
+    score >= 5 ? "#f59e0b" :
+    score >= 3 ? "#f97316" : "#ef4444";
+
+  const capped = Math.min(score, 9.98);
+  const spanDeg = (capped / 10) * 180;
+  const scoreAngleDeg = 180 - spanDeg;
+
+  const bgStart = toXY(180);
+  const bgEnd   = toXY(0);
+  const scEnd   = toXY(scoreAngleDeg);
+
+  const bgPath    = `M ${bgStart.x.toFixed(2)} ${bgStart.y.toFixed(2)} A ${r} ${r} 0 0 0 ${bgEnd.x.toFixed(2)} ${bgEnd.y.toFixed(2)}`;
+  const scorePath = `M ${bgStart.x.toFixed(2)} ${bgStart.y.toFixed(2)} A ${r} ${r} 0 ${spanDeg > 180 ? 1 : 0} 0 ${scEnd.x.toFixed(2)} ${scEnd.y.toFixed(2)}`;
+
+  const needleLen = r - 8;
+  const needleTip = toXY(scoreAngleDeg, needleLen);
+
+  const ticks = Array.from({ length: 11 }, (_, i) => {
+    const a = 180 - i * 18;
+    return { p1: toXY(a, r - 9), p2: toXY(a, r) };
+  });
+
+  return (
+    <div className="flex flex-col items-center gap-0 flex-shrink-0">
+      <svg viewBox="0 0 120 74" className="w-28 h-[60px]">
+        <path d={bgPath} fill="none" stroke="#e5e7eb" strokeWidth="9" strokeLinecap="round" />
+        <path d={scorePath} fill="none" stroke={gaugeColor} strokeWidth="9" strokeLinecap="round" />
+        {ticks.map((t, i) => (
+          <line key={i} x1={t.p1.x} y1={t.p1.y} x2={t.p2.x} y2={t.p2.y} stroke="white" strokeWidth="1.5" opacity="0.7" />
+        ))}
+        <line x1={cx} y1={cy} x2={needleTip.x.toFixed(2)} y2={needleTip.y.toFixed(2)} stroke={gaugeColor} strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx={cx} cy={cy} r="4" fill={gaugeColor} />
+        <text x={cx} y={cy - 16} textAnchor="middle" fontSize="20" fontWeight="bold" fill={gaugeColor} fontFamily="Georgia, serif">{score}</text>
+        <text x={cx + 12} y={cy - 10} textAnchor="middle" fontSize="9" fill="#9ca3af">/10</text>
+      </svg>
+      <p className="text-[9px] text-muted-foreground uppercase tracking-widest font-medium">Yanaşma Puanı</p>
+    </div>
+  );
+}
 const SAFETY_CONFIG: Record<SafetyLevel, {
   label: string; desc: string; color: string; bg: string; border: string;
   Icon: React.ComponentType<{ className?: string }>;
@@ -130,6 +187,7 @@ function WeatherPanel({ lat, lng }: { lat: number; lng: number }) {
   if (!marine || !weather) return null;
   const safety = getSafetyLevel(marine.waveHeight, weather.windSpeed);
   const sc = SAFETY_CONFIG[safety];
+  const score = getSafetyScore(marine.waveHeight, weather.windSpeed);
   const meteoItems = [
     { icon: <span className="text-xl">{wmoIcon(weather.weatherCode)}</span>, label: "Hava", value: wmoDescription(weather.weatherCode), sub: `${weather.temperature.toFixed(1)}°C` },
     { icon: <Wind className="w-4 h-4 text-blue-500" />, label: "Rüzgar", value: `${weather.windSpeed.toFixed(1)} kn`, sub: `Yön: ${windDir(weather.windDirection)}` },
@@ -154,12 +212,15 @@ function WeatherPanel({ lat, lng }: { lat: number; lng: number }) {
           ))}
         </div>
         <Separator />
-        <div className={`flex items-start gap-3 p-3 rounded-lg border ${sc.bg} ${sc.border}`}>
-          <sc.Icon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${sc.color}`} />
-          <div className="flex-1 min-w-0">
-            <p className={`font-semibold text-xs ${sc.color}`}>Yanaşma Güvenliği: {sc.label}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{sc.desc}</p>
+        <div className={`flex items-center gap-3 p-3 rounded-lg border ${sc.bg} ${sc.border}`}>
+          <div className="flex items-start gap-2.5 flex-1 min-w-0">
+            <sc.Icon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${sc.color}`} />
+            <div className="min-w-0">
+              <p className={`font-semibold text-xs ${sc.color}`}>Yanaşma Güvenliği: {sc.label}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{sc.desc}</p>
+            </div>
           </div>
+          <SafetyGauge score={score} />
         </div>
       </CardContent>
     </Card>
