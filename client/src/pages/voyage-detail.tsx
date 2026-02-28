@@ -117,6 +117,8 @@ export default function VoyageDetail() {
   const [newTask, setNewTask] = useState("");
   const [chatMessage, setChatMessage] = useState("");
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms">("operation");
+  const [docFilter, setDocFilter] = useState<string>("all");
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [showServiceDialog, setShowServiceDialog] = useState(false);
   const [showDocDialog, setShowDocDialog] = useState(false);
@@ -445,191 +447,310 @@ export default function VoyageDetail() {
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Checklist */}
-        <Card className="p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ClipboardList className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              <h2 className="font-semibold text-sm">Görev Listesi</h2>
-            </div>
-            {checklist.length > 0 && (
-              <span className="text-xs text-muted-foreground">{completed}/{checklist.length} tamamlandı</span>
+      {/* Tab Bar */}
+      <div className="flex gap-1 bg-muted/40 p-1 rounded-xl">
+        {([
+          { key: "operation", label: "Operasyon",  icon: ClipboardList },
+          { key: "documents", label: "Dokümanlar", icon: FolderOpen },
+          { key: "comms",     label: "İletişim",   icon: MessageCircle },
+        ] as const).map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeTab === key
+                ? "bg-background shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            data-testid={`tab-${key}`}
+          >
+            <Icon className="w-4 h-4" /> {label}
+            {key === "comms" && chatMessages.length > 0 && (
+              <span className="ml-1 text-[10px] bg-[hsl(var(--maritime-primary)/0.15)] text-[hsl(var(--maritime-primary))] px-1.5 py-0.5 rounded-full font-semibold">
+                {chatMessages.length}
+              </span>
             )}
-          </div>
-
-          {checklist.length > 0 && (
-            <div className="w-full bg-muted/40 rounded-full h-1.5">
-              <div
-                className="bg-[hsl(var(--maritime-primary))] h-1.5 rounded-full transition-all"
-                style={{ width: `${checklist.length > 0 ? (completed / checklist.length) * 100 : 0}%` }}
-              />
-            </div>
-          )}
-
-          <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
-            {checklist.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-4">Henüz görev yok. Aşağıdan ekleyin.</p>
-            )}
-            {checklist.map((item: any) => (
-              <div key={item.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors ${item.isCompleted ? "bg-green-50 dark:bg-green-950/20" : "bg-muted/30"}`} data-testid={`checklist-item-${item.id}`}>
-                <button
-                  onClick={() => toggleTaskMutation.mutate(item.id)}
-                  className="flex-shrink-0"
-                  data-testid={`button-toggle-task-${item.id}`}
-                >
-                  {item.isCompleted
-                    ? <CheckCircle2 className="w-4 h-4 text-green-500" />
-                    : <Circle className="w-4 h-4 text-muted-foreground hover:text-primary transition-colors" />
-                  }
-                </button>
-                <span className={`flex-1 text-sm ${item.isCompleted ? "line-through text-muted-foreground" : ""}`}>{item.title}</span>
-                <button
-                  onClick={() => deleteTaskMutation.mutate(item.id)}
-                  className="flex-shrink-0 hover:text-destructive text-muted-foreground transition-colors"
-                  data-testid={`button-delete-task-${item.id}`}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex gap-2">
-            <Input
-              value={newTask}
-              onChange={e => setNewTask(e.target.value)}
-              placeholder="Yeni görev..."
-              onKeyDown={e => { if (e.key === "Enter" && newTask.trim()) addTaskMutation.mutate(); }}
-              className="text-sm h-8"
-              data-testid="input-new-task"
-            />
-            <Button
-              size="sm"
-              className="h-8 px-3"
-              onClick={() => { if (newTask.trim()) addTaskMutation.mutate(); }}
-              disabled={addTaskMutation.isPending || !newTask.trim()}
-              data-testid="button-add-task"
-            >
-              {addTaskMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-            </Button>
-          </div>
-        </Card>
-
-        {/* Service Requests */}
-        <Card className="p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Wrench className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              <h2 className="font-semibold text-sm">Hizmet Talepleri</h2>
-            </div>
-            <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowServiceDialog(true)} data-testid="button-add-service-request">
-              <Plus className="w-3 h-3" /> Talep Oluştur
-            </Button>
-          </div>
-
-          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-            {serviceReqs.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-4">Bu sefere ait hizmet talebi yok.</p>
-            )}
-            {serviceReqs.map((req: any) => {
-              const cfg = SERVICE_TYPE_CONFIG[req.serviceType] || SERVICE_TYPE_CONFIG.other;
-              const TypeIcon = cfg.icon;
-              return (
-                <Link key={req.id} href={`/service-requests/${req.id}`}>
-                  <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30 hover:bg-muted/60 transition-colors cursor-pointer" data-testid={`service-req-${req.id}`}>
-                    <TypeIcon className={`w-4 h-4 flex-shrink-0 ${cfg.color}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{cfg.label}</p>
-                      <p className="text-xs text-muted-foreground truncate">{req.description}</p>
-                    </div>
-                    <Badge variant="outline" className="text-[10px] flex-shrink-0 capitalize">{req.status}</Badge>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </Card>
+          </button>
+        ))}
       </div>
 
-      {/* Documents Panel */}
-      <Card className="p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <FolderOpen className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-            <h2 className="font-semibold text-sm">Dokümanlar</h2>
-            {Array.isArray(docs) && docs.length > 0 && <span className="text-xs text-muted-foreground">({docs.length})</span>}
-          </div>
-          <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowDocDialog(true)} data-testid="button-upload-doc">
-            <Upload className="w-3 h-3" /> Yükle
-          </Button>
-        </div>
-
-        {docsLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        ) : !Array.isArray(docs) || docs.length === 0 ? (
-          <div className="text-center py-6 text-muted-foreground">
-            <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
-            <p className="text-xs">Henüz doküman yok. "Yükle" butonuyla dosya ekleyin.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {docs.map((doc: any) => (
-              <div key={doc.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30 group" data-testid={`doc-${doc.id}`}>
-                <FileText className="w-4 h-4 flex-shrink-0 text-blue-500" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{doc.name}</p>
-                  <p className="text-xs text-muted-foreground">{DOC_TYPE_CONFIG[doc.docType] || "Diğer"} · {doc.uploaderName} · {new Date(doc.createdAt).toLocaleDateString("tr-TR")}</p>
+      {/* ── Tab: Operasyon ─────────────────────────────────────── */}
+      {activeTab === "operation" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Görev Listesi */}
+            <Card className="p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ClipboardList className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                  <h2 className="font-semibold text-sm">Görev Listesi</h2>
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => downloadDoc(doc)} className="p-1 hover:text-primary transition-colors" data-testid={`button-download-doc-${doc.id}`}>
-                    <Download className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => deleteDocMutation.mutate(doc.id)} className="p-1 hover:text-destructive transition-colors" data-testid={`button-delete-doc-${doc.id}`}>
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                {checklist.length > 0 && (
+                  <span className="text-xs text-muted-foreground">{completed}/{checklist.length} tamamlandı</span>
+                )}
               </div>
+
+              {checklist.length > 0 && (
+                <div className="w-full bg-muted/40 rounded-full h-1.5">
+                  <div
+                    className="bg-[hsl(var(--maritime-primary))] h-1.5 rounded-full transition-all"
+                    style={{ width: `${(completed / checklist.length) * 100}%` }}
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                {checklist.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-4">Henüz görev yok. Aşağıdan ekleyin.</p>
+                )}
+                {checklist.map((item: any) => (
+                  <div key={item.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors ${item.isCompleted ? "bg-green-50 dark:bg-green-950/20" : "bg-muted/30"}`} data-testid={`checklist-item-${item.id}`}>
+                    <button onClick={() => toggleTaskMutation.mutate(item.id)} className="flex-shrink-0" data-testid={`button-toggle-task-${item.id}`}>
+                      {item.isCompleted
+                        ? <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        : <Circle className="w-4 h-4 text-muted-foreground hover:text-primary transition-colors" />}
+                    </button>
+                    <span className={`flex-1 text-sm ${item.isCompleted ? "line-through text-muted-foreground" : ""}`}>{item.title}</span>
+                    <button onClick={() => deleteTaskMutation.mutate(item.id)} className="flex-shrink-0 hover:text-destructive text-muted-foreground transition-colors" data-testid={`button-delete-task-${item.id}`}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <Input value={newTask} onChange={e => setNewTask(e.target.value)} placeholder="Yeni görev..." onKeyDown={e => { if (e.key === "Enter" && newTask.trim()) addTaskMutation.mutate(); }} className="text-sm h-8" data-testid="input-new-task" />
+                <Button size="sm" className="h-8 px-3" onClick={() => { if (newTask.trim()) addTaskMutation.mutate(); }} disabled={addTaskMutation.isPending || !newTask.trim()} data-testid="button-add-task">
+                  {addTaskMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                </Button>
+              </div>
+            </Card>
+
+            {/* Hizmet Talepleri */}
+            <Card className="p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wrench className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                  <h2 className="font-semibold text-sm">Hizmet Talepleri</h2>
+                </div>
+                <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowServiceDialog(true)} data-testid="button-add-service-request">
+                  <Plus className="w-3 h-3" /> Talep Oluştur
+                </Button>
+              </div>
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {serviceReqs.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-4">Bu sefere ait hizmet talebi yok.</p>
+                )}
+                {serviceReqs.map((req: any) => {
+                  const cfg = SERVICE_TYPE_CONFIG[req.serviceType] || SERVICE_TYPE_CONFIG.other;
+                  const TypeIcon = cfg.icon;
+                  return (
+                    <Link key={req.id} href={`/service-requests/${req.id}`}>
+                      <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30 hover:bg-muted/60 transition-colors cursor-pointer" data-testid={`service-req-${req.id}`}>
+                        <TypeIcon className={`w-4 h-4 flex-shrink-0 ${cfg.color}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{cfg.label}</p>
+                          <p className="text-xs text-muted-foreground truncate">{req.description}</p>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] flex-shrink-0 capitalize">{req.status}</Badge>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </Card>
+          </div>
+
+          {/* Liman Koşulları */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 px-1">
+              <Anchor className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              <h2 className="font-semibold text-sm">Liman Koşulları</h2>
+              {portData?.name && <span className="ml-auto text-xs text-muted-foreground">{portData.name}</span>}
+            </div>
+            {!voyage?.portId ? (
+              <Card className="p-4 flex items-center gap-2 text-muted-foreground text-sm">
+                <Cloud className="w-4 h-4 opacity-40" /><span>Liman bilgisi bulunamadı.</span>
+              </Card>
+            ) : !portData ? (
+              <Card className="p-4"><div className="grid grid-cols-2 gap-2">{[1,2,3,4].map(i => <div key={i} className="h-16 rounded-lg bg-muted/40 animate-pulse" />)}</div></Card>
+            ) : portData.latitude && portData.longitude ? (
+              <div className="space-y-3">
+                <EtaWeatherAlert lat={portData.latitude} lng={portData.longitude} eta={voyage.eta ?? null} />
+                <WeatherPanel lat={portData.latitude} lng={portData.longitude} />
+              </div>
+            ) : (
+              <Card className="p-4 flex items-center gap-2 text-muted-foreground text-sm">
+                <Cloud className="w-4 h-4 opacity-40" /><span>Bu liman için koordinat bilgisi bulunamadı, hava durumu gösterilemiyor.</span>
+              </Card>
+            )}
+          </div>
+
+          {/* Değerlendirmeler */}
+          {reviews.length > 0 && (
+            <Card className="p-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                <h2 className="font-semibold text-sm">Değerlendirmeler</h2>
+              </div>
+              <div className="space-y-3">
+                {reviews.map((r: any) => (
+                  <div key={r.id} className="flex items-start gap-3 px-3 py-3 rounded-lg bg-muted/30" data-testid={`review-${r.id}`}>
+                    <div className="w-8 h-8 rounded-full bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0 text-sm font-bold text-[hsl(var(--maritime-primary))]">
+                      {(r.reviewerName || "?")[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{r.reviewerName || "Kullanıcı"}</span>
+                        <span className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString("tr-TR")}</span>
+                      </div>
+                      <div className="flex gap-0.5 mt-1">
+                        {[1,2,3,4,5].map(i => <Star key={i} className={`w-3.5 h-3.5 ${i <= r.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />)}
+                      </div>
+                      {r.comment && <p className="text-sm text-muted-foreground mt-1">{r.comment}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ── Tab: Dokümanlar ────────────────────────────────────── */}
+      {activeTab === "documents" && (
+        <Card className="p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FolderOpen className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              <h2 className="font-semibold text-sm">Dokümanlar</h2>
+              {Array.isArray(docs) && docs.length > 0 && <span className="text-xs text-muted-foreground">({docs.length})</span>}
+            </div>
+            <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowDocDialog(true)} data-testid="button-upload-doc">
+              <Upload className="w-3 h-3" /> Yükle
+            </Button>
+          </div>
+
+          {/* Filtre butonları */}
+          <div className="flex gap-2 flex-wrap">
+            {[
+              { key: "all",           label: "Tümü" },
+              { key: "manifest",      label: "Manifesto" },
+              { key: "bill_of_lading",label: "Konşimento" },
+              { key: "certificate",   label: "Sertifika" },
+              { key: "port_clearance",label: "Liman İzni" },
+              { key: "other",         label: "Diğer" },
+            ].map(f => (
+              <button
+                key={f.key}
+                onClick={() => setDocFilter(f.key)}
+                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                  docFilter === f.key ? "bg-[hsl(var(--maritime-primary))] text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+                data-testid={`filter-doc-${f.key}`}
+              >
+                {f.label}
+              </button>
             ))}
           </div>
-        )}
-      </Card>
 
-      {/* Crew Chat Panel */}
-      {(() => {
+          {docsLoading ? (
+            <div className="space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>
+          ) : (() => {
+            const filtered = Array.isArray(docs) ? (docFilter === "all" ? docs : docs.filter((d: any) => d.docType === docFilter)) : [];
+            return filtered.length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground">
+                <FileText className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                <p className="text-sm font-medium">Henüz doküman yok</p>
+                <p className="text-xs mt-1">Dosyaları "Yükle" butonuyla ekleyin</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filtered.map((doc: any) => (
+                  <div key={doc.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30 group" data-testid={`doc-${doc.id}`}>
+                    <FileText className="w-4 h-4 flex-shrink-0 text-blue-500" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{doc.name}</p>
+                      <p className="text-xs text-muted-foreground">{DOC_TYPE_CONFIG[doc.docType] || "Diğer"} · {doc.uploaderName} · {new Date(doc.createdAt).toLocaleDateString("tr-TR")}</p>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => downloadDoc(doc)} className="p-1 hover:text-primary transition-colors" data-testid={`button-download-doc-${doc.id}`}><Download className="w-4 h-4" /></button>
+                      <button onClick={() => deleteDocMutation.mutate(doc.id)} className="p-1 hover:text-destructive transition-colors" data-testid={`button-delete-doc-${doc.id}`}><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </Card>
+      )}
+
+      {/* ── Tab: İletişim ──────────────────────────────────────── */}
+      {activeTab === "comms" && (() => {
         const role = (user as any)?.activeRole || (user as any)?.role;
         const canChat = isOwner || isAgent || role === "admin";
+        const participants = Array.from(new Map(chatMessages.map((m: any) => [m.senderId, m.senderName])).entries());
         return (
-          <Card className="p-5 space-y-3">
-            <div className="flex items-center gap-2">
-              <MessageCircle className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              <h2 className="font-semibold text-sm">Ekip Chat</h2>
+          <Card className="flex flex-col overflow-hidden" style={{ height: 480 }}>
+            {/* Chat header */}
+            <div className="px-5 py-3.5 border-b flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                <h2 className="font-semibold text-sm">Ekip Chat</h2>
+              </div>
               {chatMessages.length > 0 && (
-                <span className="text-xs text-muted-foreground">({chatMessages.length})</span>
+                <span className="text-xs bg-[hsl(var(--maritime-primary)/0.1)] text-[hsl(var(--maritime-primary))] px-2 py-0.5 rounded-full font-semibold">
+                  {chatMessages.length} mesaj
+                </span>
               )}
             </div>
 
-            <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+            {/* Participants strip */}
+            {participants.length > 0 && (
+              <div className="px-5 py-2 border-b flex items-center gap-2 flex-shrink-0 bg-muted/20">
+                <span className="text-xs text-muted-foreground">Katılımcılar:</span>
+                {participants.map(([sid, name]: [string, string]) => (
+                  <div key={sid} title={name} className="w-6 h-6 rounded-full bg-[hsl(var(--maritime-primary))] text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                    {(name || "?")[0].toUpperCase()}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
               {chatMessages.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground">
-                  <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-xs">Henüz mesaj yok. İlk mesajı siz gönderin.</p>
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                  <MessageCircle className="w-10 h-10 mb-2 opacity-20" />
+                  <p className="text-sm font-medium">Henüz mesaj yok</p>
+                  <p className="text-xs mt-1">İlk mesajı siz gönderin</p>
                 </div>
               ) : (
                 chatMessages.map((msg: any) => {
                   const isMine = msg.senderId === userId;
                   const time = new Date(msg.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
                   const date = new Date(msg.createdAt).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit" });
+                  const initial = (msg.senderName || "?")[0].toUpperCase();
                   return (
-                    <div key={msg.id} className={`flex flex-col gap-0.5 ${isMine ? "items-end" : "items-start"}`} data-testid={`chat-msg-${msg.id}`}>
-                      <span className="text-xs text-muted-foreground px-1">{msg.senderName}</span>
-                      <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${isMine ? "bg-[hsl(var(--maritime-primary))] text-white rounded-tr-sm" : "bg-muted text-foreground rounded-tl-sm"}`}>
-                        {msg.content}
+                    <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`} data-testid={`chat-msg-${msg.id}`}>
+                      <div className={`max-w-[72%] ${isMine ? "" : "flex gap-2"}`}>
+                        {!isMine && (
+                          <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5 border">
+                            {initial}
+                          </div>
+                        )}
+                        <div>
+                          <p className={`text-xs text-muted-foreground mb-1 ${isMine ? "text-right" : "ml-1"}`}>{msg.senderName}</p>
+                          <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                            isMine
+                              ? "bg-[hsl(var(--maritime-primary))] text-white rounded-br-sm"
+                              : "bg-muted text-foreground rounded-bl-sm"
+                          }`}>
+                            {msg.content}
+                          </div>
+                          <p className={`text-[10px] text-muted-foreground mt-1 ${isMine ? "text-right" : "ml-1"}`}>{date} {time}</p>
+                        </div>
                       </div>
-                      <span className="text-[10px] text-muted-foreground px-1">{date} {time}</span>
                     </div>
                   );
                 })
@@ -637,96 +758,35 @@ export default function VoyageDetail() {
               <div ref={chatBottomRef} />
             </div>
 
-            {canChat ? (
-              <div className="flex gap-2 pt-1">
-                <Input
-                  value={chatMessage}
-                  onChange={e => setChatMessage(e.target.value)}
-                  onKeyDown={handleChatKeyDown}
-                  placeholder="Mesaj yazın... (Enter ile gönder)"
-                  className="text-sm h-9"
-                  data-testid="input-chat-message"
-                />
-                <Button
-                  size="sm"
-                  className="h-9 px-3 shrink-0"
-                  onClick={() => sendChatMutation.mutate()}
-                  disabled={!chatMessage.trim() || sendChatMutation.isPending}
-                  data-testid="button-send-chat"
-                >
-                  {sendChatMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Gönder"}
-                </Button>
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground text-center py-2">Bu seferin katılımcısı değilsiniz.</p>
-            )}
+            {/* Input */}
+            <div className="px-4 py-3 border-t flex-shrink-0 bg-background">
+              {canChat ? (
+                <div className="flex gap-2">
+                  <Input
+                    value={chatMessage}
+                    onChange={e => setChatMessage(e.target.value)}
+                    onKeyDown={handleChatKeyDown}
+                    placeholder="Mesaj yazın..."
+                    className="text-sm h-9"
+                    data-testid="input-chat-message"
+                  />
+                  <Button
+                    size="sm"
+                    className="h-9 px-4 shrink-0"
+                    onClick={() => sendChatMutation.mutate()}
+                    disabled={!chatMessage.trim() || sendChatMutation.isPending}
+                    data-testid="button-send-chat"
+                  >
+                    {sendChatMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Gönder"}
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground text-center py-1">Bu seferin katılımcısı değilsiniz.</p>
+              )}
+            </div>
           </Card>
         );
       })()}
-
-      {/* Port Weather & Berthing Panel */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 px-1">
-          <Anchor className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-          <h2 className="font-semibold text-sm">Liman Koşulları</h2>
-          {portData?.name && (
-            <span className="ml-auto text-xs text-muted-foreground">{portData.name}</span>
-          )}
-        </div>
-        {!voyage?.portId ? (
-          <Card className="p-4 flex items-center gap-2 text-muted-foreground text-sm">
-            <Cloud className="w-4 h-4 opacity-40" />
-            <span>Liman bilgisi bulunamadı.</span>
-          </Card>
-        ) : !portData ? (
-          <Card className="p-4">
-            <div className="grid grid-cols-2 gap-2">
-              {[1,2,3,4].map(i => <div key={i} className="h-16 rounded-lg bg-muted/40 animate-pulse" />)}
-            </div>
-          </Card>
-        ) : portData.latitude && portData.longitude ? (
-          <div className="space-y-3">
-            <EtaWeatherAlert lat={portData.latitude} lng={portData.longitude} eta={voyage.eta ?? null} />
-            <WeatherPanel lat={portData.latitude} lng={portData.longitude} />
-          </div>
-        ) : (
-          <Card className="p-4 flex items-center gap-2 text-muted-foreground text-sm">
-            <Cloud className="w-4 h-4 opacity-40" />
-            <span>Bu liman için koordinat bilgisi bulunamadı, hava durumu gösterilemiyor.</span>
-          </Card>
-        )}
-      </div>
-
-      {/* Reviews Panel */}
-      {reviews.length > 0 && (
-        <Card className="p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-            <h2 className="font-semibold text-sm">Değerlendirmeler</h2>
-          </div>
-          <div className="space-y-3">
-            {reviews.map((r: any) => (
-              <div key={r.id} className="flex items-start gap-3 px-3 py-3 rounded-lg bg-muted/30" data-testid={`review-${r.id}`}>
-                <div className="w-8 h-8 rounded-full bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0 text-sm font-bold text-[hsl(var(--maritime-primary))]">
-                  {(r.reviewerName || "?")[0].toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{r.reviewerName || "Kullanıcı"}</span>
-                    <span className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString("tr-TR")}</span>
-                  </div>
-                  <div className="flex gap-0.5 mt-1">
-                    {[1, 2, 3, 4, 5].map(i => (
-                      <Star key={i} className={`w-3.5 h-3.5 ${i <= r.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />
-                    ))}
-                  </div>
-                  {r.comment && <p className="text-sm text-muted-foreground mt-1">{r.comment}</p>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
 
       {/* Service Request Dialog */}
       <Dialog open={showServiceDialog} onOpenChange={setShowServiceDialog}>
