@@ -199,6 +199,9 @@ export async function registerRoutes(
               extended.lat = extended.lat ?? parseFloat(geoData[0].lat);
               extended.lng = extended.lng ?? parseFloat(geoData[0].lon);
               extended.displayName = extended.displayName ?? geoData[0].display_name;
+              if (dbPort?.id && extended.lat && extended.lng) {
+                storage.updatePortCoords(dbPort.id, extended.lat, extended.lng).catch(() => {});
+              }
             }
           }
         } catch {
