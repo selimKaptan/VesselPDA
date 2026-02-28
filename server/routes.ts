@@ -2281,7 +2281,8 @@ export async function registerRoutes(
     try {
       const voyageId = parseInt(req.params.id);
       const reviews = await storage.getVoyageReviews(voyageId);
-      const myReview = await storage.getMyVoyageReview(voyageId, req.user.id);
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const myReview = userId ? await storage.getMyVoyageReview(voyageId, userId) : null;
       res.json({ reviews, myReview: myReview ?? null });
     } catch (error) {
       res.status(500).json({ message: "Failed to get reviews" });
@@ -2293,11 +2294,12 @@ export async function registerRoutes(
       const voyageId = parseInt(req.params.id);
       const { revieweeUserId, rating, comment } = req.body;
       if (!revieweeUserId || !rating) return res.status(400).json({ message: "revieweeUserId and rating required" });
-      const existing = await storage.getMyVoyageReview(voyageId, req.user.id);
+      const reviewerUserId = req.user?.claims?.sub || req.user?.id;
+      const existing = await storage.getMyVoyageReview(voyageId, reviewerUserId);
       if (existing) return res.status(409).json({ message: "Already reviewed" });
       const review = await storage.createVoyageReview({
         voyageId,
-        reviewerUserId: req.user.id,
+        reviewerUserId,
         revieweeUserId,
         rating: parseInt(rating),
         comment: comment || null,

@@ -1181,7 +1181,7 @@ export class DatabaseStorage implements IStorage {
         notes: voyageDocuments.notes,
         uploadedByUserId: voyageDocuments.uploadedByUserId,
         createdAt: voyageDocuments.createdAt,
-        uploaderName: users.name,
+        uploaderName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${users.firstName}, ${users.lastName}, 'Kullanıcı')`,
       })
       .from(voyageDocuments)
       .leftJoin(users, eq(voyageDocuments.uploadedByUserId, users.id))
@@ -1215,7 +1215,7 @@ export class DatabaseStorage implements IStorage {
         rating: voyageReviews.rating,
         comment: voyageReviews.comment,
         createdAt: voyageReviews.createdAt,
-        reviewerName: users.name,
+        reviewerName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, ${users.firstName}, ${users.lastName}, 'Kullanıcı')`,
       })
       .from(voyageReviews)
       .leftJoin(users, eq(voyageReviews.reviewerUserId, users.id))

@@ -506,7 +506,7 @@ export default function VoyageDetail() {
           <div className="flex items-center gap-2">
             <FolderOpen className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
             <h2 className="font-semibold text-sm">Dokümanlar</h2>
-            {docs.length > 0 && <span className="text-xs text-muted-foreground">({docs.length})</span>}
+            {Array.isArray(docs) && docs.length > 0 && <span className="text-xs text-muted-foreground">({docs.length})</span>}
           </div>
           <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowDocDialog(true)} data-testid="button-upload-doc">
             <Upload className="w-3 h-3" /> Yükle
@@ -518,7 +518,7 @@ export default function VoyageDetail() {
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
           </div>
-        ) : docs.length === 0 ? (
+        ) : !Array.isArray(docs) || docs.length === 0 ? (
           <div className="text-center py-6 text-muted-foreground">
             <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
             <p className="text-xs">Henüz doküman yok. "Yükle" butonuyla dosya ekleyin.</p>
