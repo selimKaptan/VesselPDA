@@ -194,7 +194,7 @@ export function EtaWeatherAlert({ lat, lng, eta }: { lat: number; lng: number; e
 
   if (etaDate < today) return null;
 
-  const etaDateStr = etaDate.toISOString().split("T")[0];
+  const etaDateStr = `${etaDate.getFullYear()}-${String(etaDate.getMonth() + 1).padStart(2, '0')}-${String(etaDate.getDate()).padStart(2, '0')}`;
   const etaDay = days.find(d => d.date === etaDateStr);
   if (!etaDay) return null;
 
