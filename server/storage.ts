@@ -945,7 +945,16 @@ export class DatabaseStorage implements IStorage {
 
   async getVoyagesByUser(userId: string, role: string): Promise<any[]> {
     let rows: any[];
-    if (role === "agent") {
+    if (role === "admin") {
+      rows = await db
+        .select({
+          voyage: voyages,
+          portName: ports.name,
+        })
+        .from(voyages)
+        .leftJoin(ports, eq(voyages.portId, ports.id))
+        .orderBy(desc(voyages.createdAt));
+    } else if (role === "agent") {
       rows = await db
         .select({
           voyage: voyages,

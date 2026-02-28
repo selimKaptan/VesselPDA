@@ -137,7 +137,7 @@ export default function Voyages() {
           <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-voyages-title">Seferler</h1>
           <p className="text-muted-foreground text-sm">Operasyon dosyaları ve sefer yönetimi</p>
         </div>
-        {role !== "agent" && (
+        {role !== "provider" && (
           <Button onClick={() => setShowCreate(true)} className="gap-2" data-testid="button-create-voyage">
             <Plus className="w-4 h-4" /> Yeni Sefer
           </Button>
@@ -194,13 +194,17 @@ export default function Voyages() {
           })}
         </div>
       ) : (
-        <div className="text-center py-20 text-muted-foreground" data-testid="text-no-voyages">
-          <Anchor className="w-12 h-12 mx-auto mb-4 opacity-30" />
-          <p className="font-medium text-base">Henüz sefer yok</p>
-          <p className="text-sm mt-1">Yeni bir sefer oluşturarak operasyon dosyanızı başlatın.</p>
-          {role !== "agent" && (
-            <Button className="mt-4 gap-2" onClick={() => setShowCreate(true)} data-testid="button-create-first-voyage">
-              <Plus className="w-4 h-4" /> İlk Seferi Oluştur
+        <div className="flex flex-col items-center justify-center py-24 text-center" data-testid="text-no-voyages">
+          <div className="w-20 h-20 rounded-2xl bg-[hsl(var(--maritime-primary)/0.08)] flex items-center justify-center mb-5">
+            <Anchor className="w-10 h-10 text-[hsl(var(--maritime-primary)/0.4)]" />
+          </div>
+          <h3 className="font-serif text-lg font-semibold text-muted-foreground mb-1">Henüz sefer yok</h3>
+          <p className="text-sm text-muted-foreground/70 max-w-xs mb-6">
+            Yeni bir sefer oluşturarak operasyon dosyanızı başlatın. Checklist, belgeler ve hizmet talepleri ekleyin.
+          </p>
+          {role !== "provider" && (
+            <Button size="lg" className="gap-2 px-8" onClick={() => setShowCreate(true)} data-testid="button-create-first-voyage">
+              <Plus className="w-5 h-5" /> Yeni Sefer Oluştur
             </Button>
           )}
         </div>
