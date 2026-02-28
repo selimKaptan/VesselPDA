@@ -1,0 +1,87 @@
+Denizcilik Platformu — Özellik & Dashboard Mimarisi
+Önce zihninde şunu netleştir: 3 farklı kullanıcı, aynı platformda yaşıyor ama farklı gözlüklerle bakıyor. Tıpkı LinkedIn'in recruiter, jobseeker ve company page'i aynı platformda tutması gibi.
+
+🏗️ Genel Platform Mimarisi
+Platforma giriş yaparken kullanıcı kayıt sırasında rolünü seçiyor: Armatör / Acente / Hizmet Sağlayıcı. Bu seçim her şeyi belirliyor — menü, dashboard, bildirimler, arama sonuçları.
+
+1. 🚢 Armatör Dashboard'u
+Armatörün tek derdi: gemisi nerede, ne kadar para kazanıyor, hangi liman/acente/hizmet ona en iyi hizmeti veriyor.
+Ana Dashboard Widgetları
+
+Filo haritası (canlı AIS entegrasyonu ile gemilerin konumu)
+Aktif seferler ve tahmini varış süreleri
+Bekleyen teklif/teklifler (navlun, acente, hizmet)
+Aylık maliyet özeti (liman masrafları, acente ücretleri, hizmet giderleri)
+Performans skoru (hangi acenteyle çalışırken ne kadar verimli)
+
+Menü Yapısı
+
+Filom → Gemi ekle, gemi kartları, belge yönetimi (sertifikalar, sigorta)
+Sefer Yönetimi → Sefer oluştur, rota planla, liman bildirimleri
+Acente Bul → Limana göre arama, değerlendirmeler, geçmiş çalışmalar
+Hizmet Talepleri → Yakıt, tamir, provizyonlama, mürettebat değişimi talebi oluştur
+Tekliflerim → Gelen teklifler, karşılaştırma ekranı, kabul/ret
+Mali Özet → Port disbursement account takibi, fatura arşivi
+Mesajlaşma → Acente ve hizmet sağlayıcılarla direkt chat
+
+
+2. 🤝 Acente Dashboard'u
+Acentenin derdi: hangi gemi ne zaman gelecek, operasyonu eksiksiz yürüteyim, faturalandırayım.
+Ana Dashboard Widgetları
+
+Yaklaşan gemiler (ETA timeline — bugün/bu hafta/bu ay)
+Aktif operasyonlar ve görev listesi (checklist bazlı)
+Bekleyen onaylar ve belgeler
+Gelir özeti
+Yeni iş fırsatları (acente arayan armatörler)
+
+Menü Yapısı
+
+Operasyonlarım → Her gemi için ayrı operasyon dosyası, checklist, durum takibi
+Liman Koordinasyonu → Rıhtım rezervasyonu, pilot/römorkör talepleri, gümrük bildirimleri
+Belge Merkezi → Manifest, Bill of Lading, arrival/departure formu üretimi
+Hizmet Sağlayıcı Ağım → Güvendiğim tedarikçiler, hızlı teklif al, iş yönlendir
+Faturalama → Proforma DA (disbursement account) oluştur, masraf takibi, armatöre gönder
+İş Geliştirme → Platform üzerindeki armatör ilanları, teklif ver
+Raporlar → Aylık operasyon raporu, müşteri bazlı analiz
+
+
+3. 🔧 Hizmet Sağlayıcı Dashboard'u
+Hizmet sağlayıcının derdi: iş bul, teklif ver, işi yap, tahsil et, değerlendirme kazan.
+Kategoriler: yakıt (bunker), provizyonlama, teknik tamir, mürettebat servisi, temizlik, sigorta, hukuk, vb.
+Ana Dashboard Widgetları
+
+Aktif talepler (yakınımdaki gemilerden gelen talepler)
+Verdiğim tekliflerin durumu (bekleniyor / kabul / red)
+Takvim görünümü (planlanmış işler)
+Gelir ve tahsilat durumu
+Profil tamamlanma skoru ve değerlendirme puanı
+
+Menü Yapısı
+
+Hizmet Profilim → Sunduğum hizmetler, fiyat aralıkları, servis bölgesi, sertifikalar
+Gelen Talepler → Konum/hizmet tipine göre filtrelenmiş talepler, teklif ver
+Tekliflerim → Aktif, kabul edilen, reddedilen teklifler
+İş Takvimim → Rezervasyon takvimi, kapasite yönetimi
+Ağım → Beni düzenli kullanan acenteler/armatörler, VIP müşteri listesi
+Faturalama → Fatura kes, ödeme takibi, gecikme bildirimleri
+İstatistikler → Kaç teklif verdin, kaçı kazandın, en çok hangi limanda iş yaptın
+
+
+🔗 3 Rolü Birbirine Bağlayan Platform Özellikleri
+Bunlar platformun gerçek değeri — tek başına hiçbir rolün yapamayacağı şeyler:
+Akıllı Eşleştirme Motoru
+Armatör sefer oluşturduğunda, sistem o limandaki en uygun acenteleri ve ihtiyaç duyabileceği hizmet sağlayıcıları otomatik önerir. (Airbnb'nin ev önerisi gibi)
+Unified Mesajlaşma
+Bir operasyon dosyası içinde armatör + acente + hizmet sağlayıcı üçlüsü aynı thread'de konuşabilir. E-posta karmaşasının sonu.
+Değerlendirme & Skor Sistemi
+Her tamamlanan operasyon sonrası karşılıklı puan verilir. Bu skorlar arama sıralamasını etkiler — platform kendi kalite filtresini yaratır.
+Doküman Akışı
+Acente belge yükler → armatör onaylar → hizmet sağlayıcı teslim belgesi ekler. Hepsi aynı operasyon dosyasında, versiyonlanmış şekilde.
+Pazar Fiyat Endeksi
+Anonim verilerden beslenen "bu limanda ortalama provizyonlama maliyeti şu" gibi referans fiyatlar. Hem alıcıya hem satıcıya güven verir.
+Abonelik / Komisyon Modeli Seçeneği
+
+Armatör: ücretsiz veya premium (daha fazla analitik)
+Acente: aylık abonelik (ilanlarını öne çıkar)
+Hizmet sağlayıcı: freemium + platform komisyonu ya da sabit abonelik
