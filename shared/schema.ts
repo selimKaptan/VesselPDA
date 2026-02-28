@@ -19,6 +19,7 @@ export const vessels = pgTable("vessels", {
   beam: real("beam"),
   imoNumber: text("imo_number"),
   callSign: text("call_sign"),
+  fleetStatus: text("fleet_status").default("idle"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
