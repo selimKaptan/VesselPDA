@@ -2023,5 +2023,204 @@ export async function registerRoutes(
     }
   });
 
+  // ─── VOYAGES ──────────────────────────────────────────────────────────────────
+
+  app.get("/api/voyages", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const role = req.user?.activeRole || req.user?.userRole || "shipowner";
+      const voyageList = await storage.getVoyagesByUser(userId, role);
+      res.json(voyageList);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch voyages" });
+    }
+  });
+
+  app.post("/api/voyages", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const data = { ...req.body, userId };
+      if (data.eta) data.eta = new Date(data.eta);
+      if (data.etd) data.etd = new Date(data.etd);
+      const voyage = await storage.createVoyage(data);
+      res.json(voyage);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create voyage" });
+    }
+  });
+
+  app.get("/api/voyages/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const voyage = await storage.getVoyageById(id);
+      if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+      res.json(voyage);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch voyage" });
+    }
+  });
+
+  app.patch("/api/voyages/:id/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { status } = req.body;
+      const voyage = await storage.updateVoyageStatus(id, status);
+      if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+      res.json(voyage);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update voyage status" });
+    }
+  });
+
+  app.post("/api/voyages/:id/checklist", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const item = await storage.createChecklistItem({ ...req.body, voyageId });
+      res.json(item);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to add checklist item" });
+    }
+  });
+
+  app.patch("/api/voyages/:id/checklist/:itemId", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const itemId = parseInt(req.params.itemId);
+      const item = await storage.toggleChecklistItem(itemId, voyageId);
+      if (!item) return res.status(404).json({ message: "Item not found" });
+      res.json(item);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to toggle checklist item" });
+    }
+  });
+
+  app.delete("/api/voyages/:id/checklist/:itemId", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const itemId = parseInt(req.params.itemId);
+      await storage.deleteChecklistItem(itemId, voyageId);
+      res.json({ ok: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete checklist item" });
+    }
+  });
+
+  // ─── SERVICE REQUESTS ─────────────────────────────────────────────────────────
+
+  app.get("/api/service-requests", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const role = req.user?.activeRole || req.user?.userRole || "shipowner";
+      if (role === "provider") {
+        const profile = await storage.getCompanyProfile(userId);
+        const portIds: number[] = (profile?.servedPorts as any[]) || [];
+        const requests = await storage.getServiceRequestsByPort(portIds);
+        const myOffers = await storage.getProviderOffersByUser(userId);
+        res.json({ requests, myOffers });
+      } else {
+        const requests = await storage.getServiceRequestsByUser(userId);
+        res.json({ requests, myOffers: [] });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch service requests" });
+    }
+  });
+
+  app.post("/api/service-requests", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const data = { ...req.body, requesterId: userId };
+      if (data.preferredDate) data.preferredDate = new Date(data.preferredDate);
+      const request = await storage.createServiceRequest(data);
+      // Notify providers in this port
+      const providers = await storage.getAgentsByPort(data.portId);
+      for (const p of providers) {
+        if (p.userId) {
+          await storage.createNotification({
+            userId: p.userId,
+            type: "service_request",
+            title: "Yeni Hizmet Talebi",
+            message: `${data.serviceType} hizmeti için yeni bir talep oluşturuldu: ${data.vesselName}`,
+            link: `/service-requests/${request.id}`,
+          });
+        }
+      }
+      res.json(request);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create service request" });
+    }
+  });
+
+  app.get("/api/service-requests/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const request = await storage.getServiceRequestById(id);
+      if (!request) return res.status(404).json({ message: "Not found" });
+      res.json(request);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch service request" });
+    }
+  });
+
+  app.post("/api/service-requests/:id/offers", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const serviceRequestId = parseInt(req.params.id);
+      const companyId = await storage.getProviderCompanyIdByUser(userId);
+      const offer = await storage.createServiceOffer({
+        ...req.body,
+        serviceRequestId,
+        providerUserId: userId,
+        providerCompanyId: companyId,
+      });
+      // Notify requester
+      const sr = await storage.getServiceRequestById(serviceRequestId);
+      if (sr) {
+        await storage.createNotification({
+          userId: sr.requesterId,
+          type: "service_offer",
+          title: "Yeni Hizmet Teklifi",
+          message: `${sr.vesselName} için hizmet talebinize yeni bir teklif geldi`,
+          link: `/service-requests/${serviceRequestId}`,
+        });
+      }
+      res.json(offer);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to submit offer" });
+    }
+  });
+
+  app.post("/api/service-requests/:id/offers/:offerId/select", isAuthenticated, async (req: any, res) => {
+    try {
+      const requestId = parseInt(req.params.id);
+      const offerId = parseInt(req.params.offerId);
+      const offer = await storage.selectServiceOffer(offerId, requestId);
+      if (!offer) return res.status(404).json({ message: "Offer not found" });
+      // Notify selected provider
+      await storage.createNotification({
+        userId: offer.providerUserId,
+        type: "service_offer_selected",
+        title: "Teklifiniz Seçildi",
+        message: "Hizmet teklifiniz kabul edildi",
+        link: `/service-requests/${requestId}`,
+      });
+      res.json(offer);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to select offer" });
+    }
+  });
+
+  app.patch("/api/service-requests/:id/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { status } = req.body;
+      const request = await storage.updateServiceRequestStatus(id, status);
+      if (!request) return res.status(404).json({ message: "Not found" });
+      res.json(request);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update status" });
+    }
+  });
+
   return httpServer;
 }

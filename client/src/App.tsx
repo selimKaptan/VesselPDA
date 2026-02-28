@@ -9,7 +9,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, Menu, LayoutDashboard, Ship, Anchor, FileText, Building2, Gavel, MessageSquare, Navigation, MapPin, Star, Users, Settings as SettingsIcon, Crown, LogOut } from "lucide-react";
+import { Moon, Sun, Menu, LayoutDashboard, Ship, Anchor, FileText, Building2, Gavel, MessageSquare, Navigation, MapPin, Star, Users, Settings as SettingsIcon, Crown, LogOut, Wrench } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import RoleSelection from "@/pages/role-selection";
@@ -33,6 +33,10 @@ import Contact from "@/pages/contact";
 import VesselTrack from "@/pages/vessel-track";
 import PortInfo from "@/pages/port-info";
 import Settings from "@/pages/settings";
+import Voyages from "@/pages/voyages";
+import VoyageDetail from "@/pages/voyage-detail";
+import ServiceRequests from "@/pages/service-requests";
+import ServiceRequestDetail from "@/pages/service-request-detail";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -126,6 +130,10 @@ function MobileNav({ user }: { user: any }) {
             <MobileNavLink href="/service-ports" icon={Anchor} label="Service Ports" onClick={close} />
             <MobileNavLink href="/directory" icon={Building2} label="Directory" onClick={close} />
             <MobileNavLink href="/forum" icon={MessageSquare} label="Forum" onClick={close} />
+            {(role === "shipowner" || role === "agent" || isAdmin) && (
+              <MobileNavLink href="/voyages" icon={Ship} label="Seferler" onClick={close} />
+            )}
+            <MobileNavLink href="/service-requests" icon={Wrench} label="Hizmet Talepleri" onClick={close} />
             {isAdmin && <MobileNavLink href="/admin" icon={Users} label="Admin Panel" onClick={close} />}
 
             {/* Divider */}
@@ -196,6 +204,10 @@ function AuthenticatedRouter() {
       <Route path="/vessel-track" component={VesselTrack} />
       <Route path="/port-info" component={PortInfo} />
       <Route path="/settings" component={Settings} />
+      <Route path="/voyages" component={Voyages} />
+      <Route path="/voyages/:id" component={VoyageDetail} />
+      <Route path="/service-requests" component={ServiceRequests} />
+      <Route path="/service-requests/:id" component={ServiceRequestDetail} />
       <Route component={NotFound} />
     </Switch>
   );

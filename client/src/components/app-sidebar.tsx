@@ -1,4 +1,4 @@
-import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users } from "lucide-react";
+import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -82,6 +82,10 @@ export function AppSidebar() {
   if (isAdminUser || effectiveRole !== "provider") {
     toolsNav.push({ title: t("nav.vesselTrack"), url: "/vessel-track", icon: Navigation });
   }
+  if (isAdminUser || effectiveRole === "shipowner" || effectiveRole === "agent") {
+    toolsNav.push({ title: "Seferler", url: "/voyages", icon: Ship });
+  }
+  toolsNav.push({ title: "Hizmet Talepleri", url: "/service-requests", icon: Wrench });
   toolsNav.push({ title: t("nav.portInfo"), url: "/port-info", icon: Anchor });
   toolsNav.push({ title: t("nav.servicePorts"), url: "/service-ports", icon: MapPin });
 

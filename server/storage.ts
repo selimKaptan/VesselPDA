@@ -15,10 +15,15 @@ import {
   type VesselWatchlistItem, type InsertVesselWatchlist,
   type Notification, type InsertNotification,
   type Feedback, type InsertFeedback,
+  type Voyage, type InsertVoyage,
+  type VoyageChecklist, type InsertVoyageChecklist,
+  type ServiceRequest, type InsertServiceRequest,
+  type ServiceOffer, type InsertServiceOffer,
   vessels, ports, tariffCategories, tariffRates, proformas,
   forumCategories, forumTopics, forumReplies, forumLikes,
   portTenders, tenderBids, agentReviews, vesselWatchlist,
   notifications, feedbacks,
+  voyages, voyageChecklists, serviceRequests, serviceOffers,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
@@ -115,6 +120,26 @@ export interface IStorage {
 
   createFeedback(data: InsertFeedback): Promise<Feedback>;
   getAllFeedbacks(): Promise<Feedback[]>;
+
+  createVoyage(data: InsertVoyage): Promise<Voyage>;
+  getVoyagesByUser(userId: string, role: string, agentUserId?: string): Promise<any[]>;
+  getVoyageById(id: number): Promise<any | undefined>;
+  updateVoyageStatus(id: number, status: string): Promise<Voyage | undefined>;
+  createChecklistItem(data: InsertVoyageChecklist): Promise<VoyageChecklist>;
+  getChecklistByVoyage(voyageId: number): Promise<VoyageChecklist[]>;
+  toggleChecklistItem(id: number, voyageId: number): Promise<VoyageChecklist | undefined>;
+  deleteChecklistItem(id: number, voyageId: number): Promise<boolean>;
+
+  createServiceRequest(data: InsertServiceRequest): Promise<ServiceRequest>;
+  getServiceRequestsByPort(portIds: number[]): Promise<any[]>;
+  getServiceRequestsByUser(userId: string): Promise<any[]>;
+  getServiceRequestById(id: number): Promise<any | undefined>;
+  updateServiceRequestStatus(id: number, status: string): Promise<ServiceRequest | undefined>;
+  createServiceOffer(data: InsertServiceOffer): Promise<ServiceOffer>;
+  getOffersByRequest(serviceRequestId: number): Promise<any[]>;
+  selectServiceOffer(offerId: number, requestId: number): Promise<ServiceOffer | undefined>;
+  getProviderOffersByUser(providerUserId: string): Promise<any[]>;
+  getProviderCompanyIdByUser(userId: string): Promise<number | null>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -875,6 +900,224 @@ export class DatabaseStorage implements IStorage {
 
   async getAllFeedbacks(): Promise<Feedback[]> {
     return await db.select().from(feedbacks).orderBy(desc(feedbacks.createdAt));
+  }
+
+  // ─── VOYAGES ────────────────────────────────────────────────────────────────
+
+  async createVoyage(data: InsertVoyage): Promise<Voyage> {
+    const [row] = await db.insert(voyages).values(data).returning();
+    return row;
+  }
+
+  async getVoyagesByUser(userId: string, role: string): Promise<any[]> {
+    let rows: any[];
+    if (role === "agent") {
+      rows = await db
+        .select({
+          voyage: voyages,
+          portName: ports.name,
+        })
+        .from(voyages)
+        .leftJoin(ports, eq(voyages.portId, ports.id))
+        .where(eq(voyages.agentUserId, userId))
+        .orderBy(desc(voyages.createdAt));
+    } else {
+      rows = await db
+        .select({
+          voyage: voyages,
+          portName: ports.name,
+        })
+        .from(voyages)
+        .leftJoin(ports, eq(voyages.portId, ports.id))
+        .where(eq(voyages.userId, userId))
+        .orderBy(desc(voyages.createdAt));
+    }
+    return rows.map(r => ({ ...r.voyage, portName: r.portName }));
+  }
+
+  async getVoyageById(id: number): Promise<any | undefined> {
+    const [row] = await db
+      .select({ voyage: voyages, portName: ports.name })
+      .from(voyages)
+      .leftJoin(ports, eq(voyages.portId, ports.id))
+      .where(eq(voyages.id, id));
+    if (!row) return undefined;
+    const checklists = await db.select().from(voyageChecklists)
+      .where(eq(voyageChecklists.voyageId, id))
+      .orderBy(asc(voyageChecklists.createdAt));
+    const requests = await db
+      .select({ req: serviceRequests, portName: ports.name })
+      .from(serviceRequests)
+      .leftJoin(ports, eq(serviceRequests.portId, ports.id))
+      .where(eq(serviceRequests.voyageId, id))
+      .orderBy(desc(serviceRequests.createdAt));
+    return {
+      ...row.voyage,
+      portName: row.portName,
+      checklists,
+      serviceRequests: requests.map(r => ({ ...r.req, portName: r.portName })),
+    };
+  }
+
+  async updateVoyageStatus(id: number, status: string): Promise<Voyage | undefined> {
+    const [row] = await db.update(voyages).set({ status }).where(eq(voyages.id, id)).returning();
+    return row;
+  }
+
+  async createChecklistItem(data: InsertVoyageChecklist): Promise<VoyageChecklist> {
+    const [row] = await db.insert(voyageChecklists).values(data).returning();
+    return row;
+  }
+
+  async getChecklistByVoyage(voyageId: number): Promise<VoyageChecklist[]> {
+    return db.select().from(voyageChecklists)
+      .where(eq(voyageChecklists.voyageId, voyageId))
+      .orderBy(asc(voyageChecklists.createdAt));
+  }
+
+  async toggleChecklistItem(id: number, voyageId: number): Promise<VoyageChecklist | undefined> {
+    const [existing] = await db.select().from(voyageChecklists)
+      .where(and(eq(voyageChecklists.id, id), eq(voyageChecklists.voyageId, voyageId)));
+    if (!existing) return undefined;
+    const newCompleted = !existing.isCompleted;
+    const [row] = await db.update(voyageChecklists)
+      .set({ isCompleted: newCompleted, completedAt: newCompleted ? new Date() : null })
+      .where(eq(voyageChecklists.id, id))
+      .returning();
+    return row;
+  }
+
+  async deleteChecklistItem(id: number, voyageId: number): Promise<boolean> {
+    const result = await db.delete(voyageChecklists)
+      .where(and(eq(voyageChecklists.id, id), eq(voyageChecklists.voyageId, voyageId)));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // ─── SERVICE REQUESTS ───────────────────────────────────────────────────────
+
+  async createServiceRequest(data: InsertServiceRequest): Promise<ServiceRequest> {
+    const [row] = await db.insert(serviceRequests).values(data).returning();
+    return row;
+  }
+
+  async getServiceRequestsByPort(portIds: number[]): Promise<any[]> {
+    if (portIds.length === 0) return [];
+    const rows = await db
+      .select({ req: serviceRequests, portName: ports.name })
+      .from(serviceRequests)
+      .leftJoin(ports, eq(serviceRequests.portId, ports.id))
+      .where(and(
+        or(...portIds.map(pid => eq(serviceRequests.portId, pid))),
+        or(eq(serviceRequests.status, "open"), eq(serviceRequests.status, "offers_received"))
+      ))
+      .orderBy(desc(serviceRequests.createdAt));
+    return rows.map(r => ({ ...r.req, portName: r.portName }));
+  }
+
+  async getServiceRequestsByUser(userId: string): Promise<any[]> {
+    const rows = await db
+      .select({ req: serviceRequests, portName: ports.name })
+      .from(serviceRequests)
+      .leftJoin(ports, eq(serviceRequests.portId, ports.id))
+      .where(eq(serviceRequests.requesterId, userId))
+      .orderBy(desc(serviceRequests.createdAt));
+    return rows.map(r => ({ ...r.req, portName: r.portName }));
+  }
+
+  async getServiceRequestById(id: number): Promise<any | undefined> {
+    const [row] = await db
+      .select({ req: serviceRequests, portName: ports.name })
+      .from(serviceRequests)
+      .leftJoin(ports, eq(serviceRequests.portId, ports.id))
+      .where(eq(serviceRequests.id, id));
+    if (!row) return undefined;
+    const offers = await db
+      .select({
+        offer: serviceOffers,
+        providerFirstName: users.firstName,
+        providerLastName: users.lastName,
+      })
+      .from(serviceOffers)
+      .leftJoin(users, eq(serviceOffers.providerUserId, users.id))
+      .where(eq(serviceOffers.serviceRequestId, id))
+      .orderBy(asc(serviceOffers.createdAt));
+    return {
+      ...row.req,
+      portName: row.portName,
+      offers: offers.map(o => ({
+        ...o.offer,
+        providerName: `${o.providerFirstName || ""} ${o.providerLastName || ""}`.trim() || "Provider",
+      })),
+    };
+  }
+
+  async updateServiceRequestStatus(id: number, status: string): Promise<ServiceRequest | undefined> {
+    const [row] = await db.update(serviceRequests).set({ status }).where(eq(serviceRequests.id, id)).returning();
+    return row;
+  }
+
+  async createServiceOffer(data: InsertServiceOffer): Promise<ServiceOffer> {
+    const [row] = await db.insert(serviceOffers).values(data).returning();
+    await db.update(serviceRequests)
+      .set({ status: "offers_received" })
+      .where(and(eq(serviceRequests.id, data.serviceRequestId), eq(serviceRequests.status, "open")));
+    return row;
+  }
+
+  async getOffersByRequest(serviceRequestId: number): Promise<any[]> {
+    const rows = await db
+      .select({
+        offer: serviceOffers,
+        providerFirstName: users.firstName,
+        providerLastName: users.lastName,
+      })
+      .from(serviceOffers)
+      .leftJoin(users, eq(serviceOffers.providerUserId, users.id))
+      .where(eq(serviceOffers.serviceRequestId, serviceRequestId))
+      .orderBy(asc(serviceOffers.createdAt));
+    return rows.map(o => ({
+      ...o.offer,
+      providerName: `${o.providerFirstName || ""} ${o.providerLastName || ""}`.trim() || "Provider",
+    }));
+  }
+
+  async selectServiceOffer(offerId: number, requestId: number): Promise<ServiceOffer | undefined> {
+    await db.update(serviceOffers)
+      .set({ status: "rejected" })
+      .where(and(eq(serviceOffers.serviceRequestId, requestId), eq(serviceOffers.status, "pending")));
+    const [row] = await db.update(serviceOffers)
+      .set({ status: "selected" })
+      .where(eq(serviceOffers.id, offerId))
+      .returning();
+    await db.update(serviceRequests)
+      .set({ status: "selected" })
+      .where(eq(serviceRequests.id, requestId));
+    return row;
+  }
+
+  async getProviderOffersByUser(providerUserId: string): Promise<any[]> {
+    const rows = await db
+      .select({
+        offer: serviceOffers,
+        req: serviceRequests,
+        portName: ports.name,
+      })
+      .from(serviceOffers)
+      .leftJoin(serviceRequests, eq(serviceOffers.serviceRequestId, serviceRequests.id))
+      .leftJoin(ports, eq(serviceRequests.portId, ports.id))
+      .where(eq(serviceOffers.providerUserId, providerUserId))
+      .orderBy(desc(serviceOffers.createdAt));
+    return rows.map(r => ({
+      ...r.offer,
+      request: { ...r.req, portName: r.portName },
+    }));
+  }
+
+  async getProviderCompanyIdByUser(userId: string): Promise<number | null> {
+    const [row] = await db.select({ id: companyProfiles.id })
+      .from(companyProfiles)
+      .where(eq(companyProfiles.userId, userId));
+    return row?.id ?? null;
   }
 }
 

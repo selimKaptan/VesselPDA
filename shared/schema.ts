@@ -327,3 +327,102 @@ export const notificationRelations = relations(notifications, ({ one }) => ({
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true, isRead: true });
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
+
+// ─── VOYAGES (SEFER YÖNETİMİ) ─────────────────────────────────────────────────
+
+export const voyages = pgTable("voyages", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  vesselId: integer("vessel_id").references(() => vessels.id),
+  portId: integer("port_id").notNull().references(() => ports.id),
+  agentUserId: varchar("agent_user_id").references(() => users.id),
+  tenderId: integer("tender_id").references(() => portTenders.id),
+  vesselName: text("vessel_name"),
+  status: text("status").notNull().default("planned"),
+  eta: timestamp("eta"),
+  etd: timestamp("etd"),
+  purposeOfCall: text("purpose_of_call").notNull().default("Loading"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const voyageRelations = relations(voyages, ({ one, many }) => ({
+  user: one(users, { fields: [voyages.userId], references: [users.id] }),
+  vessel: one(vessels, { fields: [voyages.vesselId], references: [vessels.id] }),
+  port: one(ports, { fields: [voyages.portId], references: [ports.id] }),
+  tender: one(portTenders, { fields: [voyages.tenderId], references: [portTenders.id] }),
+  checklists: many(voyageChecklists),
+  serviceRequests: many(serviceRequests),
+}));
+
+export const voyageChecklists = pgTable("voyage_checklists", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  isCompleted: boolean("is_completed").notNull().default(false),
+  assignedTo: text("assigned_to").notNull().default("both"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const voyageChecklistRelations = relations(voyageChecklists, ({ one }) => ({
+  voyage: one(voyages, { fields: [voyageChecklists.voyageId], references: [voyages.id] }),
+}));
+
+// ─── SERVICE REQUESTS (HİZMET TALEPLERİ) ─────────────────────────────────────
+
+export const serviceRequests = pgTable("service_requests", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  requesterId: varchar("requester_id").notNull().references(() => users.id),
+  portId: integer("port_id").notNull().references(() => ports.id),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
+  vesselName: text("vessel_name").notNull(),
+  grt: real("grt"),
+  serviceType: text("service_type").notNull().default("other"),
+  description: text("description").notNull(),
+  quantity: real("quantity"),
+  unit: text("unit"),
+  preferredDate: timestamp("preferred_date"),
+  status: text("status").notNull().default("open"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const serviceRequestRelations = relations(serviceRequests, ({ one, many }) => ({
+  requester: one(users, { fields: [serviceRequests.requesterId], references: [users.id] }),
+  port: one(ports, { fields: [serviceRequests.portId], references: [ports.id] }),
+  voyage: one(voyages, { fields: [serviceRequests.voyageId], references: [voyages.id] }),
+  offers: many(serviceOffers),
+}));
+
+export const serviceOffers = pgTable("service_offers", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  serviceRequestId: integer("service_request_id").notNull().references(() => serviceRequests.id, { onDelete: "cascade" }),
+  providerUserId: varchar("provider_user_id").notNull().references(() => users.id),
+  providerCompanyId: integer("provider_company_id").references(() => companyProfiles.id),
+  price: real("price").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  notes: text("notes"),
+  estimatedDuration: text("estimated_duration"),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const serviceOfferRelations = relations(serviceOffers, ({ one }) => ({
+  serviceRequest: one(serviceRequests, { fields: [serviceOffers.serviceRequestId], references: [serviceRequests.id] }),
+  provider: one(users, { fields: [serviceOffers.providerUserId], references: [users.id] }),
+  providerCompany: one(companyProfiles, { fields: [serviceOffers.providerCompanyId], references: [companyProfiles.id] }),
+}));
+
+export const insertVoyageSchema = createInsertSchema(voyages).omit({ id: true, createdAt: true });
+export const insertVoyageChecklistSchema = createInsertSchema(voyageChecklists).omit({ id: true, createdAt: true, isCompleted: true, completedAt: true });
+export const insertServiceRequestSchema = createInsertSchema(serviceRequests).omit({ id: true, createdAt: true, status: true });
+export const insertServiceOfferSchema = createInsertSchema(serviceOffers).omit({ id: true, createdAt: true, status: true });
+
+export type InsertVoyage = z.infer<typeof insertVoyageSchema>;
+export type Voyage = typeof voyages.$inferSelect;
+export type InsertVoyageChecklist = z.infer<typeof insertVoyageChecklistSchema>;
+export type VoyageChecklist = typeof voyageChecklists.$inferSelect;
+export type InsertServiceRequest = z.infer<typeof insertServiceRequestSchema>;
+export type ServiceRequest = typeof serviceRequests.$inferSelect;
+export type InsertServiceOffer = z.infer<typeof insertServiceOfferSchema>;
+export type ServiceOffer = typeof serviceOffers.$inferSelect;
