@@ -245,7 +245,7 @@ export default function ForumTopic() {
       />
       {!user && (
         <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/80 border-b">
-          <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
+          <div className="max-w-7xl mx-auto px-3 h-16 flex items-center justify-between gap-4">
             <a href="/" className="flex items-center gap-2" data-testid="link-home">
               <img src="/logo-v2.png" alt="VesselPDA" className="w-9 h-9 rounded-md object-contain" />
               <span className="font-serif font-bold text-lg tracking-tight">VesselPDA</span>
@@ -264,7 +264,7 @@ export default function ForumTopic() {
         </nav>
       )}
 
-      <div className={`max-w-6xl mx-auto px-6 ${!user ? "pt-24" : "pt-6"} pb-8`}>
+      <div className={`max-w-6xl mx-auto px-3 ${!user ? "pt-24" : "pt-6"} pb-8`}>
         <Link href={forumReturnUrl} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6" data-testid="link-back-forum">
           <ArrowLeft className="w-4 h-4" /> Back to Forum
         </Link>

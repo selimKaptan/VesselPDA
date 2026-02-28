@@ -66,7 +66,7 @@ export default function Pricing() {
   ];
 
   return (
-    <div className="p-6 space-y-8 max-w-7xl mx-auto">
+    <div className="px-3 py-5 space-y-8 max-w-7xl mx-auto">
       <PageMeta title="Pricing & Plans | VesselPDA" description="Choose the right plan for your maritime operations. Free, Standard, and Unlimited plans available." />
       <div className="flex items-center gap-4">
         <Link href="/">

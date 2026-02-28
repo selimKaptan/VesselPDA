@@ -70,7 +70,7 @@ export default function ServiceRequestDetail() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-4 max-w-2xl mx-auto">
+      <div className="px-3 py-5 space-y-4 max-w-2xl mx-auto">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-32 w-full" />
@@ -93,7 +93,7 @@ export default function ServiceRequestDetail() {
   const offers: any[] = request.offers || [];
 
   return (
-    <div className="p-6 space-y-6 max-w-2xl mx-auto">
+    <div className="px-3 py-5 space-y-6 max-w-2xl mx-auto">
       <PageMeta title="Hizmet Talebi Detayı | VesselPDA" description="Hizmet talebi detayı ve teklifler" />
 
       <Link href="/service-requests">

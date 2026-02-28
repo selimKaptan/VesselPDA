@@ -173,7 +173,7 @@ export default function CompanyProfilePage() {
 
   if (profileLoading) {
     return (
-      <div className="p-6 max-w-6xl mx-auto space-y-6">
+      <div className="px-3 py-5 max-w-6xl mx-auto space-y-6">
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-[500px]" />
       </div>
@@ -181,7 +181,7 @@ export default function CompanyProfilePage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto">
+    <div className="px-3 py-5 space-y-6 max-w-6xl mx-auto">
       <div>
         <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-profile-title">Company Profile</h1>
         <p className="text-muted-foreground text-sm">

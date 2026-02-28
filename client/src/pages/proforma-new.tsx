@@ -241,7 +241,7 @@ export default function ProformaNew() {
   const selectedPortData = ports?.find((p) => p.id.toString() === selectedPort);
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center gap-4">
         <Link href="/proformas">
           <Button variant="ghost" size="icon" data-testid="button-back-proformas">

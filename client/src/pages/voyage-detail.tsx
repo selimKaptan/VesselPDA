@@ -282,7 +282,7 @@ export default function VoyageDetail() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-4 max-w-6xl mx-auto">
+      <div className="px-3 py-5 space-y-4 max-w-6xl mx-auto">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-40 w-full" />
         <Skeleton className="h-60 w-full" />
@@ -308,7 +308,7 @@ export default function VoyageDetail() {
   const reviews: any[] = reviewData?.reviews || [];
 
   return (
-    <div className="p-6 space-y-6 max-w-6xl mx-auto">
+    <div className="px-3 py-5 space-y-6 max-w-6xl mx-auto">
       <PageMeta title={`Sefer — ${voyage.vesselName || "Detay"} | VesselPDA`} description="Sefer detayı ve operasyon dosyası" />
 
       {/* Back */}

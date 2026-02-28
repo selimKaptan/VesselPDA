@@ -206,7 +206,7 @@ export default function ServiceRequests() {
   });
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
       <PageMeta title="Hizmet Talepleri | VesselPDA" description="Denizcilik hizmet talepleri ve teklifler" />
 
       <div className="flex items-center justify-between gap-4 flex-wrap">

@@ -68,7 +68,7 @@ export default function Proformas() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
       <PageMeta title="Proformas | VesselPDA" description="Manage your proforma disbursement accounts." />
 
       <div className="flex items-center justify-between gap-4 flex-wrap">

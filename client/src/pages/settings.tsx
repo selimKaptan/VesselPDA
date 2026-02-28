@@ -133,7 +133,7 @@ export default function Settings() {
   const completionPct = completionItems.length > 0 ? Math.round((doneCount / completionItems.length) * 100) : 0;
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
+    <div className="max-w-2xl mx-auto px-3 py-5 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Account Settings</h1>
         <p className="text-muted-foreground text-sm mt-1">Manage your profile, password and account details.</p>

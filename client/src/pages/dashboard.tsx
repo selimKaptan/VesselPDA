@@ -98,7 +98,7 @@ export default function Dashboard() {
   const proformaLimit = (user as any)?.proformaLimit ?? 1;
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
       <PageMeta title="Dashboard | VesselPDA" description="Your maritime operations dashboard — vessels, proformas, tenders, and fleet activity." />
 
       {/* Admin Bootstrap */}

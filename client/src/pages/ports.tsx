@@ -9,7 +9,7 @@ export default function Ports() {
   const { data: ports, isLoading } = useQuery<Port[]>({ queryKey: ["/api/ports"] });
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
       <div>
         <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-ports-title">Ports & Tariffs</h1>
         <p className="text-muted-foreground text-sm">View available ports and their tariff data for proforma calculations.</p>

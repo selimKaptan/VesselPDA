@@ -122,7 +122,7 @@ export default function AdminPanel() {
   ) || [];
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
       <PageMeta title="Admin Panel | VesselPDA" description="System administration and management" />
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-950/30 flex items-center justify-center">

@@ -74,7 +74,7 @@ export default function MessageThread() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-full max-w-2xl mx-auto p-6 space-y-4">
+      <div className="flex flex-col h-full max-w-2xl mx-auto px-3 py-5 space-y-4">
         <Skeleton className="h-8 w-48" />
         <div className="flex-1 space-y-3">
           {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-10 w-3/4" />)}

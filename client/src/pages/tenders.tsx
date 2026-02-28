@@ -505,7 +505,7 @@ export default function TendersPage() {
   const clearFilters = () => { setSearchText(""); setCargoFilter(""); setStatusFilter("all"); };
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-6xl mx-auto">
+    <div className="flex flex-col gap-6 px-3 py-5 max-w-6xl mx-auto">
       <PageMeta title="Port Call Tenders | VesselPDA" description="Create and manage port call tenders, receive bids from agents worldwide." />
       <div className="flex items-center justify-between">
         <div>

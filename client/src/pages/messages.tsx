@@ -31,7 +31,7 @@ export default function Messages() {
   );
 
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-5">
+    <div className="px-3 py-5 max-w-2xl mx-auto space-y-5">
       <PageMeta title="Mesajlar | VesselPDA" description="Doğrudan mesajlaşma gelen kutusu" />
 
       <div className="flex items-center gap-3">

@@ -129,7 +129,7 @@ export default function Voyages() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
       <PageMeta title="Seferler | VesselPDA" description="Sefer ve operasyon dosyaları" />
 
       <div className="flex items-center justify-between gap-4 flex-wrap">
