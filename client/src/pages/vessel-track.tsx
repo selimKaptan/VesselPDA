@@ -2,7 +2,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Navigation, Search, Plus, X, Anchor, Ship, MapPin, ArrowRight, AlertTriangle, ChevronRight, Loader2 } from "lucide-react";
+import { Navigation, Search, Plus, X, Anchor, Ship, MapPin, ArrowRight, AlertTriangle, ChevronRight, Loader2, List, Map, Filter, ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -175,6 +175,308 @@ function VesselCard({
   );
 }
 
+const VESSEL_TYPES = [
+  "Container", "Tanker", "Gas Carrier", "Bulk Carrier", "General Cargo",
+  "Ro-Ro", "Passenger", "Offshore", "Tugs & Harbor Craft", "Bunkering",
+  "Special Craft", "Fishing", "Pleasure craft", "Unspecified",
+];
+
+const STATUS_OPTIONS = ["underway", "anchored", "moored"] as const;
+
+function VesselListView({
+  positions,
+  onShowOnMap,
+}: {
+  positions: AISVessel[];
+  onShowOnMap: (v: AISVessel) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState<"name" | "speed" | "type">("name");
+  const [page, setPage] = useState(1);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const PAGE_SIZE = 10;
+
+  const toggleStatus = (s: string) => {
+    setStatusFilters(prev => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s); else next.add(s);
+      return next;
+    });
+    setPage(1);
+  };
+
+  const filtered = useMemo(() => {
+    let list = [...positions];
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(v =>
+        (v.vesselName || v.name || "").toLowerCase().includes(q) ||
+        (v.mmsi || "").includes(q)
+      );
+    }
+    if (typeFilter) {
+      list = list.filter(v => {
+        const t = (v.vesselType || "").toLowerCase();
+        return t.includes(typeFilter.toLowerCase());
+      });
+    }
+    if (statusFilters.size > 0) {
+      list = list.filter(v => statusFilters.has(v.status));
+    }
+    list.sort((a, b) => {
+      if (sortBy === "speed") return (b.speed || 0) - (a.speed || 0);
+      if (sortBy === "type") return (a.vesselType || "").localeCompare(b.vesselType || "");
+      return (a.vesselName || a.name || "").localeCompare(b.vesselName || b.name || "");
+    });
+    return list;
+  }, [positions, search, typeFilter, statusFilters, sortBy]);
+
+  const paginated = filtered.slice(0, page * PAGE_SIZE);
+  const hasMore = paginated.length < filtered.length;
+  const activeFilterCount = (typeFilter ? 1 : 0) + statusFilters.size;
+
+  return (
+    <div className="flex h-full overflow-hidden bg-background">
+      {/* Left sidebar — filters */}
+      <div className="w-52 flex-shrink-0 border-r flex flex-col overflow-hidden bg-muted/20">
+        <div className="px-4 py-3 border-b flex items-center gap-2 flex-shrink-0">
+          <SlidersHorizontal className="w-4 h-4 text-muted-foreground" />
+          <span className="font-semibold text-sm">Filters</span>
+          {activeFilterCount > 0 && (
+            <Badge className="ml-auto text-[10px] px-1.5 py-0 h-4" style={{ background: "#003D7A" }}>
+              {activeFilterCount}
+            </Badge>
+          )}
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
+          {/* Vessel Type */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Vessel Type</p>
+              {typeFilter && (
+                <button onClick={() => { setTypeFilter(null); setPage(1); }} className="text-[10px] text-blue-600 hover:underline">
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="space-y-0.5">
+              {VESSEL_TYPES.map(t => (
+                <button
+                  key={t}
+                  onClick={() => { setTypeFilter(typeFilter === t ? null : t); setPage(1); }}
+                  data-testid={`filter-type-${t}`}
+                  className={`w-full text-left px-2 py-1 rounded text-xs transition-colors ${
+                    typeFilter === t
+                      ? "bg-[hsl(var(--maritime-primary))] text-white font-semibold"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Status */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-foreground uppercase tracking-wide">Status</p>
+              {statusFilters.size > 0 && (
+                <button onClick={() => { setStatusFilters(new Set()); setPage(1); }} className="text-[10px] text-blue-600 hover:underline">
+                  Clear
+                </button>
+              )}
+            </div>
+            <div className="space-y-1">
+              {STATUS_OPTIONS.map(s => {
+                const dot = s === "underway" ? "bg-blue-500" : s === "anchored" ? "bg-amber-500" : "bg-emerald-500";
+                const label = STATUS_LABELS[s];
+                const active = statusFilters.has(s);
+                return (
+                  <button
+                    key={s}
+                    onClick={() => toggleStatus(s)}
+                    data-testid={`filter-status-${s}`}
+                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
+                      active ? "bg-muted font-semibold text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
+                    {label}
+                    {active && <span className="ml-auto text-[hsl(var(--maritime-primary))]">✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b flex-shrink-0">
+          <h1 className="text-2xl font-bold tracking-tight">Search and Track Ships</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Showing{" "}
+            <span className="font-medium text-foreground">
+              ({Math.min(1, filtered.length)} to {Math.min(paginated.length, filtered.length)} of {filtered.length} vessels)
+            </span>
+          </p>
+        </div>
+
+        {/* Search + Sort bar */}
+        <div className="px-6 py-3 border-b flex-shrink-0 flex items-center gap-3">
+          <div className="relative flex-1 max-w-xl">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Search by vessel name or MMSI..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              className="pl-9 h-9"
+              data-testid="input-list-search"
+            />
+            {search && (
+              <button
+                onClick={() => { setSearch(""); setPage(1); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                data-testid="button-clear-list-search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">Sort by</span>
+            <div className="flex border rounded-md overflow-hidden">
+              {([["name", "Name"], ["speed", "Speed"], ["type", "Type"]] as const).map(([v, l]) => (
+                <button
+                  key={v}
+                  onClick={() => setSortBy(v)}
+                  data-testid={`sort-${v}`}
+                  className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                    sortBy === v ? "bg-[hsl(var(--maritime-primary))] text-white" : "text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Vessel list */}
+        <div className="flex-1 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <Ship className="w-12 h-12 text-muted-foreground/30 mb-3" />
+              <p className="font-semibold text-muted-foreground">No vessels match your filters</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">Try adjusting the search or filters</p>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {paginated.map((v) => {
+                const id = String(v.mmsi || v.id || "");
+                const name = v.vesselName || v.name || "Unknown";
+                const isExpanded = expandedId === id;
+                const statusDot = v.status === "underway" ? "bg-blue-500" : v.status === "anchored" ? "bg-amber-500" : "bg-emerald-500";
+                const statusBadge = v.status === "underway"
+                  ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300"
+                  : v.status === "anchored"
+                  ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300"
+                  : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300";
+
+                return (
+                  <div key={id} data-testid={`list-vessel-${id}`}>
+                    {/* Row */}
+                    <button
+                      className="w-full flex items-center gap-3 px-6 py-3.5 hover:bg-muted/40 transition-colors text-left"
+                      onClick={() => setExpandedId(isExpanded ? null : id)}
+                      data-testid={`button-expand-${id}`}
+                    >
+                      <span className="text-2xl leading-none flex-shrink-0">{v.flag}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-sm truncate">{name}</span>
+                          {v.mmsi && (
+                            <span className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground border flex-shrink-0">
+                              {v.mmsi}
+                            </span>
+                          )}
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border flex-shrink-0 ${statusBadge}`}>
+                            {STATUS_LABELS[v.status]}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{v.vesselType}</p>
+                      </div>
+                      <div className="flex-shrink-0 ml-2 text-muted-foreground">
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </div>
+                    </button>
+
+                    {/* Expanded detail */}
+                    {isExpanded && (
+                      <div className="px-6 pb-4 bg-muted/20 border-t">
+                        <div className="grid grid-cols-3 gap-4 pt-4 mb-4">
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">ETA</p>
+                            <p className="text-sm font-medium">
+                              {v.eta
+                                ? new Date(v.eta).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                                : "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Destination</p>
+                            <p className="text-sm font-medium truncate">{v.destination || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Speed / Heading</p>
+                            <p className="text-sm font-medium">
+                              {v.speed > 0 ? `${v.speed} kn` : "—"}
+                              {v.heading !== undefined && v.speed > 0 ? ` · ${v.heading}°` : ""}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          className="font-semibold gap-1.5"
+                          style={{ background: "#003D7A" }}
+                          onClick={() => onShowOnMap(v)}
+                          data-testid={`button-show-on-map-${id}`}
+                        >
+                          Show on Map <ArrowRight className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Load more */}
+          {hasMore && (
+            <div className="flex justify-center py-6">
+              <Button
+                variant="outline"
+                onClick={() => setPage(p => p + 1)}
+                data-testid="button-load-more"
+                className="px-8"
+              >
+                Load more ({filtered.length - paginated.length} remaining)
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function VesselTrack() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -301,6 +603,7 @@ export default function VesselTrack() {
 
   const defaultTab = isAgent ? "agency" : "fleet";
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
+  const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
 
   // Initialize Mapbox map
   useEffect(() => {
@@ -428,37 +731,85 @@ export default function VesselTrack() {
     }
   }, [flyTarget]);
 
+  // Resize map when switching back to map view
+  useEffect(() => {
+    if (viewMode === "map" && mapRef.current) {
+      setTimeout(() => mapRef.current?.resize(), 50);
+    }
+  }, [viewMode]);
+
+  const handleShowOnMap = useCallback((v: AISVessel) => {
+    setViewMode("map");
+    handleFocus(v);
+  }, [handleFocus]);
+
   return (
-    <div className="flex flex-col md:flex-row h-full" style={{ height: "calc(100vh - 56px)" }}>
+    <div className="flex flex-col h-full" style={{ height: "calc(100vh - 56px)" }}>
       <PageMeta title="Vessel Track | VesselPDA" description="Track live vessel positions in Turkish waters with AIS data." />
 
-      {/* Left panel */}
-      <div className={`${mobileView === 'map' ? 'hidden md:flex' : 'flex'} w-full md:w-80 flex-shrink-0 md:border-r flex-col bg-background overflow-hidden`} data-testid="panel-vessel-list">
-        <div className="px-4 py-3 border-b flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0">
-              <Navigation className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-            </div>
-            <div>
-              <h1 className="font-serif font-bold text-base tracking-tight">Vessel Track</h1>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
-                {allMapVessels.length} vessels on map
-              </p>
-            </div>
-            {isLive ? (
-              <Badge variant="outline" className="ml-auto text-[10px] font-bold border-emerald-300 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 flex items-center gap-1" data-testid="badge-ais-status">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                LIVE AIS
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="ml-auto text-[10px] font-bold border-amber-300 text-amber-600 bg-amber-50 dark:bg-amber-950/20 flex items-center gap-1" data-testid="badge-ais-status">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                DEMO
-              </Badge>
-            )}
+      {/* Top bar with view toggle */}
+      <div className="flex items-center gap-3 px-4 py-2 border-b bg-background flex-shrink-0">
+        <div className="flex items-center gap-2 flex-1">
+          <div className="w-7 h-7 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0">
+            <Navigation className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" />
           </div>
+          <span className="font-serif font-bold text-sm tracking-tight">Vessel Track</span>
+          <span className="text-[10px] text-muted-foreground hidden sm:inline">
+            {allMapVessels.length} vessels
+          </span>
+          {isLive ? (
+            <Badge variant="outline" className="text-[10px] font-bold border-emerald-300 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 flex items-center gap-1" data-testid="badge-ais-status">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              LIVE AIS
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-[10px] font-bold border-amber-300 text-amber-600 bg-amber-50 dark:bg-amber-950/20 flex items-center gap-1" data-testid="badge-ais-status">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              DEMO
+            </Badge>
+          )}
         </div>
 
+        {/* Map / List toggle */}
+        <div className="flex border rounded-lg overflow-hidden flex-shrink-0" data-testid="toggle-view-mode">
+          <button
+            onClick={() => setViewMode("map")}
+            data-testid="button-view-map"
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors ${
+              viewMode === "map"
+                ? "bg-[hsl(var(--maritime-primary))] text-white"
+                : "text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            <Map className="w-3.5 h-3.5" />
+            Map
+          </button>
+          <button
+            onClick={() => setViewMode("list")}
+            data-testid="button-view-list"
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors border-l ${
+              viewMode === "list"
+                ? "bg-[hsl(var(--maritime-primary))] text-white"
+                : "text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            <List className="w-3.5 h-3.5" />
+            List
+          </button>
+        </div>
+      </div>
+
+      {/* List view */}
+      {viewMode === "list" && (
+        <div className="flex-1 overflow-hidden">
+          <VesselListView positions={allMapVessels} onShowOnMap={handleShowOnMap} />
+        </div>
+      )}
+
+      {/* Map view (kept mounted, hidden when in list mode) */}
+      <div className={`${viewMode === "list" ? "hidden" : "flex"} flex-1 flex-row overflow-hidden`}>
+        {/* Left panel */}
+        <div className={`${mobileView === 'map' ? 'hidden md:flex' : 'flex'} w-full md:w-80 flex-shrink-0 md:border-r flex-col bg-background overflow-hidden`} data-testid="panel-vessel-list">
         {/* Mobile map toggle */}
         <div className="flex md:hidden border-b flex-shrink-0">
           <button
@@ -715,6 +1066,7 @@ export default function VesselTrack() {
           style={{ height: "100%", width: "100%" }}
           data-testid="map-container"
         />
+      </div>
       </div>
     </div>
   );
