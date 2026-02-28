@@ -209,14 +209,13 @@ function AuthenticatedLayout() {
   };
 
   return (
-    <SidebarProvider style={style as React.CSSProperties}>
+    <SidebarProvider defaultOpen={false} style={style as React.CSSProperties}>
       <div className="flex h-screen w-full">
         <AppSidebar />
         <div className="flex flex-col flex-1 min-w-0">
           <header className="flex items-center justify-between gap-2 px-3 border-b h-14 flex-shrink-0 bg-background">
             <div className="flex items-center gap-1">
               <MobileNav user={user} />
-              <SidebarTrigger data-testid="button-sidebar-toggle" className="hidden md:flex" />
             </div>
             <div className="flex items-center gap-1">
               <DarkModeToggle />

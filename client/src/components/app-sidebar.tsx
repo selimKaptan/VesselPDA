@@ -36,7 +36,7 @@ export function AppSidebar() {
   const [location] = useLocation();
   const { lang, setLang, t } = useLanguage();
   const { user } = useAuth();
-  const { state } = useSidebar();
+  const { state, setOpen } = useSidebar();
   const isCollapsed = state === "collapsed";
   const userRole = (user as any)?.userRole || "shipowner";
   const activeRole = (user as any)?.activeRole || "agent";
@@ -103,7 +103,7 @@ export function AppSidebar() {
     : "User";
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
       {/* Header */}
       <SidebarHeader className={`border-b border-sidebar-border/60 ${isCollapsed ? "px-1 py-3" : "px-4 py-5"}`}>
         <Link href="/" className={`flex items-center hover:opacity-80 transition-opacity ${isCollapsed ? "justify-center" : "gap-3 overflow-hidden"}`}>
