@@ -784,7 +784,8 @@ export class DatabaseStorage implements IStorage {
 
     const withBidCounts = await Promise.all(results.map(async (t) => {
       const [{ cnt }] = await db.select({ cnt: sql<number>`count(*)::int` }).from(tenderBids).where(eq(tenderBids.tenderId, t.id));
-      return { ...t, bidCount: cnt };
+      const [{ pendingCnt }] = await db.select({ pendingCnt: sql<number>`count(*)::int` }).from(tenderBids).where(and(eq(tenderBids.tenderId, t.id), eq(tenderBids.status, "pending")));
+      return { ...t, bidCount: cnt, pendingBidCount: pendingCnt };
     }));
     return withBidCounts;
   }

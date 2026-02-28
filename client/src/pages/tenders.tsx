@@ -49,6 +49,8 @@ function TenderCard({ tender, role, myBidStatus, isOwnTender }: { tender: any; r
   const [, navigate] = useLocation();
   const { remaining, expired } = useCountdown(tender.createdAt, tender.expiryHours);
 
+  const hasNewBids = role === "shipowner" && tender.status === "open" && tender.pendingBidCount > 0;
+
   const statusColor = {
     open: "bg-emerald-100 text-emerald-700",
     closed: "bg-blue-100 text-blue-700",
@@ -73,14 +75,14 @@ function TenderCard({ tender, role, myBidStatus, isOwnTender }: { tender: any; r
 
   return (
     <Card
-      className="p-5 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 cursor-pointer border-border/60"
+      className={`p-5 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 cursor-pointer ${hasNewBids ? "border-amber-300 ring-1 ring-amber-300 dark:border-amber-600 dark:ring-amber-600" : "border-border/60"}`}
       onClick={() => navigate(`/tenders/${tender.id}`)}
       data-testid={`card-tender-${tender.id}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 flex-1 min-w-0">
-          <div className="w-10 h-10 rounded-lg bg-[hsl(var(--maritime-primary)/0.08)] flex items-center justify-center flex-shrink-0">
-            <Gavel className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${hasNewBids ? "bg-amber-100 dark:bg-amber-900/30" : "bg-[hsl(var(--maritime-primary)/0.08)]"}`}>
+            <Gavel className={`w-5 h-5 ${hasNewBids ? "text-amber-600" : "text-[hsl(var(--maritime-primary))]"}`} />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-0.5">
@@ -106,7 +108,14 @@ function TenderCard({ tender, role, myBidStatus, isOwnTender }: { tender: any; r
               <Ship className="w-3 h-3" />
               <span data-testid={`text-tender-port-${tender.id}`}>{tender.portName}</span>
             </div>
-            {tender.cargoInfo && (
+            {hasNewBids && (
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500 text-white animate-pulse" data-testid={`badge-new-bids-${tender.id}`}>
+                  🔔 {tender.pendingBidCount} Yeni Teklif
+                </span>
+              </div>
+            )}
+            {!hasNewBids && tender.cargoInfo && (
               <p className="text-xs text-muted-foreground line-clamp-1">{tender.cargoInfo}</p>
             )}
           </div>
@@ -117,7 +126,7 @@ function TenderCard({ tender, role, myBidStatus, isOwnTender }: { tender: any; r
             <Clock className="w-3.5 h-3.5" />
             {tender.status === "open" ? remaining : statusLabel}
           </div>
-          {role === "shipowner" && tender.bidCount > 0 && (
+          {role === "shipowner" && !hasNewBids && tender.bidCount > 0 && (
             <Badge variant="secondary" className="text-[10px]">
               {tender.bidCount} bids
             </Badge>
