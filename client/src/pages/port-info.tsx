@@ -6,7 +6,7 @@ import { Link } from "wouter";
 import {
   Anchor, Search, MapPin, Globe, Info, Loader2,
   Waves, Building2, X, Users, FileText,
-  ExternalLink, Ship, DollarSign, Wind, Thermometer,
+  ExternalLink, Ship, Wind, Thermometer,
   ShieldCheck, ShieldAlert, ShieldX, AlertTriangle, Cloud, ChevronLeft
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -286,10 +286,9 @@ function PortDetailPanel({
         ) : portInfoData ? (
           <>
             {/* Info cards */}
-            {(portInfoData.extended?.maxDraft || portInfoData.port?.currency) && (
-              <div className="grid grid-cols-2 gap-2">
-                {portInfoData.extended?.maxDraft && <InfoCard icon={<Waves className="w-3.5 h-3.5 text-[hsl(var(--maritime-accent))]" />} label="Maks. Draft" value={`${portInfoData.extended.maxDraft}m`} />}
-                {portInfoData.port?.currency && <InfoCard icon={<DollarSign className="w-3.5 h-3.5 text-[hsl(var(--maritime-accent))]" />} label="Para Birimi" value={portInfoData.port.currency} />}
+            {portInfoData.extended?.maxDraft && (
+              <div>
+                <InfoCard icon={<Waves className="w-3.5 h-3.5 text-[hsl(var(--maritime-accent))]" />} label="Maks. Draft" value={`${portInfoData.extended.maxDraft}m`} />
               </div>
             )}
 
