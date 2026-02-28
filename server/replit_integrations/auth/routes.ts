@@ -169,11 +169,16 @@ export function registerAuthRoutes(app: Express): void {
         const token = generateToken();
         const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
         await authStorage.setVerificationToken(user.id, token, expiry);
-        try {
-          await sendVerificationEmail(email, user.firstName || "User", token);
-        } catch (e) {
-          console.error("[auth] Failed to send verification email:", e);
+        const sent = await sendVerificationEmail(email, user.firstName || "User", token);
+        if (!sent) {
+          console.error(`[auth] Resend verification email failed for ${email}`);
+        } else {
+          console.log(`[auth] Resend verification email queued for ${email}`);
         }
+      } else if (!user) {
+        console.warn(`[auth] Resend verification requested for unknown email: ${email}`);
+      } else {
+        console.log(`[auth] Resend verification skipped — ${email} is already verified`);
       }
 
       res.json({ message: "If that email exists, a verification link has been sent" });

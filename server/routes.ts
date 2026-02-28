@@ -789,6 +789,20 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/admin/users/:id/verify-email", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      await authStorage.markEmailVerified(req.params.id);
+      const users = await storage.getAllUsers();
+      const updated = users.find((u: any) => u.id === req.params.id);
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      console.log(`[admin] Manually verified email for user ${req.params.id}`);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to verify email" });
+    }
+  });
+
   app.get("/api/admin/company-profiles", isAuthenticated, async (req: any, res) => {
     try {
       if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });

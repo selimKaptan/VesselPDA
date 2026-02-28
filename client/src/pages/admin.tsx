@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock, Ban, UserCheck, MessageSquarePlus, Bug, Lightbulb, MessageCircle } from "lucide-react";
+import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock, Ban, UserCheck, MessageSquarePlus, Bug, Lightbulb, MessageCircle, MailCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -65,6 +65,18 @@ export default function AdminPanel() {
       toast({ title: suspended ? "User suspended" : "User reactivated" });
     },
     onError: () => toast({ title: "Failed to update user", variant: "destructive" }),
+  });
+
+  const verifyEmailMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await apiRequest("PATCH", `/api/admin/users/${userId}/verify-email`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ title: "Email doğrulandı", description: "Kullanıcı artık giriş yapabilir." });
+    },
+    onError: () => toast({ title: "Hata", description: "Email doğrulanamadı.", variant: "destructive" }),
   });
 
   const approveMutation = useMutation({
@@ -272,18 +284,34 @@ export default function AdminPanel() {
                           </td>
                           <td className="p-3 text-muted-foreground hidden sm:table-cell">{u.proformaCount}/{u.proformaLimit}</td>
                           <td className="p-3 text-right">
-                            <Button
-                              size="sm"
-                              variant={isSuspended ? "outline" : "ghost"}
-                              className={isSuspended ? "text-green-600 border-green-300" : "text-red-600 hover:text-red-700"}
-                              onClick={() => suspendMutation.mutate({ userId: u.id, suspended: !isSuspended })}
-                              disabled={suspendMutation.isPending || u.userRole === "admin"}
-                              data-testid={`button-suspend-${u.id}`}
-                              title={isSuspended ? "Activate account" : "Suspend account"}
-                            >
-                              {isSuspended ? <UserCheck className="w-3.5 h-3.5 mr-1" /> : <Ban className="w-3.5 h-3.5 mr-1" />}
-                              {isSuspended ? "Activate" : "Suspend"}
-                            </Button>
+                            <div className="flex items-center justify-end gap-1">
+                              {!(u as any).emailVerified && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                                  onClick={() => verifyEmailMutation.mutate(u.id)}
+                                  disabled={verifyEmailMutation.isPending}
+                                  data-testid={`button-verify-email-${u.id}`}
+                                  title="Manually verify email"
+                                >
+                                  <MailCheck className="w-3.5 h-3.5 mr-1" />
+                                  Doğrula
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant={isSuspended ? "outline" : "ghost"}
+                                className={isSuspended ? "text-green-600 border-green-300" : "text-red-600 hover:text-red-700"}
+                                onClick={() => suspendMutation.mutate({ userId: u.id, suspended: !isSuspended })}
+                                disabled={suspendMutation.isPending || u.userRole === "admin"}
+                                data-testid={`button-suspend-${u.id}`}
+                                title={isSuspended ? "Activate account" : "Suspend account"}
+                              >
+                                {isSuspended ? <UserCheck className="w-3.5 h-3.5 mr-1" /> : <Ban className="w-3.5 h-3.5 mr-1" />}
+                                {isSuspended ? "Activate" : "Suspend"}
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       );

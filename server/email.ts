@@ -630,7 +630,7 @@ export async function sendVerificationEmail(
 </html>`;
 
   try {
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: `VesselPDA <${creds.fromEmail}>`,
       to: [to],
       subject: "VesselPDA — Email Adresinizi Doğrulayın / Verify Your Email",
@@ -638,11 +638,11 @@ export async function sendVerificationEmail(
     });
 
     if (error) {
-      console.error("[email] Resend verification error:", error);
+      console.error("[email] Resend verification error:", JSON.stringify(error));
       return false;
     }
 
-    console.log(`[email] Verification email sent to ${to}`);
+    console.log(`[email] Verification email sent to ${to} | id=${data?.id}`);
     return true;
   } catch (err) {
     console.error("[email] Failed to send verification email:", err);

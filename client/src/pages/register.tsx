@@ -118,17 +118,30 @@ export default function Register() {
                 <Mail className="w-8 h-8 text-green-600" />
               </div>
             </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Check your inbox!</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">E-postanızı kontrol edin!</h2>
             <p className="text-gray-600 text-sm mb-1">
-              We sent a verification link to:
+              Aşağıdaki adrese doğrulama bağlantısı gönderdik:
             </p>
             <p className="text-blue-700 font-semibold text-sm mb-4">{registered}</p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4 text-left">
+              <p className="text-amber-800 text-xs font-semibold mb-1">E-posta gelmedi mi?</p>
+              <ul className="text-amber-700 text-xs space-y-1 list-disc list-inside">
+                <li>Spam / Gereksiz klasörünüzü kontrol edin</li>
+                <li>Hotmail / Outlook kullanıcıları "Önemsiz" klasörüne bakın</li>
+                <li>Birkaç dakika bekleyin, bazen gecikebilir</li>
+              </ul>
+            </div>
             <p className="text-gray-500 text-xs mb-6">
-              Click the link in the email to activate your account. The link expires in 24 hours.
+              Bağlantıya tıklayarak hesabınızı aktif edin. Bağlantı 24 saat geçerlidir.
             </p>
+            <Link href="/verify-email">
+              <Button variant="outline" className="w-full mb-2">
+                Doğrulama E-postasını Tekrar Gönder
+              </Button>
+            </Link>
             <Link href="/login">
-              <Button variant="outline" className="w-full">
-                Back to Sign In
+              <Button variant="ghost" className="w-full text-sm">
+                Giriş Sayfasına Dön
               </Button>
             </Link>
           </CardContent>
