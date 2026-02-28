@@ -86,21 +86,17 @@ export function AppSidebar() {
   const pendingNominations = nomBadge?.count || 0;
 
   const toolsNav: any[] = [];
-  if (isAdminUser || effectiveRole !== "provider") {
+  if (effectiveRole !== "provider") {
     toolsNav.push({ title: t("nav.vessels"), url: "/vessels", icon: Ship });
     toolsNav.push({ title: t("nav.proformas"), url: "/proformas", icon: FileText });
-  }
-  if (isAdminUser || effectiveRole !== "provider") {
     toolsNav.push({ title: t("nav.tenders"), url: "/tenders", icon: Gavel, badge: tenderCount });
-  }
-  if (isAdminUser || effectiveRole !== "provider") {
     toolsNav.push({ title: t("nav.vesselTrack"), url: "/vessel-track", icon: Navigation });
   }
-  if (isAdminUser || effectiveRole === "shipowner" || effectiveRole === "agent") {
+  if (effectiveRole === "shipowner" || effectiveRole === "agent") {
     toolsNav.push({ title: "Seferler", url: "/voyages", icon: Ship });
   }
   toolsNav.push({ title: "Hizmet Talepleri", url: "/service-requests", icon: Wrench });
-  if (isAdminUser || effectiveRole === "shipowner" || effectiveRole === "agent") {
+  if (effectiveRole === "shipowner" || effectiveRole === "agent") {
     toolsNav.push({ title: "Nominasyonlar", url: "/nominations", icon: UserCheck, badge: pendingNominations });
   }
   toolsNav.push({ title: "Mesajlar", url: "/messages", icon: MessageCircle, badge: unreadMessages });
