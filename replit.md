@@ -31,7 +31,7 @@ The platform is built with a modern web stack. The UI/UX is maritime-themed, pre
     - **Internationalization**: TR/EN language toggle.
     - **Dark Mode**: Full dark/light mode toggle.
     - **Mobile Navigation**: Sheet-based hamburger menu for small screens.
-    - **Admin User Management**: Tools for managing user plans, suspension, and verification requests.
+    - **Admin User Management**: Comprehensive admin panel with 15 tabs: user CRUD (create/suspend/delete/role-change/email-verify), KPI dashboard (8 cards + activity feed), content management (voyages + service requests overview), announcements (bulk notifications by role), financial overview (plan distribution), reports (user growth chart + active users table), system settings (API status), plus bunker prices and port alerts management.
     - **Vessel Certificate Management**: Tracking and status visualization for vessel certificates.
     - **Port Call Appointment Management**: Panel for managing and tracking port call appointments.
     - **Fixture & Recap System**: System for charter negotiation and fixture tracking.

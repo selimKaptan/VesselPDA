@@ -1,14 +1,16 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock, Ban, UserCheck, MessageSquarePlus, Bug, Lightbulb, MessageCircle, MailCheck, ShieldCheck, ShieldX, Fuel, Plus, Edit2, Trash2, Loader2, MapPin, AlertTriangle } from "lucide-react";
+import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock, Ban, UserCheck, MessageSquarePlus, Bug, Lightbulb, MessageCircle, MailCheck, ShieldCheck, ShieldX, Fuel, Plus, Edit2, Trash2, Loader2, MapPin, AlertTriangle, UserPlus, Activity, Megaphone, Settings, Database, Zap, Bell, Globe, ChevronRight, Wrench, Calendar, Eye, RotateCcw, CheckSquare, Server } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useState } from "react";
@@ -19,7 +21,7 @@ import type { Vessel, Proforma, CompanyProfile } from "@shared/schema";
 import { PageMeta } from "@/components/page-meta";
 import {
   BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend
+  ResponsiveContainer, Legend, LineChart, Line
 } from "recharts";
 
 const ROLE_BADGES: Record<string, string> = {
@@ -37,6 +39,16 @@ export default function AdminPanel() {
   const [searchVessels, setSearchVessels] = useState("");
   const [searchProformas, setSearchProformas] = useState("");
   const [searchProfiles, setSearchProfiles] = useState("");
+
+  // New state for enhanced features
+  const [deleteUserTarget, setDeleteUserTarget] = useState<string | null>(null);
+  const [createUserDialog, setCreateUserDialog] = useState(false);
+  const [createUserForm, setCreateUserForm] = useState({ email: "", password: "", firstName: "", lastName: "", userRole: "agent", subscriptionPlan: "free" });
+  const [userDetailId, setUserDetailId] = useState<string | null>(null);
+  const [announceForm, setAnnounceForm] = useState({ title: "", message: "", targetRole: "all" });
+  const [announceHistory, setAnnounceHistory] = useState<any[]>([]);
+  const [searchVoyages, setSearchVoyages] = useState("");
+  const [searchSR, setSearchSR] = useState("");
 
   const [verifyNote, setVerifyNote] = useState<Record<number, string>>({});
   const [ofacResults, setOfacResults] = useState<Record<number, { clear: boolean; matches: any[]; checked: boolean }>>({});
@@ -56,6 +68,16 @@ export default function AdminPanel() {
   };
 
   const { data: stats, isLoading: statsLoading } = useQuery<any>({ queryKey: ["/api/admin/stats"] });
+  const { data: enhancedStats, isLoading: enhancedStatsLoading } = useQuery<any>({ queryKey: ["/api/admin/stats/enhanced"] });
+  const { data: activityFeed = [], isLoading: activityLoading } = useQuery<any[]>({ queryKey: ["/api/admin/activity"] });
+  const { data: adminVoyages = [], isLoading: adminVoyagesLoading } = useQuery<any[]>({ queryKey: ["/api/admin/voyages"] });
+  const { data: adminSR = [], isLoading: adminSRLoading } = useQuery<any[]>({ queryKey: ["/api/admin/service-requests-list"] });
+  const { data: userGrowth = [], isLoading: userGrowthLoading } = useQuery<any[]>({ queryKey: ["/api/admin/reports/user-growth"] });
+  const { data: activeUsers = [], isLoading: activeUsersLoading } = useQuery<any[]>({ queryKey: ["/api/admin/reports/active-users"] });
+  const { data: userActivity = [], isLoading: userActivityLoading } = useQuery<any[]>({
+    queryKey: ["/api/admin/users", userDetailId, "activity"],
+    enabled: !!userDetailId,
+  });
   const { data: allUsers, isLoading: usersLoading } = useQuery<User[]>({ queryKey: ["/api/admin/users"] });
   const { data: allVessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
   const { data: allProformas, isLoading: proformasLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"] });
@@ -126,6 +148,66 @@ export default function AdminPanel() {
   const deleteAlertMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/port-alerts/${id}`, undefined),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/port-alerts"] }); toast({ title: "Silindi" }); setDeleteAlertTarget(null); },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await apiRequest("DELETE", `/api/admin/users/${userId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats/enhanced"] });
+      toast({ title: "Kullanıcı silindi" });
+      setDeleteUserTarget(null);
+    },
+    onError: async (err: any) => {
+      const d = await err?.response?.json?.().catch(() => ({}));
+      toast({ title: "Hata", description: d?.message || "Kullanıcı silinemedi", variant: "destructive" });
+    },
+  });
+
+  const createUserMutation = useMutation({
+    mutationFn: async (form: typeof createUserForm) => {
+      const res = await apiRequest("POST", "/api/admin/users", form);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats/enhanced"] });
+      toast({ title: "Kullanıcı oluşturuldu" });
+      setCreateUserDialog(false);
+      setCreateUserForm({ email: "", password: "", firstName: "", lastName: "", userRole: "agent", subscriptionPlan: "free" });
+    },
+    onError: async (err: any) => {
+      const d = await err?.response?.json?.().catch(() => ({}));
+      toast({ title: "Hata", description: d?.message || "Kullanıcı oluşturulamadı", variant: "destructive" });
+    },
+  });
+
+  const changeRoleMutation = useMutation({
+    mutationFn: async ({ userId, userRole }: { userId: string; userRole: string }) => {
+      const res = await apiRequest("PATCH", `/api/admin/users/${userId}/role`, { userRole });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({ title: "Rol güncellendi" });
+    },
+    onError: () => toast({ title: "Hata", variant: "destructive" }),
+  });
+
+  const announceMutation = useMutation({
+    mutationFn: async (form: typeof announceForm) => {
+      const res = await apiRequest("POST", "/api/admin/announce", form);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: `Duyuru gönderildi — ${data.sent} kullanıcıya ulaştı` });
+      setAnnounceHistory(h => [{ ...announceForm, sent: data.sent, sentAt: new Date().toISOString() }, ...h.slice(0, 9)]);
+      setAnnounceForm({ title: "", message: "", targetRole: "all" });
+    },
+    onError: () => toast({ title: "Duyuru gönderilemedi", variant: "destructive" }),
   });
 
   const verifyMutation = useMutation({
@@ -247,64 +329,178 @@ export default function AdminPanel() {
         </div>
       </div>
 
-      {statsLoading ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24" />)}
+      {/* Enhanced KPI Dashboard */}
+      {enhancedStatsLoading ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[1,2,3,4,5,6,7,8].map(i => <Skeleton key={i} className="h-24" />)}
         </div>
-      ) : stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      ) : enhancedStats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card className="p-4" data-testid="stat-users">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Users</p>
-                <p className="text-2xl font-bold font-serif">{stats.totalUsers}</p>
+            <div className="flex items-start justify-between">
+              <div className="space-y-1 min-w-0">
+                <p className="text-xs text-muted-foreground">Kullanıcılar</p>
+                <p className="text-2xl font-bold font-serif">{enhancedStats.totalUsers}</p>
                 <div className="flex gap-1 flex-wrap">
-                  <Badge variant="outline" className="text-[9px] px-1">{stats.usersByRole.shipowner} owners</Badge>
-                  <Badge variant="outline" className="text-[9px] px-1">{stats.usersByRole.agent} agents</Badge>
-                  <Badge variant="outline" className="text-[9px] px-1">{stats.usersByRole.provider} providers</Badge>
+                  <Badge className="text-[9px] px-1 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0">🚢 {enhancedStats.usersByRole?.shipowner || 0}</Badge>
+                  <Badge className="text-[9px] px-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-0">🤝 {enhancedStats.usersByRole?.agent || 0}</Badge>
+                  <Badge className="text-[9px] px-1 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border-0">🔧 {enhancedStats.usersByRole?.provider || 0}</Badge>
                 </div>
               </div>
-              <Users className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
+              <Users className="w-5 h-5 text-[hsl(var(--maritime-primary))] flex-shrink-0" />
+            </div>
+          </Card>
+          <Card className="p-4" data-testid="stat-active-voyages">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Aktif Seferler</p>
+                <p className="text-2xl font-bold font-serif text-emerald-600">{enhancedStats.activeVoyages}</p>
+                <p className="text-[10px] text-muted-foreground">Toplam: {enhancedStats.totalVoyages}</p>
+              </div>
+              <Ship className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+            </div>
+          </Card>
+          <Card className="p-4" data-testid="stat-today-txns">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Bugünkü İşlemler</p>
+                <p className="text-2xl font-bold font-serif text-blue-600">{enhancedStats.todayTransactions}</p>
+                <p className="text-[10px] text-muted-foreground">Proforma + Sefer + Talep</p>
+              </div>
+              <Activity className="w-5 h-5 text-blue-500 flex-shrink-0" />
+            </div>
+          </Card>
+          <Card className="p-4" data-testid="stat-pending">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Bekleyen Onaylar</p>
+                <p className={`text-2xl font-bold font-serif ${(enhancedStats.pendingApprovals + enhancedStats.pendingVerifications) > 0 ? "text-amber-600" : ""}`}>
+                  {enhancedStats.pendingApprovals + enhancedStats.pendingVerifications}
+                </p>
+                <p className="text-[10px] text-muted-foreground">{enhancedStats.pendingApprovals} onay · {enhancedStats.pendingVerifications} doğrulama</p>
+              </div>
+              <Clock className="w-5 h-5 text-amber-500 flex-shrink-0" />
             </div>
           </Card>
           <Card className="p-4" data-testid="stat-vessels">
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Vessels</p>
-                <p className="text-2xl font-bold font-serif">{stats.totalVessels}</p>
+                <p className="text-xs text-muted-foreground">Gemiler</p>
+                <p className="text-2xl font-bold font-serif">{stats?.totalVessels || 0}</p>
               </div>
-              <Ship className="w-5 h-5 text-[hsl(var(--maritime-secondary))]" />
+              <Ship className="w-5 h-5 text-[hsl(var(--maritime-secondary))] flex-shrink-0" />
             </div>
           </Card>
           <Card className="p-4" data-testid="stat-proformas">
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Proformas</p>
-                <p className="text-2xl font-bold font-serif">{stats.totalProformas}</p>
+                <p className="text-xs text-muted-foreground">Proformalar</p>
+                <p className="text-2xl font-bold font-serif">{stats?.totalProformas || 0}</p>
               </div>
-              <FileText className="w-5 h-5 text-[hsl(var(--maritime-accent))]" />
+              <FileText className="w-5 h-5 text-[hsl(var(--maritime-accent))] flex-shrink-0" />
             </div>
           </Card>
           <Card className="p-4" data-testid="stat-profiles">
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Company Profiles</p>
-                <p className="text-2xl font-bold font-serif">{stats.totalCompanyProfiles}</p>
+                <p className="text-xs text-muted-foreground">Şirket Profilleri</p>
+                <p className="text-2xl font-bold font-serif">{stats?.totalCompanyProfiles || 0}</p>
               </div>
-              <Building2 className="w-5 h-5 text-amber-500" />
+              <Building2 className="w-5 h-5 text-amber-500 flex-shrink-0" />
+            </div>
+          </Card>
+          <Card className="p-4" data-testid="stat-system-health">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Sistem Sağlığı</p>
+                <p className="text-2xl font-bold font-serif text-emerald-600">
+                  {[enhancedStats.systemHealth?.dbOk, enhancedStats.systemHealth?.aisOk, enhancedStats.systemHealth?.teOk, enhancedStats.systemHealth?.resendOk].filter(Boolean).length}/4
+                </p>
+                <div className="flex gap-1">
+                  <Badge className={`text-[9px] px-1 border-0 ${enhancedStats.systemHealth?.dbOk ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>DB</Badge>
+                  <Badge className={`text-[9px] px-1 border-0 ${enhancedStats.systemHealth?.aisOk ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>AIS</Badge>
+                  <Badge className={`text-[9px] px-1 border-0 ${enhancedStats.systemHealth?.resendOk ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>Email</Badge>
+                </div>
+              </div>
+              <Zap className="w-5 h-5 text-emerald-500 flex-shrink-0" />
             </div>
           </Card>
         </div>
       )}
 
+      {/* Recent Activity Feed */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="lg:col-span-2 p-4" data-testid="activity-feed">
+          <div className="flex items-center gap-2 mb-3">
+            <Activity className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+            <h3 className="font-semibold text-sm">Son Aktiviteler</h3>
+            <Badge variant="outline" className="text-[9px] ml-auto">Canlı</Badge>
+          </div>
+          {activityLoading ? (
+            <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-8" />)}</div>
+          ) : activityFeed.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Henüz aktivite yok</p>
+          ) : (
+            <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+              {activityFeed.map((item: any, i: number) => {
+                const typeIcons: Record<string, string> = { proforma: "📄", voyage: "🚢", service_request: "🔧", user_register: "👤" };
+                const timeAgo = item.createdAt ? (() => {
+                  const diff = Date.now() - new Date(item.createdAt).getTime();
+                  const m = Math.floor(diff / 60000); const h = Math.floor(diff / 3600000); const d = Math.floor(diff / 86400000);
+                  return d > 0 ? `${d}g önce` : h > 0 ? `${h}s önce` : m > 0 ? `${m}dk önce` : "az önce";
+                })() : "";
+                return (
+                  <div key={i} className="flex items-center gap-2 text-xs py-1 border-b border-border/40 last:border-0">
+                    <span className="text-base leading-none">{typeIcons[item.type] || "📌"}</span>
+                    <span className="flex-1 truncate text-foreground">{item.label}</span>
+                    <span className="text-muted-foreground truncate max-w-[100px]">{item.user}</span>
+                    <span className="text-muted-foreground whitespace-nowrap flex-shrink-0">{timeAgo}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+        <Card className="p-4" data-testid="plan-distribution">
+          <div className="flex items-center gap-2 mb-3">
+            <TrendingUp className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+            <h3 className="font-semibold text-sm">Plan Dağılımı</h3>
+          </div>
+          {enhancedStats && (
+            <div className="space-y-2">
+              {[
+                { label: "Free", count: enhancedStats.usersByPlan?.free || 0, color: "bg-muted" },
+                { label: "Standard", count: enhancedStats.usersByPlan?.standard || 0, color: "bg-[hsl(var(--maritime-secondary))]" },
+                { label: "Unlimited", count: enhancedStats.usersByPlan?.unlimited || 0, color: "bg-[hsl(var(--maritime-gold))]" },
+              ].map(plan => {
+                const total = enhancedStats.totalUsers || 1;
+                const pct = Math.round((plan.count / total) * 100);
+                return (
+                  <div key={plan.label}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-muted-foreground">{plan.label}</span>
+                      <span className="font-medium">{plan.count} <span className="text-muted-foreground">({pct}%)</span></span>
+                    </div>
+                    <div className="h-1.5 bg-muted rounded-full">
+                      <div className={`h-1.5 rounded-full ${plan.color}`} style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
+
       <Tabs defaultValue="users">
         <TabsList data-testid="admin-tabs" className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="users" data-testid="tab-users">Users ({allUsers?.length || 0})</TabsTrigger>
-          <TabsTrigger value="vessels" data-testid="tab-vessels">Vessels ({allVessels?.length || 0})</TabsTrigger>
-          <TabsTrigger value="proformas" data-testid="tab-proformas">Proformas ({allProformas?.length || 0})</TabsTrigger>
-          <TabsTrigger value="profiles" data-testid="tab-profiles">Profiles ({allProfiles?.length || 0})</TabsTrigger>
+          <TabsTrigger value="users" data-testid="tab-users">👥 Kullanıcılar ({allUsers?.length || 0})</TabsTrigger>
+          <TabsTrigger value="vessels" data-testid="tab-vessels">🚢 Gemiler</TabsTrigger>
+          <TabsTrigger value="proformas" data-testid="tab-proformas">📄 Proformalar</TabsTrigger>
+          <TabsTrigger value="profiles" data-testid="tab-profiles">🏢 Profiller</TabsTrigger>
+          <TabsTrigger value="content" data-testid="tab-content">📦 İçerik</TabsTrigger>
           <TabsTrigger value="pending" data-testid="tab-pending" className="relative">
-            Pending
+            ✅ Onaylar
             {(pendingProfiles?.length ?? 0) > 0 && (
               <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold rounded-full bg-amber-500 text-white">
                 {pendingProfiles!.length}
@@ -312,16 +508,19 @@ export default function AdminPanel() {
             )}
           </TabsTrigger>
           <TabsTrigger value="verifications" data-testid="tab-verifications" className="relative">
-            Doğrulamalar
+            🔐 Doğrulamalar
             {(pendingVerifications?.length ?? 0) > 0 && (
               <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold rounded-full bg-blue-500 text-white">
                 {pendingVerifications!.length}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="analytics" data-testid="tab-analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="announce" data-testid="tab-announce">📢 Duyurular</TabsTrigger>
+          <TabsTrigger value="financial" data-testid="tab-financial">💰 Finansal</TabsTrigger>
+          <TabsTrigger value="reports" data-testid="tab-reports">📈 Raporlar</TabsTrigger>
+          <TabsTrigger value="analytics" data-testid="tab-analytics">📊 Analitik</TabsTrigger>
           <TabsTrigger value="feedback" data-testid="tab-feedback" className="relative">
-            Feedback
+            💬 Feedback
             {(allFeedbacks?.length ?? 0) > 0 && (
               <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold rounded-full bg-blue-500 text-white">
                 {allFeedbacks!.length}
@@ -331,19 +530,25 @@ export default function AdminPanel() {
           <TabsTrigger value="bunker" data-testid="tab-bunker-prices">
             <Fuel className="w-3.5 h-3.5 mr-1.5" />Bunker ({bunkerPricesList.length})
           </TabsTrigger>
-          <TabsTrigger value="port-alerts" data-testid="tab-port-alerts">Liman Uyarıları</TabsTrigger>
+          <TabsTrigger value="port-alerts" data-testid="tab-port-alerts">⚠️ Liman Uyarıları</TabsTrigger>
+          <TabsTrigger value="settings" data-testid="tab-settings">⚙️ Sistem Ayarları</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search users by name, email, or role..."
-              value={searchUsers}
-              onChange={e => setSearchUsers(e.target.value)}
-              className="pl-9"
-              data-testid="input-search-users"
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="İsim, email veya rol ile ara..."
+                value={searchUsers}
+                onChange={e => setSearchUsers(e.target.value)}
+                className="pl-9"
+                data-testid="input-search-users"
+              />
+            </div>
+            <Button size="sm" onClick={() => setCreateUserDialog(true)} data-testid="button-create-user">
+              <UserPlus className="w-4 h-4 mr-1.5" /> Yeni Kullanıcı
+            </Button>
           </div>
           {usersLoading ? (
             <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-16" />)}</div>
@@ -353,12 +558,12 @@ export default function AdminPanel() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left">
-                      <th className="p-3 font-medium">Name</th>
+                      <th className="p-3 font-medium">İsim</th>
                       <th className="p-3 font-medium hidden md:table-cell">Email</th>
-                      <th className="p-3 font-medium">Role</th>
+                      <th className="p-3 font-medium">Rol</th>
                       <th className="p-3 font-medium">Plan</th>
-                      <th className="p-3 font-medium hidden sm:table-cell">Proformas</th>
-                      <th className="p-3 font-medium text-right">Actions</th>
+                      <th className="p-3 font-medium hidden sm:table-cell">Proforma</th>
+                      <th className="p-3 font-medium text-right">İşlemler</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -397,33 +602,53 @@ export default function AdminPanel() {
                           </td>
                           <td className="p-3 text-muted-foreground hidden sm:table-cell">{u.proformaCount}/{u.proformaLimit}</td>
                           <td className="p-3 text-right">
-                            <div className="flex items-center justify-end gap-1">
+                            <div className="flex items-center justify-end gap-1 flex-wrap">
                               {!(u as any).emailVerified && (
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                                  className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/20 h-7 text-xs px-2"
                                   onClick={() => verifyEmailMutation.mutate(u.id)}
                                   disabled={verifyEmailMutation.isPending}
                                   data-testid={`button-verify-email-${u.id}`}
-                                  title="Manually verify email"
+                                  title="Email doğrula"
                                 >
-                                  <MailCheck className="w-3.5 h-3.5 mr-1" />
-                                  Doğrula
+                                  <MailCheck className="w-3 h-3 mr-1" /> Doğrula
                                 </Button>
                               )}
                               <Button
                                 size="sm"
+                                variant="ghost"
+                                className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground"
+                                onClick={() => setUserDetailId(u.id)}
+                                data-testid={`button-detail-${u.id}`}
+                                title="Kullanıcı detayı"
+                              >
+                                <Eye className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                size="sm"
                                 variant={isSuspended ? "outline" : "ghost"}
-                                className={isSuspended ? "text-green-600 border-green-300" : "text-red-600 hover:text-red-700"}
+                                className={`h-7 text-xs px-2 ${isSuspended ? "text-green-600 border-green-300" : "text-amber-600 hover:text-amber-700"}`}
                                 onClick={() => suspendMutation.mutate({ userId: u.id, suspended: !isSuspended })}
                                 disabled={suspendMutation.isPending || u.userRole === "admin"}
                                 data-testid={`button-suspend-${u.id}`}
-                                title={isSuspended ? "Activate account" : "Suspend account"}
+                                title={isSuspended ? "Aktif et" : "Askıya al"}
                               >
-                                {isSuspended ? <UserCheck className="w-3.5 h-3.5 mr-1" /> : <Ban className="w-3.5 h-3.5 mr-1" />}
-                                {isSuspended ? "Activate" : "Suspend"}
+                                {isSuspended ? <UserCheck className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
                               </Button>
+                              {u.userRole !== "admin" && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 text-xs px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => setDeleteUserTarget(u.id)}
+                                  data-testid={`button-delete-user-${u.id}`}
+                                  title="Kullanıcıyı sil"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1067,7 +1292,499 @@ export default function AdminPanel() {
           </Card>
         </TabsContent>
 
+        {/* Content Management Tab */}
+        <TabsContent value="content" className="space-y-4">
+          <Tabs defaultValue="voyages">
+            <TabsList>
+              <TabsTrigger value="voyages" data-testid="tab-content-voyages">🚢 Seferler ({adminVoyages.length})</TabsTrigger>
+              <TabsTrigger value="service-requests" data-testid="tab-content-sr">🔧 Hizmet Talepleri ({adminSR.length})</TabsTrigger>
+            </TabsList>
+            <TabsContent value="voyages" className="space-y-3 mt-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Sefer, gemi, liman ara..." value={searchVoyages} onChange={e => setSearchVoyages(e.target.value)} className="pl-9" data-testid="input-search-voyages" />
+              </div>
+              {adminVoyagesLoading ? (
+                <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-12" />)}</div>
+              ) : (
+                <Card>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b text-left bg-muted/30">
+                        <th className="p-3 font-medium">ID</th>
+                        <th className="p-3 font-medium">Gemi</th>
+                        <th className="p-3 font-medium">Liman</th>
+                        <th className="p-3 font-medium">Kullanıcı</th>
+                        <th className="p-3 font-medium">Durum</th>
+                        <th className="p-3 font-medium">Tarih</th>
+                      </tr></thead>
+                      <tbody>
+                        {adminVoyages.filter((v: any) => {
+                          const q = searchVoyages.toLowerCase();
+                          return !q || `${v.vessel_name} ${v.port_name} ${v.first_name} ${v.last_name} ${v.status}`.toLowerCase().includes(q);
+                        }).map((v: any) => (
+                          <tr key={v.id} className="border-b last:border-0 hover:bg-muted/30" data-testid={`row-voyage-admin-${v.id}`}>
+                            <td className="p-3 font-mono text-xs">#{v.id}</td>
+                            <td className="p-3 font-medium">{v.vessel_name || "—"}</td>
+                            <td className="p-3">{v.port_name || "—"}</td>
+                            <td className="p-3 text-muted-foreground text-xs">{`${v.first_name || ""} ${v.last_name || ""}`.trim() || v.email || "—"}</td>
+                            <td className="p-3">
+                              <Badge className={`text-[10px] ${v.status === "in_progress" ? "bg-emerald-100 text-emerald-700" : v.status === "completed" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>{v.status}</Badge>
+                            </td>
+                            <td className="p-3 text-xs text-muted-foreground">{v.created_at ? new Date(v.created_at).toLocaleDateString("tr-TR") : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              )}
+            </TabsContent>
+            <TabsContent value="service-requests" className="space-y-3 mt-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Hizmet türü, liman, kullanıcı ara..." value={searchSR} onChange={e => setSearchSR(e.target.value)} className="pl-9" data-testid="input-search-sr" />
+              </div>
+              {adminSRLoading ? (
+                <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-12" />)}</div>
+              ) : (
+                <Card>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b text-left bg-muted/30">
+                        <th className="p-3 font-medium">ID</th>
+                        <th className="p-3 font-medium">Hizmet Türü</th>
+                        <th className="p-3 font-medium">Liman</th>
+                        <th className="p-3 font-medium">Talep Eden</th>
+                        <th className="p-3 font-medium">Bütçe</th>
+                        <th className="p-3 font-medium">Durum</th>
+                        <th className="p-3 font-medium">Tarih</th>
+                      </tr></thead>
+                      <tbody>
+                        {adminSR.filter((s: any) => {
+                          const q = searchSR.toLowerCase();
+                          return !q || `${s.service_type} ${s.port_name} ${s.first_name} ${s.last_name} ${s.status}`.toLowerCase().includes(q);
+                        }).map((s: any) => (
+                          <tr key={s.id} className="border-b last:border-0 hover:bg-muted/30" data-testid={`row-sr-admin-${s.id}`}>
+                            <td className="p-3 font-mono text-xs">#{s.id}</td>
+                            <td className="p-3 font-medium">{s.service_type || "—"}</td>
+                            <td className="p-3">{s.port_name || "—"}</td>
+                            <td className="p-3 text-xs text-muted-foreground">{`${s.first_name || ""} ${s.last_name || ""}`.trim() || s.email || "—"}</td>
+                            <td className="p-3">{s.budget_usd ? `$${Number(s.budget_usd).toLocaleString()}` : "—"}</td>
+                            <td className="p-3">
+                              <Badge className={`text-[10px] ${s.status === "completed" ? "bg-emerald-100 text-emerald-700" : s.status === "open" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>{s.status}</Badge>
+                            </td>
+                            <td className="p-3 text-xs text-muted-foreground">{s.created_at ? new Date(s.created_at).toLocaleDateString("tr-TR") : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              )}
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+
+        {/* Announcements Tab */}
+        <TabsContent value="announce" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="p-5" data-testid="card-announce-form">
+              <div className="flex items-center gap-2 mb-4">
+                <Megaphone className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                <h3 className="font-semibold">Duyuru / Bildirim Gönder</h3>
+              </div>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label>Hedef Kitle</Label>
+                  <Select value={announceForm.targetRole} onValueChange={v => setAnnounceForm(f => ({ ...f, targetRole: v }))}>
+                    <SelectTrigger data-testid="select-announce-target"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">🌐 Tüm Kullanıcılar</SelectItem>
+                      <SelectItem value="shipowner">🚢 Armatörler</SelectItem>
+                      <SelectItem value="agent">🤝 Acenteler</SelectItem>
+                      <SelectItem value="provider">🔧 Hizmet Sağlayıcılar</SelectItem>
+                      <SelectItem value="broker">📋 Brokerlar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Başlık *</Label>
+                  <Input value={announceForm.title} onChange={e => setAnnounceForm(f => ({ ...f, title: e.target.value }))} placeholder="Duyuru başlığı" data-testid="input-announce-title" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Mesaj *</Label>
+                  <Textarea value={announceForm.message} onChange={e => setAnnounceForm(f => ({ ...f, message: e.target.value }))} placeholder="Duyuru içeriği..." rows={4} data-testid="input-announce-message" />
+                </div>
+                <Button
+                  className="w-full gap-2"
+                  onClick={() => announceMutation.mutate(announceForm)}
+                  disabled={!announceForm.title || !announceForm.message || announceMutation.isPending}
+                  data-testid="button-send-announce"
+                >
+                  {announceMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
+                  Duyuruyu Gönder
+                </Button>
+              </div>
+            </Card>
+            <Card className="p-5" data-testid="card-announce-history">
+              <div className="flex items-center gap-2 mb-4">
+                <Clock className="w-4 h-4 text-muted-foreground" />
+                <h3 className="font-semibold">Gönderim Geçmişi</h3>
+              </div>
+              {announceHistory.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Bell className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">Henüz duyuru gönderilmedi</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">Gönderilen duyurular burada görünür</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {announceHistory.map((h: any, i: number) => (
+                    <div key={i} className="border rounded-lg p-3 space-y-1" data-testid={`announce-history-${i}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-sm truncate">{h.title}</span>
+                        <Badge variant="outline" className="text-[10px] flex-shrink-0">{h.sent} kişi</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{h.message}</p>
+                      <p className="text-[10px] text-muted-foreground">{h.sentAt ? new Date(h.sentAt).toLocaleString("tr-TR") : ""} · Hedef: {h.targetRole === "all" ? "Tümü" : h.targetRole}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Financial Tab */}
+        <TabsContent value="financial" className="space-y-6">
+          <Card className="p-5" data-testid="card-financial-overview">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              <h3 className="font-semibold">Abonelik Durumu</h3>
+            </div>
+            {enhancedStats ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  { label: "Free Plan", count: enhancedStats.usersByPlan?.free || 0, color: "text-muted-foreground", bg: "bg-muted/50", desc: "Ücretsiz üyeler" },
+                  { label: "Standard Plan", count: enhancedStats.usersByPlan?.standard || 0, color: "text-[hsl(var(--maritime-secondary))]", bg: "bg-[hsl(var(--maritime-secondary)/0.08)]", desc: "Standart aboneler" },
+                  { label: "Unlimited Plan", count: enhancedStats.usersByPlan?.unlimited || 0, color: "text-[hsl(var(--maritime-gold))]", bg: "bg-[hsl(var(--maritime-gold)/0.08)]", desc: "Premium aboneler" },
+                ].map(p => (
+                  <div key={p.label} className={`rounded-lg p-4 ${p.bg}`}>
+                    <p className="text-xs text-muted-foreground">{p.label}</p>
+                    <p className={`text-3xl font-bold font-serif mt-1 ${p.color}`}>{p.count}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{p.desc}</p>
+                  </div>
+                ))}
+              </div>
+            ) : <Skeleton className="h-24" />}
+          </Card>
+          <Card className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Database className="w-4 h-4 text-amber-500" />
+              <h3 className="font-semibold">Ödeme Sistemi</h3>
+            </div>
+            <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+              <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Ödeme entegrasyonu henüz aktif değil</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Stripe entegrasyonu yapılandırılmadı. Abonelikler şu an manuel olarak yönetilmektedir. Canlı ödeme takibi için Stripe'ı entegre edin.</p>
+              </div>
+            </div>
+            <div className="mt-4 space-y-2">
+              <h4 className="text-sm font-medium">Plan Bazlı Kullanıcı Listesi</h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b">
+                    <th className="text-left p-2 font-medium text-muted-foreground">Kullanıcı</th>
+                    <th className="text-left p-2 font-medium text-muted-foreground">Rol</th>
+                    <th className="text-left p-2 font-medium text-muted-foreground">Plan</th>
+                    <th className="text-left p-2 font-medium text-muted-foreground">Kullanım</th>
+                  </tr></thead>
+                  <tbody>
+                    {(allUsers || []).filter((u: any) => u.subscriptionPlan !== "free").map((u: any) => (
+                      <tr key={u.id} className="border-b last:border-0 hover:bg-muted/30">
+                        <td className="p-2">{`${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email}</td>
+                        <td className="p-2"><Badge className={`text-[10px] ${ROLE_BADGES[u.userRole] || ""}`}>{u.userRole}</Badge></td>
+                        <td className="p-2">
+                          <Badge className={`text-[10px] ${u.subscriptionPlan === "unlimited" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>{u.subscriptionPlan}</Badge>
+                        </td>
+                        <td className="p-2 text-muted-foreground text-xs">{u.proformaCount}/{u.proformaLimit}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </Card>
+        </TabsContent>
+
+        {/* Reports Tab */}
+        <TabsContent value="reports" className="space-y-6">
+          <Card className="p-5" data-testid="chart-user-growth">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              <h3 className="font-semibold">Kullanıcı Büyüme Grafiği (Son 6 Ay)</h3>
+            </div>
+            {userGrowthLoading ? <Skeleton className="h-48" /> : (
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={userGrowth}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="total" stroke="#003D7A" strokeWidth={2} name="Toplam" dot />
+                  <Line type="monotone" dataKey="shipowner" stroke="#0077BE" strokeWidth={1.5} name="Armatör" dot={false} />
+                  <Line type="monotone" dataKey="agent" stroke="#10B981" strokeWidth={1.5} name="Acente" dot={false} />
+                  <Line type="monotone" dataKey="provider" stroke="#8B5CF6" strokeWidth={1.5} name="Provider" dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+          <Card className="p-5" data-testid="table-active-users">
+            <div className="flex items-center gap-2 mb-4">
+              <Users className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              <h3 className="font-semibold">En Aktif 10 Kullanıcı</h3>
+            </div>
+            {activeUsersLoading ? <Skeleton className="h-48" /> : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b">
+                    <th className="text-left p-2 font-medium">#</th>
+                    <th className="text-left p-2 font-medium">Kullanıcı</th>
+                    <th className="text-left p-2 font-medium">Rol</th>
+                    <th className="text-right p-2 font-medium">Proforma</th>
+                    <th className="text-right p-2 font-medium">Sefer</th>
+                    <th className="text-right p-2 font-medium">Hizmet Talebi</th>
+                    <th className="text-right p-2 font-medium">Toplam</th>
+                  </tr></thead>
+                  <tbody>
+                    {activeUsers.map((u: any, i: number) => (
+                      <tr key={u.id} className="border-b last:border-0 hover:bg-muted/30" data-testid={`row-active-user-${u.id}`}>
+                        <td className="p-2 text-muted-foreground font-mono">{i + 1}</td>
+                        <td className="p-2">
+                          <div>
+                            <p className="font-medium text-sm">{u.name}</p>
+                            <p className="text-xs text-muted-foreground">{u.email}</p>
+                          </div>
+                        </td>
+                        <td className="p-2"><Badge className={`text-[10px] ${ROLE_BADGES[u.role] || ""}`}>{u.role}</Badge></td>
+                        <td className="p-2 text-right">{u.proformaCount}</td>
+                        <td className="p-2 text-right">{u.voyageCount}</td>
+                        <td className="p-2 text-right">{u.srCount}</td>
+                        <td className="p-2 text-right font-semibold text-[hsl(var(--maritime-primary))]">{u.totalActivity}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </TabsContent>
+
+        {/* System Settings Tab */}
+        <TabsContent value="settings" className="space-y-6">
+          <Card className="p-5" data-testid="card-system-info">
+            <div className="flex items-center gap-2 mb-4">
+              <Server className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              <h3 className="font-semibold">Platform Bilgileri</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { label: "Uygulama Adı", value: "VesselPDA" },
+                { label: "Versiyon", value: "1.0.0" },
+                { label: "Ortam", value: "Production" },
+                { label: "Veritabanı", value: "PostgreSQL" },
+                { label: "Backend", value: "Express.js + Drizzle ORM" },
+                { label: "Frontend", value: "React + Vite + Tailwind CSS" },
+              ].map(item => (
+                <div key={item.label} className="flex justify-between border-b py-2 last:border-0">
+                  <span className="text-sm text-muted-foreground">{item.label}</span>
+                  <span className="text-sm font-medium">{item.value}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+          <Card className="p-5" data-testid="card-api-status">
+            <div className="flex items-center gap-2 mb-4">
+              <Globe className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              <h3 className="font-semibold">API Entegrasyonları</h3>
+            </div>
+            <div className="space-y-3">
+              {enhancedStats?.systemHealth && [
+                { name: "Veritabanı (PostgreSQL)", status: enhancedStats.systemHealth.dbOk, desc: "Ana veritabanı bağlantısı" },
+                { name: "AIS Stream", status: enhancedStats.systemHealth.aisOk, desc: "Gemi takip servisi — AIS_STREAM_API_KEY" },
+                { name: "Trading Economics", status: enhancedStats.systemHealth.teOk, desc: "Navlun endeksi — TRADING_ECONOMICS_API_KEY (Markets planı gerekli)" },
+                { name: "Resend (Email)", status: enhancedStats.systemHealth.resendOk, desc: "Bildirim ve onay e-postaları" },
+              ].map(api => (
+                <div key={api.name} className="flex items-center gap-3 p-3 rounded-lg border">
+                  <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${api.status ? "bg-emerald-500" : "bg-amber-400"}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{api.name}</p>
+                    <p className="text-xs text-muted-foreground">{api.desc}</p>
+                  </div>
+                  <Badge className={`text-[10px] flex-shrink-0 ${api.status ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"}`}>
+                    {api.status ? "Aktif" : "Pasif"}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </TabsContent>
+
       </Tabs>
+
+      {/* ── NEW DIALOGS ───────────────────────────────────────────── */}
+      {/* Create User Dialog */}
+      <Dialog open={createUserDialog} onOpenChange={v => { setCreateUserDialog(v); if (!v) setCreateUserForm({ email: "", password: "", firstName: "", lastName: "", userRole: "agent", subscriptionPlan: "free" }); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Yeni Kullanıcı Oluştur</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Ad *</Label>
+                <Input value={createUserForm.firstName} onChange={e => setCreateUserForm(f => ({ ...f, firstName: e.target.value }))} placeholder="Ad" data-testid="input-create-first-name" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Soyad *</Label>
+                <Input value={createUserForm.lastName} onChange={e => setCreateUserForm(f => ({ ...f, lastName: e.target.value }))} placeholder="Soyad" data-testid="input-create-last-name" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>E-posta *</Label>
+              <Input type="email" value={createUserForm.email} onChange={e => setCreateUserForm(f => ({ ...f, email: e.target.value }))} placeholder="email@example.com" data-testid="input-create-email" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Şifre *</Label>
+              <Input type="password" value={createUserForm.password} onChange={e => setCreateUserForm(f => ({ ...f, password: e.target.value }))} placeholder="Güçlü şifre" data-testid="input-create-password" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Rol *</Label>
+                <Select value={createUserForm.userRole} onValueChange={v => setCreateUserForm(f => ({ ...f, userRole: v }))}>
+                  <SelectTrigger data-testid="select-create-role"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="shipowner">Armatör</SelectItem>
+                    <SelectItem value="agent">Acente</SelectItem>
+                    <SelectItem value="provider">Hizmet Sağlayıcı</SelectItem>
+                    <SelectItem value="broker">Broker</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Plan</Label>
+                <Select value={createUserForm.subscriptionPlan} onValueChange={v => setCreateUserForm(f => ({ ...f, subscriptionPlan: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="free">Free</SelectItem>
+                    <SelectItem value="standard">Standard</SelectItem>
+                    <SelectItem value="unlimited">Unlimited</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateUserDialog(false)}>İptal</Button>
+            <Button
+              onClick={() => createUserMutation.mutate(createUserForm)}
+              disabled={!createUserForm.email || !createUserForm.password || !createUserForm.firstName || !createUserForm.lastName || createUserMutation.isPending}
+              data-testid="button-confirm-create-user"
+            >
+              {createUserMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Kullanıcı Oluştur
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* User Detail Sheet */}
+      <Sheet open={!!userDetailId} onOpenChange={open => { if (!open) setUserDetailId(null); }}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Kullanıcı Aktivitesi</SheetTitle>
+          </SheetHeader>
+          {userDetailId && (
+            <div className="mt-4 space-y-4">
+              {(() => {
+                const u = allUsers?.find((u: any) => u.id === userDetailId);
+                return u ? (
+                  <div className="p-4 rounded-lg bg-muted/50 space-y-1">
+                    <p className="font-semibold">{u.firstName} {u.lastName}</p>
+                    <p className="text-sm text-muted-foreground">{u.email}</p>
+                    <div className="flex gap-2 mt-2">
+                      <Badge className={`text-[10px] ${ROLE_BADGES[u.userRole] || ""}`}>{u.userRole}</Badge>
+                      <Badge variant="outline" className="text-[10px]">{u.subscriptionPlan}</Badge>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+              <div>
+                <h4 className="text-sm font-semibold mb-2">Son Aktiviteler</h4>
+                {userActivityLoading ? (
+                  <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10" />)}</div>
+                ) : (userActivity as any[]).length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">Henüz aktivite yok</p>
+                ) : (
+                  <div className="space-y-2">
+                    {(userActivity as any[]).map((a: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 text-xs p-2.5 rounded-lg border">
+                        <span>{a.type === "proforma" ? "📄" : a.type === "voyage" ? "🚢" : "🔧"}</span>
+                        <span className="flex-1">{a.label}</span>
+                        <span className="text-muted-foreground">{a.createdAt ? new Date(a.createdAt).toLocaleDateString("tr-TR") : ""}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold mb-2">Rolü Değiştir</h4>
+                <div className="flex gap-2">
+                  <Select
+                    defaultValue={allUsers?.find((u: any) => u.id === userDetailId)?.userRole}
+                    onValueChange={v => changeRoleMutation.mutate({ userId: userDetailId!, userRole: v })}
+                  >
+                    <SelectTrigger className="flex-1" data-testid="select-change-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="shipowner">Armatör</SelectItem>
+                      <SelectItem value="agent">Acente</SelectItem>
+                      <SelectItem value="provider">Hizmet Sağlayıcı</SelectItem>
+                      <SelectItem value="broker">Broker</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {changeRoleMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                </div>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Delete User Confirm */}
+      <AlertDialog open={!!deleteUserTarget} onOpenChange={open => { if (!open) setDeleteUserTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Kullanıcıyı Sil</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bu kullanıcı ve tüm ilişkili veriler kalıcı olarak silinecek. Bu işlem geri alınamaz.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteUserTarget && deleteUserMutation.mutate(deleteUserTarget)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-user"
+            >
+              {deleteUserMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Kalıcı Olarak Sil
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Port Alert Dialog */}
       <Dialog open={alertDialog} onOpenChange={v => { setAlertDialog(v); if (!v) { setEditAlert(null); } }}>

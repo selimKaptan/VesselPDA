@@ -102,12 +102,14 @@ export function AppSidebar() {
   toolsNav.push({ title: "Mesajlar", url: "/messages", icon: MessageCircle, badge: unreadMessages });
   if (effectiveRole === "agent" || effectiveRole === "shipowner") {
     toolsNav.push({ title: "OFAC Sorgula", url: "/sanctions-check", icon: ShieldAlert });
+  }
+  if (effectiveRole === "agent" || effectiveRole === "shipowner" || effectiveRole === "provider") {
     toolsNav.push({ title: "Sertifikalar", url: "/vessel-certificates", icon: BadgeCheck });
   }
   if (effectiveRole === "agent" || effectiveRole === "shipowner" || effectiveRole === "broker" || isAdminUser) {
     toolsNav.push({ title: "Fixtureler", url: "/fixtures", icon: Handshake });
   }
-  if (effectiveRole === "agent" || effectiveRole === "shipowner" || effectiveRole === "broker" || isAdminUser) {
+  if (effectiveRole === "agent" || effectiveRole === "shipowner" || effectiveRole === "broker" || effectiveRole === "provider" || isAdminUser) {
     toolsNav.push({ title: "Piyasa Verileri", url: "/market-data", icon: TrendingUp });
   }
   if (effectiveRole === "agent" || effectiveRole === "shipowner" || isAdminUser) {

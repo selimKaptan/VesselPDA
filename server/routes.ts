@@ -1039,6 +1039,329 @@ export async function registerRoutes(
     }
   });
 
+  // ─── ENHANCED ADMIN STATS (active voyages, pending approvals, today's txns) ───
+  app.get("/api/admin/stats/enhanced", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const allUsers = await storage.getAllUsers();
+      const pendingProfiles = await storage.getPendingCompanyProfiles();
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+
+      // Active voyages (in_progress or scheduled)
+      const voyagesRows = await db.execute(drizzleSql`SELECT id, status FROM voyages`);
+      const voyages: any[] = (voyagesRows as any).rows ?? (voyagesRows as any);
+      const activeVoyages = voyages.filter((v: any) => v.status === "in_progress" || v.status === "scheduled").length;
+
+      // Today's transactions (proformas + voyages + service requests created today)
+      const proformaRows = await db.execute(drizzleSql`SELECT id FROM proformas WHERE created_at >= ${today.toISOString()}`);
+      const todayProformas = ((proformaRows as any).rows ?? (proformaRows as any)).length;
+      const voyageTodayRows = await db.execute(drizzleSql`SELECT id FROM voyages WHERE created_at >= ${today.toISOString()}`);
+      const todayVoyages = ((voyageTodayRows as any).rows ?? (voyageTodayRows as any)).length;
+      const srRows = await db.execute(drizzleSql`SELECT id FROM service_requests WHERE created_at >= ${today.toISOString()}`);
+      const todaySR = ((srRows as any).rows ?? (srRows as any)).length;
+      const todayTransactions = todayProformas + todayVoyages + todaySR;
+
+      // Pending verifications
+      const pendingVerifRows = await db.execute(drizzleSql`SELECT id FROM company_profiles WHERE verification_status = 'pending'`);
+      const pendingVerifications = ((pendingVerifRows as any).rows ?? (pendingVerifRows as any)).length;
+
+      // System health
+      const dbOk = true;
+      const aisOk = !!process.env.AIS_STREAM_API_KEY;
+      const teOk = !!process.env.TRADING_ECONOMICS_API_KEY;
+      const resendOk = !!process.env.RESEND_API_KEY;
+
+      res.json({
+        totalUsers: allUsers.length,
+        usersByRole: {
+          shipowner: allUsers.filter((u: any) => u.userRole === "shipowner").length,
+          agent: allUsers.filter((u: any) => u.userRole === "agent").length,
+          provider: allUsers.filter((u: any) => u.userRole === "provider").length,
+          broker: allUsers.filter((u: any) => u.userRole === "broker").length,
+          admin: allUsers.filter((u: any) => u.userRole === "admin").length,
+        },
+        usersByPlan: {
+          free: allUsers.filter((u: any) => u.subscriptionPlan === "free").length,
+          standard: allUsers.filter((u: any) => u.subscriptionPlan === "standard").length,
+          unlimited: allUsers.filter((u: any) => u.subscriptionPlan === "unlimited").length,
+        },
+        activeVoyages,
+        todayTransactions,
+        pendingApprovals: pendingProfiles.length,
+        pendingVerifications,
+        totalVoyages: voyages.length,
+        systemHealth: { dbOk, aisOk, teOk, resendOk },
+      });
+    } catch (error) {
+      console.error("[admin/stats/enhanced]", error);
+      res.status(500).json({ message: "Failed to fetch enhanced stats" });
+    }
+  });
+
+  // ─── ADMIN ACTIVITY FEED ───────────────────────────────────────────────────
+  app.get("/api/admin/activity", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const activities: any[] = [];
+
+      // Recent proformas
+      const pRows = await db.execute(drizzleSql`
+        SELECT p.id, p.reference_number, p.created_at, u.first_name, u.last_name, u.email
+        FROM proformas p LEFT JOIN users u ON p.user_id = u.id
+        ORDER BY p.created_at DESC LIMIT 10
+      `);
+      const proformas: any[] = (pRows as any).rows ?? (pRows as any);
+      for (const p of proformas) {
+        activities.push({ type: "proforma", icon: "FileText", label: `Proforma oluşturuldu: ${p.reference_number || "#" + p.id}`, user: `${p.first_name || ""} ${p.last_name || ""}`.trim() || p.email, createdAt: p.created_at });
+      }
+
+      // Recent voyages
+      const vRows = await db.execute(drizzleSql`
+        SELECT v.id, v.status, v.created_at, u.first_name, u.last_name, u.email
+        FROM voyages v LEFT JOIN users u ON v.user_id = u.id
+        ORDER BY v.created_at DESC LIMIT 8
+      `);
+      const vList: any[] = (vRows as any).rows ?? (vRows as any);
+      for (const v of vList) {
+        activities.push({ type: "voyage", icon: "Ship", label: `Sefer oluşturuldu (#${v.id})`, user: `${v.first_name || ""} ${v.last_name || ""}`.trim() || v.email, createdAt: v.created_at });
+      }
+
+      // Recent service requests
+      const srRows2 = await db.execute(drizzleSql`
+        SELECT s.id, s.service_type, s.created_at, u.first_name, u.last_name, u.email
+        FROM service_requests s LEFT JOIN users u ON s.requester_id = u.id
+        ORDER BY s.created_at DESC LIMIT 8
+      `);
+      const srList: any[] = (srRows2 as any).rows ?? (srRows2 as any);
+      for (const s of srList) {
+        activities.push({ type: "service_request", icon: "Wrench", label: `Hizmet talebi: ${s.service_type || "#" + s.id}`, user: `${s.first_name || ""} ${s.last_name || ""}`.trim() || s.email, createdAt: s.created_at });
+      }
+
+      // Recent user registrations
+      const uRows = await db.execute(drizzleSql`
+        SELECT id, first_name, last_name, email, user_role, created_at FROM users ORDER BY created_at DESC LIMIT 8
+      `);
+      const uList: any[] = (uRows as any).rows ?? (uRows as any);
+      for (const u of uList) {
+        activities.push({ type: "user_register", icon: "UserPlus", label: `Yeni kayıt: ${u.user_role}`, user: `${u.first_name || ""} ${u.last_name || ""}`.trim() || u.email, createdAt: u.created_at });
+      }
+
+      // Sort by date desc and take top 20
+      activities.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      res.json(activities.slice(0, 20));
+    } catch (error) {
+      console.error("[admin/activity]", error);
+      res.status(500).json({ message: "Failed to fetch activity" });
+    }
+  });
+
+  // ─── ADMIN REPORTS ─────────────────────────────────────────────────────────
+  app.get("/api/admin/reports/user-growth", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const now = new Date();
+      const months = Array.from({ length: 6 }, (_, i) => {
+        const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+        const next = new Date(now.getFullYear(), now.getMonth() - (5 - i) + 1, 1);
+        return { label: d.toLocaleString("tr-TR", { month: "short", year: "2-digit" }), start: d.toISOString(), end: next.toISOString() };
+      });
+
+      const result = await Promise.all(months.map(async (m) => {
+        const rows = await db.execute(drizzleSql`
+          SELECT user_role, COUNT(*) as cnt FROM users
+          WHERE created_at >= ${m.start} AND created_at < ${m.end}
+          GROUP BY user_role
+        `);
+        const list: any[] = (rows as any).rows ?? (rows as any);
+        const byRole: any = { shipowner: 0, agent: 0, provider: 0, broker: 0, admin: 0 };
+        let total = 0;
+        for (const r of list) { byRole[r.user_role] = (byRole[r.user_role] || 0) + parseInt(r.cnt); total += parseInt(r.cnt); }
+        return { month: m.label, total, ...byRole };
+      }));
+
+      res.json(result);
+    } catch (error) {
+      console.error("[admin/reports/user-growth]", error);
+      res.status(500).json({ message: "Failed to fetch user growth" });
+    }
+  });
+
+  app.get("/api/admin/reports/active-users", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const rows = await db.execute(drizzleSql`
+        SELECT u.id, u.first_name, u.last_name, u.email, u.user_role, u.subscription_plan,
+          (SELECT COUNT(*) FROM proformas WHERE user_id = u.id) as proforma_count,
+          (SELECT COUNT(*) FROM voyages WHERE user_id = u.id) as voyage_count,
+          (SELECT COUNT(*) FROM service_requests WHERE requester_id = u.id) as sr_count
+        FROM users u
+        WHERE u.user_role != 'admin'
+        ORDER BY (
+          (SELECT COUNT(*) FROM proformas WHERE user_id = u.id) +
+          (SELECT COUNT(*) FROM voyages WHERE user_id = u.id) +
+          (SELECT COUNT(*) FROM service_requests WHERE requester_id = u.id)
+        ) DESC
+        LIMIT 10
+      `);
+      const list: any[] = (rows as any).rows ?? (rows as any);
+      res.json(list.map(r => ({
+        id: r.id, name: `${r.first_name || ""} ${r.last_name || ""}`.trim() || r.email,
+        email: r.email, role: r.user_role, plan: r.subscription_plan,
+        proformaCount: parseInt(r.proforma_count || 0),
+        voyageCount: parseInt(r.voyage_count || 0),
+        srCount: parseInt(r.sr_count || 0),
+        totalActivity: parseInt(r.proforma_count || 0) + parseInt(r.voyage_count || 0) + parseInt(r.sr_count || 0),
+      })));
+    } catch (error) {
+      console.error("[admin/reports/active-users]", error);
+      res.status(500).json({ message: "Failed to fetch active users" });
+    }
+  });
+
+  // ─── ADMIN USER CRUD ───────────────────────────────────────────────────────
+  app.delete("/api/admin/users/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const adminId = req.user?.claims?.sub || req.user?.id;
+      if (req.params.id === adminId) return res.status(400).json({ message: "Kendi hesabınızı silemezsiniz" });
+      await db.execute(drizzleSql`DELETE FROM users WHERE id = ${req.params.id}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[admin/delete-user]", error);
+      res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
+  app.post("/api/admin/users", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const { email, password, firstName, lastName, userRole, subscriptionPlan } = req.body;
+      if (!email || !password || !firstName || !lastName || !userRole) {
+        return res.status(400).json({ message: "Tüm alanlar zorunludur" });
+      }
+      const bcrypt = await import("bcryptjs");
+      const passwordHash = await bcrypt.hash(password, 10);
+      const id = crypto.randomUUID();
+      await db.execute(drizzleSql`
+        INSERT INTO users (id, email, password_hash, first_name, last_name, user_role, active_role, subscription_plan, email_verified, role_confirmed, is_suspended, created_at)
+        VALUES (${id}, ${email}, ${passwordHash}, ${firstName}, ${lastName}, ${userRole}, ${userRole}, ${subscriptionPlan || "free"}, true, true, false, NOW())
+      `);
+      res.json({ success: true, id });
+    } catch (error: any) {
+      console.error("[admin/create-user]", error);
+      if (error?.code === "23505") return res.status(400).json({ message: "Bu e-posta zaten kayıtlı" });
+      res.status(500).json({ message: "Kullanıcı oluşturulamadı" });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/role", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const { userRole } = req.body;
+      if (!["shipowner", "agent", "provider", "broker"].includes(userRole)) return res.status(400).json({ message: "Geçersiz rol" });
+      await db.execute(drizzleSql`UPDATE users SET user_role = ${userRole}, active_role = ${userRole} WHERE id = ${req.params.id}`);
+      const allUsers = await storage.getAllUsers();
+      const updated = allUsers.find((u: any) => u.id === req.params.id);
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update role" });
+    }
+  });
+
+  app.get("/api/admin/users/:id/activity", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const uid = req.params.id;
+      const activities: any[] = [];
+
+      const pRows = await db.execute(drizzleSql`SELECT id, reference_number, created_at FROM proformas WHERE user_id = ${uid} ORDER BY created_at DESC LIMIT 5`);
+      const proformas: any[] = (pRows as any).rows ?? (pRows as any);
+      for (const p of proformas) activities.push({ type: "proforma", label: `Proforma: ${p.reference_number || "#" + p.id}`, createdAt: p.created_at });
+
+      const vRows2 = await db.execute(drizzleSql`SELECT id, status, created_at FROM voyages WHERE user_id = ${uid} ORDER BY created_at DESC LIMIT 5`);
+      const vList2: any[] = (vRows2 as any).rows ?? (vRows2 as any);
+      for (const v of vList2) activities.push({ type: "voyage", label: `Sefer #${v.id} (${v.status})`, createdAt: v.created_at });
+
+      const srRows3 = await db.execute(drizzleSql`SELECT id, service_type, created_at FROM service_requests WHERE requester_id = ${uid} ORDER BY created_at DESC LIMIT 5`);
+      const srList2: any[] = (srRows3 as any).rows ?? (srRows3 as any);
+      for (const s of srList2) activities.push({ type: "service_request", label: `Hizmet: ${s.service_type || "#" + s.id}`, createdAt: s.created_at });
+
+      activities.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      res.json(activities.slice(0, 15));
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch user activity" });
+    }
+  });
+
+  // ─── ADMIN ANNOUNCE ────────────────────────────────────────────────────────
+  app.post("/api/admin/announce", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const { title, message, targetRole } = req.body;
+      if (!title || !message) return res.status(400).json({ message: "Başlık ve mesaj zorunludur" });
+
+      const allUsers = await storage.getAllUsers();
+      const targets = targetRole && targetRole !== "all"
+        ? allUsers.filter((u: any) => u.userRole === targetRole && !u.isSuspended)
+        : allUsers.filter((u: any) => u.userRole !== "admin" && !u.isSuspended);
+
+      let sent = 0;
+      for (const u of targets) {
+        await storage.createNotification({ userId: (u as any).id, type: "system", title, message, link: "/" });
+        sent++;
+      }
+      res.json({ success: true, sent });
+    } catch (error) {
+      console.error("[admin/announce]", error);
+      res.status(500).json({ message: "Duyuru gönderilemedi" });
+    }
+  });
+
+  // ─── ADMIN CONTENT MANAGEMENT ─────────────────────────────────────────────
+  app.get("/api/admin/voyages", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const rows = await db.execute(drizzleSql`
+        SELECT v.id, v.status, v.created_at, v.eta, v.etd,
+          u.first_name, u.last_name, u.email, u.user_role,
+          ves.name as vessel_name, ves.imo_number,
+          p.name as port_name
+        FROM voyages v
+        LEFT JOIN users u ON v.user_id = u.id
+        LEFT JOIN vessels ves ON v.vessel_id = ves.id
+        LEFT JOIN ports p ON v.port_id = p.id
+        ORDER BY v.created_at DESC
+        LIMIT 100
+      `);
+      const list: any[] = (rows as any).rows ?? (rows as any);
+      res.json(list);
+    } catch (error) {
+      console.error("[admin/voyages]", error);
+      res.status(500).json({ message: "Failed to fetch voyages" });
+    }
+  });
+
+  app.get("/api/admin/service-requests-list", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const rows = await db.execute(drizzleSql`
+        SELECT s.id, s.service_type, s.status, s.description, s.created_at,
+          u.first_name, u.last_name, u.email,
+          p.name as port_name
+        FROM service_requests s
+        LEFT JOIN users u ON s.requester_id = u.id
+        LEFT JOIN ports p ON s.port_id = p.id
+        ORDER BY s.created_at DESC
+        LIMIT 100
+      `);
+      const list: any[] = (rows as any).rows ?? (rows as any);
+      res.json(list);
+    } catch (error) {
+      console.error("[admin/service-requests]", error);
+      res.status(500).json({ message: "Failed to fetch service requests" });
+    }
+  });
+
   app.get("/api/admin/geocode-status", isAuthenticated, async (req: any, res) => {
     try {
       if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
