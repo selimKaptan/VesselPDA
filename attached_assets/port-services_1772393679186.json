@@ -1,0 +1,161 @@
+{
+  "_meta": {
+    "description": "Liman Hizmet Tarifeleri (Barınma, Fener, Sağlık, VTS, LÇB, Çöp, Demirleme)",
+    "source": "T.C. Ulaştırma ve Altyapı Bakanlığı / Liman Başkanlıkları",
+    "effective_from": "2025-01-01"
+  },
+
+  "wharfage": {
+    "description": "Barınma / Rıhtım Ücreti",
+    "calc_method": "GRT_DAILY",
+    "basis": "GRT",
+    "currency": "USD",
+    "rules": {
+      "general_ports": {
+        "description": "Genel limanlar (Aliağa, Tekirdağ vb.)",
+        "formula": "ROUNDUP(birim) × bayrak_çarpanı × gün_sayısı",
+        "rates": {
+          "grt_lte_500": {
+            "base_unit": 10,
+            "note": "500 GRT ve altı sabit 10$ birim"
+          },
+          "grt_gt_500": {
+            "per_1000_grt": 25,
+            "note": "ROUNDUP(GRT/1000) × 25$"
+          }
+        },
+        "flag_multipliers": {
+          "YABANCI": 1.0,
+          "TURK": 0.75,
+          "KABOTAJ": 0.5
+        },
+        "note": "Sonuç ROUNDUP yapılır, sonra × gün_sayısı"
+      },
+      "tcdd_izmir": {
+        "description": "TCDD İzmir özel hesap",
+        "formula": "ROUNDUP(GRT/1000) × 10 × gün_sayısı",
+        "note": "Bayrak farkı yok, sabit 10$ birim"
+      }
+    },
+    "example": {
+      "grt": 2298,
+      "flag": "YABANCI",
+      "days": 4,
+      "calculation": "ROUNDUP(ROUNDUP(2298/1000)×25 × 1.0) × 4 = ROUNDUP(3×25) × 4 = 75 × 4 = 300"
+    }
+  },
+
+  "light_dues": {
+    "description": "Fener Ücreti",
+    "calc_method": "NRT_FACTOR",
+    "basis": "NRT",
+    "currency": "USD",
+    "multiplier": 2,
+    "flag_rates": {
+      "YABANCI": {
+        "first_800_nrt": 0.22176,
+        "above_800_nrt": 0.11088
+      },
+      "TURK": {
+        "first_800_nrt": 0.1241856,
+        "above_800_nrt": 0.0620928
+      },
+      "KABOTAJ": {
+        "first_800_nrt": 0.03528,
+        "above_800_nrt": 0.01764
+      }
+    },
+    "formula_explanation": "(MIN(NRT,800) × ilk_800_oran + MAX(0,NRT-800) × üst_oran) × 2",
+    "example": {
+      "nrt": 1004,
+      "flag": "TURK",
+      "calculation": "(MIN(1004,800)×0.1241856 + MAX(0,1004-800)×0.0620928) × 2 = (99.349 + 12.667) × 2 = 224.031"
+    }
+  },
+
+  "sanitary_dues": {
+    "description": "Sağlık Resmi",
+    "calc_method": "NRT_FACTOR",
+    "basis": "NRT",
+    "currency": "TRY",
+    "factor": 21.67,
+    "formula_explanation": "NRT × 21.67 / USD_kuru",
+    "example": {
+      "nrt": 1004,
+      "usd_try": 43.92,
+      "calculation": "1004 × 21.67 / 43.92 = 495.371"
+    }
+  },
+
+  "vts": {
+    "description": "VTS (Vessel Traffic Service) Ücreti",
+    "calc_method": "TIERED_NRT",
+    "basis": "NRT",
+    "currency": "USD",
+    "multiplier": 2,
+    "applicable_conditions": "NRT >= 300",
+    "flag_tiers": [
+      { "min_nrt": 0,     "max_nrt": 299,   "YABANCI": 0,      "TURK": 0,       "KABOTAJ": 0     },
+      { "min_nrt": 300,   "max_nrt": 2000,   "YABANCI": 92.4,   "TURK": 23.1,    "KABOTAJ": 8.4   },
+      { "min_nrt": 2001,  "max_nrt": 5000,   "YABANCI": 184.8,  "TURK": 46.2,    "KABOTAJ": 16.8  },
+      { "min_nrt": 5001,  "max_nrt": 10000,  "YABANCI": 346.5,  "TURK": 86.625,  "KABOTAJ": 31.5  },
+      { "min_nrt": 10001, "max_nrt": 20000,  "YABANCI": 519.75, "TURK": 129.9375,"KABOTAJ": 47.25 },
+      { "min_nrt": 20001, "max_nrt": 50000,  "YABANCI": 693.0,  "TURK": 173.25,  "KABOTAJ": 63.0  },
+      { "min_nrt": 50001, "max_nrt": null,    "YABANCI": 1039.5, "TURK": 259.875, "KABOTAJ": 94.5  }
+    ],
+    "formula_explanation": "VLOOKUP(NRT, kademe) × 2. NRT < 300 ise 0",
+    "note": "Sadece VTS bulunan limanlarda uygulanır (ISS Palm İzmir vb.)"
+  },
+
+  "harbour_master": {
+    "description": "Liman Çıkış Belgesi (LÇB) + Mesai Dışı LÇB + Ordino",
+    "calc_method": "FORMULA",
+    "currency": "TRY",
+    "components": {
+      "lcb": {
+        "description": "Liman Çıkış Belgesi temel ücret",
+        "note": "NRT bazlı array formül - Excel'den birebir alınmalı",
+        "example_value_for_nrt_1004": 77.96
+      },
+      "lcb_overtime": {
+        "description": "Mesai dışı LÇB",
+        "example_value_for_nrt_1004": 14.30
+      },
+      "ordino": {
+        "description": "Ordino ücreti",
+        "formula": "(lcb_overtime / 2) + (5.71 / USD_kuru)",
+        "example_value": 7.28
+      },
+      "total_formula": "lcb_overtime + lcb + 2 × ordino",
+      "example_total": 106.82
+    },
+    "note": "LÇB hesabı karmaşık array formül içerir, ayrı bir config gerekebilir"
+  },
+
+  "garbage": {
+    "description": "Çöp Toplama Ücreti (Zorunlu)",
+    "calc_method": "FIXED_USD",
+    "currency": "USD",
+    "fixed_amount_usd": 164.8199,
+    "note": "Çöp hizmet alınmasa bile zorunlu tahsil edilir"
+  },
+
+  "anchorage": {
+    "description": "Demirleme Ücreti",
+    "calc_method": "FORMULA",
+    "basis": "GRT",
+    "currency": "USD",
+    "rules": {
+      "no_anchorage": "Demirleme yoksa (0 gün) → 0",
+      "first_7_days": {
+        "daily_factor": 0.004,
+        "formula": "GRT × 0.004 × gün"
+      },
+      "after_7_days": {
+        "daily_factor": 0.006,
+        "formula": "(GRT × 0.004 × 7) + (GRT × 0.006 × (gün - 7))"
+      }
+    },
+    "formula_explanation": "gün=0 → 0 | gün≤7 → GRT×0.004×gün | gün>7 → (GRT×0.004×7)+(GRT×0.006×(gün-7))"
+  }
+}

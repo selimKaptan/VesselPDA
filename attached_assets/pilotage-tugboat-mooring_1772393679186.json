@@ -1,0 +1,131 @@
+{
+  "_meta": {
+    "description": "Kıyı Emniyeti Tarifeleri (Kılavuzluk, Römorkör, Palamar)",
+    "source": "T.C. Ulaştırma ve Altyapı Bakanlığı - Kıyı Emniyeti Genel Müdürlüğü",
+    "effective_from": "2025-01-01",
+    "currency": "USD",
+    "notes": [
+      "Tüm ücretler giriş + çıkış (×2) olarak hesaplanır",
+      "Tehlikeli yük taşıyan gemilere %30 ilave uygulanır",
+      "Resmi/dini tatiller ve pazarlar: %50 mesai dışı ilave"
+    ]
+  },
+
+  "pilotage": {
+    "description": "Kılavuzluk Ücreti",
+    "calc_method": "TIERED_GRT",
+    "basis": "GRT",
+    "multiplier": 2,
+    "dangerous_cargo_surcharge": 1.3,
+    "overtime_surcharge": 1.5,
+    "tiers": [
+      {
+        "min_grt": 0,
+        "max_grt": 1000,
+        "base_rate_usd": 202.27,
+        "per_1000_grt_usd": 0,
+        "note": "0-1000 GRT arası taban ücret"
+      },
+      {
+        "min_grt": 1001,
+        "max_grt": null,
+        "base_rate_usd": 202.27,
+        "per_1000_grt_usd": 83.17,
+        "note": "1000 GRT üzeri her ek 1000 GRT (veya kesri) için"
+      }
+    ],
+    "formula_explanation": "2 × (taban + ROUNDUP((GRT-1000)/1000) × ek_birim) × tehlikeli_çarpan",
+    "example": {
+      "grt": 2298,
+      "is_dangerous": true,
+      "calculation": "2 × (202.27 + ROUNDUP((2298-1000)/1000) × 83.17) × 1.3 = 2 × (202.27 + 2×83.17) × 1.3 = 2 × 368.61 × 1.3 = 958.386"
+    }
+  },
+
+  "tugboat": {
+    "description": "Römorkör Ücreti",
+    "calc_method": "TIERED_GRT",
+    "basis": "GRT",
+    "multiplier_rules": {
+      "grt_lte_5000": 2,
+      "grt_gt_5000": 4,
+      "note": "5000 GRT üzeri gemiler 4 römorkör, altı 2 römorkör"
+    },
+    "dangerous_cargo_surcharge": 1.3,
+    "overtime_surcharge": 1.5,
+    "tiers": [
+      {
+        "min_grt": 0,
+        "max_grt": 1000,
+        "base_rate_usd": 382.99,
+        "per_1000_grt_usd": 0
+      },
+      {
+        "min_grt": 1001,
+        "max_grt": null,
+        "base_rate_usd": 382.99,
+        "per_1000_grt_usd": 71.87
+      }
+    ],
+    "formula_explanation": "römorkör_sayısı × (taban + ROUNDUP((GRT-1000)/1000) × ek_birim) × tehlikeli_çarpan",
+    "example": {
+      "grt": 2298,
+      "is_dangerous": true,
+      "calculation": "2 × (382.99 + 2×71.87) × 1.3 = 2 × 526.73 × 1.3 = 1369.498"
+    }
+  },
+
+  "mooring_boat": {
+    "description": "Palamar (Bağlama/Çözme) Ücreti",
+    "calc_method": "TIERED_GRT",
+    "basis": "GRT",
+    "multiplier": 2,
+    "dangerous_cargo_surcharge": 1.3,
+    "overtime_surcharge": 1.5,
+    "tiers": [
+      {
+        "min_grt": 0,
+        "max_grt": 1000,
+        "base_rate_usd": 22.58,
+        "per_1000_grt_usd": 0
+      },
+      {
+        "min_grt": 1001,
+        "max_grt": null,
+        "base_rate_usd": 22.58,
+        "per_1000_grt_usd": 11.29
+      }
+    ],
+    "formula_explanation": "2 × (taban + ROUNDUP((GRT-1000)/1000) × ek_birim) × tehlikeli_çarpan",
+    "example": {
+      "grt": 2298,
+      "is_dangerous": true,
+      "calculation": "2 × (22.58 + 2×11.29) × 1.3 = 2 × 45.16 × 1.3 = 117.416"
+    }
+  },
+
+  "pelikan_passage": {
+    "description": "Pelikan Boğazı Geçiş Kılavuzluğu (Sadece ISS Palm İzmir)",
+    "calc_method": "TIERED_GRT",
+    "basis": "GRT",
+    "multiplier": 2,
+    "dangerous_cargo_surcharge": 1.3,
+    "is_compulsory": false,
+    "applicable_terminals": ["ISS_PALM_IZMIR"],
+    "tiers": [
+      {
+        "min_grt": 0,
+        "max_grt": 1000,
+        "base_rate_usd": 202.27,
+        "per_1000_grt_usd": 0
+      },
+      {
+        "min_grt": 1001,
+        "max_grt": null,
+        "base_rate_usd": 202.27,
+        "per_1000_grt_usd": 83.17
+      }
+    ],
+    "note": "Kılavuzluk ile aynı tarife, sadece belirli terminallerde uygulanır"
+  }
+}

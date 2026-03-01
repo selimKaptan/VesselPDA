@@ -1,0 +1,183 @@
+{
+  "_meta": {
+    "description": "Terminal Konfigürasyonları - Her terminal için aktif kalemler ve özel kurallar",
+    "note": "Yeni liman/terminal eklemek için bu dosyaya yeni bir blok ekle"
+  },
+
+  "TUPRAS_ALIAGA": {
+    "name": "TÜPRAŞ Aliağa",
+    "port": "ALIAGA",
+    "display_title": "TUPRAS port in Turkey in/out exp.(estimated)",
+    "items": [
+      { "category": "PILOTAGE",       "enabled": true,  "sort": 1  },
+      { "category": "TUGBOAT",        "enabled": true,  "sort": 2  },
+      { "category": "WHARFAGE",       "enabled": true,  "sort": 3, "rule": "general_ports" },
+      { "category": "MOORING",        "enabled": true,  "sort": 4  },
+      { "category": "GARBAGE",        "enabled": true,  "sort": 5  },
+      { "category": "OTO_SERVICE",    "enabled": true,  "sort": 6  },
+      { "category": "HARBOUR_MASTER", "enabled": true,  "sort": 7  },
+      { "category": "SANITARY",       "enabled": true,  "sort": 8  },
+      { "category": "LIGHT_DUES",     "enabled": true,  "sort": 9  },
+      { "category": "CUSTOMS",        "enabled": true,  "sort": 10 },
+      { "category": "ANCHORAGE",      "enabled": true,  "sort": 11 },
+      { "category": "DTO_FEE",        "enabled": true,  "sort": 12 },
+      { "category": "DTO_FREIGHT",    "enabled": true,  "sort": 13 },
+      { "category": "VDA_FEE",        "enabled": true,  "sort": 14 },
+      { "category": "MOTORBOAT",      "enabled": true,  "sort": 15 },
+      { "category": "FACILITIES",     "enabled": true,  "sort": 16 },
+      { "category": "TRANSPORTATION", "enabled": true,  "sort": 17 },
+      { "category": "FISCAL_NOTARY",  "enabled": true,  "sort": 18 },
+      { "category": "COMMUNICATION",  "enabled": true,  "sort": 19 },
+      { "category": "SUPERVISION",    "enabled": true,  "sort": 20 },
+      { "category": "AGENCY_FEE",     "enabled": true,  "sort": 21 }
+    ],
+    "fixed_expenses": {
+      "MOTORBOAT":      { "amount": 500, "currency": "USD" },
+      "FACILITIES":     { "amount": 550, "currency": "USD" },
+      "TRANSPORTATION": { "amount": 500, "currency": "USD" },
+      "FISCAL_NOTARY":  { "amount": 250, "currency": "USD" },
+      "COMMUNICATION":  { "amount": 250, "currency": "USD" }
+    },
+    "special_rules": {
+      "customs": "standard",
+      "wharfage": "general_ports"
+    }
+  },
+
+  "CEYPORT_TEKIRDAG": {
+    "name": "Ceyport Tekirdağ",
+    "port": "TEKIRDAG",
+    "display_title": "CEYPORT port in Turkey in/out exp.(estimated)",
+    "items": [
+      { "category": "PILOTAGE",       "enabled": true,  "sort": 1  },
+      { "category": "TUGBOAT",        "enabled": true,  "sort": 2  },
+      { "category": "WHARFAGE",       "enabled": true,  "sort": 3, "rule": "general_ports" },
+      { "category": "MOORING",        "enabled": true,  "sort": 4  },
+      { "category": "GARBAGE",        "enabled": true,  "sort": 5  },
+      { "category": "OTO_SERVICE",    "enabled": false, "sort": 0  },
+      { "category": "HARBOUR_MASTER", "enabled": true,  "sort": 6  },
+      { "category": "SANITARY",       "enabled": true,  "sort": 7  },
+      { "category": "LIGHT_DUES",     "enabled": true,  "sort": 8  },
+      { "category": "CUSTOMS",        "enabled": true,  "sort": 9, "rule": "tekirdag" },
+      { "category": "ANCHORAGE",      "enabled": true,  "sort": 10 },
+      { "category": "DTO_FEE",        "enabled": true,  "sort": 11 },
+      { "category": "DTO_FREIGHT",    "enabled": true,  "sort": 12 },
+      { "category": "VDA_FEE",        "enabled": true,  "sort": 13 },
+      { "category": "MOTORBOAT",      "enabled": true,  "sort": 14 },
+      { "category": "FACILITIES",     "enabled": true,  "sort": 15 },
+      { "category": "TRANSPORTATION", "enabled": true,  "sort": 16 },
+      { "category": "FISCAL_NOTARY",  "enabled": true,  "sort": 17 },
+      { "category": "COMMUNICATION",  "enabled": true,  "sort": 18 },
+      { "category": "SUPERVISION",    "enabled": true,  "sort": 19 },
+      { "category": "AGENCY_FEE",     "enabled": true,  "sort": 20 }
+    ],
+    "fixed_expenses": {
+      "MOTORBOAT":      { "amount": 500, "currency": "USD" },
+      "FACILITIES":     { "amount": 550, "currency": "USD" },
+      "TRANSPORTATION": { "amount": 500, "currency": "USD" },
+      "FISCAL_NOTARY":  { "amount": 250, "currency": "USD" },
+      "COMMUNICATION":  { "amount": 250, "currency": "USD" }
+    },
+    "special_rules": {
+      "customs": "tekirdag",
+      "wharfage": "general_ports"
+    }
+  },
+
+  "ISS_PALM_IZMIR": {
+    "name": "ISS Palm İzmir",
+    "port": "IZMIR",
+    "display_title": "Alsancak TCDD port in Turkey in/out exp.(estimated)",
+    "items": [
+      { "category": "PILOTAGE",        "enabled": true,  "sort": 1  },
+      { "category": "TUGBOAT",         "enabled": true,  "sort": 2  },
+      { "category": "PELIKAN_PASSAGE", "enabled": true,  "sort": 3, "note": "Not Compulsory" },
+      { "category": "WHARFAGE",        "enabled": true,  "sort": 4, "rule": "general_ports" },
+      { "category": "MOORING",         "enabled": true,  "sort": 5  },
+      { "category": "GARBAGE",         "enabled": true,  "sort": 6  },
+      { "category": "HARBOUR_MASTER",  "enabled": true,  "sort": 7  },
+      { "category": "SANITARY",        "enabled": true,  "sort": 8  },
+      { "category": "LIGHT_DUES",      "enabled": true,  "sort": 9  },
+      { "category": "VTS",             "enabled": true,  "sort": 10 },
+      { "category": "CUSTOMS",         "enabled": true,  "sort": 11 },
+      { "category": "DTO_FEE",         "enabled": true,  "sort": 12 },
+      { "category": "DTO_FREIGHT",     "enabled": true,  "sort": 13 },
+      { "category": "MOTORBOAT",       "enabled": true,  "sort": 14 },
+      { "category": "AGENCY_FEE",      "enabled": true,  "sort": 15, "override_fixed_usd": 2400 }
+    ],
+    "fixed_expenses": {
+      "MOTORBOAT": { "amount": 225, "currency": "USD" }
+    },
+    "special_rules": {
+      "customs": "standard",
+      "wharfage": "general_ports",
+      "agency_fee": "fixed_2400_usd",
+      "note": "ISS Palm formatında daha az kalem var, acente ücreti sabit"
+    },
+    "excluded_items_note": "OTO_SERVICE, ANCHORAGE, VDA_FEE, FACILITIES, TRANSPORTATION, FISCAL_NOTARY, COMMUNICATION, SUPERVISION yok"
+  },
+
+  "TCDD_IZMIR": {
+    "name": "TCDD İzmir Alsancak",
+    "port": "IZMIR",
+    "display_title": "Alsancak TCDD port in Turkey in/out exp.(estimated)",
+    "items": [
+      { "category": "PILOTAGE",       "enabled": true,  "sort": 1  },
+      { "category": "TUGBOAT",        "enabled": true,  "sort": 2  },
+      { "category": "WHARFAGE",       "enabled": true,  "sort": 3, "rule": "tcdd_izmir" },
+      { "category": "MOORING",        "enabled": true,  "sort": 4  },
+      { "category": "GARBAGE",        "enabled": true,  "sort": 5  },
+      { "category": "HARBOUR_MASTER", "enabled": true,  "sort": 6  },
+      { "category": "SANITARY",       "enabled": true,  "sort": 7  },
+      { "category": "LIGHT_DUES",     "enabled": true,  "sort": 8  },
+      { "category": "CUSTOMS",        "enabled": true,  "sort": 9  },
+      { "category": "ANCHORAGE",      "enabled": true,  "sort": 10 },
+      { "category": "DTO_FEE",        "enabled": true,  "sort": 11 },
+      { "category": "DTO_FREIGHT",    "enabled": true,  "sort": 12 },
+      { "category": "MOTORBOAT",      "enabled": true,  "sort": 13 },
+      { "category": "FACILITIES",     "enabled": true,  "sort": 14 },
+      { "category": "TRANSPORTATION", "enabled": true,  "sort": 15 },
+      { "category": "FISCAL_NOTARY",  "enabled": true,  "sort": 16 },
+      { "category": "COMMUNICATION",  "enabled": true,  "sort": 17 },
+      { "category": "SUPERVISION",    "enabled": true,  "sort": 18 },
+      { "category": "AGENCY_FEE",     "enabled": true,  "sort": 19 }
+    ],
+    "fixed_expenses": {
+      "MOTORBOAT":      { "amount": 500, "currency": "USD" },
+      "FACILITIES":     { "amount": 550, "currency": "USD" },
+      "TRANSPORTATION": { "amount": 500, "currency": "USD" },
+      "FISCAL_NOTARY":  { "amount": 250, "currency": "USD" },
+      "COMMUNICATION":  { "amount": 250, "currency": "USD" }
+    },
+    "special_rules": {
+      "customs": "standard",
+      "wharfage": "tcdd_izmir"
+    }
+  },
+
+  "_template": {
+    "_description": "YENİ TERMİNAL EKLEMEK İÇİN BU ŞABLONU KOPYALA",
+    "name": "Terminal Adı",
+    "port": "LIMAN_KODU",
+    "display_title": "PORT_NAME port in Turkey in/out exp.(estimated)",
+    "items": [
+      { "category": "PILOTAGE",       "enabled": true,  "sort": 1 },
+      { "category": "TUGBOAT",        "enabled": true,  "sort": 2 },
+      { "category": "WHARFAGE",       "enabled": true,  "sort": 3 },
+      { "category": "MOORING",        "enabled": true,  "sort": 4 },
+      { "category": "GARBAGE",        "enabled": true,  "sort": 5 },
+      { "category": "HARBOUR_MASTER", "enabled": true,  "sort": 6 },
+      { "category": "SANITARY",       "enabled": true,  "sort": 7 },
+      { "category": "LIGHT_DUES",     "enabled": true,  "sort": 8 },
+      { "category": "CUSTOMS",        "enabled": true,  "sort": 9 },
+      { "category": "DTO_FEE",        "enabled": true,  "sort": 10 },
+      { "category": "DTO_FREIGHT",    "enabled": true,  "sort": 11 },
+      { "category": "MOTORBOAT",      "enabled": true,  "sort": 12 },
+      { "category": "AGENCY_FEE",     "enabled": true,  "sort": 13 }
+    ],
+    "fixed_expenses": {
+      "MOTORBOAT": { "amount": 500, "currency": "USD" }
+    },
+    "special_rules": {}
+  }
+}

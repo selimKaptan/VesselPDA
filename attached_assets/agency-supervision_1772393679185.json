@@ -1,0 +1,78 @@
+{
+  "_meta": {
+    "description": "Acentelik Ücreti & Süpervizyon Tarifeleri",
+    "source": "İMEAK Deniz Ticaret Odası - Resmi Acente Tarifesi",
+    "effective_from": "2025-01-01"
+  },
+
+  "agency_fee": {
+    "description": "Acentelik Ücreti (Resmi tarife)",
+    "calc_method": "TIERED_NRT",
+    "basis": "NRT",
+    "currency": "EUR",
+    "tiers": [
+      { "min_nrt": 0,     "max_nrt": 500,   "base_eur": 600,   "per_1000_extra_eur": 0  },
+      { "min_nrt": 501,   "max_nrt": 1000,  "base_eur": 1000,  "per_1000_extra_eur": 0  },
+      { "min_nrt": 1001,  "max_nrt": 2000,  "base_eur": 1500,  "per_1000_extra_eur": 0  },
+      { "min_nrt": 2001,  "max_nrt": 3000,  "base_eur": 1850,  "per_1000_extra_eur": 0  },
+      { "min_nrt": 3001,  "max_nrt": 4000,  "base_eur": 2300,  "per_1000_extra_eur": 0  },
+      { "min_nrt": 4001,  "max_nrt": 5000,  "base_eur": 2750,  "per_1000_extra_eur": 0  },
+      { "min_nrt": 5001,  "max_nrt": 7500,  "base_eur": 3200,  "per_1000_extra_eur": 0  },
+      { "min_nrt": 7501,  "max_nrt": 10000, "base_eur": 4000,  "per_1000_extra_eur": 0  },
+      { "min_nrt": 10001, "max_nrt": 20000, "base_eur": 4000,  "per_1000_extra_eur": 75 },
+      { "min_nrt": 20001, "max_nrt": 30000, "base_eur": 4750,  "per_1000_extra_eur": 65 },
+      { "min_nrt": 30001, "max_nrt": 40000, "base_eur": 5400,  "per_1000_extra_eur": 55 },
+      { "min_nrt": 40001, "max_nrt": 50000, "base_eur": 5950,  "per_1000_extra_eur": 40 },
+      { "min_nrt": 50001, "max_nrt": null,   "base_eur": 6350,  "per_1000_extra_eur": 25 }
+    ],
+    "extra_days_rule": {
+      "base_days": 7,
+      "description": "7 güne kadar (dahil) taban ücret. 7 günü aşarsa her 5 günlük dilim için %20 ilave.",
+      "surcharge_percent": 20,
+      "surcharge_period_days": 5
+    },
+    "formula_explanation": "(VLOOKUP(NRT, taban_€) + ROUNDUP(MAX(0, NRT - kademe_başlangıç)/1000) × ek_€) × EUR/USD",
+    "example": {
+      "nrt": 1004,
+      "eur_usd": 1.177285,
+      "calculation": "VLOOKUP(1004) → kademe 1001-2000, taban=1500€, ek=0€ → 1500 × 1.177285 = $1765.93"
+    },
+    "iss_palm_override": {
+      "description": "ISS Palm formatı için farklı acente ücreti",
+      "fixed_amount_usd": 2400,
+      "note": "ISS Palm terminalinde sabit $2400 acente ücreti uygulanır"
+    }
+  },
+
+  "supervision": {
+    "description": "Süpervizyon Ücreti (Resmi tarife)",
+    "calc_method": "CARGO_FACTOR",
+    "basis": "CARGO_QUANTITY",
+    "currency": "EUR",
+    "factor": 0.15,
+    "formula_explanation": "yük_miktarı × 0.15 × EUR/USD",
+    "example": {
+      "cargo_qty": 3001,
+      "eur_usd": 1.177285,
+      "calculation": "3001 × 0.15 × 1.177285 = $529.955"
+    },
+    "note": "Sadece bazı terminallerde uygulanır (TÜPRAŞ, TCDD, Ceyport)"
+  },
+
+  "mesai_disi_ordino": {
+    "description": "Mesai Dışı Ordino Ücreti",
+    "calc_method": "TIERED_NRT",
+    "basis": "NRT",
+    "currency": "TRY",
+    "tiers": [
+      { "min_nrt": 0,     "max_nrt": 500,   "fee_tl": 251  },
+      { "min_nrt": 501,   "max_nrt": 2000,  "fee_tl": 628  },
+      { "min_nrt": 2001,  "max_nrt": 4000,  "fee_tl": 1506 },
+      { "min_nrt": 4001,  "max_nrt": 8000,  "fee_tl": 2259 },
+      { "min_nrt": 8001,  "max_nrt": 10000, "fee_tl": 3012 },
+      { "min_nrt": 10001, "max_nrt": 30000, "fee_tl": 6024 },
+      { "min_nrt": 30001, "max_nrt": 50000, "fee_tl": 9036 },
+      { "min_nrt": 50001, "max_nrt": null,   "fee_tl": 15059 }
+    ]
+  }
+}

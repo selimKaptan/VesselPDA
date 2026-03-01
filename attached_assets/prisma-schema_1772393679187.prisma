@@ -1,0 +1,331 @@
+// ============================================================================
+// PRISMA SCHEMA - Proforma Disbursement Account System
+// Node.js + Next.js + PostgreSQL
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// REFERANS TABLOLARI
+// ============================================================================
+
+model Flag {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique @db.VarChar(10)    // 'TR', 'MT', 'PA'
+  nameTr    String   @map("name_tr") @db.VarChar(100)
+  nameEn    String   @map("name_en") @db.VarChar(100)
+  category  String   @db.VarChar(20)             // 'TURK', 'YABANCI', 'KABOTAJ'
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  vessels   Vessel[]
+  
+  @@map("flags")
+}
+
+model CargoType {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(30)
+  nameEn      String   @map("name_en") @db.VarChar(100)
+  nameTr      String   @map("name_tr") @db.VarChar(100)
+  isDangerous Boolean  @default(false) @map("is_dangerous")
+  category    String?  @db.VarChar(30)
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  proformas   Proforma[]
+  
+  @@map("cargo_types")
+}
+
+model CallPurpose {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique @db.VarChar(30)
+  nameEn    String   @map("name_en") @db.VarChar(50)
+  nameTr    String   @map("name_tr") @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  proformas Proforma[]
+  
+  @@map("call_purposes")
+}
+
+// ============================================================================
+// LİMAN & TERMİNAL
+// ============================================================================
+
+model Region {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  ports     Port[]
+  
+  @@map("regions")
+}
+
+model Port {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique @db.VarChar(20)
+  nameTr    String   @map("name_tr") @db.VarChar(100)
+  nameEn    String   @map("name_en") @db.VarChar(100)
+  regionId  Int?     @map("region_id")
+  city      String?  @db.VarChar(50)
+  country   String   @default("TR") @db.VarChar(10)
+  latitude  Decimal? @db.Decimal(10, 6)
+  longitude Decimal? @db.Decimal(10, 6)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  region    Region?    @relation(fields: [regionId], references: [id])
+  terminals Terminal[]
+  
+  @@map("ports")
+}
+
+model Terminal {
+  id               Int      @id @default(autoincrement())
+  portId           Int      @map("port_id")
+  code             String   @unique @db.VarChar(30)
+  name             String   @db.VarChar(100)
+  operator         String?  @db.VarChar(100)
+  terminalType     String?  @map("terminal_type") @db.VarChar(30)
+  hasPilotage      Boolean  @default(true) @map("has_pilotage")
+  hasTugboat       Boolean  @default(true) @map("has_tugboat")
+  hasMooringBoat   Boolean  @default(true) @map("has_mooring_boat")
+  hasPelikanPassage Boolean @default(false) @map("has_pelikan_passage")
+  hasVts           Boolean  @default(false) @map("has_vts")
+  hasAnchorage     Boolean  @default(true) @map("has_anchorage")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  
+  port             Port             @relation(fields: [portId], references: [id])
+  tariffItems      TariffItem[]
+  parameters       TerminalParameter[]
+  proformas        Proforma[]
+  
+  @@map("terminals")
+}
+
+// ============================================================================
+// TARİFE SİSTEMİ
+// ============================================================================
+
+model TariffCategory {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique @db.VarChar(30)
+  nameTr      String   @map("name_tr") @db.VarChar(100)
+  nameEn      String   @map("name_en") @db.VarChar(100)
+  sortOrder   Int      @default(0) @map("sort_order")
+  description String?
+  
+  tariffItems TariffItem[]
+  
+  @@map("tariff_categories")
+}
+
+model TariffItem {
+  id                     Int       @id @default(autoincrement())
+  terminalId             Int       @map("terminal_id")
+  categoryId             Int       @map("category_id")
+  calcMethod             String    @map("calc_method") @db.VarChar(30)
+  currency               String    @default("USD") @db.VarChar(3)
+  multiplier             Decimal   @default(1) @db.Decimal(6, 2)
+  dangerousCargoSurcharge Decimal  @default(1.0) @map("dangerous_cargo_surcharge") @db.Decimal(4, 2)
+  overtimeSurcharge      Decimal   @default(1.5) @map("overtime_surcharge") @db.Decimal(4, 2)
+  displayNameEn          String?   @map("display_name_en") @db.VarChar(200)
+  displayNoteEn          String?   @map("display_note_en")
+  sortOrder              Int       @default(0) @map("sort_order")
+  isActive               Boolean   @default(true) @map("is_active")
+  effectiveFrom          DateTime  @map("effective_from") @db.Date
+  effectiveTo            DateTime? @map("effective_to") @db.Date
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+  
+  terminal               Terminal        @relation(fields: [terminalId], references: [id])
+  category               TariffCategory  @relation(fields: [categoryId], references: [id])
+  rateTiers              TariffRateTier[]
+  proformaItems          ProformaItem[]
+  
+  @@unique([terminalId, categoryId, effectiveFrom])
+  @@map("tariff_items")
+}
+
+model TariffRateTier {
+  id            Int      @id @default(autoincrement())
+  tariffItemId  Int      @map("tariff_item_id")
+  minValue      Decimal  @map("min_value") @db.Decimal(12, 2)
+  maxValue      Decimal? @map("max_value") @db.Decimal(12, 2)
+  baseRate      Decimal? @map("base_rate") @db.Decimal(12, 4)
+  perUnitRate   Decimal? @map("per_unit_rate") @db.Decimal(12, 4)
+  unitSize      Decimal  @default(1000) @map("unit_size") @db.Decimal(10, 2)
+  rateTurk      Decimal? @map("rate_turk") @db.Decimal(12, 4)
+  rateYabanci   Decimal? @map("rate_yabanci") @db.Decimal(12, 4)
+  rateKabotaj   Decimal? @map("rate_kabotaj") @db.Decimal(12, 4)
+  rateImport    Decimal? @map("rate_import") @db.Decimal(12, 4)
+  rateExport    Decimal? @map("rate_export") @db.Decimal(12, 4)
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  
+  tariffItem    TariffItem @relation(fields: [tariffItemId], references: [id], onDelete: Cascade)
+  
+  @@map("tariff_rate_tiers")
+}
+
+model TerminalParameter {
+  id            Int       @id @default(autoincrement())
+  terminalId    Int       @map("terminal_id")
+  paramKey      String    @map("param_key") @db.VarChar(50)
+  paramValue    Decimal   @map("param_value") @db.Decimal(12, 6)
+  currency      String?   @db.VarChar(3)
+  description   String?
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  createdAt     DateTime  @default(now()) @map("created_at")
+  
+  terminal      Terminal  @relation(fields: [terminalId], references: [id])
+  
+  @@unique([terminalId, paramKey, effectiveFrom])
+  @@map("terminal_parameters")
+}
+
+// ============================================================================
+// GEMİ
+// ============================================================================
+
+model Vessel {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(100)
+  imoNumber  String?  @unique @map("imo_number") @db.VarChar(20)
+  flagId     Int?     @map("flag_id")
+  nrt        Decimal  @db.Decimal(10, 2)
+  grt        Decimal  @db.Decimal(10, 2)
+  dwt        Decimal? @db.Decimal(10, 2)
+  vesselType String?  @map("vessel_type") @db.VarChar(30)
+  loa        Decimal? @db.Decimal(8, 2)
+  beam       Decimal? @db.Decimal(8, 2)
+  draft      Decimal? @db.Decimal(6, 2)
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  
+  flag       Flag?      @relation(fields: [flagId], references: [id])
+  proformas  Proforma[]
+  
+  @@map("vessels")
+}
+
+// ============================================================================
+// PROFORMA
+// ============================================================================
+
+model Proforma {
+  id               Int       @id @default(autoincrement())
+  refNo            String    @unique @map("ref_no") @db.VarChar(30)
+  vesselId         Int?      @map("vessel_id")
+  vesselName       String    @map("vessel_name") @db.VarChar(100)
+  nrt              Decimal   @db.Decimal(10, 2)
+  grt              Decimal   @db.Decimal(10, 2)
+  flagCategory     String    @map("flag_category") @db.VarChar(20)
+  terminalId       Int       @map("terminal_id")
+  portName         String    @map("port_name") @db.VarChar(50)
+  callPurposeId    Int?      @map("call_purpose_id")
+  cargoTypeId      Int?      @map("cargo_type_id")
+  cargoQuantity    Decimal?  @map("cargo_quantity") @db.Decimal(12, 2)
+  isDangerousCargo Boolean   @default(false) @map("is_dangerous_cargo")
+  estBerthStay     Int?      @map("est_berth_stay")
+  estAnchorageDays Int       @default(0) @map("est_anchorage_days")
+  addressedTo      String?   @map("addressed_to") @db.VarChar(200)
+  usdTryRate       Decimal?  @map("usd_try_rate") @db.Decimal(10, 6)
+  eurTryRate       Decimal?  @map("eur_try_rate") @db.Decimal(10, 6)
+  eurUsdRate       Decimal?  @map("eur_usd_rate") @db.Decimal(10, 6)
+  totalUsd         Decimal?  @map("total_usd") @db.Decimal(12, 2)
+  totalEur         Decimal?  @map("total_eur") @db.Decimal(12, 2)
+  status           String    @default("DRAFT") @db.VarChar(20)
+  proformaDate     DateTime  @map("proforma_date") @db.Date
+  createdBy        Int?      @map("created_by")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  
+  vessel           Vessel?      @relation(fields: [vesselId], references: [id])
+  terminal         Terminal     @relation(fields: [terminalId], references: [id])
+  callPurpose      CallPurpose? @relation(fields: [callPurposeId], references: [id])
+  cargoType        CargoType?   @relation(fields: [cargoTypeId], references: [id])
+  items            ProformaItem[]
+  creator          User?        @relation(fields: [createdBy], references: [id])
+  
+  @@map("proformas")
+}
+
+model ProformaItem {
+  id            Int      @id @default(autoincrement())
+  proformaId    Int      @map("proforma_id")
+  tariffItemId  Int?     @map("tariff_item_id")
+  categoryCode  String   @map("category_code") @db.VarChar(30)
+  displayName   String   @map("display_name") @db.VarChar(200)
+  displayNote   String?  @map("display_note")
+  amountUsd     Decimal  @map("amount_usd") @db.Decimal(12, 2)
+  amountEur     Decimal  @map("amount_eur") @db.Decimal(12, 2)
+  calcDetails   Json?    @map("calc_details")
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  
+  proforma      Proforma    @relation(fields: [proformaId], references: [id], onDelete: Cascade)
+  tariffItem    TariffItem? @relation(fields: [tariffItemId], references: [id])
+  
+  @@map("proforma_items")
+}
+
+// ============================================================================
+// KULLANICI & DÖVİZ KURU
+// ============================================================================
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique @db.VarChar(200)
+  name      String   @db.VarChar(100)
+  company   String?  @db.VarChar(200)
+  role      String   @default("AGENT") @db.VarChar(20)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  proformas Proforma[]
+  changeLogs TariffChangeLog[]
+  
+  @@map("users")
+}
+
+model ExchangeRate {
+  id        Int      @id @default(autoincrement())
+  rateDate  DateTime @map("rate_date") @db.Date
+  usdTry    Decimal  @map("usd_try") @db.Decimal(10, 6)
+  eurTry    Decimal  @map("eur_try") @db.Decimal(10, 6)
+  eurUsd    Decimal  @map("eur_usd") @db.Decimal(10, 6)
+  source    String?  @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  @@unique([rateDate, source])
+  @@map("exchange_rates")
+}
+
+model TariffChangeLog {
+  id         Int      @id @default(autoincrement())
+  tableName  String   @map("table_name") @db.VarChar(50)
+  recordId   Int      @map("record_id")
+  action     String   @db.VarChar(10)
+  oldValues  Json?    @map("old_values")
+  newValues  Json?    @map("new_values")
+  changedBy  Int?     @map("changed_by")
+  changedAt  DateTime @default(now()) @map("changed_at")
+  reason     String?
+  
+  changedByUser User? @relation(fields: [changedBy], references: [id])
+  
+  @@map("tariff_change_log")
+}

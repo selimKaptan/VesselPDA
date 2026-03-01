@@ -1,0 +1,156 @@
+# REPLİT'E YÜKLEME REHBERİ (SON VERSİYON)
+
+---
+
+## SENİN İNDİRDİĞİN 12 DOSYA
+
+```
+proforma-system/
+│
+├── docs/
+│   ├── ARCHITECTURE.md          ← Genel mimari doküman
+│   ├── FORM-SPECIFICATION.md    ← Form alanları ve UX tanımı
+│   ├── REPLIT-AGENT-PROMPT.md   ← ⭐ REPLİT'E YAPIŞTIRACAĞIN ANA PROMPT
+│   ├── REPLIT-SETUP.md          ← Detaylı kurulum rehberi (referans)
+│   └── types.ts                 ← TypeScript tipleri
+│
+├── database/
+│   ├── prisma-schema.prisma     ← Veritabanı şeması (Prisma ORM)
+│   ├── schema.sql               ← Ham SQL şeması
+│   └── seed.sql                 ← Başlangıç verileri
+│
+├── port-configs/
+│   └── terminal-configs.json    ← Terminal konfigürasyonları
+│
+└── tariffs/
+    ├── kiyi-emniyeti/
+    │   └── pilotage-tugboat-mooring.json
+    ├── liman-hizmetleri/
+    │   └── port-services.json
+    ├── gumruk/
+    │   └── customs-dto-vda.json
+    └── acente/
+        └── agency-supervision.json
+```
+
+---
+
+## YAPMAN GEREKEN 3 ADIM
+
+### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+### ADIM 1: Replit'te Proje Aç
+### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. replit.com → "Create Repl"
+2. Template: **Next.js**
+3. İsim: **proforma-pda-system**
+4. "Create Repl" tıkla
+
+### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+### ADIM 2: Dosyaları Yükle
+### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Replit'in sol panelinde "Files" sekmesinde şu klasörleri oluştur
+ve dosyaları sürükle-bırak ile yükle:
+
+```
+📁 src/
+   📁 data/          ← 5 JSON dosyasını buraya koy:
+      📄 pilotage-tugboat-mooring.json
+      📄 port-services.json
+      📄 customs-dto-vda.json
+      📄 agency-supervision.json
+      📄 terminal-configs.json
+
+📁 prisma/           ← Bu klasör zaten olabilir, yoksa oluştur:
+   📄 schema.prisma  ← prisma-schema.prisma dosyasının içeriğini yapıştır
+                       (dosya adını schema.prisma olarak değiştir!)
+
+📁 docs/             ← Referans için (opsiyonel ama faydalı):
+   📄 types.ts
+   📄 ARCHITECTURE.md
+   📄 FORM-SPECIFICATION.md
+```
+
+**ÖNEMLİ:** `prisma-schema.prisma` dosyasının adını `schema.prisma` olarak değiştir!
+
+### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+### ADIM 3: Replit Agent'a Söyle
+### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Replit'in AI Agent (chat) panelini aç ve aşağıdaki mesajı yapıştır:
+
+---
+
+**MESAJ 1 (İlk yapıştır — bu ana prompt):**
+
+> `REPLIT-AGENT-PROMPT.md` dosyasının TAMAMINI kopyala-yapıştır.
+
+Bu dosya Agent'a şunları anlatıyor:
+- Projenin ne olduğu
+- Tüm hesaplama formülleri (kılavuzluk, römorkör, barınma, gümrük vs.)
+- Terminal farkları
+- Form alanları (9 zorunlu + opsiyoneller)
+- Test verisi ve beklenen sonuçlar
+
+---
+
+**MESAJ 2 (Agent çalışmaya başladıktan sonra, gerekirse):**
+
+Agent sana soru sorarsa veya tarife detayı isterse:
+
+- "Terminal config nerede?" → `terminal-configs.json` dosyasına bak dedim, `src/data/` içinde
+- "Tarife detayı?" → `src/data/` içindeki JSON'lar
+- "DB şeması?" → `prisma/schema.prisma`
+- "TypeScript tipleri?" → `docs/types.ts`
+
+---
+
+**MESAJ 3 (Her şey kurulduktan sonra test için):**
+
+```
+Şu test verileriyle proforma hesapla ve sonucu kontrol et:
+
+Terminal: TUPRAS_ALIAGA
+Gemi: M/T ALSU, NRT=1004, GRT=2298, Bayrak=TURK
+Yük: SFS OIL, 3001 MT, Tehlikeli=EVET, Tahliye (Discharging)
+Barınma: 4 gün, Demirleme: 0 gün
+Kur: USD/TRY=43.92, EUR/TRY=51.4158
+
+Beklenen: Kılavuzluk=$958.39, Römorkör=$1369.50, Toplam≈$9443
+```
+
+---
+
+## DOSYA-GÖREV EŞLEŞMESİ
+
+| Dosya | Nereye Yükle | Ne İşe Yarar |
+|-------|-------------|--------------|
+| `REPLIT-AGENT-PROMPT.md` | Agent chat'e YAPIŞTIR | ⭐ Ana talimat — formüller + form + test |
+| `pilotage-tugboat-mooring.json` | `src/data/` | Kılavuzluk/Römorkör/Palamar tarifeleri |
+| `port-services.json` | `src/data/` | Barınma/Fener/Sağlık/VTS/Çöp/Demirleme |
+| `customs-dto-vda.json` | `src/data/` | Gümrük/DTO/VDA tarifeleri |
+| `agency-supervision.json` | `src/data/` | Acente ücreti/Süpervizyon |
+| `terminal-configs.json` | `src/data/` | Hangi terminalde hangi kalem aktif |
+| `prisma-schema.prisma` | `prisma/schema.prisma` | Veritabanı yapısı (adını değiştir!) |
+| `schema.sql` | Yükleme | Ham SQL (referans, Prisma varsa gerekmez) |
+| `seed.sql` | Yükleme | Başlangıç verileri (bayraklar, limanlar vb.) |
+| `types.ts` | `docs/` veya `src/engine/` | TypeScript interface tanımları |
+| `ARCHITECTURE.md` | `docs/` | Genel mimari doküman (referans) |
+| `FORM-SPECIFICATION.md` | `docs/` | Form UX detayları (referans) |
+| `REPLIT-SETUP.md` | Yükleme | Kurulum rehberi (senin için, referans) |
+
+---
+
+## KISACA
+
+```
+1. Replit'te Next.js projesi aç
+2. 5 JSON → src/data/ klasörüne yükle
+3. prisma-schema.prisma → prisma/schema.prisma olarak yükle
+4. REPLIT-AGENT-PROMPT.md'nin içeriğini Agent chat'e yapıştır
+5. Agent'ın projeyi kurmasını bekle
+6. Test verileriyle doğrula
+```
+
+Hepsi bu kadar! 🚀

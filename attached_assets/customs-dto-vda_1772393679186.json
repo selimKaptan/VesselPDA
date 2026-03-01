@@ -1,0 +1,126 @@
+{
+  "_meta": {
+    "description": "Gümrük, Deniz Ticaret Odası (DTO), Denizcilik Derneği (VDA) Tarifeleri",
+    "effective_from": "2025-01-01"
+  },
+
+  "customs_overtime": {
+    "description": "Gümrük Mesai Ücreti",
+    "calc_method": "TIERED_CARGO",
+    "basis": "CARGO_QUANTITY",
+    "currency": "TRY",
+    "tiers_by_purpose": {
+      "import": [
+        { "min_qty": 0,     "max_qty": 3000,  "fee_tl": 20100 },
+        { "min_qty": 3001,  "max_qty": 6000,  "fee_tl": 26350 },
+        { "min_qty": 6001,  "max_qty": 9000,  "fee_tl": 32700 },
+        { "min_qty": 9001,  "max_qty": 12000, "fee_tl": 38840 },
+        { "min_qty": 12001, "max_qty": 15000, "fee_tl": 45305 },
+        { "min_qty": 15001, "max_qty": 18000, "fee_tl": 51585 },
+        { "min_qty": 18001, "max_qty": 21000, "fee_tl": 57935 },
+        { "min_qty": 21001, "max_qty": 25000, "fee_tl": 62210 },
+        { "min_qty": 25001, "max_qty": 30000, "fee_tl": 68525 },
+        { "min_qty": 30001, "max_qty": 35000, "fee_tl": 77205 },
+        { "min_qty": 35001, "max_qty": null,   "fee_tl": 106105 }
+      ],
+      "export": [
+        { "min_qty": 0,     "max_qty": 3000,  "fee_tl": 8615 },
+        { "min_qty": 3001,  "max_qty": 6000,  "fee_tl": 11230 },
+        { "min_qty": 6001,  "max_qty": 9000,  "fee_tl": 13750 },
+        { "min_qty": 9001,  "max_qty": 12000, "fee_tl": 16465 },
+        { "min_qty": 12001, "max_qty": 15000, "fee_tl": 18505 },
+        { "min_qty": 15001, "max_qty": 18000, "fee_tl": 21345 },
+        { "min_qty": 18001, "max_qty": 21000, "fee_tl": 24915 },
+        { "min_qty": 21001, "max_qty": 25000, "fee_tl": 28395 },
+        { "min_qty": 25001, "max_qty": 30000, "fee_tl": 35830 },
+        { "min_qty": 30001, "max_qty": 35000, "fee_tl": 42335 },
+        { "min_qty": 35001, "max_qty": null,   "fee_tl": 46770 }
+      ]
+    },
+    "additional_fee": {
+      "description": "İthalat veya ihracat durumunda ek gümrük harcı",
+      "amount_tl": 3865,
+      "conditions": ["ITHALAT", "IHRACAT"],
+      "note": "Sadece ithalat veya ihracat işlemlerinde eklenir"
+    },
+    "special_rules": {
+      "tekirdag": {
+        "description": "Tekirdağ limanı için sabit gümrük ücreti",
+        "fixed_amount_tl": 7900
+      },
+      "aliaga": {
+        "description": "Aliağa için özel sabit ücret",
+        "fixed_amount_usd": 214.1960779
+      },
+      "discharging_only": {
+        "freight_tax": "NIL",
+        "note": "Turkish Freight Tax: Not applicable for discharging cargoes"
+      }
+    },
+    "formula_explanation": "VLOOKUP(yük_miktarı, kademe) / USD_kuru + (ithalat/ihracat ise 3865 TL / USD_kuru)"
+  },
+
+  "dto_fee": {
+    "description": "Deniz Ticaret Odası (DTO) / Chamber of Shipping Fee",
+    "calc_method": "TIERED_GRT",
+    "basis": "GRT",
+    "currency": "TRY",
+    "flag_based_tiers": [
+      { "min_grt": 0,     "max_grt": 500,   "turk_tl": 670,   "yabanci_tl": 1400 },
+      { "min_grt": 501,   "max_grt": 1500,  "turk_tl": 1120,  "yabanci_tl": 2800 },
+      { "min_grt": 1501,  "max_grt": 2500,  "turk_tl": 2050,  "yabanci_tl": 4200 },
+      { "min_grt": 2501,  "max_grt": 5000,  "turk_tl": 2800,  "yabanci_tl": 4900 },
+      { "min_grt": 5001,  "max_grt": 10000, "turk_tl": 3400,  "yabanci_tl": 5600 },
+      { "min_grt": 10001, "max_grt": 25000, "turk_tl": 4000,  "yabanci_tl": 6300 },
+      { "min_grt": 25001, "max_grt": 35000, "turk_tl": 4500,  "yabanci_tl": 7000 },
+      { "min_grt": 35001, "max_grt": 50000, "turk_tl": 5000,  "yabanci_tl": 7500 },
+      { "min_grt": 50001, "max_grt": null,   "turk_tl": 5300,  "yabanci_tl": 8000 }
+    ],
+    "formula_explanation": "VLOOKUP(GRT, kademe, bayrak_sütunu) / USD_kuru",
+    "example": {
+      "grt": 2298,
+      "flag": "TURK",
+      "usd_try": 43.92,
+      "calculation": "VLOOKUP → 2050 TL / 43.92 = 46.676"
+    }
+  },
+
+  "dto_freight_share": {
+    "description": "DTO Hasılat (Navlun) Payı / Chamber of Shipping Share on Freight",
+    "calc_method": "TIERED_CARGO",
+    "basis": "CARGO_QUANTITY",
+    "currency": "USD",
+    "tiers": [
+      { "min_qty": 0,      "max_qty": 20000,  "fee_usd": 580 },
+      { "min_qty": 20001,  "max_qty": 40000,  "fee_usd": 870 },
+      { "min_qty": 40001,  "max_qty": 60000,  "fee_usd": 1130 },
+      { "min_qty": 60001,  "max_qty": 100000, "fee_usd": 1400 },
+      { "min_qty": 100001, "max_qty": null,    "fee_usd": 1780 }
+    ],
+    "conditions": "Yük miktarı boş ise ücret 0",
+    "formula_explanation": "VLOOKUP(yük_miktarı, kademe)"
+  },
+
+  "vda_fee": {
+    "description": "Denizcilik Derneği Katkı Payı (VDA) / Maritime Association Fee",
+    "calc_method": "FORMULA",
+    "currency": "EUR",
+    "rules": {
+      "grt_lte_5000": {
+        "multiplier": 20,
+        "formula": "20 × EUR_TRY / USD_TRY"
+      },
+      "grt_gt_5000": {
+        "multiplier": 40,
+        "formula": "40 × EUR_TRY / USD_TRY"
+      }
+    },
+    "formula_explanation": "çarpan × EUR_TRY_kuru / USD_TRY_kuru (= çarpan × EUR/USD paritesi)",
+    "example": {
+      "grt": 2298,
+      "eur_try": 51.4158,
+      "usd_try": 43.92,
+      "calculation": "20 × 51.4158 / 43.92 = 23.413"
+    }
+  }
+}
