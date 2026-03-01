@@ -5,6 +5,9 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { storage } from "./storage";
+import bcrypt from "bcryptjs";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 
 const app = express();
 const httpServer = createServer(app);
@@ -90,6 +93,39 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+async function seedTestAdmin() {
+  const TEST_ADMIN_EMAIL = "test_admin@vpda.test";
+  try {
+    const existing = await db.execute(
+      sql`SELECT id FROM users WHERE email = ${TEST_ADMIN_EMAIL} LIMIT 1`
+    );
+    const rows: any[] = (existing as any).rows ?? (existing as any);
+    if (rows.length > 0) {
+      console.log("[seed] Test admin account already exists, skipping.");
+      return;
+    }
+    const passwordHash = await bcrypt.hash("TestPass123!", 12);
+    await db.execute(sql`
+      INSERT INTO users (id, email, password_hash, first_name, last_name, user_role, active_role, email_verified, role_confirmed, is_suspended)
+      VALUES (
+        gen_random_uuid(),
+        ${TEST_ADMIN_EMAIL},
+        ${passwordHash},
+        'Test',
+        'Admin',
+        'admin',
+        'admin',
+        true,
+        true,
+        false
+      )
+    `);
+    console.log(`[seed] Test admin account ready: ${TEST_ADMIN_EMAIL}`);
+  } catch (err) {
+    console.error("[seed] Test admin seed error:", err);
+  }
+}
 
 async function seedBunkerPrices() {
   const existing = await storage.getBunkerPrices();
@@ -193,6 +229,8 @@ app.use((req, res, next) => {
       });
 
       seedBunkerPrices().catch((err: Error) => console.error("Bunker seed error:", err));
+
+      seedTestAdmin().catch((err: Error) => console.error("Test admin seed error:", err));
 
       import("./seed-templates").then(({ seedDocumentTemplates }) => {
         seedDocumentTemplates().catch((err: Error) => console.error("Template seed error:", err));
