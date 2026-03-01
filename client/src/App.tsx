@@ -40,6 +40,7 @@ import ServiceRequestDetail from "@/pages/service-request-detail";
 import Messages from "@/pages/messages";
 import MessageThread from "@/pages/message-thread";
 import Nominations from "@/pages/nominations";
+import SanctionsCheck from "@/pages/sanctions-check";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -214,6 +215,7 @@ function AuthenticatedRouter() {
       <Route path="/messages" component={Messages} />
       <Route path="/messages/:id" component={MessageThread} />
       <Route path="/nominations" component={Nominations} />
+      <Route path="/sanctions-check" component={SanctionsCheck} />
       <Route component={NotFound} />
     </Switch>
   );
