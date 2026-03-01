@@ -5,7 +5,8 @@ import {
   Ship, MapPin, Calendar, ArrowLeft, CheckCircle2, Circle, Trash2,
   Plus, Loader2, ChevronDown, Wrench, Fuel, ShoppingCart, Users as UsersIcon,
   Sparkles, HelpCircle, Clock, PlayCircle, XCircle, ClipboardList,
-  FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud
+  FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
+  CalendarClock
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
@@ -127,6 +128,8 @@ export default function VoyageDetail() {
   const [isDragOverDropzone, setIsDragOverDropzone] = useState(false);
   const [isPanelDragOver, setIsPanelDragOver] = useState(false);
   const [reviewForm, setReviewForm] = useState({ rating: 0, comment: "" });
+  const [showApptForm, setShowApptForm] = useState(false);
+  const [apptForm, setApptForm] = useState({ appointmentType: "pilot", scheduledAt: "", notes: "" });
   const [serviceForm, setServiceForm] = useState({
     portId: 0, portName: "", vesselName: "", serviceType: "other",
     description: "", quantity: "", unit: "", preferredDate: "",
@@ -178,6 +181,16 @@ export default function VoyageDetail() {
     refetchInterval: 10000,
   });
 
+  const { data: appointments = [] } = useQuery<any[]>({
+    queryKey: ["/api/voyages", voyageId, "appointments"],
+    queryFn: async () => {
+      const res = await fetch(`/api/voyages/${voyageId}/appointments`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!voyageId,
+  });
+
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
@@ -220,6 +233,39 @@ export default function VoyageDetail() {
       await apiRequest("DELETE", `/api/voyages/${voyageId}/checklist/${itemId}`);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId] }),
+  });
+
+  const createApptMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("POST", `/api/voyages/${voyageId}/appointments`, {
+        ...apptForm,
+        scheduledAt: apptForm.scheduledAt || null,
+        notes: apptForm.notes || null,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "appointments"] });
+      setApptForm({ appointmentType: "pilot", scheduledAt: "", notes: "" });
+      setShowApptForm(false);
+      toast({ title: "Randevu eklendi" });
+    },
+  });
+
+  const updateApptMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      return apiRequest("PATCH", `/api/voyages/${voyageId}/appointments/${id}`, { status });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "appointments"] }),
+  });
+
+  const deleteApptMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/voyages/${voyageId}/appointments/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "appointments"] });
+      toast({ title: "Randevu silindi" });
+    },
   });
 
   const createServiceMutation = useMutation({
@@ -600,6 +646,103 @@ export default function VoyageDetail() {
               </Card>
             )}
           </div>
+
+          {/* Port Call Randevuları */}
+          {(isOwner || isAgent) && (
+            <Card className="p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CalendarClock className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                  <h2 className="font-semibold text-sm">Port Call Randevuları</h2>
+                  {appointments.length > 0 && <span className="text-xs text-muted-foreground">({appointments.length})</span>}
+                </div>
+                <Button size="sm" variant="outline" onClick={() => setShowApptForm(v => !v)} data-testid="button-add-appointment">
+                  <Plus className="w-3.5 h-3.5 mr-1" />Randevu Ekle
+                </Button>
+              </div>
+
+              {showApptForm && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 bg-muted/30 rounded-lg">
+                  <div>
+                    <Select value={apptForm.appointmentType} onValueChange={v => setApptForm(f => ({ ...f, appointmentType: v }))}>
+                      <SelectTrigger className="h-8 text-xs" data-testid="select-appt-type"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pilot">Pilot</SelectItem>
+                        <SelectItem value="tugboat">Römorkör</SelectItem>
+                        <SelectItem value="health">Sağlık</SelectItem>
+                        <SelectItem value="customs">Gümrük</SelectItem>
+                        <SelectItem value="immigration">Göçmenlik</SelectItem>
+                        <SelectItem value="other">Diğer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Input type="datetime-local" className="h-8 text-xs" value={apptForm.scheduledAt} onChange={e => setApptForm(f => ({ ...f, scheduledAt: e.target.value }))} data-testid="input-appt-scheduled" />
+                  </div>
+                  <div className="flex gap-1">
+                    <Input className="h-8 text-xs flex-1" placeholder="Not (opsiyonel)" value={apptForm.notes} onChange={e => setApptForm(f => ({ ...f, notes: e.target.value }))} data-testid="input-appt-notes" />
+                    <Button size="sm" className="h-8 px-2" onClick={() => createApptMutation.mutate()} disabled={createApptMutation.isPending} data-testid="button-save-appointment">
+                      {createApptMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {appointments.length === 0 && !showApptForm && (
+                <p className="text-xs text-muted-foreground text-center py-3">Henüz randevu eklenmemiş</p>
+              )}
+
+              <div className="space-y-2">
+                {appointments.map((appt: any) => {
+                  const typeLabels: Record<string, { label: string; color: string }> = {
+                    pilot: { label: "Pilot", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
+                    tugboat: { label: "Römorkör", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" },
+                    health: { label: "Sağlık", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" },
+                    customs: { label: "Gümrük", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" },
+                    immigration: { label: "Göçmenlik", color: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300" },
+                    other: { label: "Diğer", color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" },
+                  };
+                  const statusLabels: Record<string, { label: string; color: string }> = {
+                    pending: { label: "Bekliyor", color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" },
+                    confirmed: { label: "Onaylandı", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
+                    completed: { label: "Tamamlandı", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" },
+                    cancelled: { label: "İptal", color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" },
+                  };
+                  const typeCfg = typeLabels[appt.appointmentType] || typeLabels.other;
+                  const stCfg = statusLabels[appt.status] || statusLabels.pending;
+                  return (
+                    <div key={appt.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30" data-testid={`appt-row-${appt.id}`}>
+                      <Badge className={`text-xs shrink-0 ${typeCfg.color}`}>{typeCfg.label}</Badge>
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {appt.scheduledAt ? new Date(appt.scheduledAt).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" }) : "Tarih belirsiz"}
+                      </span>
+                      {appt.notes && <span className="text-xs text-muted-foreground truncate flex-1">{appt.notes}</span>}
+                      <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs gap-1" data-testid={`button-appt-status-${appt.id}`}>
+                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${stCfg.color}`}>{stCfg.label}</span>
+                              <ChevronDown className="w-3 h-3" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="text-xs">
+                            {Object.entries(statusLabels).map(([k, v]) => (
+                              <DropdownMenuItem key={k} className="text-xs" onClick={() => updateApptMutation.mutate({ id: appt.id, status: k })}>
+                                {v.label}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => deleteApptMutation.mutate(appt.id)} data-testid={`button-delete-appt-${appt.id}`}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
 
           {/* Değerlendirmeler */}
           {reviews.length > 0 && (

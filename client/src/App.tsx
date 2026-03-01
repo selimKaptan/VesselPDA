@@ -41,6 +41,9 @@ import Messages from "@/pages/messages";
 import MessageThread from "@/pages/message-thread";
 import Nominations from "@/pages/nominations";
 import SanctionsCheck from "@/pages/sanctions-check";
+import VesselCertificates from "@/pages/vessel-certificates";
+import Fixtures from "@/pages/fixtures";
+import CargoPositions from "@/pages/cargo-positions";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -216,6 +219,9 @@ function AuthenticatedRouter() {
       <Route path="/messages/:id" component={MessageThread} />
       <Route path="/nominations" component={Nominations} />
       <Route path="/sanctions-check" component={SanctionsCheck} />
+      <Route path="/vessel-certificates" component={VesselCertificates} />
+      <Route path="/fixtures" component={Fixtures} />
+      <Route path="/cargo-positions" component={CargoPositions} />
       <Route component={NotFound} />
     </Switch>
   );

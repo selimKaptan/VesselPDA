@@ -2933,5 +2933,218 @@ export async function registerRoutes(
     }
   });
 
+  // ─── VESSEL CERTIFICATES ────────────────────────────────────────────────────
+
+  app.get("/api/vessels/:vesselId/certificates", isAuthenticated, async (req: any, res) => {
+    try {
+      const vesselId = parseInt(req.params.vesselId);
+      const certs = await storage.getVesselCertificates(vesselId);
+      res.json(certs);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch certificates" });
+    }
+  });
+
+  app.post("/api/vessels/:vesselId/certificates", isAuthenticated, async (req: any, res) => {
+    try {
+      const vesselId = parseInt(req.params.vesselId);
+      const userId = req.user.id;
+      const cert = await storage.createVesselCertificate({ ...req.body, vesselId, userId });
+      res.status(201).json(cert);
+    } catch {
+      res.status(500).json({ message: "Failed to create certificate" });
+    }
+  });
+
+  app.patch("/api/vessels/:vesselId/certificates/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updated = await storage.updateVesselCertificate(id, req.body);
+      if (!updated) return res.status(404).json({ message: "Certificate not found" });
+      res.json(updated);
+    } catch {
+      res.status(500).json({ message: "Failed to update certificate" });
+    }
+  });
+
+  app.delete("/api/vessels/:vesselId/certificates/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteVesselCertificate(id);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to delete certificate" });
+    }
+  });
+
+  app.get("/api/certificates/expiring", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const daysAhead = parseInt(req.query.days as string) || 30;
+      const certs = await storage.getExpiringCertificates(userId, daysAhead);
+      res.json(certs);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch expiring certificates" });
+    }
+  });
+
+  // ─── PORT CALL APPOINTMENTS ─────────────────────────────────────────────────
+
+  app.get("/api/voyages/:voyageId/appointments", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.voyageId);
+      const appointments = await storage.getPortCallAppointments(voyageId);
+      res.json(appointments);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch appointments" });
+    }
+  });
+
+  app.post("/api/voyages/:voyageId/appointments", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.voyageId);
+      const userId = req.user.id;
+      const appt = await storage.createPortCallAppointment({ ...req.body, voyageId, userId });
+      res.status(201).json(appt);
+    } catch {
+      res.status(500).json({ message: "Failed to create appointment" });
+    }
+  });
+
+  app.patch("/api/voyages/:voyageId/appointments/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updated = await storage.updatePortCallAppointment(id, req.body);
+      if (!updated) return res.status(404).json({ message: "Appointment not found" });
+      res.json(updated);
+    } catch {
+      res.status(500).json({ message: "Failed to update appointment" });
+    }
+  });
+
+  app.delete("/api/voyages/:voyageId/appointments/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deletePortCallAppointment(id);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to delete appointment" });
+    }
+  });
+
+  // ─── FIXTURES ───────────────────────────────────────────────────────────────
+
+  app.get("/api/fixtures", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const isAdmin = req.user.userRole === "admin" || req.user.activeRole === "admin";
+      const result = isAdmin ? await storage.getAllFixtures() : await storage.getFixtures(userId);
+      res.json(result);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch fixtures" });
+    }
+  });
+
+  app.post("/api/fixtures", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const fixture = await storage.createFixture({ ...req.body, userId });
+      res.status(201).json(fixture);
+    } catch {
+      res.status(500).json({ message: "Failed to create fixture" });
+    }
+  });
+
+  app.get("/api/fixtures/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const fixture = await storage.getFixture(id);
+      if (!fixture) return res.status(404).json({ message: "Fixture not found" });
+      const isAdmin = req.user.userRole === "admin" || req.user.activeRole === "admin";
+      if (fixture.userId !== req.user.id && !isAdmin) return res.status(403).json({ message: "Forbidden" });
+      res.json(fixture);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch fixture" });
+    }
+  });
+
+  app.patch("/api/fixtures/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const fixture = await storage.getFixture(id);
+      if (!fixture) return res.status(404).json({ message: "Fixture not found" });
+      const isAdmin = req.user.userRole === "admin" || req.user.activeRole === "admin";
+      if (fixture.userId !== req.user.id && !isAdmin) return res.status(403).json({ message: "Forbidden" });
+      const updated = await storage.updateFixture(id, req.body);
+      res.json(updated);
+    } catch {
+      res.status(500).json({ message: "Failed to update fixture" });
+    }
+  });
+
+  app.delete("/api/fixtures/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const fixture = await storage.getFixture(id);
+      if (!fixture) return res.status(404).json({ message: "Fixture not found" });
+      const isAdmin = req.user.userRole === "admin" || req.user.activeRole === "admin";
+      if (fixture.userId !== req.user.id && !isAdmin) return res.status(403).json({ message: "Forbidden" });
+      await storage.deleteFixture(id);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to delete fixture" });
+    }
+  });
+
+  // ─── CARGO POSITIONS ────────────────────────────────────────────────────────
+
+  app.get("/api/cargo-positions", isAuthenticated, async (req: any, res) => {
+    try {
+      const positions = await storage.getCargoPositions();
+      res.json(positions);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch cargo positions" });
+    }
+  });
+
+  app.get("/api/cargo-positions/mine", isAuthenticated, async (req: any, res) => {
+    try {
+      const positions = await storage.getMyCargoPositions(req.user.id);
+      res.json(positions);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch my cargo positions" });
+    }
+  });
+
+  app.post("/api/cargo-positions", isAuthenticated, async (req: any, res) => {
+    try {
+      const pos = await storage.createCargoPosition({ ...req.body, userId: req.user.id });
+      res.status(201).json(pos);
+    } catch {
+      res.status(500).json({ message: "Failed to create cargo position" });
+    }
+  });
+
+  app.patch("/api/cargo-positions/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updated = await storage.updateCargoPosition(id, req.body);
+      if (!updated) return res.status(404).json({ message: "Position not found" });
+      res.json(updated);
+    } catch {
+      res.status(500).json({ message: "Failed to update cargo position" });
+    }
+  });
+
+  app.delete("/api/cargo-positions/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteCargoPosition(id);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to delete cargo position" });
+    }
+  });
+
   return httpServer;
 }

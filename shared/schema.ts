@@ -597,3 +597,116 @@ export const endorsementRelations = relations(endorsements, ({ one }) => ({
 export const insertEndorsementSchema = createInsertSchema(endorsements).omit({ id: true, createdAt: true });
 export type InsertEndorsement = z.infer<typeof insertEndorsementSchema>;
 export type Endorsement = typeof endorsements.$inferSelect;
+
+// ─── VESSEL CERTIFICATES ────────────────────────────────────────────────────
+
+export const vesselCertificates = pgTable("vessel_certificates", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  certType: text("cert_type").notNull().default("other"),
+  issuedAt: timestamp("issued_at"),
+  expiresAt: timestamp("expires_at"),
+  issuingAuthority: text("issuing_authority"),
+  certificateNumber: text("certificate_number"),
+  notes: text("notes"),
+  status: text("status").notNull().default("valid"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const vesselCertificateRelations = relations(vesselCertificates, ({ one }) => ({
+  user: one(users, { fields: [vesselCertificates.userId], references: [users.id] }),
+  vessel: one(vessels, { fields: [vesselCertificates.vesselId], references: [vessels.id] }),
+}));
+
+export const insertVesselCertificateSchema = createInsertSchema(vesselCertificates).omit({ id: true, createdAt: true, status: true });
+export type InsertVesselCertificate = z.infer<typeof insertVesselCertificateSchema>;
+export type VesselCertificate = typeof vesselCertificates.$inferSelect;
+
+// ─── PORT CALL APPOINTMENTS ─────────────────────────────────────────────────
+
+export const portCallAppointments = pgTable("port_call_appointments", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  appointmentType: text("appointment_type").notNull().default("other"),
+  scheduledAt: timestamp("scheduled_at"),
+  status: text("status").notNull().default("pending"),
+  notes: text("notes"),
+  confirmedBy: text("confirmed_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const portCallAppointmentRelations = relations(portCallAppointments, ({ one }) => ({
+  voyage: one(voyages, { fields: [portCallAppointments.voyageId], references: [voyages.id] }),
+  user: one(users, { fields: [portCallAppointments.userId], references: [users.id] }),
+}));
+
+export const insertPortCallAppointmentSchema = createInsertSchema(portCallAppointments).omit({ id: true, createdAt: true });
+export type InsertPortCallAppointment = z.infer<typeof insertPortCallAppointmentSchema>;
+export type PortCallAppointment = typeof portCallAppointments.$inferSelect;
+
+// ─── FIXTURES ───────────────────────────────────────────────────────────────
+
+export const fixtures = pgTable("fixtures", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  status: text("status").notNull().default("negotiating"),
+  vesselName: text("vessel_name").notNull(),
+  imoNumber: text("imo_number"),
+  cargoType: text("cargo_type").notNull(),
+  cargoQuantity: real("cargo_quantity"),
+  quantityUnit: text("quantity_unit").notNull().default("MT"),
+  loadingPort: text("loading_port").notNull(),
+  dischargePort: text("discharge_port").notNull(),
+  laycanFrom: timestamp("laycan_from"),
+  laycanTo: timestamp("laycan_to"),
+  freightRate: real("freight_rate"),
+  freightCurrency: text("freight_currency").notNull().default("USD"),
+  charterer: text("charterer"),
+  shipowner: text("shipowner"),
+  brokerCommission: real("broker_commission"),
+  notes: text("notes"),
+  recapText: text("recap_text"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const fixtureRelations = relations(fixtures, ({ one }) => ({
+  user: one(users, { fields: [fixtures.userId], references: [users.id] }),
+}));
+
+export const insertFixtureSchema = createInsertSchema(fixtures).omit({ id: true, createdAt: true, status: true });
+export type InsertFixture = z.infer<typeof insertFixtureSchema>;
+export type Fixture = typeof fixtures.$inferSelect;
+
+// ─── CARGO POSITIONS ────────────────────────────────────────────────────────
+
+export const cargoPositions = pgTable("cargo_positions", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  positionType: text("position_type").notNull().default("cargo"),
+  title: text("title").notNull(),
+  description: text("description"),
+  vesselType: text("vessel_type"),
+  cargoType: text("cargo_type"),
+  quantity: real("quantity"),
+  quantityUnit: text("quantity_unit"),
+  loadingPort: text("loading_port").notNull(),
+  dischargePort: text("discharge_port").notNull(),
+  laycanFrom: timestamp("laycan_from"),
+  laycanTo: timestamp("laycan_to"),
+  contactName: text("contact_name"),
+  contactEmail: text("contact_email"),
+  status: text("status").notNull().default("active"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const cargoPositionRelations = relations(cargoPositions, ({ one }) => ({
+  user: one(users, { fields: [cargoPositions.userId], references: [users.id] }),
+}));
+
+export const insertCargoPositionSchema = createInsertSchema(cargoPositions).omit({ id: true, createdAt: true, status: true });
+export type InsertCargoPosition = z.infer<typeof insertCargoPositionSchema>;
+export type CargoPosition = typeof cargoPositions.$inferSelect;

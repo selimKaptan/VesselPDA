@@ -26,6 +26,10 @@ import {
   type DirectNomination, type InsertDirectNomination,
   type VoyageChatMessage, type InsertVoyageChatMessage,
   type Endorsement, type InsertEndorsement,
+  type VesselCertificate, type InsertVesselCertificate,
+  type PortCallAppointment, type InsertPortCallAppointment,
+  type Fixture, type InsertFixture,
+  type CargoPosition, type InsertCargoPosition,
   vessels, ports, tariffCategories, tariffRates, proformas,
   forumCategories, forumTopics, forumReplies, forumLikes, forumDislikes,
   portTenders, tenderBids, agentReviews, vesselWatchlist,
@@ -33,6 +37,7 @@ import {
   voyages, voyageChecklists, serviceRequests, serviceOffers,
   voyageDocuments, voyageReviews, conversations, messages,
   directNominations, voyageChatMessages, endorsements,
+  vesselCertificates, portCallAppointments, fixtures, cargoPositions,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
@@ -191,6 +196,30 @@ export interface IStorage {
   createEndorsement(data: InsertEndorsement): Promise<Endorsement>;
   deleteEndorsement(id: number, userId: string): Promise<boolean>;
   getUserEndorsementForProfile(fromUserId: string, toCompanyProfileId: number): Promise<Endorsement | undefined>;
+
+  getVesselCertificates(vesselId: number): Promise<VesselCertificate[]>;
+  createVesselCertificate(data: InsertVesselCertificate): Promise<VesselCertificate>;
+  updateVesselCertificate(id: number, data: Partial<InsertVesselCertificate>): Promise<VesselCertificate | undefined>;
+  deleteVesselCertificate(id: number): Promise<boolean>;
+  getExpiringCertificates(userId: string, daysAhead: number): Promise<VesselCertificate[]>;
+
+  getPortCallAppointments(voyageId: number): Promise<PortCallAppointment[]>;
+  createPortCallAppointment(data: InsertPortCallAppointment): Promise<PortCallAppointment>;
+  updatePortCallAppointment(id: number, data: Partial<InsertPortCallAppointment>): Promise<PortCallAppointment | undefined>;
+  deletePortCallAppointment(id: number): Promise<boolean>;
+
+  getFixtures(userId: string): Promise<Fixture[]>;
+  getAllFixtures(): Promise<Fixture[]>;
+  getFixture(id: number): Promise<Fixture | undefined>;
+  createFixture(data: InsertFixture): Promise<Fixture>;
+  updateFixture(id: number, data: Partial<InsertFixture & { status?: string; recapText?: string }>): Promise<Fixture | undefined>;
+  deleteFixture(id: number): Promise<boolean>;
+
+  getCargoPositions(): Promise<CargoPosition[]>;
+  getMyCargoPositions(userId: string): Promise<CargoPosition[]>;
+  createCargoPosition(data: InsertCargoPosition): Promise<CargoPosition>;
+  updateCargoPosition(id: number, data: Partial<InsertCargoPosition & { status?: string }>): Promise<CargoPosition | undefined>;
+  deleteCargoPosition(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1619,6 +1648,144 @@ export class DatabaseStorage implements IStorage {
     const [row] = await db.select().from(endorsements)
       .where(and(eq(endorsements.fromUserId, fromUserId), eq(endorsements.toCompanyProfileId, toCompanyProfileId)));
     return row;
+  }
+
+  // ─── VESSEL CERTIFICATES ────────────────────────────────────────────────────
+
+  async getVesselCertificates(vesselId: number): Promise<VesselCertificate[]> {
+    return db.select().from(vesselCertificates)
+      .where(eq(vesselCertificates.vesselId, vesselId))
+      .orderBy(asc(vesselCertificates.createdAt));
+  }
+
+  async createVesselCertificate(data: InsertVesselCertificate): Promise<VesselCertificate> {
+    const now = new Date();
+    let status = "valid";
+    if (data.expiresAt) {
+      const exp = new Date(data.expiresAt);
+      if (exp < now) status = "expired";
+      else if (exp < new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)) status = "expiring_soon";
+    }
+    const [row] = await db.insert(vesselCertificates).values({ ...data, status }).returning();
+    return row;
+  }
+
+  async updateVesselCertificate(id: number, data: Partial<InsertVesselCertificate>): Promise<VesselCertificate | undefined> {
+    const now = new Date();
+    let status: string | undefined;
+    if (data.expiresAt !== undefined) {
+      if (!data.expiresAt) {
+        status = "valid";
+      } else {
+        const exp = new Date(data.expiresAt);
+        if (exp < now) status = "expired";
+        else if (exp < new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)) status = "expiring_soon";
+        else status = "valid";
+      }
+    }
+    const updateData = status ? { ...data, status } : data;
+    const [row] = await db.update(vesselCertificates).set(updateData).where(eq(vesselCertificates.id, id)).returning();
+    return row;
+  }
+
+  async deleteVesselCertificate(id: number): Promise<boolean> {
+    const result = await db.delete(vesselCertificates).where(eq(vesselCertificates.id, id));
+    return (result as any).rowCount > 0;
+  }
+
+  async getExpiringCertificates(userId: string, daysAhead: number): Promise<VesselCertificate[]> {
+    const cutoff = new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000);
+    return db.select().from(vesselCertificates)
+      .where(and(
+        eq(vesselCertificates.userId, userId),
+        lte(vesselCertificates.expiresAt, cutoff),
+        gte(vesselCertificates.expiresAt, new Date()),
+      ))
+      .orderBy(asc(vesselCertificates.expiresAt));
+  }
+
+  // ─── PORT CALL APPOINTMENTS ─────────────────────────────────────────────────
+
+  async getPortCallAppointments(voyageId: number): Promise<PortCallAppointment[]> {
+    return db.select().from(portCallAppointments)
+      .where(eq(portCallAppointments.voyageId, voyageId))
+      .orderBy(asc(portCallAppointments.scheduledAt));
+  }
+
+  async createPortCallAppointment(data: InsertPortCallAppointment): Promise<PortCallAppointment> {
+    const [row] = await db.insert(portCallAppointments).values(data).returning();
+    return row;
+  }
+
+  async updatePortCallAppointment(id: number, data: Partial<InsertPortCallAppointment>): Promise<PortCallAppointment | undefined> {
+    const [row] = await db.update(portCallAppointments).set(data).where(eq(portCallAppointments.id, id)).returning();
+    return row;
+  }
+
+  async deletePortCallAppointment(id: number): Promise<boolean> {
+    const result = await db.delete(portCallAppointments).where(eq(portCallAppointments.id, id));
+    return (result as any).rowCount > 0;
+  }
+
+  // ─── FIXTURES ───────────────────────────────────────────────────────────────
+
+  async getFixtures(userId: string): Promise<Fixture[]> {
+    return db.select().from(fixtures)
+      .where(eq(fixtures.userId, userId))
+      .orderBy(desc(fixtures.createdAt));
+  }
+
+  async getAllFixtures(): Promise<Fixture[]> {
+    return db.select().from(fixtures).orderBy(desc(fixtures.createdAt));
+  }
+
+  async getFixture(id: number): Promise<Fixture | undefined> {
+    const [row] = await db.select().from(fixtures).where(eq(fixtures.id, id));
+    return row;
+  }
+
+  async createFixture(data: InsertFixture): Promise<Fixture> {
+    const [row] = await db.insert(fixtures).values({ ...data, status: "negotiating" }).returning();
+    return row;
+  }
+
+  async updateFixture(id: number, data: Partial<InsertFixture & { status?: string; recapText?: string }>): Promise<Fixture | undefined> {
+    const [row] = await db.update(fixtures).set(data).where(eq(fixtures.id, id)).returning();
+    return row;
+  }
+
+  async deleteFixture(id: number): Promise<boolean> {
+    const result = await db.delete(fixtures).where(eq(fixtures.id, id));
+    return (result as any).rowCount > 0;
+  }
+
+  // ─── CARGO POSITIONS ────────────────────────────────────────────────────────
+
+  async getCargoPositions(): Promise<CargoPosition[]> {
+    return db.select().from(cargoPositions)
+      .where(eq(cargoPositions.status, "active"))
+      .orderBy(desc(cargoPositions.createdAt));
+  }
+
+  async getMyCargoPositions(userId: string): Promise<CargoPosition[]> {
+    return db.select().from(cargoPositions)
+      .where(eq(cargoPositions.userId, userId))
+      .orderBy(desc(cargoPositions.createdAt));
+  }
+
+  async createCargoPosition(data: InsertCargoPosition): Promise<CargoPosition> {
+    const [row] = await db.insert(cargoPositions).values({ ...data, status: "active" }).returning();
+    return row;
+  }
+
+  async updateCargoPosition(id: number, data: Partial<InsertCargoPosition & { status?: string }>): Promise<CargoPosition | undefined> {
+    const [row] = await db.update(cargoPositions).set(data).where(eq(cargoPositions.id, id)).returning();
+    return row;
+  }
+
+  async deleteCargoPosition(id: number): Promise<boolean> {
+    const result = await db.delete(cargoPositions).where(eq(cargoPositions.id, id));
+    return (result as any).rowCount > 0;
   }
 }
 
