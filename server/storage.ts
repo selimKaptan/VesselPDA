@@ -36,6 +36,7 @@ import {
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
 import { eq, and, lte, gte, or, isNull, desc, asc, sql, count, countDistinct, ilike } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -865,6 +866,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTenderBidsByAgent(agentUserId: string): Promise<any[]> {
+    const shipownerUser = alias(users, "shipowner_user");
+    const shipownerProfile = alias(companyProfiles, "shipowner_profile");
     return db
       .select({
         id: tenderBids.id,
@@ -882,10 +885,15 @@ export class DatabaseStorage implements IStorage {
         tenderCreatedAt: portTenders.createdAt,
         expiryHours: portTenders.expiryHours,
         nominatedAt: portTenders.nominatedAt,
+        shipownerFirstName: shipownerUser.firstName,
+        shipownerLastName: shipownerUser.lastName,
+        shipownerCompany: shipownerProfile.companyName,
       })
       .from(tenderBids)
       .innerJoin(portTenders, eq(tenderBids.tenderId, portTenders.id))
       .innerJoin(ports, eq(portTenders.portId, ports.id))
+      .leftJoin(shipownerUser, eq(portTenders.userId, shipownerUser.id))
+      .leftJoin(shipownerProfile, eq(portTenders.userId, shipownerProfile.userId))
       .where(eq(tenderBids.agentUserId, agentUserId))
       .orderBy(desc(tenderBids.createdAt));
   }

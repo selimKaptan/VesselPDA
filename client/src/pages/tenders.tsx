@@ -15,7 +15,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Gavel, Plus, Clock, FileText, Ship, MapPin, ChevronRight,
-  AlertCircle, CheckCircle2, XCircle, Inbox, Send, Anchor, Upload, X, Search
+  AlertCircle, CheckCircle2, XCircle, Inbox, Send, Anchor, Upload, X, Search,
+  Building2, Trophy, Calendar
 } from "lucide-react";
 import type { Vessel } from "@shared/schema";
 
@@ -650,39 +651,71 @@ export default function TendersPage() {
 
 function MyBidCard({ bid }: { bid: any }) {
   const [, navigate] = useLocation();
-  const { remaining, expired } = useCountdown(bid.tenderCreatedAt, bid.expiryHours);
+  const { remaining } = useCountdown(bid.tenderCreatedAt, bid.expiryHours);
 
   const statusConfig = {
-    selected: { label: "Selected! 🎉", cls: "bg-emerald-100 text-emerald-700" },
-    rejected: { label: "Rejected", cls: "bg-red-100 text-red-700" },
-    pending: { label: "Under Review", cls: "bg-amber-100 text-amber-700" },
+    selected: { label: "Kazandı 🏆", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+    rejected: { label: "Reddedildi", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+    pending: { label: "İnceleniyor", cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
   }[bid.status as string] || { label: bid.status, cls: "bg-gray-100 text-gray-700" };
+
+  const shipownerName = bid.shipownerCompany ||
+    [bid.shipownerFirstName, bid.shipownerLastName].filter(Boolean).join(" ") ||
+    "—";
+
+  const bidDate = bid.createdAt
+    ? new Date(bid.createdAt).toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })
+    : null;
+
+  const wonDate = bid.status === "selected" && bid.nominatedAt
+    ? new Date(bid.nominatedAt).toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })
+    : null;
 
   return (
     <Card
-      className="p-5 cursor-pointer hover:shadow-md transition-all"
+      className="p-4 cursor-pointer hover:shadow-md transition-all"
       onClick={() => navigate(`/tenders/${bid.tenderId}`)}
       data-testid={`card-bid-${bid.id}`}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-[hsl(var(--maritime-primary)/0.08)] flex items-center justify-center">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-lg bg-[hsl(var(--maritime-primary)/0.08)] flex items-center justify-center flex-shrink-0 mt-0.5">
             <Anchor className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
           </div>
-          <div>
-            <p className="font-medium text-sm">{bid.portName}</p>
-            {bid.vesselName && <p className="text-xs text-muted-foreground">{bid.vesselName}</p>}
-            {bid.totalAmount && (
-              <p className="text-xs text-[hsl(var(--maritime-primary))] font-semibold mt-0.5">
-                {bid.totalAmount} {bid.currency}
+          <div className="min-w-0">
+            <p className="font-semibold text-sm">{bid.portName}</p>
+            {bid.vesselName && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                <Ship className="w-3 h-3 flex-shrink-0" /> {bid.vesselName}
               </p>
             )}
+            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+              <Building2 className="w-3 h-3 flex-shrink-0" />
+              <span className="truncate">{shipownerName}</span>
+            </p>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              {bid.totalAmount && (
+                <span className="text-xs text-[hsl(var(--maritime-primary))] font-semibold">
+                  {bid.totalAmount} {bid.currency}
+                </span>
+              )}
+              {bidDate && (
+                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <Calendar className="w-3 h-3" /> {bidDate}
+                </span>
+              )}
+              {wonDate && (
+                <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                  <Trophy className="w-3 h-3" /> {wonDate}
+                </span>
+              )}
+            </div>
           </div>
         </div>
-        <div className="flex flex-col items-end gap-1.5">
+        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
           <Badge className={`text-[10px] border-0 ${statusConfig.cls}`}>{statusConfig.label}</Badge>
           <span className="text-[11px] text-muted-foreground">
-            {bid.tenderStatus === "open" ? remaining : "Tender closed"}
+            {bid.tenderStatus === "open" ? remaining : "Kapalı"}
           </span>
         </div>
       </div>
