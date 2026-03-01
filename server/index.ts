@@ -28,6 +28,7 @@ app.use(helmet({
         "https://marine-api.open-meteo.com",
         "https://api.open-meteo.com",
         "https://tiles.openseamap.org",
+        "https://nominatim.openstreetmap.org",
       ],
       workerSrc: ["'self'", "blob:"],
       fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
@@ -167,6 +168,12 @@ app.use((req, res, next) => {
         seedDatabase().catch((err: Error) => console.error("Seed error:", err));
         seedForumCategories().catch((err: Error) => console.error("Forum seed error:", err));
         seedPortCoordinates().catch((err: Error) => console.error("Port coords seed error:", err));
+      });
+
+      import("./geocode-ports").then(({ geocodeMissingPorts }) => {
+        setTimeout(() => {
+          geocodeMissingPorts().catch((err: Error) => console.error("Geocode error:", err));
+        }, 15000);
       });
     },
   );

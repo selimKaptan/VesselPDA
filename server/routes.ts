@@ -9,6 +9,7 @@ import { setupAuth, isAuthenticated, registerAuthRoutes, authStorage } from "./r
 import type { ProformaLineItem } from "@shared/schema";
 import { calculateProforma, type CalculationInput } from "./proforma-calculator";
 import { startAISStream, getPositions, searchVessels, isConnected, getCacheSize } from "./ais-stream";
+import { geocodeStats } from "./geocode-ports";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "logos");
 if (!fs.existsSync(uploadsDir)) {
@@ -134,8 +135,12 @@ export async function registerRoutes(
         const results = await storage.searchPorts(q.trim(), country);
         return res.json(results);
       }
-      const ports = await storage.getPorts(100);
-      res.json(ports);
+      if (country) {
+        const results = await storage.getPorts(undefined, country);
+        return res.json(results);
+      }
+      const portList = await storage.getPorts(100);
+      res.json(portList);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch ports" });
     }
@@ -935,6 +940,23 @@ export async function registerRoutes(
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch admin stats" });
+    }
+  });
+
+  app.get("/api/admin/geocode-status", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      res.json({
+        total: geocodeStats.total,
+        processed: geocodeStats.processed,
+        found: geocodeStats.found,
+        notFound: geocodeStats.notFound,
+        running: geocodeStats.running,
+        startedAt: geocodeStats.startedAt,
+        remaining: geocodeStats.total - geocodeStats.processed,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch geocode status" });
     }
   });
 

@@ -53,7 +53,7 @@ export interface IStorage {
   deleteVessel(id: number, userId: string): Promise<boolean>;
   deleteVesselById(id: number): Promise<boolean>;
 
-  getPorts(limit?: number): Promise<Port[]>;
+  getPorts(limit?: number, country?: string): Promise<Port[]>;
   searchPorts(query: string, countryCode?: string): Promise<Port[]>;
   getPortByCode(code: string): Promise<Port | undefined>;
   getPort(id: number): Promise<Port | undefined>;
@@ -242,8 +242,13 @@ export class DatabaseStorage implements IStorage {
     return true;
   }
 
-  async getPorts(limit = 100): Promise<Port[]> {
-    return db.select().from(ports).limit(limit);
+  async getPorts(limit = 100, country?: string): Promise<Port[]> {
+    if (country) {
+      return db.select().from(ports)
+        .where(eq(ports.country, country))
+        .orderBy(ports.name);
+    }
+    return db.select().from(ports).orderBy(ports.name).limit(limit);
   }
 
   async searchPorts(query: string, countryCode?: string): Promise<Port[]> {

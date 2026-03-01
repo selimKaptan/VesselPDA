@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useQuery } from "@tanstack/react-query";
@@ -227,25 +227,45 @@ function PortDetailPanel({
   );
 }
 
+function getCountryFlag(country: string): string {
+  if (!country) return "🌍";
+  if (country === "Turkey") return "🇹🇷";
+  if (country.length === 2) {
+    const base = 0x1F1E6;
+    const offset = "A".charCodeAt(0);
+    return String.fromCodePoint(base + country.charCodeAt(0) - offset) +
+           String.fromCodePoint(base + country.charCodeAt(1) - offset);
+  }
+  return "🌍";
+}
+
 export default function PortInfo() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPort, setSelectedPort] = useState<Port | null>(null);
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
+  const isSearching = searchQuery.trim().length >= 2;
 
-  const { data: allPorts = [], isLoading: portsLoading } = useQuery<Port[]>({
-    queryKey: ["/api/ports"],
-    staleTime: 5 * 60 * 1000,
+  const { data: turkishPorts = [], isLoading: turkishLoading } = useQuery<Port[]>({
+    queryKey: ["/api/ports", "Turkey"],
+    queryFn: async () => {
+      const res = await fetch("/api/ports?country=Turkey");
+      return res.json();
+    },
+    staleTime: 10 * 60 * 1000,
   });
 
-  const filteredPorts = useMemo(() => {
-    if (!searchQuery.trim()) return allPorts;
-    const q = searchQuery.toLowerCase();
-    return allPorts.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      (p.code && p.code.toLowerCase().includes(q)) ||
-      (p.country && p.country.toLowerCase().includes(q))
-    );
-  }, [allPorts, searchQuery]);
+  const { data: searchResults = [], isLoading: searchLoading } = useQuery<Port[]>({
+    queryKey: ["/api/ports", "search", searchQuery],
+    queryFn: async () => {
+      const res = await fetch(`/api/ports?q=${encodeURIComponent(searchQuery.trim())}`);
+      return res.json();
+    },
+    enabled: isSearching,
+    staleTime: 60 * 1000,
+  });
+
+  const portsLoading = isSearching ? searchLoading : turkishLoading;
+  const filteredPorts = isSearching ? searchResults : turkishPorts;
 
   const { data: portInfoData, isLoading: isLoadingInfo } = useQuery<PortInfoData>({
     queryKey: ["/api/port-info", selectedPort?.code],
@@ -322,7 +342,9 @@ export default function PortInfo() {
             </div>
             <div className="flex-1 min-w-0">
               <h1 className="font-serif font-bold text-base tracking-tight" data-testid="text-port-info-title">Liman Bilgileri</h1>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Türkiye · {allPorts.length} Liman</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                {isSearching ? `Arama sonuçları · ${filteredPorts.length} liman` : `Türkiye · ${turkishPorts.length} liman · Dünya için arama yapın`}
+              </p>
             </div>
             {selectedPort && (
               <Badge className="text-[10px] bg-[hsl(var(--maritime-primary)/0.1)] text-[hsl(var(--maritime-primary))] border-[hsl(var(--maritime-primary)/0.3)] hidden md:flex">
@@ -335,7 +357,7 @@ export default function PortInfo() {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
               <Input
                 data-testid="input-port-search"
-                placeholder="Liman adı veya LOCODE ile ara (ör: Mersin, TRMER)..."
+                placeholder="Türkiye veya dünya limanı arayın (ör: Rotterdam, NLRTM)..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="pl-8 pr-8 h-8 text-sm"
@@ -373,13 +395,22 @@ export default function PortInfo() {
           ) : filteredPorts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center px-6">
               <Anchor className="w-10 h-10 text-muted-foreground/20 mb-3" />
-              <p className="text-sm font-medium text-muted-foreground">"{searchQuery}" ile eşleşen liman bulunamadı.</p>
-              <p className="text-xs text-muted-foreground/70 mt-1">Farklı bir arama terimi deneyin.</p>
+              {isSearching ? (
+                <>
+                  <p className="text-sm font-medium text-muted-foreground">"{searchQuery}" ile eşleşen liman bulunamadı.</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">Farklı bir isim veya LOCODE deneyin.</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-muted-foreground">Türk limanları yükleniyor...</p>
+                </>
+              )}
             </div>
           ) : (
             filteredPorts.map((port) => {
               const isSelected = selectedPort?.id === port.id;
               const hasPortCoords = !!(port as any).latitude && !!(port as any).longitude;
+              const flag = getCountryFlag(port.country || "");
               return (
                 <button
                   key={port.id}
@@ -391,7 +422,7 @@ export default function PortInfo() {
                   onClick={() => handleSelectPort(port)}
                   data-testid={`button-port-result-${port.id}`}
                 >
-                  <span className="text-sm w-6 flex-shrink-0">🇹🇷</span>
+                  <span className="text-sm w-6 flex-shrink-0">{flag}</span>
                   <div className="min-w-0 pr-2">
                     <p className={`text-sm font-medium truncate transition-colors ${
                       isSelected ? "text-[hsl(var(--maritime-primary))] font-semibold" : "group-hover:text-[hsl(var(--maritime-primary))]"
