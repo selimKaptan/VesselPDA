@@ -58,13 +58,13 @@ export default function Proformas() {
   const [quickManualVesselName, setQuickManualVesselName] = useState<string>("");
 
   const CARGO_TYPE_OPTIONS = [
-    { value: "bulk_dry", label: "🌾 Dökme Kuru Yük", unit: "MT", examples: "Tahıl, kömür, cevher, gübre, hurda, çimento" },
-    { value: "general", label: "📦 Genel Yük / Breakbulk", unit: "MT", examples: "Çelik, kereste, proje yükü, çuval mal" },
-    { value: "container", label: "🚢 Konteyner", unit: "TEU", examples: "FCL, LCL, ISO konteyner" },
-    { value: "roro", label: "🚗 Ro-Ro / Araç", unit: "Units", examples: "Otomobil, kamyon, iş makinesi" },
-    { value: "liquid", label: "⛽ Tanker / Sıvı Yük", unit: "MT", examples: "Ham petrol, fuel oil, bitkisel yağ, moloz" },
-    { value: "chemical", label: "⚗️ Kimyasal Tanker", unit: "MT", examples: "Kimyasal madde, asit, metanol, çözücü" },
-    { value: "gas", label: "💨 LPG / LNG / Gaz", unit: "MT", examples: "Sıvılaştırılmış petrol/doğal gaz, amonyak" },
+    { value: "bulk_dry", label: "🌾 Bulk Dry Cargo", unit: "MT", examples: "Grain, coal, ore, fertilizer, scrap, cement" },
+    { value: "general", label: "📦 General Cargo / Breakbulk", unit: "MT", examples: "Steel, timber, project cargo, bagged goods" },
+    { value: "container", label: "🚢 Container", unit: "TEU", examples: "FCL, LCL, ISO containers" },
+    { value: "roro", label: "🚗 Ro-Ro / Vehicles", unit: "Units", examples: "Automobiles, trucks, heavy machinery" },
+    { value: "liquid", label: "⛽ Tanker / Liquid Cargo", unit: "MT", examples: "Crude oil, fuel oil, vegetable oil, molasses" },
+    { value: "chemical", label: "⚗️ Chemical Tanker", unit: "MT", examples: "Chemicals, acids, methanol, solvents" },
+    { value: "gas", label: "💨 LPG / LNG / Gas", unit: "MT", examples: "Liquefied petroleum / natural gas, ammonia" },
   ];
 
   const { data: proformas, isLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"] });
@@ -149,16 +149,16 @@ export default function Proformas() {
         amount: (pda as any).totalUsd || 0,
         currency: "USD",
         linkedProformaId: pda.id,
-        notes: `Proforma DA ${pda.referenceNumber} üzerinden otomatik oluşturuldu.`,
+        notes: `Auto-generated from Proforma DA ${pda.referenceNumber}.`,
       });
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
-      toast({ title: "Final DA oluşturuldu", description: "Finansal Akış sayfasına yönlendiriliyorsunuz" });
+      toast({ title: "Final DA created", description: "Redirecting to Financial Flow page" });
       navigate("/invoices");
     },
-    onError: () => toast({ title: "Hata", description: "Final DA oluşturulamadı", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Failed to create Final DA", variant: "destructive" }),
   });
 
   const normalizeTR = (s: string) =>
@@ -176,16 +176,16 @@ export default function Proformas() {
   const handleQuickCalculate = async () => {
     const useManual = quickVesselId === "external" || quickVesselId === "";
     if (!useManual && !quickVesselId) {
-      toast({ title: "Lütfen gemi seçin", variant: "destructive" }); return;
+      toast({ title: "Please select a vessel", variant: "destructive" }); return;
     }
     if (useManual && !quickManualGrt) {
-      toast({ title: "Lütfen GRT değeri girin", variant: "destructive" }); return;
+      toast({ title: "Please enter a GRT value", variant: "destructive" }); return;
     }
     if (!quickPortId) {
-      toast({ title: "Lütfen liman seçin", variant: "destructive" }); return;
+      toast({ title: "Please select a port", variant: "destructive" }); return;
     }
     if (!quickCargoQty || parseFloat(quickCargoQty) <= 0) {
-      toast({ title: "Lütfen geçerli bir yük miktarı girin", variant: "destructive" }); return;
+      toast({ title: "Please enter a valid cargo quantity", variant: "destructive" }); return;
     }
     setQuickLoading(true);
     setQuickResult(null);
@@ -211,8 +211,8 @@ export default function Proformas() {
         : { ...basePayload, vesselId: parseInt(quickVesselId) };
       const res = await apiRequest("POST", "/api/proformas/quick-estimate", payload);
       if (res.ok) { setQuickResult(await res.json()); }
-      else { toast({ title: "Hesaplama başarısız", variant: "destructive" }); }
-    } catch (_) { toast({ title: "Bağlantı hatası", variant: "destructive" }); }
+      else { toast({ title: "Calculation failed", variant: "destructive" }); }
+    } catch (_) { toast({ title: "Connection error", variant: "destructive" }); }
     setQuickLoading(false);
   };
 
@@ -233,17 +233,17 @@ export default function Proformas() {
         totalEur: quickResult.totalEur,
         exchangeRate: quickResult.exchangeRates.eurUsd,
         status: "draft",
-        notes: "Anlık tahmin ile oluşturuldu. Lütfen detayları gözden geçiriniz.",
+        notes: "Created from quick estimate. Please review the details.",
       });
       return res.json();
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/proformas"] });
-      toast({ title: "Taslak kaydedildi" });
+      toast({ title: "Draft saved" });
       setShowQuickDialog(false);
       navigate(`/proformas/${data.id}`);
     },
-    onError: () => toast({ title: "Kaydetme başarısız", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
   });
 
   const filteredProformas = (proformas || []).filter((p) => {
@@ -265,10 +265,10 @@ export default function Proformas() {
 
   const getBidStatusBadge = (bid: any) => {
     const won = bid.status === "selected" && bid.tenderStatus === "nominated";
-    if (won) return { label: "Kazandı 🏆", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" };
-    if (bid.status === "selected") return { label: "Seçildi", cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" };
-    if (bid.status === "rejected") return { label: "Reddedildi", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" };
-    return { label: "İnceleniyor", cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" };
+    if (won) return { label: "Won 🏆", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" };
+    if (bid.status === "selected") return { label: "Selected", cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" };
+    if (bid.status === "rejected") return { label: "Rejected", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" };
+    return { label: "Under Review", cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" };
   };
 
   const handleViewPdf = (bid: any) => {
@@ -383,7 +383,7 @@ export default function Proformas() {
                         variant="ghost"
                         onClick={() => finalDaMutation.mutate(pda)}
                         disabled={finalDaMutation.isPending}
-                        title="Final DA Oluştur"
+                        title="Create Final DA"
                         data-testid={`button-final-da-${pda.id}`}
                         className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
                       >
@@ -435,11 +435,11 @@ export default function Proformas() {
           <div className="flex items-center gap-2 mb-1">
             <Trophy className="w-4 h-4 text-emerald-600" />
             <p className="font-semibold text-emerald-800 dark:text-emerald-300 text-sm">
-              {wonBids.length} Kazanılan Tender
+              {wonBids.length} Won Tender{wonBids.length !== 1 ? "s" : ""}
             </p>
           </div>
           <p className="text-xs text-emerald-700 dark:text-emerald-400">
-            Tekliflerinizden {wonBids.length} tanesi resmi olarak kabul edildi.
+            {wonBids.length} of your bids have been officially accepted.
           </p>
         </Card>
       )}
@@ -453,13 +453,13 @@ export default function Proformas() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Liman</TableHead>
-                <TableHead className="hidden md:table-cell">Gemi</TableHead>
-                <TableHead>Teklif</TableHead>
-                <TableHead className="hidden sm:table-cell">Gönderim Tarihi</TableHead>
-                <TableHead>Durum</TableHead>
-                <TableHead className="hidden lg:table-cell">Kazanma Tarihi</TableHead>
-                <TableHead className="text-right">İşlemler</TableHead>
+                <TableHead>Port</TableHead>
+                <TableHead className="hidden md:table-cell">Vessel</TableHead>
+                <TableHead>Bid</TableHead>
+                <TableHead className="hidden sm:table-cell">Submission Date</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="hidden lg:table-cell">Win Date</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -523,13 +523,13 @@ export default function Proformas() {
         <Card className="p-12 text-center space-y-4">
           <Gavel className="w-16 h-16 text-muted-foreground/20 mx-auto" />
           <div>
-            <h3 className="font-serif font-semibold text-lg">Henüz Teklif Gönderilmedi</h3>
+            <h3 className="font-serif font-semibold text-lg">No Bids Submitted Yet</h3>
             <p className="text-muted-foreground text-sm mt-1">
-              Tender'lara teklif gönderdiğinizde burada görünecek.
+              Your tender bids will appear here once submitted.
             </p>
           </div>
           <Button variant="outline" className="gap-2" onClick={() => navigate("/tenders")} data-testid="button-go-tenders">
-            <Gavel className="w-4 h-4" /> Tender'lara Git
+            <Gavel className="w-4 h-4" /> Go to Tenders
           </Button>
         </Card>
       )}
@@ -543,11 +543,11 @@ export default function Proformas() {
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-proformas-title">
-            {isAgent ? "Proformalar & Teklifler" : "Proforma Invoices"}
+            {isAgent ? "Proformas & Bids" : "Proforma Invoices"}
           </h1>
           <p className="text-muted-foreground text-sm">
             {isAgent
-              ? "Proforma faturalarınız ve tender teklifleriniz."
+              ? "Your proforma invoices and tender bids."
               : "Manage your proforma disbursement accounts."}
           </p>
         </div>
@@ -558,7 +558,7 @@ export default function Proformas() {
             onClick={() => { setShowQuickDialog(true); setQuickResult(null); setQuickVesselId(""); setQuickVesselSearch(""); setQuickVesselOpen(false); setQuickExternalVessel(null); setQuickImoResult(null); setQuickImoLoading(false); setQuickManualGrt(""); setQuickManualNrt(""); setQuickManualFlag("Panama"); setQuickManualVesselName(""); setQuickPortId(""); setQuickPortSearch(""); setQuickDays(3); setQuickPurpose("Discharging"); setQuickCargoType("bulk_dry"); setQuickCargoQty("5000"); setQuickCargoUnit("MT"); setQuickDangerous(false); setQuickVoyageType("international"); }}
             data-testid="button-quick-proforma"
           >
-            <Zap className="w-4 h-4" /> Anlık Proforma Al
+            <Zap className="w-4 h-4" /> Quick Estimate
           </Button>
           <Link href="/proformas/new">
             <Button className="gap-2" data-testid="button-new-proforma">
@@ -573,19 +573,19 @@ export default function Proformas() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 font-serif">
               <Zap className="w-5 h-5 text-blue-600" />
-              Anlık Proforma Al
+              Quick Estimate
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Gemi, liman ve yük bilgilerini girin — tarifeler otomatik uygulanarak anlık tahmini DA hesaplanır.
+              Enter vessel, port and cargo details — tariffs are applied automatically for an instant DA estimate.
             </p>
 
-            {/* Row 1: Gemi + Gün */}
+            {/* Row 1: Vessel + Days */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Gemi Seç</Label>
+                <Label>Select Vessel</Label>
                 <Popover open={quickVesselOpen} onOpenChange={setQuickVesselOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -601,15 +601,15 @@ export default function Proformas() {
                         {quickVesselId === "external" && quickExternalVessel
                           ? `${quickExternalVessel.name} (IMO ${quickExternalVessel.imoNumber})`
                           : quickVesselId && vessels
-                            ? (vessels.find(v => String(v.id) === quickVesselId)?.name || "Gemi seçin...")
-                            : "Gemi adı veya IMO ile ara..."}
+                            ? (vessels.find(v => String(v.id) === quickVesselId)?.name || "Select vessel...")
+                            : "Search by vessel name or IMO..."}
                       </span>
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-[340px] p-0" align="start">
                     <Command shouldFilter={false}>
                       <CommandInput
-                        placeholder="Gemi adı veya IMO numarası..."
+                        placeholder="Vessel name or IMO number..."
                         value={quickVesselSearch}
                         onValueChange={(v) => {
                           setQuickVesselSearch(v);
@@ -627,8 +627,8 @@ export default function Proformas() {
                         }).length === 0 && !quickImoLoading && !quickImoResult && (
                           <CommandEmpty>
                             {quickVesselSearch.length >= 5
-                              ? "Filo'da bulunamadı. IMO sorgusu bekleniyor..."
-                              : "Gemi adı veya IMO yazın."}
+                              ? "Not found in fleet. Waiting for IMO lookup..."
+                              : "Enter vessel name or IMO."}
                           </CommandEmpty>
                         )}
                         <CommandGroup>
@@ -663,7 +663,7 @@ export default function Proformas() {
                           {quickImoLoading && (
                             <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-muted-foreground">
                               <Loader2 className="w-3 h-3 animate-spin" />
-                              IMO sorgulanıyor...
+                              Looking up IMO...
                             </div>
                           )}
                           {quickImoResult && !quickImoLoading && (
@@ -699,7 +699,7 @@ export default function Proformas() {
               </div>
 
               <div className="space-y-2">
-                <Label>Tahmini Kalış (Gün)</Label>
+                <Label>Estimated Stay (Days)</Label>
                 <Input
                   type="number"
                   min={1}
@@ -712,18 +712,18 @@ export default function Proformas() {
               </div>
             </div>
 
-            {/* Manuel Tonnaj Girişi — harici gemi veya gemi seçilmediğinde göster */}
+            {/* Manual Tonnage Entry — shown for external or unselected vessel */}
             {showManualTonnage && (
               <div className="rounded-lg border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/40 dark:bg-blue-950/20 p-3 space-y-3">
                 <p className="text-xs font-medium text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
                   <Globe className="w-3.5 h-3.5" />
-                  {quickVesselId === "external" ? "API'den gelen tonnaj bilgileri — düzenleyebilirsiniz" : "Gemi bilgilerini manuel girin"}
+                  {quickVesselId === "external" ? "Tonnage data from API — you may edit" : "Enter vessel details manually"}
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="sm:col-span-2 space-y-1">
-                    <Label className="text-xs">Gemi Adı</Label>
+                    <Label className="text-xs">Vessel Name</Label>
                     <Input
-                      placeholder="Örn: ALSU"
+                      placeholder="e.g. ALSU"
                       value={quickManualVesselName}
                       onChange={(e) => setQuickManualVesselName(e.target.value)}
                       className="h-8 text-sm"
@@ -734,7 +734,7 @@ export default function Proformas() {
                     <Label className="text-xs">GRT</Label>
                     <Input
                       type="number"
-                      placeholder="Örn: 8000"
+                      placeholder="e.g. 8000"
                       value={quickManualGrt}
                       onChange={(e) => setQuickManualGrt(e.target.value)}
                       className="h-8 text-sm"
@@ -746,7 +746,7 @@ export default function Proformas() {
                     <Label className="text-xs">NRT</Label>
                     <Input
                       type="number"
-                      placeholder="Örn: 6000"
+                      placeholder="e.g. 6000"
                       value={quickManualNrt}
                       onChange={(e) => setQuickManualNrt(e.target.value)}
                       className="h-8 text-sm"
@@ -756,7 +756,7 @@ export default function Proformas() {
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Bayrak (Flag)</Label>
+                  <Label className="text-xs">Flag</Label>
                   <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
                     {["Turkey", "Panama", "Malta", "Marshall Islands", "Liberia", "Bahamas"].map(flag => (
                       <button
@@ -775,7 +775,7 @@ export default function Proformas() {
                     ))}
                   </div>
                   <Input
-                    placeholder="Farklı bayrak yazın..."
+                    placeholder="Enter a different flag..."
                     value={quickManualFlag}
                     onChange={(e) => setQuickManualFlag(e.target.value)}
                     className="h-7 text-xs mt-1"
@@ -785,10 +785,10 @@ export default function Proformas() {
               </div>
             )}
 
-            {/* Sefer Tipi - only for Turkish flag vessels */}
+            {/* Voyage Type - only for Turkish flag vessels */}
             {isTurkishFlagVessel && (
             <div className="space-y-2" data-testid="section-voyage-type">
-              <Label>Sefer Tipi</Label>
+              <Label>Voyage Type</Label>
               <div className="grid grid-cols-2 gap-2" data-testid="select-voyage-type">
                 <button
                   type="button"
@@ -800,7 +800,7 @@ export default function Proformas() {
                   }`}
                   data-testid="button-voyage-international"
                 >
-                  🌍 Uluslararası Sefer
+                  🌍 International Voyage
                 </button>
                 <button
                   type="button"
@@ -812,11 +812,11 @@ export default function Proformas() {
                   }`}
                   data-testid="button-voyage-cabotage"
                 >
-                  🇹🇷 Kabotaj Seferi
+                  🇹🇷 Cabotage Voyage
                 </button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Kabotaj: Türk limanları arası · Uluslararası: Türk bayrak dışhat seferi
+                Cabotage: between Turkish ports · International: Turkish-flagged vessel on foreign voyage
               </p>
             </div>
             )}
@@ -824,24 +824,24 @@ export default function Proformas() {
             {/* Row 2: Purpose + Cargo Type */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Seferin Amacı</Label>
+                <Label>Purpose of Call</Label>
                 <Select value={quickPurpose} onValueChange={setQuickPurpose} data-testid="select-purpose-quick">
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Discharging">🔽 Boşaltma (Discharging)</SelectItem>
-                    <SelectItem value="Loading">🔼 Yükleme (Loading)</SelectItem>
-                    <SelectItem value="Loading/Discharging">🔄 Yükleme + Boşaltma</SelectItem>
+                    <SelectItem value="Discharging">🔽 Discharging</SelectItem>
+                    <SelectItem value="Loading">🔼 Loading</SelectItem>
+                    <SelectItem value="Loading/Discharging">🔄 Loading + Discharging</SelectItem>
                     <SelectItem value="Transit">➡️ Transit</SelectItem>
-                    <SelectItem value="Bunkering">⛽ Yakıt İkmali</SelectItem>
-                    <SelectItem value="Repair">🔧 Onarım</SelectItem>
+                    <SelectItem value="Bunkering">⛽ Bunkering</SelectItem>
+                    <SelectItem value="Repair">🔧 Repair</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label>Yük Cinsi</Label>
+                <Label>Cargo Type</Label>
                 <Select
                   value={quickCargoType}
                   onValueChange={(v) => {
@@ -872,9 +872,9 @@ export default function Proformas() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>
-                  Yük Miktarı
+                  Cargo Quantity
                   <span className="ml-1.5 text-xs text-muted-foreground font-normal">
-                    ({quickCargoUnit === "TEU" ? "TEU" : quickCargoUnit === "Units" ? "Araç Sayısı" : "Metrik Ton (MT)"})
+                    ({quickCargoUnit === "TEU" ? "TEU" : quickCargoUnit === "Units" ? "Vehicle Count" : "Metric Ton (MT)"})
                   </span>
                 </Label>
                 <div className="flex gap-2">
@@ -893,13 +893,13 @@ export default function Proformas() {
                 </div>
                 {(quickCargoType === "liquid" || quickCargoType === "chemical" || quickCargoType === "gas") && (
                   <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                    ℹ️ Bu yük cinsi için gözetim ücreti miktar yerine sabit tarife üzerinden hesaplanır
+                    ℹ️ For this cargo type, supervision fee is calculated at a fixed rate rather than by quantity.
                   </p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label>Tehlikeli Madde</Label>
+                <Label>Dangerous Goods</Label>
                 <label className="flex items-center gap-3 h-10 px-3 border rounded-md cursor-pointer hover:bg-muted/50 transition-colors" data-testid="switch-dangerous-quick">
                   <input
                     type="checkbox"
@@ -908,15 +908,15 @@ export default function Proformas() {
                     className="w-4 h-4 rounded"
                   />
                   <div>
-                    <div className="text-sm font-medium">IMDG Tehlikeli Yük</div>
-                    <div className="text-xs text-muted-foreground">Kılavuzluk, Römorkör ve Palamar'a %30 zamlanır</div>
+                    <div className="text-sm font-medium">IMDG Dangerous Cargo</div>
+                    <div className="text-xs text-muted-foreground">30% surcharge on Pilotage, Tugboat and Mooring</div>
                   </div>
                 </label>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Liman Ara</Label>
+              <Label>Search Port</Label>
               <Popover open={quickPortOpen} onOpenChange={setQuickPortOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -926,20 +926,20 @@ export default function Proformas() {
                     data-testid="trigger-port-quick"
                   >
                     <Anchor className="w-4 h-4 mr-2 text-muted-foreground" />
-                    {quickPortId && turkishPorts ? (turkishPorts.find(p => String(p.id) === quickPortId)?.name || "Liman seçin...") : "Liman adı yazın..."}
+                    {quickPortId && turkishPorts ? (turkishPorts.find(p => String(p.id) === quickPortId)?.name || "Select port...") : "Enter port name..."}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-full p-0" align="start">
                   <Command shouldFilter={false}>
                     <CommandInput
-                      placeholder="Türk limanı ara... (en az 2 karakter)"
+                      placeholder="Search Turkish port... (min. 2 chars)"
                       value={quickPortSearch}
                       onValueChange={setQuickPortSearch}
                       data-testid="input-port-quick"
                     />
                     <CommandList>
                       <CommandEmpty>
-                        {quickPortSearch.length < 2 ? "En az 2 karakter girin." : "Türk limanı bulunamadı."}
+                        {quickPortSearch.length < 2 ? "Enter at least 2 characters." : "No Turkish port found."}
                       </CommandEmpty>
                       <CommandGroup>
                         {filteredQuickPorts.map((p) => (
@@ -968,7 +968,7 @@ export default function Proformas() {
               data-testid="button-calculate-quick"
             >
               {quickLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
-              {quickLoading ? "Hesaplanıyor..." : "Tahmini Hesapla"}
+              {quickLoading ? "Calculating..." : "Calculate Estimate"}
             </Button>
 
             {quickResult && (
@@ -978,7 +978,7 @@ export default function Proformas() {
                   <span className="font-semibold text-sm text-blue-800 dark:text-blue-300">
                     {quickResult.vesselName} — {quickResult.portName}
                   </span>
-                  <Badge variant="secondary" className="ml-auto text-[10px]">Tahmini DA</Badge>
+                  <Badge variant="secondary" className="ml-auto text-[10px]">Estimated DA</Badge>
                 </div>
                 <div className="flex flex-wrap gap-1.5 pb-1">
                   <Badge className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0">
@@ -991,11 +991,11 @@ export default function Proformas() {
                     {quickPurpose}
                   </Badge>
                   <Badge className="text-[10px] bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0">
-                    {quickVoyageType === "cabotage" ? "🇹🇷 Kabotaj" : "🌍 Uluslararası"}
+                    {quickVoyageType === "cabotage" ? "🇹🇷 Cabotage" : "🌍 International"}
                   </Badge>
                   {quickDangerous && (
                     <Badge className="text-[10px] bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-0">
-                      ⚠️ Tehlikeli Madde +%30
+                      ⚠️ Dangerous Cargo +30%
                     </Badge>
                   )}
                 </div>
@@ -1004,9 +1004,9 @@ export default function Proformas() {
                   <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-md" data-testid="badge-tariff-real">
                     <span className="text-emerald-600 dark:text-emerald-400 text-sm">✓</span>
                     <div>
-                      <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Gerçek 2026 Tarifeleri Uygulandı</span>
+                      <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">2026 Official Tariffs Applied</span>
                       {quickResult.portTariffName && (
-                        <span className="text-xs text-emerald-600 dark:text-emerald-400 ml-1.5">({quickResult.portTariffName} resmi tarifesi)</span>
+                        <span className="text-xs text-emerald-600 dark:text-emerald-400 ml-1.5">({quickResult.portTariffName} official tariff)</span>
                       )}
                     </div>
                   </div>
@@ -1014,8 +1014,8 @@ export default function Proformas() {
                   <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md" data-testid="badge-tariff-estimate">
                     <span className="text-amber-600 dark:text-amber-400 text-sm">~</span>
                     <div>
-                      <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Tahmini Değerler</span>
-                      <span className="text-xs text-amber-600 dark:text-amber-400 ml-1.5">(Bu liman için DB'de tarife yok)</span>
+                      <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Estimated Values</span>
+                      <span className="text-xs text-amber-600 dark:text-amber-400 ml-1.5">(No DB tariff for this port)</span>
                     </div>
                   </div>
                 )}
@@ -1024,7 +1024,7 @@ export default function Proformas() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
-                        <TableHead className="text-xs py-2">Kalem</TableHead>
+                        <TableHead className="text-xs py-2">Line Item</TableHead>
                         <TableHead className="text-xs py-2 text-right">USD ($)</TableHead>
                         <TableHead className="text-xs py-2 text-right hidden sm:table-cell">EUR (€)</TableHead>
                       </TableRow>
@@ -1051,12 +1051,12 @@ export default function Proformas() {
                   </div>
                   <div className="text-right text-xs text-muted-foreground">
                     <p>TCMB: 1 USD = {quickResult.exchangeRates.usdTry} TRY</p>
-                    <p>{quickDays} gün kalış · {(quickResult.lineItems || []).length} kalem</p>
+                    <p>{quickDays}-day stay · {(quickResult.lineItems || []).length} line items</p>
                   </div>
                 </div>
 
                 <p className="text-[10px] text-muted-foreground italic">
-                  * Bu tahmini bir değerdir. Kesin rakam için tam proforma oluşturunuz.
+                  * This is an estimate. Create a full proforma for exact figures.
                 </p>
 
                 <div className="flex gap-2 pt-1">
@@ -1066,11 +1066,11 @@ export default function Proformas() {
                       variant="outline"
                       className="flex-1 gap-1.5 text-xs"
                       disabled
-                      title="Taslak kaydetmek için önce gemiyi filoya ekleyin"
+                      title="Add the vessel to your fleet first to save as draft"
                       data-testid="button-save-draft-quick"
                     >
                       <FileText className="w-3.5 h-3.5" />
-                      Taslak Kaydet (Filoya Ekle)
+                      Save as Draft (Add to Fleet First)
                     </Button>
                   ) : (
                     <Button
@@ -1082,7 +1082,7 @@ export default function Proformas() {
                       data-testid="button-save-draft-quick"
                     >
                       {saveDraftMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
-                      Taslak Kaydet
+                      Save as Draft
                     </Button>
                   )}
                   <Button
@@ -1093,7 +1093,7 @@ export default function Proformas() {
                     data-testid="button-go-full-form"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    Tam Proformaya Geç
+                    Create Full Proforma
                   </Button>
                 </div>
               </Card>
@@ -1114,9 +1114,9 @@ export default function Proformas() {
             </TabsTrigger>
             <TabsTrigger value="bids" className="gap-2" data-testid="tab-bids">
               <Gavel className="w-4 h-4" />
-              Tender Tekliflerim
+              My Tender Bids
               {wonBids.length > 0 && (
-                <Badge className="ml-1 text-[10px] bg-emerald-100 text-emerald-700 border-0">{wonBids.length} kazandı</Badge>
+                <Badge className="ml-1 text-[10px] bg-emerald-100 text-emerald-700 border-0">{wonBids.length} won</Badge>
               )}
             </TabsTrigger>
           </TabsList>

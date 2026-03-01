@@ -23,51 +23,51 @@ import {
 
 // ── Human-readable label maps ────────────────────────────────────────────────
 const SERVICE_LABELS: Record<string, string> = {
-  kabotaj: "Kabotaj Kılavuzluk",
-  kabotaj_yeni: "Kabotaj Kılavuzluk (Yeni)",
-  uluslararasi: "Uluslararası Kılavuzluk",
-  uluslararasi_yeni: "Uluslararası Kılavuzluk (Yeni)",
-  "romorkör_kabotaj": "Kabotaj Römorkör",
-  "romorkör_kabotaj_yeni": "Kabotaj Römorkör (Yeni)",
-  "romorkör_uluslararasi": "Uluslararası Römorkör",
-  "romorkör_uluslararasi_yeni": "Uluslararası Römorkör (Yeni)",
-  palamar_kabotaj: "Kabotaj Palamar",
-  palamar_kabotaj_yeni: "Kabotaj Palamar (Yeni)",
-  palamar_uluslararasi: "Uluslararası Palamar",
-  palamar_uluslararasi_yeni: "Uluslararası Palamar (Yeni)",
-  acentelik: "Acentelik",
-  koruyucu_acentelik: "Koruyucu Acentelik",
+  kabotaj: "Cabotage Pilotage",
+  kabotaj_yeni: "Cabotage Pilotage (New)",
+  uluslararasi: "International Pilotage",
+  uluslararasi_yeni: "International Pilotage (New)",
+  "romorkör_kabotaj": "Cabotage Tugboat",
+  "romorkör_kabotaj_yeni": "Cabotage Tugboat (New)",
+  "romorkör_uluslararasi": "International Tugboat",
+  "romorkör_uluslararasi_yeni": "International Tugboat (New)",
+  palamar_kabotaj: "Cabotage Mooring",
+  palamar_kabotaj_yeni: "Cabotage Mooring (New)",
+  palamar_uluslararasi: "International Mooring",
+  palamar_uluslararasi_yeni: "International Mooring (New)",
+  acentelik: "Agency Fee",
+  koruyucu_acentelik: "Protective Agency Fee",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
-  calisan_gemiler: "Kabotaj Hattında Çalışan Gemiler",
-  konteyner: "Konteyner Gemileri",
-  diger_yuk: "Diğer Yük Gemileri",
-  diger_tum: "Diğer Yük Gemileri",
-  yolcu_feribot_roro_car_carrier: "Yolcu Feribotu / Ro-Ro / Car Carrier",
+  calisan_gemiler: "Cabotage Vessels",
+  konteyner: "Container Vessels",
+  diger_yuk: "Other Cargo Vessels",
+  diger_tum: "Other Cargo Vessels",
+  yolcu_feribot_roro_car_carrier: "Passenger Ferry / Ro-Ro / Car Carrier",
   tanker: "Tanker",
 };
 
 const VESSEL_CATEGORY_OPTIONS = [
-  { value: "calisan_gemiler", label: "Kabotaj Hattında Çalışan Gemiler" },
-  { value: "konteyner", label: "Konteyner Gemileri" },
-  { value: "diger_yuk", label: "Diğer Yük Gemileri" },
-  { value: "yolcu_feribot_roro_car_carrier", label: "Yolcu Feribotu / Ro-Ro / Car Carrier" },
+  { value: "calisan_gemiler", label: "Cabotage Vessels" },
+  { value: "konteyner", label: "Container Vessels" },
+  { value: "diger_yuk", label: "Other Cargo Vessels" },
+  { value: "yolcu_feribot_roro_car_carrier", label: "Passenger Ferry / Ro-Ro / Car Carrier" },
 ];
 
 const PILOTAGE_SERVICE_OPTIONS = [
-  { value: "kabotaj", label: "Kabotaj Kılavuzluk" },
-  { value: "kabotaj_yeni", label: "Kabotaj Kılavuzluk (Yeni)" },
-  { value: "uluslararasi", label: "Uluslararası Kılavuzluk" },
-  { value: "uluslararasi_yeni", label: "Uluslararası Kılavuzluk (Yeni)" },
-  { value: "romorkör_kabotaj", label: "Kabotaj Römorkör" },
-  { value: "romorkör_kabotaj_yeni", label: "Kabotaj Römorkör (Yeni)" },
-  { value: "romorkör_uluslararasi", label: "Uluslararası Römorkör" },
-  { value: "romorkör_uluslararasi_yeni", label: "Uluslararası Römorkör (Yeni)" },
-  { value: "palamar_kabotaj", label: "Kabotaj Palamar" },
-  { value: "palamar_kabotaj_yeni", label: "Kabotaj Palamar (Yeni)" },
-  { value: "palamar_uluslararasi", label: "Uluslararası Palamar" },
-  { value: "palamar_uluslararasi_yeni", label: "Uluslararası Palamar (Yeni)" },
+  { value: "kabotaj", label: "Cabotage Pilotage" },
+  { value: "kabotaj_yeni", label: "Cabotage Pilotage (New)" },
+  { value: "uluslararasi", label: "International Pilotage" },
+  { value: "uluslararasi_yeni", label: "International Pilotage (New)" },
+  { value: "romorkör_kabotaj", label: "Cabotage Tugboat" },
+  { value: "romorkör_kabotaj_yeni", label: "Cabotage Tugboat (New)" },
+  { value: "romorkör_uluslararasi", label: "International Tugboat" },
+  { value: "romorkör_uluslararasi_yeni", label: "International Tugboat (New)" },
+  { value: "palamar_kabotaj", label: "Cabotage Mooring" },
+  { value: "palamar_kabotaj_yeni", label: "Cabotage Mooring (New)" },
+  { value: "palamar_uluslararasi", label: "International Mooring" },
+  { value: "palamar_uluslararasi_yeni", label: "International Mooring (New)" },
 ];
 
 // Gerçek Türkçe isim + LOCODE haritası (DB'deki ASCII isimler için override)
@@ -114,151 +114,151 @@ interface CategoryDef {
 const CATEGORIES: CategoryDef[] = [
   {
     key: "pilotage_tariffs",
-    label: "Kılavuzluk Ücretleri",
+    label: "Pilotage Fees",
     icon: Navigation,
     defaultCurrency: "USD",
     columns: [
-      { key: "service_type", label: "Hizmet Türü", type: "service_type_select" },
-      { key: "vessel_category", label: "Gemi Tipi", type: "vessel_category_select" },
-      { key: "grt_min", label: "GRT Alt", type: "number" },
-      { key: "grt_max", label: "GRT Üst", type: "number" },
-      { key: "base_fee", label: "Taban Ücret", type: "number" },
+      { key: "service_type", label: "Service Type", type: "service_type_select" },
+      { key: "vessel_category", label: "Vessel Type", type: "vessel_category_select" },
+      { key: "grt_min", label: "GRT Min", type: "number" },
+      { key: "grt_max", label: "GRT Max", type: "number" },
+      { key: "base_fee", label: "Base Fee", type: "number" },
       { key: "per_1000_grt", label: "+1000 GRT", type: "number" },
-      { key: "currency", label: "Kur", type: "currency" },
-      { key: "valid_year", label: "Yıl", type: "year" },
+      { key: "currency", label: "CCY", type: "currency" },
+      { key: "valid_year", label: "Year", type: "year" },
     ],
     formFields: [
-      { key: "service_type", label: "Hizmet Türü", type: "service_type_select" },
-      { key: "vessel_category", label: "Gemi Kategorisi", type: "vessel_category_select" },
-      { key: "grt_min", label: "GRT Alt Sınır", type: "number" },
-      { key: "grt_max", label: "GRT Üst Sınır", type: "number" },
-      { key: "base_fee", label: "Taban Ücret", type: "number" },
-      { key: "per_1000_grt", label: "Her 1000 GRT Ücreti", type: "number" },
-      { key: "currency", label: "Para Birimi", type: "currency" },
-      { key: "valid_year", label: "Geçerlilik Yılı", type: "year" },
-      { key: "notes", label: "Notlar", type: "textarea" },
+      { key: "service_type", label: "Service Type", type: "service_type_select" },
+      { key: "vessel_category", label: "Vessel Category", type: "vessel_category_select" },
+      { key: "grt_min", label: "GRT Min", type: "number" },
+      { key: "grt_max", label: "GRT Max", type: "number" },
+      { key: "base_fee", label: "Base Fee", type: "number" },
+      { key: "per_1000_grt", label: "Fee per 1,000 GRT", type: "number" },
+      { key: "currency", label: "Currency", type: "currency" },
+      { key: "valid_year", label: "Valid Year", type: "year" },
+      { key: "notes", label: "Notes", type: "textarea" },
     ],
   },
   {
     key: "berthing_tariffs",
-    label: "Barınma Ücretleri",
+    label: "Berthing Fees",
     icon: Warehouse,
     defaultCurrency: "USD",
     columns: [
-      { key: "gt_min", label: "GT Alt", type: "number" },
-      { key: "gt_max", label: "GT Üst", type: "number" },
-      { key: "intl_foreign_flag", label: "Yabancı Bayrak / Gün", type: "number" },
-      { key: "intl_turkish_flag", label: "Türk Bayrak Int. / Gün", type: "number" },
-      { key: "cabotage_turkish", label: "Kabotaj Türk / Gün", type: "number" },
-      { key: "currency", label: "Kur", type: "currency" },
-      { key: "valid_year", label: "Yıl", type: "year" },
+      { key: "gt_min", label: "GT Min", type: "number" },
+      { key: "gt_max", label: "GT Max", type: "number" },
+      { key: "intl_foreign_flag", label: "Foreign Flag / Day", type: "number" },
+      { key: "intl_turkish_flag", label: "Turkish Flag Intl. / Day", type: "number" },
+      { key: "cabotage_turkish", label: "Cabotage Turkish / Day", type: "number" },
+      { key: "currency", label: "CCY", type: "currency" },
+      { key: "valid_year", label: "Year", type: "year" },
     ],
     formFields: [
-      { key: "gt_min", label: "GT Alt Sınır", type: "number" },
-      { key: "gt_max", label: "GT Üst Sınır", type: "number" },
-      { key: "intl_foreign_flag", label: "Yabancı Bayraklı (Günlük)", type: "number" },
-      { key: "intl_turkish_flag", label: "Türk Bayraklı Int. (Günlük)", type: "number" },
-      { key: "cabotage_turkish", label: "Kabotaj Türk (Günlük)", type: "number" },
-      { key: "currency", label: "Para Birimi", type: "currency" },
-      { key: "valid_year", label: "Geçerlilik Yılı", type: "year" },
-      { key: "notes", label: "Notlar", type: "textarea" },
+      { key: "gt_min", label: "GT Min", type: "number" },
+      { key: "gt_max", label: "GT Max", type: "number" },
+      { key: "intl_foreign_flag", label: "Foreign Flag (Daily)", type: "number" },
+      { key: "intl_turkish_flag", label: "Turkish Flag Intl. (Daily)", type: "number" },
+      { key: "cabotage_turkish", label: "Cabotage Turkish (Daily)", type: "number" },
+      { key: "currency", label: "Currency", type: "currency" },
+      { key: "valid_year", label: "Valid Year", type: "year" },
+      { key: "notes", label: "Notes", type: "textarea" },
     ],
   },
   {
     key: "agency_fees",
-    label: "Acente Ücretleri",
+    label: "Agency Fees",
     icon: Building2,
     defaultCurrency: "EUR",
     columns: [
-      { key: "tariff_no", label: "Tarife No" },
-      { key: "service_type", label: "Hizmet Türü" },
-      { key: "nt_min", label: "NT Alt", type: "number" },
-      { key: "nt_max", label: "NT Üst", type: "number" },
-      { key: "fee", label: "Ücret", type: "number" },
-      { key: "currency", label: "Kur", type: "currency" },
-      { key: "valid_year", label: "Yıl", type: "year" },
+      { key: "tariff_no", label: "Tariff No." },
+      { key: "service_type", label: "Service Type" },
+      { key: "nt_min", label: "NT Min", type: "number" },
+      { key: "nt_max", label: "NT Max", type: "number" },
+      { key: "fee", label: "Fee", type: "number" },
+      { key: "currency", label: "CCY", type: "currency" },
+      { key: "valid_year", label: "Year", type: "year" },
     ],
     formFields: [
-      { key: "tariff_no", label: "Tarife No (T1 / T2 vb.)", type: "text" },
-      { key: "service_type", label: "Hizmet Türü (acentelik / koruyucu_acentelik)", type: "text" },
-      { key: "nt_min", label: "NT Alt Sınır", type: "number" },
-      { key: "nt_max", label: "NT Üst Sınır", type: "number" },
-      { key: "fee", label: "Ücret (EUR)", type: "number" },
-      { key: "currency", label: "Para Birimi", type: "currency" },
-      { key: "valid_year", label: "Geçerlilik Yılı", type: "year" },
-      { key: "notes", label: "Notlar", type: "textarea" },
+      { key: "tariff_no", label: "Tariff No. (T1 / T2 etc.)", type: "text" },
+      { key: "service_type", label: "Service Type (acentelik / koruyucu_acentelik)", type: "text" },
+      { key: "nt_min", label: "NT Min", type: "number" },
+      { key: "nt_max", label: "NT Max", type: "number" },
+      { key: "fee", label: "Fee (EUR)", type: "number" },
+      { key: "currency", label: "Currency", type: "currency" },
+      { key: "valid_year", label: "Valid Year", type: "year" },
+      { key: "notes", label: "Notes", type: "textarea" },
     ],
   },
   {
     key: "marpol_tariffs",
-    label: "MARPOL Atık Ücretleri",
+    label: "MARPOL Waste Fees",
     icon: Leaf,
     defaultCurrency: "EUR",
     columns: [
-      { key: "grt_min", label: "GRT Alt", type: "number" },
-      { key: "grt_max", label: "GRT Üst", type: "number" },
-      { key: "fixed_fee", label: "Sabit Ücret (EUR)", type: "number" },
-      { key: "marpol_ek1_included", label: "EK-1 Dahil m³", type: "number" },
-      { key: "marpol_ek4_included", label: "EK-4 Dahil m³", type: "number" },
-      { key: "currency", label: "Kur", type: "currency" },
-      { key: "valid_year", label: "Yıl", type: "year" },
+      { key: "grt_min", label: "GRT Min", type: "number" },
+      { key: "grt_max", label: "GRT Max", type: "number" },
+      { key: "fixed_fee", label: "Fixed Fee (EUR)", type: "number" },
+      { key: "marpol_ek1_included", label: "Annex I Incl. m³", type: "number" },
+      { key: "marpol_ek4_included", label: "Annex IV Incl. m³", type: "number" },
+      { key: "currency", label: "CCY", type: "currency" },
+      { key: "valid_year", label: "Year", type: "year" },
     ],
     formFields: [
-      { key: "grt_min", label: "GRT Alt Sınır", type: "number" },
-      { key: "grt_max", label: "GRT Üst Sınır", type: "number" },
-      { key: "fixed_fee", label: "Sabit Ücret (EUR)", type: "number" },
-      { key: "marpol_ek1_included", label: "EK-1 Dahil m³ (sintine/yağ)", type: "number" },
-      { key: "marpol_ek4_included", label: "EK-4 Dahil m³ (pis su)", type: "number" },
-      { key: "marpol_ek5_included", label: "EK-5 Dahil m³ (çöp)", type: "number" },
-      { key: "weekday_ek1_rate", label: "Hf. İçi EK-1 EUR/m³", type: "number" },
-      { key: "weekday_ek4_rate", label: "Hf. İçi EK-4 EUR/m³", type: "number" },
-      { key: "weekday_ek5_rate", label: "Hf. İçi EK-5 EUR/m³", type: "number" },
-      { key: "weekend_ek1_rate", label: "Hf. Sonu EK-1 EUR/m³", type: "number" },
-      { key: "weekend_ek4_rate", label: "Hf. Sonu EK-4 EUR/m³", type: "number" },
-      { key: "weekend_ek5_rate", label: "Hf. Sonu EK-5 EUR/m³", type: "number" },
-      { key: "currency", label: "Para Birimi", type: "currency" },
-      { key: "valid_year", label: "Geçerlilik Yılı", type: "year" },
+      { key: "grt_min", label: "GRT Min", type: "number" },
+      { key: "grt_max", label: "GRT Max", type: "number" },
+      { key: "fixed_fee", label: "Fixed Fee (EUR)", type: "number" },
+      { key: "marpol_ek1_included", label: "Annex I Incl. m³ (bilge/oil)", type: "number" },
+      { key: "marpol_ek4_included", label: "Annex IV Incl. m³ (sewage)", type: "number" },
+      { key: "marpol_ek5_included", label: "Annex V Incl. m³ (garbage)", type: "number" },
+      { key: "weekday_ek1_rate", label: "Weekday Annex I EUR/m³", type: "number" },
+      { key: "weekday_ek4_rate", label: "Weekday Annex IV EUR/m³", type: "number" },
+      { key: "weekday_ek5_rate", label: "Weekday Annex V EUR/m³", type: "number" },
+      { key: "weekend_ek1_rate", label: "Weekend Annex I EUR/m³", type: "number" },
+      { key: "weekend_ek4_rate", label: "Weekend Annex IV EUR/m³", type: "number" },
+      { key: "weekend_ek5_rate", label: "Weekend Annex V EUR/m³", type: "number" },
+      { key: "currency", label: "Currency", type: "currency" },
+      { key: "valid_year", label: "Valid Year", type: "year" },
     ],
   },
   {
     key: "lcb_tariffs",
-    label: "LCB / Tonaj Ücretleri",
+    label: "LCB / Tonnage Fees",
     icon: Layers,
     defaultCurrency: "TRY",
     columns: [
-      { key: "nrt_min", label: "NRT Alt", type: "number" },
-      { key: "nrt_max", label: "NRT Üst", type: "number" },
-      { key: "amount", label: "Tutar (TRY)", type: "number" },
-      { key: "currency", label: "Kur", type: "currency" },
-      { key: "valid_year", label: "Yıl", type: "year" },
+      { key: "nrt_min", label: "NRT Min", type: "number" },
+      { key: "nrt_max", label: "NRT Max", type: "number" },
+      { key: "amount", label: "Amount (TRY)", type: "number" },
+      { key: "currency", label: "CCY", type: "currency" },
+      { key: "valid_year", label: "Year", type: "year" },
     ],
     formFields: [
-      { key: "nrt_min", label: "NRT Alt Sınır", type: "number" },
-      { key: "nrt_max", label: "NRT Üst Sınır", type: "number" },
-      { key: "amount", label: "Tutar (TRY)", type: "number" },
-      { key: "currency", label: "Para Birimi", type: "currency" },
-      { key: "valid_year", label: "Geçerlilik Yılı", type: "year" },
+      { key: "nrt_min", label: "NRT Min", type: "number" },
+      { key: "nrt_max", label: "NRT Max", type: "number" },
+      { key: "amount", label: "Amount (TRY)", type: "number" },
+      { key: "currency", label: "Currency", type: "currency" },
+      { key: "valid_year", label: "Valid Year", type: "year" },
     ],
   },
   {
     key: "other_services",
-    label: "Diğer Hizmetler",
+    label: "Other Services",
     icon: MoreHorizontal,
     defaultCurrency: "EUR",
     columns: [
-      { key: "service_name", label: "Hizmet Adı" },
-      { key: "fee", label: "Ücret", type: "number" },
-      { key: "unit", label: "Birim" },
-      { key: "currency", label: "Kur", type: "currency" },
-      { key: "valid_year", label: "Yıl", type: "year" },
+      { key: "service_name", label: "Service Name" },
+      { key: "fee", label: "Fee", type: "number" },
+      { key: "unit", label: "Unit" },
+      { key: "currency", label: "CCY", type: "currency" },
+      { key: "valid_year", label: "Year", type: "year" },
     ],
     formFields: [
-      { key: "service_name", label: "Hizmet Adı", type: "text" },
-      { key: "fee", label: "Ücret", type: "number" },
-      { key: "unit", label: "Birim (sefer başı / ton / vb.)", type: "text" },
-      { key: "currency", label: "Para Birimi", type: "currency" },
-      { key: "valid_year", label: "Geçerlilik Yılı", type: "year" },
-      { key: "notes", label: "Notlar", type: "textarea" },
+      { key: "service_name", label: "Service Name", type: "text" },
+      { key: "fee", label: "Fee", type: "number" },
+      { key: "unit", label: "Unit (per call / per ton / etc.)", type: "text" },
+      { key: "currency", label: "Currency", type: "currency" },
+      { key: "valid_year", label: "Valid Year", type: "year" },
+      { key: "notes", label: "Notes", type: "textarea" },
     ],
   },
 ];
@@ -304,7 +304,7 @@ function FormField({
     return (
       <Select value={value ?? ""} onValueChange={onChange}>
         <SelectTrigger data-testid={`form-field-${field.key}`}>
-          <SelectValue placeholder="Gemi kategorisi seçin" />
+          <SelectValue placeholder="Select vessel category" />
         </SelectTrigger>
         <SelectContent>
           {VESSEL_CATEGORY_OPTIONS.map(opt => (
@@ -318,7 +318,7 @@ function FormField({
     return (
       <Select value={value ?? ""} onValueChange={onChange}>
         <SelectTrigger data-testid={`form-field-${field.key}`}>
-          <SelectValue placeholder="Hizmet türü seçin" />
+          <SelectValue placeholder="Select service type" />
         </SelectTrigger>
         <SelectContent>
           {PILOTAGE_SERVICE_OPTIONS.map(opt => (
@@ -395,7 +395,7 @@ function InlineCell({
         onValueChange={v => setEditData(d => ({ ...d, [col.key]: v }))}
       >
         <SelectTrigger className="h-7 w-52 text-xs" data-testid={`inline-${col.key}-${editData.id}`}>
-          <SelectValue placeholder="Kategori seçin" />
+          <SelectValue placeholder="Select category" />
         </SelectTrigger>
         <SelectContent>
           {VESSEL_CATEGORY_OPTIONS.map(opt => (
@@ -412,7 +412,7 @@ function InlineCell({
         onValueChange={v => setEditData(d => ({ ...d, [col.key]: v }))}
       >
         <SelectTrigger className="h-7 w-52 text-xs" data-testid={`inline-${col.key}-${editData.id}`}>
-          <SelectValue placeholder="Hizmet türü seçin" />
+          <SelectValue placeholder="Select service type" />
         </SelectTrigger>
         <SelectContent>
           {PILOTAGE_SERVICE_OPTIONS.map(opt => (
@@ -495,7 +495,7 @@ function CategorySection({
     queryFn: async () => {
       const params = new URLSearchParams({ portId: String(portId) });
       const res = await fetch(`/api/admin/tariffs/${cat.key}?${params}`);
-      if (!res.ok) throw new Error("Veri alınamadı");
+      if (!res.ok) throw new Error("Failed to load data");
       return res.json();
     },
   });
@@ -512,10 +512,10 @@ function CategorySection({
       ),
     onSuccess: () => {
       invalidate();
-      toast({ title: portId === "global" ? "Global tarife eklendi" : "Tarife eklendi" });
+      toast({ title: portId === "global" ? "Global tariff added" : "Tariff added" });
       setAddOpen(false);
     },
-    onError: () => toast({ title: "Hata", description: "Eklenemedi", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Failed to add", variant: "destructive" }),
   });
 
   const editMutation = useMutation({
@@ -523,11 +523,11 @@ function CategorySection({
       apiRequest("PATCH", `/api/admin/tariffs/${cat.key}/${editRowId}`, editData),
     onSuccess: () => {
       invalidate();
-      toast({ title: "Tarife güncellendi" });
+      toast({ title: "Tariff updated" });
       setEditRowId(null);
     },
     onError: () =>
-      toast({ title: "Hata", description: "Güncellenemedi", variant: "destructive" }),
+      toast({ title: "Error", description: "Failed to update", variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
@@ -535,10 +535,10 @@ function CategorySection({
       apiRequest("DELETE", `/api/admin/tariffs/${cat.key}/${id}`),
     onSuccess: () => {
       invalidate();
-      toast({ title: "Tarife silindi" });
+      toast({ title: "Tariff deleted" });
       setDeleteTarget(null);
     },
-    onError: () => toast({ title: "Hata", description: "Silinemedi", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Failed to delete", variant: "destructive" }),
   });
 
   const bulkMutation = useMutation({
@@ -549,11 +549,11 @@ function CategorySection({
       }),
     onSuccess: () => {
       invalidate();
-      toast({ title: `%${bulkPercent} zam uygulandı`, description: `${rows.length} kayıt güncellendi` });
+      toast({ title: `${bulkPercent}% increase applied`, description: `${rows.length} records updated` });
       setBulkOpen(false);
     },
     onError: () =>
-      toast({ title: "Hata", description: "Zam uygulanamadı", variant: "destructive" }),
+      toast({ title: "Error", description: "Failed to apply increase", variant: "destructive" }),
   });
 
   const isAddOpen = addOpen || (externalAddOpen ?? false);
@@ -592,7 +592,7 @@ function CategorySection({
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm">{cat.label}</p>
           <p className="text-xs text-muted-foreground">
-            {isLoading ? "Yükleniyor..." : `${rows.length} kayıt · ${cat.defaultCurrency} bazlı`}
+            {isLoading ? "Loading..." : `${rows.length} records · ${cat.defaultCurrency}`}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
@@ -603,7 +603,7 @@ function CategorySection({
               onClick={e => { e.stopPropagation(); setBulkOpen(true); }}
               data-testid={`button-bulk-${cat.key}`}
             >
-              <TrendingUp className="w-3 h-3" /> % Zam
+              <TrendingUp className="w-3 h-3" /> % Increase
             </Button>
           )}
           <Button
@@ -612,7 +612,7 @@ function CategorySection({
             onClick={openAdd}
             data-testid={`button-add-${cat.key}`}
           >
-            <Plus className="w-3 h-3" /> Ekle
+            <Plus className="w-3 h-3" /> Add
           </Button>
           {open
             ? <ChevronUp className="w-4 h-4 text-muted-foreground ml-1" />
@@ -631,7 +631,7 @@ function CategorySection({
                     {col.label}
                   </th>
                 ))}
-                <th className="px-3 py-2 text-right font-semibold text-muted-foreground">İşlem</th>
+                <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -650,8 +650,8 @@ function CategorySection({
                     className="px-3 py-10 text-center text-muted-foreground italic text-xs"
                   >
                     {portId === "global"
-                      ? "Global tarife yok — \"Ekle\" butonuyla tüm limanlar için ortak tarife ekleyin"
-                      : "Bu liman için kayıt bulunamadı — \"Ekle\" butonuyla yeni tarife oluşturun"}
+                      ? "No global tariffs — click \"Add\" to create tariffs that apply to all ports"
+                      : "No records for this port — click \"Add\" to create a new tariff"}
                   </td>
                 </tr>
               ) : (
@@ -681,7 +681,7 @@ function CategorySection({
                               className="h-6 text-xs px-2"
                               onClick={() => setEditRowId(null)}
                             >
-                              İptal
+                              Cancel
                             </Button>
                             <Button
                               size="sm"
@@ -692,7 +692,7 @@ function CategorySection({
                             >
                               {editMutation.isPending
                                 ? <Loader2 className="w-3 h-3 animate-spin" />
-                                : "Kaydet"}
+                                : "Save"}
                             </Button>
                           </div>
                         ) : (
@@ -731,7 +731,7 @@ function CategorySection({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Icon className="w-4 h-4 text-primary" />
-              {cat.label} — Yeni Kayıt
+              {cat.label} — New Entry
             </DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
@@ -747,13 +747,13 @@ function CategorySection({
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button
               onClick={() => addMutation.mutate()}
               disabled={addMutation.isPending}
               data-testid={`button-confirm-add-${cat.key}`}
             >
-              {addMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Kaydet"}
+              {addMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -766,19 +766,19 @@ function CategorySection({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Tarife Kaydını Sil</AlertDialogTitle>
+            <AlertDialogTitle>Delete Tariff Entry</AlertDialogTitle>
             <AlertDialogDescription>
-              Bu tarife kalıcı olarak silinecek. Devam edilsin mi?
+              This tariff entry will be permanently deleted. Are you sure?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Vazgeç</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive hover:bg-destructive/90"
               onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
               data-testid="button-confirm-delete"
             >
-              {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Sil"}
+              {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -789,17 +789,17 @@ function CategorySection({
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-primary" /> Toplu Zam — {cat.label}
+              <TrendingUp className="w-4 h-4 text-primary" /> Bulk Increase — {cat.label}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-sm text-muted-foreground">
-              Bu limanın{" "}
+              A fee increase will be applied to{" "}
               <span className="font-semibold text-foreground">{rows.length}</span>{" "}
-              kaydına ücret zamı uygulanacak.
+              records for this port.
             </p>
             <div>
-              <Label>Zam Yüzdesi (%)</Label>
+              <Label>Increase Percentage (%)</Label>
               <Input
                 type="number"
                 min="0.1" max="500" step="0.5"
@@ -810,11 +810,11 @@ function CategorySection({
             </div>
             <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-300 flex gap-2">
               <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-              Tüm ücret alanları %{bulkPercent} artırılacak. Geri alınamaz.
+              All fee fields will be increased by {bulkPercent}%. This cannot be undone.
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkOpen(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setBulkOpen(false)}>Cancel</Button>
             <Button
               onClick={() => bulkMutation.mutate()}
               disabled={bulkMutation.isPending}
@@ -822,7 +822,7 @@ function CategorySection({
             >
               {bulkMutation.isPending
                 ? <Loader2 className="w-4 h-4 animate-spin" />
-                : `%${bulkPercent} Uygula`}
+                : `Apply ${bulkPercent}%`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -886,12 +886,12 @@ export default function TariffManagement() {
 
   const isGlobalTab = activePort === "global";
   const activePortData = isGlobalTab
-    ? { id: 0, name: "Tüm Limanlar", code: "GLOBAL" }
+    ? { id: 0, name: "All Ports (Global)", code: "GLOBAL" }
     : (allTurkishPorts.find((p: any) => p.id === activePort)
-        ?? { id: activePort as number, name: PORT_DISPLAY[activePort as number]?.name ?? "Liman", code: PORT_DISPLAY[activePort as number]?.code ?? "" });
+        ?? { id: activePort as number, name: PORT_DISPLAY[activePort as number]?.name ?? "Port", code: PORT_DISPLAY[activePort as number]?.code ?? "" });
 
   const activePortDisplay = isGlobalTab
-    ? { name: "Tüm Limanlar", code: "" }
+    ? { name: "All Ports (Global)", code: "" }
     : getPortDisplay(activePortData as any);
   const activePortName = activePortDisplay.name;
 
@@ -908,7 +908,7 @@ export default function TariffManagement() {
     queryKey: ["/api/admin/tariffs/summary"],
     queryFn: async () => {
       const res = await fetch("/api/admin/tariffs/summary");
-      if (!res.ok) throw new Error("Özet alınamadı");
+      if (!res.ok) throw new Error("Failed to load summary");
       return res.json();
     },
   });
@@ -952,12 +952,12 @@ export default function TariffManagement() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `tarifeleri_${activePortName.toLowerCase().replace(/\s/g, "_")}_2026.csv`;
+      a.download = `tariffs_${activePortName.toLowerCase().replace(/\s/g, "_")}_2026.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      toast({ title: "CSV indirildi", description: `${activePortName} tarifeleri dışa aktarıldı` });
+      toast({ title: "CSV downloaded", description: `${activePortName} tariffs exported` });
     } catch {
-      toast({ title: "Hata", description: "CSV oluşturulamadı", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to generate CSV", variant: "destructive" });
     }
   };
 
@@ -966,7 +966,7 @@ export default function TariffManagement() {
     const text = await file.text();
     const lines = text.split("\n").filter(l => l.trim());
     if (lines.length < 2) {
-      toast({ title: "Hatalı dosya", description: "CSV boş veya hatalı format", variant: "destructive" });
+      toast({ title: "Invalid file", description: "CSV is empty or has an invalid format", variant: "destructive" });
       return;
     }
 
@@ -976,8 +976,8 @@ export default function TariffManagement() {
 
     if (tabloIdx === -1) {
       toast({
-        title: "Hatalı CSV",
-        description: "'tablo' sütunu bulunamadı. VesselPDA'dan indirilen CSV kullanın.",
+        title: "Invalid CSV",
+        description: "'tablo' column not found. Please use a CSV exported from VesselPDA.",
         variant: "destructive",
       });
       return;
@@ -1049,8 +1049,8 @@ export default function TariffManagement() {
     setImportProgress(null);
     queryClient.invalidateQueries({ queryKey: ["/api/admin/tariffs"] });
     toast({
-      title: "İçe aktarım tamamlandı",
-      description: `${success} başarılı${failed > 0 ? `, ${failed} başarısız` : ""}`,
+      title: "Import complete",
+      description: `${success} succeeded${failed > 0 ? `, ${failed} failed` : ""}`,
       variant: failed > 0 ? "destructive" : "default",
     });
   };
@@ -1058,8 +1058,8 @@ export default function TariffManagement() {
   return (
     <div className="min-h-screen bg-background">
       <PageMeta
-        title="Tarife Yönetimi | VesselPDA Admin"
-        description="Türk liman tarifeleri yönetim paneli"
+        title="Tariff Management | VesselPDA Admin"
+        description="Turkish port tariff management panel"
       />
 
       {/* ── Sticky Header ── */}
@@ -1072,8 +1072,8 @@ export default function TariffManagement() {
               <Database className="w-5 h-5 text-primary" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-base font-black font-serif leading-tight">Tarife Yönetimi</h1>
-              <p className="text-xs text-muted-foreground">Resmi 2026 Türk Liman Tarifeleri</p>
+              <h1 className="text-base font-black font-serif leading-tight">Tariff Management</h1>
+              <p className="text-xs text-muted-foreground">Official 2026 Turkish Port Tariffs</p>
             </div>
           </div>
 
@@ -1088,15 +1088,15 @@ export default function TariffManagement() {
                   : "text-muted-foreground hover:text-foreground hover:bg-background/60 border border-dashed border-muted-foreground/30"
               }`}
               data-testid="port-tab-global"
-              title="Tüm limanlarda geçerli ortak tarifeler"
+              title="Tariffs shared across all ports"
             >
               <Globe className="w-3.5 h-3.5" />
-              <span>Tüm Limanlar</span>
+              <span>All Ports (Global)</span>
             </button>
 
             {activePorts.map(portId => {
               const portData = allTurkishPorts.find((p: any) => p.id === portId)
-                ?? { id: portId, name: PORT_DISPLAY[portId]?.name ?? `Liman #${portId}`, code: PORT_DISPLAY[portId]?.code ?? "" };
+                ?? { id: portId, name: PORT_DISPLAY[portId]?.name ?? `Port #${portId}`, code: PORT_DISPLAY[portId]?.code ?? "" };
               const disp = getPortDisplay(portData as any);
               const isActive = activePort === portId;
               return (
@@ -1121,7 +1121,7 @@ export default function TariffManagement() {
                       className={`absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity w-4 h-4 flex items-center justify-center rounded-full ${
                         isActive ? "hover:bg-white/20 text-white" : "hover:bg-muted-foreground/20 text-muted-foreground"
                       }`}
-                      title="Limanı kaldır"
+                      title="Remove port"
                       data-testid={`button-remove-port-${portId}`}
                     >
                       <X className="w-2.5 h-2.5" />
@@ -1134,11 +1134,11 @@ export default function TariffManagement() {
             <button
               onClick={() => { setPortSearch(""); setAddPortOpen(true); }}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-primary hover:bg-background/60 transition-all"
-              title="Yeni liman ekle"
+              title="Add new port"
               data-testid="button-add-port"
             >
               <PlusCircle className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Liman Ekle</span>
+              <span className="hidden sm:inline">Add Port</span>
             </button>
           </div>
 
@@ -1150,7 +1150,7 @@ export default function TariffManagement() {
               onClick={handleExportCSV}
               data-testid="button-export-csv"
             >
-              <Download className="w-3.5 h-3.5" /> CSV İndir
+              <Download className="w-3.5 h-3.5" /> Export CSV
             </Button>
             <Button
               variant="outline" size="sm"
@@ -1166,7 +1166,7 @@ export default function TariffManagement() {
                 </>
               ) : (
                 <>
-                  <Upload className="w-3.5 h-3.5" /> CSV Yükle
+                  <Upload className="w-3.5 h-3.5" /> Import CSV
                 </>
               )}
             </Button>
@@ -1192,9 +1192,9 @@ export default function TariffManagement() {
           <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs flex-wrap">
             <Globe className="w-4 h-4 shrink-0" />
             <div className="flex-1 min-w-0">
-              <span className="font-semibold">Tüm Limanlarda Ortak Tarifeler</span>
+              <span className="font-semibold">Shared Tariffs for All Ports</span>
               <span className="ml-2 font-normal opacity-80">
-                — Bu bölüme eklenen tarifeler, port'a özgü tarife bulunamadığında tüm limanlarda otomatik olarak devreye girer.
+                — Tariffs added here apply to all ports automatically as a fallback when no port-specific tariff is found.
               </span>
             </div>
             <div className="ml-auto shrink-0">
@@ -1206,7 +1206,7 @@ export default function TariffManagement() {
                 data-testid="button-ek-hizmet"
               >
                 <Wrench className="w-3 h-3" />
-                Ek Hizmet Ekle
+                Add Service
               </Button>
             </div>
           </div>
@@ -1215,7 +1215,7 @@ export default function TariffManagement() {
             <div className="flex items-center gap-1.5">
               <Ship className="w-3.5 h-3.5" />
               <span>
-                Seçili liman:{" "}
+                Selected port:{" "}
                 <span className="font-semibold text-foreground">{activePortName}</span>
                 {activePortDisplay.code && (
                   <span className="ml-1.5 font-mono bg-muted px-1.5 py-0.5 rounded text-[10px]">
@@ -1228,7 +1228,7 @@ export default function TariffManagement() {
               <div className="flex items-center gap-1.5">
                 <Database className="w-3.5 h-3.5" />
                 <span>
-                  Toplam kayıt:{" "}
+                  Total records:{" "}
                   <span className="font-semibold text-foreground">{summary.totalRecords}</span>
                 </span>
               </div>
@@ -1236,7 +1236,7 @@ export default function TariffManagement() {
             {summary?.outdatedCount > 0 && (
               <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
                 <AlertTriangle className="w-3.5 h-3.5" />
-                <span>{summary.outdatedCount} eski kayıt</span>
+                <span>{summary.outdatedCount} outdated records</span>
               </div>
             )}
             <div className="ml-auto">
@@ -1248,7 +1248,7 @@ export default function TariffManagement() {
                 data-testid="button-ek-hizmet"
               >
                 <Wrench className="w-3 h-3" />
-                Ek Hizmet Ekle
+                Add Service
               </Button>
             </div>
           </div>
@@ -1268,24 +1268,24 @@ export default function TariffManagement() {
         ))}
       </div>
 
-      {/* ── Liman Ekle Dialog ── */}
+      {/* ── Add Port Dialog ── */}
       <Dialog open={addPortOpen} onOpenChange={o => { setAddPortOpen(o); if (!o) setPortSearch(""); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <PlusCircle className="w-4 h-4 text-primary" />
-              Türk Limanı Ekle
+              Add Turkish Port
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-1">
             <p className="text-sm text-muted-foreground">
-              Tarife yönetmek istediğiniz Türk limanını seçin. Seçilen liman sekmelere eklenecek.
+              Select a Turkish port to manage tariffs for. The selected port will be added as a tab.
             </p>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
               <Input
                 className="pl-8 text-sm"
-                placeholder="Liman adı veya LOCODE ile arayın..."
+                placeholder="Search by port name or LOCODE..."
                 value={portSearch}
                 onChange={e => setPortSearch(e.target.value)}
                 data-testid="input-port-search"
@@ -1295,7 +1295,7 @@ export default function TariffManagement() {
             <div className="max-h-64 overflow-y-auto space-y-1 border rounded-lg p-1">
               {filteredTurkishPorts.length === 0 ? (
                 <p className="text-center text-xs text-muted-foreground py-6">
-                  {portSearch ? "Eşleşen liman bulunamadı" : "Tüm Türk limanları zaten eklendi"}
+                  {portSearch ? "No matching port found" : "All Turkish ports have already been added"}
                 </p>
               ) : (
                 filteredTurkishPorts.map((p: any) => {
@@ -1317,11 +1317,11 @@ export default function TariffManagement() {
               )}
             </div>
             {allTurkishPorts.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center">Limanlar yükleniyor...</p>
+              <p className="text-xs text-muted-foreground text-center">Loading ports...</p>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddPortOpen(false)}>Vazgeç</Button>
+            <Button variant="outline" onClick={() => setAddPortOpen(false)}>Cancel</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

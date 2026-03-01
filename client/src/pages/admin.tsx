@@ -61,7 +61,7 @@ export default function AdminPanel() {
       const data = await res.json();
       setOfacResults(prev => ({ ...prev, [profileId]: { ...data, checked: true } }));
     } catch {
-      toast({ title: "OFAC kontrolü başarısız", variant: "destructive" });
+      toast({ title: "OFAC check failed", variant: "destructive" });
     } finally {
       setOfacLoading(prev => ({ ...prev, [profileId]: false }));
     }
@@ -97,7 +97,7 @@ export default function AdminPanel() {
   const [bunkerForm, setBunkerForm] = useState({ portName: "", portCode: "", region: "TR", ifo380: "", vlsfo: "", mgo: "" });
   const [deleteBunkerTarget, setDeleteBunkerTarget] = useState<number | null>(null);
 
-  const REGION_LABELS: Record<string, string> = { TR: "Türkiye", EU: "Avrupa", ASIA: "Asya", ME: "Orta Doğu", US: "Amerika" };
+  const REGION_LABELS: Record<string, string> = { TR: "Turkey", EU: "Europe", ASIA: "Asia", ME: "Middle East", US: "Americas" };
 
   const addBunkerMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/admin/bunker-prices", {
@@ -106,8 +106,8 @@ export default function AdminPanel() {
       vlsfo: bunkerForm.vlsfo ? parseFloat(bunkerForm.vlsfo) : null,
       mgo: bunkerForm.mgo ? parseFloat(bunkerForm.mgo) : null,
     }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/market/bunker-prices"] }); toast({ title: "Bunker fiyatı eklendi" }); setBunkerDialog(false); setBunkerForm({ portName: "", portCode: "", region: "TR", ifo380: "", vlsfo: "", mgo: "" }); setEditBunker(null); },
-    onError: () => toast({ title: "Hata", variant: "destructive" }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/market/bunker-prices"] }); toast({ title: "Bunker price added" }); setBunkerDialog(false); setBunkerForm({ portName: "", portCode: "", region: "TR", ifo380: "", vlsfo: "", mgo: "" }); setEditBunker(null); },
+    onError: () => toast({ title: "Error", variant: "destructive" }),
   });
 
   const editBunkerMutation = useMutation({
@@ -117,37 +117,37 @@ export default function AdminPanel() {
       vlsfo: bunkerForm.vlsfo ? parseFloat(bunkerForm.vlsfo) : null,
       mgo: bunkerForm.mgo ? parseFloat(bunkerForm.mgo) : null,
     }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/market/bunker-prices"] }); toast({ title: "Güncellendi" }); setBunkerDialog(false); setEditBunker(null); },
-    onError: () => toast({ title: "Hata", variant: "destructive" }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/market/bunker-prices"] }); toast({ title: "Updated" }); setBunkerDialog(false); setEditBunker(null); },
+    onError: () => toast({ title: "Error", variant: "destructive" }),
   });
 
   const deleteBunkerMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/admin/bunker-prices/${id}`, undefined),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/market/bunker-prices"] }); toast({ title: "Silindi" }); setDeleteBunkerTarget(null); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/market/bunker-prices"] }); toast({ title: "Deleted" }); setDeleteBunkerTarget(null); },
   });
 
-  const ALERT_TYPE_LABELS: Record<string, string> = { strike: "Grev", closure: "Kapanış", weather: "Hava", restricted: "Kısıtlı", other: "Diğer" };
+  const ALERT_TYPE_LABELS: Record<string, string> = { strike: "Strike", closure: "Closure", weather: "Weather", restricted: "Restricted", other: "Other" };
   const SEVERITY_CONFIG: Record<string, { label: string; color: string }> = {
-    info: { label: "Bilgi", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
-    warning: { label: "Uyarı", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
-    danger: { label: "Tehlike", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+    info: { label: "Info", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+    warning: { label: "Warning", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+    danger: { label: "Danger", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
   };
 
   const addAlertMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/port-alerts", { ...alertForm, startsAt: alertForm.startsAt || null, endsAt: alertForm.endsAt || null }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/port-alerts"] }); toast({ title: "Uyarı eklendi" }); setAlertDialog(false); setAlertForm({ portName: "", alertType: "weather", severity: "info", title: "", message: "", startsAt: "", endsAt: "", isActive: true }); setEditAlert(null); },
-    onError: () => toast({ title: "Hata", variant: "destructive" }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/port-alerts"] }); toast({ title: "Alert added" }); setAlertDialog(false); setAlertForm({ portName: "", alertType: "weather", severity: "info", title: "", message: "", startsAt: "", endsAt: "", isActive: true }); setEditAlert(null); },
+    onError: () => toast({ title: "Error", variant: "destructive" }),
   });
 
   const editAlertMutation = useMutation({
     mutationFn: (id: number) => apiRequest("PATCH", `/api/port-alerts/${id}`, { ...alertForm, startsAt: alertForm.startsAt || null, endsAt: alertForm.endsAt || null }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/port-alerts"] }); toast({ title: "Güncellendi" }); setAlertDialog(false); setEditAlert(null); },
-    onError: () => toast({ title: "Hata", variant: "destructive" }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/port-alerts"] }); toast({ title: "Updated" }); setAlertDialog(false); setEditAlert(null); },
+    onError: () => toast({ title: "Error", variant: "destructive" }),
   });
 
   const deleteAlertMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/port-alerts/${id}`, undefined),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/port-alerts"] }); toast({ title: "Silindi" }); setDeleteAlertTarget(null); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/port-alerts"] }); toast({ title: "Deleted" }); setDeleteAlertTarget(null); },
   });
 
   const deleteUserMutation = useMutation({
@@ -158,12 +158,12 @@ export default function AdminPanel() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stats/enhanced"] });
-      toast({ title: "Kullanıcı silindi" });
+      toast({ title: "User deleted" });
       setDeleteUserTarget(null);
     },
     onError: async (err: any) => {
       const d = await err?.response?.json?.().catch(() => ({}));
-      toast({ title: "Hata", description: d?.message || "Kullanıcı silinemedi", variant: "destructive" });
+      toast({ title: "Error", description: d?.message || "Failed to delete user", variant: "destructive" });
     },
   });
 
@@ -175,13 +175,13 @@ export default function AdminPanel() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/stats/enhanced"] });
-      toast({ title: "Kullanıcı oluşturuldu" });
+      toast({ title: "User created" });
       setCreateUserDialog(false);
       setCreateUserForm({ email: "", password: "", firstName: "", lastName: "", userRole: "agent", subscriptionPlan: "free" });
     },
     onError: async (err: any) => {
       const d = await err?.response?.json?.().catch(() => ({}));
-      toast({ title: "Hata", description: d?.message || "Kullanıcı oluşturulamadı", variant: "destructive" });
+      toast({ title: "Error", description: d?.message || "Failed to create user", variant: "destructive" });
     },
   });
 
@@ -192,9 +192,9 @@ export default function AdminPanel() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      toast({ title: "Rol güncellendi" });
+      toast({ title: "Role updated" });
     },
-    onError: () => toast({ title: "Hata", variant: "destructive" }),
+    onError: () => toast({ title: "Error", variant: "destructive" }),
   });
 
   const announceMutation = useMutation({
@@ -203,11 +203,11 @@ export default function AdminPanel() {
       return res.json();
     },
     onSuccess: (data: any) => {
-      toast({ title: `Duyuru gönderildi — ${data.sent} kullanıcıya ulaştı` });
+      toast({ title: `Announcement sent to ${data.sent} users` });
       setAnnounceHistory(h => [{ ...announceForm, sent: data.sent, sentAt: new Date().toISOString() }, ...h.slice(0, 9)]);
       setAnnounceForm({ title: "", message: "", targetRole: "all" });
     },
-    onError: () => toast({ title: "Duyuru gönderilemedi", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to send announcement", variant: "destructive" }),
   });
 
   const verifyMutation = useMutation({
@@ -218,11 +218,11 @@ export default function AdminPanel() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/pending-verifications"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/company-profiles"] });
-      toast({ title: "Doğrulama güncellendi" });
+      toast({ title: "Verification updated" });
     },
     onError: async (err: any) => {
       const d = await err?.response?.json?.().catch(() => ({}));
-      toast({ title: "Hata", description: d?.message || "İşlem başarısız", variant: "destructive" });
+      toast({ title: "Error", description: d?.message || "Operation failed", variant: "destructive" });
     },
   });
 
@@ -257,9 +257,9 @@ export default function AdminPanel() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      toast({ title: "Email doğrulandı", description: "Kullanıcı artık giriş yapabilir." });
+      toast({ title: "Email verified", description: "User can now log in." });
     },
-    onError: () => toast({ title: "Hata", description: "Email doğrulanamadı.", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Failed to verify email.", variant: "destructive" }),
   });
 
   const approveMutation = useMutation({
@@ -329,7 +329,7 @@ export default function AdminPanel() {
         </div>
         <a href="/tariff-management" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card hover:bg-muted text-sm font-semibold transition-colors" data-testid="link-tariff-management">
           <Database className="w-4 h-4 text-primary" />
-          Tarife Yönetimi
+          Tariff Management
           <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
         </a>
       </div>
@@ -358,9 +358,9 @@ export default function AdminPanel() {
           <Card className="p-4" data-testid="stat-active-voyages">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Aktif Seferler</p>
+                <p className="text-xs text-muted-foreground">Active Voyages</p>
                 <p className="text-2xl font-bold font-serif text-emerald-600">{enhancedStats.activeVoyages}</p>
-                <p className="text-[10px] text-muted-foreground">Toplam: {enhancedStats.totalVoyages}</p>
+                <p className="text-[10px] text-muted-foreground">Total: {enhancedStats.totalVoyages}</p>
               </div>
               <Ship className="w-5 h-5 text-emerald-500 flex-shrink-0" />
             </div>
@@ -444,7 +444,7 @@ export default function AdminPanel() {
           {activityLoading ? (
             <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-8" />)}</div>
           ) : activityFeed.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Henüz aktivite yok</p>
+            <p className="text-sm text-muted-foreground text-center py-4">No activity yet</p>
           ) : (
             <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
               {activityFeed.map((item: any, i: number) => {
@@ -452,7 +452,7 @@ export default function AdminPanel() {
                 const timeAgo = item.createdAt ? (() => {
                   const diff = Date.now() - new Date(item.createdAt).getTime();
                   const m = Math.floor(diff / 60000); const h = Math.floor(diff / 3600000); const d = Math.floor(diff / 86400000);
-                  return d > 0 ? `${d}g önce` : h > 0 ? `${h}s önce` : m > 0 ? `${m}dk önce` : "az önce";
+                  return d > 0 ? `${d}d ago` : h > 0 ? `${h}h ago` : m > 0 ? `${m}m ago` : "just now";
                 })() : "";
                 return (
                   <div key={i} className="flex items-center gap-2 text-xs py-1 border-b border-border/40 last:border-0">
@@ -499,13 +499,13 @@ export default function AdminPanel() {
 
       <Tabs defaultValue="users">
         <TabsList data-testid="admin-tabs" className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="users" data-testid="tab-users">👥 Kullanıcılar ({allUsers?.length || 0})</TabsTrigger>
-          <TabsTrigger value="vessels" data-testid="tab-vessels">🚢 Gemiler</TabsTrigger>
-          <TabsTrigger value="proformas" data-testid="tab-proformas">📄 Proformalar</TabsTrigger>
-          <TabsTrigger value="profiles" data-testid="tab-profiles">🏢 Profiller</TabsTrigger>
-          <TabsTrigger value="content" data-testid="tab-content">📦 İçerik</TabsTrigger>
+          <TabsTrigger value="users" data-testid="tab-users">👥 Users ({allUsers?.length || 0})</TabsTrigger>
+          <TabsTrigger value="vessels" data-testid="tab-vessels">🚢 Vessels</TabsTrigger>
+          <TabsTrigger value="proformas" data-testid="tab-proformas">📄 Proformas</TabsTrigger>
+          <TabsTrigger value="profiles" data-testid="tab-profiles">🏢 Profiles</TabsTrigger>
+          <TabsTrigger value="content" data-testid="tab-content">📦 Content</TabsTrigger>
           <TabsTrigger value="pending" data-testid="tab-pending" className="relative">
-            ✅ Onaylar
+            ✅ Approvals
             {(pendingProfiles?.length ?? 0) > 0 && (
               <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold rounded-full bg-amber-500 text-white">
                 {pendingProfiles!.length}
@@ -513,17 +513,17 @@ export default function AdminPanel() {
             )}
           </TabsTrigger>
           <TabsTrigger value="verifications" data-testid="tab-verifications" className="relative">
-            🔐 Doğrulamalar
+            🔐 Verifications
             {(pendingVerifications?.length ?? 0) > 0 && (
               <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold rounded-full bg-blue-500 text-white">
                 {pendingVerifications!.length}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="announce" data-testid="tab-announce">📢 Duyurular</TabsTrigger>
-          <TabsTrigger value="financial" data-testid="tab-financial">💰 Finansal</TabsTrigger>
-          <TabsTrigger value="reports" data-testid="tab-reports">📈 Raporlar</TabsTrigger>
-          <TabsTrigger value="analytics" data-testid="tab-analytics">📊 Analitik</TabsTrigger>
+          <TabsTrigger value="announce" data-testid="tab-announce">📢 Announcements</TabsTrigger>
+          <TabsTrigger value="financial" data-testid="tab-financial">💰 Financial</TabsTrigger>
+          <TabsTrigger value="reports" data-testid="tab-reports">📈 Reports</TabsTrigger>
+          <TabsTrigger value="analytics" data-testid="tab-analytics">📊 Analytics</TabsTrigger>
           <TabsTrigger value="feedback" data-testid="tab-feedback" className="relative">
             💬 Feedback
             {(allFeedbacks?.length ?? 0) > 0 && (
@@ -535,8 +535,8 @@ export default function AdminPanel() {
           <TabsTrigger value="bunker" data-testid="tab-bunker-prices">
             <Fuel className="w-3.5 h-3.5 mr-1.5" />Bunker ({bunkerPricesList.length})
           </TabsTrigger>
-          <TabsTrigger value="port-alerts" data-testid="tab-port-alerts">⚠️ Liman Uyarıları</TabsTrigger>
-          <TabsTrigger value="settings" data-testid="tab-settings">⚙️ Sistem Ayarları</TabsTrigger>
+          <TabsTrigger value="port-alerts" data-testid="tab-port-alerts">⚠️ Port Alerts</TabsTrigger>
+          <TabsTrigger value="settings" data-testid="tab-settings">⚙️ System Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
@@ -544,7 +544,7 @@ export default function AdminPanel() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="İsim, email veya rol ile ara..."
+                placeholder="Search by name, email or role..."
                 value={searchUsers}
                 onChange={e => setSearchUsers(e.target.value)}
                 className="pl-9"
@@ -616,9 +616,9 @@ export default function AdminPanel() {
                                   onClick={() => verifyEmailMutation.mutate(u.id)}
                                   disabled={verifyEmailMutation.isPending}
                                   data-testid={`button-verify-email-${u.id}`}
-                                  title="Email doğrula"
+                                  title="Verify Email"
                                 >
-                                  <MailCheck className="w-3 h-3 mr-1" /> Doğrula
+                                  <MailCheck className="w-3 h-3 mr-1" /> Verify
                                 </Button>
                               )}
                               <Button
@@ -627,7 +627,7 @@ export default function AdminPanel() {
                                 className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground"
                                 onClick={() => setUserDetailId(u.id)}
                                 data-testid={`button-detail-${u.id}`}
-                                title="Kullanıcı detayı"
+                                title="User Detail"
                               >
                                 <Eye className="w-3 h-3" />
                               </Button>
@@ -638,7 +638,7 @@ export default function AdminPanel() {
                                 onClick={() => suspendMutation.mutate({ userId: u.id, suspended: !isSuspended })}
                                 disabled={suspendMutation.isPending || u.userRole === "admin"}
                                 data-testid={`button-suspend-${u.id}`}
-                                title={isSuspended ? "Aktif et" : "Askıya al"}
+                                title={isSuspended ? "Activate" : "Suspend"}
                               >
                                 {isSuspended ? <UserCheck className="w-3 h-3" /> : <Ban className="w-3 h-3" />}
                               </Button>
@@ -649,7 +649,7 @@ export default function AdminPanel() {
                                   className="h-7 text-xs px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
                                   onClick={() => setDeleteUserTarget(u.id)}
                                   data-testid={`button-delete-user-${u.id}`}
-                                  title="Kullanıcıyı sil"
+                                  title="Delete User"
                                 >
                                   <Trash2 className="w-3 h-3" />
                                 </Button>
@@ -775,12 +775,12 @@ export default function AdminPanel() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left">
-                      <th className="p-3 font-medium">Şirket</th>
-                      <th className="p-3 font-medium">Tür</th>
-                      <th className="p-3 font-medium">Şehir</th>
-                      <th className="p-3 font-medium">Doğrulama</th>
+                      <th className="p-3 font-medium">Company</th>
+                      <th className="p-3 font-medium">Type</th>
+                      <th className="p-3 font-medium">City</th>
+                      <th className="p-3 font-medium">Verification</th>
                       <th className="p-3 font-medium">Featured</th>
-                      <th className="p-3 font-medium">Aktif</th>
+                      <th className="p-3 font-medium">Active</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -811,8 +811,8 @@ export default function AdminPanel() {
                             )}
                             {vs === "unverified" && <span className="text-muted-foreground text-xs">—</span>}
                           </td>
-                          <td className="p-3">{p.isFeatured ? "Evet" : "Hayır"}</td>
-                          <td className="p-3">{p.isActive ? "Evet" : "Hayır"}</td>
+                          <td className="p-3">{p.isFeatured ? "Yes" : "No"}</td>
+                          <td className="p-3">{p.isActive ? "Yes" : "No"}</td>
                         </tr>
                       );
                     })}
@@ -1065,7 +1065,7 @@ export default function AdminPanel() {
         <TabsContent value="verifications" className="space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <ShieldCheck className="w-5 h-5 text-blue-600" />
-            <h2 className="font-semibold text-base">Bekleyen Şirket Doğrulama Talepleri</h2>
+            <h2 className="font-semibold text-base">Pending Company Verification Requests</h2>
           </div>
           {verificationsLoading ? (
             <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-24" />)}</div>
@@ -1157,11 +1157,11 @@ export default function AdminPanel() {
                           size="sm"
                           variant="destructive"
                           className="gap-1.5"
-                          onClick={() => verifyMutation.mutate({ profileId: p.id, action: "reject", note: verifyNote[p.id] || "Ret: Bilgiler doğrulanamadı" })}
+                          onClick={() => verifyMutation.mutate({ profileId: p.id, action: "reject", note: verifyNote[p.id] || "Rejected: Information could not be verified" })}
                           disabled={verifyMutation.isPending}
                           data-testid={`button-reject-${p.id}`}
                         >
-                          <ShieldX className="w-3.5 h-3.5" /> Reddet
+                          <ShieldX className="w-3.5 h-3.5" /> Reject
                         </Button>
                       </div>
                     </div>
@@ -1253,7 +1253,7 @@ export default function AdminPanel() {
             ) : portAlerts.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <MapPin className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">Henüz liman uyarısı yok</p>
+                <p className="text-sm">No port alerts yet</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -1348,7 +1348,7 @@ export default function AdminPanel() {
             <TabsContent value="service-requests" className="space-y-3 mt-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Hizmet türü, liman, kullanıcı ara..." value={searchSR} onChange={e => setSearchSR(e.target.value)} className="pl-9" data-testid="input-search-sr" />
+                <Input placeholder="Search by service type, port, user..." value={searchSR} onChange={e => setSearchSR(e.target.value)} className="pl-9" data-testid="input-search-sr" />
               </div>
               {adminSRLoading ? (
                 <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-12" />)}</div>
@@ -1397,29 +1397,29 @@ export default function AdminPanel() {
             <Card className="p-5" data-testid="card-announce-form">
               <div className="flex items-center gap-2 mb-4">
                 <Megaphone className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                <h3 className="font-semibold">Duyuru / Bildirim Gönder</h3>
+                <h3 className="font-semibold">Send Announcement / Notification</h3>
               </div>
               <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label>Hedef Kitle</Label>
+                  <Label>Target Audience</Label>
                   <Select value={announceForm.targetRole} onValueChange={v => setAnnounceForm(f => ({ ...f, targetRole: v }))}>
                     <SelectTrigger data-testid="select-announce-target"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">🌐 Tüm Kullanıcılar</SelectItem>
-                      <SelectItem value="shipowner">🚢 Armatörler</SelectItem>
-                      <SelectItem value="agent">🤝 Acenteler</SelectItem>
-                      <SelectItem value="provider">🔧 Hizmet Sağlayıcılar</SelectItem>
-                      <SelectItem value="broker">📋 Brokerlar</SelectItem>
+                      <SelectItem value="all">🌐 All Users</SelectItem>
+                      <SelectItem value="shipowner">🚢 Shipowners</SelectItem>
+                      <SelectItem value="agent">🤝 Agents</SelectItem>
+                      <SelectItem value="provider">🔧 Service Providers</SelectItem>
+                      <SelectItem value="broker">📋 Brokers</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Başlık *</Label>
-                  <Input value={announceForm.title} onChange={e => setAnnounceForm(f => ({ ...f, title: e.target.value }))} placeholder="Duyuru başlığı" data-testid="input-announce-title" />
+                  <Label>Title *</Label>
+                  <Input value={announceForm.title} onChange={e => setAnnounceForm(f => ({ ...f, title: e.target.value }))} placeholder="Announcement title" data-testid="input-announce-title" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Mesaj *</Label>
-                  <Textarea value={announceForm.message} onChange={e => setAnnounceForm(f => ({ ...f, message: e.target.value }))} placeholder="Duyuru içeriği..." rows={4} data-testid="input-announce-message" />
+                  <Label>Message *</Label>
+                  <Textarea value={announceForm.message} onChange={e => setAnnounceForm(f => ({ ...f, message: e.target.value }))} placeholder="Announcement content..." rows={4} data-testid="input-announce-message" />
                 </div>
                 <Button
                   className="w-full gap-2"
@@ -1428,7 +1428,7 @@ export default function AdminPanel() {
                   data-testid="button-send-announce"
                 >
                   {announceMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
-                  Duyuruyu Gönder
+                  Send Announcement
                 </Button>
               </div>
             </Card>
@@ -1440,8 +1440,8 @@ export default function AdminPanel() {
               {announceHistory.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Bell className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">Henüz duyuru gönderilmedi</p>
-                  <p className="text-xs text-muted-foreground/60 mt-1">Gönderilen duyurular burada görünür</p>
+                  <p className="text-sm">No announcements sent yet</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">Sent announcements will appear here</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1449,10 +1449,10 @@ export default function AdminPanel() {
                     <div key={i} className="border rounded-lg p-3 space-y-1" data-testid={`announce-history-${i}`}>
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium text-sm truncate">{h.title}</span>
-                        <Badge variant="outline" className="text-[10px] flex-shrink-0">{h.sent} kişi</Badge>
+                        <Badge variant="outline" className="text-[10px] flex-shrink-0">{h.sent} people</Badge>
                       </div>
                       <p className="text-xs text-muted-foreground line-clamp-2">{h.message}</p>
-                      <p className="text-[10px] text-muted-foreground">{h.sentAt ? new Date(h.sentAt).toLocaleString("tr-TR") : ""} · Hedef: {h.targetRole === "all" ? "Tümü" : h.targetRole}</p>
+                      <p className="text-[10px] text-muted-foreground">{h.sentAt ? new Date(h.sentAt).toLocaleString("en-GB") : ""} · Target: {h.targetRole === "all" ? "All" : h.targetRole}</p>
                     </div>
                   ))}
                 </div>
@@ -1466,14 +1466,14 @@ export default function AdminPanel() {
           <Card className="p-5" data-testid="card-financial-overview">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              <h3 className="font-semibold">Abonelik Durumu</h3>
+              <h3 className="font-semibold">Subscription Status</h3>
             </div>
             {enhancedStats ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
-                  { label: "Free Plan", count: enhancedStats.usersByPlan?.free || 0, color: "text-muted-foreground", bg: "bg-muted/50", desc: "Ücretsiz üyeler" },
-                  { label: "Standard Plan", count: enhancedStats.usersByPlan?.standard || 0, color: "text-[hsl(var(--maritime-secondary))]", bg: "bg-[hsl(var(--maritime-secondary)/0.08)]", desc: "Standart aboneler" },
-                  { label: "Unlimited Plan", count: enhancedStats.usersByPlan?.unlimited || 0, color: "text-[hsl(var(--maritime-gold))]", bg: "bg-[hsl(var(--maritime-gold)/0.08)]", desc: "Premium aboneler" },
+                  { label: "Free Plan", count: enhancedStats.usersByPlan?.free || 0, color: "text-muted-foreground", bg: "bg-muted/50", desc: "Free members" },
+                  { label: "Standard Plan", count: enhancedStats.usersByPlan?.standard || 0, color: "text-[hsl(var(--maritime-secondary))]", bg: "bg-[hsl(var(--maritime-secondary)/0.08)]", desc: "Standard subscribers" },
+                  { label: "Unlimited Plan", count: enhancedStats.usersByPlan?.unlimited || 0, color: "text-[hsl(var(--maritime-gold))]", bg: "bg-[hsl(var(--maritime-gold)/0.08)]", desc: "Premium subscribers" },
                 ].map(p => (
                   <div key={p.label} className={`rounded-lg p-4 ${p.bg}`}>
                     <p className="text-xs text-muted-foreground">{p.label}</p>
@@ -1487,24 +1487,24 @@ export default function AdminPanel() {
           <Card className="p-5">
             <div className="flex items-center gap-2 mb-3">
               <Database className="w-4 h-4 text-amber-500" />
-              <h3 className="font-semibold">Ödeme Sistemi</h3>
+              <h3 className="font-semibold">Payment System</h3>
             </div>
             <div className="flex items-center gap-3 p-4 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
               <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
               <div>
-                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Ödeme entegrasyonu henüz aktif değil</p>
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Stripe entegrasyonu yapılandırılmadı. Abonelikler şu an manuel olarak yönetilmektedir. Canlı ödeme takibi için Stripe'ı entegre edin.</p>
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Payment integration not yet active</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Stripe integration is not configured. Subscriptions are currently managed manually. Integrate Stripe to enable live payment tracking.</p>
               </div>
             </div>
             <div className="mt-4 space-y-2">
-              <h4 className="text-sm font-medium">Plan Bazlı Kullanıcı Listesi</h4>
+              <h4 className="text-sm font-medium">Users by Plan</h4>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b">
-                    <th className="text-left p-2 font-medium text-muted-foreground">Kullanıcı</th>
-                    <th className="text-left p-2 font-medium text-muted-foreground">Rol</th>
+                    <th className="text-left p-2 font-medium text-muted-foreground">User</th>
+                    <th className="text-left p-2 font-medium text-muted-foreground">Role</th>
                     <th className="text-left p-2 font-medium text-muted-foreground">Plan</th>
-                    <th className="text-left p-2 font-medium text-muted-foreground">Kullanım</th>
+                    <th className="text-left p-2 font-medium text-muted-foreground">Usage</th>
                   </tr></thead>
                   <tbody>
                     {(allUsers || []).filter((u: any) => u.subscriptionPlan !== "free").map((u: any) => (
@@ -1539,9 +1539,9 @@ export default function AdminPanel() {
                   <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
                   <Tooltip />
                   <Legend />
-                  <Line type="monotone" dataKey="total" stroke="#003D7A" strokeWidth={2} name="Toplam" dot />
-                  <Line type="monotone" dataKey="shipowner" stroke="#0077BE" strokeWidth={1.5} name="Armatör" dot={false} />
-                  <Line type="monotone" dataKey="agent" stroke="#10B981" strokeWidth={1.5} name="Acente" dot={false} />
+                  <Line type="monotone" dataKey="total" stroke="#003D7A" strokeWidth={2} name="Total" dot />
+                  <Line type="monotone" dataKey="shipowner" stroke="#0077BE" strokeWidth={1.5} name="Shipowner" dot={false} />
+                  <Line type="monotone" dataKey="agent" stroke="#10B981" strokeWidth={1.5} name="Agent" dot={false} />
                   <Line type="monotone" dataKey="provider" stroke="#8B5CF6" strokeWidth={1.5} name="Provider" dot={false} />
                 </LineChart>
               </ResponsiveContainer>
@@ -1550,19 +1550,19 @@ export default function AdminPanel() {
           <Card className="p-5" data-testid="table-active-users">
             <div className="flex items-center gap-2 mb-4">
               <Users className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              <h3 className="font-semibold">En Aktif 10 Kullanıcı</h3>
+              <h3 className="font-semibold">Top 10 Active Users</h3>
             </div>
             {activeUsersLoading ? <Skeleton className="h-48" /> : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b">
                     <th className="text-left p-2 font-medium">#</th>
-                    <th className="text-left p-2 font-medium">Kullanıcı</th>
-                    <th className="text-left p-2 font-medium">Rol</th>
+                    <th className="text-left p-2 font-medium">User</th>
+                    <th className="text-left p-2 font-medium">Role</th>
                     <th className="text-right p-2 font-medium">Proforma</th>
-                    <th className="text-right p-2 font-medium">Sefer</th>
-                    <th className="text-right p-2 font-medium">Hizmet Talebi</th>
-                    <th className="text-right p-2 font-medium">Toplam</th>
+                    <th className="text-right p-2 font-medium">Voyage</th>
+                    <th className="text-right p-2 font-medium">Service Req.</th>
+                    <th className="text-right p-2 font-medium">Total</th>
                   </tr></thead>
                   <tbody>
                     {activeUsers.map((u: any, i: number) => (
@@ -1593,14 +1593,14 @@ export default function AdminPanel() {
           <Card className="p-5" data-testid="card-system-info">
             <div className="flex items-center gap-2 mb-4">
               <Server className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              <h3 className="font-semibold">Platform Bilgileri</h3>
+              <h3 className="font-semibold">Platform Information</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
-                { label: "Uygulama Adı", value: "VesselPDA" },
-                { label: "Versiyon", value: "1.0.0" },
-                { label: "Ortam", value: "Production" },
-                { label: "Veritabanı", value: "PostgreSQL" },
+                { label: "Application Name", value: "VesselPDA" },
+                { label: "Version", value: "1.0.0" },
+                { label: "Environment", value: "Production" },
+                { label: "Database", value: "PostgreSQL" },
                 { label: "Backend", value: "Express.js + Drizzle ORM" },
                 { label: "Frontend", value: "React + Vite + Tailwind CSS" },
               ].map(item => (
@@ -1614,14 +1614,14 @@ export default function AdminPanel() {
           <Card className="p-5" data-testid="card-api-status">
             <div className="flex items-center gap-2 mb-4">
               <Globe className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              <h3 className="font-semibold">API Entegrasyonları</h3>
+              <h3 className="font-semibold">API Integrations</h3>
             </div>
             <div className="space-y-3">
               {enhancedStats?.systemHealth && [
-                { name: "Veritabanı (PostgreSQL)", status: enhancedStats.systemHealth.dbOk, desc: "Ana veritabanı bağlantısı" },
-                { name: "AIS Stream", status: enhancedStats.systemHealth.aisOk, desc: "Gemi takip servisi — AIS_STREAM_API_KEY" },
-                { name: "Trading Economics", status: enhancedStats.systemHealth.teOk, desc: "Navlun endeksi — TRADING_ECONOMICS_API_KEY (Markets planı gerekli)" },
-                { name: "Resend (Email)", status: enhancedStats.systemHealth.resendOk, desc: "Bildirim ve onay e-postaları" },
+                { name: "Database (PostgreSQL)", status: enhancedStats.systemHealth.dbOk, desc: "Primary database connection" },
+                { name: "AIS Stream", status: enhancedStats.systemHealth.aisOk, desc: "Vessel tracking service — AIS_STREAM_API_KEY" },
+                { name: "Trading Economics", status: enhancedStats.systemHealth.teOk, desc: "Freight index — TRADING_ECONOMICS_API_KEY (Markets plan required)" },
+                { name: "Resend (Email)", status: enhancedStats.systemHealth.resendOk, desc: "Notification and confirmation emails" },
               ].map(api => (
                 <div key={api.name} className="flex items-center gap-3 p-3 rounded-lg border">
                   <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${api.status ? "bg-emerald-500" : "bg-amber-400"}`} />
@@ -1644,35 +1644,35 @@ export default function AdminPanel() {
       {/* Create User Dialog */}
       <Dialog open={createUserDialog} onOpenChange={v => { setCreateUserDialog(v); if (!v) setCreateUserForm({ email: "", password: "", firstName: "", lastName: "", userRole: "agent", subscriptionPlan: "free" }); }}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Yeni Kullanıcı Oluştur</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Create New User</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Ad *</Label>
-                <Input value={createUserForm.firstName} onChange={e => setCreateUserForm(f => ({ ...f, firstName: e.target.value }))} placeholder="Ad" data-testid="input-create-first-name" />
+                <Label>First Name *</Label>
+                <Input value={createUserForm.firstName} onChange={e => setCreateUserForm(f => ({ ...f, firstName: e.target.value }))} placeholder="First name" data-testid="input-create-first-name" />
               </div>
               <div className="space-y-1.5">
-                <Label>Soyad *</Label>
-                <Input value={createUserForm.lastName} onChange={e => setCreateUserForm(f => ({ ...f, lastName: e.target.value }))} placeholder="Soyad" data-testid="input-create-last-name" />
+                <Label>Last Name *</Label>
+                <Input value={createUserForm.lastName} onChange={e => setCreateUserForm(f => ({ ...f, lastName: e.target.value }))} placeholder="Last name" data-testid="input-create-last-name" />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>E-posta *</Label>
+              <Label>Email *</Label>
               <Input type="email" value={createUserForm.email} onChange={e => setCreateUserForm(f => ({ ...f, email: e.target.value }))} placeholder="email@example.com" data-testid="input-create-email" />
             </div>
             <div className="space-y-1.5">
-              <Label>Şifre *</Label>
-              <Input type="password" value={createUserForm.password} onChange={e => setCreateUserForm(f => ({ ...f, password: e.target.value }))} placeholder="Güçlü şifre" data-testid="input-create-password" />
+              <Label>Password *</Label>
+              <Input type="password" value={createUserForm.password} onChange={e => setCreateUserForm(f => ({ ...f, password: e.target.value }))} placeholder="Strong password" data-testid="input-create-password" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Rol *</Label>
+                <Label>Role *</Label>
                 <Select value={createUserForm.userRole} onValueChange={v => setCreateUserForm(f => ({ ...f, userRole: v }))}>
                   <SelectTrigger data-testid="select-create-role"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="shipowner">Armatör</SelectItem>
-                    <SelectItem value="agent">Acente</SelectItem>
-                    <SelectItem value="provider">Hizmet Sağlayıcı</SelectItem>
+                    <SelectItem value="shipowner">Shipowner</SelectItem>
+                    <SelectItem value="agent">Agent</SelectItem>
+                    <SelectItem value="provider">Service Provider</SelectItem>
                     <SelectItem value="broker">Broker</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1691,14 +1691,14 @@ export default function AdminPanel() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateUserDialog(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setCreateUserDialog(false)}>Cancel</Button>
             <Button
               onClick={() => createUserMutation.mutate(createUserForm)}
               disabled={!createUserForm.email || !createUserForm.password || !createUserForm.firstName || !createUserForm.lastName || createUserMutation.isPending}
               data-testid="button-confirm-create-user"
             >
               {createUserMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Kullanıcı Oluştur
+              Create User
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1708,7 +1708,7 @@ export default function AdminPanel() {
       <Sheet open={!!userDetailId} onOpenChange={open => { if (!open) setUserDetailId(null); }}>
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           <SheetHeader>
-            <SheetTitle>Kullanıcı Aktivitesi</SheetTitle>
+            <SheetTitle>User Activity</SheetTitle>
           </SheetHeader>
           {userDetailId && (
             <div className="mt-4 space-y-4">
@@ -1726,11 +1726,11 @@ export default function AdminPanel() {
                 ) : null;
               })()}
               <div>
-                <h4 className="text-sm font-semibold mb-2">Son Aktiviteler</h4>
+                <h4 className="text-sm font-semibold mb-2">Recent Activity</h4>
                 {userActivityLoading ? (
                   <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10" />)}</div>
                 ) : (userActivity as any[]).length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">Henüz aktivite yok</p>
+                  <p className="text-sm text-muted-foreground text-center py-4">No activity yet</p>
                 ) : (
                   <div className="space-y-2">
                     {(userActivity as any[]).map((a: any, i: number) => (
@@ -1754,9 +1754,9 @@ export default function AdminPanel() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="shipowner">Armatör</SelectItem>
-                      <SelectItem value="agent">Acente</SelectItem>
-                      <SelectItem value="provider">Hizmet Sağlayıcı</SelectItem>
+                      <SelectItem value="shipowner">Shipowner</SelectItem>
+                      <SelectItem value="agent">Agent</SelectItem>
+                      <SelectItem value="provider">Service Provider</SelectItem>
                       <SelectItem value="broker">Broker</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1772,20 +1772,20 @@ export default function AdminPanel() {
       <AlertDialog open={!!deleteUserTarget} onOpenChange={open => { if (!open) setDeleteUserTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Kullanıcıyı Sil</AlertDialogTitle>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
             <AlertDialogDescription>
-              Bu kullanıcı ve tüm ilişkili veriler kalıcı olarak silinecek. Bu işlem geri alınamaz.
+              This user and all associated data will be permanently deleted. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteUserTarget && deleteUserMutation.mutate(deleteUserTarget)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="button-confirm-delete-user"
             >
               {deleteUserMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              Kalıcı Olarak Sil
+              Delete Permanently
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1794,70 +1794,70 @@ export default function AdminPanel() {
       {/* Port Alert Dialog */}
       <Dialog open={alertDialog} onOpenChange={v => { setAlertDialog(v); if (!v) { setEditAlert(null); } }}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{editAlert ? "Uyarıyı Düzenle" : "Yeni Liman Uyarısı"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editAlert ? "Edit Alert" : "New Port Alert"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Liman Adı *</Label>
-                <Input value={alertForm.portName} onChange={e => setAlertForm(f => ({ ...f, portName: e.target.value }))} placeholder="İstanbul" data-testid="input-alert-port-name" />
+                <Label>Port Name *</Label>
+                <Input value={alertForm.portName} onChange={e => setAlertForm(f => ({ ...f, portName: e.target.value }))} placeholder="Istanbul" data-testid="input-alert-port-name" />
               </div>
               <div className="space-y-1.5">
-                <Label>Uyarı Tipi</Label>
+                <Label>Alert Type</Label>
                 <Select value={alertForm.alertType} onValueChange={v => setAlertForm(f => ({ ...f, alertType: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="strike">Grev</SelectItem>
-                    <SelectItem value="closure">Kapanış</SelectItem>
-                    <SelectItem value="weather">Hava Durumu</SelectItem>
-                    <SelectItem value="restricted">Kısıtlama</SelectItem>
-                    <SelectItem value="other">Diğer</SelectItem>
+                    <SelectItem value="strike">Strike</SelectItem>
+                    <SelectItem value="closure">Closure</SelectItem>
+                    <SelectItem value="weather">Weather</SelectItem>
+                    <SelectItem value="restricted">Restriction</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Önem Derecesi</Label>
+                <Label>Severity</Label>
                 <Select value={alertForm.severity} onValueChange={v => setAlertForm(f => ({ ...f, severity: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="info">Bilgi</SelectItem>
-                    <SelectItem value="warning">Uyarı</SelectItem>
-                    <SelectItem value="danger">Tehlike</SelectItem>
+                    <SelectItem value="info">Info</SelectItem>
+                    <SelectItem value="warning">Warning</SelectItem>
+                    <SelectItem value="danger">Danger</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5 flex flex-col justify-end pb-0.5">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
                   <input type="checkbox" checked={alertForm.isActive} onChange={e => setAlertForm(f => ({ ...f, isActive: e.target.checked }))} className="w-4 h-4 rounded border-border" />
-                  Aktif
+                  Active
                 </label>
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Başlık *</Label>
-              <Input value={alertForm.title} onChange={e => setAlertForm(f => ({ ...f, title: e.target.value }))} placeholder="Uyarı başlığı" />
+              <Label>Title *</Label>
+              <Input value={alertForm.title} onChange={e => setAlertForm(f => ({ ...f, title: e.target.value }))} placeholder="Alert title" />
             </div>
             <div className="space-y-1.5">
-              <Label>Mesaj *</Label>
-              <textarea value={alertForm.message} onChange={e => setAlertForm(f => ({ ...f, message: e.target.value }))} placeholder="Uyarı mesajı..." className="w-full min-h-[80px] px-3 py-2 rounded-md border border-input bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring" />
+              <Label>Message *</Label>
+              <textarea value={alertForm.message} onChange={e => setAlertForm(f => ({ ...f, message: e.target.value }))} placeholder="Alert message..." className="w-full min-h-[80px] px-3 py-2 rounded-md border border-input bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Başlangıç</Label>
+                <Label>Start</Label>
                 <Input type="datetime-local" value={alertForm.startsAt} onChange={e => setAlertForm(f => ({ ...f, startsAt: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
-                <Label>Bitiş</Label>
+                <Label>End</Label>
                 <Input type="datetime-local" value={alertForm.endsAt} onChange={e => setAlertForm(f => ({ ...f, endsAt: e.target.value }))} />
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAlertDialog(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setAlertDialog(false)}>Cancel</Button>
             <Button onClick={() => editAlert ? editAlertMutation.mutate(editAlert.id) : addAlertMutation.mutate()} disabled={!alertForm.portName || !alertForm.title || !alertForm.message || addAlertMutation.isPending || editAlertMutation.isPending}>
               {(addAlertMutation.isPending || editAlertMutation.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {editAlert ? "Güncelle" : "Ekle"}
+              {editAlert ? "Update" : "Add"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1865,10 +1865,10 @@ export default function AdminPanel() {
 
       <AlertDialog open={deleteAlertTarget !== null} onOpenChange={() => setDeleteAlertTarget(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Uyarıyı Sil</AlertDialogTitle><AlertDialogDescription>Bu liman uyarısı kalıcı olarak silinecek.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogHeader><AlertDialogTitle>Delete Alert</AlertDialogTitle><AlertDialogDescription>This port alert will be permanently deleted.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>İptal</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteAlertTarget && deleteAlertMutation.mutate(deleteAlertTarget)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Sil</AlertDialogAction>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteAlertTarget && deleteAlertMutation.mutate(deleteAlertTarget)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1876,19 +1876,19 @@ export default function AdminPanel() {
       {/* Bunker Dialog */}
       <Dialog open={bunkerDialog} onOpenChange={v => { setBunkerDialog(v); if (!v) { setBunkerForm({ portName: "", portCode: "", region: "TR", ifo380: "", vlsfo: "", mgo: "" }); setEditBunker(null); } }}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>{editBunker ? "Fiyatı Güncelle" : "Yeni Bunker Fiyatı"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editBunker ? "Update Price" : "New Bunker Price"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <Label>Liman Adı *</Label>
-                <Input value={bunkerForm.portName} onChange={e => setBunkerForm(f => ({ ...f, portName: e.target.value }))} placeholder="İstanbul" data-testid="input-bunker-port-name" />
+                <Label>Port Name *</Label>
+                <Input value={bunkerForm.portName} onChange={e => setBunkerForm(f => ({ ...f, portName: e.target.value }))} placeholder="Istanbul" data-testid="input-bunker-port-name" />
               </div>
               <div>
                 <Label>LOCODE</Label>
                 <Input value={bunkerForm.portCode} onChange={e => setBunkerForm(f => ({ ...f, portCode: e.target.value }))} placeholder="TRIST" data-testid="input-bunker-port-code" />
               </div>
               <div>
-                <Label>Bölge</Label>
+                <Label>Region</Label>
                 <Select value={bunkerForm.region} onValueChange={v => setBunkerForm(f => ({ ...f, region: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -1911,10 +1911,10 @@ export default function AdminPanel() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBunkerDialog(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setBunkerDialog(false)}>Cancel</Button>
             <Button onClick={() => editBunker ? editBunkerMutation.mutate(editBunker.id) : addBunkerMutation.mutate()} disabled={!bunkerForm.portName || addBunkerMutation.isPending || editBunkerMutation.isPending} data-testid="button-save-bunker">
               {(addBunkerMutation.isPending || editBunkerMutation.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {editBunker ? "Güncelle" : "Ekle"}
+              {editBunker ? "Update" : "Add"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1923,10 +1923,10 @@ export default function AdminPanel() {
       {/* Delete Confirm */}
       <AlertDialog open={deleteBunkerTarget !== null} onOpenChange={() => setDeleteBunkerTarget(null)}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Kaydı Sil</AlertDialogTitle><AlertDialogDescription>Bu bunker fiyat kaydı silinecek.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogHeader><AlertDialogTitle>Delete Record</AlertDialogTitle><AlertDialogDescription>This bunker price record will be permanently deleted.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>İptal</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteBunkerTarget && deleteBunkerMutation.mutate(deleteBunkerTarget)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" data-testid="button-confirm-delete-bunker">Sil</AlertDialogAction>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteBunkerTarget && deleteBunkerMutation.mutate(deleteBunkerTarget)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" data-testid="button-confirm-delete-bunker">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -76,42 +76,42 @@ const FLEET_STATUS_CFG: Record<FleetStatusKey, StatusCfg> = {
   ballast_to_load: {
     bar: "#3b82f6",
     badge: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800",
-    dot: "bg-blue-500", label: "Yükleme'ye Gidiyor (Balast)", emoji: "🔵", group: "underway",
+    dot: "bg-blue-500", label: "Ballast to Load Port", emoji: "🔵", group: "underway",
   },
   laden_to_discharge: {
     bar: "#10b981",
     badge: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800",
-    dot: "bg-emerald-500", label: "Boşaltma'ya Gidiyor (Yüklü)", emoji: "🟢", group: "underway",
+    dot: "bg-emerald-500", label: "Laden to Discharge Port", emoji: "🟢", group: "underway",
   },
   anchored: {
     bar: "#f59e0b",
     badge: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800",
-    dot: "bg-amber-500", label: "Demirede", emoji: "⚓", group: "anchored",
+    dot: "bg-amber-500", label: "At Anchor", emoji: "⚓", group: "anchored",
   },
   anchor_spot: {
     bar: "#f97316",
     badge: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800",
-    dot: "bg-orange-500", label: "Demirede – Spot Bekliyor", emoji: "🟠", group: "anchored",
+    dot: "bg-orange-500", label: "At Anchor – Awaiting Spot", emoji: "🟠", group: "anchored",
   },
   loading: {
     bar: "#6366f1",
     badge: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-800",
-    dot: "bg-indigo-500", label: "Yükleniyor", emoji: "🟣", group: "port",
+    dot: "bg-indigo-500", label: "Loading", emoji: "🟣", group: "port",
   },
   discharging: {
     bar: "#f43f5e",
     badge: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800",
-    dot: "bg-rose-500", label: "Boşaltılıyor", emoji: "🔴", group: "port",
+    dot: "bg-rose-500", label: "Discharging", emoji: "🔴", group: "port",
   },
   moored: {
     bar: "#64748b",
     badge: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800/40 dark:text-slate-300 dark:border-slate-600",
-    dot: "bg-slate-500", label: "Limanda", emoji: "🚢", group: "port",
+    dot: "bg-slate-500", label: "Moored at Port", emoji: "🚢", group: "port",
   },
   idle: {
     bar: "#94a3b8",
     badge: "bg-muted text-muted-foreground border-border",
-    dot: "bg-muted-foreground", label: "Durum Belirtilmemiş", emoji: "—", group: "idle",
+    dot: "bg-muted-foreground", label: "Status Not Set", emoji: "—", group: "idle",
   },
 };
 
@@ -290,9 +290,9 @@ function VesselForm({
         </div>
       </div>
       <div className="flex justify-end gap-3 pt-2">
-        <Button type="button" variant="outline" onClick={onCancel} data-testid="button-cancel-vessel">İptal</Button>
+        <Button type="button" variant="outline" onClick={onCancel} data-testid="button-cancel-vessel">Cancel</Button>
         <Button type="submit" disabled={isSaving} data-testid="button-save-vessel">
-          {isSaving ? "Kaydediliyor..." : vessel ? "Güncelle" : "Gemi Ekle"}
+          {isSaving ? "Saving..." : vessel ? "Update" : "Add Vessel"}
         </Button>
       </div>
     </form>
@@ -308,7 +308,7 @@ function FleetStatusSelector({ vessel, onUpdated }: { vessel: Vessel; onUpdated?
   const mutation = useMutation({
     mutationFn: async (fleetStatus: string) => {
       const res = await apiRequest("PATCH", `/api/vessels/${vessel.id}`, { fleetStatus });
-      if (!res.ok) throw new Error("Güncelleme başarısız");
+      if (!res.ok) throw new Error("Update failed");
       return res.json();
     },
     onSuccess: () => {
@@ -316,7 +316,7 @@ function FleetStatusSelector({ vessel, onUpdated }: { vessel: Vessel; onUpdated?
       onUpdated?.();
     },
     onError: () => {
-      toast({ title: "Statü değiştirilemedi", variant: "destructive" });
+      toast({ title: "Status update failed", variant: "destructive" });
     },
   });
 
@@ -464,16 +464,16 @@ function FleetMap({
         <div className="flex items-center gap-2 bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 rounded-xl px-4 py-2.5 text-sm text-amber-700 dark:text-amber-300">
           <span className="text-base flex-shrink-0">⚠️</span>
           <span>
-            <strong>{vessels.length - visibleCount}</strong> gemi haritada gösterilemiyor — henüz sefer atanmamış veya limanda koordinat yok.
-            <strong> {visibleCount}</strong> gemi gösteriliyor.
+            <strong>{vessels.length - visibleCount}</strong> vessel(s) cannot be shown on map — no voyage assigned or no port coordinates available.
+            <strong> {visibleCount}</strong> vessel(s) shown.
           </span>
         </div>
       )}
       {visibleCount === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground bg-muted/20 rounded-2xl border-2 border-dashed border-border">
           <MapIcon className="w-12 h-12 mb-3 opacity-20" />
-          <p className="font-semibold">Haritada gösterilecek gemi yok</p>
-          <p className="text-sm mt-1">Gemilere sefer atayın — seferdeki port konumu haritada görünür.</p>
+          <p className="font-semibold">No vessels to show on map</p>
+          <p className="text-sm mt-1">Assign voyages to vessels — the port location will appear on the map.</p>
         </div>
       )}
       <div
@@ -595,17 +595,17 @@ function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete }: {
 type FilterGroup = "all" | "underway" | "anchored" | "port" | "idle";
 
 const FILTER_TABS: { key: FilterGroup; label: string }[] = [
-  { key: "all",      label: "Tümü" },
-  { key: "underway", label: "Seyirde" },
-  { key: "anchored", label: "Demirede" },
-  { key: "port",     label: "Limanda" },
-  { key: "idle",     label: "Belirtilmemiş" },
+  { key: "all",      label: "All" },
+  { key: "underway", label: "Underway" },
+  { key: "anchored", label: "At Anchor" },
+  { key: "port",     label: "At Port" },
+  { key: "idle",     label: "Unspecified" },
 ];
 
 // ── Certificate helpers ───────────────────────────────────────────────────────
 const CERT_TYPES: Record<string, string> = {
   ism: "ISM", isps: "ISPS", loadline: "Load Line",
-  marpol: "MARPOL", solas: "SOLAS", other: "Diğer",
+  marpol: "MARPOL", solas: "SOLAS", other: "Other",
 };
 const CERT_TYPE_COLORS: Record<string, string> = {
   ism: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
@@ -621,14 +621,14 @@ const defaultCertForm = {
 };
 function certStatusBadge(status: string, expiresAt: string | null) {
   if (status === "expired" || (expiresAt && new Date(expiresAt) < new Date()))
-    return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 gap-1 text-[10px]"><AlertTriangle className="w-3 h-3" />Süresi Dolmuş</Badge>;
+    return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 gap-1 text-[10px]"><AlertTriangle className="w-3 h-3" />Expired</Badge>;
   if (status === "expiring_soon")
-    return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 gap-1 text-[10px]"><Clock className="w-3 h-3" />Yakında Bitiyor</Badge>;
-  return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 gap-1 text-[10px]"><CheckCircle2 className="w-3 h-3" />Geçerli</Badge>;
+    return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 gap-1 text-[10px]"><Clock className="w-3 h-3" />Expiring Soon</Badge>;
+  return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 gap-1 text-[10px]"><CheckCircle2 className="w-3 h-3" />Valid</Badge>;
 }
 function fmtDate(dt: string | null) {
   if (!dt) return "—";
-  return new Date(dt).toLocaleDateString("tr-TR");
+  return new Date(dt).toLocaleDateString("en-GB");
 }
 
 export default function Vessels() {
@@ -714,10 +714,10 @@ export default function Vessels() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vessels", selectedVessel?.id, "certificates"] });
       queryClient.invalidateQueries({ queryKey: ["/api/certificates/expiring"] });
-      toast({ title: editCert?.id ? "Sertifika güncellendi" : "Sertifika eklendi" });
+      toast({ title: editCert?.id ? "Certificate updated" : "Certificate added" });
       setCertDialogOpen(false);
     },
-    onError: () => toast({ title: "Hata", description: "İşlem başarısız", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Operation failed", variant: "destructive" }),
   });
 
   const certDeleteMutation = useMutation({
@@ -726,7 +726,7 @@ export default function Vessels() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vessels", selectedVessel?.id, "certificates"] });
       queryClient.invalidateQueries({ queryKey: ["/api/certificates/expiring"] });
-      toast({ title: "Sertifika silindi" });
+      toast({ title: "Certificate deleted" });
       setCertDeleteTarget(null);
     },
   });
@@ -761,10 +761,10 @@ export default function Vessels() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vessels", selectedVessel?.id, "crew"] });
-      toast({ title: editCrewMember?.id ? "Mürettebat güncellendi" : "Mürettebat eklendi" });
+      toast({ title: editCrewMember?.id ? "Crew member updated" : "Crew member added" });
       setCrewDialogOpen(false);
     },
-    onError: () => toast({ title: "Hata", description: "İşlem başarısız", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Operation failed", variant: "destructive" }),
   });
 
   const crewDeleteMutation = useMutation({
@@ -772,7 +772,7 @@ export default function Vessels() {
       apiRequest("DELETE", `/api/vessels/${vesselId}/crew/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vessels", selectedVessel?.id, "crew"] });
-      toast({ title: "Mürettebat silindi" });
+      toast({ title: "Crew member deleted" });
       setCrewDeleteTarget(null);
     },
   });
@@ -799,11 +799,11 @@ export default function Vessels() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vessels"] });
       setShowForm(false);
-      toast({ title: "Gemi eklendi" });
+      toast({ title: "Vessel added" });
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) { setTimeout(() => { window.location.href = "/login"; }, 500); return; }
-      toast({ title: "Gemi eklenemedi", description: error.message, variant: "destructive" });
+      toast({ title: "Failed to add vessel", description: error.message, variant: "destructive" });
     },
   });
 
@@ -815,10 +815,10 @@ export default function Vessels() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vessels"] });
       setEditingVessel(null);
-      toast({ title: "Gemi güncellendi" });
+      toast({ title: "Vessel updated" });
     },
     onError: (error: Error) => {
-      toast({ title: "Güncellenemedi", description: error.message, variant: "destructive" });
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
     },
   });
 
@@ -826,10 +826,10 @@ export default function Vessels() {
     mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/vessels/${id}`); },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/vessels"] });
-      toast({ title: "Gemi silindi" });
+      toast({ title: "Vessel deleted" });
     },
     onError: (error: Error) => {
-      toast({ title: "Silinemedi", description: error.message, variant: "destructive" });
+      toast({ title: "Failed to delete", description: error.message, variant: "destructive" });
     },
   });
 
@@ -840,15 +840,15 @@ export default function Vessels() {
 
   return (
     <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
-      <PageMeta title="Filo Yönetimi | VesselPDA" description="Filonuzdaki gemileri yönetin ve takip edin." />
+      <PageMeta title="Fleet Management | VesselPDA" description="Manage and track the vessels in your fleet." />
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-vessels-title">
-            Filo Yönetimi
+            Fleet Management
           </h1>
-          <p className="text-muted-foreground text-sm">Her geminin statüsünü tek tıkla güncelleyin.</p>
+          <p className="text-muted-foreground text-sm">Update each vessel's status with a single click.</p>
         </div>
         <div className="flex items-center gap-2">
           {/* View toggle */}
@@ -863,7 +863,7 @@ export default function Vessels() {
               data-testid="toggle-list-view"
             >
               <LayoutGrid className="w-3.5 h-3.5" />
-              Liste
+              List
             </button>
             <button
               onClick={() => setViewMode("map")}
@@ -875,11 +875,11 @@ export default function Vessels() {
               data-testid="toggle-map-view"
             >
               <MapIcon className="w-3.5 h-3.5" />
-              Harita
+              Map
             </button>
           </div>
           <Button onClick={() => { setEditingVessel(null); setShowForm(true); }} className="gap-2" data-testid="button-add-vessel">
-            <Plus className="w-4 h-4" /> Gemi Ekle
+            <Plus className="w-4 h-4" /> Add Vessel
           </Button>
         </div>
       </div>
@@ -891,11 +891,11 @@ export default function Vessels() {
           {!isLoading && vessels.length > 0 && (
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
               {[
-                { label: "Toplam Gemi",   value: stats.total,    icon: Ship,     color: "bg-[hsl(var(--maritime-primary)/0.1)] text-[hsl(var(--maritime-primary))]", filter: "all" as FilterGroup },
-                { label: "Seyirde",       value: stats.underway, icon: Activity, color: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400", filter: "underway" as FilterGroup },
-                { label: "Demirede",      value: stats.anchored, icon: Anchor,   color: "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400",         filter: "anchored" as FilterGroup },
-                { label: "Limanda",       value: stats.port,     icon: MapPin,   color: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400",     filter: "port" as FilterGroup },
-                { label: "Belirtilmemiş", value: stats.idle,     icon: Calendar, color: "bg-muted text-muted-foreground",                                              filter: "idle" as FilterGroup },
+                { label: "Total Vessels", value: stats.total,    icon: Ship,     color: "bg-[hsl(var(--maritime-primary)/0.1)] text-[hsl(var(--maritime-primary))]", filter: "all" as FilterGroup },
+                { label: "Underway",     value: stats.underway, icon: Activity, color: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400", filter: "underway" as FilterGroup },
+                { label: "At Anchor",    value: stats.anchored, icon: Anchor,   color: "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400",         filter: "anchored" as FilterGroup },
+                { label: "In Port",      value: stats.port,     icon: MapPin,   color: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400",     filter: "port" as FilterGroup },
+                { label: "Unspecified",  value: stats.idle,     icon: Calendar, color: "bg-muted text-muted-foreground",                                              filter: "idle" as FilterGroup },
               ].map(({ label, value, icon: Icon, color, filter }) => (
                 <Card
                   key={label}
@@ -920,7 +920,7 @@ export default function Vessels() {
             <div className="flex items-start gap-2.5 bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 rounded-xl px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
               <span className="text-base flex-shrink-0 mt-0.5">ℹ️</span>
               <span>
-                Statüler <strong>manuel</strong> — her kartın üzerindeki badge'e tıklayarak anında değiştirin. Harita modunda gemiler seferdeki liman konumuna göre gösterilir.
+                Statuses are <strong>manual</strong> — click the badge on any card to update instantly. In map mode, vessels are shown at their current voyage port.
               </span>
             </div>
           )}
@@ -931,7 +931,7 @@ export default function Vessels() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder="Gemi ara..." className="pl-9" data-testid="input-search-vessel" />
+                  placeholder="Search vessels..." className="pl-9" data-testid="input-search-vessel" />
               </div>
               <div className="flex gap-1 bg-muted/40 p-1 rounded-xl flex-shrink-0 flex-wrap">
                 {FILTER_TABS.map(({ key, label }) => (
@@ -969,19 +969,19 @@ export default function Vessels() {
           ) : vessels.length === 0 ? (
             <div className="text-center py-20 text-muted-foreground" data-testid="text-no-vessels">
               <Ship className="w-14 h-14 mx-auto mb-4 opacity-20" />
-              <p className="font-semibold text-lg">Filonuzda henüz gemi yok</p>
-              <p className="text-sm mt-2">İlk geminizi ekleyerek başlayın.</p>
+              <p className="font-semibold text-lg">No vessels in your fleet yet</p>
+              <p className="text-sm mt-2">Add your first vessel to get started.</p>
               <Button className="mt-5 gap-2" onClick={() => setShowForm(true)} data-testid="button-add-first-vessel">
-                <Plus className="w-4 h-4" /> İlk Gemiyi Ekle
+                <Plus className="w-4 h-4" /> Add First Vessel
               </Button>
             </div>
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               <Search className="w-10 h-10 mx-auto mb-3 opacity-20" />
-              <p className="font-medium">Sonuç bulunamadı</p>
+              <p className="font-medium">No results found</p>
               <button className="text-sm text-[hsl(var(--maritime-primary))] mt-2 hover:underline"
                 onClick={() => { setSearch(""); setStatusFilter("all"); }}>
-                Filtreleri temizle
+                Clear filters
               </button>
             </div>
           )}
@@ -1020,7 +1020,7 @@ export default function Vessels() {
                     <button
                       onClick={() => setSelectedVessel(null)}
                       className="p-1.5 rounded-lg hover:bg-muted/60 transition-colors flex-shrink-0"
-                      title="Geri dön"
+                      title="Go back"
                       data-testid="button-vessel-detail-back"
                     >
                       <ChevronLeft className="w-4 h-4" />
@@ -1039,7 +1039,7 @@ export default function Vessels() {
                         onClick={() => setDetailTab(tab)}
                         className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all min-w-[60px] ${detailTab === tab ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                       >
-                        {{ general: "Genel", voyage: "Sefer", technical: "Teknik", certificates: "Sertifikalar", crew: "Mürettebat" }[tab]}
+                        {{ general: "General", voyage: "Voyage", technical: "Technical", certificates: "Certificates", crew: "Crew" }[tab]}
                       </button>
                     ))}
                   </div>
@@ -1050,17 +1050,17 @@ export default function Vessels() {
                   {detailTab === "general" && (
                     <>
                       <div className="space-y-2">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Operasyon Statüsü</p>
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Operation Status</p>
                         <FleetStatusSelector vessel={v} />
-                        <p className="text-[11px] text-muted-foreground">Statüyü değiştirmek için badge'e tıklayın</p>
+                        <p className="text-[11px] text-muted-foreground">Click the badge to change status</p>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         {[
-                          { icon: MapPin,   label: "Konum",      value: voy?.portName || "Bilinmiyor" },
-                          { icon: Activity, label: "Sefer",      value: voy ? (voy.status === "active" ? "Aktif" : "Planlandı") : "Yok" },
-                          { icon: Calendar, label: "ETA",        value: voy?.eta ? new Date(voy.eta).toLocaleDateString("tr-TR") : "—" },
-                          { icon: Calendar, label: "ETD",        value: voy?.etd ? new Date(voy.etd).toLocaleDateString("tr-TR") : "—" },
-                          { icon: FileText, label: "Amaç",       value: voy?.purposeOfCall || "—" },
+                          { icon: MapPin,   label: "Location",   value: voy?.portName || "Unknown" },
+                          { icon: Activity, label: "Voyage",     value: voy ? (voy.status === "active" ? "Active" : "Planned") : "None" },
+                          { icon: Calendar, label: "ETA",        value: voy?.eta ? new Date(voy.eta).toLocaleDateString("en-GB") : "—" },
+                          { icon: Calendar, label: "ETD",        value: voy?.etd ? new Date(voy.etd).toLocaleDateString("en-GB") : "—" },
+                          { icon: FileText, label: "Purpose",    value: voy?.purposeOfCall || "—" },
                           { icon: Ship,     label: "Call Sign",  value: v.callSign || "—" },
                         ].map(({ icon: Icon, label, value }) => (
                           <div key={label} className="bg-muted/30 rounded-xl p-3">
@@ -1075,11 +1075,11 @@ export default function Vessels() {
                       <div className="flex gap-2 pt-1">
                         <Button size="sm" variant="outline" className="flex-1 gap-1.5 h-9"
                           onClick={() => { setSelectedVessel(null); setEditingVessel(v); }}>
-                          <Edit2 className="w-3.5 h-3.5" /> Düzenle
+                          <Edit2 className="w-3.5 h-3.5" /> Edit
                         </Button>
                         <Link href={`/voyages?vesselId=${v.id}`}>
                           <Button size="sm" className="flex-1 gap-1.5 h-9">
-                            <Plus className="w-3.5 h-3.5" /> Sefer Oluştur
+                            <Plus className="w-3.5 h-3.5" /> New Voyage
                           </Button>
                         </Link>
                       </div>
@@ -1094,16 +1094,16 @@ export default function Vessels() {
                           <div className="bg-muted/30 rounded-2xl p-4 space-y-3">
                             <div className="flex items-center justify-between">
                               <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${cfg.badge}`}>
-                                {voy.status === "active" ? "Aktif Sefer" : "Planlanmış"}
+                                {voy.status === "active" ? "Active Voyage" : "Planned"}
                               </span>
                               <span className="text-xs text-muted-foreground">{voy.purposeOfCall}</span>
                             </div>
                             <div>
                               <div className="flex items-center justify-between mb-2">
                                 <div className="text-center">
-                                  <p className="text-xs text-muted-foreground">Kalkış</p>
+                                  <p className="text-xs text-muted-foreground">Departure</p>
                                   <p className="text-sm font-bold">{voy.portName || "—"}</p>
-                                  {voy.etd && <p className="text-xs text-muted-foreground">{new Date(voy.etd).toLocaleDateString("tr-TR")}</p>}
+                                  {voy.etd && <p className="text-xs text-muted-foreground">{new Date(voy.etd).toLocaleDateString("en-GB")}</p>}
                                 </div>
                                 <div className="flex-1 mx-4 relative">
                                   <div className="h-0.5 bg-muted rounded-full" />
@@ -1112,25 +1112,25 @@ export default function Vessels() {
                                   <span className="absolute top-2 left-1/2 -translate-x-1/2 text-[10px] text-muted-foreground">{Math.round(progress)}%</span>
                                 </div>
                                 <div className="text-center">
-                                  <p className="text-xs text-muted-foreground">Varış</p>
+                                  <p className="text-xs text-muted-foreground">Arrival</p>
                                   <p className="text-sm font-bold">{voy.portName || "—"}</p>
-                                  {voy.eta && <p className="text-xs text-muted-foreground">{new Date(voy.eta).toLocaleDateString("tr-TR")}</p>}
+                                  {voy.eta && <p className="text-xs text-muted-foreground">{new Date(voy.eta).toLocaleDateString("en-GB")}</p>}
                                 </div>
                               </div>
                             </div>
                           </div>
                           <Link href={`/voyages/${voy.id}`}>
                             <Button variant="outline" className="w-full gap-2" size="sm">
-                              Sefer Detayına Git <ChevronRight className="w-4 h-4" />
+                              View Voyage Details <ChevronRight className="w-4 h-4" />
                             </Button>
                           </Link>
                         </>
                       ) : (
                         <div className="text-center py-10 text-muted-foreground">
                           <Anchor className="w-10 h-10 mx-auto mb-3 opacity-20" />
-                          <p className="font-medium">Bu gemi için aktif sefer yok</p>
+                          <p className="font-medium">No active voyage for this vessel</p>
                           <Link href="/voyages">
-                            <Button size="sm" className="mt-4 gap-2"><Plus className="w-3.5 h-3.5" /> Sefer Oluştur</Button>
+                            <Button size="sm" className="mt-4 gap-2"><Plus className="w-3.5 h-3.5" /> New Voyage</Button>
                           </Link>
                         </div>
                       )}
@@ -1143,13 +1143,13 @@ export default function Vessels() {
                       {[
                         { label: "IMO No",   value: v.imoNumber || "—" },
                         { label: "Call Sign", value: v.callSign || "—" },
-                        { label: "Bayrak",   value: `${flag} ${v.flag || "—"}` },
-                        { label: "Tip",      value: v.vesselType || "—" },
-                        { label: "GRT",      value: v.grt ? v.grt.toLocaleString("tr-TR") + " GT" : "—" },
-                        { label: "NRT",      value: v.nrt ? v.nrt.toLocaleString("tr-TR") + " GT" : "—" },
-                        { label: "DWT",      value: v.dwt ? v.dwt.toLocaleString("tr-TR") + " MT" : "—" },
+                        { label: "Flag",     value: `${flag} ${v.flag || "—"}` },
+                        { label: "Type",     value: v.vesselType || "—" },
+                        { label: "GRT",      value: v.grt ? v.grt.toLocaleString("en-US") + " GT" : "—" },
+                        { label: "NRT",      value: v.nrt ? v.nrt.toLocaleString("en-US") + " GT" : "—" },
+                        { label: "DWT",      value: v.dwt ? v.dwt.toLocaleString("en-US") + " MT" : "—" },
                         { label: "LOA",      value: v.loa ? v.loa + " m" : "—" },
-                        { label: "Genişlik", value: v.beam ? v.beam + " m" : "—" },
+                        { label: "Beam",     value: v.beam ? v.beam + " m" : "—" },
                       ].map(({ label, value }) => (
                         <div key={label} className="bg-muted/30 rounded-xl p-3">
                           <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide mb-1">{label}</p>
@@ -1165,7 +1165,7 @@ export default function Vessels() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <ShieldCheck className="w-4 h-4 text-primary" />
-                          <span className="text-sm font-semibold">Gemi Sertifikaları</span>
+                          <span className="text-sm font-semibold">Vessel Certificates</span>
                         </div>
                         <Button
                           size="sm"
@@ -1179,7 +1179,7 @@ export default function Vessels() {
                           data-testid="button-add-cert-vessel"
                         >
                           <Plus className="w-3.5 h-3.5" />
-                          Sertifika Ekle
+                          Add Certificate
                         </Button>
                       </div>
 
@@ -1190,8 +1190,8 @@ export default function Vessels() {
                       ) : vesselCerts.length === 0 ? (
                         <div className="text-center py-10 text-muted-foreground">
                           <ShieldCheck className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                          <p className="text-sm">Henüz sertifika eklenmemiş</p>
-                          <p className="text-xs mt-1">Yukarıdaki butonu kullanarak ekleyebilirsiniz</p>
+                          <p className="text-sm">No certificates added yet</p>
+                          <p className="text-xs mt-1">Use the button above to add one</p>
                         </div>
                       ) : (
                         <div className="space-y-2">
@@ -1213,8 +1213,8 @@ export default function Vessels() {
                                   <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
                                     {cert.certificateNumber && <span>No: {cert.certificateNumber}</span>}
                                     {cert.issuingAuthority && <span>{cert.issuingAuthority}</span>}
-                                    {cert.issuedAt && <span>Veriliş: {fmtDate(cert.issuedAt)}</span>}
-                                    {cert.expiresAt && <span>Bitiş: {fmtDate(cert.expiresAt)}</span>}
+                                    {cert.issuedAt && <span>Issued: {fmtDate(cert.issuedAt)}</span>}
+                                    {cert.expiresAt && <span>Expires: {fmtDate(cert.expiresAt)}</span>}
                                   </div>
                                   {cert.notes && <p className="text-[11px] text-muted-foreground italic">{cert.notes}</p>}
                                 </div>
@@ -1264,7 +1264,7 @@ export default function Vessels() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Activity className="w-4 h-4 text-primary" />
-                          <span className="text-sm font-semibold">Mürettebat Listesi</span>
+                          <span className="text-sm font-semibold">Crew List</span>
                         </div>
                         <Button
                           size="sm"
@@ -1278,7 +1278,7 @@ export default function Vessels() {
                           data-testid="button-add-crew"
                         >
                           <Plus className="w-3.5 h-3.5" />
-                          Mürettebat Ekle
+                          Add Crew Member
                         </Button>
                       </div>
 
@@ -1289,7 +1289,7 @@ export default function Vessels() {
                       ) : vesselCrewList.length === 0 ? (
                         <div className="text-center py-10 text-muted-foreground">
                           <Activity className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                          <p className="text-sm">Henüz mürettebat eklenmemiş</p>
+                          <p className="text-sm">No crew members added yet</p>
                         </div>
                       ) : (
                         <div className="space-y-2">
@@ -1335,25 +1335,25 @@ export default function Vessels() {
                                       {member.contractEndDate && (
                                         <div className={`flex items-center gap-1.5 ${statusColor(contractStatus)}`}>
                                           <Calendar className="w-3 h-3 shrink-0" />
-                                          <span>Kontrat Bitiş: {fmtDate(member.contractEndDate)}</span>
-                                          {contractStatus === "expired" && <span className="font-semibold">(Süresi Dolmuş)</span>}
-                                          {contractStatus === "warning" && <span className="font-semibold">(Yakında Bitiyor)</span>}
+                                          <span>Contract End: {fmtDate(member.contractEndDate)}</span>
+                                          {contractStatus === "expired" && <span className="font-semibold">(Expired)</span>}
+                                          {contractStatus === "warning" && <span className="font-semibold">(Expiring Soon)</span>}
                                         </div>
                                       )}
                                       {(member.passportNumber || member.passportExpiry) && (
                                         <div className={`flex items-center gap-1.5 ${statusColor(passStatus)}`}>
                                           <FileText className="w-3 h-3 shrink-0" />
-                                          <span>Pasaport{member.passportNumber ? ` No: ${member.passportNumber}` : ""}{member.passportExpiry ? ` · Bitiş: ${fmtDate(member.passportExpiry)}` : ""}</span>
-                                          {passStatus === "expired" && <span className="font-semibold">(Süresi Dolmuş)</span>}
-                                          {passStatus === "warning" && <span className="font-semibold">(Yakında Bitiyor)</span>}
+                                          <span>Passport{member.passportNumber ? ` No: ${member.passportNumber}` : ""}{member.passportExpiry ? ` · Exp: ${fmtDate(member.passportExpiry)}` : ""}</span>
+                                          {passStatus === "expired" && <span className="font-semibold">(Expired)</span>}
+                                          {passStatus === "warning" && <span className="font-semibold">(Expiring Soon)</span>}
                                         </div>
                                       )}
                                       {(member.seamansBookNumber || member.seamansBookExpiry) && (
                                         <div className={`flex items-center gap-1.5 ${statusColor(sbStatus)}`}>
                                           <FileText className="w-3 h-3 shrink-0" />
-                                          <span>Gemiadamı Cüzdanı{member.seamansBookNumber ? ` No: ${member.seamansBookNumber}` : ""}{member.seamansBookExpiry ? ` · Bitiş: ${fmtDate(member.seamansBookExpiry)}` : ""}</span>
-                                          {sbStatus === "expired" && <span className="font-semibold">(Süresi Dolmuş)</span>}
-                                          {sbStatus === "warning" && <span className="font-semibold">(Yakında Bitiyor)</span>}
+                                          <span>Seaman's Book{member.seamansBookNumber ? ` No: ${member.seamansBookNumber}` : ""}{member.seamansBookExpiry ? ` · Exp: ${fmtDate(member.seamansBookExpiry)}` : ""}</span>
+                                          {sbStatus === "expired" && <span className="font-semibold">(Expired)</span>}
+                                          {sbStatus === "warning" && <span className="font-semibold">(Expiring Soon)</span>}
                                         </div>
                                       )}
                                     </div>
@@ -1409,7 +1409,7 @@ export default function Vessels() {
       <Dialog open={showForm || !!editingVessel} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingVessel(null); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-serif">{editingVessel ? "Gemi Düzenle" : "Yeni Gemi Ekle"}</DialogTitle>
+            <DialogTitle className="font-serif">{editingVessel ? "Edit Vessel" : "Add New Vessel"}</DialogTitle>
           </DialogHeader>
           <VesselForm
             key={editingVessel?.id ?? "new"}
@@ -1425,20 +1425,20 @@ export default function Vessels() {
       <AlertDialog open={!!deleteVesselId} onOpenChange={(open) => { if (!open) setDeleteVesselId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Gemi Silinecek</AlertDialogTitle>
+            <AlertDialogTitle>Delete Vessel</AlertDialogTitle>
             <AlertDialogDescription>
-              Bu gemiyi kalıcı olarak silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+              Are you sure you want to permanently delete this vessel? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-delete-vessel">Vazgeç</AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-cancel-delete-vessel">Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => { if (deleteVesselId) { deleteMutation.mutate(deleteVesselId); setDeleteVesselId(null); } }}
               disabled={deleteMutation.isPending}
               data-testid="button-confirm-delete-vessel"
             >
-              {deleteMutation.isPending ? "Siliniyor..." : "Evet, Sil"}
+              {deleteMutation.isPending ? "Deleting..." : "Yes, Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1448,21 +1448,21 @@ export default function Vessels() {
       <Dialog open={certDialogOpen} onOpenChange={setCertDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editCert?.id ? "Sertifika Düzenle" : "Yeni Sertifika Ekle"}</DialogTitle>
+            <DialogTitle>{editCert?.id ? "Edit Certificate" : "Add New Certificate"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <Label>Sertifika Adı *</Label>
+                <Label>Certificate Name *</Label>
                 <Input
                   value={certForm.name}
                   onChange={e => setCertForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="örn. ISM Safety Management Certificate"
+                  placeholder="e.g. ISM Safety Management Certificate"
                   data-testid="input-cert-name"
                 />
               </div>
               <div>
-                <Label>Tür</Label>
+                <Label>Type</Label>
                 <Select value={certForm.certType} onValueChange={v => setCertForm(f => ({ ...f, certType: v }))}>
                   <SelectTrigger data-testid="select-cert-type">
                     <SelectValue />
@@ -1475,51 +1475,51 @@ export default function Vessels() {
                 </Select>
               </div>
               <div>
-                <Label>Sertifika No</Label>
+                <Label>Certificate No.</Label>
                 <Input
                   value={certForm.certificateNumber}
                   onChange={e => setCertForm(f => ({ ...f, certificateNumber: e.target.value }))}
-                  placeholder="opsiyonel"
+                  placeholder="optional"
                   data-testid="input-cert-number"
                 />
               </div>
               <div>
-                <Label>Veriliş Tarihi</Label>
+                <Label>Issue Date</Label>
                 <Input type="date" value={certForm.issuedAt} onChange={e => setCertForm(f => ({ ...f, issuedAt: e.target.value }))} data-testid="input-cert-issued" />
               </div>
               <div>
-                <Label>Bitiş Tarihi</Label>
+                <Label>Expiry Date</Label>
                 <Input type="date" value={certForm.expiresAt} onChange={e => setCertForm(f => ({ ...f, expiresAt: e.target.value }))} data-testid="input-cert-expires" />
               </div>
               <div className="col-span-2">
-                <Label>Veren Kurum</Label>
+                <Label>Issuing Authority</Label>
                 <Input
                   value={certForm.issuingAuthority}
                   onChange={e => setCertForm(f => ({ ...f, issuingAuthority: e.target.value }))}
-                  placeholder="örn. Türk Loydu, DNV, Lloyd's Register..."
+                  placeholder="e.g. Turkish Lloyd's, DNV, Lloyd's Register..."
                   data-testid="input-cert-authority"
                 />
               </div>
               <div className="col-span-2">
-                <Label>Notlar</Label>
+                <Label>Notes</Label>
                 <Textarea
                   value={certForm.notes}
                   onChange={e => setCertForm(f => ({ ...f, notes: e.target.value }))}
                   rows={2}
-                  placeholder="opsiyonel"
+                  placeholder="optional"
                   data-testid="textarea-cert-notes"
                 />
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCertDialogOpen(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setCertDialogOpen(false)}>Cancel</Button>
             <Button
               onClick={() => certSaveMutation.mutate()}
               disabled={!certForm.name || certSaveMutation.isPending}
               data-testid="button-save-cert"
             >
-              {certSaveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Kaydet"}
+              {certSaveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1529,17 +1529,17 @@ export default function Vessels() {
       <AlertDialog open={!!certDeleteTarget} onOpenChange={open => { if (!open) setCertDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Sertifikayı Sil</AlertDialogTitle>
-            <AlertDialogDescription>Bu sertifika kalıcı olarak silinecek. Devam edilsin mi?</AlertDialogDescription>
+            <AlertDialogTitle>Delete Certificate</AlertDialogTitle>
+            <AlertDialogDescription>This certificate will be permanently deleted. Are you sure?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Vazgeç</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive hover:bg-destructive/90"
               onClick={() => certDeleteTarget && certDeleteMutation.mutate(certDeleteTarget)}
               data-testid="button-confirm-delete-cert"
             >
-              Sil
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1549,52 +1549,52 @@ export default function Vessels() {
       <Dialog open={crewDialogOpen} onOpenChange={setCrewDialogOpen}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editCrewMember?.id ? "Mürettebat Düzenle" : "Mürettebat Ekle"}</DialogTitle>
+            <DialogTitle>{editCrewMember?.id ? "Edit Crew Member" : "Add Crew Member"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Ad *</Label>
+                <Label>First Name *</Label>
                 <Input
                   value={crewForm.firstName}
                   onChange={e => setCrewForm(f => ({ ...f, firstName: e.target.value }))}
-                  placeholder="Ad"
+                  placeholder="First name"
                   data-testid="input-crew-firstname"
                 />
               </div>
               <div>
-                <Label>Soyad *</Label>
+                <Label>Last Name *</Label>
                 <Input
                   value={crewForm.lastName}
                   onChange={e => setCrewForm(f => ({ ...f, lastName: e.target.value }))}
-                  placeholder="Soyad"
+                  placeholder="Last name"
                   data-testid="input-crew-lastname"
                 />
               </div>
               <div>
-                <Label>Görev / Rank</Label>
+                <Label>Rank / Position</Label>
                 <Select value={crewForm.rank} onValueChange={v => setCrewForm(f => ({ ...f, rank: v }))}>
                   <SelectTrigger data-testid="select-crew-rank">
-                    <SelectValue placeholder="Görev seçin..." />
+                    <SelectValue placeholder="Select rank..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {["Kaptan", "Baş Mühendis", "1. Zabit", "2. Zabit", "3. Zabit", "Baş Elektrikçi", "2. Mühendis", "3. Mühendis", "4. Mühendis", "Pumpman", "Bosun", "Marangoz", "A.B.", "O.S.", "Gemici", "Aşçı", "Kamarot"].map(r => (
+                    {["Captain", "Chief Engineer", "Chief Officer", "2nd Officer", "3rd Officer", "Electrician", "2nd Engineer", "3rd Engineer", "4th Engineer", "Pumpman", "Bosun", "Carpenter", "A.B.", "O.S.", "Deck Hand", "Cook", "Steward"].map(r => (
                       <SelectItem key={r} value={r}>{r}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Uyruk</Label>
+                <Label>Nationality</Label>
                 <Input
                   value={crewForm.nationality}
                   onChange={e => setCrewForm(f => ({ ...f, nationality: e.target.value }))}
-                  placeholder="örn. Türk, Ukraynalı..."
+                  placeholder="e.g. Turkish, Ukrainian..."
                   data-testid="input-crew-nationality"
                 />
               </div>
               <div className="col-span-2">
-                <Label>Kontrat Bitiş Tarihi</Label>
+                <Label>Contract End Date</Label>
                 <Input
                   type="date"
                   value={crewForm.contractEndDate}
@@ -1603,16 +1603,16 @@ export default function Vessels() {
                 />
               </div>
               <div>
-                <Label>Pasaport No</Label>
+                <Label>Passport No.</Label>
                 <Input
                   value={crewForm.passportNumber}
                   onChange={e => setCrewForm(f => ({ ...f, passportNumber: e.target.value }))}
-                  placeholder="opsiyonel"
+                  placeholder="optional"
                   data-testid="input-crew-passport-no"
                 />
               </div>
               <div>
-                <Label>Pasaport Bitiş</Label>
+                <Label>Passport Expiry</Label>
                 <Input
                   type="date"
                   value={crewForm.passportExpiry}
@@ -1621,16 +1621,16 @@ export default function Vessels() {
                 />
               </div>
               <div>
-                <Label>Gemiadamı Cüzdanı No</Label>
+                <Label>Seaman's Book No.</Label>
                 <Input
                   value={crewForm.seamansBookNumber}
                   onChange={e => setCrewForm(f => ({ ...f, seamansBookNumber: e.target.value }))}
-                  placeholder="opsiyonel"
+                  placeholder="optional"
                   data-testid="input-crew-seaman-no"
                 />
               </div>
               <div>
-                <Label>Cüzdan Bitiş</Label>
+                <Label>Book Expiry</Label>
                 <Input
                   type="date"
                   value={crewForm.seamansBookExpiry}
@@ -1641,13 +1641,13 @@ export default function Vessels() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCrewDialogOpen(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setCrewDialogOpen(false)}>Cancel</Button>
             <Button
               onClick={() => crewSaveMutation.mutate()}
               disabled={!crewForm.firstName || !crewForm.lastName || crewSaveMutation.isPending}
               data-testid="button-save-crew"
             >
-              {crewSaveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Kaydet"}
+              {crewSaveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1657,17 +1657,17 @@ export default function Vessels() {
       <AlertDialog open={!!crewDeleteTarget} onOpenChange={open => { if (!open) setCrewDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Mürettebatı Sil</AlertDialogTitle>
-            <AlertDialogDescription>Bu mürettebat kaydı kalıcı olarak silinecek. Devam edilsin mi?</AlertDialogDescription>
+            <AlertDialogTitle>Delete Crew Member</AlertDialogTitle>
+            <AlertDialogDescription>This crew member record will be permanently deleted. Are you sure?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Vazgeç</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive hover:bg-destructive/90"
               onClick={() => crewDeleteTarget && crewDeleteMutation.mutate(crewDeleteTarget)}
               data-testid="button-confirm-delete-crew"
             >
-              Sil
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -6,6 +6,15 @@ VesselPDA is a professional web-based maritime platform designed to revolutioniz
 ## User Preferences
 I prefer detailed explanations and iterative development. Ask before making major changes. I would like to see the agent work through the problem step-by-step. I prefer clear and concise communication.
 
+## UI Language Policy
+English is the primary and only UI language. All user-facing text must be in English, including:
+- Button labels, form labels, placeholders, table headers
+- Toast notifications (titles and descriptions)
+- Error messages, empty states, dialog text
+- Status badge labels, tab names, section headers
+- PageMeta title and description attributes
+Turkish text is only acceptable in: (a) code comments, (b) proper names of Turkish institutions/locations (e.g. İstanbul, İzmir port names), (c) data stored by users themselves. The i18n toggle exists but defaults to English.
+
 ## System Architecture
 The platform is built with a modern web stack. The UI/UX is maritime-themed, predominantly using a deep blue color palette with design tokens for a professional aesthetic.
 

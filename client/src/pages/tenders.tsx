@@ -674,9 +674,9 @@ function MyBidCard({ bid }: { bid: any }) {
   const { remaining } = useCountdown(bid.tenderCreatedAt, bid.expiryHours);
 
   const statusConfig = {
-    selected: { label: "Kazandı 🏆", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
-    rejected: { label: "Reddedildi", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
-    pending: { label: "İnceleniyor", cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+    selected: { label: "Won 🏆", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+    rejected: { label: "Rejected", cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+    pending: { label: "Under Review", cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
   }[bid.status as string] || { label: bid.status, cls: "bg-gray-100 text-gray-700" };
 
   const shipownerName = bid.shipownerCompany ||
@@ -684,11 +684,11 @@ function MyBidCard({ bid }: { bid: any }) {
     "—";
 
   const bidDate = bid.createdAt
-    ? new Date(bid.createdAt).toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })
+    ? new Date(bid.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
     : null;
 
   const wonDate = bid.status === "selected" && bid.nominatedAt
-    ? new Date(bid.nominatedAt).toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" })
+    ? new Date(bid.nominatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
     : null;
 
   return (
@@ -735,7 +735,7 @@ function MyBidCard({ bid }: { bid: any }) {
         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
           <Badge className={`text-[10px] border-0 ${statusConfig.cls}`}>{statusConfig.label}</Badge>
           <span className="text-[11px] text-muted-foreground">
-            {bid.tenderStatus === "open" ? remaining : "Kapalı"}
+            {bid.tenderStatus === "open" ? remaining : "Closed"}
           </span>
         </div>
       </div>

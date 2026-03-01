@@ -18,10 +18,10 @@ import { Link } from "wouter";
 import type { Vessel, Port } from "@shared/schema";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
-  planned:   { label: "Planlandı",    color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",   icon: Clock },
-  active:    { label: "Aktif",        color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", icon: PlayCircle },
-  completed: { label: "Tamamlandı",   color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",       icon: CheckCircle2 },
-  cancelled: { label: "İptal Edildi", color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",        icon: XCircle },
+  planned:   { label: "Planned",    color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",   icon: Clock },
+  active:    { label: "Active",     color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", icon: PlayCircle },
+  completed: { label: "Completed",  color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",       icon: CheckCircle2 },
+  cancelled: { label: "Cancelled",  color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",        icon: XCircle },
 };
 
 const PURPOSE_OPTIONS = ["Loading", "Discharging", "Transit", "Bunkering", "Repair", "Crew Change", "Inspection"];
@@ -82,7 +82,7 @@ function PortSearch({ value, onChange }: { value: string; onChange: (portId: num
       <Input
         value={query}
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
-        placeholder="Liman adı veya LOCODE ara (ör: Antwerp, Rotterdam)..."
+        placeholder="Search port name or LOCODE (e.g. Antwerp, Rotterdam)..."
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         data-testid="input-port-search"
@@ -156,7 +156,7 @@ export default function Voyages() {
   const handleImoLookup = async () => {
     const imo = imoQuery.replace(/\D/g, "");
     if (imo.length < 5) {
-      setLookupError("Geçerli bir IMO numarası girin (5-7 rakam)");
+      setLookupError("Enter a valid IMO number (5-7 digits).");
       return;
     }
     setLookupLoading(true);
@@ -166,13 +166,13 @@ export default function Voyages() {
       const res = await fetch(`/api/vessels/lookup?imo=${imo}`);
       const data = await res.json();
       if (!res.ok) {
-        setLookupError(data.message || "Gemi bulunamadı. Manuel olarak girebilirsiniz.");
+        setLookupError(data.message || "Vessel not found. You can enter details manually.");
         return;
       }
       setVesselInfo(data);
       setForm(f => ({ ...f, vesselName: data.name, vesselId: null }));
     } catch {
-      setLookupError("Bağlantı hatası. Tekrar deneyin veya manuel girin.");
+      setLookupError("Connection error. Try again or enter manually.");
     } finally {
       setLookupLoading(false);
     }
@@ -238,24 +238,24 @@ export default function Voyages() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages"] });
-      toast({ title: "Sefer oluşturuldu" });
+      toast({ title: "Voyage created" });
       handleDialogClose(false);
     },
-    onError: () => toast({ title: "Hata", description: "Sefer oluşturulamadı", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Failed to create voyage", variant: "destructive" }),
   });
 
   return (
     <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
-      <PageMeta title="Seferler | VesselPDA" description="Sefer ve operasyon dosyaları" />
+      <PageMeta title="Voyages | VesselPDA" description="Voyage and operations management" />
 
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-voyages-title">Seferler</h1>
-          <p className="text-muted-foreground text-sm">Operasyon dosyaları ve sefer yönetimi</p>
+          <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-voyages-title">Voyages</h1>
+          <p className="text-muted-foreground text-sm">Operations files and voyage management</p>
         </div>
         {role !== "provider" && (
           <Button onClick={() => setShowCreate(true)} className="gap-2" data-testid="button-create-voyage">
-            <Plus className="w-4 h-4" /> Yeni Sefer
+            <Plus className="w-4 h-4" /> New Voyage
           </Button>
         )}
       </div>
@@ -319,13 +319,13 @@ export default function Voyages() {
           <div className="w-20 h-20 rounded-2xl bg-[hsl(var(--maritime-primary)/0.08)] flex items-center justify-center mb-5">
             <Anchor className="w-10 h-10 text-[hsl(var(--maritime-primary)/0.4)]" />
           </div>
-          <h3 className="font-serif text-lg font-semibold text-muted-foreground mb-1">Henüz sefer yok</h3>
+          <h3 className="font-serif text-lg font-semibold text-muted-foreground mb-1">No voyages yet</h3>
           <p className="text-sm text-muted-foreground/70 max-w-xs mb-6">
-            Yeni bir sefer oluşturarak operasyon dosyanızı başlatın. Checklist, belgeler ve hizmet talepleri ekleyin.
+            Start by creating a new voyage. Add checklists, documents and service requests along the way.
           </p>
           {role !== "provider" && (
             <Button size="lg" className="gap-2 px-8" onClick={() => setShowCreate(true)} data-testid="button-create-first-voyage">
-              <Plus className="w-5 h-5" /> Yeni Sefer Oluştur
+              <Plus className="w-5 h-5" /> Create New Voyage
             </Button>
           )}
         </div>
@@ -335,7 +335,7 @@ export default function Voyages() {
       <Dialog open={showCreate} onOpenChange={handleDialogClose}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-serif text-lg">Yeni Sefer Oluştur</DialogTitle>
+            <DialogTitle className="font-serif text-lg">Create New Voyage</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-5 py-1">
@@ -344,7 +344,7 @@ export default function Voyages() {
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <div className="w-5 h-5 rounded-full bg-[hsl(var(--maritime-primary))] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">1</div>
-                <span className="text-sm font-semibold">Gemi Tanımlama</span>
+                <span className="text-sm font-semibold">Vessel Identification</span>
               </div>
 
               {vesselInfo ? (
@@ -353,7 +353,7 @@ export default function Voyages() {
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                      <span className="text-[10px] font-bold text-green-600 dark:text-green-400 uppercase tracking-wide">Doğrulandı</span>
+                      <span className="text-[10px] font-bold text-green-600 dark:text-green-400 uppercase tracking-wide">Verified</span>
                     </div>
                     <button
                       type="button"
@@ -361,7 +361,7 @@ export default function Voyages() {
                       className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
                       data-testid="button-clear-vessel"
                     >
-                      <X className="w-3 h-3" /> Değiştir
+                      <X className="w-3 h-3" /> Change
                     </button>
                   </div>
 
@@ -402,13 +402,13 @@ export default function Voyages() {
                 /* ── IMO Arama + Filo ── */
                 <div className="space-y-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">IMO Numarası ile Otomatik Doldur</Label>
+                    <Label className="text-xs text-muted-foreground">Auto-fill with IMO Number</Label>
                     <div className="flex gap-2">
                       <Input
                         value={imoQuery}
                         onChange={e => { setImoQuery(e.target.value); setLookupError(""); }}
                         onKeyDown={e => e.key === "Enter" && handleImoLookup()}
-                        placeholder="örn. 9123456"
+                        placeholder="e.g. 9123456"
                         className="font-mono"
                         data-testid="input-imo-number"
                       />
@@ -425,7 +425,7 @@ export default function Voyages() {
                         ) : (
                           <Search className="w-4 h-4" />
                         )}
-                        {lookupLoading ? "Aranıyor..." : "Sorgula"}
+                        {lookupLoading ? "Searching..." : "Look Up"}
                       </Button>
                     </div>
                     {lookupError && (
@@ -440,12 +440,12 @@ export default function Voyages() {
                     <>
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-px bg-border" />
-                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">veya filomdan seç</span>
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">or select from fleet</span>
                         <div className="flex-1 h-px bg-border" />
                       </div>
                       <Select onValueChange={handleFleetSelect}>
                         <SelectTrigger data-testid="select-vessel" className="text-sm">
-                          <SelectValue placeholder="Filomdan gemi seç..." />
+                          <SelectValue placeholder="Select from my fleet..." />
                         </SelectTrigger>
                         <SelectContent>
                           {vessels.map(v => (
@@ -463,12 +463,12 @@ export default function Voyages() {
                   {/* Manuel giriş (IMO bulunamazsa) */}
                   <div className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground">
-                      {vessels && vessels.length > 0 ? "veya gemi adını manuel girin" : "Gemi Adı"}
+                      {vessels && vessels.length > 0 ? "or enter vessel name manually" : "Vessel Name"}
                     </Label>
                     <Input
                       value={form.vesselName}
                       onChange={e => setForm(f => ({ ...f, vesselName: e.target.value }))}
-                      placeholder="Gemi adı girin"
+                      placeholder="Enter vessel name"
                       data-testid="input-vessel-name-manual"
                     />
                   </div>
@@ -483,11 +483,11 @@ export default function Voyages() {
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <div className="w-5 h-5 rounded-full bg-[hsl(var(--maritime-primary))] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">2</div>
-                <span className="text-sm font-semibold">Sefer Detayları</span>
+                <span className="text-sm font-semibold">Voyage Details</span>
               </div>
 
               <div className="space-y-1.5">
-                <Label>Liman <span className="text-destructive">*</span></Label>
+                <Label>Port <span className="text-destructive">*</span></Label>
                 <PortSearch
                   value={form.portName}
                   onChange={(id, name) => setForm(f => ({ ...f, portId: id, portName: name }))}
@@ -495,7 +495,7 @@ export default function Voyages() {
               </div>
 
               <div className="space-y-1.5">
-                <Label>Amaç <span className="text-destructive">*</span></Label>
+                <Label>Purpose <span className="text-destructive">*</span></Label>
                 <Select value={form.purposeOfCall} onValueChange={v => setForm(f => ({ ...f, purposeOfCall: v }))}>
                   <SelectTrigger data-testid="select-purpose">
                     <SelectValue />
@@ -518,11 +518,11 @@ export default function Voyages() {
               </div>
 
               <div className="space-y-1.5">
-                <Label>Notlar</Label>
+                <Label>Notes</Label>
                 <Textarea
                   value={form.notes}
                   onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                  placeholder="Ek notlar..."
+                  placeholder="Additional notes..."
                   rows={2}
                   data-testid="textarea-notes"
                 />
@@ -531,15 +531,15 @@ export default function Voyages() {
           </div>
 
           <DialogFooter className="pt-2">
-            <Button variant="outline" onClick={() => handleDialogClose(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => handleDialogClose(false)}>Cancel</Button>
             <Button
               onClick={() => createMutation.mutate()}
               disabled={createMutation.isPending || !form.portId}
               data-testid="button-save-voyage"
             >
               {createMutation.isPending ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Oluşturuluyor...</>
-              ) : "Oluştur"}
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating...</>
+              ) : "Create"}
             </Button>
           </DialogFooter>
         </DialogContent>

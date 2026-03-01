@@ -63,20 +63,18 @@ interface MyLikes {
   replyIds: number[];
 }
 
-const TR_MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
-
 function timeAgo(timestamp: string | null): string {
   if (!timestamp) return "";
   const diff = Date.now() - new Date(timestamp).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "az önce";
-  if (mins < 60) return `${mins} dk`;
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} sa`;
+  if (hours < 24) return `${hours}h`;
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days} g`;
+  if (days < 30) return `${days}d`;
   const d = new Date(timestamp);
-  return `${TR_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  return new Date(d).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
 }
 
 function getUrlParams() {
@@ -415,7 +413,7 @@ export default function Forum() {
             }`}
             data-testid="tab-popular"
           >
-            <Flame className="w-3.5 h-3.5" /> Popüler
+            <Flame className="w-3.5 h-3.5" /> Popular
           </button>
           <div className="flex-1" />
           <div className="relative w-44 sm:w-56 flex-shrink-0 pb-1">
@@ -445,7 +443,7 @@ export default function Forum() {
             }`}
             data-testid="pill-category-all"
           >
-            Tümü
+            All
             {allTopics.length > 0 && <span className="ml-1 opacity-70">({allTopics.length}{hasMore ? "+" : ""})</span>}
           </button>
           {categories?.map(cat => (
@@ -550,20 +548,20 @@ export default function Forum() {
               <MessageSquare className="w-6 h-6 text-muted-foreground/50" />
             </div>
             <h3 className="text-base font-semibold mb-1">
-              {searchQuery ? "Konu bulunamadı" : activeCategoryObj ? `${activeCategoryObj.name} kategorisinde henüz konu yok` : "Henüz konu yok"}
+              {searchQuery ? "No topics found" : activeCategoryObj ? `No topics yet in ${activeCategoryObj.name}` : "No topics yet"}
             </h3>
             <p className="text-sm text-muted-foreground mb-5">
-              {searchQuery ? "Farklı bir arama terimi deneyin." : "İlk konuyu başlatan siz olun!"}
+              {searchQuery ? "Try a different search term." : "Be the first to start a topic!"}
             </p>
             {user ? (
               <Button onClick={openNewTopicWithCategory} className="gap-2 mx-auto" data-testid="button-new-topic-empty">
                 <Plus className="w-4 h-4" />
-                {activeCategoryObj ? `${activeCategoryObj.name} — Konu Başlat` : "Konu Başlat"}
+                {activeCategoryObj ? `${activeCategoryObj.name} — Start Topic` : "Start Topic"}
               </Button>
             ) : (
               <a href="/login">
                 <Button variant="outline" className="gap-2 mx-auto" data-testid="button-login-empty">
-                  <Plus className="w-4 h-4" /> Tartışmaya katılmak için giriş yapın
+                  <Plus className="w-4 h-4" /> Login to join the discussion
                 </Button>
               </a>
             )}
@@ -572,11 +570,11 @@ export default function Forum() {
           <>
           {/* Table header */}
           <div className="hidden sm:grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b bg-muted/30">
-            <span>Konu</span>
-            <span className="w-24 text-center">Katılımcılar</span>
-            <span className="w-12 text-center">Yanıtlar</span>
-            <span className="w-14 text-center">Görüntü</span>
-            <span className="w-16 text-right">Aktivite</span>
+            <span>Topic</span>
+            <span className="w-24 text-center">Participants</span>
+            <span className="w-12 text-center">Replies</span>
+            <span className="w-14 text-center">Views</span>
+            <span className="w-16 text-right">Activity</span>
           </div>
 
           <div className="divide-y" data-testid="forum-topic-list">
@@ -633,7 +631,7 @@ export default function Forum() {
                           {topic.categoryName}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
-                          {topic.isAnonymous ? "Anonim Kullanıcı" : `${topic.authorFirstName || ""} ${topic.authorLastName || ""}`.trim()}
+                          {topic.isAnonymous ? "Anonymous User" : `${topic.authorFirstName || ""} ${topic.authorLastName || ""}`.trim()}
                         </span>
                         {/* Like pill (inline with meta) */}
                         {likeState.count > 0 && (
@@ -656,7 +654,7 @@ export default function Forum() {
                             className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-blue-600 transition-colors px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100"
                             data-testid={`button-like-topic-${topic.id}`}
                           >
-                            <ThumbsUp className="w-3 h-3" /> Beğen
+                            <ThumbsUp className="w-3 h-3" /> Like
                           </button>
                         )}
                       </div>
@@ -717,7 +715,7 @@ export default function Forum() {
                 disabled={isFetching}
                 data-testid="button-load-more-topics"
               >
-                {isFetching ? "Yükleniyor..." : "Daha Fazla Konu Yükle"}
+                {isFetching ? "Loading..." : "Load More Topics"}
               </Button>
             </div>
           )}
