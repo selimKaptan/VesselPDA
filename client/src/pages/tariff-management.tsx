@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Navigation, Warehouse, Building2, Leaf, Layers, MoreHorizontal,
   Plus, Pencil, Trash2, Loader2, TrendingUp, Download, Upload,
-  ChevronDown, ChevronUp, Database, Ship, AlertTriangle
+  ChevronDown, ChevronUp, Database, Ship, AlertTriangle, X, Search, PlusCircle, Wrench
 } from "lucide-react";
 
 // ── Human-readable label maps ────────────────────────────────────────────────
@@ -48,11 +48,30 @@ const CATEGORY_LABELS: Record<string, string> = {
   tanker: "Tanker",
 };
 
-const PORTS = [
-  { id: 2, name: "İstanbul", code: "TRIST" },
-  { id: 3, name: "İzmir", code: "TRIZM" },
-  { id: 1, name: "Tekirdağ", code: "TRTEK" },
-];
+// Gerçek Türkçe isim + LOCODE haritası (DB'deki ASCII isimler için override)
+const PORT_DISPLAY: Record<number, { name: string; code: string }> = {
+  1: { name: "Tekirdağ", code: "TRTEK" },
+  2: { name: "İstanbul", code: "TRIST" },
+  3: { name: "İzmir", code: "TRIZM" },
+  4: { name: "Mersin", code: "TRMER" },
+  5: { name: "Aliağa", code: "TRALI" },
+};
+
+const getPortDisplay = (port: { id: number; name: string; code: string }) =>
+  PORT_DISPLAY[port.id] ?? { name: port.name, code: port.code };
+
+const DEFAULT_PORT_IDS = [2, 3, 1];
+
+const loadActivePortIds = (): number[] => {
+  try {
+    const stored = localStorage.getItem("tariff_active_ports");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return DEFAULT_PORT_IDS;
+};
 
 // ── Category definitions ──────────────────────────────────────────────────────
 type ColDef = {
@@ -368,7 +387,13 @@ function InlineCell({
 }
 
 // ── CategorySection ───────────────────────────────────────────────────────────
-function CategorySection({ cat, portId }: { cat: CategoryDef; portId: number }) {
+function CategorySection({
+  cat, portId, externalAddOpen, onExternalAddOpenChange,
+}: {
+  cat: CategoryDef; portId: number;
+  externalAddOpen?: boolean;
+  onExternalAddOpenChange?: (open: boolean) => void;
+}) {
   const { toast } = useToast();
   const [open, setOpen] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
@@ -443,11 +468,22 @@ function CategorySection({ cat, portId }: { cat: CategoryDef; portId: number }) 
       toast({ title: "Hata", description: "Zam uygulanamadı", variant: "destructive" }),
   });
 
+  const isAddOpen = addOpen || (externalAddOpen ?? false);
+
+  const handleAddOpenChange = (open: boolean) => {
+    setAddOpen(open);
+    if (!open) onExternalAddOpenChange?.(false);
+  };
+
   const openAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
     setAddData({ currency: cat.defaultCurrency, valid_year: 2026 });
     setAddOpen(true);
   };
+
+  if (externalAddOpen && !addOpen && Object.keys(addData).length === 0) {
+    setAddData({ currency: cat.defaultCurrency, valid_year: 2026 });
+  }
 
   const openEdit = (row: any) => {
     setEditRowId(row.id);
@@ -600,7 +636,7 @@ function CategorySection({ cat, portId }: { cat: CategoryDef; portId: number }) 
       )}
 
       {/* ── Add Dialog ── */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <Dialog open={isAddOpen} onOpenChange={handleAddOpenChange}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -713,15 +749,65 @@ export default function TariffManagement() {
   const userRole = (user as any)?.userRole;
   const csvInputRef = useRef<HTMLInputElement>(null);
 
-  const [activePort, setActivePort] = useState(2);
+  const [activePorts, setActivePorts] = useState<number[]>(() => loadActivePortIds());
+  const [activePort, setActivePort] = useState<number>(() => loadActivePortIds()[0] ?? 2);
   const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
+
+  const [addPortOpen, setAddPortOpen] = useState(false);
+  const [portSearch, setPortSearch] = useState("");
+  const [ekHizmetOpen, setEkHizmetOpen] = useState(false);
 
   if (userRole && userRole !== "admin") {
     navigate("/dashboard");
     return null;
   }
 
-  const activePortName = PORTS.find(p => p.id === activePort)?.name ?? "Liman";
+  const saveActivePorts = (ids: number[]) => {
+    try { localStorage.setItem("tariff_active_ports", JSON.stringify(ids)); } catch {}
+  };
+
+  const addActivePort = (portId: number) => {
+    if (activePorts.includes(portId)) return;
+    const updated = [...activePorts, portId];
+    setActivePorts(updated);
+    saveActivePorts(updated);
+    setActivePort(portId);
+    setAddPortOpen(false);
+    setPortSearch("");
+  };
+
+  const removeActivePort = (portId: number) => {
+    if (activePorts.length <= 1) return;
+    const updated = activePorts.filter(id => id !== portId);
+    setActivePorts(updated);
+    saveActivePorts(updated);
+    if (activePort === portId) setActivePort(updated[0]);
+  };
+
+  // Türk limanlarını API'den çek (Liman Ekle dialog için)
+  const { data: allTurkishPorts = [] } = useQuery<any[]>({
+    queryKey: ["/api/ports", "turkish"],
+    queryFn: async () => {
+      const res = await fetch("/api/ports?country=Turkey");
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const activePortData = allTurkishPorts.find((p: any) => p.id === activePort)
+    ?? { id: activePort, name: PORT_DISPLAY[activePort]?.name ?? "Liman", code: PORT_DISPLAY[activePort]?.code ?? "" };
+
+  const activePortDisplay = getPortDisplay(activePortData as any);
+  const activePortName = activePortDisplay.name;
+
+  const filteredTurkishPorts = allTurkishPorts
+    .filter((p: any) => !activePorts.includes(p.id))
+    .filter((p: any) => {
+      const disp = getPortDisplay(p);
+      const q = portSearch.toLowerCase();
+      return !q || disp.name.toLowerCase().includes(q) || disp.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q);
+    })
+    .slice(0, 50);
 
   const { data: summary } = useQuery<any>({
     queryKey: ["/api/admin/tariffs/summary"],
@@ -897,21 +983,53 @@ export default function TariffManagement() {
           </div>
 
           {/* Port tabs */}
-          <div className="flex items-center gap-1 bg-muted/60 rounded-xl p-1">
-            {PORTS.map(p => (
-              <button
-                key={p.id}
-                onClick={() => setActivePort(p.id)}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  activePort === p.id
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background/60"
-                }`}
-                data-testid={`port-tab-${p.id}`}
-              >
-                {p.name}
-              </button>
-            ))}
+          <div className="flex items-center gap-1 bg-muted/60 rounded-xl p-1 flex-wrap">
+            {activePorts.map(portId => {
+              const portData = allTurkishPorts.find((p: any) => p.id === portId)
+                ?? { id: portId, name: PORT_DISPLAY[portId]?.name ?? `Liman #${portId}`, code: PORT_DISPLAY[portId]?.code ?? "" };
+              const disp = getPortDisplay(portData as any);
+              const isActive = activePort === portId;
+              return (
+                <div key={portId} className="relative group">
+                  <button
+                    onClick={() => setActivePort(portId)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all pr-6 ${
+                      isActive
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground hover:bg-background/60"
+                    }`}
+                    data-testid={`port-tab-${portId}`}
+                  >
+                    <span>{disp.name}</span>
+                    <span className={`text-[10px] font-mono font-bold px-1 rounded ${
+                      isActive ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                    }`}>{disp.code}</span>
+                  </button>
+                  {activePorts.length > 1 && (
+                    <button
+                      onClick={e => { e.stopPropagation(); removeActivePort(portId); }}
+                      className={`absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity w-4 h-4 flex items-center justify-center rounded-full ${
+                        isActive ? "hover:bg-white/20 text-white" : "hover:bg-muted-foreground/20 text-muted-foreground"
+                      }`}
+                      title="Limanı kaldır"
+                      data-testid={`button-remove-port-${portId}`}
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            {/* + Liman Ekle butonu */}
+            <button
+              onClick={() => { setPortSearch(""); setAddPortOpen(true); }}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-primary hover:bg-background/60 transition-all"
+              title="Yeni liman ekle"
+              data-testid="button-add-port"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Liman Ekle</span>
+            </button>
           </div>
 
           {/* CSV Actions */}
@@ -960,19 +1078,24 @@ export default function TariffManagement() {
 
       {/* ── Info bar ── */}
       <div className="max-w-5xl mx-auto px-6 py-3">
-        <div className="flex items-center gap-6 text-xs text-muted-foreground flex-wrap">
+        <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
           <div className="flex items-center gap-1.5">
             <Ship className="w-3.5 h-3.5" />
             <span>
               Seçili liman:{" "}
               <span className="font-semibold text-foreground">{activePortName}</span>
+              {activePortDisplay.code && (
+                <span className="ml-1.5 font-mono bg-muted px-1.5 py-0.5 rounded text-[10px]">
+                  {activePortDisplay.code}
+                </span>
+              )}
             </span>
           </div>
           {summary?.totalRecords !== undefined && (
             <div className="flex items-center gap-1.5">
               <Database className="w-3.5 h-3.5" />
               <span>
-                Sistemdeki toplam kayıt:{" "}
+                Toplam kayıt:{" "}
                 <span className="font-semibold text-foreground">{summary.totalRecords}</span>
               </span>
             </div>
@@ -980,12 +1103,21 @@ export default function TariffManagement() {
           {summary?.outdatedCount > 0 && (
             <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
               <AlertTriangle className="w-3.5 h-3.5" />
-              <span>{summary.outdatedCount} eski tarife kaydı var</span>
+              <span>{summary.outdatedCount} eski kayıt</span>
             </div>
           )}
-          <span className="ml-auto hidden sm:block">
-            Liman sekmesini değiştirerek o limana ait tarifeleri görüntüleyin ve düzenleyin
-          </span>
+          <div className="ml-auto">
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 text-xs h-7 border-dashed"
+              onClick={() => setEkHizmetOpen(true)}
+              data-testid="button-ek-hizmet"
+            >
+              <Wrench className="w-3 h-3" />
+              Ek Hizmet Ekle
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -996,9 +1128,69 @@ export default function TariffManagement() {
             key={`${cat.key}-${activePort}`}
             cat={cat}
             portId={activePort}
+            externalAddOpen={cat.key === "other_services" ? ekHizmetOpen : undefined}
+            onExternalAddOpenChange={cat.key === "other_services" ? setEkHizmetOpen : undefined}
           />
         ))}
       </div>
+
+      {/* ── Liman Ekle Dialog ── */}
+      <Dialog open={addPortOpen} onOpenChange={o => { setAddPortOpen(o); if (!o) setPortSearch(""); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PlusCircle className="w-4 h-4 text-primary" />
+              Türk Limanı Ekle
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <p className="text-sm text-muted-foreground">
+              Tarife yönetmek istediğiniz Türk limanını seçin. Seçilen liman sekmelere eklenecek.
+            </p>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                className="pl-8 text-sm"
+                placeholder="Liman adı veya LOCODE ile arayın..."
+                value={portSearch}
+                onChange={e => setPortSearch(e.target.value)}
+                data-testid="input-port-search"
+                autoFocus
+              />
+            </div>
+            <div className="max-h-64 overflow-y-auto space-y-1 border rounded-lg p-1">
+              {filteredTurkishPorts.length === 0 ? (
+                <p className="text-center text-xs text-muted-foreground py-6">
+                  {portSearch ? "Eşleşen liman bulunamadı" : "Tüm Türk limanları zaten eklendi"}
+                </p>
+              ) : (
+                filteredTurkishPorts.map((p: any) => {
+                  const disp = getPortDisplay(p);
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => addActivePort(p.id)}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-md hover:bg-muted text-left transition-colors"
+                      data-testid={`port-option-${p.id}`}
+                    >
+                      <span className="text-sm font-medium">{disp.name}</span>
+                      <span className="text-[11px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                        {disp.code}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            {allTurkishPorts.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center">Limanlar yükleniyor...</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddPortOpen(false)}>Vazgeç</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
