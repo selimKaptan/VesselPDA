@@ -41,6 +41,21 @@ export default function Proformas() {
   const [quickDays, setQuickDays] = useState<number>(3);
   const [quickResult, setQuickResult] = useState<any>(null);
   const [quickLoading, setQuickLoading] = useState(false);
+  const [quickPurpose, setQuickPurpose] = useState<string>("Discharging");
+  const [quickCargoType, setQuickCargoType] = useState<string>("bulk_dry");
+  const [quickCargoQty, setQuickCargoQty] = useState<string>("5000");
+  const [quickCargoUnit, setQuickCargoUnit] = useState<string>("MT");
+  const [quickDangerous, setQuickDangerous] = useState<boolean>(false);
+
+  const CARGO_TYPE_OPTIONS = [
+    { value: "bulk_dry", label: "🌾 Dökme Kuru Yük", unit: "MT", examples: "Tahıl, kömür, cevher, gübre, hurda, çimento" },
+    { value: "general", label: "📦 Genel Yük / Breakbulk", unit: "MT", examples: "Çelik, kereste, proje yükü, çuval mal" },
+    { value: "container", label: "🚢 Konteyner", unit: "TEU", examples: "FCL, LCL, ISO konteyner" },
+    { value: "roro", label: "🚗 Ro-Ro / Araç", unit: "Units", examples: "Otomobil, kamyon, iş makinesi" },
+    { value: "liquid", label: "⛽ Tanker / Sıvı Yük", unit: "MT", examples: "Ham petrol, fuel oil, bitkisel yağ, moloz" },
+    { value: "chemical", label: "⚗️ Kimyasal Tanker", unit: "MT", examples: "Kimyasal madde, asit, metanol, çözücü" },
+    { value: "gas", label: "💨 LPG / LNG / Gaz", unit: "MT", examples: "Sıvılaştırılmış petrol/doğal gaz, amonyak" },
+  ];
 
   const { data: proformas, isLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"] });
   const { data: vessels } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
@@ -106,6 +121,9 @@ export default function Proformas() {
     if (!quickVesselId || !quickPortId) {
       toast({ title: "Lütfen gemi ve liman seçin", variant: "destructive" }); return;
     }
+    if (!quickCargoQty || parseFloat(quickCargoQty) <= 0) {
+      toast({ title: "Lütfen geçerli bir yük miktarı girin", variant: "destructive" }); return;
+    }
     setQuickLoading(true);
     setQuickResult(null);
     try {
@@ -113,6 +131,10 @@ export default function Proformas() {
         vesselId: parseInt(quickVesselId),
         portId: parseInt(quickPortId),
         berthStayDays: quickDays,
+        purposeOfCall: quickPurpose,
+        cargoType: quickCargoType,
+        cargoQuantity: parseFloat(quickCargoQty) || 5000,
+        isDangerousCargo: quickDangerous,
       });
       if (res.ok) { setQuickResult(await res.json()); }
       else { toast({ title: "Hesaplama başarısız", variant: "destructive" }); }
@@ -123,10 +145,14 @@ export default function Proformas() {
   const saveDraftMutation = useMutation({
     mutationFn: async () => {
       if (!quickResult) throw new Error("No result");
+      const selectedCargoOption = CARGO_TYPE_OPTIONS.find(o => o.value === quickCargoType);
       const res = await apiRequest("POST", "/api/proformas", {
         vesselId: parseInt(quickVesselId),
         portId: parseInt(quickPortId),
-        purposeOfCall: "Loading",
+        purposeOfCall: quickPurpose,
+        cargoType: selectedCargoOption?.label.replace(/^[^\s]+\s/, "") || quickCargoType,
+        cargoQuantity: parseFloat(quickCargoQty) || 5000,
+        cargoUnit: quickCargoUnit,
         berthStayDays: quickDays,
         lineItems: quickResult.lineItems,
         totalUsd: quickResult.totalUsd,
@@ -455,7 +481,7 @@ export default function Proformas() {
           <Button
             variant="outline"
             className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/30"
-            onClick={() => { setShowQuickDialog(true); setQuickResult(null); setQuickVesselId(""); setQuickPortId(""); setQuickPortSearch(""); setQuickDays(3); }}
+            onClick={() => { setShowQuickDialog(true); setQuickResult(null); setQuickVesselId(""); setQuickPortId(""); setQuickPortSearch(""); setQuickDays(3); setQuickPurpose("Discharging"); setQuickCargoType("bulk_dry"); setQuickCargoQty("5000"); setQuickCargoUnit("MT"); setQuickDangerous(false); }}
             data-testid="button-quick-proforma"
           >
             <Zap className="w-4 h-4" /> Anlık Proforma Al
@@ -479,9 +505,10 @@ export default function Proformas() {
 
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Gemi ve liman seçin — tarifeler otomatik uygulanarak anlık tahmini DA hesaplanır.
+              Gemi, liman ve yük bilgilerini girin — tarifeler otomatik uygulanarak anlık tahmini DA hesaplanır.
             </p>
 
+            {/* Row 1: Gemi + Gün */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Gemi Seç</Label>
@@ -512,6 +539,100 @@ export default function Proformas() {
                   className="w-full"
                   data-testid="input-days-quick"
                 />
+              </div>
+            </div>
+
+            {/* Row 2: Purpose + Cargo Type */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Seferin Amacı</Label>
+                <Select value={quickPurpose} onValueChange={setQuickPurpose} data-testid="select-purpose-quick">
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Discharging">🔽 Boşaltma (Discharging)</SelectItem>
+                    <SelectItem value="Loading">🔼 Yükleme (Loading)</SelectItem>
+                    <SelectItem value="Loading/Discharging">🔄 Yükleme + Boşaltma</SelectItem>
+                    <SelectItem value="Transit">➡️ Transit</SelectItem>
+                    <SelectItem value="Bunkering">⛽ Yakıt İkmali</SelectItem>
+                    <SelectItem value="Repair">🔧 Onarım</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Yük Cinsi</Label>
+                <Select
+                  value={quickCargoType}
+                  onValueChange={(v) => {
+                    setQuickCargoType(v);
+                    const opt = CARGO_TYPE_OPTIONS.find(o => o.value === v);
+                    if (opt) setQuickCargoUnit(opt.unit);
+                  }}
+                  data-testid="select-cargo-type-quick"
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CARGO_TYPE_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        <div>
+                          <div>{opt.label}</div>
+                          <div className="text-xs text-muted-foreground">{opt.examples}</div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Row 3: Cargo Quantity + Dangerous */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>
+                  Yük Miktarı
+                  <span className="ml-1.5 text-xs text-muted-foreground font-normal">
+                    ({quickCargoUnit === "TEU" ? "TEU" : quickCargoUnit === "Units" ? "Araç Sayısı" : "Metrik Ton (MT)"})
+                  </span>
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={quickCargoQty}
+                    onChange={(e) => setQuickCargoQty(e.target.value)}
+                    className="flex-1"
+                    placeholder={quickCargoUnit === "TEU" ? "200" : quickCargoUnit === "Units" ? "50" : "5000"}
+                    data-testid="input-cargo-qty-quick"
+                  />
+                  <div className="flex items-center px-3 rounded-md border bg-muted text-sm font-medium min-w-[60px] justify-center">
+                    {quickCargoUnit}
+                  </div>
+                </div>
+                {(quickCargoType === "liquid" || quickCargoType === "chemical" || quickCargoType === "gas") && (
+                  <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                    ℹ️ Bu yük cinsi için gözetim ücreti miktar yerine sabit tarife üzerinden hesaplanır
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tehlikeli Madde</Label>
+                <label className="flex items-center gap-3 h-10 px-3 border rounded-md cursor-pointer hover:bg-muted/50 transition-colors" data-testid="switch-dangerous-quick">
+                  <input
+                    type="checkbox"
+                    checked={quickDangerous}
+                    onChange={(e) => setQuickDangerous(e.target.checked)}
+                    className="w-4 h-4 rounded"
+                  />
+                  <div>
+                    <div className="text-sm font-medium">IMDG Tehlikeli Yük</div>
+                    <div className="text-xs text-muted-foreground">Ek %25 gözetim ücreti uygulanır</div>
+                  </div>
+                </label>
               </div>
             </div>
 
@@ -573,12 +694,28 @@ export default function Proformas() {
 
             {quickResult && (
               <Card className="p-4 space-y-3 bg-blue-50/60 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
-                <div className="flex items-center gap-2 mb-2">
-                  <Ship className="w-4 h-4 text-blue-600" />
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <Ship className="w-4 h-4 text-blue-600 flex-shrink-0" />
                   <span className="font-semibold text-sm text-blue-800 dark:text-blue-300">
                     {quickResult.vesselName} — {quickResult.portName}
                   </span>
                   <Badge variant="secondary" className="ml-auto text-[10px]">Tahmini DA</Badge>
+                </div>
+                <div className="flex flex-wrap gap-1.5 pb-1">
+                  <Badge className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0">
+                    {CARGO_TYPE_OPTIONS.find(o => o.value === quickCargoType)?.label || quickCargoType}
+                  </Badge>
+                  <Badge className="text-[10px] bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0">
+                    {parseFloat(quickCargoQty).toLocaleString()} {quickCargoUnit}
+                  </Badge>
+                  <Badge className="text-[10px] bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0">
+                    {quickPurpose}
+                  </Badge>
+                  {quickDangerous && (
+                    <Badge className="text-[10px] bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-0">
+                      ⚠️ Tehlikeli Madde +%25
+                    </Badge>
+                  )}
                 </div>
 
                 <div className="border rounded-md overflow-hidden bg-white dark:bg-background">

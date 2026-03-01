@@ -2,6 +2,7 @@ export interface CalculationInput {
   nrt: number;
   grt: number;
   cargoQuantity: number;
+  cargoType?: string;
   berthStayDays: number;
   anchorageDays: number;
   isDangerousCargo: boolean;
@@ -293,10 +294,56 @@ function calcVda(input: CalculationInput): number {
   return base * eurUsdParity;
 }
 
+export function getCargoCategory(cargoType?: string): "bulk_dry" | "general" | "container" | "roro" | "liquid" | "chemical" | "gas" {
+  const t = (cargoType || "").toLowerCase().trim();
+  if (!t) return "bulk_dry";
+
+  if (/lpg|lng|gas|gaz|ammon|propane|propan|butane/.test(t)) return "gas";
+  if (/chemical|kimyasal|acid|asit|methanol|solvent|caustic|etanol|ethanol/.test(t)) return "chemical";
+  if (/crude|fuel oil|mazot|petrol|vegetable oil|palm|molasses|pekmez|bitumen|asphalt|liquid|sıvı|slop|naphtha|naptha|gasoil|diesel|bunker|lube|lubricant/.test(t)) return "liquid";
+  if (/container|konteyner|teu|box/.test(t)) return "container";
+  if (/ro.?ro|roro|vehicle|araç|car\b|otomobil|truck|kamyon/.test(t)) return "roro";
+  if (/general|genel|steel|çelik|coil|bobine|timber|kereste|lumber|bag|çuval|project|breakbulk|break.?bulk|pipes|boru|machinery|makine/.test(t)) return "general";
+  if (/grain|tahıl|wheat|buğday|barley|arpa|corn|mısır|coal|kömür|ore|maden|iron|demir|fertilizer|gübre|scrap|hurda|clinker|cement|çimento|salt|tuz|soya|aggregate|granit|gypsum|alçı|bauxite|boksit|pet.?coke|sulphur|kükürt|sand|kum/.test(t)) return "bulk_dry";
+
+  return "bulk_dry";
+}
+
 function calcSupervision(input: CalculationInput): number {
-  const { cargoQuantity, eurUsdParity } = input;
+  const { cargoQuantity, cargoType, isDangerousCargo, eurUsdParity } = input;
   if (cargoQuantity <= 0) return 0;
-  return cargoQuantity * 0.15 * eurUsdParity;
+
+  const category = getCargoCategory(cargoType);
+  let amountUsd: number;
+
+  switch (category) {
+    case "gas":
+      amountUsd = 2500;
+      break;
+    case "chemical":
+      amountUsd = 1800;
+      break;
+    case "liquid":
+      amountUsd = 1200;
+      break;
+    case "container":
+      amountUsd = cargoQuantity * 25;
+      break;
+    case "roro":
+      amountUsd = cargoQuantity * 20;
+      break;
+    case "general":
+      amountUsd = cargoQuantity * 0.35 * eurUsdParity;
+      break;
+    case "bulk_dry":
+    default:
+      amountUsd = cargoQuantity * 0.20 * eurUsdParity;
+      break;
+  }
+
+  if (isDangerousCargo) amountUsd *= 1.25;
+
+  return Math.round(amountUsd * 100) / 100;
 }
 
 function calcAgencyFee(input: CalculationInput): number {

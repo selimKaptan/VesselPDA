@@ -462,8 +462,18 @@ export async function registerRoutes(
         vesselId, portId,
         berthStayDays = 3, anchorageDays = 0,
         cargoQuantity = 5000, isDangerousCargo = false,
-        purposeOfCall = "Loading", customsType = "import",
+        purposeOfCall = "Discharging",
+        cargoType = "",
       } = req.body;
+
+      const customsType: "import" | "export" | "transit" | "none" = (() => {
+        const p = (purposeOfCall || "").toLowerCase();
+        if (p.includes("load")) return "export";
+        if (p.includes("discharg") || p.includes("unload")) return "import";
+        if (p.includes("transit")) return "transit";
+        if (p.includes("bunker") || p.includes("repair") || p.includes("survey")) return "none";
+        return "import";
+      })();
 
       if (!vesselId || !portId) {
         return res.status(400).json({ message: "vesselId and portId are required" });
@@ -517,10 +527,11 @@ export async function registerRoutes(
         nrt: (vessel as any).nrt || 1000,
         grt: (vessel as any).grt || 2000,
         cargoQuantity: Number(cargoQuantity) || 5000,
+        cargoType: cargoType || "",
         berthStayDays: Number(berthStayDays) || 3,
         anchorageDays: Number(anchorageDays) || 0,
         isDangerousCargo: isDangerousCargo === true || isDangerousCargo === "true",
-        customsType: (customsType as "import" | "export" | "transit" | "none") || "import",
+        customsType,
         flagCategory: flagCat,
         dtoCategory: flagCat,
         lighthouseCategory: flagCat,
@@ -541,6 +552,8 @@ export async function registerRoutes(
         exchangeRates: { usdTry: usdTryRate, eurTry: eurTryRate, eurUsd: eurUsdParity },
         calculatedAt: new Date().toISOString(),
         isEstimate: true,
+        cargoType: cargoType || null,
+        purposeOfCall: purposeOfCall || null,
       });
     } catch (error) {
       console.error("Quick estimate error:", error);
