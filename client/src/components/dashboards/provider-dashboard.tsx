@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Building2, ArrowRight, Star, Phone, Mail, Globe, MapPin, Activity, MessageSquare, Crown } from "lucide-react";
+import { Building2, ArrowRight, Star, Phone, Mail, Globe, MapPin, Activity, MessageSquare, Crown, ShieldCheck, AlertTriangle, Clock, XCircle, Settings } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,9 +34,57 @@ export function ProviderDashboard({ user, myProfile }: { user: any; myProfile?: 
 
   const serviceTypes = ((myProfile as any).serviceTypes as string[]) || [];
   const servedPorts = ((myProfile as any).servedPorts as number[]) || [];
+  const verificationStatus = (myProfile as any)?.verificationStatus || "unverified";
+  const verificationNote = (myProfile as any)?.verificationNote;
 
   return (
     <div className="space-y-6">
+      {/* Verification status banner */}
+      {verificationStatus === "unverified" && (
+        <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50" data-testid="banner-verification-unverified">
+          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Şirketiniz henüz doğrulanmamış</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Doğrulama talebi göndererek dizinde güven rozeti kazanın ve öne çıkın.</p>
+          </div>
+          <Link href="/settings">
+            <Button size="sm" variant="outline" className="gap-1.5 text-xs h-7 border-amber-300 text-amber-700 hover:bg-amber-100 flex-shrink-0 dark:border-amber-700 dark:text-amber-300" data-testid="button-go-verify">
+              <Settings className="w-3 h-3" /> Doğrulama Talebi
+            </Button>
+          </Link>
+        </div>
+      )}
+      {verificationStatus === "pending" && (
+        <div className="flex items-center gap-3 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200/70 dark:border-blue-800/50" data-testid="banner-verification-pending">
+          <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+          <p className="text-sm text-blue-800 dark:text-blue-300">
+            <span className="font-medium">Doğrulama talebiniz inceleniyor.</span>{" "}
+            <span className="font-normal text-blue-600 dark:text-blue-400">En kısa sürede size dönülecek.</span>
+          </p>
+        </div>
+      )}
+      {verificationStatus === "verified" && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/40" data-testid="banner-verification-verified">
+          <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+          <p className="text-sm text-emerald-700 dark:text-emerald-400 font-medium">Şirketiniz doğrulanmış — dizinde güven rozeti gösteriliyor.</p>
+        </div>
+      )}
+      {verificationStatus === "rejected" && (
+        <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200/70 dark:border-red-800/50" data-testid="banner-verification-rejected">
+          <XCircle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-red-800 dark:text-red-300">Doğrulama talebiniz reddedildi</p>
+            {verificationNote && <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">{verificationNote}</p>}
+            <p className="text-xs text-muted-foreground mt-0.5">Bilgilerinizi güncelleyerek tekrar başvurabilirsiniz.</p>
+          </div>
+          <Link href="/settings">
+            <Button size="sm" variant="outline" className="gap-1.5 text-xs h-7 border-red-300 text-red-700 hover:bg-red-100 flex-shrink-0 dark:border-red-700 dark:text-red-300" data-testid="button-retry-verify">
+              <Settings className="w-3 h-3" /> Tekrar Başvur
+            </Button>
+          </Link>
+        </div>
+      )}
+
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Left col */}
         <div className="lg:col-span-2 space-y-6">

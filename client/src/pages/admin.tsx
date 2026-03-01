@@ -36,6 +36,21 @@ export default function AdminPanel() {
   const [searchProfiles, setSearchProfiles] = useState("");
 
   const [verifyNote, setVerifyNote] = useState<Record<number, string>>({});
+  const [ofacResults, setOfacResults] = useState<Record<number, { clear: boolean; matches: any[]; checked: boolean }>>({});
+  const [ofacLoading, setOfacLoading] = useState<Record<number, boolean>>({});
+
+  const checkOfac = async (profileId: number, companyName: string) => {
+    setOfacLoading(prev => ({ ...prev, [profileId]: true }));
+    try {
+      const res = await fetch(`/api/sanctions/check?name=${encodeURIComponent(companyName)}`, { credentials: "include" });
+      const data = await res.json();
+      setOfacResults(prev => ({ ...prev, [profileId]: { ...data, checked: true } }));
+    } catch {
+      toast({ title: "OFAC kontrolü başarısız", variant: "destructive" });
+    } finally {
+      setOfacLoading(prev => ({ ...prev, [profileId]: false }));
+    }
+  };
 
   const { data: stats, isLoading: statsLoading } = useQuery<any>({ queryKey: ["/api/admin/stats"] });
   const { data: allUsers, isLoading: usersLoading } = useQuery<User[]>({ queryKey: ["/api/admin/users"] });
@@ -459,25 +474,47 @@ export default function AdminPanel() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left">
-                      <th className="p-3 font-medium">Company</th>
-                      <th className="p-3 font-medium">Type</th>
-                      <th className="p-3 font-medium">City</th>
+                      <th className="p-3 font-medium">Şirket</th>
+                      <th className="p-3 font-medium">Tür</th>
+                      <th className="p-3 font-medium">Şehir</th>
+                      <th className="p-3 font-medium">Doğrulama</th>
                       <th className="p-3 font-medium">Featured</th>
-                      <th className="p-3 font-medium">Active</th>
+                      <th className="p-3 font-medium">Aktif</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredProfiles.map(p => (
-                      <tr key={p.id} className="border-b last:border-0 hover:bg-muted/50" data-testid={`row-profile-${p.id}`}>
-                        <td className="p-3 font-medium">{p.companyName}</td>
-                        <td className="p-3">
-                          <Badge className={`text-[10px] ${ROLE_BADGES[p.companyType] || ""}`}>{p.companyType}</Badge>
-                        </td>
-                        <td className="p-3">{p.city || "-"}</td>
-                        <td className="p-3">{p.isFeatured ? "Yes" : "No"}</td>
-                        <td className="p-3">{p.isActive ? "Yes" : "No"}</td>
-                      </tr>
-                    ))}
+                    {filteredProfiles.map(p => {
+                      const vs = (p as any).verificationStatus || "unverified";
+                      return (
+                        <tr key={p.id} className="border-b last:border-0 hover:bg-muted/50" data-testid={`row-profile-${p.id}`}>
+                          <td className="p-3 font-medium">{p.companyName}</td>
+                          <td className="p-3">
+                            <Badge className={`text-[10px] ${ROLE_BADGES[p.companyType] || ""}`}>{p.companyType}</Badge>
+                          </td>
+                          <td className="p-3">{p.city || "-"}</td>
+                          <td className="p-3">
+                            {vs === "verified" && (
+                              <Badge className="text-[10px] gap-1 bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300">
+                                <ShieldCheck className="w-2.5 h-2.5" /> Doğrulandı
+                              </Badge>
+                            )}
+                            {vs === "pending" && (
+                              <Badge className="text-[10px] gap-1 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300">
+                                <Clock className="w-2.5 h-2.5" /> Bekliyor
+                              </Badge>
+                            )}
+                            {vs === "rejected" && (
+                              <Badge className="text-[10px] gap-1 bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300">
+                                <XCircle className="w-2.5 h-2.5" /> Reddedildi
+                              </Badge>
+                            )}
+                            {vs === "unverified" && <span className="text-muted-foreground text-xs">—</span>}
+                          </td>
+                          <td className="p-3">{p.isFeatured ? "Evet" : "Hayır"}</td>
+                          <td className="p-3">{p.isActive ? "Evet" : "Hayır"}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -741,10 +778,20 @@ export default function AdminPanel() {
               {pendingVerifications.map((p: any) => (
                 <Card key={p.id} className="p-5 border-blue-200/60" data-testid={`card-verification-${p.id}`}>
                   <div className="flex items-start justify-between gap-4 flex-wrap">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2">
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-semibold">{p.companyName}</h3>
                         <Badge variant="outline" className="text-xs capitalize">{p.companyType}</Badge>
+                        {ofacResults[p.id]?.checked && ofacResults[p.id]?.clear && (
+                          <Badge className="text-[10px] gap-1 bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300">
+                            <ShieldCheck className="w-2.5 h-2.5" /> OFAC: Temiz
+                          </Badge>
+                        )}
+                        {ofacResults[p.id]?.checked && !ofacResults[p.id]?.clear && (
+                          <Badge className="text-[10px] gap-1 bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300">
+                            <ShieldX className="w-2.5 h-2.5" /> OFAC: Eşleşme!
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-sm text-muted-foreground space-y-0.5">
                         <p><span className="font-medium text-foreground">Vergi No:</span> {p.taxNumber || "—"}</p>
@@ -754,8 +801,40 @@ export default function AdminPanel() {
                           <p><span className="font-medium text-foreground">Talep tarihi:</span> {new Date(p.verificationRequestedAt).toLocaleDateString("tr-TR")}</p>
                         )}
                       </div>
+                      {ofacResults[p.id]?.checked && !ofacResults[p.id]?.clear && (
+                        <div className="mt-2 p-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-md text-xs space-y-1">
+                          <p className="font-semibold text-red-700 dark:text-red-400">⚠ OFAC SDN Listesinde Eşleşme:</p>
+                          {ofacResults[p.id].matches.map((m: any, i: number) => (
+                            <p key={i} className="text-red-600 dark:text-red-500">
+                              <span className="font-medium">{m.name}</span>
+                              {m.type && <span className="text-muted-foreground"> · {m.type}</span>}
+                              {m.programs?.length > 0 && <span className="text-muted-foreground"> · {m.programs.slice(0, 3).join(", ")}</span>}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-2 gap-1.5 text-xs h-7"
+                        onClick={() => checkOfac(p.id, p.companyName)}
+                        disabled={ofacLoading[p.id]}
+                        data-testid={`button-ofac-check-${p.id}`}
+                      >
+                        {ofacLoading[p.id] ? (
+                          <>
+                            <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                            </svg>
+                            Kontrol ediliyor...
+                          </>
+                        ) : (
+                          <><Shield className="w-3 h-3" /> OFAC Kontrol Et</>
+                        )}
+                      </Button>
                     </div>
-                    <div className="space-y-2 min-w-0">
+                    <div className="space-y-2 min-w-0 flex-shrink-0">
                       <Input
                         placeholder="Not (ret sebebi vs.)"
                         value={verifyNote[p.id] || ""}
