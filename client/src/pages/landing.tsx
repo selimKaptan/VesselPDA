@@ -186,6 +186,9 @@ export default function Landing() {
             </div>
 
             {/* Mobile: sign up + hamburger */}
+            <a href="/login" className="md:hidden">
+              <Button size="sm" variant="outline" data-testid="button-login-mobile-nav">Log in</Button>
+            </a>
             <a href="/register" className="md:hidden">
               <Button size="sm" data-testid="button-signup-mobile">Sign up</Button>
             </a>
