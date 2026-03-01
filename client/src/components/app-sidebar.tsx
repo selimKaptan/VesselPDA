@@ -92,11 +92,11 @@ export function AppSidebar() {
     toolsNav.push({ title: t("nav.tenders"), url: "/tenders", icon: Gavel, badge: tenderCount });
     toolsNav.push({ title: t("nav.vesselTrack"), url: "/vessel-track", icon: Navigation });
   }
-  if (effectiveRole === "shipowner" || effectiveRole === "agent") {
+  if (effectiveRole === "shipowner" || effectiveRole === "agent" || effectiveRole === "admin") {
     toolsNav.push({ title: "Seferler", url: "/voyages", icon: Ship });
   }
   toolsNav.push({ title: "Hizmet Talepleri", url: "/service-requests", icon: Wrench });
-  if (effectiveRole === "shipowner" || effectiveRole === "agent") {
+  if (effectiveRole === "shipowner" || effectiveRole === "agent" || effectiveRole === "admin") {
     toolsNav.push({ title: "Nominasyonlar", url: "/nominations", icon: UserCheck, badge: pendingNominations });
   }
   toolsNav.push({ title: "Mesajlar", url: "/messages", icon: MessageCircle, badge: unreadMessages });

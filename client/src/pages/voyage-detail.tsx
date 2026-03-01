@@ -124,6 +124,8 @@ export default function VoyageDetail() {
   const [showDocDialog, setShowDocDialog] = useState(false);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [docForm, setDocForm] = useState({ name: "", docType: "other", notes: "", fileBase64: "", fileName: "" });
+  const [isDragOverDropzone, setIsDragOverDropzone] = useState(false);
+  const [isPanelDragOver, setIsPanelDragOver] = useState(false);
   const [reviewForm, setReviewForm] = useState({ rating: 0, comment: "" });
   const [serviceForm, setServiceForm] = useState({
     portId: 0, portName: "", vesselName: "", serviceType: "other",
@@ -307,9 +309,7 @@ export default function VoyageDetail() {
     }
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  function processDroppedFile(file: File) {
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result as string;
@@ -321,6 +321,21 @@ export default function VoyageDetail() {
       }));
     };
     reader.readAsDataURL(file);
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processDroppedFile(file);
+  }
+
+  function handlePanelDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsPanelDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    processDroppedFile(file);
+    setShowDocDialog(true);
   }
 
   function downloadDoc(doc: any) {
@@ -619,7 +634,22 @@ export default function VoyageDetail() {
 
       {/* ── Tab: Dokümanlar ────────────────────────────────────── */}
       {activeTab === "documents" && (
-        <Card className="p-5 space-y-4">
+        <Card
+          className={`p-5 space-y-4 relative transition-all duration-150 ${isPanelDragOver ? "ring-2 ring-[hsl(var(--maritime-primary))] bg-[hsl(var(--maritime-primary)/0.03)]" : ""}`}
+          onDragOver={e => { e.preventDefault(); setIsPanelDragOver(true); }}
+          onDragEnter={e => { e.preventDefault(); setIsPanelDragOver(true); }}
+          onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsPanelDragOver(false); }}
+          onDrop={handlePanelDrop}
+          data-testid="panel-documents"
+        >
+          {isPanelDragOver && (
+            <div className="absolute inset-0 rounded-xl flex items-center justify-center bg-[hsl(var(--maritime-primary)/0.08)] border-2 border-dashed border-[hsl(var(--maritime-primary))] z-10 pointer-events-none">
+              <div className="text-center">
+                <Upload className="w-8 h-8 mx-auto mb-2 text-[hsl(var(--maritime-primary))]" />
+                <p className="text-sm font-semibold text-[hsl(var(--maritime-primary))]">Dosyayı buraya bırakın</p>
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <FolderOpen className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
@@ -660,9 +690,9 @@ export default function VoyageDetail() {
             const filtered = Array.isArray(docs) ? (docFilter === "all" ? docs : docs.filter((d: any) => d.docType === docFilter)) : [];
             return filtered.length === 0 ? (
               <div className="text-center py-10 text-muted-foreground">
-                <FileText className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                <Upload className="w-10 h-10 mx-auto mb-2 opacity-30" />
                 <p className="text-sm font-medium">Henüz doküman yok</p>
-                <p className="text-xs mt-1">Dosyaları "Yükle" butonuyla ekleyin</p>
+                <p className="text-xs mt-1">Dosyaları buraya sürükleyip bırakın veya "Yükle" butonunu kullanın</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -850,19 +880,37 @@ export default function VoyageDetail() {
             <div className="space-y-1.5">
               <Label>Dosya Seç *</Label>
               <div
-                className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-150 ${
+                  isDragOverDropzone
+                    ? "border-[hsl(var(--maritime-primary))] bg-[hsl(var(--maritime-primary)/0.06)]"
+                    : "hover:border-primary/50 hover:bg-muted/30"
+                }`}
                 onClick={() => fileInputRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); setIsDragOverDropzone(true); }}
+                onDragEnter={e => { e.preventDefault(); setIsDragOverDropzone(true); }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOverDropzone(false); }}
+                onDrop={e => {
+                  e.preventDefault();
+                  setIsDragOverDropzone(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) processDroppedFile(file);
+                }}
                 data-testid="doc-dropzone"
               >
                 {docForm.fileName ? (
                   <div className="flex items-center justify-center gap-2 text-sm">
                     <FileText className="w-4 h-4 text-blue-500" />
                     <span className="font-medium">{docForm.fileName}</span>
+                    <button
+                      onClick={e => { e.stopPropagation(); setDocForm(f => ({ ...f, fileBase64: "", fileName: "" })); }}
+                      className="text-muted-foreground hover:text-destructive transition-colors ml-1"
+                    >×</button>
                   </div>
                 ) : (
                   <div className="text-muted-foreground">
-                    <Upload className="w-6 h-6 mx-auto mb-1 opacity-50" />
-                    <p className="text-xs">PDF, PNG, JPG, DOCX — tıklayın</p>
+                    <Upload className={`w-7 h-7 mx-auto mb-2 transition-colors ${isDragOverDropzone ? "text-[hsl(var(--maritime-primary))]" : "opacity-40"}`} />
+                    <p className="text-sm font-medium">{isDragOverDropzone ? "Dosyayı bırakın" : "Sürükleyip bırakın veya tıklayın"}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1">PDF, PNG, JPG, DOCX</p>
                   </div>
                 )}
               </div>
