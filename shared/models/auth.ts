@@ -66,7 +66,29 @@ export const companyProfiles = pgTable("company_profiles", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const companyMembers = pgTable("company_members", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  companyProfileId: integer("company_profile_id").notNull().references(() => companyProfiles.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: varchar("role").notNull().default("member"),
+  invitedByUserId: varchar("invited_by_user_id").references(() => users.id),
+  joinedAt: timestamp("joined_at").defaultNow(),
+});
+
+export const companyInvitations = pgTable("company_invitations", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  companyProfileId: integer("company_profile_id").notNull().references(() => companyProfiles.id, { onDelete: "cascade" }),
+  email: varchar("email").notNull(),
+  token: varchar("token").notNull().unique(),
+  invitedByUserId: varchar("invited_by_user_id").notNull().references(() => users.id),
+  status: varchar("status").notNull().default("pending"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type CompanyProfile = typeof companyProfiles.$inferSelect;
 export type InsertCompanyProfile = typeof companyProfiles.$inferInsert;
+export type CompanyMember = typeof companyMembers.$inferSelect;
+export type CompanyInvitation = typeof companyInvitations.$inferSelect;

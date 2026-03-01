@@ -8,7 +8,13 @@ interface LookupResult {
 }
 
 function getPilotageServiceType(vesselCategory: VesselCategory): string {
-  return vesselCategory === "turkish_cabotage" ? "kabotaj" : "kabotaj_yeni";
+  if (vesselCategory === "turkish_cabotage") return "kabotaj";
+  return "uluslararasi";
+}
+
+function getTugboatServiceType(vesselCategory: VesselCategory): string {
+  if (vesselCategory === "turkish_cabotage") return "romorkör_kabotaj";
+  return "romorkör_uluslararasi";
 }
 
 function getBerthingColumn(vesselCategory: VesselCategory): string {
@@ -54,9 +60,7 @@ export async function lookupTugboatFee(
   isDangerous: boolean
 ): Promise<LookupResult> {
   try {
-    const serviceType = vesselCategory === "turkish_cabotage"
-      ? "romorkör_kabotaj"
-      : "romorkör_kabotaj_yeni";
+    const serviceType = getTugboatServiceType(vesselCategory);
     const result = await pool.query(
       `SELECT base_fee, per_1000_grt FROM pilotage_tariffs
        WHERE port_id = $1 AND service_type = $2 AND vessel_category = 'diger_yuk'

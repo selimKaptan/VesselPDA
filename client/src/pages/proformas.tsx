@@ -15,7 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Link, useLocation } from "wouter";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { PageMeta } from "@/components/page-meta";
 import { useAuth } from "@/hooks/use-auth";
 import type { Proforma, Vessel, Port } from "@shared/schema";
@@ -61,6 +61,19 @@ export default function Proformas() {
   const { data: proformas, isLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"] });
   const { data: vessels } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
   const { data: turkishPorts } = useQuery<Port[]>({ queryKey: ["/api/ports?country=Turkey"], enabled: showQuickDialog });
+
+  const selectedVessel = vessels?.find(v => String(v.id) === quickVesselId);
+  const isTurkishFlagVessel = (() => {
+    const flag = (selectedVessel?.flag || "").toLowerCase().trim();
+    return ["turkey", "turkish", "türk", "türkiye", "tr", "turk"].includes(flag);
+  })();
+
+  useEffect(() => {
+    if (quickVesselId && !isTurkishFlagVessel) {
+      setQuickVoyageType("international");
+    }
+  }, [quickVesselId, isTurkishFlagVessel]);
+
   const { data: myBids, isLoading: bidsLoading } = useQuery<any[]>({
     queryKey: ["/api/tenders/my-bids"],
     enabled: isAgent,
@@ -550,8 +563,9 @@ export default function Proformas() {
               </div>
             </div>
 
-            {/* Sefer Tipi */}
-            <div className="space-y-2">
+            {/* Sefer Tipi - only for Turkish flag vessels */}
+            {isTurkishFlagVessel && (
+            <div className="space-y-2" data-testid="section-voyage-type">
               <Label>Sefer Tipi</Label>
               <div className="grid grid-cols-2 gap-2" data-testid="select-voyage-type">
                 <button
@@ -580,9 +594,10 @@ export default function Proformas() {
                 </button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Kabotaj: Türk limanları arası · Uluslararası: Yabancı/Türk bayrak dışhat seferi
+                Kabotaj: Türk limanları arası · Uluslararası: Türk bayrak dışhat seferi
               </p>
             </div>
+            )}
 
             {/* Row 2: Purpose + Cargo Type */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -37,7 +37,15 @@ export async function seedTariffData() {
       (2,'kabotaj','yolcu_feribot_roro_car_carrier',1001,999999,550.00,325.00,'USD'),
       (2,'kabotaj','diger_yuk',1001,999999,139.00,59.00,'USD'),
       (2,'kabotaj','konteyner',1001,999999,105.00,42.00,'USD'),
-      (2,'kabotaj','diger_tum',1001,999999,179.00,74.00,'USD')
+      (2,'kabotaj','diger_tum',1001,999999,179.00,74.00,'USD'),
+      (2,'uluslararasi','diger_yuk',0,999999,232.00,93.00,'USD'),
+      (2,'uluslararasi','diger_tum',0,999999,133.00,53.00,'USD'),
+      (2,'uluslararasi','konteyner',0,999999,176.00,75.00,'USD'),
+      (2,'uluslararasi','yolcu_feribot_roro_car_carrier',0,999999,696.00,156.00,'USD'),
+      (2,'romorkör_uluslararasi','diger_yuk',0,999999,429.00,81.00,'USD'),
+      (2,'romorkör_uluslararasi','diger_tum',0,999999,442.00,NULL,'USD'),
+      (2,'romorkör_uluslararasi','konteyner',0,999999,81.00,NULL,'USD'),
+      (2,'romorkör_uluslararasi','yolcu_feribot_roro_car_carrier',0,999999,29.00,NULL,'USD')
     `);
 
     // ── External Pilotage Tariffs (İstanbul port_id=2) ────────────────────

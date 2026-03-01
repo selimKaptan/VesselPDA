@@ -9,6 +9,7 @@ import { users, companyProfiles } from "./models/auth";
 export const vessels = pgTable("vessels", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: varchar("user_id").notNull().references(() => users.id),
+  companyProfileId: integer("company_profile_id").references(() => companyProfiles.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   flag: text("flag").notNull(),
   vesselType: text("vessel_type").notNull(),
@@ -70,6 +71,7 @@ export const tariffRateRelations = relations(tariffRates, ({ one }) => ({
 export const proformas = pgTable("proformas", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: varchar("user_id").notNull().references(() => users.id),
+  companyProfileId: integer("company_profile_id").references(() => companyProfiles.id, { onDelete: "set null" }),
   vesselId: integer("vessel_id").notNull().references(() => vessels.id),
   portId: integer("port_id").notNull().references(() => ports.id),
   referenceNumber: text("reference_number").notNull(),
