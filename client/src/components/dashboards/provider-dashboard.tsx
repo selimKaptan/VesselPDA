@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Link } from "wouter";
-import { Building2, ArrowRight, Star, Phone, Mail, Globe, MapPin, Activity, MessageSquare, Crown, ShieldCheck, AlertTriangle, Clock, XCircle, Settings } from "lucide-react";
+import { Building2, ArrowRight, Star, Phone, Mail, Globe, MapPin, Activity, MessageSquare, Crown, ShieldCheck, AlertTriangle, Clock, XCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { CompanyProfile } from "@shared/schema";
+import { VerificationRequestDialog } from "@/components/verification-request-dialog";
 
 
 export function ProviderDashboard({ user, myProfile }: { user: any; myProfile?: CompanyProfile | null }) {
@@ -36,6 +38,7 @@ export function ProviderDashboard({ user, myProfile }: { user: any; myProfile?: 
   const servedPorts = ((myProfile as any).servedPorts as number[]) || [];
   const verificationStatus = (myProfile as any)?.verificationStatus || "unverified";
   const verificationNote = (myProfile as any)?.verificationNote;
+  const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -47,11 +50,9 @@ export function ProviderDashboard({ user, myProfile }: { user: any; myProfile?: 
             <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Şirketiniz henüz doğrulanmamış</p>
             <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Doğrulama talebi göndererek dizinde güven rozeti kazanın ve öne çıkın.</p>
           </div>
-          <Link href="/settings#section-verification">
-            <Button size="sm" variant="outline" className="gap-1.5 text-xs h-7 border-amber-300 text-amber-700 hover:bg-amber-100 flex-shrink-0 dark:border-amber-700 dark:text-amber-300" data-testid="button-go-verify">
-              <Settings className="w-3 h-3" /> Doğrulama Talebi
-            </Button>
-          </Link>
+          <Button size="sm" variant="outline" className="gap-1.5 text-xs h-7 border-amber-300 text-amber-700 hover:bg-amber-100 flex-shrink-0 dark:border-amber-700 dark:text-amber-300" onClick={() => setVerifyDialogOpen(true)} data-testid="button-go-verify">
+            <ShieldCheck className="w-3 h-3" /> Doğrulama Talebi
+          </Button>
         </div>
       )}
       {verificationStatus === "pending" && (
@@ -77,11 +78,9 @@ export function ProviderDashboard({ user, myProfile }: { user: any; myProfile?: 
             {verificationNote && <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">{verificationNote}</p>}
             <p className="text-xs text-muted-foreground mt-0.5">Bilgilerinizi güncelleyerek tekrar başvurabilirsiniz.</p>
           </div>
-          <Link href="/settings#section-verification">
-            <Button size="sm" variant="outline" className="gap-1.5 text-xs h-7 border-red-300 text-red-700 hover:bg-red-100 flex-shrink-0 dark:border-red-700 dark:text-red-300" data-testid="button-retry-verify">
-              <Settings className="w-3 h-3" /> Tekrar Başvur
-            </Button>
-          </Link>
+          <Button size="sm" variant="outline" className="gap-1.5 text-xs h-7 border-red-300 text-red-700 hover:bg-red-100 flex-shrink-0 dark:border-red-700 dark:text-red-300" onClick={() => setVerifyDialogOpen(true)} data-testid="button-retry-verify">
+            <ShieldCheck className="w-3 h-3" /> Tekrar Başvur
+          </Button>
         </div>
       )}
 
@@ -207,6 +206,11 @@ export function ProviderDashboard({ user, myProfile }: { user: any; myProfile?: 
           </Card>
         </div>
       </div>
+
+      <VerificationRequestDialog
+        open={verifyDialogOpen}
+        onOpenChange={setVerifyDialogOpen}
+      />
     </div>
   );
 }
