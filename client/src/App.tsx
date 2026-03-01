@@ -56,7 +56,6 @@ import ResetPasswordPage from "@/pages/reset-password";
 import { NotificationBell } from "@/components/notification-bell";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ThemeProvider, useTheme } from "@/components/theme-provider";
-import { FeedbackWidget } from "@/components/feedback-widget";
 import { useState } from "react";
 
 function DarkModeToggle() {
@@ -261,7 +260,6 @@ function AuthenticatedLayout() {
           </main>
         </div>
       </div>
-      <FeedbackWidget />
       <AiChat />
     </SidebarProvider>
   );
