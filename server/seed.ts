@@ -248,6 +248,24 @@ async function seedTariffs(port: { id: number; name: string }, portMultiplier: n
   ]);
 }
 
+function isValidTurkishPort(name: string): boolean {
+  // Normalize Turkish characters before comparison (İ→i, Ş→s, etc.)
+  const normalized = name
+    .replace(/[İI]/g, "i")
+    .replace(/[Şş]/g, "s")
+    .replace(/[Ğğ]/g, "g")
+    .replace(/[Üü]/g, "u")
+    .replace(/[Öö]/g, "o")
+    .replace(/[Çç]/g, "c")
+    .replace(/[Iı]/g, "i")
+    .toLowerCase();
+  const excluded = [
+    "demir saha", "demirleme saha", "samandira",
+    " boya", "nolu demir", "nolu demirleme",
+  ];
+  return !excluded.some(kw => normalized.includes(kw));
+}
+
 export async function seedDatabase() {
   const existingPorts = await db.select().from(ports);
   if (existingPorts.length > 0) {
@@ -255,7 +273,7 @@ export async function seedDatabase() {
 
     const existingCodes = new Set(existingPorts.map(p => p.code));
     const newPorts = (turkishPorts as Array<{ name: string; code: string; country: string; currency: string }>)
-      .filter(p => !existingCodes.has(p.code));
+      .filter(p => !existingCodes.has(p.code) && isValidTurkishPort(p.name));
 
     if (newPorts.length > 0) {
       console.log(`Adding ${newPorts.length} new Turkish ports...`);
