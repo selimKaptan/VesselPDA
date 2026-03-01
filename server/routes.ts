@@ -10,6 +10,8 @@ import type { ProformaLineItem } from "@shared/schema";
 import { calculateProforma, type CalculationInput } from "./proforma-calculator";
 import { startAISStream, getPositions, searchVessels, isConnected, getCacheSize } from "./ais-stream";
 import { geocodeStats } from "./geocode-ports";
+import { db } from "./db";
+import { sql as drizzleSql } from "drizzle-orm";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "logos");
 if (!fs.existsSync(uploadsDir)) {
@@ -957,6 +959,50 @@ export async function registerRoutes(
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch geocode status" });
+    }
+  });
+
+  app.post("/api/admin/cleanup-ports", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+
+      const badPortPattern = `
+        country = 'Turkey' AND (
+          lower(name) LIKE '%demir saha%'
+          OR lower(name) LIKE '%demirleme saha%'
+          OR lower(name) LIKE '%samandira%'
+          OR name ILIKE '%şamandıra%'
+          OR lower(name) LIKE '%nolu demir%'
+          OR lower(name) LIKE '%nolu demirleme%'
+          OR lower(name) LIKE '% boya%'
+        )
+      `;
+
+      const dupPortPattern = `
+        country = 'Turkey'
+        AND id NOT IN (SELECT MIN(id) FROM ports WHERE country = 'Turkey' GROUP BY code)
+        AND code IN (SELECT code FROM ports WHERE country = 'Turkey' GROUP BY code HAVING COUNT(*) > 1)
+      `;
+
+      const r1 = await db.execute(drizzleSql.raw(`DELETE FROM tariff_rates WHERE category_id IN (SELECT tc.id FROM tariff_categories tc JOIN ports p ON tc.port_id = p.id WHERE ${badPortPattern} OR ${dupPortPattern})`));
+      const r2 = await db.execute(drizzleSql.raw(`DELETE FROM tariff_categories WHERE port_id IN (SELECT id FROM ports WHERE ${badPortPattern} OR ${dupPortPattern})`));
+      const r3 = await db.execute(drizzleSql.raw(`DELETE FROM ports WHERE ${badPortPattern}`));
+      const r4 = await db.execute(drizzleSql.raw(`DELETE FROM ports WHERE ${dupPortPattern}`));
+
+      const countResult = await db.execute(drizzleSql.raw(`SELECT COUNT(*) AS remaining FROM ports WHERE country = 'Turkey'`));
+      const remaining = (countResult.rows[0] as any)?.remaining ?? "?";
+
+      res.json({
+        message: "Cleanup complete",
+        deletedRates: (r1 as any).rowCount ?? 0,
+        deletedCategories: (r2 as any).rowCount ?? 0,
+        deletedBadPorts: (r3 as any).rowCount ?? 0,
+        deletedDupPorts: (r4 as any).rowCount ?? 0,
+        remainingTurkishPorts: remaining,
+      });
+    } catch (error: any) {
+      console.error("Cleanup error:", error);
+      res.status(500).json({ message: "Cleanup failed", error: error.message });
     }
   });
 

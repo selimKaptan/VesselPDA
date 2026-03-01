@@ -170,6 +170,10 @@ app.use((req, res, next) => {
         seedPortCoordinates().catch((err: Error) => console.error("Port coords seed error:", err));
       });
 
+      import("./cleanup-ports").then(({ cleanupInvalidPorts }) => {
+        cleanupInvalidPorts().catch((err: Error) => console.error("Cleanup error:", err));
+      });
+
       import("./geocode-ports").then(({ geocodeMissingPorts }) => {
         setTimeout(() => {
           geocodeMissingPorts().catch((err: Error) => console.error("Geocode error:", err));
