@@ -1,0 +1,169 @@
+Lütfen bu sistemi baştan sona analiz et ve aşağıdaki adımları 
+sırasıyla uygula:
+
+## ADIM 1 — SİSTEMİ ANALİZ ET
+
+Önce tüm sayfaları, menüleri, componentleri ve veritabanı 
+yapısını incele. Analiz sırasında şunları değerlendir:
+
+- Menü yapısı mantıklı mı? Hangi özellik hangi menüde olmalı?
+- Eksik sayfalar veya özellikler var mı?
+- Yanlış yerde duran bir özellik var mı?
+- Kullanıcı akışı (user flow) mantıklı mı?
+- Kod tekrarı veya gereksiz karmaşıklık var mı?
+- Mobil uyumluluk sorunları var mı?
+
+Analiz sonucunda bana şunu söyle:
+"Şu özellikleri şuraya taşıdım, şunu ekledim, şunu düzelttim"
+diye açıkla, sonra düzeltmeleri yap.
+
+---
+
+## ADIM 2 — YAPI VE ARAYÜZ DÜZELTMELERINI YAP
+
+Analiz sonuçlarına göre şunları düzelt:
+
+- Menüleri yeniden organize et
+- Eksik sayfaları oluştur
+- Yanlış yerdeki özellikleri doğru yere taşı
+- Tutarsız tasarım varsa düzelt
+- Boş kalan sayfaları içerikle doldur
+
+---
+
+## ADIM 3 — ADMİN PANELİNİ EN İYİ HALİNE GETİR
+
+Admin panelini baştan tasarla ve şu özelliklerin hepsinin 
+çalışır durumda olduğundan emin ol:
+
+### 📊 Dashboard:
+- Toplam kullanıcı sayısı (role göre ayrılmış: 
+  armatör / acente / hizmet sağlayıcı)
+- Aktif sefer sayısı
+- Bugün yapılan işlem sayısı
+- Bekleyen onay sayısı
+- Sistem sağlığı göstergesi
+- Son aktiviteler akışı (son 10 işlem)
+
+### 👥 Kullanıcı Yönetimi:
+- Tüm kullanıcıları listele (filtrele, ara, sırala)
+- Kullanıcı detayını görüntüle
+- Kullanıcıyı aktif/pasif yap
+- Kullanıcı rolünü değiştir
+- Kullanıcıyı sil
+- Yeni kullanıcı manuel ekle
+- Kullanıcının tüm aktivitelerini gör
+
+### ✅ Onay Yönetimi:
+- Yeni kayıt olan şirketlerin onay kuyruğu
+- Şirket belgelerini görüntüle ve onayla/reddet
+- Onay geçmişi
+
+### 🚢 İçerik Yönetimi:
+- Tüm gemileri listele ve yönet
+- Tüm seferleri listele ve yönet
+- Tüm hizmet taleplerini görüntüle
+- Tüm dokümanları görüntüle
+
+### 💰 Finansal Takip:
+- Platform genelinde işlem hacmi
+- Abonelik ve ödeme durumları
+- Gecikmiş ödemeler
+
+### 📢 Duyuru & Bildirim Sistemi:
+- Tüm kullanıcılara veya belirli rollere 
+  duyuru/bildirim gönder
+- Duyuru geçmişi
+
+### ⚙️ Sistem Ayarları:
+- Platform genel ayarları
+- Email şablonları
+- API key yönetimi
+- Sistem logları
+
+### 📈 Raporlar & Analitik:
+- Kullanıcı büyüme grafiği (aylık)
+- En aktif kullanıcılar
+- En çok kullanılan özellikler
+- Liman bazlı işlem yoğunluğu
+
+Admin panelinde tüm bu sayfalar çalışır olmalı, 
+gerçek verilerle dolu olmalı, boş sayfa kalmamalı.
+
+---
+
+## ADIM 4 — SİSTEMİ TEST ET (4 FARKLI ROL İÇİN)
+
+Her rol için ayrı ayrı test yap:
+
+### 🚢 ARMATÖR ROLÜ İLE TEST:
+- Kayıt ol ve giriş yap
+- Gemi ekle, düzenle, sil
+- Sefer oluştur
+- Acente ara ve seç
+- Hizmet talebi oluştur
+- Doküman yükle
+- Fatura görüntüle
+- Tüm menü sayfalarını ziyaret et
+- Her butonun çalıştığını kontrol et
+
+### 🤝 ACENTE ROLÜ İLE TEST:
+- Kayıt ol ve giriş yap
+- Gelen gemi operasyonunu gör
+- Görev listesi oluştur
+- Hizmet talebi al ve yönet
+- Disbursement Account (DA) oluştur
+- Doküman yükle ve gönder
+- Chat ile armatöre mesaj at
+- Tüm menü sayfalarını ziyaret et
+- Her butonun çalıştığını kontrol et
+
+### 🔧 HİZMET SAĞLAYICI ROLÜ İLE TEST:
+- Kayıt ol ve giriş yap
+- Gelen talepleri gör
+- Teklif oluştur ve gönder
+- Kabul edilen teklifi yönet
+- Takvimi görüntüle
+- Fatura kes
+- Tüm menü sayfalarını ziyaret et
+- Her butonun çalıştığını kontrol et
+
+### 🔐 ADMİN ROLÜ İLE TEST:
+- Admin hesabıyla giriş yap
+- Dashboard verilerinin doğru göründüğünü kontrol et
+- Kullanıcı ekle, düzenle, pasif yap
+- Bir şirketi onayla, birini reddet
+- Tüm kullanıcılara test duyurusu gönder
+- Raporları görüntüle
+- Sistem ayarlarını kontrol et
+- Tüm admin menü sayfalarını ziyaret et
+- Her butonun çalıştığını kontrol et
+
+---
+
+## ADIM 5 — BULUNAN HATALARI DÜZELT
+
+Testler sırasında bulduğun tüm hataları listele:
+- Çalışmayan butonlar
+- Hata veren formlar
+- Yanlış yönlendirmeler
+- Eksik validasyonlar
+- Broken linkler
+- Console hataları
+- Boş kalan sayfalar
+
+Listeledikten sonra hepsini tek tek düzelt.
+
+---
+
+## ADIM 6 — SONUÇ RAPORU
+
+Her şey bittikten sonra bana şu raporu ver:
+
+✅ Yapılan değişiklikler listesi
+🔧 Düzeltilen hatalar listesi
+⚠️ Düzeltemediğin veya dikkat etmemi gereken konular
+💡 Sistemi daha iyi yapacak ek öneriler
+🔐 Admin paneli için oluşturulan test hesap bilgileri
+
+Hazır olduğunda başla.
