@@ -323,7 +323,7 @@ export function getCargoCategory(cargoType?: string): "bulk_dry" | "general" | "
 }
 
 function calcSupervision(input: CalculationInput): number {
-  const { cargoQuantity, cargoType, isDangerousCargo, eurUsdParity } = input;
+  const { cargoQuantity, cargoType, eurUsdParity } = input;
   if (cargoQuantity <= 0) return 0;
 
   const category = getCargoCategory(cargoType);
@@ -353,8 +353,6 @@ function calcSupervision(input: CalculationInput): number {
       amountUsd = cargoQuantity * 0.20 * eurUsdParity;
       break;
   }
-
-  if (isDangerousCargo) amountUsd *= 1.25;
 
   return Math.round(amountUsd * 100) / 100;
 }

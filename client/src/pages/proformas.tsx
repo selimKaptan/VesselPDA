@@ -47,6 +47,8 @@ export default function Proformas() {
   const [quickCargoUnit, setQuickCargoUnit] = useState<string>("MT");
   const [quickDangerous, setQuickDangerous] = useState<boolean>(false);
   const [quickVoyageType, setQuickVoyageType] = useState<string>("international");
+  const [quickVesselOpen, setQuickVesselOpen] = useState(false);
+  const [quickVesselSearch, setQuickVesselSearch] = useState("");
 
   const CARGO_TYPE_OPTIONS = [
     { value: "bulk_dry", label: "🌾 Dökme Kuru Yük", unit: "MT", examples: "Tahıl, kömür, cevher, gübre, hurda, çimento" },
@@ -502,7 +504,7 @@ export default function Proformas() {
           <Button
             variant="outline"
             className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/30"
-            onClick={() => { setShowQuickDialog(true); setQuickResult(null); setQuickVesselId(""); setQuickPortId(""); setQuickPortSearch(""); setQuickDays(3); setQuickPurpose("Discharging"); setQuickCargoType("bulk_dry"); setQuickCargoQty("5000"); setQuickCargoUnit("MT"); setQuickDangerous(false); setQuickVoyageType("international"); }}
+            onClick={() => { setShowQuickDialog(true); setQuickResult(null); setQuickVesselId(""); setQuickVesselSearch(""); setQuickVesselOpen(false); setQuickPortId(""); setQuickPortSearch(""); setQuickDays(3); setQuickPurpose("Discharging"); setQuickCargoType("bulk_dry"); setQuickCargoQty("5000"); setQuickCargoUnit("MT"); setQuickDangerous(false); setQuickVoyageType("international"); }}
             data-testid="button-quick-proforma"
           >
             <Zap className="w-4 h-4" /> Anlık Proforma Al
@@ -533,20 +535,61 @@ export default function Proformas() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Gemi Seç</Label>
-                <Select value={quickVesselId} onValueChange={setQuickVesselId} data-testid="select-vessel-quick">
-                  <SelectTrigger data-testid="trigger-vessel-quick">
-                    <SelectValue placeholder="Gemi seçin..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(vessels || []).map((v) => (
-                      <SelectItem key={v.id} value={String(v.id)} data-testid={`option-quick-vessel-${v.id}`}>
-                        <span className="flex items-center gap-2">
-                          <Ship className="w-3 h-3" /> {v.name} ({v.flag})
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={quickVesselOpen} onOpenChange={setQuickVesselOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-start font-normal"
+                      data-testid="trigger-vessel-quick"
+                    >
+                      <Ship className="w-4 h-4 mr-2 text-muted-foreground flex-shrink-0" />
+                      <span className="truncate">
+                        {quickVesselId && vessels
+                          ? (vessels.find(v => String(v.id) === quickVesselId)?.name || "Gemi seçin...")
+                          : "Gemi adı veya IMO ile ara..."}
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[320px] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder="Gemi adı veya IMO numarası..."
+                        value={quickVesselSearch}
+                        onValueChange={setQuickVesselSearch}
+                        data-testid="input-vessel-quick"
+                      />
+                      <CommandList>
+                        <CommandEmpty>Gemi bulunamadı.</CommandEmpty>
+                        <CommandGroup>
+                          {(vessels || [])
+                            .filter(v => {
+                              const q = quickVesselSearch.toLowerCase();
+                              return !q || v.name.toLowerCase().includes(q) || (v.imoNumber || "").toLowerCase().includes(q);
+                            })
+                            .map((v) => (
+                              <CommandItem
+                                key={v.id}
+                                value={String(v.id)}
+                                onSelect={() => {
+                                  setQuickVesselId(String(v.id));
+                                  setQuickVesselSearch("");
+                                  setQuickVesselOpen(false);
+                                }}
+                                data-testid={`option-quick-vessel-${v.id}`}
+                              >
+                                <Ship className="w-3 h-3 mr-2 text-muted-foreground flex-shrink-0" />
+                                <span className="flex-1 font-medium">{v.name}</span>
+                                <span className="text-xs text-muted-foreground ml-2">
+                                  {v.flag}{v.imoNumber ? ` · IMO ${v.imoNumber}` : ""}
+                                </span>
+                              </CommandItem>
+                            ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div className="space-y-2">
@@ -687,7 +730,7 @@ export default function Proformas() {
                   />
                   <div>
                     <div className="text-sm font-medium">IMDG Tehlikeli Yük</div>
-                    <div className="text-xs text-muted-foreground">Ek %25 gözetim ücreti uygulanır</div>
+                    <div className="text-xs text-muted-foreground">Kılavuzluk, Römorkör ve Palamar'a %30 zamlanır</div>
                   </div>
                 </label>
               </div>
@@ -773,7 +816,7 @@ export default function Proformas() {
                   </Badge>
                   {quickDangerous && (
                     <Badge className="text-[10px] bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-0">
-                      ⚠️ Tehlikeli Madde +%25
+                      ⚠️ Tehlikeli Madde +%30
                     </Badge>
                   )}
                 </div>
