@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Bell, MessageSquare, Anchor, Trophy, CheckCheck, X } from "lucide-react";
+import { Bell, MessageSquare, Anchor, Trophy, CheckCheck, X, Clock, AlertTriangle, Package, DollarSign, MapPin } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { formatDistanceToNow } from "date-fns";
@@ -17,9 +17,14 @@ type Notification = {
 
 function NotificationIcon({ type }: { type: string }) {
   if (type === "forum_reply") return <MessageSquare className="w-4 h-4 text-blue-500" />;
-  if (type === "bid_received") return <Anchor className="w-4 h-4 text-maritime-gold" />;
+  if (type === "bid_received") return <Anchor className="w-4 h-4 text-amber-500" />;
   if (type === "bid_selected") return <Trophy className="w-4 h-4 text-green-500" />;
   if (type === "nomination") return <Trophy className="w-4 h-4 text-emerald-500" />;
+  if (type === "eta_change") return <Clock className="w-4 h-4 text-blue-400" />;
+  if (type === "cert_expiry") return <AlertTriangle className="w-4 h-4 text-amber-500" />;
+  if (type === "cargo_match") return <Package className="w-4 h-4 text-violet-500" />;
+  if (type === "invoice_overdue") return <DollarSign className="w-4 h-4 text-red-500" />;
+  if (type === "port_alert") return <MapPin className="w-4 h-4 text-orange-500" />;
   return <Bell className="w-4 h-4 text-muted-foreground" />;
 }
 

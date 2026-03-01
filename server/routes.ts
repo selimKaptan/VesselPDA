@@ -2432,6 +2432,63 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/voyages/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const id = parseInt(req.params.id);
+      const existing = await storage.getVoyageById(id);
+      if (!existing) return res.status(404).json({ message: "Voyage not found" });
+      if (existing.userId !== userId && existing.agentUserId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const { eta, etd, notes, purposeOfCall, vesselName, imoNumber, mmsi, status } = req.body;
+      const updateData: any = {};
+      if (eta !== undefined) updateData.eta = eta ? new Date(eta) : null;
+      if (etd !== undefined) updateData.etd = etd ? new Date(etd) : null;
+      if (notes !== undefined) updateData.notes = notes;
+      if (purposeOfCall !== undefined) updateData.purposeOfCall = purposeOfCall;
+      if (vesselName !== undefined) updateData.vesselName = vesselName;
+      if (imoNumber !== undefined) updateData.imoNumber = imoNumber;
+      if (mmsi !== undefined) updateData.mmsi = mmsi;
+      if (status !== undefined) updateData.status = status;
+
+      const oldEtaStr = existing.eta ? new Date(existing.eta).toISOString().slice(0, 10) : null;
+      const newEtaStr = updateData.eta ? new Date(updateData.eta).toISOString().slice(0, 10) : null;
+      const etaChanged = oldEtaStr !== newEtaStr;
+
+      const updated = await storage.updateVoyage(id, updateData);
+
+      if (etaChanged && existing.agentUserId && existing.agentUserId !== userId) {
+        const oldEtaFmt = existing.eta ? new Date(existing.eta).toLocaleDateString("tr-TR") : "belirtilmemiş";
+        const newEtaFmt = updateData.eta ? new Date(updateData.eta).toLocaleDateString("tr-TR") : "iptal edildi";
+        await storage.createNotification({
+          userId: existing.agentUserId,
+          type: "eta_change",
+          title: "ETA Güncellendi",
+          message: `Sefer #${id} ETA değişti: ${oldEtaFmt} → ${newEtaFmt}`,
+          link: `/voyages/${id}`,
+        });
+      }
+      if (etaChanged && existing.userId && existing.userId !== userId) {
+        const oldEtaFmt = existing.eta ? new Date(existing.eta).toLocaleDateString("tr-TR") : "belirtilmemiş";
+        const newEtaFmt = updateData.eta ? new Date(updateData.eta).toLocaleDateString("tr-TR") : "iptal edildi";
+        await storage.createNotification({
+          userId: existing.userId,
+          type: "eta_change",
+          title: "ETA Güncellendi",
+          message: `Sefer #${id} ETA değişti: ${oldEtaFmt} → ${newEtaFmt}`,
+          link: `/voyages/${id}`,
+        });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      console.error("updateVoyage error:", error);
+      res.status(500).json({ message: "Failed to update voyage" });
+    }
+  });
+
   app.patch("/api/voyages/:id/status", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -3173,8 +3230,25 @@ export async function registerRoutes(
 
   app.post("/api/cargo-positions", isAuthenticated, async (req: any, res) => {
     try {
-      const pos = await storage.createCargoPosition({ ...req.body, userId: req.user.claims.sub });
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const pos = await storage.createCargoPosition({ ...req.body, userId });
       res.status(201).json(pos);
+
+      if (pos.positionType === "cargo") {
+        const allVessels = await storage.getAllVessels();
+        const notifiedOwners = new Set<string>();
+        for (const vessel of allVessels) {
+          if (!vessel.userId || notifiedOwners.has(vessel.userId) || vessel.userId === userId) continue;
+          notifiedOwners.add(vessel.userId);
+          await storage.createNotification({
+            userId: vessel.userId,
+            type: "cargo_match",
+            title: "Yeni Kargo İlanı",
+            message: `${pos.cargoType || "Kargo"} ilanı: ${pos.loadingPort} → ${pos.dischargePort}`,
+            link: "/cargo-positions",
+          });
+        }
+      }
     } catch {
       res.status(500).json({ message: "Failed to create cargo position" });
     }
@@ -3323,6 +3397,236 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch {
       res.status(500).json({ message: "Failed to delete bunker price" });
+    }
+  });
+
+  // ─── DOCUMENT TEMPLATES ─────────────────────────────────────────────────────
+
+  app.get("/api/document-templates", isAuthenticated, async (_req, res) => {
+    try {
+      const templates = await storage.getDocumentTemplates();
+      res.json(templates);
+    } catch {
+      res.status(500).json({ message: "Failed to get templates" });
+    }
+  });
+
+  app.post("/api/voyages/:id/documents/from-template", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const voyageId = parseInt(req.params.id);
+      const { templateId } = req.body;
+      if (!templateId) return res.status(400).json({ message: "templateId required" });
+
+      const voyage = await storage.getVoyageById(voyageId);
+      if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+
+      const templates = await storage.getDocumentTemplates();
+      const template = templates.find((t: any) => t.id === templateId);
+      if (!template) return res.status(404).json({ message: "Template not found" });
+
+      const port = voyage.port || { name: "N/A" };
+      const portName = typeof port === "object" ? (port.name || "N/A") : String(port);
+      const formatDate = (d?: string | Date | null) => d ? new Date(d).toLocaleDateString("tr-TR") : "N/A";
+
+      let content = template.content
+        .replace(/\{\{vesselName\}\}/g, voyage.vesselName || "N/A")
+        .replace(/\{\{imoNumber\}\}/g, voyage.imoNumber || "N/A")
+        .replace(/\{\{port\}\}/g, portName)
+        .replace(/\{\{grt\}\}/g, voyage.grt ? String(voyage.grt) : "N/A")
+        .replace(/\{\{eta\}\}/g, formatDate(voyage.eta))
+        .replace(/\{\{etd\}\}/g, formatDate(voyage.etd))
+        .replace(/\{\{date\}\}/g, new Date().toLocaleDateString("tr-TR"))
+        .replace(/\{\{purposeOfCall\}\}/g, voyage.purposeOfCall || "N/A");
+
+      const fileBase64 = Buffer.from(content).toString("base64");
+      const doc = await storage.createVoyageDocument({
+        voyageId,
+        name: `${template.name} - ${voyage.vesselName || "Gemi"}`,
+        docType: template.category.toLowerCase(),
+        fileBase64: `data:text/html;base64,${fileBase64}`,
+        notes: "Şablondan otomatik oluşturuldu",
+        uploadedByUserId: userId,
+        version: 1,
+        templateId: template.id,
+      });
+      res.status(201).json(doc);
+    } catch (err) {
+      console.error("from-template error:", err);
+      res.status(500).json({ message: "Failed to create document from template" });
+    }
+  });
+
+  app.post("/api/voyages/:id/documents/:docId/sign", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const voyageId = parseInt(req.params.id);
+      const docId = parseInt(req.params.docId);
+      const { signatureText } = req.body;
+      if (!signatureText) return res.status(400).json({ message: "signatureText required" });
+
+      const voyage = await storage.getVoyageById(voyageId);
+      if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+      if (voyage.userId !== userId && voyage.agentUserId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      await storage.signVoyageDocument(docId, signatureText, new Date());
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to sign document" });
+    }
+  });
+
+  app.post("/api/voyages/:id/documents/:docId/new-version", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const voyageId = parseInt(req.params.id);
+      const docId = parseInt(req.params.docId);
+      const { name, fileBase64, notes } = req.body;
+      if (!fileBase64) return res.status(400).json({ message: "fileBase64 required" });
+
+      const docs = await storage.getVoyageDocuments(voyageId);
+      const parentDoc = docs.find((d: any) => d.id === docId);
+      if (!parentDoc) return res.status(404).json({ message: "Document not found" });
+
+      const newDoc = await storage.createNewDocumentVersion(parentDoc, { name: name || parentDoc.name, fileBase64, notes, uploadedByUserId: userId });
+      res.status(201).json(newDoc);
+    } catch {
+      res.status(500).json({ message: "Failed to create new version" });
+    }
+  });
+
+  // ─── INVOICES ────────────────────────────────────────────────────────────────
+
+  app.get("/api/invoices", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const items = await storage.getInvoicesByUser(userId);
+      res.json(items);
+    } catch {
+      res.status(500).json({ message: "Failed to get invoices" });
+    }
+  });
+
+  app.post("/api/invoices", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { title, amount, currency, dueDate, notes, invoiceType, voyageId, proformaId, linkedProformaId } = req.body;
+      if (!title || !amount) return res.status(400).json({ message: "title and amount required" });
+
+      const invoice = await storage.createInvoice({
+        createdByUserId: userId,
+        title,
+        amount: parseFloat(amount),
+        currency: currency || "USD",
+        dueDate: dueDate ? new Date(dueDate) : null,
+        notes: notes || null,
+        invoiceType: invoiceType || "invoice",
+        voyageId: voyageId ? parseInt(voyageId) : null,
+        proformaId: proformaId ? parseInt(proformaId) : null,
+        linkedProformaId: linkedProformaId ? parseInt(linkedProformaId) : null,
+      });
+      res.status(201).json(invoice);
+    } catch {
+      res.status(500).json({ message: "Failed to create invoice" });
+    }
+  });
+
+  app.patch("/api/invoices/:id/pay", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { paidAt } = req.body;
+      await storage.updateInvoiceStatus(id, "paid", paidAt ? new Date(paidAt) : new Date());
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to mark invoice paid" });
+    }
+  });
+
+  app.patch("/api/invoices/:id/cancel", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.updateInvoiceStatus(id, "cancelled");
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to cancel invoice" });
+    }
+  });
+
+  // ─── PORT ALERTS ─────────────────────────────────────────────────────────────
+
+  app.get("/api/port-alerts", async (req, res) => {
+    try {
+      const portId = req.query.portId ? parseInt(req.query.portId as string) : undefined;
+      const portName = req.query.portName as string | undefined;
+      const alerts = await storage.getPortAlerts(portId, portName);
+      res.json(alerts);
+    } catch {
+      res.status(500).json({ message: "Failed to get port alerts" });
+    }
+  });
+
+  app.get("/api/admin/port-alerts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const user = await storage.getUser(userId);
+      if (user?.userRole !== "admin") return res.status(403).json({ message: "Admin only" });
+      const alerts = await storage.getAllPortAlerts();
+      res.json(alerts);
+    } catch {
+      res.status(500).json({ message: "Failed to get all port alerts" });
+    }
+  });
+
+  app.post("/api/port-alerts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const user = await storage.getUser(userId);
+      if (user?.userRole !== "admin") return res.status(403).json({ message: "Admin only" });
+      const { portId, portName, alertType, severity, title, message, isActive, startsAt, endsAt } = req.body;
+      if (!portName || !title || !message) return res.status(400).json({ message: "portName, title, message required" });
+
+      const alert = await storage.createPortAlert({
+        portId: portId ? parseInt(portId) : null,
+        portName,
+        alertType: alertType || "other",
+        severity: severity || "info",
+        title,
+        message,
+        isActive: isActive !== false,
+        startsAt: startsAt ? new Date(startsAt) : null,
+        endsAt: endsAt ? new Date(endsAt) : null,
+        createdByUserId: userId,
+      });
+      res.status(201).json(alert);
+    } catch {
+      res.status(500).json({ message: "Failed to create port alert" });
+    }
+  });
+
+  app.patch("/api/port-alerts/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const user = await storage.getUser(userId);
+      if (user?.userRole !== "admin") return res.status(403).json({ message: "Admin only" });
+      const id = parseInt(req.params.id);
+      await storage.updatePortAlert(id, req.body);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to update port alert" });
+    }
+  });
+
+  app.delete("/api/port-alerts/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const user = await storage.getUser(userId);
+      if (user?.userRole !== "admin") return res.status(403).json({ message: "Admin only" });
+      const id = parseInt(req.params.id);
+      await storage.deletePortAlert(id);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to delete port alert" });
     }
   });
 

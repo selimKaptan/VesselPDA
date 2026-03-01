@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink } from "lucide-react";
+import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +60,26 @@ export default function Proformas() {
     onError: () => {
       toast({ title: "Failed to duplicate", variant: "destructive" });
     },
+  });
+
+  const finalDaMutation = useMutation({
+    mutationFn: async (pda: Proforma) => {
+      const res = await apiRequest("POST", "/api/invoices", {
+        title: `${pda.referenceNumber} Final DA`,
+        invoiceType: "final_da",
+        amount: (pda as any).totalUsd || 0,
+        currency: "USD",
+        linkedProformaId: pda.id,
+        notes: `Proforma DA ${pda.referenceNumber} üzerinden otomatik oluşturuldu.`,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      toast({ title: "Final DA oluşturuldu", description: "Finansal Akış sayfasına yönlendiriliyorsunuz" });
+      navigate("/invoices");
+    },
+    onError: () => toast({ title: "Hata", description: "Final DA oluşturulamadı", variant: "destructive" }),
   });
 
   const filteredProformas = (proformas || []).filter((p) => {
@@ -193,6 +213,17 @@ export default function Proformas() {
                         data-testid={`button-duplicate-proforma-${pda.id}`}
                       >
                         <Copy className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => finalDaMutation.mutate(pda)}
+                        disabled={finalDaMutation.isPending}
+                        title="Final DA Oluştur"
+                        data-testid={`button-final-da-${pda.id}`}
+                        className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
+                      >
+                        <DollarSign className="w-4 h-4" />
                       </Button>
                       <Button
                         size="icon"

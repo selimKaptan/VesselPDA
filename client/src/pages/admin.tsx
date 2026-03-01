@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock, Ban, UserCheck, MessageSquarePlus, Bug, Lightbulb, MessageCircle, MailCheck, ShieldCheck, ShieldX, Fuel, Plus, Edit2, Trash2, Loader2 } from "lucide-react";
+import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock, Ban, UserCheck, MessageSquarePlus, Bug, Lightbulb, MessageCircle, MailCheck, ShieldCheck, ShieldX, Fuel, Plus, Edit2, Trash2, Loader2, MapPin, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -64,8 +64,13 @@ export default function AdminPanel() {
   const { data: allFeedbacks, isLoading: feedbacksLoading } = useQuery<any[]>({ queryKey: ["/api/admin/feedback"] });
   const { data: pendingVerifications, isLoading: verificationsLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/admin/pending-verifications"] });
   const { data: bunkerPricesList = [], isLoading: bunkerLoading } = useQuery<any[]>({ queryKey: ["/api/market/bunker-prices"] });
+  const { data: portAlerts = [], isLoading: portAlertsLoading } = useQuery<any[]>({ queryKey: ["/api/port-alerts"] });
 
   const [bunkerDialog, setBunkerDialog] = useState(false);
+  const [alertDialog, setAlertDialog] = useState(false);
+  const [editAlert, setEditAlert] = useState<any | null>(null);
+  const [alertForm, setAlertForm] = useState({ portName: "", alertType: "weather", severity: "info", title: "", message: "", startsAt: "", endsAt: "", isActive: true });
+  const [deleteAlertTarget, setDeleteAlertTarget] = useState<number | null>(null);
   const [editBunker, setEditBunker] = useState<any | null>(null);
   const [bunkerForm, setBunkerForm] = useState({ portName: "", portCode: "", region: "TR", ifo380: "", vlsfo: "", mgo: "" });
   const [deleteBunkerTarget, setDeleteBunkerTarget] = useState<number | null>(null);
@@ -97,6 +102,30 @@ export default function AdminPanel() {
   const deleteBunkerMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/admin/bunker-prices/${id}`, undefined),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/market/bunker-prices"] }); toast({ title: "Silindi" }); setDeleteBunkerTarget(null); },
+  });
+
+  const ALERT_TYPE_LABELS: Record<string, string> = { strike: "Grev", closure: "Kapanış", weather: "Hava", restricted: "Kısıtlı", other: "Diğer" };
+  const SEVERITY_CONFIG: Record<string, { label: string; color: string }> = {
+    info: { label: "Bilgi", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+    warning: { label: "Uyarı", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+    danger: { label: "Tehlike", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  };
+
+  const addAlertMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/port-alerts", { ...alertForm, startsAt: alertForm.startsAt || null, endsAt: alertForm.endsAt || null }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/port-alerts"] }); toast({ title: "Uyarı eklendi" }); setAlertDialog(false); setAlertForm({ portName: "", alertType: "weather", severity: "info", title: "", message: "", startsAt: "", endsAt: "", isActive: true }); setEditAlert(null); },
+    onError: () => toast({ title: "Hata", variant: "destructive" }),
+  });
+
+  const editAlertMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("PATCH", `/api/port-alerts/${id}`, { ...alertForm, startsAt: alertForm.startsAt || null, endsAt: alertForm.endsAt || null }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/port-alerts"] }); toast({ title: "Güncellendi" }); setAlertDialog(false); setEditAlert(null); },
+    onError: () => toast({ title: "Hata", variant: "destructive" }),
+  });
+
+  const deleteAlertMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/port-alerts/${id}`, undefined),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/port-alerts"] }); toast({ title: "Silindi" }); setDeleteAlertTarget(null); },
   });
 
   const verifyMutation = useMutation({
@@ -302,6 +331,7 @@ export default function AdminPanel() {
           <TabsTrigger value="bunker" data-testid="tab-bunker-prices">
             <Fuel className="w-3.5 h-3.5 mr-1.5" />Bunker ({bunkerPricesList.length})
           </TabsTrigger>
+          <TabsTrigger value="port-alerts" data-testid="tab-port-alerts">Liman Uyarıları</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
@@ -976,7 +1006,150 @@ export default function AdminPanel() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="port-alerts" className="space-y-4">
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                <h3 className="font-semibold text-sm">Liman Uyarıları</h3>
+                <span className="text-xs text-muted-foreground">({portAlerts.length})</span>
+              </div>
+              <Button size="sm" onClick={() => { setEditAlert(null); setAlertForm({ portName: "", alertType: "weather", severity: "info", title: "", message: "", startsAt: "", endsAt: "", isActive: true }); setAlertDialog(true); }} data-testid="button-new-alert">
+                <Plus className="w-4 h-4 mr-1.5" /> Yeni Uyarı
+              </Button>
+            </div>
+            {portAlertsLoading ? (
+              <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
+            ) : portAlerts.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <MapPin className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">Henüz liman uyarısı yok</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b text-xs text-muted-foreground">
+                    <th className="text-left py-2 font-medium">Liman</th>
+                    <th className="text-left py-2 font-medium">Tip</th>
+                    <th className="text-left py-2 font-medium">Önem</th>
+                    <th className="text-left py-2 font-medium">Başlık</th>
+                    <th className="text-left py-2 font-medium">Durum</th>
+                    <th className="py-2" />
+                  </tr></thead>
+                  <tbody>
+                    {portAlerts.map((alert: any) => (
+                      <tr key={alert.id} className="border-b border-border/50 hover:bg-muted/30" data-testid={`alert-row-${alert.id}`}>
+                        <td className="py-2.5 font-medium">{alert.portName || `Port #${alert.portId}`}</td>
+                        <td className="py-2.5 text-muted-foreground">{ALERT_TYPE_LABELS[alert.alertType] || alert.alertType}</td>
+                        <td className="py-2.5">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${SEVERITY_CONFIG[alert.severity]?.color || ""}`}>
+                            {SEVERITY_CONFIG[alert.severity]?.label || alert.severity}
+                          </span>
+                        </td>
+                        <td className="py-2.5 truncate max-w-xs">{alert.title}</td>
+                        <td className="py-2.5">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${alert.isActive ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-muted text-muted-foreground"}`}>
+                            {alert.isActive ? "Aktif" : "Pasif"}
+                          </span>
+                        </td>
+                        <td className="py-2.5">
+                          <div className="flex items-center gap-1 justify-end">
+                            <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => { setEditAlert(alert); setAlertForm({ portName: alert.portName || "", alertType: alert.alertType, severity: alert.severity, title: alert.title, message: alert.message, startsAt: alert.startsAt ? new Date(alert.startsAt).toISOString().slice(0,16) : "", endsAt: alert.endsAt ? new Date(alert.endsAt).toISOString().slice(0,16) : "", isActive: alert.isActive }); setAlertDialog(true); }} data-testid={`button-edit-alert-${alert.id}`}><Edit2 className="w-3.5 h-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="w-7 h-7 text-destructive hover:text-destructive" onClick={() => setDeleteAlertTarget(alert.id)} data-testid={`button-delete-alert-${alert.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </TabsContent>
+
       </Tabs>
+
+      {/* Port Alert Dialog */}
+      <Dialog open={alertDialog} onOpenChange={v => { setAlertDialog(v); if (!v) { setEditAlert(null); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{editAlert ? "Uyarıyı Düzenle" : "Yeni Liman Uyarısı"}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Liman Adı *</Label>
+                <Input value={alertForm.portName} onChange={e => setAlertForm(f => ({ ...f, portName: e.target.value }))} placeholder="İstanbul" data-testid="input-alert-port-name" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Uyarı Tipi</Label>
+                <Select value={alertForm.alertType} onValueChange={v => setAlertForm(f => ({ ...f, alertType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="strike">Grev</SelectItem>
+                    <SelectItem value="closure">Kapanış</SelectItem>
+                    <SelectItem value="weather">Hava Durumu</SelectItem>
+                    <SelectItem value="restricted">Kısıtlama</SelectItem>
+                    <SelectItem value="other">Diğer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Önem Derecesi</Label>
+                <Select value={alertForm.severity} onValueChange={v => setAlertForm(f => ({ ...f, severity: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="info">Bilgi</SelectItem>
+                    <SelectItem value="warning">Uyarı</SelectItem>
+                    <SelectItem value="danger">Tehlike</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5 flex flex-col justify-end pb-0.5">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={alertForm.isActive} onChange={e => setAlertForm(f => ({ ...f, isActive: e.target.checked }))} className="w-4 h-4 rounded border-border" />
+                  Aktif
+                </label>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Başlık *</Label>
+              <Input value={alertForm.title} onChange={e => setAlertForm(f => ({ ...f, title: e.target.value }))} placeholder="Uyarı başlığı" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Mesaj *</Label>
+              <textarea value={alertForm.message} onChange={e => setAlertForm(f => ({ ...f, message: e.target.value }))} placeholder="Uyarı mesajı..." className="w-full min-h-[80px] px-3 py-2 rounded-md border border-input bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Başlangıç</Label>
+                <Input type="datetime-local" value={alertForm.startsAt} onChange={e => setAlertForm(f => ({ ...f, startsAt: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Bitiş</Label>
+                <Input type="datetime-local" value={alertForm.endsAt} onChange={e => setAlertForm(f => ({ ...f, endsAt: e.target.value }))} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAlertDialog(false)}>İptal</Button>
+            <Button onClick={() => editAlert ? editAlertMutation.mutate(editAlert.id) : addAlertMutation.mutate()} disabled={!alertForm.portName || !alertForm.title || !alertForm.message || addAlertMutation.isPending || editAlertMutation.isPending}>
+              {(addAlertMutation.isPending || editAlertMutation.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {editAlert ? "Güncelle" : "Ekle"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={deleteAlertTarget !== null} onOpenChange={() => setDeleteAlertTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Uyarıyı Sil</AlertDialogTitle><AlertDialogDescription>Bu liman uyarısı kalıcı olarak silinecek.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteAlertTarget && deleteAlertMutation.mutate(deleteAlertTarget)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Sil</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Bunker Dialog */}
       <Dialog open={bunkerDialog} onOpenChange={v => { setBunkerDialog(v); if (!v) { setBunkerForm({ portName: "", portCode: "", region: "TR", ifo380: "", vlsfo: "", mgo: "" }); setEditBunker(null); } }}>

@@ -445,6 +445,11 @@ export const voyageDocuments = pgTable("voyage_documents", {
   notes: text("notes"),
   uploadedByUserId: varchar("uploaded_by_user_id").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
+  version: integer("version").default(1),
+  signatureText: text("signature_text"),
+  signedAt: timestamp("signed_at"),
+  templateId: integer("template_id"),
+  parentDocId: integer("parent_doc_id"),
 });
 
 export const voyageDocumentRelations = relations(voyageDocuments, ({ one }) => ({
@@ -737,3 +742,74 @@ export const bunkerPrices = pgTable("bunker_prices", {
 export const insertBunkerPriceSchema = createInsertSchema(bunkerPrices).omit({ id: true });
 export type InsertBunkerPrice = z.infer<typeof insertBunkerPriceSchema>;
 export type BunkerPrice = typeof bunkerPrices.$inferSelect;
+
+// ─── DOCUMENT TEMPLATES ─────────────────────────────────────────────────────
+
+export const documentTemplates = pgTable("document_templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  category: text("category").notNull().default("other"),
+  content: text("content").notNull(),
+  isBuiltIn: boolean("is_built_in").notNull().default(true),
+  createdByUserId: varchar("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertDocumentTemplateSchema = createInsertSchema(documentTemplates).omit({ id: true, createdAt: true });
+export type InsertDocumentTemplate = z.infer<typeof insertDocumentTemplateSchema>;
+export type DocumentTemplate = typeof documentTemplates.$inferSelect;
+
+// ─── INVOICES ────────────────────────────────────────────────────────────────
+
+export const invoices = pgTable("invoices", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
+  proformaId: integer("proforma_id").references(() => proformas.id, { onDelete: "set null" }),
+  createdByUserId: varchar("created_by_user_id").notNull().references(() => users.id),
+  title: text("title").notNull(),
+  amount: real("amount").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  dueDate: timestamp("due_date"),
+  paidAt: timestamp("paid_at"),
+  status: text("status").notNull().default("pending"),
+  notes: text("notes"),
+  invoiceType: text("invoice_type").notNull().default("invoice"),
+  linkedProformaId: integer("linked_proforma_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const invoiceRelations = relations(invoices, ({ one }) => ({
+  voyage: one(voyages, { fields: [invoices.voyageId], references: [voyages.id] }),
+  proforma: one(proformas, { fields: [invoices.proformaId], references: [proformas.id] }),
+  creator: one(users, { fields: [invoices.createdByUserId], references: [users.id] }),
+}));
+
+export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true, status: true });
+export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
+export type Invoice = typeof invoices.$inferSelect;
+
+// ─── PORT ALERTS ─────────────────────────────────────────────────────────────
+
+export const portAlerts = pgTable("port_alerts", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  portName: text("port_name").notNull(),
+  alertType: text("alert_type").notNull().default("other"),
+  severity: text("severity").notNull().default("info"),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  startsAt: timestamp("starts_at"),
+  endsAt: timestamp("ends_at"),
+  createdByUserId: varchar("created_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const portAlertRelations = relations(portAlerts, ({ one }) => ({
+  port: one(ports, { fields: [portAlerts.portId], references: [ports.id] }),
+  creator: one(users, { fields: [portAlerts.createdByUserId], references: [users.id] }),
+}));
+
+export const insertPortAlertSchema = createInsertSchema(portAlerts).omit({ id: true, createdAt: true });
+export type InsertPortAlert = z.infer<typeof insertPortAlertSchema>;
+export type PortAlert = typeof portAlerts.$inferSelect;

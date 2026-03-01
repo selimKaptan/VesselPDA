@@ -194,6 +194,16 @@ app.use((req, res, next) => {
 
       seedBunkerPrices().catch((err: Error) => console.error("Bunker seed error:", err));
 
+      import("./seed-templates").then(({ seedDocumentTemplates }) => {
+        seedDocumentTemplates().catch((err: Error) => console.error("Template seed error:", err));
+      });
+
+      import("./startup-checks").then(({ runStartupChecks }) => {
+        setTimeout(() => {
+          runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));
+        }, 10000);
+      });
+
       import("./cleanup-ports").then(({ cleanupInvalidPorts }) => {
         cleanupInvalidPorts().catch((err: Error) => console.error("Cleanup error:", err));
       });

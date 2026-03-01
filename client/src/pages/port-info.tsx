@@ -54,7 +54,7 @@ function InfoCard({ icon, label, value }: { icon: React.ReactNode; label: string
 
 function PortDetailPanel({
   selectedPort, portInfoData, isLoadingInfo,
-  portMapContainerRef, lat, lng, hasCoords, facilityList, onClose,
+  portMapContainerRef, lat, lng, hasCoords, facilityList, onClose, portAlerts,
 }: {
   selectedPort: Port;
   portInfoData: PortInfoData | undefined;
@@ -63,7 +63,13 @@ function PortDetailPanel({
   lat: number | null; lng: number | null; hasCoords: boolean;
   facilityList: string[];
   onClose: () => void;
+  portAlerts: any[];
 }) {
+  const SEVERITY_STYLES: Record<string, string> = {
+    info: "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950/30 dark:border-blue-700 dark:text-blue-300",
+    warning: "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-300",
+    danger: "bg-red-50 border-red-200 text-red-800 dark:bg-red-950/30 dark:border-red-700 dark:text-red-300",
+  };
   return (
     <div className="h-full flex flex-col overflow-hidden" data-testid="card-port-detail">
       {/* Detail header */}
@@ -87,6 +93,28 @@ function PortDetailPanel({
           <X className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Port Alerts Banner */}
+      {portAlerts.length > 0 && (
+        <div className="flex-shrink-0 px-4 pt-3 space-y-2" data-testid="port-alert-banner">
+          {portAlerts.map((alert: any) => (
+            <div key={alert.id} className={`flex items-start gap-2.5 px-3 py-2.5 rounded-lg border text-sm ${SEVERITY_STYLES[alert.severity] || SEVERITY_STYLES.info}`} data-testid={`port-alert-${alert.id}`}>
+              <span className="flex-shrink-0 mt-0.5">{alert.severity === "danger" ? "🔴" : alert.severity === "warning" ? "⚠️" : "ℹ️"}</span>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-xs">{alert.title}</p>
+                <p className="text-xs opacity-80 mt-0.5">{alert.message}</p>
+                {(alert.startsAt || alert.endsAt) && (
+                  <p className="text-[10px] opacity-60 mt-1">
+                    {alert.startsAt && `${new Date(alert.startsAt).toLocaleDateString("tr-TR")}`}
+                    {alert.startsAt && alert.endsAt && " – "}
+                    {alert.endsAt && `${new Date(alert.endsAt).toLocaleDateString("tr-TR")}`}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Detail scrollable content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -275,6 +303,17 @@ export default function PortInfo() {
       return res.json();
     },
     enabled: !!selectedPort?.code,
+  });
+
+  const { data: activePortAlerts = [] } = useQuery<any[]>({
+    queryKey: ["/api/port-alerts", selectedPort?.id],
+    queryFn: async () => {
+      const url = selectedPort?.id ? `/api/port-alerts?portId=${selectedPort.id}&portName=${encodeURIComponent(selectedPort.name)}` : "/api/port-alerts";
+      const res = await fetch(url);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedPort,
   });
 
   const handleSelectPort = (port: Port) => {
@@ -500,6 +539,7 @@ export default function PortInfo() {
             hasCoords={hasCoords}
             facilityList={facilityList}
             onClose={handleClose}
+            portAlerts={activePortAlerts}
           />
         )}
       </div>

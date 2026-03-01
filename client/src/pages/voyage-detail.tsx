@@ -6,7 +6,7 @@ import {
   Plus, Loader2, ChevronDown, Wrench, Fuel, ShoppingCart, Users as UsersIcon,
   Sparkles, HelpCircle, Clock, PlayCircle, XCircle, ClipboardList,
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
-  CalendarClock
+  CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
@@ -130,6 +130,10 @@ export default function VoyageDetail() {
   const [reviewForm, setReviewForm] = useState({ rating: 0, comment: "" });
   const [showApptForm, setShowApptForm] = useState(false);
   const [apptForm, setApptForm] = useState({ appointmentType: "pilot", scheduledAt: "", notes: "" });
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [showSignDialog, setShowSignDialog] = useState(false);
+  const [signDocId, setSignDocId] = useState<number | null>(null);
+  const [signatureText, setSignatureText] = useState("");
   const [serviceForm, setServiceForm] = useState({
     portId: 0, portName: "", vesselName: "", serviceType: "other",
     description: "", quantity: "", unit: "", preferredDate: "",
@@ -189,6 +193,10 @@ export default function VoyageDetail() {
       return res.json();
     },
     enabled: !!voyageId,
+  });
+
+  const { data: docTemplates = [] } = useQuery<any[]>({
+    queryKey: ["/api/document-templates"],
   });
 
   useEffect(() => {
@@ -316,6 +324,34 @@ export default function VoyageDetail() {
       toast({ title: "Doküman silindi" });
     },
     onError: () => toast({ title: "Silme hatası", variant: "destructive" }),
+  });
+
+  const fromTemplateMutation = useMutation({
+    mutationFn: async (templateId: number) => {
+      const res = await apiRequest("POST", `/api/voyages/${voyageId}/documents/from-template`, { templateId });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "documents"] });
+      setShowTemplateDialog(false);
+      toast({ title: "Şablondan oluşturuldu", description: "Doküman otomatik dolduruldu" });
+    },
+    onError: () => toast({ title: "Hata", description: "Şablon uygulanamadı", variant: "destructive" }),
+  });
+
+  const signDocMutation = useMutation({
+    mutationFn: async ({ docId, sigText }: { docId: number; sigText: string }) => {
+      const res = await apiRequest("POST", `/api/voyages/${voyageId}/documents/${docId}/sign`, { signatureText: sigText });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "documents"] });
+      setShowSignDialog(false);
+      setSignatureText("");
+      setSignDocId(null);
+      toast({ title: "Doküman imzalandı" });
+    },
+    onError: () => toast({ title: "İmzalama hatası", variant: "destructive" }),
   });
 
   const createReviewMutation = useMutation({
@@ -799,9 +835,14 @@ export default function VoyageDetail() {
               <h2 className="font-semibold text-sm">Dokümanlar</h2>
               {Array.isArray(docs) && docs.length > 0 && <span className="text-xs text-muted-foreground">({docs.length})</span>}
             </div>
-            <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowDocDialog(true)} data-testid="button-upload-doc">
-              <Upload className="w-3 h-3" /> Yükle
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowTemplateDialog(true)} data-testid="button-from-template">
+                <LayoutTemplate className="w-3 h-3" /> Şablondan
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowDocDialog(true)} data-testid="button-upload-doc">
+                <Upload className="w-3 h-3" /> Yükle
+              </Button>
+            </div>
           </div>
 
           {/* Filtre butonları */}
@@ -843,8 +884,29 @@ export default function VoyageDetail() {
                   <div key={doc.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30 group" data-testid={`doc-${doc.id}`}>
                     <FileText className="w-4 h-4 flex-shrink-0 text-blue-500" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{doc.name}</p>
-                      <p className="text-xs text-muted-foreground">{DOC_TYPE_CONFIG[doc.docType] || "Diğer"} · {doc.uploaderName} · {new Date(doc.createdAt).toLocaleDateString("tr-TR")}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-sm font-medium truncate">{doc.name}</p>
+                        {doc.version > 1 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium flex-shrink-0" data-testid={`badge-doc-version-${doc.id}`}>v{doc.version}</span>
+                        )}
+                        {doc.templateId && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 font-medium flex-shrink-0">📋 Otomatik</span>
+                        )}
+                        {doc.signedAt ? (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-medium flex items-center gap-0.5 flex-shrink-0" data-testid={`badge-signed-${doc.id}`}>
+                            <BadgeCheck className="w-3 h-3" /> {doc.signatureText}
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => { setSignDocId(doc.id); setShowSignDialog(true); }}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground hover:text-foreground hover:border-primary transition-colors flex items-center gap-0.5 flex-shrink-0"
+                            data-testid={`button-sign-doc-${doc.id}`}
+                          >
+                            <Pen className="w-3 h-3" /> İmzala
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{DOC_TYPE_CONFIG[doc.docType] || "Diğer"} · {doc.uploaderName} · {new Date(doc.createdAt).toLocaleDateString("tr-TR")}</p>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => downloadDoc(doc)} className="p-1 hover:text-primary transition-colors" data-testid={`button-download-doc-${doc.id}`}><Download className="w-4 h-4" /></button>
@@ -1096,6 +1158,78 @@ export default function VoyageDetail() {
               data-testid="button-save-doc"
             >
               {uploadDocMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Yükle"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Template Picker Dialog */}
+      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+        <DialogContent className="max-w-lg" data-testid="dialog-template-picker">
+          <DialogHeader>
+            <DialogTitle className="font-serif">Şablondan Doküman Oluştur</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            {docTemplates.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">Şablon bulunamadı</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-2">
+                {docTemplates.map((tmpl: any) => (
+                  <button
+                    key={tmpl.id}
+                    onClick={() => fromTemplateMutation.mutate(tmpl.id)}
+                    disabled={fromTemplateMutation.isPending}
+                    className="flex items-center gap-3 px-4 py-3 rounded-lg border border-border hover:border-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-primary)/0.04)] transition-all text-left"
+                    data-testid={`template-option-${tmpl.id}`}
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold">{tmpl.name}</p>
+                      <p className="text-xs text-muted-foreground">{tmpl.category}</p>
+                    </div>
+                    {fromTemplateMutation.isPending && <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTemplateDialog(false)}>Kapat</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Signature Dialog */}
+      <Dialog open={showSignDialog} onOpenChange={v => { setShowSignDialog(v); if (!v) { setSignDocId(null); setSignatureText(""); } }}>
+        <DialogContent className="max-w-sm" data-testid="dialog-sign-doc">
+          <DialogHeader>
+            <DialogTitle className="font-serif">Dokümanı İmzala</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Ad / Unvan *</Label>
+              <Input
+                value={signatureText}
+                onChange={e => setSignatureText(e.target.value)}
+                placeholder="Adınız ve unvanınız"
+                data-testid="input-signature-text"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>İmzalanma Tarihi</Label>
+              <Input value={new Date().toLocaleDateString("tr-TR")} disabled className="bg-muted" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSignDialog(false)}>İptal</Button>
+            <Button
+              onClick={() => { if (signDocId && signatureText.trim()) signDocMutation.mutate({ docId: signDocId, sigText: signatureText.trim() }); }}
+              disabled={signDocMutation.isPending || !signatureText.trim()}
+              data-testid="button-confirm-sign"
+            >
+              {signDocMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "İmzala"}
             </Button>
           </DialogFooter>
         </DialogContent>

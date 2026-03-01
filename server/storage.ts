@@ -31,6 +31,9 @@ import {
   type Fixture, type InsertFixture,
   type CargoPosition, type InsertCargoPosition,
   type BunkerPrice, type InsertBunkerPrice,
+  type DocumentTemplate, type InsertDocumentTemplate,
+  type Invoice, type InsertInvoice,
+  type PortAlert, type InsertPortAlert,
   vessels, ports, tariffCategories, tariffRates, proformas,
   forumCategories, forumTopics, forumReplies, forumLikes, forumDislikes,
   portTenders, tenderBids, agentReviews, vesselWatchlist,
@@ -39,6 +42,7 @@ import {
   voyageDocuments, voyageReviews, conversations, messages,
   directNominations, voyageChatMessages, endorsements,
   vesselCertificates, portCallAppointments, fixtures, cargoPositions, bunkerPrices,
+  documentTemplates, invoices, portAlerts,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
@@ -1154,6 +1158,11 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
+  async updateVoyage(id: number, data: Partial<InsertVoyage>): Promise<Voyage | undefined> {
+    const [row] = await db.update(voyages).set(data).where(eq(voyages.id, id)).returning();
+    return row;
+  }
+
   async createChecklistItem(data: InsertVoyageChecklist): Promise<VoyageChecklist> {
     const [row] = await db.insert(voyageChecklists).values(data).returning();
     return row;
@@ -1868,6 +1877,118 @@ export class DatabaseStorage implements IStorage {
 
   async deleteBunkerPrice(id: number): Promise<boolean> {
     const result = await db.delete(bunkerPrices).where(eq(bunkerPrices.id, id));
+    return (result as any).rowCount > 0;
+  }
+
+  // ─── DOCUMENT TEMPLATES ─────────────────────────────────────────────────────
+
+  async getDocumentTemplates(): Promise<DocumentTemplate[]> {
+    return db.select().from(documentTemplates).orderBy(asc(documentTemplates.category), asc(documentTemplates.name));
+  }
+
+  async signVoyageDocument(docId: number, signatureText: string, signedAt: Date): Promise<void> {
+    await db.update(voyageDocuments)
+      .set({ signatureText, signedAt })
+      .where(eq(voyageDocuments.id, docId));
+  }
+
+  async createNewDocumentVersion(parentDoc: any, newData: { name: string; fileBase64: string; notes?: string; uploadedByUserId: string }): Promise<any> {
+    const nextVersion = (parentDoc.version || 1) + 1;
+    const [row] = await db.insert(voyageDocuments).values({
+      voyageId: parentDoc.voyageId,
+      name: newData.name || parentDoc.name,
+      docType: parentDoc.docType,
+      fileBase64: newData.fileBase64,
+      notes: newData.notes ?? parentDoc.notes,
+      uploadedByUserId: newData.uploadedByUserId,
+      version: nextVersion,
+      parentDocId: parentDoc.id,
+      templateId: parentDoc.templateId,
+    }).returning();
+    return row;
+  }
+
+  // ─── INVOICES ────────────────────────────────────────────────────────────────
+
+  async createInvoice(data: InsertInvoice): Promise<Invoice> {
+    const [row] = await db.insert(invoices).values({ ...data, status: "pending" }).returning();
+    return row;
+  }
+
+  async getInvoicesByUser(userId: string): Promise<any[]> {
+    const rows = await db.execute(sql`
+      SELECT i.*, v.vessel_name, v.port_id, p2.name as port_name_ref
+      FROM invoices i
+      LEFT JOIN voyages v ON v.id = i.voyage_id
+      LEFT JOIN ports p2 ON p2.id = v.port_id
+      WHERE i.created_by_user_id = ${userId}
+      ORDER BY i.created_at DESC
+    `);
+    const arr: any[] = rows.rows ?? (rows as any);
+    return arr.map((r: any) => ({
+      id: r.id,
+      voyageId: r.voyage_id,
+      proformaId: r.proforma_id,
+      createdByUserId: r.created_by_user_id,
+      title: r.title,
+      amount: r.amount,
+      currency: r.currency,
+      dueDate: r.due_date,
+      paidAt: r.paid_at,
+      status: r.status,
+      notes: r.notes,
+      invoiceType: r.invoice_type,
+      linkedProformaId: r.linked_proforma_id,
+      createdAt: r.created_at,
+      vesselName: r.vessel_name,
+      portName: r.port_name_ref,
+    }));
+  }
+
+  async updateInvoiceStatus(id: number, status: string, paidAt?: Date): Promise<void> {
+    await db.update(invoices)
+      .set({ status, ...(paidAt ? { paidAt } : {}) })
+      .where(eq(invoices.id, id));
+  }
+
+  async getAllPendingInvoicesOverdue(): Promise<Invoice[]> {
+    return db.select().from(invoices)
+      .where(and(
+        eq(invoices.status, "pending"),
+        sql`${invoices.dueDate} IS NOT NULL AND ${invoices.dueDate} < NOW()`
+      ));
+  }
+
+  // ─── PORT ALERTS ─────────────────────────────────────────────────────────────
+
+  async getPortAlerts(portId?: number, portName?: string): Promise<PortAlert[]> {
+    const conditions: any[] = [eq(portAlerts.isActive, true)];
+    if (portId) conditions.push(eq(portAlerts.portId, portId));
+    const all = await db.select().from(portAlerts)
+      .where(and(...conditions))
+      .orderBy(desc(portAlerts.createdAt));
+    if (portName && !portId) {
+      const lower = portName.toLowerCase();
+      return all.filter(a => !a.portName || a.portName.toLowerCase().includes(lower) || lower.includes(a.portName.toLowerCase()));
+    }
+    return all;
+  }
+
+  async getAllPortAlerts(): Promise<PortAlert[]> {
+    return db.select().from(portAlerts).orderBy(desc(portAlerts.createdAt));
+  }
+
+  async createPortAlert(data: InsertPortAlert): Promise<PortAlert> {
+    const [row] = await db.insert(portAlerts).values(data).returning();
+    return row;
+  }
+
+  async updatePortAlert(id: number, data: Partial<InsertPortAlert>): Promise<void> {
+    await db.update(portAlerts).set(data).where(eq(portAlerts.id, id));
+  }
+
+  async deletePortAlert(id: number): Promise<boolean> {
+    const result = await db.delete(portAlerts).where(eq(portAlerts.id, id));
     return (result as any).rowCount > 0;
   }
 }

@@ -1,0 +1,413 @@
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { DollarSign, Plus, CheckCircle2, Clock, XCircle, AlertTriangle, FileText, ChevronDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { PageMeta } from "@/components/page-meta";
+import { formatDistanceToNow, isPast, isWithinInterval, addDays } from "date-fns";
+import { tr } from "date-fns/locale";
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
+  pending:   { label: "Bekliyor",       color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",    icon: Clock },
+  paid:      { label: "Ödendi",         color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",    icon: CheckCircle2 },
+  overdue:   { label: "Vadesi Geçmiş", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",            icon: AlertTriangle },
+  cancelled: { label: "İptal",          color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",          icon: XCircle },
+};
+
+const TYPE_LABELS: Record<string, string> = {
+  proforma_da: "Proforma DA",
+  final_da:    "Final DA",
+  invoice:     "Fatura",
+};
+
+const CURRENCY_FLAGS: Record<string, string> = {
+  USD: "🇺🇸",
+  EUR: "🇪🇺",
+  TRY: "🇹🇷",
+};
+
+function dueDateColor(dueDateStr: string | null, status: string) {
+  if (!dueDateStr || status === "paid" || status === "cancelled") return "";
+  const due = new Date(dueDateStr);
+  const now = new Date();
+  if (isPast(due)) return "text-red-600 font-bold";
+  if (isWithinInterval(now, { start: now, end: addDays(now, 7) }) && !isPast(due)) return "text-amber-600";
+  return "text-green-600";
+}
+
+function dueDateLabel(dueDateStr: string | null, status: string) {
+  if (!dueDateStr) return "Vade tarihi yok";
+  if (status === "paid") return "Ödendi";
+  if (status === "cancelled") return "İptal";
+  const due = new Date(dueDateStr);
+  if (isPast(due)) {
+    return `${formatDistanceToNow(due, { locale: tr })} geçmiş`;
+  }
+  return `${formatDistanceToNow(due, { locale: tr, addSuffix: false })} kaldı`;
+}
+
+export default function Invoices() {
+  const { toast } = useToast();
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [currencyFilter, setCurrencyFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [showNew, setShowNew] = useState(false);
+  const [form, setForm] = useState({
+    title: "",
+    invoiceType: "invoice",
+    amount: "",
+    currency: "USD",
+    dueDate: "",
+    notes: "",
+    voyageId: "",
+  });
+
+  const { data: invoices = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/invoices"],
+  });
+
+  const { data: voyages = [] } = useQuery<any[]>({
+    queryKey: ["/api/voyages"],
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/invoices", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      setShowNew(false);
+      setForm({ title: "", invoiceType: "invoice", amount: "", currency: "USD", dueDate: "", notes: "", voyageId: "" });
+      toast({ title: "Fatura oluşturuldu" });
+    },
+    onError: () => toast({ title: "Hata", description: "Fatura oluşturulamadı", variant: "destructive" }),
+  });
+
+  const payMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("PATCH", `/api/invoices/${id}/pay`, { paidAt: new Date().toISOString() });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      toast({ title: "Ödeme kaydedildi" });
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("PATCH", `/api/invoices/${id}/cancel`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      toast({ title: "Fatura iptal edildi" });
+    },
+  });
+
+  const filtered = invoices.filter((inv: any) => {
+    if (statusFilter !== "all" && inv.status !== statusFilter) return false;
+    if (currencyFilter !== "all" && inv.currency !== currencyFilter) return false;
+    if (search && !inv.title.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  const pending = invoices.filter((i: any) => i.status === "pending");
+  const paid = invoices.filter((i: any) => i.status === "paid");
+  const overdue = invoices.filter((i: any) => i.status === "overdue");
+
+  const sumUsd = (list: any[]) => list.reduce((acc, i) => acc + (i.currency === "USD" ? i.amount : 0), 0);
+
+  return (
+    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6" data-testid="page-invoices">
+      <PageMeta title="Finansal Akış | VesselPDA" />
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-serif font-bold text-foreground">Finansal Akış</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Fatura ve ödeme takibi</p>
+        </div>
+        <Button onClick={() => setShowNew(true)} data-testid="button-new-invoice" className="gap-2">
+          <Plus className="w-4 h-4" /> Yeni Fatura
+        </Button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="p-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+            <Clock className="w-5 h-5 text-amber-600" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Bekleyen</p>
+            <p className="text-lg font-bold">{pending.length} fatura</p>
+            {sumUsd(pending) > 0 && <p className="text-xs text-muted-foreground">${sumUsd(pending).toLocaleString()} USD</p>}
+          </div>
+        </Card>
+        <Card className="p-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+            <CheckCircle2 className="w-5 h-5 text-green-600" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Ödenen</p>
+            <p className="text-lg font-bold">{paid.length} fatura</p>
+            {sumUsd(paid) > 0 && <p className="text-xs text-muted-foreground">${sumUsd(paid).toLocaleString()} USD</p>}
+          </div>
+        </Card>
+        <Card className="p-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="w-5 h-5 text-red-600" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Vadesi Geçmiş</p>
+            <p className="text-lg font-bold">{overdue.length} fatura</p>
+            {sumUsd(overdue) > 0 && <p className="text-xs text-muted-foreground">${sumUsd(overdue).toLocaleString()} USD</p>}
+          </div>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3">
+        <div className="flex gap-1 flex-wrap">
+          {["all", "pending", "paid", "overdue", "cancelled"].map(s => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                statusFilter === s
+                  ? "bg-[hsl(var(--maritime-primary))] text-white"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+              data-testid={`filter-status-${s}`}
+            >
+              {s === "all" ? "Tümü" : STATUS_CONFIG[s]?.label || s}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1">
+          {["all", "USD", "EUR", "TRY"].map(c => (
+            <button
+              key={c}
+              onClick={() => setCurrencyFilter(c)}
+              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                currencyFilter === c
+                  ? "bg-[hsl(var(--maritime-primary))] text-white"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+              data-testid={`filter-currency-${c}`}
+            >
+              {c === "all" ? "Tüm Para" : `${CURRENCY_FLAGS[c]} ${c}`}
+            </button>
+          ))}
+        </div>
+        <Input
+          placeholder="Fatura ara..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="max-w-xs h-8 text-sm"
+          data-testid="input-search-invoices"
+        />
+      </div>
+
+      {/* List */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
+        </div>
+      ) : filtered.length === 0 ? (
+        <Card className="p-10 text-center text-muted-foreground">
+          <DollarSign className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="font-medium">Fatura bulunamadı</p>
+          <p className="text-xs mt-1">Yeni fatura oluşturmak için "Yeni Fatura" butonunu kullanın</p>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((inv: any) => {
+            const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.pending;
+            const StatusIcon = cfg.icon;
+            return (
+              <Card key={inv.id} className="p-4 flex flex-col sm:flex-row sm:items-center gap-4" data-testid={`invoice-card-${inv.id}`}>
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                    <FileText className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-sm truncate">{inv.title}</p>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-muted-foreground/30">
+                        {TYPE_LABELS[inv.invoiceType] || inv.invoiceType}
+                      </Badge>
+                      <Badge className={`text-[10px] px-1.5 py-0 ${cfg.color} border-0`} data-testid={`badge-invoice-status-${inv.id}`}>
+                        <StatusIcon className="w-3 h-3 mr-1" />
+                        {cfg.label}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 flex-wrap">
+                      <span className="text-base font-bold">
+                        {CURRENCY_FLAGS[inv.currency]} {inv.currency} {Number(inv.amount).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                      </span>
+                      {inv.dueDate && (
+                        <span className={`text-xs ${dueDateColor(inv.dueDate, inv.status)}`}>
+                          Vade: {dueDateLabel(inv.dueDate, inv.status)}
+                        </span>
+                      )}
+                    </div>
+                    {inv.notes && <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{inv.notes}</p>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {(inv.status === "pending" || inv.status === "overdue") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1 text-green-600 border-green-200 hover:bg-green-50 dark:hover:bg-green-950/30"
+                      onClick={() => payMutation.mutate(inv.id)}
+                      disabled={payMutation.isPending}
+                      data-testid={`button-mark-paid-${inv.id}`}
+                    >
+                      <CheckCircle2 className="w-3 h-3" /> Ödendi
+                    </Button>
+                  )}
+                  {inv.status !== "cancelled" && inv.status !== "paid" && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                      onClick={() => cancelMutation.mutate(inv.id)}
+                      disabled={cancelMutation.isPending}
+                      data-testid={`button-cancel-invoice-${inv.id}`}
+                    >
+                      İptal
+                    </Button>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* New Invoice Dialog */}
+      <Dialog open={showNew} onOpenChange={setShowNew}>
+        <DialogContent className="max-w-lg" data-testid="dialog-new-invoice">
+          <DialogHeader>
+            <DialogTitle className="font-serif">Yeni Fatura</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Başlık *</Label>
+              <Input
+                value={form.title}
+                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="Fatura başlığı"
+                data-testid="input-invoice-title"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Tür</Label>
+                <Select value={form.invoiceType} onValueChange={v => setForm(f => ({ ...f, invoiceType: v }))}>
+                  <SelectTrigger data-testid="select-invoice-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="invoice">Fatura</SelectItem>
+                    <SelectItem value="proforma_da">Proforma DA</SelectItem>
+                    <SelectItem value="final_da">Final DA</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Para Birimi</Label>
+                <Select value={form.currency} onValueChange={v => setForm(f => ({ ...f, currency: v }))}>
+                  <SelectTrigger data-testid="select-invoice-currency">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USD">🇺🇸 USD</SelectItem>
+                    <SelectItem value="EUR">🇪🇺 EUR</SelectItem>
+                    <SelectItem value="TRY">🇹🇷 TRY</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Tutar *</Label>
+              <Input
+                type="number"
+                value={form.amount}
+                onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                placeholder="0.00"
+                data-testid="input-invoice-amount"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Vade Tarihi</Label>
+              <Input
+                type="date"
+                value={form.dueDate}
+                onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+                data-testid="input-invoice-due-date"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Bağlı Sefer</Label>
+              <Select value={form.voyageId} onValueChange={v => setForm(f => ({ ...f, voyageId: v }))}>
+                <SelectTrigger data-testid="select-invoice-voyage">
+                  <SelectValue placeholder="Sefer seçin (opsiyonel)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sefer yok</SelectItem>
+                  {Array.isArray(voyages) && voyages.map((v: any) => (
+                    <SelectItem key={v.id} value={String(v.id)}>
+                      {v.vesselName} — {v.portName || v.portId}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notlar</Label>
+              <Textarea
+                value={form.notes}
+                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Ek bilgiler..."
+                rows={3}
+                data-testid="input-invoice-notes"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNew(false)}>İptal</Button>
+            <Button
+              onClick={() => createMutation.mutate({
+                title: form.title,
+                invoiceType: form.invoiceType,
+                amount: parseFloat(form.amount) || 0,
+                currency: form.currency,
+                dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
+                notes: form.notes || null,
+                voyageId: form.voyageId && form.voyageId !== "none" ? parseInt(form.voyageId) : null,
+              })}
+              disabled={createMutation.isPending || !form.title.trim() || !form.amount}
+              data-testid="button-submit-invoice"
+            >
+              {createMutation.isPending ? "Oluşturuluyor..." : "Fatura Oluştur"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

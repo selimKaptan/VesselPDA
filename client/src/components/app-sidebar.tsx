@@ -1,4 +1,4 @@
-import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, MessageCircle, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, BadgeCheck, Handshake, Package, TrendingUp } from "lucide-react";
+import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, MessageCircle, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, BadgeCheck, Handshake, Package, TrendingUp, Wallet } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -109,6 +109,9 @@ export function AppSidebar() {
   }
   if (effectiveRole === "agent" || effectiveRole === "shipowner" || effectiveRole === "broker" || isAdminUser) {
     toolsNav.push({ title: "Piyasa Verileri", url: "/market-data", icon: TrendingUp });
+  }
+  if (effectiveRole === "agent" || effectiveRole === "shipowner" || isAdminUser) {
+    toolsNav.push({ title: "Finansal Akış", url: "/invoices", icon: Wallet });
   }
   toolsNav.push({ title: "Kargo/Pozisyon", url: "/cargo-positions", icon: Package });
   toolsNav.push({ title: t("nav.portInfo"), url: "/port-info", icon: Anchor });
