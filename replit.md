@@ -40,6 +40,7 @@ The platform is built with a modern web stack. The UI/UX is maritime-themed, pre
     - **AI Assistant**: Floating chat panel powered by Claude-Haiku, providing context-aware assistance based on user's vessels, voyages, and proformas.
     - **Vessel Crew Management**: Mürettebat (crew) tab in vessel detail sheet — CRUD for crew members with ad, soyad, rank, kontrat/pasaport/gemiadamı cüzdanı bitiş tarihleri and colour-coded expiry warnings.
     - **Tariff Management System**: Full admin page (`/tariff-management`) for managing Turkish port tariffs. 10 tariff tables (pilotage, berthing, agency, MARPOL, LCB, tonnage, cargo handling, other services) loaded from official 2026 data. Features: per-table CRUD, port/currency/year filters, bulk % increase, bulk year-copy, summary dashboard. Accessible from admin panel and sidebar.
+    - **DB-Connected Quick Estimate**: Anlık proforma hesaplaması artık DB tarife tablolarına bağlı. İstanbul (port_id=2): kılavuzluk + acentelik; İzmir (port_id=3): barınma + MARPOL + LCB. Üç gemi kategorisi: Yabancı Bayrak (foreign_intl), Türk Uluslararası (turkish_intl), Kabotaj (turkish_cabotage). Sefer Tipi (Uluslararası/Kabotaj) seçici eklendi. Tarife kaynağı badge: yeşil = "Gerçek 2026 Tarifeleri" (DB'den), sarı = "Tahmini" (fallback). `server/tariff-lookup.ts` yeni dosya.
 - **Security**: Helmet Content-Security-Policy headers configured for various external services.
 
 ## External Dependencies

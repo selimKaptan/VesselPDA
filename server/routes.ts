@@ -8,6 +8,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated, registerAuthRoutes, authStorage } from "./replit_integrations/auth";
 import type { ProformaLineItem } from "@shared/schema";
 import { calculateProforma, type CalculationInput } from "./proforma-calculator";
+import { lookupPilotageFee, lookupTugboatFee, lookupMooringFee, lookupBerthingFee, lookupAgencyFee, lookupMarpolFee, lookupLcbFee, type VesselCategory } from "./tariff-lookup";
 import { startAISStream, getPositions, searchVessels, isConnected, getCacheSize } from "./ais-stream";
 import { geocodeStats } from "./geocode-ports";
 import { checkSanctions, getSanctionsStatus, loadSanctionsList } from "./sanctions";
@@ -464,6 +465,7 @@ export async function registerRoutes(
         cargoQuantity = 5000, isDangerousCargo = false,
         purposeOfCall = "Discharging",
         cargoType = "",
+        voyageType = "international",
       } = req.body;
 
       const customsType: "import" | "export" | "transit" | "none" = (() => {
@@ -521,25 +523,66 @@ export async function registerRoutes(
         return ["turkey", "turkish", "türk", "türkiye", "tr", "turk"].includes(f);
       };
       const turkish = isTurkishFlag(vessel.flag || "");
-      const flagCat = turkish ? "turkish" : "foreign" as "turkish" | "foreign";
+      const isCabotage = voyageType === "cabotage" && turkish;
+
+      let vesselCat: VesselCategory;
+      if (!turkish) vesselCat = "foreign_intl";
+      else if (isCabotage) vesselCat = "turkish_cabotage";
+      else vesselCat = "turkish_intl";
+
+      const flagCat = turkish ? (isCabotage ? "cabotage" : "turkish") : "foreign" as "turkish" | "foreign" | "cabotage";
+
+      const nrt = (vessel as any).nrt || 1000;
+      const grt = (vessel as any).grt || 2000;
+      const berthDays = Number(berthStayDays) || 3;
+      const dangerous = isDangerousCargo === true || isDangerousCargo === "true";
+      const portIdNum = Number(portId);
+
+      const [pilotage, tugboat, mooring, berthing, agency, marpol, lcb] = await Promise.all([
+        lookupPilotageFee(pool, portIdNum, grt, vesselCat, dangerous),
+        lookupTugboatFee(pool, portIdNum, grt, vesselCat, dangerous),
+        lookupMooringFee(pool, portIdNum, grt, dangerous),
+        lookupBerthingFee(pool, portIdNum, grt, vesselCat, berthDays),
+        lookupAgencyFee(pool, portIdNum, nrt, eurUsdParity, berthDays),
+        lookupMarpolFee(pool, portIdNum, grt, eurUsdParity),
+        lookupLcbFee(pool, portIdNum, nrt, usdTryRate),
+      ]);
+
+      const dbSources = [pilotage, tugboat, mooring, berthing, agency, marpol, lcb];
+      const anyFromDb = dbSources.some(r => r.source === "database");
+      const tariffSource = anyFromDb ? "database" : "estimate";
+
+      const PORT_TARIFF_NAMES: Record<number, string> = {
+        1: "Tekirdağ",
+        2: "İstanbul",
+        3: "İzmir",
+      };
+      const portTariffName = anyFromDb ? (PORT_TARIFF_NAMES[portIdNum] || port.name) : null;
 
       const calcInput: CalculationInput = {
-        nrt: (vessel as any).nrt || 1000,
-        grt: (vessel as any).grt || 2000,
+        nrt,
+        grt,
         cargoQuantity: Number(cargoQuantity) || 5000,
         cargoType: cargoType || "",
-        berthStayDays: Number(berthStayDays) || 3,
+        berthStayDays: berthDays,
         anchorageDays: Number(anchorageDays) || 0,
-        isDangerousCargo: isDangerousCargo === true || isDangerousCargo === "true",
+        isDangerousCargo: dangerous,
         customsType,
-        flagCategory: flagCat,
-        dtoCategory: flagCat,
-        lighthouseCategory: flagCat,
-        vtsCategory: flagCat,
-        wharfageCategory: turkish ? "cabotage" : "foreign",
+        flagCategory: flagCat as "turkish" | "foreign" | "cabotage",
+        dtoCategory: turkish ? "turkish" : "foreign",
+        lighthouseCategory: flagCat as "turkish" | "foreign" | "cabotage",
+        vtsCategory: flagCat as "turkish" | "foreign" | "cabotage",
+        wharfageCategory: turkish ? (isCabotage ? "cabotage" : "turkish") : "foreign",
         usdTryRate,
         eurTryRate,
         eurUsdParity,
+        dbPilotageFee: pilotage.fee || undefined,
+        dbTugboatFee: tugboat.fee || undefined,
+        dbMooringFee: mooring.fee || undefined,
+        dbBerthingFee: berthing.fee || undefined,
+        dbAgencyFee: agency.fee || undefined,
+        dbMarpolFee: marpol.fee || undefined,
+        dbLcbFee: lcb.fee || undefined,
       };
 
       const result = calculateProforma(calcInput);
@@ -554,6 +597,18 @@ export async function registerRoutes(
         isEstimate: true,
         cargoType: cargoType || null,
         purposeOfCall: purposeOfCall || null,
+        tariffSource,
+        portTariffName,
+        vesselCategory: vesselCat,
+        tariffDetails: {
+          pilotage: pilotage.source,
+          tugboat: tugboat.source,
+          mooring: mooring.source,
+          berthing: berthing.source,
+          agency: agency.source,
+          marpol: marpol.source,
+          lcb: lcb.source,
+        },
       });
     } catch (error) {
       console.error("Quick estimate error:", error);

@@ -46,6 +46,7 @@ export default function Proformas() {
   const [quickCargoQty, setQuickCargoQty] = useState<string>("5000");
   const [quickCargoUnit, setQuickCargoUnit] = useState<string>("MT");
   const [quickDangerous, setQuickDangerous] = useState<boolean>(false);
+  const [quickVoyageType, setQuickVoyageType] = useState<string>("international");
 
   const CARGO_TYPE_OPTIONS = [
     { value: "bulk_dry", label: "🌾 Dökme Kuru Yük", unit: "MT", examples: "Tahıl, kömür, cevher, gübre, hurda, çimento" },
@@ -141,6 +142,7 @@ export default function Proformas() {
         cargoType: quickCargoType,
         cargoQuantity: parseFloat(quickCargoQty) || 5000,
         isDangerousCargo: quickDangerous,
+        voyageType: quickVoyageType,
       });
       if (res.ok) { setQuickResult(await res.json()); }
       else { toast({ title: "Hesaplama başarısız", variant: "destructive" }); }
@@ -487,7 +489,7 @@ export default function Proformas() {
           <Button
             variant="outline"
             className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/30"
-            onClick={() => { setShowQuickDialog(true); setQuickResult(null); setQuickVesselId(""); setQuickPortId(""); setQuickPortSearch(""); setQuickDays(3); setQuickPurpose("Discharging"); setQuickCargoType("bulk_dry"); setQuickCargoQty("5000"); setQuickCargoUnit("MT"); setQuickDangerous(false); }}
+            onClick={() => { setShowQuickDialog(true); setQuickResult(null); setQuickVesselId(""); setQuickPortId(""); setQuickPortSearch(""); setQuickDays(3); setQuickPurpose("Discharging"); setQuickCargoType("bulk_dry"); setQuickCargoQty("5000"); setQuickCargoUnit("MT"); setQuickDangerous(false); setQuickVoyageType("international"); }}
             data-testid="button-quick-proforma"
           >
             <Zap className="w-4 h-4" /> Anlık Proforma Al
@@ -546,6 +548,40 @@ export default function Proformas() {
                   data-testid="input-days-quick"
                 />
               </div>
+            </div>
+
+            {/* Sefer Tipi */}
+            <div className="space-y-2">
+              <Label>Sefer Tipi</Label>
+              <div className="grid grid-cols-2 gap-2" data-testid="select-voyage-type">
+                <button
+                  type="button"
+                  onClick={() => setQuickVoyageType("international")}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-md border text-sm font-medium transition-colors ${
+                    quickVoyageType === "international"
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "border-input bg-background hover:bg-muted"
+                  }`}
+                  data-testid="button-voyage-international"
+                >
+                  🌍 Uluslararası Sefer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQuickVoyageType("cabotage")}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-md border text-sm font-medium transition-colors ${
+                    quickVoyageType === "cabotage"
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "border-input bg-background hover:bg-muted"
+                  }`}
+                  data-testid="button-voyage-cabotage"
+                >
+                  🇹🇷 Kabotaj Seferi
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Kabotaj: Türk limanları arası · Uluslararası: Yabancı/Türk bayrak dışhat seferi
+              </p>
             </div>
 
             {/* Row 2: Purpose + Cargo Type */}
@@ -717,12 +753,35 @@ export default function Proformas() {
                   <Badge className="text-[10px] bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0">
                     {quickPurpose}
                   </Badge>
+                  <Badge className="text-[10px] bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0">
+                    {quickVoyageType === "cabotage" ? "🇹🇷 Kabotaj" : "🌍 Uluslararası"}
+                  </Badge>
                   {quickDangerous && (
                     <Badge className="text-[10px] bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-0">
                       ⚠️ Tehlikeli Madde +%25
                     </Badge>
                   )}
                 </div>
+
+                {quickResult.tariffSource === "database" ? (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-md" data-testid="badge-tariff-real">
+                    <span className="text-emerald-600 dark:text-emerald-400 text-sm">✓</span>
+                    <div>
+                      <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Gerçek 2026 Tarifeleri Uygulandı</span>
+                      {quickResult.portTariffName && (
+                        <span className="text-xs text-emerald-600 dark:text-emerald-400 ml-1.5">({quickResult.portTariffName} resmi tarifesi)</span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md" data-testid="badge-tariff-estimate">
+                    <span className="text-amber-600 dark:text-amber-400 text-sm">~</span>
+                    <div>
+                      <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Tahmini Değerler</span>
+                      <span className="text-xs text-amber-600 dark:text-amber-400 ml-1.5">(Bu liman için DB'de tarife yok)</span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="border rounded-md overflow-hidden bg-white dark:bg-background">
                   <Table>

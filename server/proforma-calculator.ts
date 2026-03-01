@@ -15,6 +15,13 @@ export interface CalculationInput {
   usdTryRate: number;
   eurTryRate: number;
   eurUsdParity: number;
+  dbPilotageFee?: number;
+  dbTugboatFee?: number;
+  dbMooringFee?: number;
+  dbBerthingFee?: number;
+  dbAgencyFee?: number;
+  dbMarpolFee?: number;
+  dbLcbFee?: number;
 }
 
 export interface CalculatedLineItem {
@@ -172,6 +179,7 @@ function vlookup<T extends Record<string, number>>(value: number, table: T[], mi
 }
 
 function calcPilotage(input: CalculationInput): number {
+  if (input.dbPilotageFee != null && input.dbPilotageFee > 0) return input.dbPilotageFee;
   const { grt, isDangerousCargo } = input;
   const base = grt <= 1000 ? PILOTAGE_BASE : PILOTAGE_BASE + Math.ceil((grt - 1000) / 1000) * PILOTAGE_PER_1000;
   const dangerousMultiplier = isDangerousCargo ? 1.3 : 1;
@@ -179,6 +187,7 @@ function calcPilotage(input: CalculationInput): number {
 }
 
 function calcTugboat(input: CalculationInput): number {
+  if (input.dbTugboatFee != null && input.dbTugboatFee > 0) return input.dbTugboatFee;
   const { grt, isDangerousCargo } = input;
   const tugCount = grt > 5000 ? 4 : 2;
   const base = grt <= 1000 ? TUGBOAT_BASE : TUGBOAT_BASE + Math.ceil((grt - 1000) / 1000) * TUGBOAT_PER_1000;
@@ -187,6 +196,7 @@ function calcTugboat(input: CalculationInput): number {
 }
 
 function calcMooring(input: CalculationInput): number {
+  if (input.dbMooringFee != null && input.dbMooringFee > 0) return input.dbMooringFee;
   const { grt, isDangerousCargo } = input;
   const base = grt <= 1000 ? MOORING_BASE : MOORING_BASE + Math.ceil((grt - 1000) / 1000) * MOORING_PER_1000;
   const dangerousMultiplier = isDangerousCargo ? 1.3 : 1;
@@ -194,6 +204,7 @@ function calcMooring(input: CalculationInput): number {
 }
 
 function calcWharfage(input: CalculationInput): number {
+  if (input.dbBerthingFee != null && input.dbBerthingFee > 0) return input.dbBerthingFee;
   const { grt, berthStayDays, wharfageCategory } = input;
   if (wharfageCategory === "izmir_tcdd") {
     return Math.ceil(grt / 1000) * berthStayDays * 10;
@@ -206,6 +217,7 @@ function calcWharfage(input: CalculationInput): number {
 }
 
 function calcGarbage(input: CalculationInput): number {
+  if (input.dbMarpolFee != null && input.dbMarpolFee > 0) return input.dbMarpolFee;
   const { grt, eurUsdParity } = input;
   const row = vlookup(grt, GARBAGE_TABLE, "minGrt");
   return row.rate * eurUsdParity;
@@ -226,6 +238,7 @@ function calcSanitary(input: CalculationInput): number {
 }
 
 function calcHarbourMaster(input: CalculationInput): number {
+  if (input.dbLcbFee != null && input.dbLcbFee > 0) return input.dbLcbFee;
   const { nrt, usdTryRate } = input;
   const lcbRow = vlookup(nrt, SANITARY_LCB_TABLE, "minNrt");
   const lcb = lcbRow.rateTL / usdTryRate;
@@ -347,6 +360,7 @@ function calcSupervision(input: CalculationInput): number {
 }
 
 function calcAgencyFee(input: CalculationInput): number {
+  if (input.dbAgencyFee != null && input.dbAgencyFee > 0) return input.dbAgencyFee;
   const { nrt, eurUsdParity, berthStayDays } = input;
   const row = vlookup(nrt, AGENCY_FEE_TABLE, "minNrt");
   const extra = row.perExtra1000Eur > 0 ? Math.ceil(Math.max(0, nrt - row.minNrt) / 1000) * row.perExtra1000Eur : 0;
