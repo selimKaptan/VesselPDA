@@ -999,7 +999,7 @@ export default function Vessels() {
 
       {/* ── Detail Dialog ─────────────────────────────────────────────────── */}
       <Dialog open={!!selectedVessel} onOpenChange={(o) => { if (!o) setSelectedVessel(null); }}>
-        <DialogContent className="max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogContent className="max-w-full w-screen h-screen max-h-screen !rounded-none overflow-hidden flex flex-col p-0 top-0 left-0 translate-x-0 translate-y-0">
           {selectedVesselFresh && (() => {
             const v = selectedVesselFresh;
             const voy = selectedVoyage;
