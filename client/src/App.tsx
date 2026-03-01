@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AiChat } from "@/components/ai-chat";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -260,6 +261,7 @@ function AuthenticatedLayout() {
         </div>
       </div>
       <FeedbackWidget />
+      <AiChat />
     </SidebarProvider>
   );
 }

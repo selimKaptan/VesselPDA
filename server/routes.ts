@@ -13,6 +13,7 @@ import { geocodeStats } from "./geocode-ports";
 import { checkSanctions, getSanctionsStatus, loadSanctionsList } from "./sanctions";
 import { db } from "./db";
 import { sql as drizzleSql } from "drizzle-orm";
+import { handleAiChat } from "./anthropic";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "logos");
 if (!fs.existsSync(uploadsDir)) {
@@ -3719,6 +3720,27 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch {
       res.status(500).json({ message: "Failed to delete port alert" });
+    }
+  });
+
+  app.post("/api/ai/chat", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { messages } = req.body;
+      if (!Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({ message: "messages array required" });
+      }
+      const validMessages = messages.filter(
+        (m: any) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string"
+      );
+      if (validMessages.length === 0) {
+        return res.status(400).json({ message: "No valid messages" });
+      }
+      const result = await handleAiChat(userId, validMessages);
+      res.json(result);
+    } catch (err: any) {
+      console.error("AI chat error:", err);
+      res.status(500).json({ message: "AI servisine bağlanılamadı" });
     }
   });
 

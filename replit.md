@@ -7,59 +7,51 @@ VesselPDA is a professional web-based maritime platform designed to revolutioniz
 I prefer detailed explanations and iterative development. Ask before making major changes. I would like to see the agent work through the problem step-by-step. I prefer clear and concise communication.
 
 ## System Architecture
-The platform is built with a modern web stack:
-- **Frontend**: React, Vite, Tailwind CSS, and Shadcn UI, ensuring a responsive and intuitive user experience. The UI/UX is maritime-themed, predominantly using a deep blue color palette (primary: #003D7A, secondary: #0077BE, accent: #00A8E1) with design tokens for a professional aesthetic, including maritime-gold accents and stronger shadows.
+The platform is built with a modern web stack. The UI/UX is maritime-themed, predominantly using a deep blue color palette with design tokens for a professional aesthetic.
+
+**Technical Implementations:**
+- **Frontend**: React, Vite, Tailwind CSS, and Shadcn UI.
 - **Backend**: Express.js with PostgreSQL as the database, managed via Drizzle ORM.
-- **Authentication**: Custom email/password authentication with email verification flow (Replit OAuth removed). Users register with email + password, receive verification email via Resend, then log in. Session-based auth using connect-pg-simple (PostgreSQL session store). Includes forgot-password / reset-password flows. Password hashing with bcryptjs. Existing users auto-marked as email-verified on startup.
+- **Authentication**: Custom email/password authentication with email verification, session-based authentication using `connect-pg-simple`, and password hashing with `bcryptjs`.
 - **Core Features**:
-    - **User Management**: Role-based authentication (Admin, Shipowner/Broker, Ship Agent, Service Provider) with distinct dashboards and navigation.
-    - **Vessel Management**: CRUD operations for vessels, including a fleet dashboard and personal watchlists.
-    - **Port & Tariff Data**: Management of 804 Turkish ports, including LOCODE lookup and detailed port information via external APIs.
-    - **Proforma Generation**: An advanced, formula-based calculation engine (22 line items) for automated tariff calculations, matching Excel references. Supports PDF export and manual calculation. **Anlık Proforma (Quick Estimate)**: `POST /api/proformas/quick-estimate` endpoint auto-fetches live TCMB rates and calculates 22-item DA instantly from vesselId+portId. Proformas list has "⚡ Anlık Proforma Al" dialog (3 fields: vessel, port search, days) showing full line-item breakdown, "Taslak Kaydet" and "Tam Proformaya Geç" actions. Proforma-new form shows live "Anlık Tahmin" panel in right sidebar whenever vessel+port are selected (debounced 900ms auto-call).
-    - **Company Profiles**: Detailed profiles for agents and providers, including contact information, served ports, service types, and optional featured listings. Includes agent performance metrics such as win rate and average rating.
-    - **Maritime Directory**: A searchable and filterable directory of maritime companies.
-    - **Subscription System**: A 3-tier subscription model (Free, Standard, Unlimited) with usage tracking for proformas and vessels.
-    - **Vessel Tracking**: Interactive Mapbox GL JS map (Navigation Night style) with live AIS data (via AISStream.io) for vessel positions in Turkish waters, custom SVG ship markers with heading rotation, and role-based fleet views. Token: `VITE_MAPBOX_TOKEN` secret.
-    - **Port Call Tender System**: Enables shipowners to create tenders, routes them to relevant agents, allows agents to submit bids, and facilitates bid selection and nomination with email notifications. On nomination confirmation, a voyage is automatically created (linked to both shipowner and agent via `tenderId`) and a conversation is auto-opened between them (linked to the voyage via `voyageId`). Tender detail page shows "Seferi Görüntüle" and "Sohbet Aç" buttons in all nomination banners (success, nominated status, agent confirmed view).
-    - **Voyage Management (Sefer Yönetimi)**: Full operation file system. Shipowners/agents create voyages (vessel + port + ETA/ETD + purpose). Each voyage has a checklist (add/toggle/delete tasks with progress bar) and linked service requests. Status lifecycle: planned → active → completed/cancelled. Pages: `/voyages` (list), `/voyages/:id` (detail).
-    - **Service Request System (Hizmet Talepleri)**: Shipowners/agents post service requests (fuel, repair, provisioning, crew change, cleaning, other) with vessel, port, quantity, preferred date. Service providers in matching ports see open requests and submit price offers. Requester selects the winning offer. Notifications sent on new requests and new offers. Pages: `/service-requests` (role-differentiated list), `/service-requests/:id` (detail with offers). 4 new DB tables: `voyages`, `voyage_checklists`, `service_requests`, `service_offers`.
-    - **Forum/Discussion Board**: A comprehensive discussion platform with categories, topics, replies, search, and filtering, accessible to all users for collaborative communication. Supports anonymous posting.
-    - **Doküman Yönetimi**: Voyage-bazlı dosya yükleme sistemi. Manifest, konşimento, sertifika, liman izni ve diğer dokümanlar base64 olarak saklanıp indirilebilir. UI: voyage-detail içinde "Dokümanlar" paneli. DB tablo: `voyage_documents`.
-    - **Karşılıklı Değerlendirme**: Tamamlanan seferler sonrası armatör/acente birbirini 1-5 yıldızla değerlendirebilir. "Değerlendir" butonu yalnızca status=completed ve daha önce değerlendirme yapılmamışsa görünür. Voyage detail'de "Değerlendirmeler" bölümü. DB tablo: `voyage_reviews`.
-    - **Direkt Mesajlaşma**: Kullanıcılar arası özel mesajlaşma sistemi. Konuşma listesi (/messages), mesaj thread'i (/messages/:id). Okunmamış badge sidebar'da. 15s poll ile güncelleme. Yeni mesajda bildirim. Directory-profile'da "Mesaj Gönder" butonu. DB tablolar: `conversations`, `messages`.
-    - **Notification System**: Real-time in-app notifications (bell icon in top-right header). Notifies users of forum replies on their topics, incoming bids on tenders, selected bids, nominations, and new messages. Unread count badge, mark-all-read, click-to-navigate. `notifications` table in DB. Auto-polls every 30 seconds.
-    - **Internationalization**: TR/EN language toggle with content translation.
-    - **Dark Mode**: Full dark/light mode toggle with localStorage persistence (`vpda-theme`). ThemeProvider context in `client/src/components/theme-provider.tsx`. Toggle button (Moon/Sun) in header.
-    - **Mobile Navigation**: Sheet-based hamburger drawer for small screens. Opens/closes on nav link click. Visible on `md:hidden` breakpoint.
-    - **Admin User Management**: Plan change (free/standard/unlimited) inline dropdown per user, suspend/activate users (sets `isSuspended` flag, blocks login with 403). `users.is_suspended` column in DB.
-    - **Gemi Sertifika Yönetimi**: `/vessel-certificates` sayfası. Gemi başına ISM, ISPS, Load Line, MARPOL, SOLAS ve diğer sertifika takibi. Bitiş tarihi renk kodlaması (Geçerli/Yakında Bitiyor/Süresi Dolmuş). 30 gün uyarı banner'ı. DB tablo: `vessel_certificates`.
-    - **Port Call Randevu Yönetimi**: voyage-detail.tsx içinde "Port Call Randevuları" paneli. Pilot, römorkör, sağlık, gümrük, göçmenlik randevuları ile durum takibi (Bekliyor/Onaylandı/Tamamlandı/İptal). DB tablo: `port_call_appointments`.
-    - **Fixture & Recap Sistemi**: `/fixtures` sayfası. Charter müzakeresi ve fixture takibi. Gemi, kargo, navlun, laycan, charterer/armatör/broker bilgileri. Serbest metin "Recap" alanı. Status: Müzakere/Sabitlendi/Başarısız/İptal. Shipowner + agent + admin erişimi. DB tablo: `fixtures`.
-    - **Kargo & Pozisyon İlan Panosu**: `/cargo-positions` sayfası. "Kargo arıyor" veya "Gemi arıyor" ilanı. Filtreli kart grid. İletişim bilgileri. Tüm auth kullanıcılar görebilir ve ilan verebilir. DB tablo: `cargo_positions`. Sayfanın üstünde canlı BDI/BCTI/BDTI ticker banner'ı ile /market-data'ya hızlı erişim.
-    - **Piyasa Verileri**: `/market-data` sayfası. Baltic Dry Index (BDI), Baltic Clean Tanker Index (BCTI), Baltic Dirty Tanker Index (BDTI) — Yahoo Finance API ile sunucu tarafında 4 saatlik önbellekleme, erişilemezse fallback değerleri. Liman bazlı bunker fiyat tablosu (IFO380, VLSFO, MGO, USD/MT) — `bunker_prices` DB tablosu, 7 ana liman önceden tohumlanmış (İstanbul, Mersin, İzmir, Rotterdam, Singapore, Fujairah, Houston). Admin panel "Bunker" sekmesinden CRUD yönetimi. Sidebar'da agent/shipowner/broker/admin erişimi. Hızlı erişim linkleri (Kargo Panosu, Fixtureler, Port Bilgisi).
-    - **Proforma List Enhancements**: Status filter, vessel filter, text search. Duplicate/clone proforma action (POST /api/proformas/:id/duplicate).
-    - **AIS WebSocket Heartbeat**: 30s ping interval with 10s pong timeout to detect/terminate dead connections (fixes frequent code 1006 disconnects).
-    - **Role-Specific Dashboards**: `dashboard.tsx` is a clean router that renders a dedicated component per role — `ShipownerDashboard` (fleet widget, active tenders, recent proformas, subscription card, quick actions), `AgentDashboard` (incoming tenders by port, bid status, performance card with win rate/rating, profile completion checklist), `ProviderDashboard` (profile completion hero with 5-field progress bar, services chips, contact summary, directory visibility, featured upsell), `AdminDashboard` (6-stat grid, recent activity feed, user role breakdown). Admin has a role switcher panel (Admin Overview / Shipowner / Agent / Provider). All components in `client/src/components/dashboards/`.
-    - **Directory Ratings**: Agent cards in `/directory` now display avgRating (star icon + score + review count) or "No reviews yet". Backend `/api/directory` enriched with `avgRating` and `reviewCount` per profile.
-    - **Star Rating UX**: `StarRating` component in directory-profile has smooth `transition-all` animation, `drop-shadow` on filled stars, and hover preview color (`text-amber-300`) on unfilled stars.
-    - **Trust & Verification System**: Company profiles gain `verificationStatus` (unverified/pending/verified/rejected), `taxNumber`, `mtoRegistrationNumber`, `pandiClubName` fields. Agents/providers submit a verification request (tax no + MTO + P&I Club) from Settings → admin reviews in Admin panel "Doğrulamalar" tab → approve/reject with note. Verified companies show a blue "Doğrulanmış Şirket" badge in directory cards and profile pages. Trust Score panel on profile shows completed voyages, success rate, avg rating, bid win rate. Endorsements system: any user can write a reference for a company (relationship type + message), shown in directory-profile. OFAC SDN sanctions list loaded on startup (cached 24h), `GET /api/sanctions/check?name=...` endpoint for checks. DB tables: `endorsements`. `server/sanctions.ts`.
-    - **Security (CSP)**: Helmet Content-Security-Policy headers enabled in `server/index.ts` — `connect-src` covers AIS WSS, TCMB, Resend, Zyla, Mapbox, OFAC; `worker-src: blob:` for Mapbox GL workers; `frame-ancestors: none`; `crossOriginEmbedderPolicy: false`.
-    - **Proforma View**: Rewritten with dynamic company logo from `/api/company-profile/me`, email-send dialog (Resend), signature/stamp area, disclaimer text, navy blue table header, exchange rate line, mobile `overflow-x-auto` + `break-all` for IBANs.
-    - **Email Features**: `sendForumReplyEmail()` and `sendProformaEmail()` in `server/email.ts`. Forum reply route emails topic author on new replies. `POST /api/proformas/:id/send-email` sends HTML proforma email via Resend.
-- **Design Choices**: Global design tokens, professional UI redesign across all pages, including revamped landing page, dashboards, and forms.
-- **Data Storage**: Logo images are stored as base64 data URIs in the database to ensure persistence.
-- **API Integration**: Integration with various external services for enhanced functionality (e.g., AIS data, vessel information, exchange rates).
+    - **User & Role Management**: Role-based access (Admin, Shipowner/Broker, Ship Agent, Service Provider) with distinct dashboards.
+    - **Vessel & Port Management**: CRUD operations for vessels and management of Turkish port data, including LOCODE lookup.
+    - **Proforma Generation**: Formula-based calculation engine for instant disbursement account generation, supporting PDF export and quick estimates based on live exchange rates.
+    - **Company Profiles & Directory**: Detailed, customizable profiles for maritime companies and a searchable directory. Includes a Trust & Verification System with company verification status, sanction list checks, and endorsements.
+    - **Subscription System**: 3-tier model (Free, Standard, Unlimited) with usage tracking.
+    - **Vessel Tracking**: Interactive Mapbox GL JS map with live AIS data for vessel positions in Turkish waters.
+    - **Port Call Tender System**: Facilitates tender creation by shipowners, bid submission by agents, and nomination with automated voyage creation and conversation initiation.
+    - **Voyage Management**: Comprehensive system for managing voyages, including checklists, linked service requests, and status lifecycle.
+    - **Service Request System**: Enables posting and fulfilling service requests (e.g., fuel, repair) with offer management.
+    - **Forum/Discussion Board**: A platform for collaborative communication with categories, topics, and replies.
+    - **Document Management**: Voyage-based file upload system for various documents.
+    - **Mutual Assessment**: Rating system for shipowners/agents after completed voyages.
+    - **Direct Messaging**: Private messaging system between users with real-time updates and notifications.
+    - **Notification System**: Real-time in-app notifications for various events.
+    - **Internationalization**: TR/EN language toggle.
+    - **Dark Mode**: Full dark/light mode toggle.
+    - **Mobile Navigation**: Sheet-based hamburger menu for small screens.
+    - **Admin User Management**: Tools for managing user plans, suspension, and verification requests.
+    - **Vessel Certificate Management**: Tracking and status visualization for vessel certificates.
+    - **Port Call Appointment Management**: Panel for managing and tracking port call appointments.
+    - **Fixture & Recap System**: System for charter negotiation and fixture tracking.
+    - **Cargo & Position Board**: Platform for posting and viewing "cargo looking" or "vessel looking" ads, integrated with market data tickers.
+    - **Market Data**: Displays Baltic Dry/Tanker Indices (from Yahoo Finance API) and port-specific bunker prices.
+    - **AI Assistant**: Floating chat panel powered by Claude-Haiku, providing context-aware assistance based on user's vessels, voyages, and proformas.
+- **Security**: Helmet Content-Security-Policy headers configured for various external services.
 
 ## External Dependencies
-- **PostgreSQL**: Primary database for all application data, managed with Drizzle ORM.
-- **bcryptjs**: Password hashing library for secure credential storage.
-- **AISStream.io**: WebSocket-based API for live AIS vessel tracking data.
-- **RapidAPI (Zyla Labs Vessel Information API)**: For vessel IMO lookup and retrieving detailed vessel information (name, type, flag, tonnage, dimensions).
-- **Turkish Central Bank (TCMB)**: Public XML feed for fetching live USD/TRY and EUR/TRY exchange rates.
-- **Resend**: Transactional email service for sending various notifications (nominations, contact forms, bid-related alerts, proforma emails, forum reply notifications).
-- **jsPDF + html2canvas**: Client-side libraries for generating multi-page PDF exports of proformas.
-- **Mapbox GL JS**: Professional vector map library for both Vessel Track (Navigation Night style) and Port Info (Streets style). Token: `VITE_MAPBOX_TOKEN`. Free tier: 50k loads/month.
+- **PostgreSQL**: Primary database.
+- **bcryptjs**: For password hashing.
+- **AISStream.io**: For live AIS vessel tracking data.
+- **RapidAPI (Zyla Labs Vessel Information API)**: For detailed vessel information.
+- **Turkish Central Bank (TCMB)**: For live exchange rates.
+- **Resend**: Transactional email service.
+- **jsPDF + html2canvas**: For client-side PDF generation.
+- **Mapbox GL JS**: For interactive maps.
 - **Vite**: Frontend build tool.
-- **Tailwind CSS**: Utility-first CSS framework for styling.
+- **Tailwind CSS**: CSS framework.
 - **Shadcn UI**: UI component library.
-- **Recharts**: Charting library for admin analytics.
+- **Recharts**: Charting library.
+- **Anthropic AI**: For the AI Assistant (Claude-Haiku).
+- **Yahoo Finance API**: For market data indices (BDI, BCTI, BDTI).
