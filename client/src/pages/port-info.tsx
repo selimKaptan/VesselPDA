@@ -462,7 +462,7 @@ export default function PortInfo() {
         {/* Footer */}
         <div className="flex-shrink-0 border-t px-4 py-2 bg-muted/20 flex items-center justify-between">
           <p className="text-[10px] text-muted-foreground">
-            {searchQuery ? `${filteredPorts.length} / ${allPorts.length} liman gösteriliyor` : `${allPorts.length} liman`}
+            {isSearching ? `${filteredPorts.length} sonuç · dünya araması` : `${turkishPorts.length} Türk limanı · dünya için arama yapın`}
           </p>
           <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
             <span className="flex items-center gap-1"><MapPin className="w-2.5 h-2.5 text-emerald-500" /> Koordinatlı</span>
