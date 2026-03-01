@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   TrendingUp, TrendingDown, Minus, Fuel, ArrowRight, Info,
-  Ship, Anchor, Package, RefreshCw, Edit2, Trash2, Plus, Loader2
+  Ship, Anchor, Package, RefreshCw, Edit2, Trash2, Plus, Loader2, CheckCircle2, ExternalLink
 } from "lucide-react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +35,7 @@ type FreightData = {
   lastUpdated: string;
   source: string;
   cached: boolean;
+  hasApiKey?: boolean;
 };
 
 type BunkerPrice = {
@@ -240,10 +241,43 @@ export default function MarketData() {
         )}
       </div>
 
+      {freightData?.source === "Trading Economics" && (
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-sm">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          Canlı endeks verisi aktif — Trading Economics
+        </div>
+      )}
+      {freightData?.source === "Yahoo Finance" && (
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-sm">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          Canlı endeks verisi aktif — Yahoo Finance
+        </div>
+      )}
       {freightData?.source === "Fallback" && (
-        <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-sm">
-          <Info className="w-4 h-4 shrink-0" />
-          Anlık endeks verisi alınamıyor. Referans değerler gösteriliyor.
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-sm">
+            <Info className="w-4 h-4 shrink-0" />
+            <span>Anlık endeks verisi alınamıyor. Referans değerler gösteriliyor.</span>
+          </div>
+          {!freightData.hasApiKey && (
+            <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-muted/60 border border-border text-xs text-muted-foreground">
+              <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>
+                Gerçek zamanlı BDI/BCTI/BDTI verisi için{" "}
+                <a
+                  href="https://tradingeconomics.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-primary hover:text-primary/80 inline-flex items-center gap-0.5"
+                >
+                  Trading Economics <ExternalLink className="w-3 h-3" />
+                </a>{" "}
+                ücretsiz API anahtarı alın ve{" "}
+                <code className="bg-muted px-1 py-0.5 rounded text-[11px]">TRADING_ECONOMICS_API_KEY</code>{" "}
+                olarak ortam değişkenine ekleyin.
+              </span>
+            </div>
+          )}
         </div>
       )}
 
