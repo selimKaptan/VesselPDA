@@ -897,3 +897,58 @@ export async function sendProformaEmail(data: ProformaEmailData): Promise<boolea
     return true;
   } catch (err) { console.error("[email] sendProformaEmail failed:", err); return false; }
 }
+
+export async function sendMessageBridgeEmail(
+  to: string,
+  toName: string,
+  senderName: string,
+  content: string,
+  fileName?: string
+): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) { console.warn("[email] No credentials — skipping sendMessageBridgeEmail"); return false; }
+  const resend = new Resend(creds.apiKey);
+
+  const fileSection = fileName
+    ? `<div style="background:#f8fafc;border-radius:8px;padding:12px 16px;margin-top:12px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:20px">📎</span>
+        <span style="color:#475569;font-size:14px">${fileName}</span>
+       </div>`
+    : "";
+
+  const html = emailWrapper(`
+    <tr>${emailHeader("Yeni Mesaj — VesselPDA")}</tr>
+    <tr><td style="padding:32px">
+      <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#0f172a">Merhaba ${toName || ""},</p>
+      <p style="margin:0 0 20px;color:#334155;font-size:15px;line-height:1.7">
+        <strong>${senderName}</strong> size VesselPDA üzerinden bir mesaj gönderdi:
+      </p>
+      <div style="background:#f0f6ff;border-left:4px solid #003D7A;border-radius:0 8px 8px 0;padding:16px 20px;margin-bottom:16px">
+        <p style="margin:0;color:#1e293b;font-size:15px;line-height:1.7;white-space:pre-wrap">${content}</p>
+      </div>
+      ${fileSection}
+      <div style="margin-top:24px">
+        <p style="margin:0 0 12px;color:#64748b;font-size:13px">Bu konuşmayı platform üzerinden takip etmek için:</p>
+        <table cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background:#003D7A">
+          <a href="https://vesselpda.com/register" style="display:inline-block;padding:12px 24px;color:#fff;font-size:14px;font-weight:600;text-decoration:none">VesselPDA'ya Katıl →</a>
+        </td></tr></table>
+      </div>
+      <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0">
+        <p style="margin:0;color:#94a3b8;font-size:12px">Bu e-posta, VesselPDA üzerindeki bir kullanıcının e-posta köprüsü özelliği aracılığıyla iletilmiştir.</p>
+      </div>
+    </td></tr>
+    <tr>${emailFooter()}</tr>
+  `);
+
+  try {
+    const { error } = await resend.emails.send({
+      from: `VesselPDA <${creds.fromEmail}>`,
+      to: [to],
+      subject: `[VesselPDA] ${senderName} size mesaj gönderdi`,
+      html,
+    });
+    if (error) { console.error("[email] sendMessageBridgeEmail error:", error); return false; }
+    console.log(`[email] Message bridge email sent to ${to}`);
+    return true;
+  } catch (err) { console.error("[email] sendMessageBridgeEmail failed:", err); return false; }
+}

@@ -495,6 +495,9 @@ export const conversations = pgTable("conversations", {
   serviceRequestId: integer("service_request_id").references(() => serviceRequests.id, { onDelete: "set null" }),
   lastMessageAt: timestamp("last_message_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
+  externalEmail: text("external_email"),
+  externalEmailName: text("external_email_name"),
+  externalEmailForward: boolean("external_email_forward").notNull().default(false),
 });
 
 export const conversationRelations = relations(conversations, ({ one, many }) => ({
@@ -510,6 +513,12 @@ export const messages = pgTable("messages", {
   content: text("content").notNull(),
   isRead: boolean("is_read").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
+  messageType: text("message_type").notNull().default("text"),
+  fileUrl: text("file_url"),
+  fileName: text("file_name"),
+  fileSize: integer("file_size"),
+  readAt: timestamp("read_at"),
+  mentions: text("mentions"),
 });
 
 export const messageRelations = relations(messages, ({ one }) => ({
@@ -553,7 +562,7 @@ export const insertVoyageDocumentSchema = createInsertSchema(voyageDocuments).om
 export const insertVoyageReviewSchema = createInsertSchema(voyageReviews).omit({ id: true, createdAt: true });
 export const insertVoyageChatMessageSchema = createInsertSchema(voyageChatMessages).omit({ id: true, createdAt: true });
 export const insertConversationSchema = createInsertSchema(conversations).omit({ id: true, createdAt: true, lastMessageAt: true });
-export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true, isRead: true });
+export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true, isRead: true, readAt: true });
 
 export type InsertVoyage = z.infer<typeof insertVoyageSchema>;
 export type Voyage = typeof voyages.$inferSelect;

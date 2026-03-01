@@ -2730,6 +2730,7 @@ export async function registerRoutes(
       const convs = await storage.getConversationsByUser(req.user.claims.sub);
       res.json(convs);
     } catch (error) {
+      console.error("[messages] getConversationsByUser error:", error);
       res.status(500).json({ message: "Failed to get conversations" });
     }
   });
@@ -2773,21 +2774,62 @@ export async function registerRoutes(
   app.post("/api/messages/:conversationId/send", isAuthenticated, async (req: any, res) => {
     try {
       const conversationId = parseInt(req.params.conversationId);
-      const { content } = req.body;
-      if (!content?.trim()) return res.status(400).json({ message: "content required" });
+      const { content, messageType, fileUrl, fileName, fileSize, mentions } = req.body;
+      if (!content?.trim() && !fileUrl) return res.status(400).json({ message: "content or file required" });
+      if (fileSize && fileSize > 8 * 1024 * 1024) return res.status(400).json({ message: "File too large (max 8MB)" });
       const conv = await storage.getConversationById(conversationId, req.user.claims.sub);
       if (!conv) return res.status(404).json({ message: "Conversation not found" });
-      const msg = await storage.createMessage({ conversationId, senderId: req.user.claims.sub, content });
+      const msg = await storage.createMessage({
+        conversationId,
+        senderId: req.user.claims.sub,
+        content: content || (fileName ? `[Dosya: ${fileName}]` : ""),
+        messageType: messageType || "text",
+        fileUrl: fileUrl || null,
+        fileName: fileName || null,
+        fileSize: fileSize || null,
+        mentions: mentions && Array.isArray(mentions) && mentions.length > 0 ? JSON.stringify(mentions) : null,
+      });
       const receiverId = conv.user1Id === req.user.claims.sub ? conv.user2Id : conv.user1Id;
+      const notifMessage = fileUrl
+        ? `📎 ${fileName || "Dosya paylaşıldı"}`
+        : (content.length > 60 ? content.slice(0, 60) + "..." : content);
       await storage.createNotification({
         userId: receiverId,
         type: "message",
         title: "Yeni Mesaj",
-        message: content.length > 60 ? content.slice(0, 60) + "..." : content,
+        message: notifMessage,
         link: `/messages/${conversationId}`,
       });
+      // @mention notifications
+      if (Array.isArray(mentions) && mentions.length > 0) {
+        const senderUser = await storage.getUser(req.user.claims.sub);
+        for (const mentionedId of mentions) {
+          if (mentionedId !== req.user.claims.sub) {
+            await storage.createNotification({
+              userId: mentionedId,
+              type: "mention",
+              title: "Sizi etiketledi",
+              message: `${senderUser?.name || "Bir kullanıcı"} mesajda sizi etiketledi`,
+              link: `/messages/${conversationId}`,
+            });
+          }
+        }
+      }
+      // E-posta bridge: auto-forward if enabled
+      if (conv.externalEmailForward && conv.externalEmail) {
+        const { sendMessageBridgeEmail } = await import("./email");
+        const senderUser = await storage.getUser(req.user.claims.sub);
+        sendMessageBridgeEmail(
+          conv.externalEmail,
+          conv.externalEmailName || conv.externalEmail,
+          senderUser?.name || "VesselPDA Kullanıcısı",
+          content || "",
+          fileName || undefined
+        ).catch((e: any) => console.error("[bridge] email failed:", e));
+      }
       res.status(201).json(msg);
     } catch (error) {
+      console.error("Failed to send message:", error);
       res.status(500).json({ message: "Failed to send message" });
     }
   });
@@ -2799,6 +2841,19 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to mark as read" });
+    }
+  });
+
+  app.patch("/api/conversations/:convId/external-email", isAuthenticated, async (req: any, res) => {
+    try {
+      const convId = parseInt(req.params.convId);
+      const { email, name, forward } = req.body;
+      const conv = await storage.getConversationById(convId, req.user.claims.sub);
+      if (!conv) return res.status(404).json({ message: "Conversation not found" });
+      await storage.updateConversationExternalEmail(convId, email || null, name || null, !!forward);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update external email" });
     }
   });
 
