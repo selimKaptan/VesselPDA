@@ -813,3 +813,29 @@ export const portAlertRelations = relations(portAlerts, ({ one }) => ({
 export const insertPortAlertSchema = createInsertSchema(portAlerts).omit({ id: true, createdAt: true });
 export type InsertPortAlert = z.infer<typeof insertPortAlertSchema>;
 export type PortAlert = typeof portAlerts.$inferSelect;
+
+// ── Vessel Crew ──────────────────────────────────────────────────────────────
+export const vesselCrew = pgTable("vessel_crew", {
+  id: serial("id").primaryKey(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  rank: text("rank"),
+  nationality: text("nationality"),
+  contractEndDate: timestamp("contract_end_date"),
+  passportNumber: text("passport_number"),
+  passportExpiry: timestamp("passport_expiry"),
+  seamansBookNumber: text("seamans_book_number"),
+  seamansBookExpiry: timestamp("seamans_book_expiry"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const vesselCrewRelations = relations(vesselCrew, ({ one }) => ({
+  vessel: one(vessels, { fields: [vesselCrew.vesselId], references: [vessels.id] }),
+  user: one(users, { fields: [vesselCrew.userId], references: [users.id] }),
+}));
+
+export const insertVesselCrewSchema = createInsertSchema(vesselCrew).omit({ id: true, createdAt: true });
+export type InsertVesselCrew = z.infer<typeof insertVesselCrewSchema>;
+export type VesselCrew = typeof vesselCrew.$inferSelect;

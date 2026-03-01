@@ -636,7 +636,7 @@ export default function Vessels() {
   const [editingVessel, setEditingVessel] = useState<Vessel | null>(null);
   const [deleteVesselId, setDeleteVesselId] = useState<number | null>(null);
   const [selectedVessel, setSelectedVessel] = useState<Vessel | null>(null);
-  const [detailTab, setDetailTab] = useState<"general" | "voyage" | "technical" | "certificates">("general");
+  const [detailTab, setDetailTab] = useState<"general" | "voyage" | "technical" | "certificates" | "crew">("general");
   const [statusFilter, setStatusFilter] = useState<FilterGroup>("all");
   const [search, setSearch] = useState("");
   const { toast } = useToast();
@@ -646,6 +646,13 @@ export default function Vessels() {
   const [editCert, setEditCert] = useState<any>(null);
   const [certDeleteTarget, setCertDeleteTarget] = useState<{ id: number; vesselId: number } | null>(null);
   const [certForm, setCertForm] = useState({ ...defaultCertForm });
+
+  // Crew state
+  const defaultCrewForm = { firstName: "", lastName: "", rank: "", nationality: "", contractEndDate: "", passportNumber: "", passportExpiry: "", seamansBookNumber: "", seamansBookExpiry: "" };
+  const [crewDialogOpen, setCrewDialogOpen] = useState(false);
+  const [editCrewMember, setEditCrewMember] = useState<any>(null);
+  const [crewDeleteTarget, setCrewDeleteTarget] = useState<{ id: number; vesselId: number } | null>(null);
+  const [crewForm, setCrewForm] = useState({ ...defaultCrewForm });
   const [location] = useLocation();
 
   useEffect(() => {
@@ -719,6 +726,52 @@ export default function Vessels() {
       queryClient.invalidateQueries({ queryKey: ["/api/certificates/expiring"] });
       toast({ title: "Sertifika silindi" });
       setCertDeleteTarget(null);
+    },
+  });
+
+  // Crew query and mutations
+  const { data: vesselCrewList = [], isLoading: crewLoading } = useQuery<any[]>({
+    queryKey: ["/api/vessels", selectedVessel?.id, "crew"],
+    queryFn: async () => {
+      const res = await fetch(`/api/vessels/${selectedVessel!.id}/crew`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedVessel && detailTab === "crew",
+  });
+
+  const crewSaveMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        ...crewForm,
+        contractEndDate: crewForm.contractEndDate || null,
+        passportExpiry: crewForm.passportExpiry || null,
+        seamansBookExpiry: crewForm.seamansBookExpiry || null,
+        passportNumber: crewForm.passportNumber || null,
+        seamansBookNumber: crewForm.seamansBookNumber || null,
+        rank: crewForm.rank || null,
+        nationality: crewForm.nationality || null,
+      };
+      if (editCrewMember?.id) {
+        return apiRequest("PATCH", `/api/vessels/${editCrewMember.vesselId}/crew/${editCrewMember.id}`, payload);
+      }
+      return apiRequest("POST", `/api/vessels/${editCrewMember.vesselId}/crew`, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/vessels", selectedVessel?.id, "crew"] });
+      toast({ title: editCrewMember?.id ? "Mürettebat güncellendi" : "Mürettebat eklendi" });
+      setCrewDialogOpen(false);
+    },
+    onError: () => toast({ title: "Hata", description: "İşlem başarısız", variant: "destructive" }),
+  });
+
+  const crewDeleteMutation = useMutation({
+    mutationFn: async ({ id, vesselId }: { id: number; vesselId: number }) =>
+      apiRequest("DELETE", `/api/vessels/${vesselId}/crew/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/vessels", selectedVessel?.id, "crew"] });
+      toast({ title: "Mürettebat silindi" });
+      setCrewDeleteTarget(null);
     },
   });
 
@@ -965,14 +1018,14 @@ export default function Vessels() {
                       <p className="text-sm text-muted-foreground mt-0.5">{v.vesselType || "—"} · {v.flag || "—"}</p>
                     </div>
                   </div>
-                  <div className="flex gap-1 bg-muted/40 p-1 rounded-xl mt-3">
-                    {(["general", "voyage", "technical", "certificates"] as const).map((tab) => (
+                  <div className="flex gap-1 bg-muted/40 p-1 rounded-xl mt-3 flex-wrap">
+                    {(["general", "voyage", "technical", "certificates", "crew"] as const).map((tab) => (
                       <button
                         key={tab}
                         onClick={() => setDetailTab(tab)}
-                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${detailTab === tab ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all min-w-[60px] ${detailTab === tab ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                       >
-                        {{ general: "Genel", voyage: "Sefer", technical: "Teknik", certificates: "Sertifikalar" }[tab]}
+                        {{ general: "Genel", voyage: "Sefer", technical: "Teknik", certificates: "Sertifikalar", crew: "Mürettebat" }[tab]}
                       </button>
                     ))}
                   </div>
@@ -1190,6 +1243,149 @@ export default function Vessels() {
                       )}
                     </div>
                   )}
+
+                  {/* ── Mürettebat ── */}
+                  {detailTab === "crew" && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Activity className="w-4 h-4 text-primary" />
+                          <span className="text-sm font-semibold">Mürettebat Listesi</span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1"
+                          onClick={() => {
+                            setEditCrewMember({ vesselId: v.id, id: null });
+                            setCrewForm({ firstName: "", lastName: "", rank: "", nationality: "", contractEndDate: "", passportNumber: "", passportExpiry: "", seamansBookNumber: "", seamansBookExpiry: "" });
+                            setCrewDialogOpen(true);
+                          }}
+                          data-testid="button-add-crew"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Mürettebat Ekle
+                        </Button>
+                      </div>
+
+                      {crewLoading ? (
+                        <div className="flex justify-center py-8">
+                          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : vesselCrewList.length === 0 ? (
+                        <div className="text-center py-10 text-muted-foreground">
+                          <Activity className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                          <p className="text-sm">Henüz mürettebat eklenmemiş</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {vesselCrewList.map((member: any) => {
+                            const now = new Date();
+                            const warn30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+                            const dateStatus = (dt: string | null) => {
+                              if (!dt) return null;
+                              const d = new Date(dt);
+                              if (d < now) return "expired";
+                              if (d < warn30) return "warning";
+                              return "ok";
+                            };
+                            const contractStatus = dateStatus(member.contractEndDate);
+                            const passStatus = dateStatus(member.passportExpiry);
+                            const sbStatus = dateStatus(member.seamansBookExpiry);
+
+                            const statusColor = (s: string | null) =>
+                              s === "expired" ? "text-red-600 dark:text-red-400" :
+                              s === "warning" ? "text-amber-600 dark:text-amber-400" :
+                              "text-muted-foreground";
+
+                            return (
+                              <div
+                                key={member.id}
+                                className="rounded-xl border bg-muted/20 p-3 space-y-2"
+                                data-testid={`crew-item-${member.id}`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="space-y-1.5 flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-sm font-bold">{member.firstName} {member.lastName}</span>
+                                      {member.rank && (
+                                        <Badge className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                          {member.rank}
+                                        </Badge>
+                                      )}
+                                      {member.nationality && (
+                                        <span className="text-[11px] text-muted-foreground">{member.nationality}</span>
+                                      )}
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-1 text-[11px]">
+                                      {member.contractEndDate && (
+                                        <div className={`flex items-center gap-1.5 ${statusColor(contractStatus)}`}>
+                                          <Calendar className="w-3 h-3 shrink-0" />
+                                          <span>Kontrat Bitiş: {fmtDate(member.contractEndDate)}</span>
+                                          {contractStatus === "expired" && <span className="font-semibold">(Süresi Dolmuş)</span>}
+                                          {contractStatus === "warning" && <span className="font-semibold">(Yakında Bitiyor)</span>}
+                                        </div>
+                                      )}
+                                      {(member.passportNumber || member.passportExpiry) && (
+                                        <div className={`flex items-center gap-1.5 ${statusColor(passStatus)}`}>
+                                          <FileText className="w-3 h-3 shrink-0" />
+                                          <span>Pasaport{member.passportNumber ? ` No: ${member.passportNumber}` : ""}{member.passportExpiry ? ` · Bitiş: ${fmtDate(member.passportExpiry)}` : ""}</span>
+                                          {passStatus === "expired" && <span className="font-semibold">(Süresi Dolmuş)</span>}
+                                          {passStatus === "warning" && <span className="font-semibold">(Yakında Bitiyor)</span>}
+                                        </div>
+                                      )}
+                                      {(member.seamansBookNumber || member.seamansBookExpiry) && (
+                                        <div className={`flex items-center gap-1.5 ${statusColor(sbStatus)}`}>
+                                          <FileText className="w-3 h-3 shrink-0" />
+                                          <span>Gemiadamı Cüzdanı{member.seamansBookNumber ? ` No: ${member.seamansBookNumber}` : ""}{member.seamansBookExpiry ? ` · Bitiş: ${fmtDate(member.seamansBookExpiry)}` : ""}</span>
+                                          {sbStatus === "expired" && <span className="font-semibold">(Süresi Dolmuş)</span>}
+                                          {sbStatus === "warning" && <span className="font-semibold">(Yakında Bitiyor)</span>}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-7 w-7"
+                                      onClick={() => {
+                                        setEditCrewMember(member);
+                                        setCrewForm({
+                                          firstName: member.firstName || "",
+                                          lastName: member.lastName || "",
+                                          rank: member.rank || "",
+                                          nationality: member.nationality || "",
+                                          contractEndDate: member.contractEndDate ? member.contractEndDate.substring(0, 10) : "",
+                                          passportNumber: member.passportNumber || "",
+                                          passportExpiry: member.passportExpiry ? member.passportExpiry.substring(0, 10) : "",
+                                          seamansBookNumber: member.seamansBookNumber || "",
+                                          seamansBookExpiry: member.seamansBookExpiry ? member.seamansBookExpiry.substring(0, 10) : "",
+                                        });
+                                        setCrewDialogOpen(true);
+                                      }}
+                                      data-testid={`button-edit-crew-${member.id}`}
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-7 w-7 text-destructive hover:text-destructive"
+                                      onClick={() => setCrewDeleteTarget({ id: member.id, vesselId: v.id })}
+                                      data-testid={`button-delete-crew-${member.id}`}
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </>
             );
@@ -1330,6 +1526,134 @@ export default function Vessels() {
               className="bg-destructive hover:bg-destructive/90"
               onClick={() => certDeleteTarget && certDeleteMutation.mutate(certDeleteTarget)}
               data-testid="button-confirm-delete-cert"
+            >
+              Sil
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Crew Add/Edit Dialog ─────────────────────────────────────────── */}
+      <Dialog open={crewDialogOpen} onOpenChange={setCrewDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editCrewMember?.id ? "Mürettebat Düzenle" : "Mürettebat Ekle"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Ad *</Label>
+                <Input
+                  value={crewForm.firstName}
+                  onChange={e => setCrewForm(f => ({ ...f, firstName: e.target.value }))}
+                  placeholder="Ad"
+                  data-testid="input-crew-firstname"
+                />
+              </div>
+              <div>
+                <Label>Soyad *</Label>
+                <Input
+                  value={crewForm.lastName}
+                  onChange={e => setCrewForm(f => ({ ...f, lastName: e.target.value }))}
+                  placeholder="Soyad"
+                  data-testid="input-crew-lastname"
+                />
+              </div>
+              <div>
+                <Label>Görev / Rank</Label>
+                <Select value={crewForm.rank} onValueChange={v => setCrewForm(f => ({ ...f, rank: v }))}>
+                  <SelectTrigger data-testid="select-crew-rank">
+                    <SelectValue placeholder="Görev seçin..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["Kaptan", "Baş Mühendis", "1. Zabit", "2. Zabit", "3. Zabit", "Baş Elektrikçi", "2. Mühendis", "3. Mühendis", "4. Mühendis", "Pumpman", "Bosun", "Marangoz", "A.B.", "O.S.", "Gemici", "Aşçı", "Kamarot"].map(r => (
+                      <SelectItem key={r} value={r}>{r}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Uyruk</Label>
+                <Input
+                  value={crewForm.nationality}
+                  onChange={e => setCrewForm(f => ({ ...f, nationality: e.target.value }))}
+                  placeholder="örn. Türk, Ukraynalı..."
+                  data-testid="input-crew-nationality"
+                />
+              </div>
+              <div className="col-span-2">
+                <Label>Kontrat Bitiş Tarihi</Label>
+                <Input
+                  type="date"
+                  value={crewForm.contractEndDate}
+                  onChange={e => setCrewForm(f => ({ ...f, contractEndDate: e.target.value }))}
+                  data-testid="input-crew-contract"
+                />
+              </div>
+              <div>
+                <Label>Pasaport No</Label>
+                <Input
+                  value={crewForm.passportNumber}
+                  onChange={e => setCrewForm(f => ({ ...f, passportNumber: e.target.value }))}
+                  placeholder="opsiyonel"
+                  data-testid="input-crew-passport-no"
+                />
+              </div>
+              <div>
+                <Label>Pasaport Bitiş</Label>
+                <Input
+                  type="date"
+                  value={crewForm.passportExpiry}
+                  onChange={e => setCrewForm(f => ({ ...f, passportExpiry: e.target.value }))}
+                  data-testid="input-crew-passport-expiry"
+                />
+              </div>
+              <div>
+                <Label>Gemiadamı Cüzdanı No</Label>
+                <Input
+                  value={crewForm.seamansBookNumber}
+                  onChange={e => setCrewForm(f => ({ ...f, seamansBookNumber: e.target.value }))}
+                  placeholder="opsiyonel"
+                  data-testid="input-crew-seaman-no"
+                />
+              </div>
+              <div>
+                <Label>Cüzdan Bitiş</Label>
+                <Input
+                  type="date"
+                  value={crewForm.seamansBookExpiry}
+                  onChange={e => setCrewForm(f => ({ ...f, seamansBookExpiry: e.target.value }))}
+                  data-testid="input-crew-seaman-expiry"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCrewDialogOpen(false)}>İptal</Button>
+            <Button
+              onClick={() => crewSaveMutation.mutate()}
+              disabled={!crewForm.firstName || !crewForm.lastName || crewSaveMutation.isPending}
+              data-testid="button-save-crew"
+            >
+              {crewSaveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Kaydet"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Crew Delete Confirm ───────────────────────────────────────────── */}
+      <AlertDialog open={!!crewDeleteTarget} onOpenChange={open => { if (!open) setCrewDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mürettebatı Sil</AlertDialogTitle>
+            <AlertDialogDescription>Bu mürettebat kaydı kalıcı olarak silinecek. Devam edilsin mi?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Vazgeç</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => crewDeleteTarget && crewDeleteMutation.mutate(crewDeleteTarget)}
+              data-testid="button-confirm-delete-crew"
             >
               Sil
             </AlertDialogAction>

@@ -3529,6 +3529,49 @@ export async function registerRoutes(
     }
   });
 
+  // ─── VESSEL CREW ─────────────────────────────────────────────────────────────
+
+  app.get("/api/vessels/:vesselId/crew", isAuthenticated, async (req: any, res) => {
+    try {
+      const vesselId = parseInt(req.params.vesselId);
+      const crew = await storage.getVesselCrew(vesselId);
+      res.json(crew);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch crew" });
+    }
+  });
+
+  app.post("/api/vessels/:vesselId/crew", isAuthenticated, async (req: any, res) => {
+    try {
+      const vesselId = parseInt(req.params.vesselId);
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const member = await storage.createVesselCrewMember({ ...req.body, vesselId, userId });
+      res.status(201).json(member);
+    } catch {
+      res.status(500).json({ message: "Failed to create crew member" });
+    }
+  });
+
+  app.patch("/api/vessels/:vesselId/crew/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updated = await storage.updateVesselCrewMember(id, req.body);
+      res.json(updated);
+    } catch {
+      res.status(500).json({ message: "Failed to update crew member" });
+    }
+  });
+
+  app.delete("/api/vessels/:vesselId/crew/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteVesselCrewMember(id);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to delete crew member" });
+    }
+  });
+
   // ─── PORT CALL APPOINTMENTS ─────────────────────────────────────────────────
 
   app.get("/api/voyages/:voyageId/appointments", isAuthenticated, async (req: any, res) => {

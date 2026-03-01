@@ -27,6 +27,7 @@ import {
   type VoyageChatMessage, type InsertVoyageChatMessage,
   type Endorsement, type InsertEndorsement,
   type VesselCertificate, type InsertVesselCertificate,
+  type VesselCrew, type InsertVesselCrew,
   type PortCallAppointment, type InsertPortCallAppointment,
   type Fixture, type InsertFixture,
   type CargoPosition, type InsertCargoPosition,
@@ -42,7 +43,7 @@ import {
   voyageDocuments, voyageReviews, conversations, messages,
   directNominations, voyageChatMessages, endorsements,
   vesselCertificates, portCallAppointments, fixtures, cargoPositions, bunkerPrices,
-  documentTemplates, invoices, portAlerts,
+  documentTemplates, invoices, portAlerts, vesselCrew,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
@@ -208,6 +209,11 @@ export interface IStorage {
   updateVesselCertificate(id: number, data: Partial<InsertVesselCertificate>): Promise<VesselCertificate | undefined>;
   deleteVesselCertificate(id: number): Promise<boolean>;
   getExpiringCertificates(userId: string, daysAhead: number): Promise<VesselCertificate[]>;
+
+  getVesselCrew(vesselId: number): Promise<VesselCrew[]>;
+  createVesselCrewMember(data: InsertVesselCrew): Promise<VesselCrew>;
+  updateVesselCrewMember(id: number, data: Partial<InsertVesselCrew>): Promise<VesselCrew | undefined>;
+  deleteVesselCrewMember(id: number): Promise<boolean>;
 
   getPortCallAppointments(voyageId: number): Promise<PortCallAppointment[]>;
   createPortCallAppointment(data: InsertPortCallAppointment): Promise<PortCallAppointment>;
@@ -1782,6 +1788,40 @@ export class DatabaseStorage implements IStorage {
         gte(vesselCertificates.expiresAt, new Date()),
       ))
       .orderBy(asc(vesselCertificates.expiresAt));
+  }
+
+  // ─── VESSEL CREW ────────────────────────────────────────────────────────────
+
+  async getVesselCrew(vesselId: number): Promise<VesselCrew[]> {
+    return db.select().from(vesselCrew)
+      .where(eq(vesselCrew.vesselId, vesselId))
+      .orderBy(asc(vesselCrew.createdAt));
+  }
+
+  async createVesselCrewMember(data: InsertVesselCrew): Promise<VesselCrew> {
+    const toDate = (v: any) => v ? new Date(v) : null;
+    const [row] = await db.insert(vesselCrew).values({
+      ...data,
+      contractEndDate: toDate(data.contractEndDate) as any,
+      passportExpiry: toDate(data.passportExpiry) as any,
+      seamansBookExpiry: toDate(data.seamansBookExpiry) as any,
+    }).returning();
+    return row;
+  }
+
+  async updateVesselCrewMember(id: number, data: Partial<InsertVesselCrew>): Promise<VesselCrew | undefined> {
+    const toDate = (v: any) => (v !== undefined ? (v ? new Date(v) : null) : undefined);
+    const updateData: any = { ...data };
+    if (data.contractEndDate !== undefined) updateData.contractEndDate = toDate(data.contractEndDate);
+    if (data.passportExpiry !== undefined) updateData.passportExpiry = toDate(data.passportExpiry);
+    if (data.seamansBookExpiry !== undefined) updateData.seamansBookExpiry = toDate(data.seamansBookExpiry);
+    const [row] = await db.update(vesselCrew).set(updateData).where(eq(vesselCrew.id, id)).returning();
+    return row;
+  }
+
+  async deleteVesselCrewMember(id: number): Promise<boolean> {
+    const result = await db.delete(vesselCrew).where(eq(vesselCrew.id, id));
+    return (result as any).rowCount > 0;
   }
 
   // ─── PORT CALL APPOINTMENTS ─────────────────────────────────────────────────
