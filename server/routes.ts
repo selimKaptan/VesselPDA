@@ -11,7 +11,7 @@ import { calculateProforma, type CalculationInput } from "./proforma-calculator"
 import { startAISStream, getPositions, searchVessels, isConnected, getCacheSize } from "./ais-stream";
 import { geocodeStats } from "./geocode-ports";
 import { checkSanctions, getSanctionsStatus, loadSanctionsList } from "./sanctions";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { sql as drizzleSql } from "drizzle-orm";
 import { handleAiChat } from "./anthropic";
 
@@ -4225,6 +4225,208 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("AI chat error:", err);
       res.status(500).json({ message: "AI servisine bağlanılamadı" });
+    }
+  });
+
+  // ─── TARIFF MANAGEMENT (Admin only) ────────────────────────────────────────
+
+  const ALLOWED_TARIFF_TABLES: Record<string, { label: string; feeFields: string[] }> = {
+    pilotage_tariffs: { label: "Kılavuzluk Ücretleri", feeFields: ["base_fee", "per_1000_grt"] },
+    external_pilotage_tariffs: { label: "Liman Dışı Kılavuzluk", feeFields: ["grt_up_to_1000", "per_additional_1000_grt"] },
+    berthing_tariffs: { label: "Barınma Ücretleri", feeFields: ["intl_foreign_flag", "intl_turkish_flag", "cabotage_turkish"] },
+    agency_fees: { label: "Acentelik Ücretleri", feeFields: ["fee"] },
+    marpol_tariffs: { label: "MARPOL Atık Ücretleri", feeFields: ["fixed_fee", "weekday_ek1_rate", "weekday_ek4_rate", "weekday_ek5_rate"] },
+    port_authority_fees: { label: "Liman Resmi Ücretleri", feeFields: ["amount"] },
+    lcb_tariffs: { label: "LCB Tarifeleri", feeFields: ["amount"] },
+    tonnage_tariffs: { label: "Tonaj Tarifeleri", feeFields: ["ithalat", "ihracat"] },
+    other_services: { label: "Diğer Hizmetler", feeFields: ["fee"] },
+    cargo_handling_tariffs: { label: "Yükleme/Boşaltma", feeFields: ["rate"] },
+  };
+
+  app.get("/api/admin/tariffs/summary", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const userRow = await storage.getUser(userId);
+      if ((userRow as any)?.userRole !== "admin") return res.status(403).json({ message: "Forbidden" });
+
+      const counts: Record<string, number> = {};
+      let totalRecords = 0;
+      let latestUpdate: Date | null = null;
+      let outdatedCount = 0;
+      const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+
+      for (const tbl of Object.keys(ALLOWED_TARIFF_TABLES)) {
+        const result = await pool.query(`SELECT count(*)::int as cnt, max(updated_at) as latest FROM ${tbl}`);
+        const row = result.rows[0];
+        counts[tbl] = row.cnt || 0;
+        totalRecords += row.cnt || 0;
+        if (row.latest && (!latestUpdate || new Date(row.latest) > latestUpdate)) {
+          latestUpdate = new Date(row.latest);
+        }
+        const oldResult = await pool.query(`SELECT count(*)::int as cnt FROM ${tbl} WHERE updated_at < $1`, [oneYearAgo]);
+        outdatedCount += oldResult.rows[0].cnt || 0;
+      }
+
+      const portCount = await pool.query(`SELECT count(distinct port_id)::int as cnt FROM pilotage_tariffs WHERE port_id IS NOT NULL`);
+      res.json({
+        portCount: portCount.rows[0].cnt || 0,
+        totalRecords,
+        lastUpdated: latestUpdate,
+        outdatedCount,
+        tableCounts: counts,
+      });
+    } catch (err) {
+      console.error("Tariff summary error:", err);
+      res.status(500).json({ message: "Failed to fetch tariff summary" });
+    }
+  });
+
+  app.get("/api/admin/tariffs/:table", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const userRow = await storage.getUser(userId);
+      if ((userRow as any)?.userRole !== "admin") return res.status(403).json({ message: "Forbidden" });
+      const tbl = req.params.table;
+      if (!ALLOWED_TARIFF_TABLES[tbl]) return res.status(400).json({ message: "Invalid table" });
+
+      const params: any[] = [];
+      const conditions: string[] = [];
+      if (req.query.portId && req.query.portId !== "all") {
+        params.push(parseInt(req.query.portId as string));
+        conditions.push(`port_id = $${params.length}`);
+      }
+      if (req.query.currency && req.query.currency !== "all") {
+        params.push(req.query.currency as string);
+        conditions.push(`currency = $${params.length}`);
+      }
+      if (req.query.year && req.query.year !== "all") {
+        params.push(parseInt(req.query.year as string));
+        conditions.push(`valid_year = $${params.length}`);
+      }
+      const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+      const result = await pool.query(`SELECT * FROM ${tbl} ${where} ORDER BY id LIMIT 500`, params);
+      res.json(result.rows);
+    } catch (err) {
+      console.error("Tariff list error:", err);
+      res.status(500).json({ message: "Failed to fetch tariffs" });
+    }
+  });
+
+  app.post("/api/admin/tariffs/:table", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const userRow = await storage.getUser(userId);
+      if ((userRow as any)?.userRole !== "admin") return res.status(403).json({ message: "Forbidden" });
+      const tbl = req.params.table;
+      if (!ALLOWED_TARIFF_TABLES[tbl]) return res.status(400).json({ message: "Invalid table" });
+
+      const body = { ...req.body };
+      delete body.id;
+      body.updated_at = new Date().toISOString();
+
+      const keys = Object.keys(body).filter(k => body[k] !== undefined);
+      const cols = keys.map(k => `"${k}"`).join(", ");
+      const vals = keys.map((_, i) => `$${i + 1}`).join(", ");
+      const values = keys.map(k => (body[k] === "" ? null : body[k]));
+
+      const result = await pool.query(`INSERT INTO ${tbl} (${cols}) VALUES (${vals}) RETURNING *`, values);
+      res.status(201).json(result.rows[0]);
+    } catch (err) {
+      console.error("Tariff create error:", err);
+      res.status(500).json({ message: "Failed to create tariff" });
+    }
+  });
+
+  app.patch("/api/admin/tariffs/:table/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const userRow = await storage.getUser(userId);
+      if ((userRow as any)?.userRole !== "admin") return res.status(403).json({ message: "Forbidden" });
+      const tbl = req.params.table;
+      if (!ALLOWED_TARIFF_TABLES[tbl]) return res.status(400).json({ message: "Invalid table" });
+
+      const body = { ...req.body };
+      delete body.id;
+      body.updated_at = new Date().toISOString();
+
+      const keys = Object.keys(body).filter(k => body[k] !== undefined);
+      const sets = keys.map((k, i) => `"${k}" = $${i + 1}`).join(", ");
+      const values: any[] = keys.map(k => (body[k] === "" ? null : body[k]));
+      values.push(parseInt(req.params.id));
+
+      const result = await pool.query(`UPDATE ${tbl} SET ${sets} WHERE id = $${values.length} RETURNING *`, values);
+      res.json(result.rows[0]);
+    } catch (err) {
+      console.error("Tariff update error:", err);
+      res.status(500).json({ message: "Failed to update tariff" });
+    }
+  });
+
+  app.delete("/api/admin/tariffs/:table/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const userRow = await storage.getUser(userId);
+      if ((userRow as any)?.userRole !== "admin") return res.status(403).json({ message: "Forbidden" });
+      const tbl = req.params.table;
+      if (!ALLOWED_TARIFF_TABLES[tbl]) return res.status(400).json({ message: "Invalid table" });
+
+      await pool.query(`DELETE FROM ${tbl} WHERE id = $1`, [parseInt(req.params.id)]);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Tariff delete error:", err);
+      res.status(500).json({ message: "Failed to delete tariff" });
+    }
+  });
+
+  app.post("/api/admin/tariffs/:table/bulk-increase", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const userRow = await storage.getUser(userId);
+      if ((userRow as any)?.userRole !== "admin") return res.status(403).json({ message: "Forbidden" });
+      const tbl = req.params.table;
+      if (!ALLOWED_TARIFF_TABLES[tbl]) return res.status(400).json({ message: "Invalid table" });
+
+      const { ids, percent } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0 || typeof percent !== "number") {
+        return res.status(400).json({ message: "ids[] and percent required" });
+      }
+      const feeFields = ALLOWED_TARIFF_TABLES[tbl].feeFields;
+      const multiplier = 1 + percent / 100;
+      const sets = feeFields.map(f => `"${f}" = ROUND(COALESCE("${f}", 0) * ${multiplier}, 2)`).join(", ");
+      const idList = ids.map(Number).join(",");
+      await pool.query(`UPDATE ${tbl} SET ${sets}, updated_at = NOW() WHERE id IN (${idList})`);
+      res.json({ success: true, affected: ids.length });
+    } catch (err) {
+      console.error("Bulk increase error:", err);
+      res.status(500).json({ message: "Failed to apply bulk increase" });
+    }
+  });
+
+  app.post("/api/admin/tariffs/:table/bulk-copy-year", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const userRow = await storage.getUser(userId);
+      if ((userRow as any)?.userRole !== "admin") return res.status(403).json({ message: "Forbidden" });
+      const tbl = req.params.table;
+      if (!ALLOWED_TARIFF_TABLES[tbl]) return res.status(400).json({ message: "Invalid table" });
+
+      const { ids, targetYear } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0 || typeof targetYear !== "number") {
+        return res.status(400).json({ message: "ids[] and targetYear required" });
+      }
+
+      const colResult = await pool.query(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = $1 AND column_name NOT IN ('id','updated_at') ORDER BY ordinal_position`,
+        [tbl]
+      );
+      const cols = colResult.rows.map((r: any) => r.column_name);
+      const colStr = cols.map((c: string) => c === "valid_year" ? `${parseInt(String(targetYear))}` : `"${c}"`).join(", ");
+      const idList = ids.map(Number).join(",");
+      await pool.query(`INSERT INTO ${tbl} (${cols.map((c: string) => `"${c}"`).join(", ")}) SELECT ${colStr} FROM ${tbl} WHERE id IN (${idList})`);
+      res.json({ success: true, copied: ids.length });
+    } catch (err) {
+      console.error("Bulk copy year error:", err);
+      res.status(500).json({ message: "Failed to copy tariffs to year" });
     }
   });
 

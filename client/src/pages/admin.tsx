@@ -323,10 +323,15 @@ export default function AdminPanel() {
         <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-950/30 flex items-center justify-center">
           <Shield className="w-5 h-5 text-red-600" />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="font-serif text-2xl font-bold" data-testid="text-admin-title">Admin Panel</h1>
           <p className="text-sm text-muted-foreground">Full system overview and management</p>
         </div>
+        <a href="/tariff-management" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card hover:bg-muted text-sm font-semibold transition-colors" data-testid="link-tariff-management">
+          <Database className="w-4 h-4 text-primary" />
+          Tarife Yönetimi
+          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+        </a>
       </div>
 
       {/* Enhanced KPI Dashboard */}

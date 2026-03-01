@@ -25,6 +25,7 @@ import Directory from "@/pages/directory";
 import CompanyProfile from "@/pages/company-profile";
 import ServicePorts from "@/pages/service-ports";
 import AdminPanel from "@/pages/admin";
+import TariffManagement from "@/pages/tariff-management";
 import Forum from "@/pages/forum";
 import ForumTopic from "@/pages/forum-topic";
 import Tenders from "@/pages/tenders";
@@ -206,6 +207,7 @@ function AuthenticatedRouter() {
       <Route path="/service-ports" component={ServicePorts} />
       <Route path="/company-profile" component={CompanyProfile} />
       <Route path="/admin" component={AdminPanel} />
+      <Route path="/tariff-management" component={TariffManagement} />
       <Route path="/forum" component={Forum} />
       <Route path="/forum/:id" component={ForumTopic} />
       <Route path="/tenders" component={Tenders} />

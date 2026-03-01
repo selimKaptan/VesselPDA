@@ -118,6 +118,7 @@ export function AppSidebar() {
 
   const adminNav = isAdminUser ? [
     { title: t("nav.admin"), url: "/admin", icon: Shield },
+    { title: "Tarife Yönetimi", url: "/tariff-management", icon: Wallet },
   ] : [];
 
   const roleLabel = isAdminUser
