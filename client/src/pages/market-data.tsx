@@ -259,20 +259,38 @@ export default function MarketData() {
             <Info className="w-4 h-4 shrink-0" />
             <span>Anlık endeks verisi alınamıyor. Referans değerler gösteriliyor.</span>
           </div>
-          {!freightData.hasApiKey && (
+          {freightData.hasApiKey ? (
+            <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
+              <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>
+                Trading Economics API anahtarı tanımlı, ancak{" "}
+                <strong>ücretsiz plan</strong> Baltic Exchange endekslerini (BDI, BCTI, BDTI) kapsamıyor.{" "}
+                Canlı veri için{" "}
+                <a
+                  href="https://tradingeconomics.com/api/markets"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline font-medium hover:opacity-80 inline-flex items-center gap-0.5"
+                >
+                  Markets planına <ExternalLink className="w-3 h-3" />
+                </a>{" "}
+                geçmeniz gerekiyor.
+              </span>
+            </div>
+          ) : (
             <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-muted/60 border border-border text-xs text-muted-foreground">
               <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               <span>
                 Gerçek zamanlı BDI/BCTI/BDTI verisi için{" "}
                 <a
-                  href="https://tradingeconomics.com"
+                  href="https://tradingeconomics.com/api/markets"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline text-primary hover:text-primary/80 inline-flex items-center gap-0.5"
                 >
-                  Trading Economics <ExternalLink className="w-3 h-3" />
+                  Trading Economics Markets API <ExternalLink className="w-3 h-3" />
                 </a>{" "}
-                ücretsiz API anahtarı alın ve{" "}
+                anahtarı alın ve{" "}
                 <code className="bg-muted px-1 py-0.5 rounded text-[11px]">TRADING_ECONOMICS_API_KEY</code>{" "}
                 olarak ortam değişkenine ekleyin.
               </span>
