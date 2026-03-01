@@ -1000,7 +1000,7 @@ export default function Vessels() {
 
       {/* ── Detail Sheet ─────────────────────────────────────────────────── */}
       <Sheet open={!!selectedVessel} onOpenChange={(o) => { if (!o) setSelectedVessel(null); }}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto p-0">
+        <SheetContent className="w-screen h-screen max-w-none overflow-y-auto p-0">
           {selectedVesselFresh && (() => {
             const v = selectedVesselFresh;
             const voy = selectedVoyage;
