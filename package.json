@@ -58,6 +58,7 @@
     "express": "^5.0.1",
     "express-rate-limit": "^8.2.1",
     "express-session": "^1.19.0",
+    "fast-xml-parser": "^5.4.1",
     "framer-motion": "^11.13.1",
     "helmet": "^8.1.0",
     "html2canvas": "^1.4.1",
