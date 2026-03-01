@@ -24,7 +24,7 @@ export async function handleAiChat(
     vessels.length > 0
       ? vessels
           .slice(0, 10)
-          .map((v) => `${v.name} (${v.vesselType || "Gemi"}, GRT: ${v.grossTonnage || "?"}, Bayrak: ${v.flag || "?"})`)
+          .map((v) => `${v.name} (${v.vesselType || "Gemi"}, GRT: ${v.grt || "?"}, Bayrak: ${v.flag || "?"})`)
           .join("; ")
       : "Kayıtlı gemi yok";
 

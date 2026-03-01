@@ -36,7 +36,7 @@ function mmsiToFlag(mmsi: string): string {
   const mid = mmsi.substring(0, 3);
   const flagMap: Record<string, string> = {
     "271": "Turkey", "212": "Cyprus", "229": "Malta", "239": "Greece",
-    "255": "Portugal", "248": "Malta", "229": "Malta",
+    "255": "Portugal", "248": "Malta",
     "236": "Gibraltar", "244": "Netherlands", "247": "Italy",
     "257": "Norway", "265": "Sweden", "230": "Finland",
     "232": "United Kingdom", "233": "United Kingdom", "235": "United Kingdom",
