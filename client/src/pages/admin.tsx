@@ -1,12 +1,15 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock, Ban, UserCheck, MessageSquarePlus, Bug, Lightbulb, MessageCircle, MailCheck, ShieldCheck, ShieldX } from "lucide-react";
+import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock, Ban, UserCheck, MessageSquarePlus, Bug, Lightbulb, MessageCircle, MailCheck, ShieldCheck, ShieldX, Fuel, Plus, Edit2, Trash2, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -60,6 +63,41 @@ export default function AdminPanel() {
   const { data: pendingProfiles, isLoading: pendingLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/admin/companies/pending"] });
   const { data: allFeedbacks, isLoading: feedbacksLoading } = useQuery<any[]>({ queryKey: ["/api/admin/feedback"] });
   const { data: pendingVerifications, isLoading: verificationsLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/admin/pending-verifications"] });
+  const { data: bunkerPricesList = [], isLoading: bunkerLoading } = useQuery<any[]>({ queryKey: ["/api/market/bunker-prices"] });
+
+  const [bunkerDialog, setBunkerDialog] = useState(false);
+  const [editBunker, setEditBunker] = useState<any | null>(null);
+  const [bunkerForm, setBunkerForm] = useState({ portName: "", portCode: "", region: "TR", ifo380: "", vlsfo: "", mgo: "" });
+  const [deleteBunkerTarget, setDeleteBunkerTarget] = useState<number | null>(null);
+
+  const REGION_LABELS: Record<string, string> = { TR: "Türkiye", EU: "Avrupa", ASIA: "Asya", ME: "Orta Doğu", US: "Amerika" };
+
+  const addBunkerMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/bunker-prices", {
+      portName: bunkerForm.portName, portCode: bunkerForm.portCode || null, region: bunkerForm.region,
+      ifo380: bunkerForm.ifo380 ? parseFloat(bunkerForm.ifo380) : null,
+      vlsfo: bunkerForm.vlsfo ? parseFloat(bunkerForm.vlsfo) : null,
+      mgo: bunkerForm.mgo ? parseFloat(bunkerForm.mgo) : null,
+    }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/market/bunker-prices"] }); toast({ title: "Bunker fiyatı eklendi" }); setBunkerDialog(false); setBunkerForm({ portName: "", portCode: "", region: "TR", ifo380: "", vlsfo: "", mgo: "" }); setEditBunker(null); },
+    onError: () => toast({ title: "Hata", variant: "destructive" }),
+  });
+
+  const editBunkerMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("PATCH", `/api/admin/bunker-prices/${id}`, {
+      portName: bunkerForm.portName, portCode: bunkerForm.portCode || null, region: bunkerForm.region,
+      ifo380: bunkerForm.ifo380 ? parseFloat(bunkerForm.ifo380) : null,
+      vlsfo: bunkerForm.vlsfo ? parseFloat(bunkerForm.vlsfo) : null,
+      mgo: bunkerForm.mgo ? parseFloat(bunkerForm.mgo) : null,
+    }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/market/bunker-prices"] }); toast({ title: "Güncellendi" }); setBunkerDialog(false); setEditBunker(null); },
+    onError: () => toast({ title: "Hata", variant: "destructive" }),
+  });
+
+  const deleteBunkerMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/admin/bunker-prices/${id}`, undefined),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/market/bunker-prices"] }); toast({ title: "Silindi" }); setDeleteBunkerTarget(null); },
+  });
 
   const verifyMutation = useMutation({
     mutationFn: async ({ profileId, action, note }: { profileId: number; action: "approve" | "reject"; note?: string }) => {
@@ -260,6 +298,9 @@ export default function AdminPanel() {
                 {allFeedbacks!.length}
               </span>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="bunker" data-testid="tab-bunker-prices">
+            <Fuel className="w-3.5 h-3.5 mr-1.5" />Bunker ({bunkerPricesList.length})
           </TabsTrigger>
         </TabsList>
 
@@ -871,7 +912,130 @@ export default function AdminPanel() {
           )}
         </TabsContent>
 
+        <TabsContent value="bunker" className="space-y-4" data-testid="tab-content-bunker">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Bunker Yakıt Fiyatları</h2>
+              <p className="text-sm text-muted-foreground">Liman bazlı yakıt fiyatlarını yönetin (USD/MT)</p>
+            </div>
+            <Button size="sm" onClick={() => { setEditBunker(null); setBunkerForm({ portName: "", portCode: "", region: "TR", ifo380: "", vlsfo: "", mgo: "" }); setBunkerDialog(true); }} data-testid="button-add-bunker">
+              <Plus className="w-4 h-4 mr-1" /> Fiyat Ekle
+            </Button>
+          </div>
+
+          <Card data-testid="table-admin-bunker">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/40">
+                    <th className="text-left p-3 font-medium text-muted-foreground">Liman</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Bölge</th>
+                    <th className="text-right p-3 font-medium text-muted-foreground">IFO 380</th>
+                    <th className="text-right p-3 font-medium text-muted-foreground">VLSFO</th>
+                    <th className="text-right p-3 font-medium text-muted-foreground">MGO</th>
+                    <th className="text-right p-3 font-medium text-muted-foreground">Güncelleme</th>
+                    <th className="p-3 w-20" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {bunkerLoading ? (
+                    [0,1,2].map(i => (
+                      <tr key={i} className="border-b">
+                        <td className="p-3" colSpan={7}><div className="h-4 bg-muted animate-pulse rounded" /></td>
+                      </tr>
+                    ))
+                  ) : bunkerPricesList.length === 0 ? (
+                    <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">Kayıt bulunamadı</td></tr>
+                  ) : (
+                    bunkerPricesList.map((row: any) => (
+                      <tr key={row.id} className="border-b hover:bg-muted/30 transition-colors">
+                        <td className="p-3 font-medium">
+                          <div className="flex items-center gap-1.5">
+                            <Fuel className="w-3.5 h-3.5 text-muted-foreground" />
+                            {row.portName}
+                            {row.portCode && <span className="text-xs text-muted-foreground">({row.portCode})</span>}
+                          </div>
+                        </td>
+                        <td className="p-3"><Badge variant="outline" className="text-xs">{REGION_LABELS[row.region] ?? row.region}</Badge></td>
+                        <td className="p-3 text-right tabular-nums">{row.ifo380 != null ? `$${row.ifo380}` : "—"}</td>
+                        <td className="p-3 text-right tabular-nums">{row.vlsfo != null ? `$${row.vlsfo}` : "—"}</td>
+                        <td className="p-3 text-right tabular-nums">{row.mgo != null ? `$${row.mgo}` : "—"}</td>
+                        <td className="p-3 text-right text-xs text-muted-foreground">{new Date(row.updatedAt).toLocaleDateString("tr-TR")}</td>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => { setEditBunker(row); setBunkerForm({ portName: row.portName, portCode: row.portCode ?? "", region: row.region, ifo380: row.ifo380?.toString() ?? "", vlsfo: row.vlsfo?.toString() ?? "", mgo: row.mgo?.toString() ?? "" }); setBunkerDialog(true); }} data-testid={`button-edit-bunker-${row.id}`}><Edit2 className="w-3.5 h-3.5" /></Button>
+                            <Button variant="ghost" size="icon" className="w-7 h-7 text-destructive hover:text-destructive" onClick={() => setDeleteBunkerTarget(row.id)} data-testid={`button-delete-bunker-${row.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </TabsContent>
+
       </Tabs>
+
+      {/* Bunker Dialog */}
+      <Dialog open={bunkerDialog} onOpenChange={v => { setBunkerDialog(v); if (!v) { setBunkerForm({ portName: "", portCode: "", region: "TR", ifo380: "", vlsfo: "", mgo: "" }); setEditBunker(null); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>{editBunker ? "Fiyatı Güncelle" : "Yeni Bunker Fiyatı"}</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <Label>Liman Adı *</Label>
+                <Input value={bunkerForm.portName} onChange={e => setBunkerForm(f => ({ ...f, portName: e.target.value }))} placeholder="İstanbul" data-testid="input-bunker-port-name" />
+              </div>
+              <div>
+                <Label>LOCODE</Label>
+                <Input value={bunkerForm.portCode} onChange={e => setBunkerForm(f => ({ ...f, portCode: e.target.value }))} placeholder="TRIST" data-testid="input-bunker-port-code" />
+              </div>
+              <div>
+                <Label>Bölge</Label>
+                <Select value={bunkerForm.region} onValueChange={v => setBunkerForm(f => ({ ...f, region: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(REGION_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>IFO 380</Label>
+                <Input type="number" value={bunkerForm.ifo380} onChange={e => setBunkerForm(f => ({ ...f, ifo380: e.target.value }))} placeholder="410" data-testid="input-bunker-ifo380" />
+              </div>
+              <div>
+                <Label>VLSFO</Label>
+                <Input type="number" value={bunkerForm.vlsfo} onChange={e => setBunkerForm(f => ({ ...f, vlsfo: e.target.value }))} placeholder="545" data-testid="input-bunker-vlsfo" />
+              </div>
+              <div className="col-span-2">
+                <Label>MGO</Label>
+                <Input type="number" value={bunkerForm.mgo} onChange={e => setBunkerForm(f => ({ ...f, mgo: e.target.value }))} placeholder="715" data-testid="input-bunker-mgo" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBunkerDialog(false)}>İptal</Button>
+            <Button onClick={() => editBunker ? editBunkerMutation.mutate(editBunker.id) : addBunkerMutation.mutate()} disabled={!bunkerForm.portName || addBunkerMutation.isPending || editBunkerMutation.isPending} data-testid="button-save-bunker">
+              {(addBunkerMutation.isPending || editBunkerMutation.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {editBunker ? "Güncelle" : "Ekle"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm */}
+      <AlertDialog open={deleteBunkerTarget !== null} onOpenChange={() => setDeleteBunkerTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Kaydı Sil</AlertDialogTitle><AlertDialogDescription>Bu bunker fiyat kaydı silinecek.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteBunkerTarget && deleteBunkerMutation.mutate(deleteBunkerTarget)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" data-testid="button-confirm-delete-bunker">Sil</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }

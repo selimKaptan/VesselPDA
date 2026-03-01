@@ -30,6 +30,7 @@ import {
   type PortCallAppointment, type InsertPortCallAppointment,
   type Fixture, type InsertFixture,
   type CargoPosition, type InsertCargoPosition,
+  type BunkerPrice, type InsertBunkerPrice,
   vessels, ports, tariffCategories, tariffRates, proformas,
   forumCategories, forumTopics, forumReplies, forumLikes, forumDislikes,
   portTenders, tenderBids, agentReviews, vesselWatchlist,
@@ -37,7 +38,7 @@ import {
   voyages, voyageChecklists, serviceRequests, serviceOffers,
   voyageDocuments, voyageReviews, conversations, messages,
   directNominations, voyageChatMessages, endorsements,
-  vesselCertificates, portCallAppointments, fixtures, cargoPositions,
+  vesselCertificates, portCallAppointments, fixtures, cargoPositions, bunkerPrices,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
@@ -220,6 +221,9 @@ export interface IStorage {
   createCargoPosition(data: InsertCargoPosition): Promise<CargoPosition>;
   updateCargoPosition(id: number, data: Partial<InsertCargoPosition & { status?: string }>): Promise<CargoPosition | undefined>;
   deleteCargoPosition(id: number): Promise<boolean>;
+  getBunkerPrices(): Promise<BunkerPrice[]>;
+  upsertBunkerPrice(data: InsertBunkerPrice): Promise<BunkerPrice>;
+  deleteBunkerPrice(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1785,6 +1789,23 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCargoPosition(id: number): Promise<boolean> {
     const result = await db.delete(cargoPositions).where(eq(cargoPositions.id, id));
+    return (result as any).rowCount > 0;
+  }
+
+  // ─── BUNKER PRICES ──────────────────────────────────────────────────────────
+
+  async getBunkerPrices(): Promise<BunkerPrice[]> {
+    return db.select().from(bunkerPrices)
+      .orderBy(asc(bunkerPrices.region), asc(bunkerPrices.portName));
+  }
+
+  async upsertBunkerPrice(data: InsertBunkerPrice): Promise<BunkerPrice> {
+    const [row] = await db.insert(bunkerPrices).values({ ...data, updatedAt: new Date() }).returning();
+    return row;
+  }
+
+  async deleteBunkerPrice(id: number): Promise<boolean> {
+    const result = await db.delete(bunkerPrices).where(eq(bunkerPrices.id, id));
     return (result as any).rowCount > 0;
   }
 }

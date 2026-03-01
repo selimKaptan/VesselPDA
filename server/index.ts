@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { storage } from "./storage";
 
 const app = express();
 const httpServer = createServer(app);
@@ -30,6 +31,8 @@ app.use(helmet({
         "https://tiles.openseamap.org",
         "https://nominatim.openstreetmap.org",
         "https://ofac.treasury.gov",
+        "https://query1.finance.yahoo.com",
+        "https://query2.finance.yahoo.com",
       ],
       workerSrc: ["'self'", "blob:"],
       fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
@@ -87,6 +90,24 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+async function seedBunkerPrices() {
+  const existing = await storage.getBunkerPrices();
+  if (existing.length > 0) return;
+  const BUNKER_SEED = [
+    { portName: "İstanbul", portCode: "TRIST", region: "TR", ifo380: 410, vlsfo: 545, mgo: 715 },
+    { portName: "Mersin",   portCode: "TRMER", region: "TR", ifo380: 405, vlsfo: 540, mgo: 710 },
+    { portName: "İzmir",    portCode: "TRIZM", region: "TR", ifo380: 408, vlsfo: 543, mgo: 712 },
+    { portName: "Rotterdam",portCode: "NLRTM", region: "EU", ifo380: 395, vlsfo: 520, mgo: 700 },
+    { portName: "Singapore",portCode: "SGSIN", region: "ASIA", ifo380: 400, vlsfo: 530, mgo: 695 },
+    { portName: "Fujairah", portCode: "AEFUJ", region: "ME",   ifo380: 415, vlsfo: 550, mgo: 720 },
+    { portName: "Houston",  portCode: "USHOU", region: "US",   ifo380: 420, vlsfo: 555, mgo: 725 },
+  ];
+  for (const row of BUNKER_SEED) {
+    await storage.upsertBunkerPrice(row);
+  }
+  console.log("Bunker prices seeded.");
+}
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -170,6 +191,8 @@ app.use((req, res, next) => {
         seedForumCategories().catch((err: Error) => console.error("Forum seed error:", err));
         seedPortCoordinates().catch((err: Error) => console.error("Port coords seed error:", err));
       });
+
+      seedBunkerPrices().catch((err: Error) => console.error("Bunker seed error:", err));
 
       import("./cleanup-ports").then(({ cleanupInvalidPorts }) => {
         cleanupInvalidPorts().catch((err: Error) => console.error("Cleanup error:", err));

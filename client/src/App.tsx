@@ -44,6 +44,7 @@ import SanctionsCheck from "@/pages/sanctions-check";
 import VesselCertificates from "@/pages/vessel-certificates";
 import Fixtures from "@/pages/fixtures";
 import CargoPositions from "@/pages/cargo-positions";
+import MarketData from "@/pages/market-data";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -222,6 +223,7 @@ function AuthenticatedRouter() {
       <Route path="/vessel-certificates" component={VesselCertificates} />
       <Route path="/fixtures" component={Fixtures} />
       <Route path="/cargo-positions" component={CargoPositions} />
+      <Route path="/market-data" component={MarketData} />
       <Route component={NotFound} />
     </Switch>
   );

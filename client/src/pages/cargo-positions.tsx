@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Package, Plus, Trash2, X, Loader2, ArrowRight, Mail, User } from "lucide-react";
+import { Package, Plus, Trash2, X, Loader2, ArrowRight, Mail, User, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +53,11 @@ export default function CargoPositions() {
 
   const { data: positions = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/cargo-positions"],
+  });
+
+  const { data: freightData } = useQuery<any>({
+    queryKey: ["/api/market/freight-indices"],
+    staleTime: 15 * 60 * 1000,
   });
 
   const { data: myPositions = [] } = useQuery<any[]>({
@@ -136,6 +142,30 @@ export default function CargoPositions() {
           <Plus className="w-4 h-4 mr-1" />İlan Ver
         </Button>
       </div>
+
+      {/* BDI Ticker Banner */}
+      {freightData?.indices && (
+        <div data-testid="banner-freight-indices" className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium overflow-x-auto whitespace-nowrap">
+          {freightData.indices.map((idx: any) => {
+            const positive = idx.change > 0;
+            const neutral = idx.change === 0;
+            return (
+              <span key={idx.code} className="flex items-center gap-1.5">
+                <span className="font-bold">{idx.code}:</span>
+                <span>{idx.value.toLocaleString("tr-TR")}</span>
+                {neutral ? <Minus className="w-3 h-3 opacity-60" /> : positive ? <TrendingUp className="w-3 h-3 text-emerald-300" /> : <TrendingDown className="w-3 h-3 text-red-300" />}
+                <span className={positive ? "text-emerald-300" : neutral ? "opacity-70" : "text-red-300"}>
+                  {positive ? "+" : ""}{idx.changePct.toFixed(1)}%
+                </span>
+                <span className="opacity-40 mx-1">|</span>
+              </span>
+            );
+          })}
+          <Link href="/market-data" className="underline underline-offset-2 opacity-80 hover:opacity-100 ml-1">
+            Piyasa detayları →
+          </Link>
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         {(["all", "cargo", "vessel"] as FilterType[]).map(f => (

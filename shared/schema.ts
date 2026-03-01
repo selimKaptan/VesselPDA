@@ -710,3 +710,21 @@ export const cargoPositionRelations = relations(cargoPositions, ({ one }) => ({
 export const insertCargoPositionSchema = createInsertSchema(cargoPositions).omit({ id: true, createdAt: true, status: true });
 export type InsertCargoPosition = z.infer<typeof insertCargoPositionSchema>;
 export type CargoPosition = typeof cargoPositions.$inferSelect;
+
+// ─── BUNKER PRICES ──────────────────────────────────────────────────────────
+
+export const bunkerPrices = pgTable("bunker_prices", {
+  id: serial("id").primaryKey(),
+  portName: text("port_name").notNull(),
+  portCode: text("port_code"),
+  region: text("region").notNull().default("TR"),
+  ifo380: real("ifo380"),
+  vlsfo: real("vlsfo"),
+  mgo: real("mgo"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by").references(() => users.id),
+});
+
+export const insertBunkerPriceSchema = createInsertSchema(bunkerPrices).omit({ id: true });
+export type InsertBunkerPrice = z.infer<typeof insertBunkerPriceSchema>;
+export type BunkerPrice = typeof bunkerPrices.$inferSelect;

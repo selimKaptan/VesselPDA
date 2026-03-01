@@ -3146,5 +3146,130 @@ export async function registerRoutes(
     }
   });
 
+  // ─── FREIGHT INDICES (Yahoo Finance, 4h cache) ───────────────────────────────
+
+  let freightIndexCache: { data: any; fetchedAt: number } | null = null;
+  const FREIGHT_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
+
+  const FREIGHT_FALLBACK = [
+    { code: "BDI",  name: "Baltic Dry Index",          description: "Kuru Dökme Yük", value: 1245, change: 0, changePct: 0, previousClose: 1245 },
+    { code: "BCTI", name: "Baltic Clean Tanker Index", description: "Temiz Tanker",   value: 731,  change: 0, changePct: 0, previousClose: 731  },
+    { code: "BDTI", name: "Baltic Dirty Tanker Index", description: "Kirli Tanker",   value: 1089, change: 0, changePct: 0, previousClose: 1089 },
+  ];
+
+  async function fetchFreightIndices() {
+    const tickers = ["^BDI", "^BCTI", "^BDTI"];
+    const results = await Promise.all(tickers.map(async (ticker) => {
+      try {
+        const encoded = encodeURIComponent(ticker);
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=2d`;
+        const resp = await fetch(url, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (compatible; VesselPDA/1.0)",
+            "Accept": "application/json",
+          },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!resp.ok) return null;
+        const json = await resp.json();
+        const meta = json?.chart?.result?.[0]?.meta;
+        if (!meta?.regularMarketPrice) return null;
+        const code = ticker.replace("^", "");
+        const fallback = FREIGHT_FALLBACK.find(f => f.code === code)!;
+        return {
+          code,
+          name: fallback.name,
+          description: fallback.description,
+          value: Math.round(meta.regularMarketPrice),
+          change: Math.round((meta.regularMarketPrice - meta.previousClose) * 100) / 100,
+          changePct: Math.round(((meta.regularMarketPrice - meta.previousClose) / meta.previousClose) * 10000) / 100,
+          previousClose: Math.round(meta.previousClose),
+        };
+      } catch {
+        return null;
+      }
+    }));
+
+    const succeeded = results.filter(Boolean);
+    if (succeeded.length === 0) return null;
+
+    return tickers.map((ticker, i) => results[i] || FREIGHT_FALLBACK.find(f => f.code === ticker.replace("^", ""))!);
+  }
+
+  app.get("/api/market/freight-indices", isAuthenticated, async (_req, res) => {
+    try {
+      const now = Date.now();
+      const cacheValid = freightIndexCache && (now - freightIndexCache.fetchedAt) < FREIGHT_CACHE_TTL;
+
+      if (cacheValid) {
+        return res.json({ ...freightIndexCache!.data, cached: true });
+      }
+
+      const fresh = await fetchFreightIndices();
+      const indices = fresh || FREIGHT_FALLBACK;
+      const data = {
+        indices,
+        lastUpdated: new Date().toISOString(),
+        source: fresh ? "Yahoo Finance" : "Fallback",
+        cached: false,
+      };
+
+      if (fresh) freightIndexCache = { data, fetchedAt: now };
+
+      res.json(data);
+    } catch {
+      res.json({ indices: FREIGHT_FALLBACK, lastUpdated: new Date().toISOString(), source: "Fallback", cached: false });
+    }
+  });
+
+  // ─── BUNKER PRICES ───────────────────────────────────────────────────────────
+
+  app.get("/api/market/bunker-prices", isAuthenticated, async (_req, res) => {
+    try {
+      const prices = await storage.getBunkerPrices();
+      res.json(prices);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch bunker prices" });
+    }
+  });
+
+  app.post("/api/admin/bunker-prices", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (user?.userRole !== "admin") return res.status(403).json({ message: "Admin only" });
+      const price = await storage.upsertBunkerPrice({ ...req.body, updatedBy: userId });
+      res.status(201).json(price);
+    } catch {
+      res.status(500).json({ message: "Failed to save bunker price" });
+    }
+  });
+
+  app.patch("/api/admin/bunker-prices/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (user?.userRole !== "admin") return res.status(403).json({ message: "Admin only" });
+      const id = parseInt(req.params.id);
+      const price = await storage.upsertBunkerPrice({ ...req.body, updatedBy: userId });
+      res.json(price);
+    } catch {
+      res.status(500).json({ message: "Failed to update bunker price" });
+    }
+  });
+
+  app.delete("/api/admin/bunker-prices/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (user?.userRole !== "admin") return res.status(403).json({ message: "Admin only" });
+      const id = parseInt(req.params.id);
+      await storage.deleteBunkerPrice(id);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to delete bunker price" });
+    }
+  });
+
   return httpServer;
 }
