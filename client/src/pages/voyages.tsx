@@ -44,9 +44,29 @@ interface VesselInfo {
   dwt: number | null;
 }
 
+function getCountryFlag(country: string): string {
+  if (!country) return "🌍";
+  if (country === "Turkey") return "🇹🇷";
+  if (country.length === 2) {
+    const base = 0x1F1E6;
+    const offset = "A".charCodeAt(0);
+    return String.fromCodePoint(base + country.charCodeAt(0) - offset) +
+           String.fromCodePoint(base + country.charCodeAt(1) - offset);
+  }
+  return "🌍";
+}
+
+function getCountryLabel(country: string): string {
+  if (!country) return "";
+  if (country === "Turkey") return "Turkey (TR)";
+  if (country.length === 2) return `(${country})`;
+  return country;
+}
+
 function PortSearch({ value, onChange }: { value: string; onChange: (portId: number, portName: string) => void }) {
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
+  const ref = useState(() => ({ current: null as HTMLDivElement | null }))[0];
   const { data: ports } = useQuery<Port[]>({
     queryKey: ["/api/ports", query],
     queryFn: async () => {
@@ -62,27 +82,33 @@ function PortSearch({ value, onChange }: { value: string; onChange: (portId: num
       <Input
         value={query}
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
-        placeholder="Liman adı veya LOCODE ara..."
+        placeholder="Liman adı veya LOCODE ara (ör: Antwerp, Rotterdam)..."
         onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
         data-testid="input-port-search"
       />
       {open && ports && ports.length > 0 && (
-        <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
+        <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-64 overflow-y-auto divide-y">
           {ports.map(p => (
             <button
               key={p.id}
               type="button"
-              className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+              className="w-full text-left px-3 py-2.5 hover:bg-muted transition-colors flex items-center gap-3"
               onMouseDown={() => {
                 onChange(p.id, p.name);
                 setQuery(p.name);
                 setOpen(false);
               }}
+              data-testid={`option-port-${p.id}`}
             >
-              <span className="font-medium">{p.name}</span>
-              <span className="ml-2 text-xs text-muted-foreground">
-                {[p.code, p.country].filter(Boolean).join(" · ")}
-              </span>
+              <span className="text-xl flex-shrink-0 leading-none">{getCountryFlag(p.country || "")}</span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{p.name}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {getCountryLabel(p.country || "")}
+                  {p.code ? `, Unlocode: ${p.code}` : ""}
+                </p>
+              </div>
             </button>
           ))}
         </div>

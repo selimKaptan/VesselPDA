@@ -270,26 +270,38 @@ function CreateTenderDialog() {
                 data-testid="input-port-search"
               />
               {showPortDropdown && portSearch.trim().length >= 2 && (
-                <div className="absolute z-50 w-full border rounded-md shadow-lg bg-popover max-h-52 overflow-y-auto divide-y mt-1">
-                  {filteredPorts.length === 0 && <p className="p-2 text-sm text-muted-foreground">No results — try a different name or LOCODE</p>}
-                  {filteredPorts.map((p: any) => (
-                    <button
-                      key={p.id}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
-                      onMouseDown={e => e.preventDefault()}
-                      onClick={() => {
-                        setForm(f => ({ ...f, portId: String(p.id) }));
-                        setPortSearch(p.name);
-                        setShowPortDropdown(false);
-                      }}
-                      data-testid={`option-port-${p.id}`}
-                    >
-                      <span className="font-medium">{p.name}</span>
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {[p.code, p.country].filter(Boolean).join(" · ")}
-                      </span>
-                    </button>
-                  ))}
+                <div className="absolute z-50 w-full border rounded-md shadow-lg bg-popover max-h-64 overflow-y-auto divide-y mt-1">
+                  {filteredPorts.length === 0 && <p className="p-3 text-sm text-muted-foreground">No results — try a different name or LOCODE</p>}
+                  {filteredPorts.map((p: any) => {
+                    const flag = p.country === "Turkey" ? "🇹🇷"
+                      : p.country?.length === 2
+                        ? String.fromCodePoint(0x1F1E6 + p.country.charCodeAt(0) - 65) + String.fromCodePoint(0x1F1E6 + p.country.charCodeAt(1) - 65)
+                        : "🌍";
+                    const countryLabel = p.country === "Turkey" ? "Turkey (TR)"
+                      : p.country?.length === 2 ? `(${p.country})`
+                      : p.country || "";
+                    return (
+                      <button
+                        key={p.id}
+                        className="w-full text-left px-3 py-2.5 hover:bg-muted transition-colors flex items-center gap-3"
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={() => {
+                          setForm(f => ({ ...f, portId: String(p.id) }));
+                          setPortSearch(p.name);
+                          setShowPortDropdown(false);
+                        }}
+                        data-testid={`option-port-${p.id}`}
+                      >
+                        <span className="text-xl flex-shrink-0 leading-none">{flag}</span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{p.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {countryLabel}{p.code ? `, Unlocode: ${p.code}` : ""}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
