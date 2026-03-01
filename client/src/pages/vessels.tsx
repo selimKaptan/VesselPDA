@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -998,9 +997,9 @@ export default function Vessels() {
         <Skeleton className="w-full h-[600px] rounded-2xl" />
       )}
 
-      {/* ── Detail Sheet ─────────────────────────────────────────────────── */}
-      <Sheet open={!!selectedVessel} onOpenChange={(o) => { if (!o) setSelectedVessel(null); }}>
-        <SheetContent className="w-screen h-screen max-w-none overflow-y-auto p-0">
+      {/* ── Detail Dialog ─────────────────────────────────────────────────── */}
+      <Dialog open={!!selectedVessel} onOpenChange={(o) => { if (!o) setSelectedVessel(null); }}>
+        <DialogContent className="max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col p-0">
           {selectedVesselFresh && (() => {
             const v = selectedVesselFresh;
             const voy = selectedVoyage;
@@ -1010,11 +1009,11 @@ export default function Vessels() {
 
             return (
               <>
-                <SheetHeader className="px-6 pt-6 pb-4 border-b sticky top-0 bg-background z-10">
+                <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
                   <div className="flex items-start gap-3">
                     <div className="w-12 h-12 bg-[hsl(var(--maritime-primary))] rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">🚢</div>
                     <div className="min-w-0">
-                      <SheetTitle className="font-black text-base leading-tight">{flag} {v.name}</SheetTitle>
+                      <DialogTitle className="font-black text-base leading-tight">{flag} {v.name}</DialogTitle>
                       <p className="text-sm text-muted-foreground mt-0.5">{v.vesselType || "—"} · {v.flag || "—"}</p>
                     </div>
                   </div>
@@ -1029,9 +1028,9 @@ export default function Vessels() {
                       </button>
                     ))}
                   </div>
-                </SheetHeader>
+                </DialogHeader>
 
-                <div className="p-6 space-y-4">
+                <div className="p-6 space-y-4 overflow-y-auto flex-1">
                   {/* ── Genel ── */}
                   {detailTab === "general" && (
                     <>
@@ -1390,8 +1389,8 @@ export default function Vessels() {
               </>
             );
           })()}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Add / Edit Dialog ─────────────────────────────────────────────── */}
       <Dialog open={showForm || !!editingVessel} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingVessel(null); } }}>
