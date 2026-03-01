@@ -142,16 +142,25 @@ export async function lookupAgencyFee(
 ): Promise<LookupResult> {
   try {
     const result = await pool.query(
-      `SELECT fee, currency FROM agency_fees
+      `SELECT nt_min, fee, per_1000_nt, currency FROM agency_fees
        WHERE port_id = $1 AND service_type = 'acentelik'
        AND nt_min <= $2
        ORDER BY nt_min DESC LIMIT 1`,
       [portId, nrt]
     );
     if (result.rows.length === 0) return { fee: 0, source: "fallback" };
-    const fee = parseFloat(result.rows[0].fee);
-    const currency = result.rows[0].currency;
-    let feeUsd = currency === "EUR" ? fee * eurUsdParity : fee;
+    const row = result.rows[0];
+    const baseFee = parseFloat(row.fee);
+    const per1000Nt = row.per_1000_nt ? parseFloat(row.per_1000_nt) : 0;
+    const ntMin = parseInt(row.nt_min);
+    const currency = row.currency;
+    let feeEur: number;
+    if (per1000Nt > 0) {
+      feeEur = baseFee + Math.ceil((nrt - ntMin) / 1000) * per1000Nt;
+    } else {
+      feeEur = baseFee;
+    }
+    let feeUsd = currency === "EUR" ? feeEur * eurUsdParity : feeEur;
     if (berthDays > 7) {
       const extraPeriods = Math.ceil((berthDays - 7) / 5);
       feeUsd = feeUsd * (1 + 0.2 * extraPeriods);
