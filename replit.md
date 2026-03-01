@@ -15,7 +15,7 @@ The platform is built with a modern web stack:
     - **User Management**: Role-based authentication (Admin, Shipowner/Broker, Ship Agent, Service Provider) with distinct dashboards and navigation.
     - **Vessel Management**: CRUD operations for vessels, including a fleet dashboard and personal watchlists.
     - **Port & Tariff Data**: Management of 804 Turkish ports, including LOCODE lookup and detailed port information via external APIs.
-    - **Proforma Generation**: An advanced, formula-based calculation engine (22 line items) for automated tariff calculations, matching Excel references. Supports PDF export and manual calculation.
+    - **Proforma Generation**: An advanced, formula-based calculation engine (22 line items) for automated tariff calculations, matching Excel references. Supports PDF export and manual calculation. **Anlık Proforma (Quick Estimate)**: `POST /api/proformas/quick-estimate` endpoint auto-fetches live TCMB rates and calculates 22-item DA instantly from vesselId+portId. Proformas list has "⚡ Anlık Proforma Al" dialog (3 fields: vessel, port search, days) showing full line-item breakdown, "Taslak Kaydet" and "Tam Proformaya Geç" actions. Proforma-new form shows live "Anlık Tahmin" panel in right sidebar whenever vessel+port are selected (debounced 900ms auto-call).
     - **Company Profiles**: Detailed profiles for agents and providers, including contact information, served ports, service types, and optional featured listings. Includes agent performance metrics such as win rate and average rating.
     - **Maritime Directory**: A searchable and filterable directory of maritime companies.
     - **Subscription System**: A 3-tier subscription model (Free, Standard, Unlimited) with usage tracking for proformas and vessels.

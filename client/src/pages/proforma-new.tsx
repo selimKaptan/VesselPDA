@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useCallback, useMemo } from "react";
-import { FileText, Ship, Globe, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Settings2, Package, AlertTriangle, Crown, ChevronsUpDown, Check, MapPin, RefreshCw } from "lucide-react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { FileText, Ship, Globe, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Settings2, Package, AlertTriangle, Crown, ChevronsUpDown, Check, MapPin, RefreshCw, Zap } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -104,8 +104,40 @@ export default function ProformaNew() {
   const [totalEur, setTotalEur] = useState<number>(0);
   const [eurUsdParity, setEurUsdParity] = useState<number>(1.178);
 
+  const [quickEstimate, setQuickEstimate] = useState<{
+    lineItems: ProformaLineItem[];
+    totalUsd: number;
+    totalEur: number;
+    vesselName: string;
+    portName: string;
+    exchangeRates: { usdTry: number; eurTry: number; eurUsd: number };
+  } | null>(null);
+  const [quickEstimateLoading, setQuickEstimateLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
   const { data: ports, isLoading: portsLoading } = useQuery<Port[]>({ queryKey: ["/api/ports"] });
+
+  useEffect(() => {
+    if (!selectedVessel || !selectedPort) { setQuickEstimate(null); return; }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setQuickEstimateLoading(true);
+      try {
+        const res = await apiRequest("POST", "/api/proformas/quick-estimate", {
+          vesselId: parseInt(selectedVessel),
+          portId: parseInt(selectedPort),
+          berthStayDays,
+          cargoQuantity: cargoQuantity ? parseFloat(cargoQuantity) : 5000,
+          isDangerousCargo,
+          customsType,
+        });
+        if (res.ok) { const data = await res.json(); setQuickEstimate(data); }
+      } catch (_) {}
+      setQuickEstimateLoading(false);
+    }, 900);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [selectedVessel, selectedPort, berthStayDays, cargoQuantity, isDangerousCargo, customsType]);
 
   const citiesWithCounts = useMemo(() => {
     if (!ports) return [];
@@ -690,6 +722,50 @@ export default function ProformaNew() {
         </div>
 
         <div className="space-y-6">
+          {(selectedVessel && selectedPort) && (
+            <Card className="p-4 space-y-3 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20" data-testid="panel-quick-estimate">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-blue-600" />
+                <h3 className="font-semibold text-sm text-blue-800 dark:text-blue-300">Anlık Tahmin</h3>
+                {quickEstimateLoading && <Loader2 className="w-3 h-3 animate-spin text-blue-500 ml-auto" data-testid="spinner-estimating" />}
+              </div>
+              {quickEstimateLoading && !quickEstimate ? (
+                <p className="text-xs text-center text-muted-foreground py-2">Hesaplanıyor...</p>
+              ) : quickEstimate ? (
+                <>
+                  <div className="text-center py-1">
+                    <p className="text-xs text-muted-foreground mb-0.5">Tahmini Toplam</p>
+                    <p className="text-xl font-bold font-serif text-blue-700 dark:text-blue-300" data-testid="text-estimate-total">
+                      ~${quickEstimate.totalUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      ~€{quickEstimate.totalEur.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </p>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-0.5 border-t pt-2">
+                    <p>TCMB: 1 USD = {quickEstimate.exchangeRates.usdTry} TRY</p>
+                    <p className="italic text-[10px]">* Bu tahmini bir değerdir. Nihai rakam için tam hesaplama yapınız.</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full gap-2 text-xs border-blue-300 text-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                    onClick={() => {
+                      setCalculatedItems(quickEstimate.lineItems);
+                      setTotalUsd(quickEstimate.totalUsd);
+                      setTotalEur(quickEstimate.totalEur);
+                      setEurUsdParity(quickEstimate.exchangeRates.eurUsd);
+                    }}
+                    data-testid="button-load-estimate"
+                  >
+                    <Calculator className="w-3.5 h-3.5" />
+                    Tahmini Proformaya Yükle
+                  </Button>
+                </>
+              ) : null}
+            </Card>
+          )}
+
           <Card className="p-6 space-y-4 sticky top-6">
             <h3 className="font-serif font-semibold flex items-center gap-2">
               <Globe className="w-4 h-4" />

@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign } from "lucide-react";
+import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign, Zap, Loader2, Calculator, Ship, Anchor } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,13 +8,17 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Link, useLocation } from "wouter";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { PageMeta } from "@/components/page-meta";
 import { useAuth } from "@/hooks/use-auth";
-import type { Proforma, Vessel } from "@shared/schema";
+import type { Proforma, Vessel, Port } from "@shared/schema";
 
 export default function Proformas() {
   const [, navigate] = useLocation();
@@ -29,8 +33,18 @@ export default function Proformas() {
   const effectiveRole = userRole === "admin" ? (activeRole || "shipowner") : userRole;
   const isAgent = effectiveRole === "agent";
 
+  const [showQuickDialog, setShowQuickDialog] = useState(false);
+  const [quickVesselId, setQuickVesselId] = useState<string>("");
+  const [quickPortId, setQuickPortId] = useState<string>("");
+  const [quickPortOpen, setQuickPortOpen] = useState(false);
+  const [quickPortSearch, setQuickPortSearch] = useState("");
+  const [quickDays, setQuickDays] = useState<number>(3);
+  const [quickResult, setQuickResult] = useState<any>(null);
+  const [quickLoading, setQuickLoading] = useState(false);
+
   const { data: proformas, isLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"] });
   const { data: vessels } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
+  const { data: allPorts } = useQuery<Port[]>({ queryKey: ["/api/ports"], enabled: showQuickDialog });
   const { data: myBids, isLoading: bidsLoading } = useQuery<any[]>({
     queryKey: ["/api/tenders/my-bids"],
     enabled: isAgent,
@@ -80,6 +94,56 @@ export default function Proformas() {
       navigate("/invoices");
     },
     onError: () => toast({ title: "Hata", description: "Final DA oluşturulamadı", variant: "destructive" }),
+  });
+
+  const filteredQuickPorts = useMemo(() => {
+    if (!allPorts || !quickPortSearch || quickPortSearch.length < 2) return [];
+    const q = quickPortSearch.toLowerCase();
+    return allPorts.filter(p => p.name.toLowerCase().includes(q) || (p.code || "").toLowerCase().includes(q)).slice(0, 40);
+  }, [allPorts, quickPortSearch]);
+
+  const handleQuickCalculate = async () => {
+    if (!quickVesselId || !quickPortId) {
+      toast({ title: "Lütfen gemi ve liman seçin", variant: "destructive" }); return;
+    }
+    setQuickLoading(true);
+    setQuickResult(null);
+    try {
+      const res = await apiRequest("POST", "/api/proformas/quick-estimate", {
+        vesselId: parseInt(quickVesselId),
+        portId: parseInt(quickPortId),
+        berthStayDays: quickDays,
+      });
+      if (res.ok) { setQuickResult(await res.json()); }
+      else { toast({ title: "Hesaplama başarısız", variant: "destructive" }); }
+    } catch (_) { toast({ title: "Bağlantı hatası", variant: "destructive" }); }
+    setQuickLoading(false);
+  };
+
+  const saveDraftMutation = useMutation({
+    mutationFn: async () => {
+      if (!quickResult) throw new Error("No result");
+      const res = await apiRequest("POST", "/api/proformas", {
+        vesselId: parseInt(quickVesselId),
+        portId: parseInt(quickPortId),
+        purposeOfCall: "Loading",
+        berthStayDays: quickDays,
+        lineItems: quickResult.lineItems,
+        totalUsd: quickResult.totalUsd,
+        totalEur: quickResult.totalEur,
+        exchangeRate: quickResult.exchangeRates.eurUsd,
+        status: "draft",
+        notes: "Anlık tahmin ile oluşturuldu. Lütfen detayları gözden geçiriniz.",
+      });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/proformas"] });
+      toast({ title: "Taslak kaydedildi" });
+      setShowQuickDialog(false);
+      navigate(`/proformas/${data.id}`);
+    },
+    onError: () => toast({ title: "Kaydetme başarısız", variant: "destructive" }),
   });
 
   const filteredProformas = (proformas || []).filter((p) => {
@@ -387,12 +451,202 @@ export default function Proformas() {
               : "Manage your proforma disbursement accounts."}
           </p>
         </div>
-        <Link href="/proformas/new">
-          <Button className="gap-2" data-testid="button-new-proforma">
-            <Plus className="w-4 h-4" /> New Proforma
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/30"
+            onClick={() => { setShowQuickDialog(true); setQuickResult(null); setQuickVesselId(""); setQuickPortId(""); setQuickPortSearch(""); setQuickDays(3); }}
+            data-testid="button-quick-proforma"
+          >
+            <Zap className="w-4 h-4" /> Anlık Proforma Al
           </Button>
-        </Link>
+          <Link href="/proformas/new">
+            <Button className="gap-2" data-testid="button-new-proforma">
+              <Plus className="w-4 h-4" /> New Proforma
+            </Button>
+          </Link>
+        </div>
       </div>
+
+      <Dialog open={showQuickDialog} onOpenChange={setShowQuickDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-quick-proforma">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-serif">
+              <Zap className="w-5 h-5 text-blue-600" />
+              Anlık Proforma Al
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Gemi ve liman seçin — tarifeler otomatik uygulanarak anlık tahmini DA hesaplanır.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Gemi Seç</Label>
+                <Select value={quickVesselId} onValueChange={setQuickVesselId} data-testid="select-vessel-quick">
+                  <SelectTrigger data-testid="trigger-vessel-quick">
+                    <SelectValue placeholder="Gemi seçin..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(vessels || []).map((v) => (
+                      <SelectItem key={v.id} value={String(v.id)} data-testid={`option-quick-vessel-${v.id}`}>
+                        <span className="flex items-center gap-2">
+                          <Ship className="w-3 h-3" /> {v.name} ({v.flag})
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tahmini Kalış (Gün)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={quickDays}
+                  onChange={(e) => setQuickDays(parseInt(e.target.value) || 3)}
+                  className="w-full"
+                  data-testid="input-days-quick"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Liman Ara</Label>
+              <Popover open={quickPortOpen} onOpenChange={setQuickPortOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className="w-full justify-start font-normal"
+                    data-testid="trigger-port-quick"
+                  >
+                    <Anchor className="w-4 h-4 mr-2 text-muted-foreground" />
+                    {quickPortId && allPorts ? (allPorts.find(p => String(p.id) === quickPortId)?.name || "Liman seçin...") : "Liman adı yazın..."}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput
+                      placeholder="Liman ara... (en az 2 karakter)"
+                      value={quickPortSearch}
+                      onValueChange={setQuickPortSearch}
+                      data-testid="input-port-quick"
+                    />
+                    <CommandList>
+                      <CommandEmpty>
+                        {quickPortSearch.length < 2 ? "En az 2 karakter girin." : "Liman bulunamadı."}
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {filteredQuickPorts.map((p) => (
+                          <CommandItem
+                            key={p.id}
+                            value={p.name}
+                            onSelect={() => { setQuickPortId(String(p.id)); setQuickPortSearch(p.name); setQuickPortOpen(false); }}
+                            data-testid={`option-quick-port-${p.id}`}
+                          >
+                            <Anchor className="w-3 h-3 mr-2 text-muted-foreground" />
+                            {p.name}
+                            {p.code && <span className="ml-2 text-xs text-muted-foreground">{p.code}</span>}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <Button
+              className="w-full gap-2"
+              onClick={handleQuickCalculate}
+              disabled={quickLoading || !quickVesselId || !quickPortId}
+              data-testid="button-calculate-quick"
+            >
+              {quickLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
+              {quickLoading ? "Hesaplanıyor..." : "Tahmini Hesapla"}
+            </Button>
+
+            {quickResult && (
+              <Card className="p-4 space-y-3 bg-blue-50/60 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+                <div className="flex items-center gap-2 mb-2">
+                  <Ship className="w-4 h-4 text-blue-600" />
+                  <span className="font-semibold text-sm text-blue-800 dark:text-blue-300">
+                    {quickResult.vesselName} — {quickResult.portName}
+                  </span>
+                  <Badge variant="secondary" className="ml-auto text-[10px]">Tahmini DA</Badge>
+                </div>
+
+                <div className="border rounded-md overflow-hidden bg-white dark:bg-background">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="text-xs py-2">Kalem</TableHead>
+                        <TableHead className="text-xs py-2 text-right">USD ($)</TableHead>
+                        <TableHead className="text-xs py-2 text-right hidden sm:table-cell">EUR (€)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(quickResult.lineItems || []).map((item: any, i: number) => (
+                        <TableRow key={i} className="text-xs" data-testid={`row-quick-item-${i}`}>
+                          <TableCell className="py-1.5">{item.description}</TableCell>
+                          <TableCell className="py-1.5 text-right font-mono">{item.amountUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="py-1.5 text-right font-mono hidden sm:table-cell">{(item.amountEur || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="flex items-center justify-between pt-1 border-t">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Tahmini Toplam</p>
+                    <p className="text-xl font-bold font-serif text-blue-700 dark:text-blue-300" data-testid="text-quick-total-usd">
+                      ~${quickResult.totalUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD
+                    </p>
+                    <p className="text-sm text-muted-foreground">~€{quickResult.totalEur.toLocaleString(undefined, { maximumFractionDigits: 0 })} EUR</p>
+                  </div>
+                  <div className="text-right text-xs text-muted-foreground">
+                    <p>TCMB: 1 USD = {quickResult.exchangeRates.usdTry} TRY</p>
+                    <p>{quickDays} gün kalış · {(quickResult.lineItems || []).length} kalem</p>
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-muted-foreground italic">
+                  * Bu tahmini bir değerdir. Kesin rakam için tam proforma oluşturunuz.
+                </p>
+
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 gap-1.5 text-xs"
+                    onClick={() => saveDraftMutation.mutate()}
+                    disabled={saveDraftMutation.isPending}
+                    data-testid="button-save-draft-quick"
+                  >
+                    {saveDraftMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                    Taslak Kaydet
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1 gap-1.5 text-xs"
+                    onClick={() => { setShowQuickDialog(false); navigate(`/proformas/new?vesselId=${quickVesselId}&portId=${quickPortId}&days=${quickDays}`); }}
+                    data-testid="button-go-full-form"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Tam Proformaya Geç
+                  </Button>
+                </div>
+              </Card>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {isAgent ? (
         <Tabs defaultValue="proformas">

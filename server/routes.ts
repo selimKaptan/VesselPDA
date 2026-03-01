@@ -455,6 +455,98 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/proformas/quick-estimate", isAuthenticated, async (req: any, res) => {
+    try {
+      const {
+        vesselId, portId,
+        berthStayDays = 3, anchorageDays = 0,
+        cargoQuantity = 5000, isDangerousCargo = false,
+        purposeOfCall = "Loading", customsType = "import",
+      } = req.body;
+
+      if (!vesselId || !portId) {
+        return res.status(400).json({ message: "vesselId and portId are required" });
+      }
+
+      const userId = req.user?.claims?.sub || req.user?.id;
+
+      let vessel = await storage.getVessel(Number(vesselId), userId);
+      if (!vessel) {
+        const allVessels = await storage.getAllVessels();
+        vessel = (allVessels as any[]).find((v: any) => v.id === Number(vesselId)) || null;
+      }
+      if (!vessel) return res.status(404).json({ message: "Vessel not found" });
+
+      const port = await storage.getPort(Number(portId));
+      if (!port) return res.status(404).json({ message: "Port not found" });
+
+      let usdTryRate = 43.86;
+      let eurTryRate = 51.73;
+      try {
+        const rateRes = await fetch("https://www.tcmb.gov.tr/kurlar/today.xml", {
+          headers: { "User-Agent": "VesselPDA/1.0" },
+          signal: AbortSignal.timeout(5000),
+        });
+        if (rateRes.ok) {
+          const xml = await rateRes.text();
+          const extractRate = (code: string): number | null => {
+            const blockRe = new RegExp(`<Currency[^>]*CurrencyCode="${code}"[^>]*>([\\s\\S]*?)<\\/Currency>`, "i");
+            const block = xml.match(blockRe)?.[1];
+            if (!block) return null;
+            const b = parseFloat(block.match(/<ForexBuying>([\d.]+)<\/ForexBuying>/i)?.[1] ?? "");
+            const s = parseFloat(block.match(/<ForexSelling>([\d.]+)<\/ForexSelling>/i)?.[1] ?? "");
+            if (isNaN(b) || isNaN(s)) return null;
+            return Math.round(((b + s) / 2) * 10000) / 10000;
+          };
+          usdTryRate = extractRate("USD") || 43.86;
+          eurTryRate = extractRate("EUR") || 51.73;
+        }
+      } catch (_) { /* use fallback */ }
+
+      const eurUsdParity = eurTryRate / usdTryRate;
+
+      const isTurkishFlag = (flag: string) => {
+        const f = (flag || "").toLowerCase().trim();
+        return ["turkey", "turkish", "türk", "türkiye", "tr", "turk"].includes(f);
+      };
+      const turkish = isTurkishFlag(vessel.flag || "");
+      const flagCat = turkish ? "turkish" : "foreign" as "turkish" | "foreign";
+
+      const calcInput: CalculationInput = {
+        nrt: (vessel as any).nrt || 1000,
+        grt: (vessel as any).grt || 2000,
+        cargoQuantity: Number(cargoQuantity) || 5000,
+        berthStayDays: Number(berthStayDays) || 3,
+        anchorageDays: Number(anchorageDays) || 0,
+        isDangerousCargo: isDangerousCargo === true || isDangerousCargo === "true",
+        customsType: (customsType as "import" | "export" | "transit" | "none") || "import",
+        flagCategory: flagCat,
+        dtoCategory: flagCat,
+        lighthouseCategory: flagCat,
+        vtsCategory: flagCat,
+        wharfageCategory: turkish ? "cabotage" : "foreign",
+        usdTryRate,
+        eurTryRate,
+        eurUsdParity,
+      };
+
+      const result = calculateProforma(calcInput);
+      res.json({
+        lineItems: result.lineItems,
+        totalUsd: result.totalUsd,
+        totalEur: result.totalEur,
+        vesselName: (vessel as any).name,
+        portName: port.name,
+        exchangeRates: { usdTry: usdTryRate, eurTry: eurTryRate, eurUsd: eurUsdParity },
+        calculatedAt: new Date().toISOString(),
+        isEstimate: true,
+      });
+    } catch (error) {
+      console.error("Quick estimate error:", error);
+      res.status(500).json({ message: "Failed to calculate estimate" });
+    }
+  });
+
   app.post("/api/proformas", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
