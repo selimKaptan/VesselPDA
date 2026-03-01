@@ -59,7 +59,7 @@ export default function Proformas() {
 
   const { data: proformas, isLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"] });
   const { data: vessels } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
-  const { data: allPorts } = useQuery<Port[]>({ queryKey: ["/api/ports"], enabled: showQuickDialog });
+  const { data: turkishPorts } = useQuery<Port[]>({ queryKey: ["/api/ports?country=Turkey"], enabled: showQuickDialog });
   const { data: myBids, isLoading: bidsLoading } = useQuery<any[]>({
     queryKey: ["/api/tenders/my-bids"],
     enabled: isAgent,
@@ -111,11 +111,17 @@ export default function Proformas() {
     onError: () => toast({ title: "Hata", description: "Final DA oluşturulamadı", variant: "destructive" }),
   });
 
+  const normalizeTR = (s: string) =>
+    s.replace(/İ/g, "i").replace(/ı/g, "i").replace(/I/g, "i").toLowerCase()
+      .replace(/ş/g, "s").replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ö/g, "o").replace(/ç/g, "c");
+
   const filteredQuickPorts = useMemo(() => {
-    if (!allPorts || !quickPortSearch || quickPortSearch.length < 2) return [];
-    const q = quickPortSearch.toLowerCase();
-    return allPorts.filter(p => p.name.toLowerCase().includes(q) || (p.code || "").toLowerCase().includes(q)).slice(0, 40);
-  }, [allPorts, quickPortSearch]);
+    if (!turkishPorts || !quickPortSearch || quickPortSearch.length < 2) return [];
+    const q = normalizeTR(quickPortSearch);
+    return turkishPorts.filter(p =>
+      normalizeTR(p.name).includes(q) || normalizeTR(p.code || "").includes(q)
+    ).slice(0, 40);
+  }, [turkishPorts, quickPortSearch]);
 
   const handleQuickCalculate = async () => {
     if (!quickVesselId || !quickPortId) {
@@ -647,20 +653,20 @@ export default function Proformas() {
                     data-testid="trigger-port-quick"
                   >
                     <Anchor className="w-4 h-4 mr-2 text-muted-foreground" />
-                    {quickPortId && allPorts ? (allPorts.find(p => String(p.id) === quickPortId)?.name || "Liman seçin...") : "Liman adı yazın..."}
+                    {quickPortId && turkishPorts ? (turkishPorts.find(p => String(p.id) === quickPortId)?.name || "Liman seçin...") : "Liman adı yazın..."}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-full p-0" align="start">
-                  <Command>
+                  <Command shouldFilter={false}>
                     <CommandInput
-                      placeholder="Liman ara... (en az 2 karakter)"
+                      placeholder="Türk limanı ara... (en az 2 karakter)"
                       value={quickPortSearch}
                       onValueChange={setQuickPortSearch}
                       data-testid="input-port-quick"
                     />
                     <CommandList>
                       <CommandEmpty>
-                        {quickPortSearch.length < 2 ? "En az 2 karakter girin." : "Liman bulunamadı."}
+                        {quickPortSearch.length < 2 ? "En az 2 karakter girin." : "Türk limanı bulunamadı."}
                       </CommandEmpty>
                       <CommandGroup>
                         {filteredQuickPorts.map((p) => (
