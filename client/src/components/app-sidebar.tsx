@@ -1,4 +1,4 @@
-import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, MessageCircle, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, BadgeCheck, Handshake, Package, TrendingUp, Wallet } from "lucide-react";
+import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, MessageCircle, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, Handshake, Package, TrendingUp, Wallet } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -102,9 +102,6 @@ export function AppSidebar() {
   toolsNav.push({ title: "Mesajlar", url: "/messages", icon: MessageCircle, badge: unreadMessages });
   if (effectiveRole === "agent" || effectiveRole === "shipowner") {
     toolsNav.push({ title: "OFAC Sorgula", url: "/sanctions-check", icon: ShieldAlert });
-  }
-  if (effectiveRole === "agent" || effectiveRole === "shipowner" || effectiveRole === "provider") {
-    toolsNav.push({ title: "Sertifikalar", url: "/vessel-certificates", icon: BadgeCheck });
   }
   if (effectiveRole === "agent" || effectiveRole === "shipowner" || effectiveRole === "broker" || isAdminUser) {
     toolsNav.push({ title: "Fixtureler", url: "/fixtures", icon: Handshake });

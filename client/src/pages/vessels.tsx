@@ -7,6 +7,7 @@ import {
   ArrowRight, Anchor, MapPin, Calendar,
   FileText, ChevronRight, Activity, ChevronDown,
   LayoutGrid, Map as MapIcon,
+  ShieldCheck, Pencil, AlertTriangle, CheckCircle2, Clock,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -599,16 +601,51 @@ const FILTER_TABS: { key: FilterGroup; label: string }[] = [
   { key: "idle",     label: "Belirtilmemiş" },
 ];
 
+// ── Certificate helpers ───────────────────────────────────────────────────────
+const CERT_TYPES: Record<string, string> = {
+  ism: "ISM", isps: "ISPS", loadline: "Load Line",
+  marpol: "MARPOL", solas: "SOLAS", other: "Diğer",
+};
+const CERT_TYPE_COLORS: Record<string, string> = {
+  ism: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  isps: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+  loadline: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300",
+  marpol: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+  solas: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+  other: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300",
+};
+const defaultCertForm = {
+  name: "", certType: "ism", issuedAt: "", expiresAt: "",
+  issuingAuthority: "", certificateNumber: "", notes: "",
+};
+function certStatusBadge(status: string, expiresAt: string | null) {
+  if (status === "expired" || (expiresAt && new Date(expiresAt) < new Date()))
+    return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 gap-1 text-[10px]"><AlertTriangle className="w-3 h-3" />Süresi Dolmuş</Badge>;
+  if (status === "expiring_soon")
+    return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 gap-1 text-[10px]"><Clock className="w-3 h-3" />Yakında Bitiyor</Badge>;
+  return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 gap-1 text-[10px]"><CheckCircle2 className="w-3 h-3" />Geçerli</Badge>;
+}
+function fmtDate(dt: string | null) {
+  if (!dt) return "—";
+  return new Date(dt).toLocaleDateString("tr-TR");
+}
+
 export default function Vessels() {
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [showForm, setShowForm] = useState(false);
   const [editingVessel, setEditingVessel] = useState<Vessel | null>(null);
   const [deleteVesselId, setDeleteVesselId] = useState<number | null>(null);
   const [selectedVessel, setSelectedVessel] = useState<Vessel | null>(null);
-  const [detailTab, setDetailTab] = useState<"general" | "voyage" | "technical">("general");
+  const [detailTab, setDetailTab] = useState<"general" | "voyage" | "technical" | "certificates">("general");
   const [statusFilter, setStatusFilter] = useState<FilterGroup>("all");
   const [search, setSearch] = useState("");
   const { toast } = useToast();
+
+  // Certificate state
+  const [certDialogOpen, setCertDialogOpen] = useState(false);
+  const [editCert, setEditCert] = useState<any>(null);
+  const [certDeleteTarget, setCertDeleteTarget] = useState<{ id: number; vesselId: number } | null>(null);
+  const [certForm, setCertForm] = useState({ ...defaultCertForm });
   const [location] = useLocation();
 
   useEffect(() => {
@@ -638,6 +675,52 @@ export default function Vessels() {
   );
 
   const selectedVoyage = selectedVesselFresh ? vesselVoyageMap.get(selectedVesselFresh.id) ?? null : null;
+
+  // Certificate query — only loads when the certificate tab is open
+  const { data: vesselCerts = [], isLoading: certsLoading } = useQuery<any[]>({
+    queryKey: ["/api/vessels", selectedVessel?.id, "certificates"],
+    queryFn: async () => {
+      const res = await fetch(`/api/vessels/${selectedVessel!.id}/certificates`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!selectedVessel && detailTab === "certificates",
+  });
+
+  const certSaveMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        ...certForm,
+        issuedAt: certForm.issuedAt || null,
+        expiresAt: certForm.expiresAt || null,
+        issuingAuthority: certForm.issuingAuthority || null,
+        certificateNumber: certForm.certificateNumber || null,
+        notes: certForm.notes || null,
+      };
+      if (editCert?.id) {
+        return apiRequest("PATCH", `/api/vessels/${editCert.vesselId}/certificates/${editCert.id}`, payload);
+      }
+      return apiRequest("POST", `/api/vessels/${editCert.vesselId}/certificates`, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/vessels", selectedVessel?.id, "certificates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/certificates/expiring"] });
+      toast({ title: editCert?.id ? "Sertifika güncellendi" : "Sertifika eklendi" });
+      setCertDialogOpen(false);
+    },
+    onError: () => toast({ title: "Hata", description: "İşlem başarısız", variant: "destructive" }),
+  });
+
+  const certDeleteMutation = useMutation({
+    mutationFn: async ({ id, vesselId }: { id: number; vesselId: number }) =>
+      apiRequest("DELETE", `/api/vessels/${vesselId}/certificates/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/vessels", selectedVessel?.id, "certificates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/certificates/expiring"] });
+      toast({ title: "Sertifika silindi" });
+      setCertDeleteTarget(null);
+    },
+  });
 
   const filtered = useMemo(() => vessels.filter((v) => {
     if (search.trim() && !v.name.toLowerCase().includes(search.toLowerCase())) return false;
@@ -883,13 +966,13 @@ export default function Vessels() {
                     </div>
                   </div>
                   <div className="flex gap-1 bg-muted/40 p-1 rounded-xl mt-3">
-                    {(["general", "voyage", "technical"] as const).map((tab) => (
+                    {(["general", "voyage", "technical", "certificates"] as const).map((tab) => (
                       <button
                         key={tab}
                         onClick={() => setDetailTab(tab)}
                         className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${detailTab === tab ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                       >
-                        {{ general: "Genel", voyage: "Sefer", technical: "Teknik" }[tab]}
+                        {{ general: "Genel", voyage: "Sefer", technical: "Teknik", certificates: "Sertifikalar" }[tab]}
                       </button>
                     ))}
                   </div>
@@ -1008,6 +1091,105 @@ export default function Vessels() {
                       ))}
                     </div>
                   )}
+
+                  {/* ── Sertifikalar ── */}
+                  {detailTab === "certificates" && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-primary" />
+                          <span className="text-sm font-semibold">Gemi Sertifikaları</span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1"
+                          onClick={() => {
+                            setEditCert({ vesselId: v.id, id: null });
+                            setCertForm({ ...defaultCertForm });
+                            setCertDialogOpen(true);
+                          }}
+                          data-testid="button-add-cert-vessel"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Sertifika Ekle
+                        </Button>
+                      </div>
+
+                      {certsLoading ? (
+                        <div className="flex justify-center py-8">
+                          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : vesselCerts.length === 0 ? (
+                        <div className="text-center py-10 text-muted-foreground">
+                          <ShieldCheck className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                          <p className="text-sm">Henüz sertifika eklenmemiş</p>
+                          <p className="text-xs mt-1">Yukarıdaki butonu kullanarak ekleyebilirsiniz</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {vesselCerts.map((cert: any) => (
+                            <div
+                              key={cert.id}
+                              className="rounded-xl border bg-muted/20 p-3 space-y-2"
+                              data-testid={`cert-item-${cert.id}`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="space-y-1 min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-sm font-semibold">{cert.name}</span>
+                                    <Badge className={`${CERT_TYPE_COLORS[cert.certType] || CERT_TYPE_COLORS.other} text-[10px]`}>
+                                      {CERT_TYPES[cert.certType] || cert.certType}
+                                    </Badge>
+                                    {certStatusBadge(cert.status, cert.expiresAt)}
+                                  </div>
+                                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                                    {cert.certificateNumber && <span>No: {cert.certificateNumber}</span>}
+                                    {cert.issuingAuthority && <span>{cert.issuingAuthority}</span>}
+                                    {cert.issuedAt && <span>Veriliş: {fmtDate(cert.issuedAt)}</span>}
+                                    {cert.expiresAt && <span>Bitiş: {fmtDate(cert.expiresAt)}</span>}
+                                  </div>
+                                  {cert.notes && <p className="text-[11px] text-muted-foreground italic">{cert.notes}</p>}
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7"
+                                    onClick={() => {
+                                      setEditCert(cert);
+                                      setCertForm({
+                                        name: cert.name || "",
+                                        certType: cert.certType || "ism",
+                                        issuedAt: cert.issuedAt ? cert.issuedAt.substring(0, 10) : "",
+                                        expiresAt: cert.expiresAt ? cert.expiresAt.substring(0, 10) : "",
+                                        issuingAuthority: cert.issuingAuthority || "",
+                                        certificateNumber: cert.certificateNumber || "",
+                                        notes: cert.notes || "",
+                                      });
+                                      setCertDialogOpen(true);
+                                    }}
+                                    data-testid={`button-edit-cert-${cert.id}`}
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 text-destructive hover:text-destructive"
+                                    onClick={() => setCertDeleteTarget({ id: cert.id, vesselId: v.id })}
+                                    data-testid={`button-delete-cert-${cert.id}`}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </>
             );
@@ -1049,6 +1231,107 @@ export default function Vessels() {
               data-testid="button-confirm-delete-vessel"
             >
               {deleteMutation.isPending ? "Siliniyor..." : "Evet, Sil"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Certificate Add/Edit Dialog ───────────────────────────────────── */}
+      <Dialog open={certDialogOpen} onOpenChange={setCertDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editCert?.id ? "Sertifika Düzenle" : "Yeni Sertifika Ekle"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <Label>Sertifika Adı *</Label>
+                <Input
+                  value={certForm.name}
+                  onChange={e => setCertForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="örn. ISM Safety Management Certificate"
+                  data-testid="input-cert-name"
+                />
+              </div>
+              <div>
+                <Label>Tür</Label>
+                <Select value={certForm.certType} onValueChange={v => setCertForm(f => ({ ...f, certType: v }))}>
+                  <SelectTrigger data-testid="select-cert-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(CERT_TYPES).map(([k, lbl]) => (
+                      <SelectItem key={k} value={k}>{lbl}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Sertifika No</Label>
+                <Input
+                  value={certForm.certificateNumber}
+                  onChange={e => setCertForm(f => ({ ...f, certificateNumber: e.target.value }))}
+                  placeholder="opsiyonel"
+                  data-testid="input-cert-number"
+                />
+              </div>
+              <div>
+                <Label>Veriliş Tarihi</Label>
+                <Input type="date" value={certForm.issuedAt} onChange={e => setCertForm(f => ({ ...f, issuedAt: e.target.value }))} data-testid="input-cert-issued" />
+              </div>
+              <div>
+                <Label>Bitiş Tarihi</Label>
+                <Input type="date" value={certForm.expiresAt} onChange={e => setCertForm(f => ({ ...f, expiresAt: e.target.value }))} data-testid="input-cert-expires" />
+              </div>
+              <div className="col-span-2">
+                <Label>Veren Kurum</Label>
+                <Input
+                  value={certForm.issuingAuthority}
+                  onChange={e => setCertForm(f => ({ ...f, issuingAuthority: e.target.value }))}
+                  placeholder="örn. Türk Loydu, DNV, Lloyd's Register..."
+                  data-testid="input-cert-authority"
+                />
+              </div>
+              <div className="col-span-2">
+                <Label>Notlar</Label>
+                <Textarea
+                  value={certForm.notes}
+                  onChange={e => setCertForm(f => ({ ...f, notes: e.target.value }))}
+                  rows={2}
+                  placeholder="opsiyonel"
+                  data-testid="textarea-cert-notes"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCertDialogOpen(false)}>İptal</Button>
+            <Button
+              onClick={() => certSaveMutation.mutate()}
+              disabled={!certForm.name || certSaveMutation.isPending}
+              data-testid="button-save-cert"
+            >
+              {certSaveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Kaydet"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Certificate Delete Confirm ────────────────────────────────────── */}
+      <AlertDialog open={!!certDeleteTarget} onOpenChange={open => { if (!open) setCertDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sertifikayı Sil</AlertDialogTitle>
+            <AlertDialogDescription>Bu sertifika kalıcı olarak silinecek. Devam edilsin mi?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Vazgeç</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => certDeleteTarget && certDeleteMutation.mutate(certDeleteTarget)}
+              data-testid="button-confirm-delete-cert"
+            >
+              Sil
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

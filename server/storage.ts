@@ -1736,29 +1736,34 @@ export class DatabaseStorage implements IStorage {
   async createVesselCertificate(data: InsertVesselCertificate): Promise<VesselCertificate> {
     const now = new Date();
     let status = "valid";
-    if (data.expiresAt) {
-      const exp = new Date(data.expiresAt);
-      if (exp < now) status = "expired";
-      else if (exp < new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)) status = "expiring_soon";
+    const issuedAt = data.issuedAt ? new Date(data.issuedAt as any) : null;
+    const expiresAt = data.expiresAt ? new Date(data.expiresAt as any) : null;
+    if (expiresAt) {
+      if (expiresAt < now) status = "expired";
+      else if (expiresAt < new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)) status = "expiring_soon";
     }
-    const [row] = await db.insert(vesselCertificates).values({ ...data, status }).returning();
+    const [row] = await db.insert(vesselCertificates).values({ ...data, issuedAt, expiresAt, status }).returning();
     return row;
   }
 
   async updateVesselCertificate(id: number, data: Partial<InsertVesselCertificate>): Promise<VesselCertificate | undefined> {
     const now = new Date();
     let status: string | undefined;
-    if (data.expiresAt !== undefined) {
-      if (!data.expiresAt) {
+    const issuedAt = data.issuedAt !== undefined ? (data.issuedAt ? new Date(data.issuedAt as any) : null) : undefined;
+    const expiresAt = data.expiresAt !== undefined ? (data.expiresAt ? new Date(data.expiresAt as any) : null) : undefined;
+    if (expiresAt !== undefined) {
+      if (!expiresAt) {
         status = "valid";
       } else {
-        const exp = new Date(data.expiresAt);
-        if (exp < now) status = "expired";
-        else if (exp < new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)) status = "expiring_soon";
+        if (expiresAt < now) status = "expired";
+        else if (expiresAt < new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)) status = "expiring_soon";
         else status = "valid";
       }
     }
-    const updateData = status ? { ...data, status } : data;
+    const updateData: any = { ...data };
+    if (issuedAt !== undefined) updateData.issuedAt = issuedAt;
+    if (expiresAt !== undefined) updateData.expiresAt = expiresAt;
+    if (status) updateData.status = status;
     const [row] = await db.update(vesselCertificates).set(updateData).where(eq(vesselCertificates.id, id)).returning();
     return row;
   }

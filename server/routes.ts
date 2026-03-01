@@ -3489,7 +3489,7 @@ export async function registerRoutes(
   app.post("/api/vessels/:vesselId/certificates", isAuthenticated, async (req: any, res) => {
     try {
       const vesselId = parseInt(req.params.vesselId);
-      const userId = req.user.claims.sub;
+      const userId = req.user?.claims?.sub || req.user?.id;
       const cert = await storage.createVesselCertificate({ ...req.body, vesselId, userId });
       res.status(201).json(cert);
     } catch {
