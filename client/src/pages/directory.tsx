@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Building2, Phone, Mail, Globe, MapPin, Star, Search, Filter, ExternalLink, ArrowRight, ChevronDown, ChevronUp, Ship, Anchor, Menu, X } from "lucide-react";
+import { Building2, Phone, Mail, Globe, MapPin, Star, Search, Filter, ExternalLink, ArrowRight, ChevronDown, ChevronUp, Ship, Anchor, Menu, X, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -476,8 +476,13 @@ function CompanyCard({ profile, getPortName, isFeatured }: { profile: CompanyPro
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <h3 className="font-semibold text-base" data-testid={`text-company-name-${profile.id}`}>{profile.companyName}</h3>
+                {(profile as any).verificationStatus === "verified" && (
+                  <Badge className="text-xs bg-blue-50 text-blue-700 border-blue-200 gap-1 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800" data-testid={`badge-verified-${profile.id}`}>
+                    <ShieldCheck className="w-3 h-3" /> Doğrulanmış
+                  </Badge>
+                )}
               </div>
               {serviceTypes.length > 0 && (
                 <p className="text-sm text-muted-foreground line-clamp-2 mb-2">

@@ -10,6 +10,7 @@ import type { ProformaLineItem } from "@shared/schema";
 import { calculateProforma, type CalculationInput } from "./proforma-calculator";
 import { startAISStream, getPositions, searchVessels, isConnected, getCacheSize } from "./ais-stream";
 import { geocodeStats } from "./geocode-ports";
+import { checkSanctions, getSanctionsStatus, loadSanctionsList } from "./sanctions";
 import { db } from "./db";
 import { sql as drizzleSql } from "drizzle-orm";
 
@@ -1032,6 +1033,166 @@ export async function registerRoutes(
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch agent stats" });
+    }
+  });
+
+  // ─── TRUST SCORE ──────────────────────────────────────────────────────────
+
+  app.get("/api/trust-score/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const allVoyages = await storage.getVoyagesByUser(userId);
+      const completedVoyages = allVoyages.filter(v => v.status === "completed").length;
+      const finishedVoyages = allVoyages.filter(v => ["completed", "cancelled"].includes(v.status)).length;
+      const successRate = finishedVoyages > 0 ? Math.round((completedVoyages / finishedVoyages) * 100) : null;
+
+      const profile = await storage.getCompanyProfileByUser(userId);
+      let avgRating = 0;
+      let reviewCount = 0;
+      let bidWinRate = null;
+
+      if (profile) {
+        const reviews = await storage.getReviewsByCompany(profile.id);
+        avgRating = reviews.length > 0
+          ? Math.round((reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length) * 10) / 10
+          : 0;
+        reviewCount = reviews.length;
+
+        const bids = await storage.getTenderBidsByAgent(userId);
+        if (bids.length > 0) {
+          const won = bids.filter(b => b.status === "selected").length;
+          bidWinRate = Math.round((won / bids.length) * 100);
+        }
+      }
+
+      const voyageReviewsResult = await db.execute(
+        drizzleSql.raw(`SELECT AVG(rating)::numeric(4,1) AS avg_rating, COUNT(*) AS cnt FROM voyage_reviews WHERE reviewee_user_id = '${userId}'`)
+      );
+      const vr = voyageReviewsResult.rows[0] as any;
+      const voyageAvgRating = vr?.avg_rating ? parseFloat(vr.avg_rating) : 0;
+      const voyageReviewCount = parseInt(vr?.cnt ?? "0");
+
+      const combinedAvg = (reviewCount + voyageReviewCount) > 0
+        ? Math.round(((avgRating * reviewCount + voyageAvgRating * voyageReviewCount) / (reviewCount + voyageReviewCount)) * 10) / 10
+        : 0;
+
+      res.json({
+        completedVoyages,
+        totalVoyages: allVoyages.length,
+        successRate,
+        avgRating: combinedAvg,
+        reviewCount: reviewCount + voyageReviewCount,
+        bidWinRate,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch trust score" });
+    }
+  });
+
+  // ─── VERIFICATION ─────────────────────────────────────────────────────────
+
+  app.post("/api/company-profile/request-verification", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const profile = await storage.getCompanyProfileByUser(userId);
+      if (!profile) return res.status(404).json({ message: "Profile not found" });
+      const { taxNumber, mtoRegistrationNumber, pandiClubName } = req.body;
+      if (!taxNumber) return res.status(400).json({ message: "Tax number is required" });
+      const updated = await storage.requestVerification(profile.id, userId, { taxNumber, mtoRegistrationNumber, pandiClubName });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to request verification" });
+    }
+  });
+
+  app.get("/api/admin/pending-verifications", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const pending = await storage.getPendingVerifications();
+      res.json(pending);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch pending verifications" });
+    }
+  });
+
+  app.post("/api/admin/verify-company/:profileId", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const profileId = parseInt(req.params.profileId);
+      const { action, note } = req.body;
+      let updated;
+      if (action === "approve") {
+        updated = await storage.approveVerification(profileId, note);
+      } else if (action === "reject") {
+        if (!note) return res.status(400).json({ message: "Rejection note required" });
+        updated = await storage.rejectVerification(profileId, note);
+      } else {
+        return res.status(400).json({ message: "Invalid action" });
+      }
+      if (!updated) return res.status(404).json({ message: "Profile not found" });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update verification" });
+    }
+  });
+
+  // ─── ENDORSEMENTS ─────────────────────────────────────────────────────────
+
+  app.get("/api/endorsements/:companyProfileId", async (req, res) => {
+    try {
+      const id = parseInt(req.params.companyProfileId);
+      const list = await storage.getEndorsements(id);
+      res.json(list);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch endorsements" });
+    }
+  });
+
+  app.post("/api/endorsements", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { toCompanyProfileId, relationship, message } = req.body;
+      if (!toCompanyProfileId || !relationship) return res.status(400).json({ message: "Profile and relationship required" });
+      const existing = await storage.getUserEndorsementForProfile(userId, parseInt(toCompanyProfileId));
+      if (existing) return res.status(409).json({ message: "You have already endorsed this company" });
+      const endo = await storage.createEndorsement({ fromUserId: userId, toCompanyProfileId: parseInt(toCompanyProfileId), relationship, message });
+      res.status(201).json(endo);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to create endorsement" });
+    }
+  });
+
+  app.delete("/api/endorsements/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const deleted = await storage.deleteEndorsement(parseInt(req.params.id), userId);
+      if (!deleted) return res.status(404).json({ message: "Not found or not yours" });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete endorsement" });
+    }
+  });
+
+  // ─── SANCTIONS ────────────────────────────────────────────────────────────
+
+  app.get("/api/sanctions/check", isAuthenticated, async (req: any, res) => {
+    try {
+      const name = req.query.name as string;
+      const imo = req.query.imo as string | undefined;
+      if (!name) return res.status(400).json({ message: "name is required" });
+      const result = checkSanctions(name, imo);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to check sanctions" });
+    }
+  });
+
+  app.get("/api/sanctions/status", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      res.json(getSanctionsStatus());
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch sanctions status" });
     }
   });
 

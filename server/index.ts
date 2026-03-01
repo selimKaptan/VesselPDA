@@ -29,6 +29,7 @@ app.use(helmet({
         "https://api.open-meteo.com",
         "https://tiles.openseamap.org",
         "https://nominatim.openstreetmap.org",
+        "https://ofac.treasury.gov",
       ],
       workerSrc: ["'self'", "blob:"],
       fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
@@ -172,6 +173,12 @@ app.use((req, res, next) => {
 
       import("./cleanup-ports").then(({ cleanupInvalidPorts }) => {
         cleanupInvalidPorts().catch((err: Error) => console.error("Cleanup error:", err));
+      });
+
+      import("./sanctions").then(({ loadSanctionsList }) => {
+        setTimeout(() => {
+          loadSanctionsList().catch((err: Error) => console.error("Sanctions load error:", err));
+        }, 5000);
       });
 
       import("./geocode-ports").then(({ geocodeMissingPorts }) => {

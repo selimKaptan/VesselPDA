@@ -577,3 +577,23 @@ export type ServiceOffer = typeof serviceOffers.$inferSelect;
 export const insertDirectNominationSchema = createInsertSchema(directNominations).omit({ id: true, createdAt: true, status: true, respondedAt: true });
 export type InsertDirectNomination = z.infer<typeof insertDirectNominationSchema>;
 export type DirectNomination = typeof directNominations.$inferSelect;
+
+// ─── ENDORSEMENTS ─────────────────────────────────────────────────────────────
+
+export const endorsements = pgTable("endorsements", {
+  id: serial("id").primaryKey(),
+  fromUserId: varchar("from_user_id").notNull().references(() => users.id),
+  toCompanyProfileId: integer("to_company_profile_id").notNull().references(() => companyProfiles.id),
+  relationship: varchar("relationship", { length: 100 }).notNull(),
+  message: text("message"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const endorsementRelations = relations(endorsements, ({ one }) => ({
+  fromUser: one(users, { fields: [endorsements.fromUserId], references: [users.id] }),
+  toCompanyProfile: one(companyProfiles, { fields: [endorsements.toCompanyProfileId], references: [companyProfiles.id] }),
+}));
+
+export const insertEndorsementSchema = createInsertSchema(endorsements).omit({ id: true, createdAt: true });
+export type InsertEndorsement = z.infer<typeof insertEndorsementSchema>;
+export type Endorsement = typeof endorsements.$inferSelect;

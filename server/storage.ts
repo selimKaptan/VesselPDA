@@ -25,13 +25,14 @@ import {
   type Message, type InsertMessage,
   type DirectNomination, type InsertDirectNomination,
   type VoyageChatMessage, type InsertVoyageChatMessage,
+  type Endorsement, type InsertEndorsement,
   vessels, ports, tariffCategories, tariffRates, proformas,
   forumCategories, forumTopics, forumReplies, forumLikes, forumDislikes,
   portTenders, tenderBids, agentReviews, vesselWatchlist,
   notifications, feedbacks,
   voyages, voyageChecklists, serviceRequests, serviceOffers,
   voyageDocuments, voyageReviews, conversations, messages,
-  directNominations, voyageChatMessages,
+  directNominations, voyageChatMessages, endorsements,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
@@ -180,6 +181,16 @@ export interface IStorage {
   getNominationById(id: number): Promise<any | undefined>;
   updateNominationStatus(id: number, status: string): Promise<DirectNomination | undefined>;
   getPendingNominationCountForAgent(userId: string): Promise<number>;
+
+  requestVerification(profileId: number, userId: string, data: { taxNumber: string; mtoRegistrationNumber?: string; pandiClubName?: string }): Promise<CompanyProfile | undefined>;
+  approveVerification(profileId: number, note?: string): Promise<CompanyProfile | undefined>;
+  rejectVerification(profileId: number, note: string): Promise<CompanyProfile | undefined>;
+  getPendingVerifications(): Promise<CompanyProfile[]>;
+
+  getEndorsements(companyProfileId: number): Promise<any[]>;
+  createEndorsement(data: InsertEndorsement): Promise<Endorsement>;
+  deleteEndorsement(id: number, userId: string): Promise<boolean>;
+  getUserEndorsementForProfile(fromUserId: string, toCompanyProfileId: number): Promise<Endorsement | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1524,6 +1535,90 @@ export class DatabaseStorage implements IStorage {
     const [row] = await db.select({ cnt: count() }).from(directNominations)
       .where(and(eq(directNominations.agentUserId, userId), eq(directNominations.status, "pending")));
     return Number(row?.cnt ?? 0);
+  }
+
+  async requestVerification(profileId: number, userId: string, data: { taxNumber: string; mtoRegistrationNumber?: string; pandiClubName?: string }): Promise<CompanyProfile | undefined> {
+    const [updated] = await db.update(companyProfiles)
+      .set({
+        taxNumber: data.taxNumber,
+        mtoRegistrationNumber: data.mtoRegistrationNumber ?? null,
+        pandiClubName: data.pandiClubName ?? null,
+        verificationStatus: "pending",
+        verificationRequestedAt: new Date(),
+        verificationNote: null,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(companyProfiles.id, profileId), eq(companyProfiles.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async approveVerification(profileId: number, note?: string): Promise<CompanyProfile | undefined> {
+    const [updated] = await db.update(companyProfiles)
+      .set({
+        verificationStatus: "verified",
+        verificationApprovedAt: new Date(),
+        verificationNote: note ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(companyProfiles.id, profileId))
+      .returning();
+    return updated;
+  }
+
+  async rejectVerification(profileId: number, note: string): Promise<CompanyProfile | undefined> {
+    const [updated] = await db.update(companyProfiles)
+      .set({
+        verificationStatus: "rejected",
+        verificationNote: note,
+        updatedAt: new Date(),
+      })
+      .where(eq(companyProfiles.id, profileId))
+      .returning();
+    return updated;
+  }
+
+  async getPendingVerifications(): Promise<CompanyProfile[]> {
+    return db.select().from(companyProfiles)
+      .where(eq(companyProfiles.verificationStatus, "pending"))
+      .orderBy(asc(companyProfiles.verificationRequestedAt));
+  }
+
+  async getEndorsements(companyProfileId: number): Promise<any[]> {
+    const rows = await db
+      .select({
+        id: endorsements.id,
+        fromUserId: endorsements.fromUserId,
+        relationship: endorsements.relationship,
+        message: endorsements.message,
+        createdAt: endorsements.createdAt,
+        fromFirstName: users.firstName,
+        fromLastName: users.lastName,
+        fromEmail: users.email,
+        fromRole: users.userRole,
+      })
+      .from(endorsements)
+      .leftJoin(users, eq(endorsements.fromUserId, users.id))
+      .where(eq(endorsements.toCompanyProfileId, companyProfileId))
+      .orderBy(desc(endorsements.createdAt));
+    return rows;
+  }
+
+  async createEndorsement(data: InsertEndorsement): Promise<Endorsement> {
+    const [row] = await db.insert(endorsements).values(data).returning();
+    return row;
+  }
+
+  async deleteEndorsement(id: number, userId: string): Promise<boolean> {
+    const result = await db.delete(endorsements)
+      .where(and(eq(endorsements.id, id), eq(endorsements.fromUserId, userId)));
+    return (result as any).rowCount > 0;
+  }
+
+  async getUserEndorsementForProfile(fromUserId: string, toCompanyProfileId: number): Promise<Endorsement | undefined> {
+    const [row] = await db.select().from(endorsements)
+      .where(and(eq(endorsements.fromUserId, fromUserId), eq(endorsements.toCompanyProfileId, toCompanyProfileId)));
+    return row;
   }
 }
 

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle, CheckCircle2, AlertCircle, User, Lock, Mail, Shield, Building2 } from "lucide-react";
+import { CheckCircle, CheckCircle2, AlertCircle, User, Lock, Mail, Shield, Building2, ShieldCheck, Clock, XCircle, Loader2 } from "lucide-react";
 import type { CompanyProfile } from "@shared/schema";
 
 const AGENT_COMPLETION_FIELDS = [
@@ -111,6 +111,10 @@ export default function Settings() {
     changePasswordMutation.mutate({ currentPassword, newPassword });
   };
 
+  const [taxNumber, setTaxNumber] = useState("");
+  const [mtoRegNum, setMtoRegNum] = useState("");
+  const [pandiClub, setPandiClub] = useState("");
+
   const isEmailVerified = (user as any)?.emailVerified;
   const userRole = (user as any)?.userRole;
   const plan = (user as any)?.subscriptionPlan || "free";
@@ -119,6 +123,31 @@ export default function Settings() {
   const { data: myProfile } = useQuery<CompanyProfile>({
     queryKey: ["/api/company-profile/me"],
     enabled: showCompletion,
+  });
+
+  const requestVerificationMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/company-profile/request-verification", {
+        taxNumber: taxNumber.trim(),
+        mtoRegistrationNumber: mtoRegNum.trim() || undefined,
+        pandiClubName: pandiClub.trim() || undefined,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/company-profile/me"] });
+      toast({ title: "Doğrulama talebi gönderildi", description: "Admin incelemesi bekleniyor." });
+      setTaxNumber("");
+      setMtoRegNum("");
+      setPandiClub("");
+    },
+    onError: (err: any) => {
+      toast({ title: "Hata", description: err.message, variant: "destructive" });
+    },
   });
 
   const completionFields = userRole === "agent" ? AGENT_COMPLETION_FIELDS : PROVIDER_COMPLETION_FIELDS;
@@ -213,6 +242,109 @@ export default function Settings() {
                 {completionPct === 100 ? "Profili Düzenle" : "Profili Tamamla"}
               </Button>
             </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Company Verification — agent & provider only */}
+      {showCompletion && myProfile && (
+        <Card data-testid="card-company-verification">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ShieldCheck className="w-4 h-4 text-blue-600" />
+              Şirket Doğrulaması
+            </CardTitle>
+            <CardDescription>
+              Şirketinizi doğrulayarak güven rozeti kazanın ve dizinde öne çıkın.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Status display */}
+            {(myProfile as any).verificationStatus === "verified" ? (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-800/40">
+                <ShieldCheck className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Şirketiniz Doğrulandı</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400">Profilinizde "Doğrulanmış Şirket" rozeti görüntüleniyor.</p>
+                </div>
+              </div>
+            ) : (myProfile as any).verificationStatus === "pending" ? (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40">
+                <Clock className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">İnceleme Bekliyor</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400">Doğrulama talebiniz admin incelemesinde. En kısa sürede yanıtlanacak.</p>
+                </div>
+              </div>
+            ) : (myProfile as any).verificationStatus === "rejected" ? (
+              <div className="flex flex-col gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200/60 dark:border-red-800/40">
+                <div className="flex items-center gap-2">
+                  <XCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                  <p className="text-sm font-medium text-red-800 dark:text-red-300">Doğrulama Reddedildi</p>
+                </div>
+                {(myProfile as any).verificationNote && (
+                  <p className="text-xs text-red-600 dark:text-red-400 ml-7">{(myProfile as any).verificationNote}</p>
+                )}
+                <p className="text-xs text-muted-foreground ml-7">Bilgilerinizi güncelleyerek tekrar başvurabilirsiniz.</p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/40 border border-dashed">
+                <ShieldCheck className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium">Henüz doğrulanmamış</p>
+                  <p className="text-xs text-muted-foreground">Vergi numaranızı ve kayıt bilgilerinizi ekleyerek doğrulama talep edin.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Form — only if not pending/verified */}
+            {["unverified", "rejected"].includes((myProfile as any).verificationStatus || "unverified") && (
+              <div className="space-y-3 pt-1">
+                <div className="space-y-1.5">
+                  <Label htmlFor="taxNumber">Vergi Numarası <span className="text-red-500">*</span></Label>
+                  <Input
+                    id="taxNumber"
+                    value={taxNumber}
+                    onChange={e => setTaxNumber(e.target.value)}
+                    placeholder="10 haneli vergi numaranız"
+                    data-testid="input-tax-number"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="mtoRegNum">MTO Kayıt No <span className="text-xs font-normal text-muted-foreground">(opsiyonel)</span></Label>
+                  <Input
+                    id="mtoRegNum"
+                    value={mtoRegNum}
+                    onChange={e => setMtoRegNum(e.target.value)}
+                    placeholder="MTO üyelik/kayıt numarası"
+                    data-testid="input-mto-reg"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="pandiClub">P&I Club <span className="text-xs font-normal text-muted-foreground">(opsiyonel)</span></Label>
+                  <Input
+                    id="pandiClub"
+                    value={pandiClub}
+                    onChange={e => setPandiClub(e.target.value)}
+                    placeholder="Üye olduğunuz P&I Kulübü"
+                    data-testid="input-pandi-club"
+                  />
+                </div>
+                <Button
+                  onClick={() => requestVerificationMutation.mutate()}
+                  disabled={requestVerificationMutation.isPending || !taxNumber.trim()}
+                  className="w-full gap-2 bg-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-primary)/0.9)] text-white"
+                  data-testid="button-request-verification"
+                >
+                  {requestVerificationMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="w-4 h-4" />
+                  )}
+                  Doğrulama Talebi Gönder
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

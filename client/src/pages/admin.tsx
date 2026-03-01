@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock, Ban, UserCheck, MessageSquarePlus, Bug, Lightbulb, MessageCircle, MailCheck } from "lucide-react";
+import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock, Ban, UserCheck, MessageSquarePlus, Bug, Lightbulb, MessageCircle, MailCheck, ShieldCheck, ShieldX } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -35,6 +35,8 @@ export default function AdminPanel() {
   const [searchProformas, setSearchProformas] = useState("");
   const [searchProfiles, setSearchProfiles] = useState("");
 
+  const [verifyNote, setVerifyNote] = useState<Record<number, string>>({});
+
   const { data: stats, isLoading: statsLoading } = useQuery<any>({ queryKey: ["/api/admin/stats"] });
   const { data: allUsers, isLoading: usersLoading } = useQuery<User[]>({ queryKey: ["/api/admin/users"] });
   const { data: allVessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
@@ -42,6 +44,23 @@ export default function AdminPanel() {
   const { data: allProfiles, isLoading: profilesLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/admin/company-profiles"] });
   const { data: pendingProfiles, isLoading: pendingLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/admin/companies/pending"] });
   const { data: allFeedbacks, isLoading: feedbacksLoading } = useQuery<any[]>({ queryKey: ["/api/admin/feedback"] });
+  const { data: pendingVerifications, isLoading: verificationsLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/admin/pending-verifications"] });
+
+  const verifyMutation = useMutation({
+    mutationFn: async ({ profileId, action, note }: { profileId: number; action: "approve" | "reject"; note?: string }) => {
+      const res = await apiRequest("POST", `/api/admin/verify-company/${profileId}`, { action, note });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/pending-verifications"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/company-profiles"] });
+      toast({ title: "Doğrulama güncellendi" });
+    },
+    onError: async (err: any) => {
+      const d = await err?.response?.json?.().catch(() => ({}));
+      toast({ title: "Hata", description: d?.message || "İşlem başarısız", variant: "destructive" });
+    },
+  });
 
   const updatePlanMutation = useMutation({
     mutationFn: async ({ userId, plan }: { userId: string; plan: string }) => {
@@ -207,6 +226,14 @@ export default function AdminPanel() {
             {(pendingProfiles?.length ?? 0) > 0 && (
               <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold rounded-full bg-amber-500 text-white">
                 {pendingProfiles!.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="verifications" data-testid="tab-verifications" className="relative">
+            Doğrulamalar
+            {(pendingVerifications?.length ?? 0) > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold rounded-full bg-blue-500 text-white">
+                {pendingVerifications!.length}
               </span>
             )}
           </TabsTrigger>
@@ -695,6 +722,76 @@ export default function AdminPanel() {
             </div>
           )}
         </TabsContent>
+
+        {/* Verifications Tab */}
+        <TabsContent value="verifications" className="space-y-4">
+          <div className="flex items-center gap-2 mb-2">
+            <ShieldCheck className="w-5 h-5 text-blue-600" />
+            <h2 className="font-semibold text-base">Bekleyen Şirket Doğrulama Talepleri</h2>
+          </div>
+          {verificationsLoading ? (
+            <div className="space-y-2">{[1, 2, 3].map(i => <Skeleton key={i} className="h-24" />)}</div>
+          ) : !pendingVerifications || pendingVerifications.length === 0 ? (
+            <Card className="p-8 text-center border-dashed">
+              <ShieldCheck className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">Bekleyen doğrulama talebi yok</p>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {pendingVerifications.map((p: any) => (
+                <Card key={p.id} className="p-5 border-blue-200/60" data-testid={`card-verification-${p.id}`}>
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold">{p.companyName}</h3>
+                        <Badge variant="outline" className="text-xs capitalize">{p.companyType}</Badge>
+                      </div>
+                      <div className="text-sm text-muted-foreground space-y-0.5">
+                        <p><span className="font-medium text-foreground">Vergi No:</span> {p.taxNumber || "—"}</p>
+                        <p><span className="font-medium text-foreground">MTO Kayıt:</span> {p.mtoRegistrationNumber || "—"}</p>
+                        <p><span className="font-medium text-foreground">P&I Club:</span> {p.pandiClubName || "—"}</p>
+                        {p.verificationRequestedAt && (
+                          <p><span className="font-medium text-foreground">Talep tarihi:</span> {new Date(p.verificationRequestedAt).toLocaleDateString("tr-TR")}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-2 min-w-0">
+                      <Input
+                        placeholder="Not (ret sebebi vs.)"
+                        value={verifyNote[p.id] || ""}
+                        onChange={e => setVerifyNote(n => ({ ...n, [p.id]: e.target.value }))}
+                        className="w-64 text-sm"
+                        data-testid={`input-verify-note-${p.id}`}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                          onClick={() => verifyMutation.mutate({ profileId: p.id, action: "approve", note: verifyNote[p.id] })}
+                          disabled={verifyMutation.isPending}
+                          data-testid={`button-approve-${p.id}`}
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" /> Onayla
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="gap-1.5"
+                          onClick={() => verifyMutation.mutate({ profileId: p.id, action: "reject", note: verifyNote[p.id] || "Ret: Bilgiler doğrulanamadı" })}
+                          disabled={verifyMutation.isPending}
+                          data-testid={`button-reject-${p.id}`}
+                        >
+                          <ShieldX className="w-3.5 h-3.5" /> Reddet
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
       </Tabs>
     </div>
   );

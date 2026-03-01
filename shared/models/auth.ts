@@ -55,6 +55,13 @@ export const companyProfiles = pgTable("company_profiles", {
   featuredUntil: timestamp("featured_until"),
   isActive: boolean("is_active").notNull().default(true),
   isApproved: boolean("is_approved").notNull().default(true),
+  verificationStatus: varchar("verification_status").notNull().default("unverified"),
+  taxNumber: varchar("tax_number", { length: 50 }),
+  mtoRegistrationNumber: varchar("mto_registration_number", { length: 100 }),
+  pandiClubName: varchar("pandi_club_name", { length: 100 }),
+  verificationRequestedAt: timestamp("verification_requested_at"),
+  verificationApprovedAt: timestamp("verification_approved_at"),
+  verificationNote: text("verification_note"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

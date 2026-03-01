@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { useState } from "react";
-import { Building2, Phone, Mail, Globe, MapPin, Star, Ship, Anchor, ArrowLeft, MessageSquare, FileText, MessageCircle, Loader2, UserCheck, Calendar } from "lucide-react";
+import { Building2, Phone, Mail, Globe, MapPin, Star, Ship, Anchor, ArrowLeft, MessageSquare, FileText, MessageCircle, Loader2, UserCheck, Calendar, ShieldCheck, Quote, ThumbsUp, AlertTriangle, Info } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -163,6 +163,66 @@ export default function DirectoryProfilePage() {
   const currentUserId = (user as any)?.id || (user as any)?.claims?.sub;
   const canMessage = user && profile?.userId && profile.userId !== currentUserId;
 
+  const [showEndorseDialog, setShowEndorseDialog] = useState(false);
+  const [endorseRelationship, setEndorseRelationship] = useState("");
+  const [endorseMessage, setEndorseMessage] = useState("");
+
+  const { data: endorsements = [], refetch: refetchEndorsements } = useQuery<any[]>({
+    queryKey: ["/api/endorsements", profileId],
+    queryFn: async () => {
+      const res = await fetch(`/api/endorsements/${profileId}`);
+      return res.json();
+    },
+    enabled: !!profileId,
+  });
+
+  const { data: myEndorsement } = useQuery<any>({
+    queryKey: ["/api/endorsements", profileId, "mine"],
+    queryFn: async () => {
+      const list = await fetch(`/api/endorsements/${profileId}`).then(r => r.json());
+      return list.find((e: any) => e.fromUserId === currentUserId) ?? null;
+    },
+    enabled: !!profileId && !!currentUserId,
+  });
+
+  const endorseMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/endorsements", {
+      toCompanyProfileId: profileId,
+      relationship: endorseRelationship,
+      message: endorseMessage || undefined,
+    }),
+    onSuccess: () => {
+      toast({ title: "Tavsiye gönderildi", description: "Teşekkürler!" });
+      setShowEndorseDialog(false);
+      setEndorseRelationship("");
+      setEndorseMessage("");
+      queryClient.invalidateQueries({ queryKey: ["/api/endorsements", profileId] });
+    },
+    onError: async (err: any) => {
+      const d = await err?.response?.json?.().catch(() => ({}));
+      toast({ title: "Hata", description: d?.message || "Tavsiye gönderilemedi", variant: "destructive" });
+    },
+  });
+
+  const deleteEndorseMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/endorsements/${id}`),
+    onSuccess: () => {
+      toast({ title: "Tavsiye kaldırıldı" });
+      queryClient.invalidateQueries({ queryKey: ["/api/endorsements", profileId] });
+    },
+  });
+
+  const { data: trustScore } = useQuery<any>({
+    queryKey: ["/api/trust-score", profile?.userId],
+    queryFn: async () => {
+      const res = await fetch(`/api/trust-score/${profile!.userId}`);
+      return res.json();
+    },
+    enabled: !!profile?.userId,
+  });
+
+  const canEndorse = user && profile?.userId !== currentUserId && !myEndorsement;
+
   const messageMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/messages/start", {
@@ -275,6 +335,16 @@ export default function DirectoryProfilePage() {
               <h1 className="font-bold text-xl" data-testid="text-company-name">{profile.companyName}</h1>
               <Badge variant="secondary" className="text-xs capitalize">{profile.companyType === "agent" ? "Ship Agent" : "Service Provider"}</Badge>
               {profile.isFeatured && <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200">Featured</Badge>}
+              {(profile as any).verificationStatus === "verified" && (
+                <Badge className="text-xs bg-blue-50 text-blue-700 border-blue-200 gap-1" data-testid="badge-verified">
+                  <ShieldCheck className="w-3 h-3" /> Doğrulanmış Şirket
+                </Badge>
+              )}
+              {(profile as any).verificationStatus === "pending" && (
+                <Badge className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200 gap-1">
+                  <Info className="w-3 h-3" /> Doğrulama Bekliyor
+                </Badge>
+              )}
             </div>
 
             {avgRating && (
@@ -479,6 +549,162 @@ export default function DirectoryProfilePage() {
           </div>
         )}
       </div>
+
+      {/* Trust Score Panel */}
+      {trustScore && (trustScore.totalVoyages > 0 || trustScore.reviewCount > 0 || trustScore.bidWinRate !== null) && (
+        <Card className="p-5" data-testid="card-trust-score">
+          <h3 className="text-sm font-semibold mb-3 flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-blue-600" /> İşlem Geçmişi & Güven Skoru
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="text-center p-3 bg-muted/40 rounded-lg">
+              <p className="text-2xl font-bold text-[hsl(var(--maritime-primary))]">{trustScore.completedVoyages}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Tamamlanan Sefer</p>
+            </div>
+            {trustScore.successRate !== null && (
+              <div className="text-center p-3 bg-muted/40 rounded-lg">
+                <p className="text-2xl font-bold text-green-600">%{trustScore.successRate}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Başarı Oranı</p>
+              </div>
+            )}
+            {trustScore.avgRating > 0 && (
+              <div className="text-center p-3 bg-muted/40 rounded-lg">
+                <p className="text-2xl font-bold text-amber-500">{trustScore.avgRating}★</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Ort. Puan ({trustScore.reviewCount} değerlendirme)</p>
+              </div>
+            )}
+            {trustScore.bidWinRate !== null && (
+              <div className="text-center p-3 bg-muted/40 rounded-lg">
+                <p className="text-2xl font-bold">%{trustScore.bidWinRate}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Teklif Başarısı</p>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Endorsements */}
+      <div data-testid="section-endorsements">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-base flex items-center gap-2">
+            <ThumbsUp className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+            Referanslar
+            {endorsements.length > 0 && (
+              <span className="text-sm font-normal text-muted-foreground">({endorsements.length})</span>
+            )}
+          </h2>
+          {user && profile?.userId !== currentUserId && (
+            myEndorsement ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-red-500 hover:text-red-700 hover:bg-red-50 text-xs gap-1"
+                onClick={() => deleteEndorseMutation.mutate(myEndorsement.id)}
+                disabled={deleteEndorseMutation.isPending}
+                data-testid="button-remove-endorsement"
+              >
+                Referansımı Kaldır
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={() => setShowEndorseDialog(true)}
+                data-testid="button-add-endorsement"
+              >
+                <ThumbsUp className="w-3.5 h-3.5" /> Referans Yaz
+              </Button>
+            )
+          )}
+        </div>
+
+        {endorsements.length === 0 ? (
+          <Card className="p-8 text-center border-dashed">
+            <Quote className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">Henüz referans yazılmamış</p>
+            {user && profile?.userId !== currentUserId && !myEndorsement && (
+              <p className="text-xs text-muted-foreground mt-1">Bu şirketi tavsiye edebilirsiniz</p>
+            )}
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {endorsements.map((e: any) => (
+              <Card key={e.id} className="p-4" data-testid={`card-endorsement-${e.id}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center text-xs font-semibold text-[hsl(var(--maritime-primary))]">
+                      {(e.fromFirstName?.[0] || e.fromEmail?.[0] || "?").toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">
+                        {e.fromFirstName ? `${e.fromFirstName}${e.fromLastName ? ` ${e.fromLastName}` : ""}` : "Kullanıcı"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{e.relationship}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{new Date(e.createdAt).toLocaleDateString("tr-TR")}</span>
+                </div>
+                {e.message && (
+                  <p className="text-sm text-muted-foreground mt-2 pl-10 leading-relaxed italic">"{e.message}"</p>
+                )}
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Endorsement Dialog */}
+      <Dialog open={showEndorseDialog} onOpenChange={setShowEndorseDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ThumbsUp className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              {profile?.companyName} için Referans Yaz
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>İlişki Türü <span className="text-red-500">*</span></Label>
+              <Select value={endorseRelationship} onValueChange={setEndorseRelationship}>
+                <SelectTrigger data-testid="select-endorsement-relationship">
+                  <SelectValue placeholder="İlişki türünü seçin..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Birlikte çalıştık">Birlikte çalıştık</SelectItem>
+                  <SelectItem value="Tavsiye ederim">Tavsiye ederim</SelectItem>
+                  <SelectItem value="Güvenilir iş ortağı">Güvenilir iş ortağı</SelectItem>
+                  <SelectItem value="Tedarikçimiz">Tedarikçimiz</SelectItem>
+                  <SelectItem value="Müşterimiz">Müşterimiz</SelectItem>
+                  <SelectItem value="Sektör tanıdığı">Sektör tanıdığı</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Mesaj (opsiyonel)</Label>
+              <Textarea
+                placeholder="Bu şirketi neden tavsiye ediyorsunuz?"
+                rows={3}
+                value={endorseMessage}
+                onChange={e => setEndorseMessage(e.target.value)}
+                data-testid="textarea-endorsement-message"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEndorseDialog(false)}>İptal</Button>
+            <Button
+              onClick={() => endorseMutation.mutate()}
+              disabled={endorseMutation.isPending || !endorseRelationship}
+              className="bg-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-secondary))]"
+              data-testid="button-confirm-endorsement"
+            >
+              {endorseMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ThumbsUp className="w-4 h-4 mr-2" />}
+              Referansı Gönder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Nomination Dialog */}
       <Dialog open={showNominateDialog} onOpenChange={setShowNominateDialog}>
