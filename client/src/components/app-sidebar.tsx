@@ -104,7 +104,7 @@ export function AppSidebar() {
     toolsNav.push({ title: "OFAC Sorgula", url: "/sanctions-check", icon: ShieldAlert });
     toolsNav.push({ title: "Sertifikalar", url: "/vessel-certificates", icon: BadgeCheck });
   }
-  if (effectiveRole === "agent" || effectiveRole === "shipowner" || isAdminUser) {
+  if (effectiveRole === "agent" || effectiveRole === "shipowner" || effectiveRole === "broker" || isAdminUser) {
     toolsNav.push({ title: "Fixtureler", url: "/fixtures", icon: Handshake });
   }
   toolsNav.push({ title: "Kargo/Pozisyon", url: "/cargo-positions", icon: Package });

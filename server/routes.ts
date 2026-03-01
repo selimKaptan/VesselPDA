@@ -2617,7 +2617,7 @@ export async function registerRoutes(
         docType: docType || "other",
         fileBase64,
         notes: notes || null,
-        uploadedByUserId: req.user.id,
+        uploadedByUserId: req.user.claims.sub,
       });
       res.status(201).json(doc);
     } catch (error) {
@@ -2718,7 +2718,7 @@ export async function registerRoutes(
 
   app.get("/api/messages/unread-count", isAuthenticated, async (req: any, res) => {
     try {
-      const cnt = await storage.getUnreadMessageCount(req.user.id);
+      const cnt = await storage.getUnreadMessageCount(req.user.claims.sub);
       res.json({ count: cnt });
     } catch (error) {
       res.status(500).json({ message: "Failed to get unread count" });
@@ -2727,7 +2727,7 @@ export async function registerRoutes(
 
   app.get("/api/messages", isAuthenticated, async (req: any, res) => {
     try {
-      const convs = await storage.getConversationsByUser(req.user.id);
+      const convs = await storage.getConversationsByUser(req.user.claims.sub);
       res.json(convs);
     } catch (error) {
       res.status(500).json({ message: "Failed to get conversations" });
@@ -2738,14 +2738,14 @@ export async function registerRoutes(
     try {
       const { targetUserId, voyageId, serviceRequestId, message } = req.body;
       if (!targetUserId || !message) return res.status(400).json({ message: "targetUserId and message required" });
-      if (targetUserId === req.user.id) return res.status(400).json({ message: "Cannot message yourself" });
+      if (targetUserId === req.user.claims.sub) return res.status(400).json({ message: "Cannot message yourself" });
       const conv = await storage.getOrCreateConversation(
-        req.user.id,
+        req.user.claims.sub,
         targetUserId,
         voyageId ? parseInt(voyageId) : undefined,
         serviceRequestId ? parseInt(serviceRequestId) : undefined
       );
-      const msg = await storage.createMessage({ conversationId: conv.id, senderId: req.user.id, content: message });
+      const msg = await storage.createMessage({ conversationId: conv.id, senderId: req.user.claims.sub, content: message });
       await storage.createNotification({
         userId: targetUserId,
         type: "message",
@@ -2762,7 +2762,7 @@ export async function registerRoutes(
   app.get("/api/messages/:conversationId", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.conversationId);
-      const conv = await storage.getConversationById(id, req.user.id);
+      const conv = await storage.getConversationById(id, req.user.claims.sub);
       if (!conv) return res.status(404).json({ message: "Conversation not found" });
       res.json(conv);
     } catch (error) {
@@ -2775,10 +2775,10 @@ export async function registerRoutes(
       const conversationId = parseInt(req.params.conversationId);
       const { content } = req.body;
       if (!content?.trim()) return res.status(400).json({ message: "content required" });
-      const conv = await storage.getConversationById(conversationId, req.user.id);
+      const conv = await storage.getConversationById(conversationId, req.user.claims.sub);
       if (!conv) return res.status(404).json({ message: "Conversation not found" });
-      const msg = await storage.createMessage({ conversationId, senderId: req.user.id, content });
-      const receiverId = conv.user1Id === req.user.id ? conv.user2Id : conv.user1Id;
+      const msg = await storage.createMessage({ conversationId, senderId: req.user.claims.sub, content });
+      const receiverId = conv.user1Id === req.user.claims.sub ? conv.user2Id : conv.user1Id;
       await storage.createNotification({
         userId: receiverId,
         type: "message",
@@ -2795,7 +2795,7 @@ export async function registerRoutes(
   app.patch("/api/messages/:conversationId/read", isAuthenticated, async (req: any, res) => {
     try {
       const conversationId = parseInt(req.params.conversationId);
-      await storage.markConversationRead(conversationId, req.user.id);
+      await storage.markConversationRead(conversationId, req.user.claims.sub);
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to mark as read" });
@@ -2806,7 +2806,7 @@ export async function registerRoutes(
 
   app.get("/api/nominations/pending-count", isAuthenticated, async (req: any, res) => {
     try {
-      const cnt = await storage.getPendingNominationCountForAgent(req.user.id);
+      const cnt = await storage.getPendingNominationCountForAgent(req.user.claims.sub);
       res.json({ count: cnt });
     } catch (error) {
       res.status(500).json({ message: "Failed to get pending count" });
@@ -2815,7 +2815,7 @@ export async function registerRoutes(
 
   app.get("/api/nominations", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user.claims.sub;
       const role = req.user.userRole || req.user.activeRole;
       const sent = await storage.getNominationsByNominator(userId);
       const received = await storage.getNominationsByAgent(userId);
@@ -2831,11 +2831,11 @@ export async function registerRoutes(
       if (!agentUserId || !portId || !vesselName || !purposeOfCall) {
         return res.status(400).json({ message: "agentUserId, portId, vesselName, purposeOfCall zorunludur" });
       }
-      if (agentUserId === req.user.id) {
+      if (agentUserId === req.user.claims.sub) {
         return res.status(400).json({ message: "Kendinizi nomine edemezsiniz" });
       }
       const nom = await storage.createNomination({
-        nominatorUserId: req.user.id,
+        nominatorUserId: req.user.claims.sub,
         agentUserId,
         agentCompanyId: agentCompanyId ?? null,
         portId: parseInt(portId),
@@ -2881,7 +2881,7 @@ export async function registerRoutes(
       const id = parseInt(req.params.id);
       const nom = await storage.getNominationById(id);
       if (!nom) return res.status(404).json({ message: "Nomination not found" });
-      if (nom.nominatorUserId !== req.user.id && nom.agentUserId !== req.user.id) {
+      if (nom.nominatorUserId !== req.user.claims.sub && nom.agentUserId !== req.user.claims.sub) {
         return res.status(403).json({ message: "Forbidden" });
       }
       res.json(nom);
@@ -2899,7 +2899,7 @@ export async function registerRoutes(
       }
       const nom = await storage.getNominationById(id);
       if (!nom) return res.status(404).json({ message: "Nomination not found" });
-      if (nom.agentUserId !== req.user.id) return res.status(403).json({ message: "Forbidden" });
+      if (nom.agentUserId !== req.user.claims.sub) return res.status(403).json({ message: "Forbidden" });
       if (nom.status !== "pending") return res.status(409).json({ message: "Already responded" });
       const updated = await storage.updateNominationStatus(id, status);
       // Notify nominator (in-app)
@@ -2948,7 +2948,7 @@ export async function registerRoutes(
   app.post("/api/vessels/:vesselId/certificates", isAuthenticated, async (req: any, res) => {
     try {
       const vesselId = parseInt(req.params.vesselId);
-      const userId = req.user.id;
+      const userId = req.user.claims.sub;
       const cert = await storage.createVesselCertificate({ ...req.body, vesselId, userId });
       res.status(201).json(cert);
     } catch {
@@ -2979,7 +2979,7 @@ export async function registerRoutes(
 
   app.get("/api/certificates/expiring", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user.claims.sub;
       const daysAhead = parseInt(req.query.days as string) || 30;
       const certs = await storage.getExpiringCertificates(userId, daysAhead);
       res.json(certs);
@@ -3003,7 +3003,7 @@ export async function registerRoutes(
   app.post("/api/voyages/:voyageId/appointments", isAuthenticated, async (req: any, res) => {
     try {
       const voyageId = parseInt(req.params.voyageId);
-      const userId = req.user.id;
+      const userId = req.user.claims.sub;
       const appt = await storage.createPortCallAppointment({ ...req.body, voyageId, userId });
       res.status(201).json(appt);
     } catch {
@@ -3036,7 +3036,7 @@ export async function registerRoutes(
 
   app.get("/api/fixtures", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user.claims.sub;
       const isAdmin = req.user.userRole === "admin" || req.user.activeRole === "admin";
       const result = isAdmin ? await storage.getAllFixtures() : await storage.getFixtures(userId);
       res.json(result);
@@ -3047,7 +3047,7 @@ export async function registerRoutes(
 
   app.post("/api/fixtures", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.id;
+      const userId = req.user.claims.sub;
       const fixture = await storage.createFixture({ ...req.body, userId });
       res.status(201).json(fixture);
     } catch {
@@ -3061,7 +3061,7 @@ export async function registerRoutes(
       const fixture = await storage.getFixture(id);
       if (!fixture) return res.status(404).json({ message: "Fixture not found" });
       const isAdmin = req.user.userRole === "admin" || req.user.activeRole === "admin";
-      if (fixture.userId !== req.user.id && !isAdmin) return res.status(403).json({ message: "Forbidden" });
+      if (fixture.userId !== req.user.claims.sub && !isAdmin) return res.status(403).json({ message: "Forbidden" });
       res.json(fixture);
     } catch {
       res.status(500).json({ message: "Failed to fetch fixture" });
@@ -3074,7 +3074,7 @@ export async function registerRoutes(
       const fixture = await storage.getFixture(id);
       if (!fixture) return res.status(404).json({ message: "Fixture not found" });
       const isAdmin = req.user.userRole === "admin" || req.user.activeRole === "admin";
-      if (fixture.userId !== req.user.id && !isAdmin) return res.status(403).json({ message: "Forbidden" });
+      if (fixture.userId !== req.user.claims.sub && !isAdmin) return res.status(403).json({ message: "Forbidden" });
       const updated = await storage.updateFixture(id, req.body);
       res.json(updated);
     } catch {
@@ -3088,7 +3088,7 @@ export async function registerRoutes(
       const fixture = await storage.getFixture(id);
       if (!fixture) return res.status(404).json({ message: "Fixture not found" });
       const isAdmin = req.user.userRole === "admin" || req.user.activeRole === "admin";
-      if (fixture.userId !== req.user.id && !isAdmin) return res.status(403).json({ message: "Forbidden" });
+      if (fixture.userId !== req.user.claims.sub && !isAdmin) return res.status(403).json({ message: "Forbidden" });
       await storage.deleteFixture(id);
       res.json({ success: true });
     } catch {
@@ -3109,7 +3109,7 @@ export async function registerRoutes(
 
   app.get("/api/cargo-positions/mine", isAuthenticated, async (req: any, res) => {
     try {
-      const positions = await storage.getMyCargoPositions(req.user.id);
+      const positions = await storage.getMyCargoPositions(req.user.claims.sub);
       res.json(positions);
     } catch {
       res.status(500).json({ message: "Failed to fetch my cargo positions" });
@@ -3118,7 +3118,7 @@ export async function registerRoutes(
 
   app.post("/api/cargo-positions", isAuthenticated, async (req: any, res) => {
     try {
-      const pos = await storage.createCargoPosition({ ...req.body, userId: req.user.id });
+      const pos = await storage.createCargoPosition({ ...req.body, userId: req.user.claims.sub });
       res.status(201).json(pos);
     } catch {
       res.status(500).json({ message: "Failed to create cargo position" });
