@@ -1,0 +1,578 @@
+-- ============================================
+-- TÜRK LİMAN TARİFELERİ VERİTABANI
+-- Kaynak: Resmi tarife belgeleri (2026)
+-- ============================================
+
+-- 1. LİMANLAR TABLOSU
+CREATE TABLE IF NOT EXISTS ports (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  code VARCHAR(10),
+  country VARCHAR(50) DEFAULT 'Turkey',
+  region VARCHAR(50),
+  currency VARCHAR(10) DEFAULT 'USD',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+INSERT INTO ports (name, code, region) VALUES
+('İstanbul', 'TRIST', 'Marmara'),
+('İzmir (Alsancak/TCDD)', 'TRIZM', 'Ege'),
+('Tekirdağ', 'TRTEKR', 'Marmara'),
+('Mersin', 'TRMER', 'Akdeniz'),
+('Aliağa', 'TRALY', 'Ege'),
+('Ambarlı', 'TRAMB', 'Marmara'),
+('İzmit/Derince', 'TRDRC', 'Marmara'),
+('Samsun', 'TRSAM', 'Karadeniz'),
+('Trabzon', 'TRTRA', 'Karadeniz'),
+('Gemlik', 'TRGEM', 'Marmara');
+
+-- ============================================
+-- 2. KILAVUZLUK ÜCRETLERİ (USD)
+-- Kaynak: Görsel 1 & 2 - Kılavuzluk Tarifesi
+-- ============================================
+CREATE TABLE IF NOT EXISTS pilotage_tariffs (
+  id SERIAL PRIMARY KEY,
+  port_id INT REFERENCES ports(id),
+  service_type VARCHAR(100),  -- 'kabotaj' | 'liman_disi'
+  vessel_category VARCHAR(100), -- gemi tipi
+  grt_min INT,
+  grt_max INT,
+  base_fee DECIMAL(10,2),     -- USD
+  per_1000_grt DECIMAL(10,2), -- her 1000 GRT için ek
+  currency VARCHAR(10) DEFAULT 'USD',
+  notes TEXT,
+  valid_year INT DEFAULT 2026
+);
+
+-- T.1.1 Kılavuzluk - Kabotaj Hattında (Görsel 1 - Mevcut Tarife)
+INSERT INTO pilotage_tariffs (port_id, service_type, vessel_category, grt_min, grt_max, base_fee, per_1000_grt) VALUES
+-- Yolcu, Feribot, RoRo, Car Carrier
+(1, 'kabotaj', 'yolcu_feribot_roro_car_carrier', 0, 1000, 550, 325),
+(1, 'kabotaj', 'yolcu_feribot_roro_car_carrier', 1001, 999999, 550, 325),
+-- Konteyner
+(1, 'kabotaj', 'konteyner', 0, 1000, 105, 42),
+(1, 'kabotaj', 'konteyner', 1001, 999999, 105, 42),
+-- Diğer Yük Gemileri
+(1, 'kabotaj', 'diger_yuk', 0, 1000, 139, 59),
+(1, 'kabotaj', 'diger_yuk', 1001, 999999, 139, 59),
+-- Diğer Tüm Gemiler
+(1, 'kabotaj', 'diger_tum', 0, 1000, 179, 74),
+(1, 'kabotaj', 'diger_tum', 1001, 999999, 179, 74);
+
+-- T.1.1 DEĞİŞİKLİK TABLOSU (Görsel 1 - Yeni Tarife x2)
+INSERT INTO pilotage_tariffs (port_id, service_type, vessel_category, grt_min, grt_max, base_fee, per_1000_grt, notes) VALUES
+(1, 'kabotaj_yeni', 'yolcu_feribot_roro_car_carrier', 0, 1000, 605, 136, 'Degisiklik tablosu 2026'),
+(1, 'kabotaj_yeni', 'konteyner', 0, 1000, 153, 65, 'Degisiklik tablosu 2026'),
+(1, 'kabotaj_yeni', 'diger_yuk', 0, 1000, 202, 81, 'Degisiklik tablosu 2026'),
+(1, 'kabotaj_yeni', 'diger_tum', 0, 1000, 116, 46, 'Degisiklik tablosu 2026');
+
+-- T.1.2 Römorkör Hizmetleri - Kabotaj (Görsel 1)
+-- Yolcu/Feribot/RoRo/Car Carrier
+INSERT INTO pilotage_tariffs (port_id, service_type, vessel_category, grt_min, grt_max, base_fee, per_1000_grt) VALUES
+(1, 'romorkör_kabotaj', 'yolcu_feribot_roro_car_carrier', 0, 1000, 23, NULL),
+(1, 'romorkör_kabotaj', 'konteyner', 0, 1000, 63, NULL),
+(1, 'romorkör_kabotaj', 'diger_yuk', 0, 1000, 249, 47),
+(1, 'romorkör_kabotaj', 'diger_tum', 0, 1000, 311, 58);
+
+-- T.1.2 DEĞİŞİKLİK (yeni tarife)
+INSERT INTO pilotage_tariffs (port_id, service_type, vessel_category, grt_min, grt_max, base_fee, per_1000_grt, notes) VALUES
+(1, 'romorkör_kabotaj_yeni', 'yolcu_feribot_roro_car_carrier', 0, 1000, 25, NULL, '2026 yeni'),
+(1, 'romorkör_kabotaj_yeni', 'konteyner', 0, 1000, 70, NULL, '2026 yeni'),
+(1, 'romorkör_kabotaj_yeni', 'diger_yuk', 0, 1000, 373, 70, '2026 yeni'),
+(1, 'romorkör_kabotaj_yeni', 'diger_tum', 0, 1000, 384, NULL, '2026 yeni');
+
+-- T.1.3 Palamar Hizmetleri - Kabotaj (Görsel 1)
+INSERT INTO pilotage_tariffs (port_id, service_type, vessel_category, grt_min, grt_max, base_fee, per_1000_grt, notes) VALUES
+(1, 'palamar_kabotaj', 'calisan_gemiler', 0, 1000, 21, NULL, 'Kabotaj hattında çalışan'),
+(1, 'palamar_kabotaj', 'diger_tum', 0, 1000, 36, 18, 'Diğer tüm gemiler'),
+(1, 'palamar_kabotaj_yeni', 'calisan_gemiler', 0, 1000, 25, NULL, '2026 yeni'),
+(1, 'palamar_kabotaj_yeni', 'diger_tum', 0, 1000, 22, 11, '2026 yeni');
+
+-- ============================================
+-- 3. LİMAN DIŞI KILAVUZLUK (Görsel 2 - USD)
+-- ============================================
+CREATE TABLE IF NOT EXISTS external_pilotage_tariffs (
+  id SERIAL PRIMARY KEY,
+  port_id INT REFERENCES ports(id),
+  service_description TEXT,
+  grt_up_to_1000 DECIMAL(10,2),
+  per_additional_1000_grt DECIMAL(10,2),
+  currency VARCHAR(10) DEFAULT 'USD',
+  valid_year INT DEFAULT 2026
+);
+
+-- Mevcut Tarife (Görsel 2 sol)
+INSERT INTO external_pilotage_tariffs (port_id, service_description, grt_up_to_1000, per_additional_1000_grt) VALUES
+(1, '1- Haliç''e giriş veya çıkış', 550, 325),
+(1, '2- İstanbul veya Çanakkale Boğaz geçişi', 500, 92),
+(1, '3- Ahırkapı-Gelibolu veya Marmara Limanı veya mukabili', 500, 92),
+(1, '4- İstanbul Liman hudutları içinde (Boğaz geçiş hariç) bir noktadan diğerine geçmek', 415, 50),
+(1, '5- Büyükdere/Paşabahçe ve İstanbul Boğazı etap + sahasında kalan alan ile kilyos demirden kaldırma', 500, 92),
+(1, '6- Çanakkale Boğazı içi, Karanik Liman, Ahırkapı, Kumkapı, Dolmabahçe, Bakırköy, Haliç ve Yeşilköy demirden kaldırma', 256, 40),
+(1, '7- İzmir ve diğer limanlar demirleme veya demirden kaldırma', 112, 62);
+
+-- Değişiklik Tablosu (Görsel 2 sağ - yeni tarife)
+INSERT INTO external_pilotage_tariffs (port_id, service_description, grt_up_to_1000, per_additional_1000_grt) VALUES
+(1, '1- Haliç''e giriş veya çıkış (YENİ)', 605, 136),
+(1, '2- İstanbul veya Çanakkale Boğaz geçişi (YENİ)', 550, 100),
+(1, '3- Ahırkapı-Gelibolu veya Marmara Limanı (YENİ)', 550, 100),
+(1, '4- İstanbul Liman hudutları içinde (YENİ)', 457, 55),
+(1, '5- Büyükdere/Paşabahçe İstanbul Boğazı (YENİ)', 500, 92),
+(1, '6- Çanakkale ve çevre limanlar demirleme (YENİ)', 282, 48),
+(1, '7- İzmir ve diğer limanlar (YENİ)', 124, 68);
+
+-- ============================================
+-- 4. GÜNLÜK BARINMA ÜCRETLERİ - İZMİR (Görsel 3)
+-- USD bazlı, GT'ye göre
+-- ============================================
+CREATE TABLE IF NOT EXISTS berthing_tariffs (
+  id SERIAL PRIMARY KEY,
+  port_id INT REFERENCES ports(id),
+  gt_min INT,
+  gt_max INT,
+  -- Uluslararası Sefer
+  intl_foreign_flag DECIMAL(10,2),   -- Yabancı bayraklı
+  intl_turkish_flag DECIMAL(10,2),   -- Türk bayraklı
+  -- Kabotaj
+  cabotage_turkish DECIMAL(10,2),    -- Kabotaj Türk
+  currency VARCHAR(10) DEFAULT 'USD',
+  notes TEXT,
+  valid_year INT DEFAULT 2026
+);
+
+-- İZMİR - GT 0-39,999 arası (Görsel 3 sol tablo)
+INSERT INTO berthing_tariffs (port_id, gt_min, gt_max, intl_foreign_flag, intl_turkish_flag, cabotage_turkish) VALUES
+(2, 0, 500, 25, 8, 5),
+(2, 501, 1000, 50, 19, 8),
+(2, 1001, 2000, 75, 38, 13),
+(2, 2001, 3000, 100, 57, 25),
+(2, 3001, 4000, 125, 75, 30),
+(2, 4001, 5000, 150, 94, 38),
+(2, 5001, 6000, 175, 113, 50),
+(2, 6001, 7000, 200, 132, 63),
+(2, 7001, 8000, 225, 150, 75),
+(2, 8001, 9000, 250, 169, 88),
+(2, 9001, 10000, 275, 188, 100),
+(2, 10001, 11000, 300, 207, 113),
+(2, 11001, 12000, 325, 225, 125),
+(2, 12001, 13000, 350, 244, 138),
+(2, 13001, 14000, 375, 263, 150),
+(2, 14001, 15000, 400, 282, 163),
+(2, 15001, 16000, 425, 300, 175),
+(2, 16001, 17000, 450, 319, 188),
+(2, 17001, 18000, 475, 338, 200),
+(2, 18001, 19000, 500, 357, 213),
+(2, 19001, 20000, 525, 375, 225),
+(2, 20001, 21000, 550, 394, 238),
+(2, 21001, 22000, 575, 413, 250),
+(2, 22001, 23000, 600, 432, 263),
+(2, 23001, 24000, 625, 450, 275),
+(2, 24001, 25000, 650, 469, 288),
+(2, 25001, 26000, 675, 488, 300),
+(2, 26001, 27000, 700, 507, 313),
+(2, 27001, 28000, 725, 525, 325),
+(2, 28001, 29000, 750, 544, 338),
+(2, 29001, 30000, 775, 563, 350),
+(2, 30001, 31000, 800, 582, 363),
+(2, 31001, 32000, 825, 600, 375),
+(2, 32001, 33000, 850, 619, 388),
+(2, 33001, 34000, 875, 638, 400),
+(2, 34001, 35000, 900, 657, 413),
+(2, 35001, 36000, 925, 675, 425),
+(2, 36001, 37000, 950, 694, 450),
+(2, 37001, 38000, 975, 713, 463),
+(2, 38001, 39000, 1000, 732, 475),
+(2, 39001, 39999, 1000, 750, 488);
+
+-- İZMİR - GT 40,000-80,999 arası (Görsel 3 sağ tablo)
+INSERT INTO berthing_tariffs (port_id, gt_min, gt_max, intl_foreign_flag, intl_turkish_flag, cabotage_turkish) VALUES
+(2, 40000, 41000, 1025, 769, 513),
+(2, 41001, 42000, 1050, 788, 525),
+(2, 42001, 43000, 1075, 807, 538),
+(2, 43001, 44000, 1100, 825, 550),
+(2, 44001, 45000, 1125, 844, 563),
+(2, 45001, 46000, 1150, 863, 575),
+(2, 46001, 47000, 1175, 882, 588),
+(2, 47001, 48000, 1200, 900, 600),
+(2, 48001, 49000, 1225, 919, 613),
+(2, 49001, 50000, 1250, 938, 625),
+(2, 50001, 51000, 1275, 957, 638),
+(2, 51001, 52000, 1300, 975, 650),
+(2, 52001, 53000, 1325, 994, 663),
+(2, 53001, 54000, 1350, 1013, 675),
+(2, 54001, 55000, 1375, 1032, 688),
+(2, 55001, 56000, 1400, 1050, 700),
+(2, 56001, 57000, 1425, 1069, 713),
+(2, 57001, 58000, 1450, 1088, 725),
+(2, 58001, 59000, 1475, 1107, 738),
+(2, 59001, 60000, 1500, 1125, 750),
+(2, 60001, 61000, 1525, 1144, 763),
+(2, 61001, 62000, 1550, 1163, 775),
+(2, 62001, 63000, 1575, 1182, 788),
+(2, 63001, 64000, 1600, 1200, 800),
+(2, 64001, 65000, 1625, 1219, 813),
+(2, 65001, 66000, 1650, 1238, 825),
+(2, 66001, 67000, 1675, 1257, 838),
+(2, 67001, 68000, 1700, 1275, 850),
+(2, 68001, 69000, 1725, 1294, 863),
+(2, 69001, 70000, 1750, 1313, 875),
+(2, 70001, 71000, 1775, 1332, 888),
+(2, 71001, 72000, 1800, 1350, 900),
+(2, 72001, 73000, 1825, 1369, 915),
+(2, 73001, 74000, 1850, 1388, 925),
+(2, 74001, 75000, 1875, 1407, 938),
+(2, 75001, 76000, 1900, 1425, 950),
+(2, 76001, 77000, 1925, 1444, 963),
+(2, 77001, 78000, 1950, 1463, 975),
+(2, 78001, 79000, 1975, 1482, 988),
+(2, 79001, 80000, 2000, 1500, 1000),
+(2, 80001, 80999, 2025, 1519, 1013);
+
+-- ============================================
+-- 5. ACENTELİK HİZMETLERİ (Görsel 9 - EURO)
+-- ============================================
+CREATE TABLE IF NOT EXISTS agency_fees (
+  id SERIAL PRIMARY KEY,
+  port_id INT REFERENCES ports(id),
+  tariff_no VARCHAR(20),
+  service_type VARCHAR(100), -- 'acentelik' | 'koruyucu_acentelik'
+  nt_min INT,
+  nt_max INT,
+  fee DECIMAL(10,2),
+  currency VARCHAR(10) DEFAULT 'EUR',
+  notes TEXT,
+  valid_year INT DEFAULT 2026
+);
+
+-- Tarife No: 1 - Acentelik Hizmetleri (NT bazlı, Euro)
+INSERT INTO agency_fees (port_id, tariff_no, service_type, nt_min, nt_max, fee) VALUES
+(1, 'T1', 'acentelik', 0, 500, 600),
+(1, 'T1', 'acentelik', 501, 1000, 1000),
+(1, 'T1', 'acentelik', 1001, 2000, 1500),
+(1, 'T1', 'acentelik', 2001, 3000, 1850),
+(1, 'T1', 'acentelik', 3001, 4000, 2300),
+(1, 'T1', 'acentelik', 4001, 5000, 2750),
+(1, 'T1', 'acentelik', 5001, 7500, 3200),
+(1, 'T1', 'acentelik', 7501, 10000, 4000),
+(1, 'T1', 'acentelik', 10001, 20000, 125),
+(1, 'T1', 'acentelik', 20001, 30000, 100),
+(1, 'T1', 'acentelik', 30001, 999999, 75),
+
+-- Tarife No: 2 - Koruyucu Acentelik Hizmetleri
+(1, 'T2', 'koruyucu_acentelik', 0, 500, 300),
+(1, 'T2', 'koruyucu_acentelik', 501, 1000, 500),
+(1, 'T2', 'koruyucu_acentelik', 1001, 2000, 750),
+(1, 'T2', 'koruyucu_acentelik', 2001, 3000, 925),
+(1, 'T2', 'koruyucu_acentelik', 3001, 4000, 1150),
+(1, 'T2', 'koruyucu_acentelik', 4001, 5000, 1375),
+(1, 'T2', 'koruyucu_acentelik', 5001, 7500, 1600),
+(1, 'T2', 'koruyucu_acentelik', 7501, 10000, 2000),
+(1, 'T2', 'koruyucu_acentelik', 10001, 20000, 63),
+(1, 'T2', 'koruyucu_acentelik', 20001, 30000, 50),
+(1, 'T2', 'koruyucu_acentelik', 30001, 999999, 38);
+
+-- ============================================
+-- 6. MARPOL ATIK ÜCRETLERİ (Görsel 6 - EURO)
+-- ============================================
+CREATE TABLE IF NOT EXISTS marpol_tariffs (
+  id SERIAL PRIMARY KEY,
+  port_id INT REFERENCES ports(id),
+  grt_min INT,
+  grt_max INT,
+  -- Sabit ücrete dahil m3
+  marpol_ek1_included DECIMAL(8,2),  -- sintine suyu, atık yağ, slag
+  marpol_ek4_included DECIMAL(8,2),  -- pis su
+  marpol_ek5_included DECIMAL(8,2),  -- çöp
+  -- Sabit ücret (Euro)
+  fixed_fee DECIMAL(10,2),
+  -- Hafta içi aşım ücreti (Euro/m3)
+  weekday_ek1_rate DECIMAL(8,2),
+  weekday_ek4_rate DECIMAL(8,2),
+  weekday_ek5_rate DECIMAL(8,2),
+  -- Hafta sonu/mesai dışı (Euro/m3)
+  weekend_ek1_rate DECIMAL(8,2),
+  weekend_ek4_rate DECIMAL(8,2),
+  weekend_ek5_rate DECIMAL(8,2),
+  currency VARCHAR(10) DEFAULT 'EUR',
+  valid_year INT DEFAULT 2026
+);
+
+INSERT INTO marpol_tariffs (port_id, grt_min, grt_max, marpol_ek1_included, marpol_ek4_included, marpol_ek5_included, fixed_fee, weekday_ek1_rate, weekday_ek4_rate, weekday_ek5_rate, weekend_ek1_rate, weekend_ek4_rate, weekend_ek5_rate) VALUES
+(2, 0, 1000, 1, 2, 1, 80, 13, 15, 10, 1.5, 15, 25),
+(2, 1001, 5000, 3, 3, 2, 140, 10, 15, 10, 1.875, 18.75, 31.25),
+(2, 5001, 10000, 4, 4, 3, 210, 8, 10, 6, NULL, NULL, NULL),
+(2, 10001, 15000, 5, 5, 3, 250, 7, 10, 6, NULL, NULL, NULL),
+(2, 15001, 20000, 6, 5, 3, 300, 6, 10, 5, NULL, NULL, NULL),
+(2, 20001, 25000, 7, 6, 4, 350, 6, 8, 5, NULL, NULL, NULL),
+(2, 25001, 35000, 8, 8, 4, 400, 5, 7, 4, NULL, NULL, NULL),
+(2, 35001, 60000, 10, 10, 4, 540, 5, 7, 4, NULL, NULL, NULL),
+(2, 60001, 999999, 13, 15, 5, 720, 5, 7, 4, NULL, NULL, NULL);
+
+-- ============================================
+-- 7. DENİZ EVRENSELLİK BELGESİ (Görsel 4 - TL)
+-- Anchorage Dues: GRT x 0.001 x (gün)
+-- ============================================
+CREATE TABLE IF NOT EXISTS port_authority_fees (
+  id SERIAL PRIMARY KEY,
+  port_id INT REFERENCES ports(id),
+  fee_name VARCHAR(200),
+  fee_no INT,
+  size_min VARCHAR(50),
+  size_max VARCHAR(50),
+  amount DECIMAL(12,2),
+  unit VARCHAR(50),
+  currency VARCHAR(10) DEFAULT 'TRY',
+  multiplier_rule TEXT,
+  valid_year INT DEFAULT 2026
+);
+
+-- Deniz Evrensellik Belgesi İşlemleri (TL)
+INSERT INTO port_authority_fees (port_id, fee_name, fee_no, size_min, size_max, amount, unit, currency) VALUES
+(1, 'On Survey', 1, '1-10 Net Ton', NULL, 1200, 'TL', 'TRY'),
+(1, 'On Survey', 1, '11-50 Net Ton', NULL, 2400, 'TL', 'TRY'),
+(1, 'On Survey', 1, '51-200 Net Ton', NULL, 3600, 'TL', 'TRY'),
+(1, 'On Survey', 1, '201-500 Net Ton', NULL, 4800, 'TL', 'TRY'),
+(1, 'On Survey', 1, '501-1000 Net Ton', NULL, 6000, 'TL', 'TRY'),
+(1, 'On Survey', 1, '1001-3000 Net Ton', NULL, 9000, 'TL', 'TRY'),
+(1, 'On Survey', 1, '3001-8000 Net Ton', NULL, 18000, 'TL', 'TRY'),
+(1, 'On Survey', 1, '8001+ Net Ton', NULL, 30000, 'TL', 'TRY'),
+(1, 'Program Dış Survey İşlemleri', 2, NULL, NULL, 3000, 'TL', 'TRY'),
+(1, 'Uluslararası Sefer Yapan Gemiler Survey', 3, NULL, NULL, 10000, 'TL', 'TRY'),
+(1, 'Liman Çıkış Belgesi (LCB) - Boyları 5m den az', 9, NULL, NULL, 500, 'TL', 'TRY'),
+(1, 'Liman Çıkış Belgesi (LCB) - 5-10m', 9, NULL, NULL, 750, 'TL', 'TRY'),
+(1, 'Liman Çıkış Belgesi (LCB) - 10-15m', 9, NULL, NULL, 2500, 'TL', 'TRY'),
+(1, 'Liman Çıkış Belgesi (LCB) - 15-20m', 9, NULL, NULL, 4000, 'TL', 'TRY'),
+(1, 'Liman Çıkış Belgesi (LCB) - 20-25m', 9, NULL, NULL, 8000, 'TL', 'TRY'),
+(1, 'Liman Çıkış Belgesi (LCB) - 25-30m', 9, NULL, NULL, 18000, 'TL', 'TRY'),
+(1, 'Liman Çıkış Belgesi (LCB) - 30-40m', 9, NULL, NULL, 4000, 'TL', 'TRY'),
+(1, 'Liman Çıkış Belgesi (LCB) - 40m+', 9, NULL, NULL, 8000, 'TL', 'TRY');
+
+-- ============================================
+-- 8. İZMİR 2026 LİMAN TARİFELERİ (Görsel 5)
+-- ============================================
+
+-- Yola Elveriş Belgesi (LCB) - NRT bazlı TL
+CREATE TABLE IF NOT EXISTS lcb_tariffs (
+  id SERIAL PRIMARY KEY,
+  port_id INT REFERENCES ports(id),
+  nrt_min INT,
+  nrt_max INT,
+  amount DECIMAL(12,2),
+  currency VARCHAR(10) DEFAULT 'TRY',
+  valid_year INT DEFAULT 2026
+);
+
+INSERT INTO lcb_tariffs (port_id, nrt_min, nrt_max, amount) VALUES
+(2, 11, 500, 1283.90),
+(2, 501, 2000, 3424.11),
+(2, 2001, 4000, 6848.10),
+(2, 4001, 8000, 10272.20),
+(2, 8001, 10000, 17120.20),
+(2, 10001, 30000, 34240.40),
+(2, 30001, 50000, 51361.40),
+(2, 50001, 999999, 85602.30);
+
+-- İZMİR TONAJ (NRT bazlı TL)
+CREATE TABLE IF NOT EXISTS tonnage_tariffs (
+  id SERIAL PRIMARY KEY,
+  port_id INT REFERENCES ports(id),
+  nrt_min INT,
+  nrt_max INT,
+  ithalat DECIMAL(12,2),
+  ihracat DECIMAL(12,2),
+  currency VARCHAR(10) DEFAULT 'TRY',
+  valid_year INT DEFAULT 2026
+);
+
+INSERT INTO tonnage_tariffs (port_id, nrt_min, nrt_max, ithalat, ihracat) VALUES
+(2, 0, 3000, 20100, NULL),
+(2, 3001, 6000, 26350, NULL),
+(2, 6001, 9000, 32700, NULL),
+(2, 9001, 12000, 38840, NULL),
+(2, 12001, 15000, 45305, NULL),
+(2, 15001, 18000, 51585, NULL),
+(2, 18001, 21000, 57935, NULL),
+(2, 21001, 25000, 62210, NULL),
+(2, 25001, 30000, 68525, NULL),
+(2, 30001, 35000, 77205, NULL),
+(2, 35001, 999999, 106105, NULL);
+
+-- ============================================
+-- 9. DİĞER HİZMET ÜCRETLERİ (Görsel 8 - EURO)
+-- Tekirdağ bölgesi notları dahil
+-- ============================================
+CREATE TABLE IF NOT EXISTS other_services (
+  id SERIAL PRIMARY KEY,
+  port_id INT REFERENCES ports(id),
+  service_name VARCHAR(200),
+  fee DECIMAL(12,2),
+  unit VARCHAR(100),
+  currency VARCHAR(10) DEFAULT 'EUR',
+  notes TEXT,
+  valid_year INT DEFAULT 2026
+);
+
+INSERT INTO other_services (port_id, service_name, fee, unit, currency, notes) VALUES
+-- Tekirdağ acentelik
+(3, 'Tekirdağ Acentelik Hizmeti', 500, 'sefer başı', 'EUR', 'VTS ücreti dahil değil, İran gemileri ayrı'),
+(3, 'VTS Ücreti Tekirdağ', 20, 'sefer başı', 'EUR', 'Ayrıca ödenir'),
+
+-- Supervision Fee (tüm limanlar için geçerli formül)
+(NULL, 'Supervision Fee', NULL, 'qty_of_cargo x 0.15 x cargo_rate', 'EUR', 'Supervision fee = (Qty of Cargo x 0.15) x (Cargo Rates). Euro değeri üzerinden hesaplanır'),
+
+-- Motorbot
+(NULL, 'Motorboat Express', 500, 'sefer başı', 'USD', 'Motorboat exp: 500 USD'),
+
+-- Yedek Parça
+(NULL, 'Yedek Parça Nezaret Ücreti', 250, 'kilo başına', 'EUR', 'Yurt dışından gelen yedek parça hizmet bedeli. 150 Euro minimum'),
+(NULL, 'Bunker İkmal Hizmeti', NULL, 'masraflara ilaveten', 'EUR', 'Maslara ek olarak uygulanır'),
+
+-- Diğer hizmetler
+(NULL, 'Kaptan Avansı', NULL, '%1.5 masraflar üzerinden', 'EUR', 'Masraflara ilaveten, asgari miktar üzerinden'),
+(NULL, 'Tıbbi Hizmet - beher kişi', 175, 'kişi başı', 'EUR', NULL),
+(NULL, 'Tıbbi Hizmet - hasta başı', 175, 'hasta başı', 'EUR', NULL),
+(NULL, 'Tıbbi Hizmet - 1-2 fazla kişi', 50, 'kişi başı', 'EUR', NULL);
+
+-- ============================================
+-- 10. TCDD İZMİR YÜKLEME/BOŞALTMA (Görsel 7)
+-- ============================================
+CREATE TABLE IF NOT EXISTS cargo_handling_tariffs (
+  id SERIAL PRIMARY KEY,
+  port_id INT REFERENCES ports(id),
+  cargo_type VARCHAR(100),
+  operation VARCHAR(20), -- 'yukleme' | 'bosaltma' | 'her ikisi'
+  rate DECIMAL(10,2),
+  unit VARCHAR(50),
+  currency VARCHAR(10) DEFAULT 'USD',
+  notes TEXT,
+  valid_year INT DEFAULT 2026
+);
+
+INSERT INTO cargo_handling_tariffs (port_id, cargo_type, operation, rate, unit, currency) VALUES
+(2, 'General Kargo', 'yukleme', 6.00, 'ton', 'USD'),
+(2, 'General Kargo', 'bosaltma', 6.00, 'ton', 'USD'),
+(2, 'Dökme Katı', 'yukleme', 4.50, 'ton', 'USD'),
+(2, 'Dökme Katı', 'bosaltma', 4.50, 'ton', 'USD'),
+(2, 'Dökme Katı (TMO/ETİBANK)', 'yukleme', 1.50, 'ton', 'USD'),
+(2, 'Dökme Sıvı', 'yukleme', NULL, 'ton', 'USD'),
+(2, 'Boş Konteyner', 'yukleme', 35.00, 'adet', 'USD'),
+(2, 'Boş Konteyner', 'bosaltma', 32.00, 'adet', 'USD'),
+(2, 'Dolu Konteyner (20)', 'yukleme', 90.00, 'adet', 'USD'),
+(2, 'Dolu Konteyner (20)', 'bosaltma', 75.00, 'adet', 'USD'),
+(2, 'Dolu Konteyner (40)', 'yukleme', 106.00, 'adet', 'USD'),
+(2, 'Dolu Konteyner (40)', 'bosaltma', 85.00, 'adet', 'USD'),
+(2, 'Dolu Konteyner Yanıcı (20)', 'yukleme', 114.00, 'adet', 'USD'),
+(2, 'Dolu Konteyner Yanıcı (40)', 'yukleme', 132.00, 'adet', 'USD'),
+(2, 'Oto/Pikap/Jeep/Midibüs', 'yukleme', 12.00, 'adet', 'USD'),
+(2, 'Oto/Pikap/Jeep/Midibüs', 'bosaltma', 12.00, 'adet', 'USD'),
+(2, 'Proje Kargo', 'yukleme', 15.00, 'ton', 'USD'),
+(2, 'Proje Kargo', 'bosaltma', 15.00, 'ton', 'USD'),
+(2, 'Canlı Hayvan', 'yukleme', 3.50, 'adet', 'USD');
+
+-- Barınma - İZMİR TCDD (GRT/1000/gün bazlı)
+INSERT INTO other_services (port_id, service_name, fee, unit, currency, notes) VALUES
+(2, 'Barınma - Yabancı Amaçlı Ticaret', 80.00, 'GRT/1000/gün', 'USD', '5000 GRT altı: 10 USD/GRT/1000/gün'),
+(2, 'Barınma - Kabotaj', 50.00, 'GRT/1000/gün', 'USD', NULL),
+(2, 'Tekne Yat Türk', 1.80, 'GRT/m/gün', 'USD', NULL),
+(2, 'Tekne Yat Yabancı', 4.00, 'GRT/m/gün', 'USD', NULL),
+(2, 'Palamar (Sağlama/Çözme)', NULL, 'GRT bazlı tablo', 'USD', 'Tablo görsel 7''de mevcut'),
+(2, 'Gemi Fuzuli İşgal', 20.00, 'GRT/1000/saat', 'USD', NULL);
+
+-- ============================================
+-- 11. HESAPLAMA FONKSİYONLARI
+-- ============================================
+
+-- Barınma ücreti hesaplama fonksiyonu (İzmir)
+CREATE OR REPLACE FUNCTION calculate_berthing(
+  p_port_id INT,
+  p_gt INT,
+  p_days INT,
+  p_vessel_flag VARCHAR,  -- 'foreign' | 'turkish' | 'cabotage'
+  p_is_tanker BOOLEAN DEFAULT FALSE
+) RETURNS DECIMAL AS $$
+DECLARE
+  v_daily_rate DECIMAL;
+  v_total DECIMAL;
+BEGIN
+  SELECT 
+    CASE p_vessel_flag
+      WHEN 'foreign' THEN intl_foreign_flag
+      WHEN 'turkish' THEN intl_turkish_flag
+      WHEN 'cabotage' THEN cabotage_turkish
+    END INTO v_daily_rate
+  FROM berthing_tariffs
+  WHERE port_id = p_port_id
+    AND gt_min <= p_gt 
+    AND gt_max >= p_gt;
+  
+  v_total := v_daily_rate * p_days;
+  
+  -- Tanker zammı yok (görsel 3 notu: "Tanker zammı yok")
+  
+  RETURN COALESCE(v_total, 0);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Kılavuzluk ücreti hesaplama
+CREATE OR REPLACE FUNCTION calculate_pilotage(
+  p_port_id INT,
+  p_grt INT,
+  p_vessel_category VARCHAR,
+  p_service_type VARCHAR DEFAULT 'kabotaj'
+) RETURNS DECIMAL AS $$
+DECLARE
+  v_base DECIMAL;
+  v_per_1000 DECIMAL;
+  v_extra_1000s INT;
+  v_total DECIMAL;
+BEGIN
+  SELECT base_fee, per_1000_grt 
+  INTO v_base, v_per_1000
+  FROM pilotage_tariffs
+  WHERE port_id = p_port_id
+    AND service_type = p_service_type
+    AND vessel_category = p_vessel_category
+  LIMIT 1;
+  
+  -- 1000 GRT üzeri her 1000 için ek ücret
+  v_extra_1000s := GREATEST(0, (p_grt - 1000) / 1000);
+  v_total := v_base + (v_extra_1000s * COALESCE(v_per_1000, 0));
+  
+  RETURN COALESCE(v_total, 0);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Acentelik ücreti hesaplama
+CREATE OR REPLACE FUNCTION calculate_agency_fee(
+  p_port_id INT,
+  p_nt INT,
+  p_tariff_type VARCHAR DEFAULT 'acentelik'
+) RETURNS DECIMAL AS $$
+DECLARE
+  v_fee DECIMAL;
+BEGIN
+  SELECT fee INTO v_fee
+  FROM agency_fees
+  WHERE port_id = p_port_id
+    AND service_type = p_tariff_type
+    AND nt_min <= p_nt
+    AND (nt_max >= p_nt OR nt_max IS NULL)
+  ORDER BY nt_min DESC
+  LIMIT 1;
+  
+  RETURN COALESCE(v_fee, 0);
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================
+-- 12. ÖRNEK PROFORMA HESAPLAMA VIEW
+-- ============================================
+CREATE OR REPLACE VIEW proforma_example AS
+SELECT 
+  'İzmir Limana Giriş' as sefer,
+  'Tanker' as gemi_tipi,
+  5000 as grt,
+  3000 as nt,
+  calculate_berthing(2, 5000, 3, 'foreign', true) as barinma_usd,
+  calculate_pilotage(2, 5000, 'diger_yuk', 'kabotaj') as kilavuzluk_usd,
+  calculate_agency_fee(2, 3000, 'acentelik') as acentelik_eur;
