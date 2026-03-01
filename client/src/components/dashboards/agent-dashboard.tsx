@@ -86,7 +86,7 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
                 <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Şirketiniz henüz doğrulanmamış</p>
                 <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Doğrulama talebi göndererek dizinde güven rozeti kazanın ve öne çıkın.</p>
               </div>
-              <Link href="/settings">
+              <Link href="/settings#section-verification">
                 <Button size="sm" variant="outline" className="gap-1.5 text-xs h-7 border-amber-300 text-amber-700 hover:bg-amber-100 flex-shrink-0 dark:border-amber-700 dark:text-amber-300" data-testid="button-go-verify">
                   <Settings className="w-3 h-3" /> Doğrulama Talebi
                 </Button>
@@ -116,7 +116,7 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
                 {verificationNote && <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">{verificationNote}</p>}
                 <p className="text-xs text-muted-foreground mt-0.5">Bilgilerinizi güncelleyerek tekrar başvurabilirsiniz.</p>
               </div>
-              <Link href="/settings">
+              <Link href="/settings#section-verification">
                 <Button size="sm" variant="outline" className="gap-1.5 text-xs h-7 border-red-300 text-red-700 hover:bg-red-100 flex-shrink-0 dark:border-red-700 dark:text-red-300" data-testid="button-retry-verify">
                   <Settings className="w-3 h-3" /> Tekrar Başvur
                 </Button>

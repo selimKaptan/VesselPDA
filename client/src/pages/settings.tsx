@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -33,6 +33,14 @@ export default function Settings() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (window.location.hash === "#section-verification") {
+      setTimeout(() => {
+        document.getElementById("section-verification")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 300);
+    }
+  }, []);
 
   const [firstName, setFirstName] = useState((user as any)?.firstName || "");
   const [lastName, setLastName] = useState((user as any)?.lastName || "");
@@ -248,7 +256,7 @@ export default function Settings() {
 
       {/* Company Verification — agent & provider only */}
       {showCompletion && myProfile && (
-        <Card data-testid="card-company-verification">
+        <Card id="section-verification" data-testid="card-company-verification">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <ShieldCheck className="w-4 h-4 text-blue-600" />
