@@ -8,7 +8,9 @@ import {
   FileText, ChevronRight, Activity, ChevronDown,
   LayoutGrid, Map as MapIcon,
   ShieldCheck, Pencil, AlertTriangle, CheckCircle2, Clock,
+  ChevronLeft,
 } from "lucide-react";
+import { useSidebar } from "@/components/ui/sidebar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -630,6 +632,7 @@ function fmtDate(dt: string | null) {
 }
 
 export default function Vessels() {
+  const { state: sidebarState } = useSidebar();
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [showForm, setShowForm] = useState(false);
   const [editingVessel, setEditingVessel] = useState<Vessel | null>(null);
@@ -997,27 +1000,39 @@ export default function Vessels() {
         <Skeleton className="w-full h-[600px] rounded-2xl" />
       )}
 
-      {/* ── Detail Dialog ─────────────────────────────────────────────────── */}
-      <Dialog open={!!selectedVessel} onOpenChange={(o) => { if (!o) setSelectedVessel(null); }}>
-        <DialogContent className="max-w-full w-screen h-screen max-h-screen !rounded-none overflow-hidden flex flex-col p-0 top-0 left-0 translate-x-0 translate-y-0">
-          {selectedVesselFresh && (() => {
-            const v = selectedVesselFresh;
-            const voy = selectedVoyage;
-            const cfg = getCfg(v.fleetStatus);
-            const flag = FLAG_EMOJI[v.flag || ""] || "🏳️";
-            const progress = getProgress(voy);
+      {/* ── Detail Panel ─────────────────────────────────────────────────── */}
+      {selectedVessel && selectedVesselFresh && (() => {
+          const v = selectedVesselFresh;
+          const voy = selectedVoyage;
+          const cfg = getCfg(v.fleetStatus);
+          const flag = FLAG_EMOJI[v.flag || ""] || "🏳️";
+          const progress = getProgress(voy);
+          const sidebarLeft = sidebarState === "expanded" ? "16rem" : "3rem";
 
-            return (
-              <>
-                <DialogHeader className="px-6 pt-6 pb-4 border-b flex-shrink-0">
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 bg-[hsl(var(--maritime-primary))] rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">🚢</div>
+          return (
+            <div
+              className="fixed bottom-0 right-0 bg-background z-40 flex flex-col overflow-hidden border-l shadow-2xl"
+              style={{ top: "3.5rem", left: sidebarLeft }}
+            >
+              <div className="px-6 pt-5 pb-4 border-b flex-shrink-0">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <button
+                      onClick={() => setSelectedVessel(null)}
+                      className="p-1.5 rounded-lg hover:bg-muted/60 transition-colors flex-shrink-0"
+                      title="Geri dön"
+                      data-testid="button-vessel-detail-back"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <div className="w-10 h-10 bg-[hsl(var(--maritime-primary))] rounded-2xl flex items-center justify-center text-xl flex-shrink-0">🚢</div>
                     <div className="min-w-0">
-                      <DialogTitle className="font-black text-base leading-tight">{flag} {v.name}</DialogTitle>
+                      <p className="font-black text-base leading-tight truncate">{flag} {v.name}</p>
                       <p className="text-sm text-muted-foreground mt-0.5">{v.vesselType || "—"} · {v.flag || "—"}</p>
                     </div>
                   </div>
-                  <div className="flex gap-1 bg-muted/40 p-1 rounded-xl mt-3 flex-wrap">
+                </div>
+                  <div className="flex gap-1 bg-muted/40 p-1 rounded-xl flex-wrap">
                     {(["general", "voyage", "technical", "certificates", "crew"] as const).map((tab) => (
                       <button
                         key={tab}
@@ -1028,9 +1043,9 @@ export default function Vessels() {
                       </button>
                     ))}
                   </div>
-                </DialogHeader>
+              </div>
 
-                <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1">
                   {/* ── Genel ── */}
                   {detailTab === "general" && (
                     <>
@@ -1386,11 +1401,9 @@ export default function Vessels() {
                     </div>
                   )}
                 </div>
-              </>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
+            </div>
+          );
+        })()}
 
       {/* ── Add / Edit Dialog ─────────────────────────────────────────────── */}
       <Dialog open={showForm || !!editingVessel} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditingVessel(null); } }}>
