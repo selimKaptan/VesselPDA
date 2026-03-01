@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Navigation, Warehouse, Building2, Leaf, Layers, MoreHorizontal,
   Plus, Pencil, Trash2, Loader2, TrendingUp, Download, Upload,
-  ChevronDown, ChevronUp, Database, Ship, AlertTriangle, X, Search, PlusCircle, Wrench
+  ChevronDown, ChevronUp, Database, Ship, AlertTriangle, X, Search, PlusCircle, Wrench, Globe, Info
 } from "lucide-react";
 
 // ── Human-readable label maps ────────────────────────────────────────────────
@@ -474,7 +474,7 @@ function InlineCell({
 function CategorySection({
   cat, portId, externalAddOpen, onExternalAddOpenChange,
 }: {
-  cat: CategoryDef; portId: number;
+  cat: CategoryDef; portId: number | "global";
   externalAddOpen?: boolean;
   onExternalAddOpenChange?: (open: boolean) => void;
 }) {
@@ -505,10 +505,14 @@ function CategorySection({
 
   const addMutation = useMutation({
     mutationFn: () =>
-      apiRequest("POST", `/api/admin/tariffs/${cat.key}`, { ...addData, port_id: portId }),
+      apiRequest("POST", `/api/admin/tariffs/${cat.key}`,
+        portId === "global"
+          ? { ...addData }
+          : { ...addData, port_id: portId }
+      ),
     onSuccess: () => {
       invalidate();
-      toast({ title: "Tarife eklendi" });
+      toast({ title: portId === "global" ? "Global tarife eklendi" : "Tarife eklendi" });
       setAddOpen(false);
     },
     onError: () => toast({ title: "Hata", description: "Eklenemedi", variant: "destructive" }),
@@ -645,7 +649,9 @@ function CategorySection({
                     colSpan={cat.columns.length + 1}
                     className="px-3 py-10 text-center text-muted-foreground italic text-xs"
                   >
-                    Bu liman için kayıt bulunamadı — "Ekle" butonuyla yeni tarife oluşturun
+                    {portId === "global"
+                      ? "Global tarife yok — \"Ekle\" butonuyla tüm limanlar için ortak tarife ekleyin"
+                      : "Bu liman için kayıt bulunamadı — \"Ekle\" butonuyla yeni tarife oluşturun"}
                   </td>
                 </tr>
               ) : (
@@ -834,7 +840,7 @@ export default function TariffManagement() {
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   const [activePorts, setActivePorts] = useState<number[]>(() => loadActivePortIds());
-  const [activePort, setActivePort] = useState<number>(() => loadActivePortIds()[0] ?? 2);
+  const [activePort, setActivePort] = useState<number | "global">(() => loadActivePortIds()[0] ?? 2);
   const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
 
   const [addPortOpen, setAddPortOpen] = useState(false);
@@ -878,10 +884,15 @@ export default function TariffManagement() {
     },
   });
 
-  const activePortData = allTurkishPorts.find((p: any) => p.id === activePort)
-    ?? { id: activePort, name: PORT_DISPLAY[activePort]?.name ?? "Liman", code: PORT_DISPLAY[activePort]?.code ?? "" };
+  const isGlobalTab = activePort === "global";
+  const activePortData = isGlobalTab
+    ? { id: 0, name: "Tüm Limanlar", code: "GLOBAL" }
+    : (allTurkishPorts.find((p: any) => p.id === activePort)
+        ?? { id: activePort as number, name: PORT_DISPLAY[activePort as number]?.name ?? "Liman", code: PORT_DISPLAY[activePort as number]?.code ?? "" });
 
-  const activePortDisplay = getPortDisplay(activePortData as any);
+  const activePortDisplay = isGlobalTab
+    ? { name: "Tüm Limanlar", code: "" }
+    : getPortDisplay(activePortData as any);
   const activePortName = activePortDisplay.name;
 
   const filteredTurkishPorts = allTurkishPorts
@@ -1006,7 +1017,7 @@ export default function TariffManagement() {
       const year = col("yil", cols) || "2026";
       const notes = col("notlar", cols);
 
-      const payload: Record<string, any> = { port_id: activePort };
+      const payload: Record<string, any> = isGlobalTab ? {} : { port_id: activePort };
 
       if (tableKey === "pilotage_tariffs") {
         Object.assign(payload, { service_type: alan1, vessel_category: alan2, grt_min: numOrNull(rMin), grt_max: numOrNull(rMax), base_fee: numOrNull(f1), per_1000_grt: numOrNull(f2), currency, valid_year: parseInt(year), notes });
@@ -1068,6 +1079,21 @@ export default function TariffManagement() {
 
           {/* Port tabs */}
           <div className="flex items-center gap-1 bg-muted/60 rounded-xl p-1 flex-wrap">
+            {/* Tüm Limanlar (Global) tab — her zaman ilk */}
+            <button
+              onClick={() => setActivePort("global")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                isGlobalTab
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-background/60 border border-dashed border-muted-foreground/30"
+              }`}
+              data-testid="port-tab-global"
+              title="Tüm limanlarda geçerli ortak tarifeler"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Tüm Limanlar</span>
+            </button>
+
             {activePorts.map(portId => {
               const portData = allTurkishPorts.find((p: any) => p.id === portId)
                 ?? { id: portId, name: PORT_DISPLAY[portId]?.name ?? `Liman #${portId}`, code: PORT_DISPLAY[portId]?.code ?? "" };
@@ -1162,47 +1188,71 @@ export default function TariffManagement() {
 
       {/* ── Info bar ── */}
       <div className="max-w-5xl mx-auto px-6 py-3">
-        <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-          <div className="flex items-center gap-1.5">
-            <Ship className="w-3.5 h-3.5" />
-            <span>
-              Seçili liman:{" "}
-              <span className="font-semibold text-foreground">{activePortName}</span>
-              {activePortDisplay.code && (
-                <span className="ml-1.5 font-mono bg-muted px-1.5 py-0.5 rounded text-[10px]">
-                  {activePortDisplay.code}
-                </span>
-              )}
-            </span>
-          </div>
-          {summary?.totalRecords !== undefined && (
-            <div className="flex items-center gap-1.5">
-              <Database className="w-3.5 h-3.5" />
-              <span>
-                Toplam kayıt:{" "}
-                <span className="font-semibold text-foreground">{summary.totalRecords}</span>
+        {isGlobalTab ? (
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs flex-wrap">
+            <Globe className="w-4 h-4 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <span className="font-semibold">Tüm Limanlarda Ortak Tarifeler</span>
+              <span className="ml-2 font-normal opacity-80">
+                — Bu bölüme eklenen tarifeler, port'a özgü tarife bulunamadığında tüm limanlarda otomatik olarak devreye girer.
               </span>
             </div>
-          )}
-          {summary?.outdatedCount > 0 && (
-            <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-              <AlertTriangle className="w-3.5 h-3.5" />
-              <span>{summary.outdatedCount} eski kayıt</span>
+            <div className="ml-auto shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-xs h-7 border-dashed border-blue-400 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                onClick={() => setEkHizmetOpen(true)}
+                data-testid="button-ek-hizmet"
+              >
+                <Wrench className="w-3 h-3" />
+                Ek Hizmet Ekle
+              </Button>
             </div>
-          )}
-          <div className="ml-auto">
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5 text-xs h-7 border-dashed"
-              onClick={() => setEkHizmetOpen(true)}
-              data-testid="button-ek-hizmet"
-            >
-              <Wrench className="w-3 h-3" />
-              Ek Hizmet Ekle
-            </Button>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <Ship className="w-3.5 h-3.5" />
+              <span>
+                Seçili liman:{" "}
+                <span className="font-semibold text-foreground">{activePortName}</span>
+                {activePortDisplay.code && (
+                  <span className="ml-1.5 font-mono bg-muted px-1.5 py-0.5 rounded text-[10px]">
+                    {activePortDisplay.code}
+                  </span>
+                )}
+              </span>
+            </div>
+            {summary?.totalRecords !== undefined && (
+              <div className="flex items-center gap-1.5">
+                <Database className="w-3.5 h-3.5" />
+                <span>
+                  Toplam kayıt:{" "}
+                  <span className="font-semibold text-foreground">{summary.totalRecords}</span>
+                </span>
+              </div>
+            )}
+            {summary?.outdatedCount > 0 && (
+              <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>{summary.outdatedCount} eski kayıt</span>
+              </div>
+            )}
+            <div className="ml-auto">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-xs h-7 border-dashed"
+                onClick={() => setEkHizmetOpen(true)}
+                data-testid="button-ek-hizmet"
+              >
+                <Wrench className="w-3 h-3" />
+                Ek Hizmet Ekle
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Category sections ── */}

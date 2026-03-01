@@ -34,9 +34,9 @@ export async function lookupPilotageFee(
     const serviceType = getPilotageServiceType(vesselCategory);
     const result = await pool.query(
       `SELECT base_fee, per_1000_grt FROM pilotage_tariffs
-       WHERE port_id = $1 AND service_type = $2 AND vessel_category = 'diger_yuk'
+       WHERE (port_id = $1 OR port_id IS NULL) AND service_type = $2 AND vessel_category = 'diger_yuk'
        AND grt_min <= $3
-       ORDER BY grt_min DESC LIMIT 1`,
+       ORDER BY (CASE WHEN port_id = $1 THEN 0 ELSE 1 END), grt_min DESC LIMIT 1`,
       [portId, serviceType, grt]
     );
     if (result.rows.length === 0) return { fee: 0, source: "fallback" };
@@ -63,9 +63,9 @@ export async function lookupTugboatFee(
     const serviceType = getTugboatServiceType(vesselCategory);
     const result = await pool.query(
       `SELECT base_fee, per_1000_grt FROM pilotage_tariffs
-       WHERE port_id = $1 AND service_type = $2 AND vessel_category = 'diger_yuk'
+       WHERE (port_id = $1 OR port_id IS NULL) AND service_type = $2 AND vessel_category = 'diger_yuk'
        AND grt_min <= $3
-       ORDER BY grt_min DESC LIMIT 1`,
+       ORDER BY (CASE WHEN port_id = $1 THEN 0 ELSE 1 END), grt_min DESC LIMIT 1`,
       [portId, serviceType, grt]
     );
     if (result.rows.length === 0) return { fee: 0, source: "fallback" };
@@ -91,9 +91,9 @@ export async function lookupMooringFee(
   try {
     const result = await pool.query(
       `SELECT base_fee, per_1000_grt FROM pilotage_tariffs
-       WHERE port_id = $1 AND service_type = 'palamar_kabotaj_yeni' AND vessel_category = 'diger_tum'
+       WHERE (port_id = $1 OR port_id IS NULL) AND service_type = 'palamar_kabotaj_yeni' AND vessel_category = 'diger_tum'
        AND grt_min <= $2
-       ORDER BY grt_min DESC LIMIT 1`,
+       ORDER BY (CASE WHEN port_id = $1 THEN 0 ELSE 1 END), grt_min DESC LIMIT 1`,
       [portId, grt]
     );
     if (result.rows.length === 0) return { fee: 0, source: "fallback" };
@@ -120,8 +120,8 @@ export async function lookupBerthingFee(
     const column = getBerthingColumn(vesselCategory);
     const result = await pool.query(
       `SELECT ${column} as daily_rate FROM berthing_tariffs
-       WHERE port_id = $1 AND gt_min <= $2
-       ORDER BY gt_min DESC LIMIT 1`,
+       WHERE (port_id = $1 OR port_id IS NULL) AND gt_min <= $2
+       ORDER BY (CASE WHEN port_id = $1 THEN 0 ELSE 1 END), gt_min DESC LIMIT 1`,
       [portId, gt]
     );
     if (result.rows.length === 0) return { fee: 0, source: "fallback" };
@@ -143,9 +143,9 @@ export async function lookupAgencyFee(
   try {
     const result = await pool.query(
       `SELECT nt_min, fee, per_1000_nt, currency FROM agency_fees
-       WHERE port_id = $1 AND service_type = 'acentelik'
+       WHERE (port_id = $1 OR port_id IS NULL) AND service_type = 'acentelik'
        AND nt_min <= $2
-       ORDER BY nt_min DESC LIMIT 1`,
+       ORDER BY (CASE WHEN port_id = $1 THEN 0 ELSE 1 END), nt_min DESC LIMIT 1`,
       [portId, nrt]
     );
     if (result.rows.length === 0) return { fee: 0, source: "fallback" };
@@ -180,8 +180,8 @@ export async function lookupMarpolFee(
   try {
     const result = await pool.query(
       `SELECT fixed_fee, currency FROM marpol_tariffs
-       WHERE port_id = $1 AND grt_min <= $2
-       ORDER BY grt_min DESC LIMIT 1`,
+       WHERE (port_id = $1 OR port_id IS NULL) AND grt_min <= $2
+       ORDER BY (CASE WHEN port_id = $1 THEN 0 ELSE 1 END), grt_min DESC LIMIT 1`,
       [portId, grt]
     );
     if (result.rows.length === 0) return { fee: 0, source: "fallback" };
@@ -203,8 +203,8 @@ export async function lookupLcbFee(
   try {
     const result = await pool.query(
       `SELECT amount, currency FROM lcb_tariffs
-       WHERE port_id = $1 AND nrt_min <= $2
-       ORDER BY nrt_min DESC LIMIT 1`,
+       WHERE (port_id = $1 OR port_id IS NULL) AND nrt_min <= $2
+       ORDER BY (CASE WHEN port_id = $1 THEN 0 ELSE 1 END), nrt_min DESC LIMIT 1`,
       [portId, nrt]
     );
     if (result.rows.length === 0) return { fee: 0, source: "fallback" };

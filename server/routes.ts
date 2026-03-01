@@ -4362,7 +4362,9 @@ export async function registerRoutes(
 
       const params: any[] = [];
       const conditions: string[] = [];
-      if (req.query.portId && req.query.portId !== "all") {
+      if (req.query.portId === "global") {
+        conditions.push("port_id IS NULL");
+      } else if (req.query.portId && req.query.portId !== "all") {
         params.push(parseInt(req.query.portId as string));
         conditions.push(`port_id = $${params.length}`);
       }
