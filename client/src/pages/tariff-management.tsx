@@ -40,13 +40,35 @@ const SERVICE_LABELS: Record<string, string> = {
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
-  diger_tum: "Tüm Gemiler",
-  diger_yuk: "Genel Yük",
-  konteyner: "Konteyner",
-  yolcu_feribot_roro_car_carrier: "Yolcu / RoRo / Feribot",
-  calisan_gemiler: "Çalışan Gemiler",
+  calisan_gemiler: "Kabotaj Hattında Çalışan Gemiler",
+  konteyner: "Konteyner Gemileri",
+  diger_yuk: "Diğer Yük Gemileri",
+  diger_tum: "Diğer Yük Gemileri",
+  yolcu_feribot_roro_car_carrier: "Yolcu Feribotu / Ro-Ro / Car Carrier",
   tanker: "Tanker",
 };
+
+const VESSEL_CATEGORY_OPTIONS = [
+  { value: "calisan_gemiler", label: "Kabotaj Hattında Çalışan Gemiler" },
+  { value: "konteyner", label: "Konteyner Gemileri" },
+  { value: "diger_yuk", label: "Diğer Yük Gemileri" },
+  { value: "yolcu_feribot_roro_car_carrier", label: "Yolcu Feribotu / Ro-Ro / Car Carrier" },
+];
+
+const PILOTAGE_SERVICE_OPTIONS = [
+  { value: "kabotaj", label: "Kabotaj Kılavuzluk" },
+  { value: "kabotaj_yeni", label: "Kabotaj Kılavuzluk (Yeni)" },
+  { value: "uluslararasi", label: "Uluslararası Kılavuzluk" },
+  { value: "uluslararasi_yeni", label: "Uluslararası Kılavuzluk (Yeni)" },
+  { value: "romorkör_kabotaj", label: "Kabotaj Römorkör" },
+  { value: "romorkör_kabotaj_yeni", label: "Kabotaj Römorkör (Yeni)" },
+  { value: "romorkör_uluslararasi", label: "Uluslararası Römorkör" },
+  { value: "romorkör_uluslararasi_yeni", label: "Uluslararası Römorkör (Yeni)" },
+  { value: "palamar_kabotaj", label: "Kabotaj Palamar" },
+  { value: "palamar_kabotaj_yeni", label: "Kabotaj Palamar (Yeni)" },
+  { value: "palamar_uluslararasi", label: "Uluslararası Palamar" },
+  { value: "palamar_uluslararasi_yeni", label: "Uluslararası Palamar (Yeni)" },
+];
 
 // Gerçek Türkçe isim + LOCODE haritası (DB'deki ASCII isimler için override)
 const PORT_DISPLAY: Record<number, { name: string; code: string }> = {
@@ -77,7 +99,7 @@ const loadActivePortIds = (): number[] => {
 type ColDef = {
   key: string;
   label: string;
-  type?: "number" | "text" | "currency" | "year" | "textarea";
+  type?: "number" | "text" | "currency" | "year" | "textarea" | "vessel_category_select" | "service_type_select";
 };
 
 interface CategoryDef {
@@ -96,8 +118,8 @@ const CATEGORIES: CategoryDef[] = [
     icon: Navigation,
     defaultCurrency: "USD",
     columns: [
-      { key: "service_type", label: "Hizmet Türü" },
-      { key: "vessel_category", label: "Gemi Tipi" },
+      { key: "service_type", label: "Hizmet Türü", type: "service_type_select" },
+      { key: "vessel_category", label: "Gemi Tipi", type: "vessel_category_select" },
       { key: "grt_min", label: "GRT Alt", type: "number" },
       { key: "grt_max", label: "GRT Üst", type: "number" },
       { key: "base_fee", label: "Taban Ücret", type: "number" },
@@ -106,8 +128,8 @@ const CATEGORIES: CategoryDef[] = [
       { key: "valid_year", label: "Yıl", type: "year" },
     ],
     formFields: [
-      { key: "service_type", label: "Hizmet Türü (örn: kabotaj)", type: "text" },
-      { key: "vessel_category", label: "Gemi Kategorisi (örn: konteyner)", type: "text" },
+      { key: "service_type", label: "Hizmet Türü", type: "service_type_select" },
+      { key: "vessel_category", label: "Gemi Kategorisi", type: "vessel_category_select" },
       { key: "grt_min", label: "GRT Alt Sınır", type: "number" },
       { key: "grt_max", label: "GRT Üst Sınır", type: "number" },
       { key: "base_fee", label: "Taban Ücret", type: "number" },
@@ -278,6 +300,34 @@ function FormField({
       />
     );
   }
+  if (field.type === "vessel_category_select") {
+    return (
+      <Select value={value ?? ""} onValueChange={onChange}>
+        <SelectTrigger data-testid={`form-field-${field.key}`}>
+          <SelectValue placeholder="Gemi kategorisi seçin" />
+        </SelectTrigger>
+        <SelectContent>
+          {VESSEL_CATEGORY_OPTIONS.map(opt => (
+            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+  if (field.type === "service_type_select") {
+    return (
+      <Select value={value ?? ""} onValueChange={onChange}>
+        <SelectTrigger data-testid={`form-field-${field.key}`}>
+          <SelectValue placeholder="Hizmet türü seçin" />
+        </SelectTrigger>
+        <SelectContent>
+          {PILOTAGE_SERVICE_OPTIONS.map(opt => (
+            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
   if (field.type === "currency") {
     return (
       <Select value={value ?? "USD"} onValueChange={onChange}>
@@ -338,6 +388,40 @@ function InlineCell({
     return <span className="text-foreground">{readableLabel(col.key, value)}</span>;
   }
 
+  if (col.type === "vessel_category_select") {
+    return (
+      <Select
+        value={editData[col.key] ?? ""}
+        onValueChange={v => setEditData(d => ({ ...d, [col.key]: v }))}
+      >
+        <SelectTrigger className="h-7 w-52 text-xs" data-testid={`inline-${col.key}-${editData.id}`}>
+          <SelectValue placeholder="Kategori seçin" />
+        </SelectTrigger>
+        <SelectContent>
+          {VESSEL_CATEGORY_OPTIONS.map(opt => (
+            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+  if (col.type === "service_type_select") {
+    return (
+      <Select
+        value={editData[col.key] ?? ""}
+        onValueChange={v => setEditData(d => ({ ...d, [col.key]: v }))}
+      >
+        <SelectTrigger className="h-7 w-52 text-xs" data-testid={`inline-${col.key}-${editData.id}`}>
+          <SelectValue placeholder="Hizmet türü seçin" />
+        </SelectTrigger>
+        <SelectContent>
+          {PILOTAGE_SERVICE_OPTIONS.map(opt => (
+            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
   if (col.type === "currency") {
     return (
       <Select
