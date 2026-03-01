@@ -53,8 +53,8 @@ export interface IStorage {
   deleteVessel(id: number, userId: string): Promise<boolean>;
   deleteVesselById(id: number): Promise<boolean>;
 
-  getPorts(): Promise<Port[]>;
-  searchPorts(query: string): Promise<Port[]>;
+  getPorts(limit?: number): Promise<Port[]>;
+  searchPorts(query: string, countryCode?: string): Promise<Port[]>;
   getPortByCode(code: string): Promise<Port | undefined>;
   getPort(id: number): Promise<Port | undefined>;
   createPort(port: InsertPort): Promise<Port>;
@@ -242,17 +242,24 @@ export class DatabaseStorage implements IStorage {
     return true;
   }
 
-  async getPorts(): Promise<Port[]> {
-    return db.select().from(ports);
+  async getPorts(limit = 100): Promise<Port[]> {
+    return db.select().from(ports).limit(limit);
   }
 
-  async searchPorts(query: string): Promise<Port[]> {
-    return db.select().from(ports)
-      .where(or(
+  async searchPorts(query: string, countryCode?: string): Promise<Port[]> {
+    const conditions = [
+      or(
         ilike(ports.name, `%${query}%`),
         ilike(ports.code, `%${query}%`)
-      ))
-      .limit(20);
+      ),
+    ];
+    if (countryCode) {
+      conditions.push(eq(ports.country, countryCode.toUpperCase()));
+    }
+    return db.select().from(ports)
+      .where(and(...conditions))
+      .orderBy(ports.name)
+      .limit(30);
   }
 
   async getPortByCode(code: string): Promise<Port | undefined> {

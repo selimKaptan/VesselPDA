@@ -129,11 +129,12 @@ export async function registerRoutes(
   app.get("/api/ports", async (req, res) => {
     try {
       const q = req.query.q as string | undefined;
+      const country = req.query.country as string | undefined;
       if (q && q.trim().length > 0) {
-        const results = await storage.searchPorts(q.trim());
+        const results = await storage.searchPorts(q.trim(), country);
         return res.json(results);
       }
-      const ports = await storage.getPorts();
+      const ports = await storage.getPorts(100);
       res.json(ports);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch ports" });

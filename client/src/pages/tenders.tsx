@@ -157,12 +157,17 @@ function CreateTenderDialog() {
   const vesselRef = useRef<HTMLDivElement>(null);
   const q88Ref = useRef<HTMLInputElement>(null);
 
-  const { data: ports } = useQuery<any[]>({ queryKey: ["/api/ports"] });
+  const { data: portResults } = useQuery<any[]>({
+    queryKey: ["/api/ports", portSearch],
+    queryFn: async () => {
+      if (portSearch.trim().length < 2) return [];
+      const res = await fetch(`/api/ports?q=${encodeURIComponent(portSearch.trim())}`);
+      return res.json();
+    },
+    enabled: portSearch.trim().length >= 2,
+  });
+  const filteredPorts = portResults || [];
   const { data: myVessels } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
-
-  const filteredPorts = (ports || []).filter((p: any) =>
-    p.name.toLowerCase().includes(portSearch.toLowerCase())
-  ).slice(0, 50);
 
   const filteredVessels = (myVessels || []).filter((v: Vessel) =>
     v.name.toLowerCase().includes(vesselSearch.toLowerCase())
@@ -264,9 +269,9 @@ function CreateTenderDialog() {
                 onFocus={() => { if (portSearch) setShowPortDropdown(true); }}
                 data-testid="input-port-search"
               />
-              {showPortDropdown && portSearch && (
-                <div className="absolute z-50 w-full border rounded-md shadow-lg bg-popover max-h-44 overflow-y-auto divide-y mt-1">
-                  {filteredPorts.length === 0 && <p className="p-2 text-sm text-muted-foreground">No results</p>}
+              {showPortDropdown && portSearch.trim().length >= 2 && (
+                <div className="absolute z-50 w-full border rounded-md shadow-lg bg-popover max-h-52 overflow-y-auto divide-y mt-1">
+                  {filteredPorts.length === 0 && <p className="p-2 text-sm text-muted-foreground">No results — try a different name or LOCODE</p>}
                   {filteredPorts.map((p: any) => (
                     <button
                       key={p.id}
@@ -279,7 +284,10 @@ function CreateTenderDialog() {
                       }}
                       data-testid={`option-port-${p.id}`}
                     >
-                      {p.name}
+                      <span className="font-medium">{p.name}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {[p.code, p.country].filter(Boolean).join(" · ")}
+                      </span>
                     </button>
                   ))}
                 </div>

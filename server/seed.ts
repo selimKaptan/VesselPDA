@@ -2,6 +2,7 @@ import { db } from "./db";
 import { ports, tariffCategories, tariffRates, forumCategories } from "@shared/schema";
 import { eq, count } from "drizzle-orm";
 import turkishPorts from "./turkish-ports.json";
+import { seedWorldPorts } from "./seed-world-ports";
 
 async function seedTariffs(port: { id: number; name: string }, portMultiplier: number) {
   const pilotage = await db.insert(tariffCategories).values({
@@ -270,6 +271,7 @@ export async function seedDatabase() {
     } else {
       console.log("All ports already loaded.");
     }
+    await seedWorldPorts();
     return;
   }
 
@@ -295,6 +297,7 @@ export async function seedDatabase() {
   }
 
   console.log(`Database seeded successfully with ${totalInserted} Turkish ports and tariff data.`);
+  await seedWorldPorts();
 }
 
 const LOCODE_COORDS: Record<string, [number, number]> = {

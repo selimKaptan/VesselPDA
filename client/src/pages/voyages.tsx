@@ -80,7 +80,9 @@ function PortSearch({ value, onChange }: { value: string; onChange: (portId: num
               }}
             >
               <span className="font-medium">{p.name}</span>
-              {p.code && <span className="ml-2 text-xs text-muted-foreground">{p.code}</span>}
+              <span className="ml-2 text-xs text-muted-foreground">
+                {[p.code, p.country].filter(Boolean).join(" · ")}
+              </span>
             </button>
           ))}
         </div>
