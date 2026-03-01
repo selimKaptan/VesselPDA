@@ -52,6 +52,10 @@ export default function Proformas() {
   const [quickExternalVessel, setQuickExternalVessel] = useState<{ name: string; grt: number; nrt: number; flag: string; imoNumber: string } | null>(null);
   const [quickImoResult, setQuickImoResult] = useState<{ name: string; grt: number; nrt: number; flag: string; imoNumber: string } | null>(null);
   const [quickImoLoading, setQuickImoLoading] = useState(false);
+  const [quickManualGrt, setQuickManualGrt] = useState<string>("");
+  const [quickManualNrt, setQuickManualNrt] = useState<string>("");
+  const [quickManualFlag, setQuickManualFlag] = useState<string>("Panama");
+  const [quickManualVesselName, setQuickManualVesselName] = useState<string>("");
 
   const CARGO_TYPE_OPTIONS = [
     { value: "bulk_dry", label: "🌾 Dökme Kuru Yük", unit: "MT", examples: "Tahıl, kömür, cevher, gübre, hurda, çimento" },
@@ -68,8 +72,9 @@ export default function Proformas() {
   const { data: turkishPorts } = useQuery<Port[]>({ queryKey: ["/api/ports?country=Turkey"], enabled: showQuickDialog });
 
   const selectedVessel = vessels?.find(v => String(v.id) === quickVesselId);
-  const effectiveVesselFlag = quickVesselId === "external"
-    ? (quickExternalVessel?.flag || "")
+  const showManualTonnage = quickVesselId === "external" || quickVesselId === "";
+  const effectiveVesselFlag = quickVesselId === "external" || quickVesselId === ""
+    ? (quickManualFlag || "")
     : (selectedVessel?.flag || "");
   const isTurkishFlagVessel = (() => {
     const flag = effectiveVesselFlag.toLowerCase().trim();
@@ -169,9 +174,12 @@ export default function Proformas() {
   }, [turkishPorts, quickPortSearch]);
 
   const handleQuickCalculate = async () => {
-    const isExternal = quickVesselId === "external" && quickExternalVessel;
-    if (!isExternal && !quickVesselId) {
+    const useManual = quickVesselId === "external" || quickVesselId === "";
+    if (!useManual && !quickVesselId) {
       toast({ title: "Lütfen gemi seçin", variant: "destructive" }); return;
+    }
+    if (useManual && !quickManualGrt) {
+      toast({ title: "Lütfen GRT değeri girin", variant: "destructive" }); return;
     }
     if (!quickPortId) {
       toast({ title: "Lütfen liman seçin", variant: "destructive" }); return;
@@ -191,8 +199,15 @@ export default function Proformas() {
         isDangerousCargo: quickDangerous,
         voyageType: quickVoyageType,
       };
-      const payload = isExternal
-        ? { ...basePayload, vesselId: 0, externalGrt: quickExternalVessel!.grt, externalNrt: quickExternalVessel!.nrt, externalFlag: quickExternalVessel!.flag, externalVesselName: quickExternalVessel!.name }
+      const payload = useManual
+        ? {
+            ...basePayload,
+            vesselId: 0,
+            externalGrt: parseFloat(quickManualGrt) || 2000,
+            externalNrt: parseFloat(quickManualNrt) || Math.round((parseFloat(quickManualGrt) || 2000) * 0.7),
+            externalFlag: quickManualFlag || "Panama",
+            externalVesselName: quickManualVesselName || "Unknown Vessel",
+          }
         : { ...basePayload, vesselId: parseInt(quickVesselId) };
       const res = await apiRequest("POST", "/api/proformas/quick-estimate", payload);
       if (res.ok) { setQuickResult(await res.json()); }
@@ -540,7 +555,7 @@ export default function Proformas() {
           <Button
             variant="outline"
             className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/30"
-            onClick={() => { setShowQuickDialog(true); setQuickResult(null); setQuickVesselId(""); setQuickVesselSearch(""); setQuickVesselOpen(false); setQuickExternalVessel(null); setQuickImoResult(null); setQuickImoLoading(false); setQuickPortId(""); setQuickPortSearch(""); setQuickDays(3); setQuickPurpose("Discharging"); setQuickCargoType("bulk_dry"); setQuickCargoQty("5000"); setQuickCargoUnit("MT"); setQuickDangerous(false); setQuickVoyageType("international"); }}
+            onClick={() => { setShowQuickDialog(true); setQuickResult(null); setQuickVesselId(""); setQuickVesselSearch(""); setQuickVesselOpen(false); setQuickExternalVessel(null); setQuickImoResult(null); setQuickImoLoading(false); setQuickManualGrt(""); setQuickManualNrt(""); setQuickManualFlag("Panama"); setQuickManualVesselName(""); setQuickPortId(""); setQuickPortSearch(""); setQuickDays(3); setQuickPurpose("Discharging"); setQuickCargoType("bulk_dry"); setQuickCargoQty("5000"); setQuickCargoUnit("MT"); setQuickDangerous(false); setQuickVoyageType("international"); }}
             data-testid="button-quick-proforma"
           >
             <Zap className="w-4 h-4" /> Anlık Proforma Al
@@ -629,6 +644,10 @@ export default function Proformas() {
                                 onSelect={() => {
                                   setQuickVesselId(String(v.id));
                                   setQuickExternalVessel(null);
+                                  setQuickManualGrt("");
+                                  setQuickManualNrt("");
+                                  setQuickManualFlag("Panama");
+                                  setQuickManualVesselName("");
                                   setQuickVesselSearch("");
                                   setQuickVesselOpen(false);
                                 }}
@@ -654,6 +673,10 @@ export default function Proformas() {
                               onSelect={() => {
                                 setQuickVesselId("external");
                                 setQuickExternalVessel(quickImoResult);
+                                setQuickManualVesselName(quickImoResult!.name);
+                                setQuickManualGrt(quickImoResult!.grt ? String(quickImoResult!.grt) : "");
+                                setQuickManualNrt(quickImoResult!.nrt ? String(quickImoResult!.nrt) : "");
+                                setQuickManualFlag(quickImoResult!.flag || "Panama");
                                 setQuickVesselSearch("");
                                 setQuickImoResult(null);
                                 setQuickVesselOpen(false);
@@ -688,6 +711,79 @@ export default function Proformas() {
                 />
               </div>
             </div>
+
+            {/* Manuel Tonnaj Girişi — harici gemi veya gemi seçilmediğinde göster */}
+            {showManualTonnage && (
+              <div className="rounded-lg border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/40 dark:bg-blue-950/20 p-3 space-y-3">
+                <p className="text-xs font-medium text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5" />
+                  {quickVesselId === "external" ? "API'den gelen tonnaj bilgileri — düzenleyebilirsiniz" : "Gemi bilgilerini manuel girin"}
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="sm:col-span-2 space-y-1">
+                    <Label className="text-xs">Gemi Adı</Label>
+                    <Input
+                      placeholder="Örn: ALSU"
+                      value={quickManualVesselName}
+                      onChange={(e) => setQuickManualVesselName(e.target.value)}
+                      className="h-8 text-sm"
+                      data-testid="input-manual-vessel-name"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">GRT</Label>
+                    <Input
+                      type="number"
+                      placeholder="Örn: 8000"
+                      value={quickManualGrt}
+                      onChange={(e) => setQuickManualGrt(e.target.value)}
+                      className="h-8 text-sm"
+                      min={0}
+                      data-testid="input-manual-grt"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">NRT</Label>
+                    <Input
+                      type="number"
+                      placeholder="Örn: 6000"
+                      value={quickManualNrt}
+                      onChange={(e) => setQuickManualNrt(e.target.value)}
+                      className="h-8 text-sm"
+                      min={0}
+                      data-testid="input-manual-nrt"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Bayrak (Flag)</Label>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                    {["Turkey", "Panama", "Malta", "Marshall Islands", "Liberia", "Bahamas"].map(flag => (
+                      <button
+                        key={flag}
+                        type="button"
+                        onClick={() => setQuickManualFlag(flag)}
+                        className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                          quickManualFlag === flag
+                            ? "bg-blue-600 text-white border-blue-600"
+                            : "border-input bg-background hover:bg-muted text-muted-foreground"
+                        }`}
+                        data-testid={`button-flag-${flag.toLowerCase().replace(/\s+/g, "-")}`}
+                      >
+                        {flag}
+                      </button>
+                    ))}
+                  </div>
+                  <Input
+                    placeholder="Farklı bayrak yazın..."
+                    value={quickManualFlag}
+                    onChange={(e) => setQuickManualFlag(e.target.value)}
+                    className="h-7 text-xs mt-1"
+                    data-testid="input-manual-flag"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Sefer Tipi - only for Turkish flag vessels */}
             {isTurkishFlagVessel && (
@@ -868,7 +964,7 @@ export default function Proformas() {
             <Button
               className="w-full gap-2"
               onClick={handleQuickCalculate}
-              disabled={quickLoading || (!quickVesselId && !quickExternalVessel) || !quickPortId}
+              disabled={quickLoading || (!quickVesselId && !quickManualGrt) || !quickPortId}
               data-testid="button-calculate-quick"
             >
               {quickLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
