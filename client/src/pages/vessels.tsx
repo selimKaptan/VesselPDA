@@ -688,9 +688,6 @@ export default function Vessels() {
   const [crewDeleteTarget, setCrewDeleteTarget] = useState<{ id: number; vesselId: number } | null>(null);
   const [crewForm, setCrewForm] = useState({ ...defaultCrewForm });
   const [crewFileUploading, setCrewFileUploading] = useState<{ id: number; field: "passport" | "seamansBook" } | null>(null);
-  const crewPassportInputRef = useRef<HTMLInputElement>(null);
-  const crewSeamansBookInputRef = useRef<HTMLInputElement>(null);
-  const [crewFileTarget, setCrewFileTarget] = useState<{ id: number; vesselId: number; field: "passport" | "seamansBook" } | null>(null);
   const [location] = useLocation();
 
   useEffect(() => {
@@ -859,33 +856,6 @@ export default function Vessels() {
     } finally {
       setCertDownloadingAll(false);
     }
-  };
-
-  const handleCrewFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!crewFileTarget) return;
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const { id, vesselId, field } = crewFileTarget;
-    setCrewFileUploading({ id, field });
-    try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64 = reader.result as string;
-        const payload = field === "passport"
-          ? { passportFileBase64: base64, passportFileName: file.name }
-          : { seamansBookFileBase64: base64, seamansBookFileName: file.name };
-        await apiRequest("PATCH", `/api/vessels/${vesselId}/crew/${id}`, payload);
-        queryClient.invalidateQueries({ queryKey: ["/api/vessels", vesselId, "crew"] });
-        toast({ title: field === "passport" ? "Passport uploaded" : "Seaman's Book uploaded" });
-        setCrewFileUploading(null);
-        setCrewFileTarget(null);
-      };
-      reader.readAsDataURL(file);
-    } catch {
-      toast({ title: "Upload failed", variant: "destructive" });
-      setCrewFileUploading(null);
-    }
-    e.target.value = "";
   };
 
   const handleCrewFileRemove = async (member: any, field: "passport" | "seamansBook") => {
@@ -1507,9 +1477,6 @@ export default function Vessels() {
                   {/* ── Mürettebat ── */}
                   {detailTab === "crew" && (
                     <div className="space-y-3">
-                      {/* Hidden crew document file inputs — must live inside crew tab so refs are mounted */}
-                      <input ref={crewPassportInputRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleCrewFileUpload} />
-                      <input ref={crewSeamansBookInputRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleCrewFileUpload} />
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Activity className="w-4 h-4 text-primary" />
@@ -1617,11 +1584,24 @@ export default function Vessels() {
                                                 <X className="w-3 h-3" />
                                               </Button>
                                             </div>
-                                          : <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground/40 hover:text-primary" title="Upload passport PDF"
-                                              onClick={() => { setCrewFileTarget({ id: member.id, vesselId: v.id, field: "passport" }); setTimeout(() => crewPassportInputRef.current?.click(), 30); }}
-                                              data-testid={`button-upload-passport-${member.id}`}>
+                                          : <label className="cursor-pointer inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/40 hover:text-primary hover:bg-accent transition-colors" title="Upload passport PDF" data-testid={`button-upload-passport-${member.id}`}>
+                                              <input type="file" accept=".pdf,application/pdf" className="hidden" onChange={async (e) => {
+                                                const file = e.target.files?.[0]; if (!file) return;
+                                                setCrewFileUploading({ id: member.id, field: "passport" });
+                                                try {
+                                                  const reader = new FileReader();
+                                                  reader.onload = async () => {
+                                                    await apiRequest("PATCH", `/api/vessels/${v.id}/crew/${member.id}`, { passportFileBase64: reader.result, passportFileName: file.name });
+                                                    queryClient.invalidateQueries({ queryKey: ["/api/vessels", v.id, "crew"] });
+                                                    toast({ title: "Passport uploaded" });
+                                                    setCrewFileUploading(null);
+                                                  };
+                                                  reader.readAsDataURL(file);
+                                                } catch { toast({ title: "Upload failed", variant: "destructive" }); setCrewFileUploading(null); }
+                                                e.target.value = "";
+                                              }} />
                                               <Upload className="w-3 h-3" />
-                                            </Button>
+                                            </label>
                                       }
                                     </td>
                                     <td className="px-3 py-2.5 whitespace-nowrap">
@@ -1648,11 +1628,24 @@ export default function Vessels() {
                                                 <X className="w-3 h-3" />
                                               </Button>
                                             </div>
-                                          : <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground/40 hover:text-primary" title="Upload seaman's book PDF"
-                                              onClick={() => { setCrewFileTarget({ id: member.id, vesselId: v.id, field: "seamansBook" }); setTimeout(() => crewSeamansBookInputRef.current?.click(), 30); }}
-                                              data-testid={`button-upload-seamansbook-${member.id}`}>
+                                          : <label className="cursor-pointer inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/40 hover:text-primary hover:bg-accent transition-colors" title="Upload seaman's book PDF" data-testid={`button-upload-seamansbook-${member.id}`}>
+                                              <input type="file" accept=".pdf,application/pdf" className="hidden" onChange={async (e) => {
+                                                const file = e.target.files?.[0]; if (!file) return;
+                                                setCrewFileUploading({ id: member.id, field: "seamansBook" });
+                                                try {
+                                                  const reader = new FileReader();
+                                                  reader.onload = async () => {
+                                                    await apiRequest("PATCH", `/api/vessels/${v.id}/crew/${member.id}`, { seamansBookFileBase64: reader.result, seamansBookFileName: file.name });
+                                                    queryClient.invalidateQueries({ queryKey: ["/api/vessels", v.id, "crew"] });
+                                                    toast({ title: "Seaman's Book uploaded" });
+                                                    setCrewFileUploading(null);
+                                                  };
+                                                  reader.readAsDataURL(file);
+                                                } catch { toast({ title: "Upload failed", variant: "destructive" }); setCrewFileUploading(null); }
+                                                e.target.value = "";
+                                              }} />
                                               <Upload className="w-3 h-3" />
-                                            </Button>
+                                            </label>
                                       }
                                     </td>
                                     <td className="px-3 py-2.5">
