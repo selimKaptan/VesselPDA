@@ -319,16 +319,20 @@ const CATEGORIES: CategoryDef[] = [
     key: "chamber_freight_share",
     label: "Chamber of Shipping (Freight Share)",
     icon: BarChart2,
-    defaultCurrency: "EUR",
+    defaultCurrency: "USD",
     columns: [
-      { key: "percentage", label: "Percentage (%)", type: "number" },
-      { key: "min_fee", label: "Min Fee", type: "number" },
+      { key: "flag_category", label: "Flag", type: "flag_category_select" },
+      { key: "cargo_min", label: "Cargo Min (MT)", type: "number" },
+      { key: "cargo_max", label: "Cargo Max (MT)", type: "number" },
+      { key: "fee", label: "Fee (USD)", type: "number" },
       { key: "currency", label: "CCY", type: "currency" },
       { key: "valid_year", label: "Year", type: "year" },
     ],
     formFields: [
-      { key: "percentage", label: "Percentage (%)", type: "number" },
-      { key: "min_fee", label: "Minimum Fee", type: "number" },
+      { key: "flag_category", label: "Flag Category", type: "flag_category_select" },
+      { key: "cargo_min", label: "Cargo Min (MT)", type: "number" },
+      { key: "cargo_max", label: "Cargo Max (MT)", type: "number" },
+      { key: "fee", label: "Fee (USD)", type: "number" },
       { key: "currency", label: "Currency", type: "currency" },
       { key: "valid_year", label: "Valid Year", type: "year" },
       { key: "notes", label: "Notes", type: "textarea" },
@@ -759,7 +763,7 @@ function CategorySection({
       } else if (cat.key === "chamber_of_shipping_fees") {
         Object.assign(payload, { flag_category: alan1 || "turkish", gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "chamber_freight_share") {
-        Object.assign(payload, { percentage: numOrNull(f1), min_fee: numOrNull(f2), currency, valid_year: parseInt(year), notes });
+        Object.assign(payload, { flag_category: alan1 || "foreign", cargo_min: numOrNull(rMin), cargo_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "harbour_master_dues") {
         Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "sanitary_dues") {
@@ -1361,7 +1365,7 @@ export default function TariffManagement() {
       } else if (tableKey === "chamber_of_shipping_fees") {
         Object.assign(payload, { flag_category: alan1 || "turkish", gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "chamber_freight_share") {
-        Object.assign(payload, { percentage: numOrNull(f1), min_fee: numOrNull(f2), currency, valid_year: parseInt(year), notes });
+        Object.assign(payload, { flag_category: alan1 || "foreign", cargo_min: numOrNull(rMin), cargo_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "harbour_master_dues") {
         Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "sanitary_dues") {

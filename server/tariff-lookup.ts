@@ -217,6 +217,34 @@ export async function lookupLcbFee(
   }
 }
 
+export async function lookupChamberFreightShareFee(
+  pool: Pool,
+  portId: number,
+  cargoQty: number,
+  flagCategory: VesselCategory
+): Promise<LookupResult> {
+  // Turkish and cabotage vessels are exempt — return 0 immediately
+  if (flagCategory === "turkish_intl" || flagCategory === "turkish_cabotage") {
+    return { fee: 0, source: "database" };
+  }
+  if (cargoQty <= 0) return { fee: 0, source: "database" };
+  try {
+    const result = await pool.query(
+      `SELECT fee, currency FROM chamber_freight_share
+       WHERE (port_id = $1 OR port_id IS NULL)
+         AND flag_category IN ('foreign', 'all')
+         AND cargo_min <= $2
+       ORDER BY (CASE WHEN port_id = $1 THEN 0 ELSE 1 END), cargo_min DESC LIMIT 1`,
+      [portId, cargoQty]
+    );
+    if (result.rows.length === 0) return { fee: 0, source: "fallback" };
+    const fee = parseFloat(result.rows[0].fee || "0");
+    return { fee: Math.round(fee * 100) / 100, source: "database" };
+  } catch {
+    return { fee: 0, source: "fallback" };
+  }
+}
+
 export async function lookupSanitaryDuesFee(
   pool: Pool,
   portId: number,

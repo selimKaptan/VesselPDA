@@ -23,6 +23,7 @@ export interface CalculationInput {
   dbMarpolFee?: number;
   dbLcbFee?: number;
   dbSanitaryFee?: number;
+  dbChamberFreightShareFee?: number;
 }
 
 export interface CalculatedLineItem {
@@ -297,8 +298,11 @@ function calcChamberOfShipping(input: CalculationInput): number {
 }
 
 function calcChamberFreightShare(input: CalculationInput): number {
-  const { cargoQuantity } = input;
+  const { cargoQuantity, flagCategory } = input;
   if (cargoQuantity <= 0) return 0;
+  // Only charged to foreign-flagged vessels
+  if (flagCategory === "turkish" || flagCategory === "cabotage") return 0;
+  if (input.dbChamberFreightShareFee != null && input.dbChamberFreightShareFee > 0) return input.dbChamberFreightShareFee;
   const row = vlookup(cargoQuantity, DTO_FREIGHT_TABLE, "minCargo");
   return row.rate;
 }
