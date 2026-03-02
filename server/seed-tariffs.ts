@@ -311,6 +311,38 @@ export async function ensureNewTariffTables() {
       )
     `);
 
+    const { rows: vtsCheck } = await client.query("SELECT COUNT(*)::int AS cnt FROM vts_fees");
+    if (vtsCheck[0].cnt === 0) {
+      await client.query(`
+        INSERT INTO vts_fees (port_id, service_name, fee, unit, currency, valid_year, notes) VALUES
+          (NULL, 'Foreign Flagged Commercial – 300-2,000 NT',     92.40,    'per call', 'USD', 2026, 'TABLO 1 – Official 2026 rate'),
+          (NULL, 'Foreign Flagged Commercial – 2,001-5,000 NT',   184.80,   'per call', 'USD', 2026, 'TABLO 1 – Official 2026 rate'),
+          (NULL, 'Foreign Flagged Commercial – 5,001-10,000 NT',  346.50,   'per call', 'USD', 2026, 'TABLO 1 – Official 2026 rate'),
+          (NULL, 'Foreign Flagged Commercial – 10,001-20,000 NT', 519.75,   'per call', 'USD', 2026, 'TABLO 1 – Official 2026 rate'),
+          (NULL, 'Foreign Flagged Commercial – 20,001-50,000 NT', 693.00,   'per call', 'USD', 2026, 'TABLO 1 – Official 2026 rate'),
+          (NULL, 'Foreign Flagged Commercial – 50,001+ NT',       1039.50,  'per call', 'USD', 2026, 'TABLO 1 – Official 2026 rate'),
+          (NULL, 'Foreign Flagged Passenger – 300-2,000 NT',      70.40,    'per call', 'USD', 2026, 'TABLO 2 – Official 2026 rate'),
+          (NULL, 'Foreign Flagged Passenger – 2,001-5,000 NT',    140.80,   'per call', 'USD', 2026, 'TABLO 2 – Official 2026 rate'),
+          (NULL, 'Foreign Flagged Passenger – 5,001-10,000 NT',   264.00,   'per call', 'USD', 2026, 'TABLO 2 – Official 2026 rate'),
+          (NULL, 'Foreign Flagged Passenger – 10,001-20,000 NT',  396.00,   'per call', 'USD', 2026, 'TABLO 2 – Official 2026 rate'),
+          (NULL, 'Foreign Flagged Passenger – 20,001-50,000 NT',  528.00,   'per call', 'USD', 2026, 'TABLO 2 – Official 2026 rate'),
+          (NULL, 'Foreign Flagged Passenger – 50,001+ NT',        792.00,   'per call', 'USD', 2026, 'TABLO 2 – Official 2026 rate'),
+          (NULL, 'Turkish Flagged International – 300-2,000 NT',     23.10,     'per call', 'USD', 2026, 'TABLO 3 – Official 2026 rate'),
+          (NULL, 'Turkish Flagged International – 2,001-5,000 NT',   46.20,     'per call', 'USD', 2026, 'TABLO 3 – Official 2026 rate'),
+          (NULL, 'Turkish Flagged International – 5,001-10,000 NT',  86.625,    'per call', 'USD', 2026, 'TABLO 3 – Official 2026 rate'),
+          (NULL, 'Turkish Flagged International – 10,001-20,000 NT', 129.9375,  'per call', 'USD', 2026, 'TABLO 3 – Official 2026 rate'),
+          (NULL, 'Turkish Flagged International – 20,001-50,000 NT', 173.25,    'per call', 'USD', 2026, 'TABLO 3 – Official 2026 rate'),
+          (NULL, 'Turkish Flagged International – 50,001+ NT',       259.875,   'per call', 'USD', 2026, 'TABLO 3 – Official 2026 rate'),
+          (NULL, 'Turkish Cabotage – 300-2,000 NT',     8.40,   'per call', 'USD', 2026, 'TABLO 4 – Official 2026 rate'),
+          (NULL, 'Turkish Cabotage – 2,001-5,000 NT',   16.80,  'per call', 'USD', 2026, 'TABLO 4 – Official 2026 rate'),
+          (NULL, 'Turkish Cabotage – 5,001-10,000 NT',  31.50,  'per call', 'USD', 2026, 'TABLO 4 – Official 2026 rate'),
+          (NULL, 'Turkish Cabotage – 10,001-20,000 NT', 47.25,  'per call', 'USD', 2026, 'TABLO 4 – Official 2026 rate'),
+          (NULL, 'Turkish Cabotage – 20,001-50,000 NT', 63.00,  'per call', 'USD', 2026, 'TABLO 4 – Official 2026 rate'),
+          (NULL, 'Turkish Cabotage – 50,001+ NT',       94.50,  'per call', 'USD', 2026, 'TABLO 4 – Official 2026 rate')
+      `);
+      console.log("[tariff-tables] Seeded 24 VTS fee rows.");
+    }
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS custom_tariff_sections (
         id SERIAL PRIMARY KEY,
