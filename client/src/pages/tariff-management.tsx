@@ -1476,7 +1476,7 @@ function CustomCategorySection({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function TariffManagement() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const userRole = (user as any)?.userRole;
@@ -1517,7 +1517,15 @@ export default function TariffManagement() {
     onError: () => toast({ title: "Error", description: "Failed to create section", variant: "destructive" }),
   });
 
-  if (userRole && userRole !== "admin") {
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!user || userRole !== "admin") {
     navigate("/dashboard");
     return null;
   }
