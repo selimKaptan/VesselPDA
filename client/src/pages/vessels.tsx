@@ -1336,22 +1336,20 @@ export default function Vessels() {
                             {vesselCerts.filter((c: any) => c.fileBase64).length}/{VESSEL_CERT_TYPES.length} uploaded
                           </Badge>
                         </div>
-                        {vesselCerts.some((c: any) => c.fileBase64) && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-1.5 text-xs h-7"
-                            onClick={() => handleDownloadAllCerts(v.name || "vessel")}
-                            disabled={certDownloadingAll}
-                            data-testid="button-download-all-certs"
-                          >
-                            {certDownloadingAll ? (
-                              <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Creating ZIP...</>
-                            ) : (
-                              <><Download className="w-3.5 h-3.5" /> Download All</>
-                            )}
-                          </Button>
-                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5 text-xs h-7"
+                          onClick={() => handleDownloadAllCerts(v.name || "vessel")}
+                          disabled={certDownloadingAll || !vesselCerts.some((c: any) => c.fileBase64)}
+                          data-testid="button-download-all-certs"
+                        >
+                          {certDownloadingAll ? (
+                            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Creating ZIP...</>
+                          ) : (
+                            <><Download className="w-3.5 h-3.5" /> Download All</>
+                          )}
+                        </Button>
                       </div>
 
                       {/* Hidden shared file input */}
@@ -1368,9 +1366,6 @@ export default function Vessels() {
                           }
                         }}
                       />
-                      {/* Hidden crew document inputs */}
-                      <input ref={crewPassportInputRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleCrewFileUpload} />
-                      <input ref={crewSeamansBookInputRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleCrewFileUpload} />
 
                       {certsLoading ? (
                         <div className="flex justify-center py-8">
@@ -1512,6 +1507,9 @@ export default function Vessels() {
                   {/* ── Mürettebat ── */}
                   {detailTab === "crew" && (
                     <div className="space-y-3">
+                      {/* Hidden crew document file inputs — must live inside crew tab so refs are mounted */}
+                      <input ref={crewPassportInputRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleCrewFileUpload} />
+                      <input ref={crewSeamansBookInputRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleCrewFileUpload} />
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Activity className="w-4 h-4 text-primary" />
