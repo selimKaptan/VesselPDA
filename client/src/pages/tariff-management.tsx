@@ -24,6 +24,9 @@ import {
 
 // ── Human-readable label maps ────────────────────────────────────────────────
 const SERVICE_LABELS: Record<string, string> = {
+  turkish: "Turkish Flag",
+  foreign: "Foreign Flag",
+  all: "All Vessels",
   kabotaj: "Cabotage Pilotage",
   kabotaj_yeni: "Cabotage Pilotage (New)",
   uluslararasi: "International Pilotage",
@@ -54,6 +57,12 @@ const VESSEL_CATEGORY_OPTIONS = [
   { value: "konteyner", label: "Container Vessels" },
   { value: "diger_yuk", label: "Other Cargo Vessels" },
   { value: "yolcu_feribot_roro_car_carrier", label: "Passenger Ferry / Ro-Ro / Car Carrier" },
+];
+
+const FLAG_CATEGORY_OPTIONS = [
+  { value: "turkish", label: "Turkish Flag" },
+  { value: "foreign", label: "Foreign Flag" },
+  { value: "all",     label: "All Vessels" },
 ];
 
 const PILOTAGE_SERVICE_OPTIONS = [
@@ -100,7 +109,7 @@ const loadActivePortIds = (): number[] => {
 type ColDef = {
   key: string;
   label: string;
-  type?: "number" | "text" | "currency" | "year" | "textarea" | "vessel_category_select" | "service_type_select";
+  type?: "number" | "text" | "currency" | "year" | "textarea" | "vessel_category_select" | "service_type_select" | "flag_category_select";
 };
 
 interface CategoryDef {
@@ -287,8 +296,9 @@ const CATEGORIES: CategoryDef[] = [
     key: "chamber_of_shipping_fees",
     label: "Chamber of Shipping Fee",
     icon: Briefcase,
-    defaultCurrency: "EUR",
+    defaultCurrency: "TRY",
     columns: [
+      { key: "flag_category", label: "Flag", type: "flag_category_select" },
       { key: "gt_min", label: "GT Min", type: "number" },
       { key: "gt_max", label: "GT Max", type: "number" },
       { key: "fee", label: "Fee", type: "number" },
@@ -296,6 +306,7 @@ const CATEGORIES: CategoryDef[] = [
       { key: "valid_year", label: "Year", type: "year" },
     ],
     formFields: [
+      { key: "flag_category", label: "Flag Category", type: "flag_category_select" },
       { key: "gt_min", label: "GT Min", type: "number" },
       { key: "gt_max", label: "GT Max", type: "number" },
       { key: "fee", label: "Fee", type: "number" },
@@ -428,6 +439,20 @@ function FormField({
       </Select>
     );
   }
+  if (field.type === "flag_category_select") {
+    return (
+      <Select value={value ?? "turkish"} onValueChange={onChange}>
+        <SelectTrigger data-testid={`form-field-${field.key}`}>
+          <SelectValue placeholder="Select flag category" />
+        </SelectTrigger>
+        <SelectContent>
+          {FLAG_CATEGORY_OPTIONS.map(opt => (
+            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
   if (field.type === "currency") {
     return (
       <Select value={value ?? "USD"} onValueChange={onChange}>
@@ -516,6 +541,23 @@ function InlineCell({
         </SelectTrigger>
         <SelectContent>
           {PILOTAGE_SERVICE_OPTIONS.map(opt => (
+            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+  if (col.type === "flag_category_select") {
+    return (
+      <Select
+        value={editData[col.key] ?? "turkish"}
+        onValueChange={v => setEditData(d => ({ ...d, [col.key]: v }))}
+      >
+        <SelectTrigger className="h-7 w-40 text-xs" data-testid={`inline-${col.key}-${editData.id}`}>
+          <SelectValue placeholder="Select flag" />
+        </SelectTrigger>
+        <SelectContent>
+          {FLAG_CATEGORY_OPTIONS.map(opt => (
             <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
           ))}
         </SelectContent>
@@ -715,7 +757,7 @@ function CategorySection({
       } else if (cat.key === "light_dues") {
         Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "chamber_of_shipping_fees") {
-        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+        Object.assign(payload, { flag_category: alan1 || "turkish", gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "chamber_freight_share") {
         Object.assign(payload, { percentage: numOrNull(f1), min_fee: numOrNull(f2), currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "harbour_master_dues") {
@@ -1317,7 +1359,7 @@ export default function TariffManagement() {
       } else if (tableKey === "light_dues") {
         Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "chamber_of_shipping_fees") {
-        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+        Object.assign(payload, { flag_category: alan1 || "turkish", gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "chamber_freight_share") {
         Object.assign(payload, { percentage: numOrNull(f1), min_fee: numOrNull(f2), currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "harbour_master_dues") {
