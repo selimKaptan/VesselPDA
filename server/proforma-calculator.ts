@@ -24,6 +24,7 @@ export interface CalculationInput {
   dbLcbFee?: number;
   dbSanitaryFee?: number;
   dbChamberFreightShareFee?: number;
+  dbLightDuesFee?: number;
 }
 
 export interface CalculatedLineItem {
@@ -256,6 +257,7 @@ function calcOtoService(input: CalculationInput): number {
 }
 
 function calcLightDues(input: CalculationInput): number {
+  if (input.dbLightDuesFee != null && input.dbLightDuesFee > 0) return input.dbLightDuesFee;
   const { nrt, lighthouseCategory } = input;
   let rate1: number, rate2: number;
   if (lighthouseCategory === "foreign") {

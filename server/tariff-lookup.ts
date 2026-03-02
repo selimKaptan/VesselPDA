@@ -267,3 +267,36 @@ export async function lookupSanitaryDuesFee(
     return { fee: 0, source: "fallback" };
   }
 }
+
+export async function lookupLightDuesFee(
+  pool: Pool,
+  portId: number,
+  nrt: number,
+  vesselCategory: VesselCategory
+): Promise<LookupResult> {
+  try {
+    const categoryMap: Record<VesselCategory, string> = {
+      foreign_intl: "Foreign Flagged Commercial",
+      turkish_intl: "Turkish Flagged International",
+      turkish_cabotage: "Turkish Cabotage",
+    };
+    const dbCategory = categoryMap[vesselCategory];
+    const result = await pool.query(
+      `SELECT rate_up_to_800, rate_above_800 FROM light_dues
+       WHERE service_type = 'Lighthouse Fee'
+         AND service_desc = 'Port Entry'
+         AND vessel_category = $1
+         AND (port_id = $2 OR port_id IS NULL)
+       ORDER BY (CASE WHEN port_id = $2 THEN 0 ELSE 1 END) LIMIT 1`,
+      [dbCategory, portId]
+    );
+    if (result.rows.length === 0) return { fee: 0, source: "fallback" };
+    const rateUp = parseFloat(result.rows[0].rate_up_to_800 || "0");
+    const rateAbove = parseFloat(result.rows[0].rate_above_800 || "0");
+    if (!rateUp) return { fee: 0, source: "fallback" };
+    const fee = (Math.min(nrt, 800) * rateUp + Math.max(0, nrt - 800) * rateAbove) * 2;
+    return { fee: Math.round(fee * 100) / 100, source: "database" };
+  } catch {
+    return { fee: 0, source: "fallback" };
+  }
+}

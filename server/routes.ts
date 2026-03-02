@@ -8,7 +8,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated, registerAuthRoutes, authStorage } from "./replit_integrations/auth";
 import type { ProformaLineItem } from "@shared/schema";
 import { calculateProforma, type CalculationInput } from "./proforma-calculator";
-import { lookupPilotageFee, lookupTugboatFee, lookupMooringFee, lookupBerthingFee, lookupAgencyFee, lookupMarpolFee, lookupLcbFee, lookupSanitaryDuesFee, lookupChamberFreightShareFee, type VesselCategory } from "./tariff-lookup";
+import { lookupPilotageFee, lookupTugboatFee, lookupMooringFee, lookupBerthingFee, lookupAgencyFee, lookupMarpolFee, lookupLcbFee, lookupSanitaryDuesFee, lookupChamberFreightShareFee, lookupLightDuesFee, type VesselCategory } from "./tariff-lookup";
 import { startAISStream, getPositions, searchVessels, isConnected, getCacheSize } from "./ais-stream";
 import { geocodeStats } from "./geocode-ports";
 import { checkSanctions, getSanctionsStatus, loadSanctionsList } from "./sanctions";
@@ -426,15 +426,41 @@ export async function registerRoutes(
       const eurRate = Number(eurTryRate) || 51.73;
       const eurUsdParity = eurRate / usdRate;
 
+      const berthDaysNum = Number(berthStayDays) || 5;
+      const dangerous = isDangerousCargo === true || isDangerousCargo === "true";
+      const portIdNum = Number(portId);
+      const nrt = vessel.nrt || 1000;
+      const grt = vessel.grt || 2000;
+      const cargoQtyNum = cargoQuantity ? Number(cargoQuantity) : 0;
+
+      const flagCat = (flagCategory || "turkish") as "turkish" | "foreign" | "cabotage";
+      let vesselCat: VesselCategory;
+      if (flagCat === "foreign") vesselCat = "foreign_intl";
+      else if (flagCat === "cabotage") vesselCat = "turkish_cabotage";
+      else vesselCat = "turkish_intl";
+
+      const [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues, chamberFreightShare, lightDues] = await Promise.all([
+        lookupPilotageFee(pool, portIdNum, grt, vesselCat, dangerous),
+        lookupTugboatFee(pool, portIdNum, grt, vesselCat, dangerous),
+        lookupMooringFee(pool, portIdNum, grt, dangerous),
+        lookupBerthingFee(pool, portIdNum, grt, vesselCat, berthDaysNum),
+        lookupAgencyFee(pool, portIdNum, nrt, eurUsdParity, berthDaysNum),
+        lookupMarpolFee(pool, portIdNum, grt, eurUsdParity),
+        lookupLcbFee(pool, portIdNum, nrt, usdRate),
+        lookupSanitaryDuesFee(pool, portIdNum, nrt, usdRate),
+        lookupChamberFreightShareFee(pool, portIdNum, cargoQtyNum, vesselCat),
+        lookupLightDuesFee(pool, portIdNum, nrt, vesselCat),
+      ]);
+
       const calcInput: CalculationInput = {
-        nrt: vessel.nrt,
-        grt: vessel.grt,
-        cargoQuantity: cargoQuantity ? Number(cargoQuantity) : 0,
-        berthStayDays: Number(berthStayDays) || 5,
+        nrt,
+        grt,
+        cargoQuantity: cargoQtyNum,
+        berthStayDays: berthDaysNum,
         anchorageDays: Number(anchorageDays) || 0,
-        isDangerousCargo: isDangerousCargo === true || isDangerousCargo === "true",
+        isDangerousCargo: dangerous,
         customsType: customsType || "import",
-        flagCategory: flagCategory || "turkish",
+        flagCategory: flagCat,
         dtoCategory: dtoCategory || "turkish",
         lighthouseCategory: lighthouseCategory || "turkish",
         vtsCategory: vtsCategory || "turkish",
@@ -442,14 +468,28 @@ export async function registerRoutes(
         usdTryRate: usdRate,
         eurTryRate: eurRate,
         eurUsdParity,
+        dbPilotageFee: pilotage.fee || undefined,
+        dbTugboatFee: tugboat.fee || undefined,
+        dbMooringFee: mooring.fee || undefined,
+        dbBerthingFee: berthing.fee || undefined,
+        dbAgencyFee: agency.fee || undefined,
+        dbMarpolFee: marpol.fee || undefined,
+        dbLcbFee: lcb.fee || undefined,
+        dbSanitaryFee: sanitaryDues.fee || undefined,
+        dbChamberFreightShareFee: chamberFreightShare.fee || undefined,
+        dbLightDuesFee: lightDues.fee || undefined,
       };
 
       const result = calculateProforma(calcInput);
+      const dbSources = [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues, chamberFreightShare, lightDues];
+      const tariffSource = dbSources.some(r => r.source === "database") ? "database" : "estimate";
+
       res.json({
         lineItems: result.lineItems,
         totalUsd: result.totalUsd,
         totalEur: result.totalEur,
         eurUsdParity: Math.round(eurUsdParity * 1000000) / 1000000,
+        tariffSource,
       });
     } catch (error) {
       console.error("Calculate error:", error);
@@ -554,7 +594,7 @@ export async function registerRoutes(
       const dangerous = isDangerousCargo === true || isDangerousCargo === "true";
       const portIdNum = Number(portId);
 
-      const [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues, chamberFreightShare] = await Promise.all([
+      const [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues, chamberFreightShare, lightDues] = await Promise.all([
         lookupPilotageFee(pool, portIdNum, grt, vesselCat, dangerous),
         lookupTugboatFee(pool, portIdNum, grt, vesselCat, dangerous),
         lookupMooringFee(pool, portIdNum, grt, dangerous),
@@ -564,9 +604,10 @@ export async function registerRoutes(
         lookupLcbFee(pool, portIdNum, nrt, usdTryRate),
         lookupSanitaryDuesFee(pool, portIdNum, nrt, usdTryRate),
         lookupChamberFreightShareFee(pool, portIdNum, Number(cargoQuantity) || 5000, vesselCat),
+        lookupLightDuesFee(pool, portIdNum, nrt, vesselCat),
       ]);
 
-      const dbSources = [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues, chamberFreightShare];
+      const dbSources = [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues, chamberFreightShare, lightDues];
       const anyFromDb = dbSources.some(r => r.source === "database");
       const tariffSource = anyFromDb ? "database" : "estimate";
 
@@ -603,6 +644,7 @@ export async function registerRoutes(
         dbLcbFee: lcb.fee || undefined,
         dbSanitaryFee: sanitaryDues.fee || undefined,
         dbChamberFreightShareFee: chamberFreightShare.fee || undefined,
+        dbLightDuesFee: lightDues.fee || undefined,
       };
 
       const result = calculateProforma(calcInput);
@@ -630,6 +672,7 @@ export async function registerRoutes(
           lcb: lcb.source,
           sanitaryDues: sanitaryDues.source,
           chamberFreightShare: chamberFreightShare.source,
+          lightDues: lightDues.source,
         },
       });
     } catch (error) {
