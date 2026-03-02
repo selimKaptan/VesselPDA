@@ -1499,113 +1499,104 @@ export default function Vessels() {
                           <Activity className="w-10 h-10 mx-auto mb-2 opacity-30" />
                           <p className="text-sm">No crew members added yet</p>
                         </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {vesselCrewList.map((member: any) => {
-                            const now = new Date();
-                            const warn30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-                            const dateStatus = (dt: string | null) => {
-                              if (!dt) return null;
-                              const d = new Date(dt);
-                              if (d < now) return "expired";
-                              if (d < warn30) return "warning";
-                              return "ok";
-                            };
-                            const contractStatus = dateStatus(member.contractEndDate);
-                            const passStatus = dateStatus(member.passportExpiry);
-                            const sbStatus = dateStatus(member.seamansBookExpiry);
-
-                            const statusColor = (s: string | null) =>
-                              s === "expired" ? "text-red-600 dark:text-red-400" :
-                              s === "warning" ? "text-amber-600 dark:text-amber-400" :
-                              "text-muted-foreground";
-
-                            return (
-                              <div
-                                key={member.id}
-                                className="rounded-xl border bg-muted/20 p-3 space-y-2"
-                                data-testid={`crew-item-${member.id}`}
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="space-y-1.5 flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="text-sm font-bold">{member.firstName} {member.lastName}</span>
-                                      {member.rank && (
-                                        <Badge className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                                          {member.rank}
-                                        </Badge>
-                                      )}
-                                      {member.nationality && (
-                                        <span className="text-[11px] text-muted-foreground">{member.nationality}</span>
-                                      )}
-                                    </div>
-                                    <div className="grid grid-cols-1 gap-1 text-[11px]">
-                                      {member.contractEndDate && (
-                                        <div className={`flex items-center gap-1.5 ${statusColor(contractStatus)}`}>
-                                          <Calendar className="w-3 h-3 shrink-0" />
-                                          <span>Contract End: {fmtDate(member.contractEndDate)}</span>
-                                          {contractStatus === "expired" && <span className="font-semibold">(Expired)</span>}
-                                          {contractStatus === "warning" && <span className="font-semibold">(Expiring Soon)</span>}
-                                        </div>
-                                      )}
-                                      {(member.passportNumber || member.passportExpiry) && (
-                                        <div className={`flex items-center gap-1.5 ${statusColor(passStatus)}`}>
-                                          <FileText className="w-3 h-3 shrink-0" />
-                                          <span>Passport{member.passportNumber ? ` No: ${member.passportNumber}` : ""}{member.passportExpiry ? ` · Exp: ${fmtDate(member.passportExpiry)}` : ""}</span>
-                                          {passStatus === "expired" && <span className="font-semibold">(Expired)</span>}
-                                          {passStatus === "warning" && <span className="font-semibold">(Expiring Soon)</span>}
-                                        </div>
-                                      )}
-                                      {(member.seamansBookNumber || member.seamansBookExpiry) && (
-                                        <div className={`flex items-center gap-1.5 ${statusColor(sbStatus)}`}>
-                                          <FileText className="w-3 h-3 shrink-0" />
-                                          <span>Seaman's Book{member.seamansBookNumber ? ` No: ${member.seamansBookNumber}` : ""}{member.seamansBookExpiry ? ` · Exp: ${fmtDate(member.seamansBookExpiry)}` : ""}</span>
-                                          {sbStatus === "expired" && <span className="font-semibold">(Expired)</span>}
-                                          {sbStatus === "warning" && <span className="font-semibold">(Expiring Soon)</span>}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      className="h-7 w-7"
-                                      onClick={() => {
-                                        setEditCrewMember(member);
-                                        setCrewForm({
-                                          firstName: member.firstName || "",
-                                          lastName: member.lastName || "",
-                                          rank: member.rank || "",
-                                          nationality: member.nationality || "",
-                                          contractEndDate: member.contractEndDate ? member.contractEndDate.substring(0, 10) : "",
-                                          passportNumber: member.passportNumber || "",
-                                          passportExpiry: member.passportExpiry ? member.passportExpiry.substring(0, 10) : "",
-                                          seamansBookNumber: member.seamansBookNumber || "",
-                                          seamansBookExpiry: member.seamansBookExpiry ? member.seamansBookExpiry.substring(0, 10) : "",
-                                        });
-                                        setCrewDialogOpen(true);
-                                      }}
-                                      data-testid={`button-edit-crew-${member.id}`}
-                                    >
-                                      <Pencil className="w-3.5 h-3.5" />
-                                    </Button>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      className="h-7 w-7 text-destructive hover:text-destructive"
-                                      onClick={() => setCrewDeleteTarget({ id: member.id, vesselId: v.id })}
-                                      data-testid={`button-delete-crew-${member.id}`}
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                      ) : (() => {
+                        const now = new Date();
+                        const warn30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+                        const dateStatus = (dt: string | null) => {
+                          if (!dt) return null;
+                          const d = new Date(dt);
+                          if (d < now) return "expired";
+                          if (d < warn30) return "warning";
+                          return "ok";
+                        };
+                        const expCell = (dt: string | null, no?: string | null) => {
+                          const s = dateStatus(dt);
+                          if (!dt && !no) return <span className="text-muted-foreground/40">—</span>;
+                          const dateStr = dt ? fmtDate(dt) : "—";
+                          const noStr = no ? <span className="block text-[10px] text-muted-foreground/60">{no}</span> : null;
+                          if (s === "expired") return <span className="text-red-600 dark:text-red-400 font-medium">{dateStr}<span className="ml-1 text-[10px]">✕</span>{noStr}</span>;
+                          if (s === "warning") return <span className="text-amber-600 dark:text-amber-400 font-medium">{dateStr}<span className="ml-1 text-[10px]">⚠</span>{noStr}</span>;
+                          return <span className="text-foreground">{dateStr}{noStr}</span>;
+                        };
+                        return (
+                          <div className="overflow-x-auto rounded-xl border">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="bg-muted/40 border-b">
+                                  {["#", "Name", "Rank", "Nationality", "Contract End", "Passport Exp", "Seaman's Book Exp", ""].map((h) => (
+                                    <th key={h} className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                                      {h}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {vesselCrewList.map((member: any, idx: number) => (
+                                  <tr
+                                    key={member.id}
+                                    className="border-b last:border-0 hover:bg-muted/20 transition-colors"
+                                    data-testid={`crew-item-${member.id}`}
+                                  >
+                                    <td className="px-3 py-2.5 text-muted-foreground/60 font-mono">{idx + 1}</td>
+                                    <td className="px-3 py-2.5 font-semibold whitespace-nowrap">
+                                      {member.firstName} {member.lastName}
+                                    </td>
+                                    <td className="px-3 py-2.5 whitespace-nowrap">
+                                      {member.rank
+                                        ? <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 text-[10px] font-semibold">{member.rank}</span>
+                                        : <span className="text-muted-foreground/40">—</span>}
+                                    </td>
+                                    <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">
+                                      {member.nationality || <span className="text-muted-foreground/40">—</span>}
+                                    </td>
+                                    <td className="px-3 py-2.5 whitespace-nowrap">
+                                      {expCell(member.contractEndDate, null)}
+                                    </td>
+                                    <td className="px-3 py-2.5 whitespace-nowrap">
+                                      {expCell(member.passportExpiry, member.passportNumber)}
+                                    </td>
+                                    <td className="px-3 py-2.5 whitespace-nowrap">
+                                      {expCell(member.seamansBookExpiry, member.seamansBookNumber)}
+                                    </td>
+                                    <td className="px-3 py-2.5">
+                                      <div className="flex items-center gap-0.5">
+                                        <Button
+                                          size="icon" variant="ghost" className="h-6 w-6"
+                                          onClick={() => {
+                                            setEditCrewMember(member);
+                                            setCrewForm({
+                                              firstName: member.firstName || "",
+                                              lastName: member.lastName || "",
+                                              rank: member.rank || "",
+                                              nationality: member.nationality || "",
+                                              contractEndDate: member.contractEndDate ? member.contractEndDate.substring(0, 10) : "",
+                                              passportNumber: member.passportNumber || "",
+                                              passportExpiry: member.passportExpiry ? member.passportExpiry.substring(0, 10) : "",
+                                              seamansBookNumber: member.seamansBookNumber || "",
+                                              seamansBookExpiry: member.seamansBookExpiry ? member.seamansBookExpiry.substring(0, 10) : "",
+                                            });
+                                            setCrewDialogOpen(true);
+                                          }}
+                                          data-testid={`button-edit-crew-${member.id}`}
+                                        >
+                                          <Pencil className="w-3 h-3" />
+                                        </Button>
+                                        <Button
+                                          size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive"
+                                          onClick={() => setCrewDeleteTarget({ id: member.id, vesselId: v.id })}
+                                          data-testid={`button-delete-crew-${member.id}`}
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </Button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
