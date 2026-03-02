@@ -649,102 +649,34 @@ export default function ProformaNew() {
             </Card>
           )}
 
-          {calculatedItems && (
-            <Card className="p-6 space-y-4" data-testid="card-calculation-results">
-              <div className="flex items-center justify-between">
-                <h2 className="font-serif font-semibold text-lg flex items-center gap-2">
-                  <Calculator className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
-                  Proforma Disbursement Account
-                </h2>
-                <div className="text-xs text-muted-foreground">
-                  $1 = €{(1 / eurUsdParity).toFixed(4)} | EUR/USD: {eurUsdParity.toFixed(6)}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-3 text-xs">
-                {selectedVesselData && (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[hsl(var(--maritime-primary)/0.08)] text-[hsl(var(--maritime-primary))]">
-                    <Ship className="w-3 h-3" />
-                    {selectedVesselData.name} ({selectedVesselData.flag})
-                  </div>
-                )}
-                {selectedPortData && (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[hsl(var(--maritime-primary)/0.08)] text-[hsl(var(--maritime-primary))]">
-                    <Anchor className="w-3 h-3" />
-                    {selectedPortData.name}
-                  </div>
-                )}
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted text-muted-foreground">
-                  <Package className="w-3 h-3" />
-                  {purposeOfCall} | {berthStayDays} day(s)
-                  {isDangerousCargo && " | ⚠️ IMDG"}
-                </div>
-              </div>
-
-              <div className="border rounded-md overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-[hsl(var(--maritime-primary)/0.04)]">
-                      <th className="text-left p-3 font-medium text-xs uppercase tracking-wider">#</th>
-                      <th className="text-left p-3 font-medium text-xs uppercase tracking-wider">Description</th>
-                      <th className="text-right p-3 font-medium text-xs uppercase tracking-wider">USD ($)</th>
-                      <th className="text-right p-3 font-medium text-xs uppercase tracking-wider hidden sm:table-cell">EUR (€)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {calculatedItems.map((item, i) => (
-                      <tr key={i} className="border-b last:border-0 hover:bg-muted/30 transition-colors" data-testid={`row-line-item-${i}`}>
-                        <td className="p-3 text-muted-foreground text-xs">{i + 1}</td>
-                        <td className="p-3">
-                          <span className="font-medium">{item.description}</span>
-                          {item.notes && <p className="text-xs text-muted-foreground mt-0.5">{item.notes}</p>}
-                        </td>
-                        <td className="p-3 text-right font-mono">{item.amountUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        <td className="p-3 text-right font-mono hidden sm:table-cell">{item.amountEur?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || "-"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-[hsl(var(--maritime-primary)/0.06)] font-bold">
-                      <td className="p-3" colSpan={2}>Total Port Expenses</td>
-                      <td className="p-3 text-right font-mono text-[hsl(var(--maritime-primary))]" data-testid="text-total-usd">
-                        ${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="p-3 text-right font-mono text-[hsl(var(--maritime-primary))] hidden sm:table-cell" data-testid="text-total-eur">
-                        €{totalEur.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </Card>
-          )}
         </div>
 
+        {/* ── RIGHT COLUMN: Sticky Results Panel ── */}
         <div className="space-y-6">
-          {(selectedVessel && selectedPort) && (
+          {/* Quick Cost Preview — shown while no full calculation yet */}
+          {(selectedVessel && selectedPort) && !calculatedItems && (
             <Card className="p-4 space-y-3 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20" data-testid="panel-quick-estimate">
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-blue-600" />
-                <h3 className="font-semibold text-sm text-blue-800 dark:text-blue-300">Anlık Tahmin</h3>
+                <h3 className="font-semibold text-sm text-blue-800 dark:text-blue-300">Quick Cost Preview</h3>
                 {quickEstimateLoading && <Loader2 className="w-3 h-3 animate-spin text-blue-500 ml-auto" data-testid="spinner-estimating" />}
               </div>
               {quickEstimateLoading && !quickEstimate ? (
-                <p className="text-xs text-center text-muted-foreground py-2">Hesaplanıyor...</p>
+                <p className="text-xs text-center text-muted-foreground py-2">Calculating...</p>
               ) : quickEstimate ? (
                 <>
                   <div className="text-center py-1">
-                    <p className="text-xs text-muted-foreground mb-0.5">Tahmini Toplam</p>
-                    <p className="text-xl font-bold font-serif text-blue-700 dark:text-blue-300" data-testid="text-estimate-total">
+                    <p className="text-xs text-muted-foreground mb-0.5">Estimated Total</p>
+                    <p className="text-2xl font-bold font-serif text-blue-700 dark:text-blue-300" data-testid="text-estimate-total">
                       ~${quickEstimate.totalUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted-foreground font-mono">
                       ~€{quickEstimate.totalEur.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </p>
                   </div>
-                  <div className="text-xs text-muted-foreground space-y-0.5 border-t pt-2">
+                  <div className="text-xs text-muted-foreground border-t pt-2">
                     <p>TCMB: 1 USD = {quickEstimate.exchangeRates.usdTry} TRY</p>
-                    <p className="italic text-[10px]">* Bu tahmini bir değerdir. Nihai rakam için tam hesaplama yapınız.</p>
+                    <p className="italic text-[10px] mt-0.5">* Preliminary estimate — click Calculate for the full breakdown.</p>
                   </div>
                   <Button
                     size="sm"
@@ -759,51 +691,128 @@ export default function ProformaNew() {
                     data-testid="button-load-estimate"
                   >
                     <Calculator className="w-3.5 h-3.5" />
-                    Tahmini Proformaya Yükle
+                    Load as Proforma
                   </Button>
                 </>
               ) : null}
             </Card>
           )}
 
-          <Card className="p-6 space-y-4 sticky top-6">
-            <h3 className="font-serif font-semibold flex items-center gap-2">
-              <Globe className="w-4 h-4" />
-              Summary
-            </h3>
+          {/* Sticky Results Panel */}
+          <div className="sticky top-6 space-y-4">
+            {!calculatedItems ? (
+              <Card className="p-8 flex flex-col items-center justify-center text-center space-y-3 border-dashed" data-testid="panel-awaiting-calculation">
+                <div className="w-12 h-12 rounded-full bg-[hsl(var(--maritime-primary)/0.08)] flex items-center justify-center">
+                  <Calculator className="w-6 h-6 text-[hsl(var(--maritime-primary)/0.5)]" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">Awaiting Calculation</p>
+                  <p className="text-xs text-muted-foreground mt-1">Fill in vessel, port and parameters, then click Calculate Proforma</p>
+                </div>
+              </Card>
+            ) : (
+              <Card className="p-4 space-y-4" data-testid="card-calculation-results">
+                {/* Header */}
+                <div className="space-y-1">
+                  <h2 className="font-serif font-semibold text-base flex items-center gap-2">
+                    <Calculator className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                    Proforma Disbursement Account
+                  </h2>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {selectedVesselData && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[hsl(var(--maritime-primary)/0.08)] text-[hsl(var(--maritime-primary))]">
+                        <Ship className="w-2.5 h-2.5" />
+                        {selectedVesselData.name}
+                      </span>
+                    )}
+                    {selectedPortData && (
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[hsl(var(--maritime-primary)/0.08)] text-[hsl(var(--maritime-primary))]">
+                        <Anchor className="w-2.5 h-2.5" />
+                        {selectedPortData.name}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                      {purposeOfCall} · {berthStayDays}d{isDangerousCargo ? " · ⚠️ IMDG" : ""}
+                    </span>
+                  </div>
+                </div>
 
-            {!selectedVessel || !selectedPort ? (
-              <div className="text-sm text-muted-foreground p-4 rounded-md bg-muted/30 text-center">
-                Select a <strong>vessel</strong> and <strong>port</strong> to see the calculated expenses.
-              </div>
-            ) : calculatedItems ? (
-              <div className="space-y-4">
-                <div className="p-4 rounded-md bg-[hsl(var(--maritime-primary)/0.05)] border border-[hsl(var(--maritime-primary)/0.1)]">
-                  <p className="text-xs text-muted-foreground mb-1">Total Estimated</p>
-                  <p className="text-2xl font-bold font-serif text-[hsl(var(--maritime-primary))]" data-testid="text-sidebar-total-usd">
-                    ${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                  <p className="text-sm text-muted-foreground font-mono">
-                    €{totalEur.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
+                {/* Line items table with % column + color bars */}
+                <div className="border rounded-md overflow-hidden">
+                  {(() => {
+                    const palette = ["border-blue-400","border-indigo-500","border-violet-500","border-sky-500","border-teal-500","border-cyan-500","border-blue-600","border-indigo-600","border-purple-500","border-blue-400"];
+                    return (
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b bg-[hsl(var(--maritime-primary)/0.04)]">
+                            <th className="text-left px-3 py-2 font-medium uppercase tracking-wider">Description</th>
+                            <th className="text-right px-3 py-2 font-medium uppercase tracking-wider">USD</th>
+                            <th className="text-right px-3 py-2 font-medium uppercase tracking-wider hidden sm:table-cell">EUR</th>
+                            <th className="text-right px-3 py-2 font-medium uppercase tracking-wider">%</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {calculatedItems.map((item, i) => {
+                            const pct = totalUsd > 0 ? (item.amountUsd / totalUsd * 100) : 0;
+                            return (
+                              <tr key={i} className={`border-b last:border-0 hover:bg-muted/30 transition-colors border-l-4 ${palette[i % palette.length]}`} data-testid={`row-line-item-${i}`}>
+                                <td className="px-3 py-2">
+                                  <span className="font-medium">{item.description}</span>
+                                  {item.notes && <p className="text-[10px] text-muted-foreground mt-0.5">{item.notes}</p>}
+                                </td>
+                                <td className="px-3 py-2 text-right font-mono">{item.amountUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td className="px-3 py-2 text-right font-mono hidden sm:table-cell">{item.amountEur?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || "-"}</td>
+                                <td className="px-3 py-2 text-right text-muted-foreground">{pct.toFixed(1)}%</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-[hsl(var(--maritime-primary)/0.08)] font-bold border-l-4 border-[hsl(var(--maritime-primary))]">
+                            <td className="px-3 py-2.5" colSpan={1}>Total Port Expenses</td>
+                            <td className="px-3 py-2.5 text-right font-mono text-[hsl(var(--maritime-primary))]" data-testid="text-total-usd">
+                              ${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-3 py-2.5 text-right font-mono text-[hsl(var(--maritime-primary))] hidden sm:table-cell" data-testid="text-total-eur">
+                              €{totalEur.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-muted-foreground">100%</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    );
+                  })()}
                 </div>
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p>{calculatedItems.length} expense items</p>
-                  <p>{berthStayDays} day(s) berth stay</p>
-                  {isDangerousCargo && <p className="text-orange-500 font-medium">⚠️ Dangerous cargo surcharge applied</p>}
+
+                {/* Exchange rate note */}
+                <p className="text-[10px] text-muted-foreground">
+                  EUR/USD: {eurUsdParity.toFixed(6)} · $1 = €{(1 / eurUsdParity).toFixed(4)}
+                </p>
+
+                {/* Save + Reset buttons */}
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1 gap-2"
+                    onClick={handleSave}
+                    disabled={createMutation.isPending}
+                    data-testid="button-save-proforma"
+                  >
+                    {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                    Save Proforma
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCalculatedItems(null)}
+                    title="Clear results"
+                    data-testid="button-clear-results"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </Button>
                 </div>
-                <Button
-                  className="w-full gap-2"
-                  onClick={handleSave}
-                  disabled={createMutation.isPending}
-                  data-testid="button-save-proforma"
-                >
-                  {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                  Save Proforma
-                </Button>
-              </div>
-            ) : null}
-          </Card>
+              </Card>
+            )}
+          </div>
         </div>
       </div>
     </div>

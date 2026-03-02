@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign, Zap, Loader2, Calculator, Ship, Anchor, Globe } from "lucide-react";
+import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign, Zap, Loader2, Calculator, Ship, Anchor, Globe, Package, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
@@ -569,94 +571,100 @@ export default function Proformas() {
       </div>
 
       <Dialog open={showQuickDialog} onOpenChange={setShowQuickDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-quick-proforma">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="dialog-quick-proforma">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 font-serif">
               <Zap className="w-5 h-5 text-blue-600" />
-              Quick Estimate
+              Quick Proforma Estimate
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-5">
             <p className="text-sm text-muted-foreground">
-              Enter vessel, port and cargo details — tariffs are applied automatically for an instant DA estimate.
+              Enter vessel, port and cargo details — 2026 official tariffs are applied automatically for an instant DA estimate.
             </p>
 
-            {/* Row 1: Vessel + Days */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Select Vessel</Label>
-                <Popover open={quickVesselOpen} onOpenChange={setQuickVesselOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className="w-full justify-start font-normal"
-                      data-testid="trigger-vessel-quick"
-                    >
-                      {quickVesselId === "external"
-                        ? <Globe className="w-4 h-4 mr-2 text-blue-500 flex-shrink-0" />
-                        : <Ship className="w-4 h-4 mr-2 text-muted-foreground flex-shrink-0" />}
-                      <span className="truncate">
-                        {quickVesselId === "external" && quickExternalVessel
-                          ? `${quickExternalVessel.name} (IMO ${quickExternalVessel.imoNumber})`
-                          : quickVesselId && vessels
-                            ? (vessels.find(v => String(v.id) === quickVesselId)?.name || "Select vessel...")
-                            : "Search by vessel name or IMO..."}
-                      </span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[340px] p-0" align="start">
-                    <Command shouldFilter={false}>
-                      <CommandInput
-                        placeholder="Vessel name or IMO number..."
-                        value={quickVesselSearch}
-                        onValueChange={(v) => {
-                          setQuickVesselSearch(v);
-                          if (quickVesselId === "external") {
-                            setQuickVesselId("");
-                            setQuickExternalVessel(null);
-                          }
-                        }}
-                        data-testid="input-vessel-quick"
-                      />
-                      <CommandList>
-                        {(vessels || []).filter(v => {
-                          const q = quickVesselSearch.toLowerCase();
-                          return !q || v.name.toLowerCase().includes(q) || (v.imoNumber || "").toLowerCase().includes(q);
-                        }).length === 0 && !quickImoLoading && !quickImoResult && (
-                          <CommandEmpty>
-                            {quickVesselSearch.length >= 5
-                              ? "Not found in fleet. Waiting for IMO lookup..."
-                              : "Enter vessel name or IMO."}
-                          </CommandEmpty>
-                        )}
-                        <CommandGroup>
-                          {(vessels || [])
-                            .filter(v => {
-                              const q = quickVesselSearch.toLowerCase();
-                              return !q || v.name.toLowerCase().includes(q) || (v.imoNumber || "").toLowerCase().includes(q);
-                            })
-                            .map((v) => (
-                              <CommandItem
-                                key={v.id}
-                                value={String(v.id)}
-                                onSelect={() => {
-                                  setQuickVesselId(String(v.id));
-                                  setQuickExternalVessel(null);
-                                  setQuickManualGrt("");
-                                  setQuickManualNrt("");
-                                  setQuickManualFlag("Panama");
-                                  setQuickManualVesselName("");
-                                  setQuickVesselSearch("");
-                                  setQuickVesselOpen(false);
-                                }}
-                                data-testid={`option-quick-vessel-${v.id}`}
-                              >
-                                <Ship className="w-3 h-3 mr-2 text-muted-foreground flex-shrink-0" />
-                                <span className="flex-1 font-medium">{v.name}</span>
-                                <span className="text-xs text-muted-foreground ml-2">
-                                  {v.flag}{v.imoNumber ? ` · IMO ${v.imoNumber}` : ""}
+            {/* ── SECTION 1: Vessel & Port ── */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Ship className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" />
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Vessel & Port</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Select Vessel</Label>
+                  <Popover open={quickVesselOpen} onOpenChange={setQuickVesselOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-start font-normal"
+                        data-testid="trigger-vessel-quick"
+                      >
+                        {quickVesselId === "external"
+                          ? <Globe className="w-4 h-4 mr-2 text-blue-500 flex-shrink-0" />
+                          : <Ship className="w-4 h-4 mr-2 text-muted-foreground flex-shrink-0" />}
+                        <span className="truncate">
+                          {quickVesselId === "external" && quickExternalVessel
+                            ? `${quickExternalVessel.name} (IMO ${quickExternalVessel.imoNumber})`
+                            : quickVesselId && vessels
+                              ? (vessels.find(v => String(v.id) === quickVesselId)?.name || "Select vessel...")
+                              : "Search by vessel name or IMO..."}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[340px] p-0" align="start">
+                      <Command shouldFilter={false}>
+                        <CommandInput
+                          placeholder="Vessel name or IMO number..."
+                          value={quickVesselSearch}
+                          onValueChange={(v) => {
+                            setQuickVesselSearch(v);
+                            if (quickVesselId === "external") {
+                              setQuickVesselId("");
+                              setQuickExternalVessel(null);
+                            }
+                          }}
+                          data-testid="input-vessel-quick"
+                        />
+                        <CommandList>
+                          {(vessels || []).filter(v => {
+                            const q = quickVesselSearch.toLowerCase();
+                            return !q || v.name.toLowerCase().includes(q) || (v.imoNumber || "").toLowerCase().includes(q);
+                          }).length === 0 && !quickImoLoading && !quickImoResult && (
+                            <CommandEmpty>
+                              {quickVesselSearch.length >= 5
+                                ? "Not found in fleet. Waiting for IMO lookup..."
+                                : "Enter vessel name or IMO."}
+                            </CommandEmpty>
+                          )}
+                          <CommandGroup>
+                            {(vessels || [])
+                              .filter(v => {
+                                const q = quickVesselSearch.toLowerCase();
+                                return !q || v.name.toLowerCase().includes(q) || (v.imoNumber || "").toLowerCase().includes(q);
+                              })
+                              .map((v) => (
+                                <CommandItem
+                                  key={v.id}
+                                  value={String(v.id)}
+                                  onSelect={() => {
+                                    setQuickVesselId(String(v.id));
+                                    setQuickExternalVessel(null);
+                                    setQuickManualGrt("");
+                                    setQuickManualNrt("");
+                                    setQuickManualFlag("Panama");
+                                    setQuickManualVesselName("");
+                                    setQuickVesselSearch("");
+                                    setQuickVesselOpen(false);
+                                  }}
+                                  data-testid={`option-quick-vessel-${v.id}`}
+                                >
+                                  <Ship className="w-3 h-3 mr-2 text-muted-foreground flex-shrink-0" />
+                                  <span className="flex-1 font-medium">{v.name}</span>
+                                  <span className="text-xs text-muted-foreground ml-2">
+                                    {v.flag}{v.imoNumber ? ` · IMO ${v.imoNumber}` : ""}
                                 </span>
                               </CommandItem>
                             ))}
@@ -698,19 +706,54 @@ export default function Proformas() {
                 </Popover>
               </div>
 
+              {/* Port combobox — second column of the Vessel & Port grid */}
               <div className="space-y-2">
-                <Label>Estimated Stay (Days)</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={30}
-                  value={quickDays}
-                  onChange={(e) => setQuickDays(parseInt(e.target.value) || 3)}
-                  className="w-full"
-                  data-testid="input-days-quick"
-                />
+                <Label>Port</Label>
+                <Popover open={quickPortOpen} onOpenChange={setQuickPortOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-start font-normal"
+                      data-testid="trigger-port-quick"
+                    >
+                      <Anchor className="w-4 h-4 mr-2 text-muted-foreground" />
+                      {quickPortId && turkishPorts ? (turkishPorts.find(p => String(p.id) === quickPortId)?.name || "Select port...") : "Enter port name..."}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[320px] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder="Search Turkish port... (min. 2 chars)"
+                        value={quickPortSearch}
+                        onValueChange={setQuickPortSearch}
+                        data-testid="input-port-quick"
+                      />
+                      <CommandList>
+                        <CommandEmpty>
+                          {quickPortSearch.length < 2 ? "Enter at least 2 characters." : "No Turkish port found."}
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {filteredQuickPorts.map((p) => (
+                            <CommandItem
+                              key={p.id}
+                              value={p.name}
+                              onSelect={() => { setQuickPortId(String(p.id)); setQuickPortSearch(p.name); setQuickPortOpen(false); }}
+                              data-testid={`option-quick-port-${p.id}`}
+                            >
+                              <Anchor className="w-3 h-3 mr-2 text-muted-foreground" />
+                              {p.name}
+                              {p.code && <span className="ml-2 text-xs text-muted-foreground">{p.code}</span>}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
-            </div>
+              </div>{/* end vessel+port grid */}
+            </div>{/* end Section 1 */}
 
             {/* Manual Tonnage Entry — shown for external or unselected vessel */}
             {showManualTonnage && (
@@ -785,181 +828,140 @@ export default function Proformas() {
               </div>
             )}
 
-            {/* Voyage Type - only for Turkish flag vessels */}
-            {isTurkishFlagVessel && (
-            <div className="space-y-2" data-testid="section-voyage-type">
-              <Label>Voyage Type</Label>
-              <div className="grid grid-cols-2 gap-2" data-testid="select-voyage-type">
-                <button
-                  type="button"
-                  onClick={() => setQuickVoyageType("international")}
-                  className={`flex items-center gap-2 px-3 py-2.5 rounded-md border text-sm font-medium transition-colors ${
-                    quickVoyageType === "international"
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "border-input bg-background hover:bg-muted"
-                  }`}
-                  data-testid="button-voyage-international"
-                >
-                  🌍 International Voyage
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setQuickVoyageType("cabotage")}
-                  className={`flex items-center gap-2 px-3 py-2.5 rounded-md border text-sm font-medium transition-colors ${
-                    quickVoyageType === "cabotage"
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "border-input bg-background hover:bg-muted"
-                  }`}
-                  data-testid="button-voyage-cabotage"
-                >
-                  🇹🇷 Cabotage Voyage
-                </button>
+            {/* ── SECTION 2: Voyage Details ── */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Globe className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" />
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Voyage Details</span>
+                <div className="flex-1 h-px bg-border" />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Cabotage: between Turkish ports · International: Turkish-flagged vessel on foreign voyage
-              </p>
-            </div>
-            )}
-
-            {/* Row 2: Purpose + Cargo Type */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Purpose of Call</Label>
-                <Select value={quickPurpose} onValueChange={setQuickPurpose} data-testid="select-purpose-quick">
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Discharging">🔽 Discharging</SelectItem>
-                    <SelectItem value="Loading">🔼 Loading</SelectItem>
-                    <SelectItem value="Loading/Discharging">🔄 Loading + Discharging</SelectItem>
-                    <SelectItem value="Transit">➡️ Transit</SelectItem>
-                    <SelectItem value="Bunkering">⛽ Bunkering</SelectItem>
-                    <SelectItem value="Repair">🔧 Repair</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Cargo Type</Label>
-                <Select
-                  value={quickCargoType}
-                  onValueChange={(v) => {
-                    setQuickCargoType(v);
-                    const opt = CARGO_TYPE_OPTIONS.find(o => o.value === v);
-                    if (opt) setQuickCargoUnit(opt.unit);
-                  }}
-                  data-testid="select-cargo-type-quick"
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CARGO_TYPE_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        <div>
-                          <div>{opt.label}</div>
-                          <div className="text-xs text-muted-foreground">{opt.examples}</div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Row 3: Cargo Quantity + Dangerous */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>
-                  Cargo Quantity
-                  <span className="ml-1.5 text-xs text-muted-foreground font-normal">
-                    ({quickCargoUnit === "TEU" ? "TEU" : quickCargoUnit === "Units" ? "Vehicle Count" : "Metric Ton (MT)"})
-                  </span>
-                </Label>
-                <div className="flex gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Stay (Days)</Label>
                   <Input
                     type="number"
                     min={1}
-                    value={quickCargoQty}
-                    onChange={(e) => setQuickCargoQty(e.target.value)}
-                    className="flex-1"
-                    placeholder={quickCargoUnit === "TEU" ? "200" : quickCargoUnit === "Units" ? "50" : "5000"}
-                    data-testid="input-cargo-qty-quick"
+                    max={30}
+                    value={quickDays}
+                    onChange={(e) => setQuickDays(parseInt(e.target.value) || 3)}
+                    className="w-full"
+                    data-testid="input-days-quick"
                   />
-                  <div className="flex items-center px-3 rounded-md border bg-muted text-sm font-medium min-w-[60px] justify-center">
-                    {quickCargoUnit}
-                  </div>
                 </div>
-                {(quickCargoType === "liquid" || quickCargoType === "chemical" || quickCargoType === "gas") && (
-                  <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                    ℹ️ For this cargo type, supervision fee is calculated at a fixed rate rather than by quantity.
-                  </p>
+                <div className="space-y-2">
+                  <Label>Purpose of Call</Label>
+                  <Select value={quickPurpose} onValueChange={setQuickPurpose} data-testid="select-purpose-quick">
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Discharging">🔽 Discharging</SelectItem>
+                      <SelectItem value="Loading">🔼 Loading</SelectItem>
+                      <SelectItem value="Loading/Discharging">🔄 Loading + Discharging</SelectItem>
+                      <SelectItem value="Transit">➡️ Transit</SelectItem>
+                      <SelectItem value="Bunkering">⛽ Bunkering</SelectItem>
+                      <SelectItem value="Repair">🔧 Repair</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {isTurkishFlagVessel && (
+                  <div className="space-y-2" data-testid="section-voyage-type">
+                    <Label>Voyage Type</Label>
+                    <div className="grid grid-cols-2 gap-1.5" data-testid="select-voyage-type">
+                      <button
+                        type="button"
+                        onClick={() => setQuickVoyageType("international")}
+                        className={`px-2 py-2 rounded-md border text-xs font-medium transition-colors ${quickVoyageType === "international" ? "bg-blue-600 text-white border-blue-600" : "border-input bg-background hover:bg-muted"}`}
+                        data-testid="button-voyage-international"
+                      >🌍 International</button>
+                      <button
+                        type="button"
+                        onClick={() => setQuickVoyageType("cabotage")}
+                        className={`px-2 py-2 rounded-md border text-xs font-medium transition-colors ${quickVoyageType === "cabotage" ? "bg-blue-600 text-white border-blue-600" : "border-input bg-background hover:bg-muted"}`}
+                        data-testid="button-voyage-cabotage"
+                      >🇹🇷 Cabotage</button>
+                    </div>
+                  </div>
                 )}
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label>Dangerous Goods</Label>
-                <label className="flex items-center gap-3 h-10 px-3 border rounded-md cursor-pointer hover:bg-muted/50 transition-colors" data-testid="switch-dangerous-quick">
-                  <input
-                    type="checkbox"
-                    checked={quickDangerous}
-                    onChange={(e) => setQuickDangerous(e.target.checked)}
-                    className="w-4 h-4 rounded"
-                  />
-                  <div>
-                    <div className="text-sm font-medium">IMDG Dangerous Cargo</div>
-                    <div className="text-xs text-muted-foreground">30% surcharge on Pilotage, Tugboat and Mooring</div>
+            {/* ── SECTION 3: Cargo ── */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Package className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" />
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Cargo</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Cargo Type</Label>
+                  <Select
+                    value={quickCargoType}
+                    onValueChange={(v) => {
+                      setQuickCargoType(v);
+                      const opt = CARGO_TYPE_OPTIONS.find(o => o.value === v);
+                      if (opt) setQuickCargoUnit(opt.unit);
+                    }}
+                    data-testid="select-cargo-type-quick"
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CARGO_TYPE_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          <div>
+                            <div>{opt.label}</div>
+                            <div className="text-xs text-muted-foreground">{opt.examples}</div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>
+                    Cargo Quantity
+                    <span className="ml-1.5 text-xs text-muted-foreground font-normal">
+                      ({quickCargoUnit === "TEU" ? "TEU" : quickCargoUnit === "Units" ? "Units" : "MT"})
+                    </span>
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      min={1}
+                      value={quickCargoQty}
+                      onChange={(e) => setQuickCargoQty(e.target.value)}
+                      className="flex-1"
+                      placeholder={quickCargoUnit === "TEU" ? "200" : quickCargoUnit === "Units" ? "50" : "5000"}
+                      data-testid="input-cargo-qty-quick"
+                    />
+                    <div className="flex items-center px-3 rounded-md border bg-muted text-sm font-medium min-w-[56px] justify-center">
+                      {quickCargoUnit}
+                    </div>
                   </div>
-                </label>
+                  {(quickCargoType === "liquid" || quickCargoType === "chemical" || quickCargoType === "gas") && (
+                    <p className="text-xs text-blue-600 dark:text-blue-400">ℹ️ Supervision fee is fixed-rate for this cargo type.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Dangerous Goods toggle with Switch */}
+              <div
+                className={`flex items-center gap-3 px-4 py-3 rounded-md border transition-colors ${quickDangerous ? "border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-950/20" : "border-input bg-background"}`}
+                data-testid="switch-dangerous-quick"
+              >
+                <AlertTriangle className={`w-4 h-4 shrink-0 ${quickDangerous ? "text-orange-500" : "text-muted-foreground"}`} />
+                <div className="flex-1">
+                  <div className={`text-sm font-medium ${quickDangerous ? "text-orange-700 dark:text-orange-300" : ""}`}>IMDG Dangerous Cargo</div>
+                  <div className="text-xs text-muted-foreground">+30% surcharge on Pilotage, Tugboat & Mooring</div>
+                </div>
+                <Switch
+                  checked={quickDangerous}
+                  onCheckedChange={setQuickDangerous}
+                  className={quickDangerous ? "data-[state=checked]:bg-orange-500" : ""}
+                />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Search Port</Label>
-              <Popover open={quickPortOpen} onOpenChange={setQuickPortOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    className="w-full justify-start font-normal"
-                    data-testid="trigger-port-quick"
-                  >
-                    <Anchor className="w-4 h-4 mr-2 text-muted-foreground" />
-                    {quickPortId && turkishPorts ? (turkishPorts.find(p => String(p.id) === quickPortId)?.name || "Select port...") : "Enter port name..."}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0" align="start">
-                  <Command shouldFilter={false}>
-                    <CommandInput
-                      placeholder="Search Turkish port... (min. 2 chars)"
-                      value={quickPortSearch}
-                      onValueChange={setQuickPortSearch}
-                      data-testid="input-port-quick"
-                    />
-                    <CommandList>
-                      <CommandEmpty>
-                        {quickPortSearch.length < 2 ? "Enter at least 2 characters." : "No Turkish port found."}
-                      </CommandEmpty>
-                      <CommandGroup>
-                        {filteredQuickPorts.map((p) => (
-                          <CommandItem
-                            key={p.id}
-                            value={p.name}
-                            onSelect={() => { setQuickPortId(String(p.id)); setQuickPortSearch(p.name); setQuickPortOpen(false); }}
-                            data-testid={`option-quick-port-${p.id}`}
-                          >
-                            <Anchor className="w-3 h-3 mr-2 text-muted-foreground" />
-                            {p.name}
-                            {p.code && <span className="ml-2 text-xs text-muted-foreground">{p.code}</span>}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
+            {/* Port is now in Section 1. Nothing here. */}
 
             <Button
               className="w-full gap-2"
@@ -973,33 +975,39 @@ export default function Proformas() {
 
             {quickResult && (
               <Card className="p-4 space-y-3 bg-blue-50/60 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
-                <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <Ship className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                  <span className="font-semibold text-sm text-blue-800 dark:text-blue-300">
-                    {quickResult.vesselName} — {quickResult.portName}
-                  </span>
-                  <Badge variant="secondary" className="ml-auto text-[10px]">Estimated DA</Badge>
-                </div>
-                <div className="flex flex-wrap gap-1.5 pb-1">
-                  <Badge className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0">
-                    {CARGO_TYPE_OPTIONS.find(o => o.value === quickCargoType)?.label || quickCargoType}
-                  </Badge>
-                  <Badge className="text-[10px] bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0">
-                    {parseFloat(quickCargoQty).toLocaleString()} {quickCargoUnit}
-                  </Badge>
-                  <Badge className="text-[10px] bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0">
-                    {quickPurpose}
-                  </Badge>
-                  <Badge className="text-[10px] bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-0">
-                    {quickVoyageType === "cabotage" ? "🇹🇷 Cabotage" : "🌍 International"}
-                  </Badge>
-                  {quickDangerous && (
-                    <Badge className="text-[10px] bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-0">
-                      ⚠️ Dangerous Cargo +30%
-                    </Badge>
-                  )}
+                {/* Header strip */}
+                <div className="flex items-start justify-between gap-2 flex-wrap">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Ship className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                      <span className="font-semibold text-sm text-blue-800 dark:text-blue-300">
+                        {quickResult.vesselName} — {quickResult.portName}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      <Badge className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0">
+                        {CARGO_TYPE_OPTIONS.find(o => o.value === quickCargoType)?.label || quickCargoType}
+                      </Badge>
+                      <Badge className="text-[10px] bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border-0">
+                        {parseFloat(quickCargoQty).toLocaleString()} {quickCargoUnit}
+                      </Badge>
+                      <Badge className="text-[10px] bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border-0">
+                        {quickPurpose} · {quickDays}d
+                      </Badge>
+                      <Badge className="text-[10px] bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border-0">
+                        {quickVoyageType === "cabotage" ? "🇹🇷 Cabotage" : "🌍 International"}
+                      </Badge>
+                      {quickDangerous && (
+                        <Badge className="text-[10px] bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-0">
+                          ⚠️ +30% IMDG
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className="text-[10px] shrink-0">Estimated DA</Badge>
                 </div>
 
+                {/* Tariff source badge */}
                 {quickResult.tariffSource === "database" ? (
                   <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-md" data-testid="badge-tariff-real">
                     <span className="text-emerald-600 dark:text-emerald-400 text-sm">✓</span>
@@ -1020,43 +1028,72 @@ export default function Proformas() {
                   </div>
                 )}
 
-                <div className="border rounded-md overflow-hidden bg-white dark:bg-background">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        <TableHead className="text-xs py-2">Line Item</TableHead>
-                        <TableHead className="text-xs py-2 text-right">USD ($)</TableHead>
-                        <TableHead className="text-xs py-2 text-right hidden sm:table-cell">EUR (€)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(quickResult.lineItems || []).map((item: any, i: number) => (
-                        <TableRow key={i} className="text-xs" data-testid={`row-quick-item-${i}`}>
-                          <TableCell className="py-1.5">{item.description}</TableCell>
-                          <TableCell className="py-1.5 text-right font-mono">{item.amountUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                          <TableCell className="py-1.5 text-right font-mono hidden sm:table-cell">{(item.amountEur || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                {/* Two-column layout: table + breakdown bars */}
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+                  {/* Line items table */}
+                  <div className="sm:col-span-3 border rounded-md overflow-hidden bg-white dark:bg-background">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead className="text-xs py-2">Line Item</TableHead>
+                          <TableHead className="text-xs py-2 text-right">USD</TableHead>
+                          <TableHead className="text-xs py-2 text-right hidden sm:table-cell">EUR</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {(quickResult.lineItems || []).map((item: any, i: number) => (
+                          <TableRow key={i} className="text-xs" data-testid={`row-quick-item-${i}`}>
+                            <TableCell className="py-1.5">{item.description}</TableCell>
+                            <TableCell className="py-1.5 text-right font-mono">{item.amountUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="py-1.5 text-right font-mono hidden sm:table-cell">{(item.amountEur || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Cost breakdown bars */}
+                  <div className="sm:col-span-2 space-y-2 py-1">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Cost Breakdown</p>
+                    {(() => {
+                      const palette = ["bg-blue-500","bg-indigo-500","bg-violet-500","bg-sky-500","bg-teal-500","bg-cyan-500","bg-blue-600","bg-indigo-600","bg-purple-500","bg-blue-400"];
+                      const items = (quickResult.lineItems || []).filter((it: any) => it.amountUsd > 0);
+                      return items.map((item: any, i: number) => {
+                        const pct = quickResult.totalUsd > 0 ? (item.amountUsd / quickResult.totalUsd * 100) : 0;
+                        const label = item.description.split(" ")[0];
+                        return (
+                          <div key={i} className="space-y-0.5">
+                            <div className="flex justify-between text-[10px] text-muted-foreground">
+                              <span className="truncate max-w-[100px]">{label}</span>
+                              <span className="font-mono">{pct.toFixed(0)}%</span>
+                            </div>
+                            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div className={`h-full ${palette[i % palette.length]} rounded-full`} style={{ width: `${Math.max(pct, 2)}%` }} />
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-1 border-t">
+                {/* Total */}
+                <div className="flex items-end justify-between pt-2 border-t">
                   <div>
-                    <p className="text-xs text-muted-foreground">Tahmini Toplam</p>
-                    <p className="text-xl font-bold font-serif text-blue-700 dark:text-blue-300" data-testid="text-quick-total-usd">
-                      ~${quickResult.totalUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })} USD
+                    <p className="text-xs text-muted-foreground mb-0.5">Estimated Total</p>
+                    <p className="text-3xl font-bold font-serif text-blue-700 dark:text-blue-300 tracking-tight" data-testid="text-quick-total-usd">
+                      ~${quickResult.totalUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                     </p>
-                    <p className="text-sm text-muted-foreground">~€{quickResult.totalEur.toLocaleString(undefined, { maximumFractionDigits: 0 })} EUR</p>
+                    <p className="text-sm text-muted-foreground font-mono">~€{quickResult.totalEur.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                   </div>
-                  <div className="text-right text-xs text-muted-foreground">
+                  <div className="text-right text-xs text-muted-foreground pb-1">
                     <p>TCMB: 1 USD = {quickResult.exchangeRates.usdTry} TRY</p>
-                    <p>{quickDays}-day stay · {(quickResult.lineItems || []).length} line items</p>
+                    <p>{(quickResult.lineItems || []).length} expense items</p>
                   </div>
                 </div>
 
                 <p className="text-[10px] text-muted-foreground italic">
-                  * This is an estimate. Create a full proforma for exact figures.
+                  * Estimate only. Create a full proforma for exact figures.
                 </p>
 
                 <div className="flex gap-2 pt-1">
