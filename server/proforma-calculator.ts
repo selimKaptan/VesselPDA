@@ -22,6 +22,7 @@ export interface CalculationInput {
   dbAgencyFee?: number;
   dbMarpolFee?: number;
   dbLcbFee?: number;
+  dbSanitaryFee?: number;
 }
 
 export interface CalculatedLineItem {
@@ -233,6 +234,7 @@ function calcAnchorageDues(input: CalculationInput): number {
 }
 
 function calcSanitary(input: CalculationInput): number {
+  if (input.dbSanitaryFee != null && input.dbSanitaryFee > 0) return input.dbSanitaryFee;
   const { nrt, usdTryRate } = input;
   return (nrt * 21.67) / usdTryRate;
 }

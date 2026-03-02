@@ -348,18 +348,14 @@ const CATEGORIES: CategoryDef[] = [
     key: "sanitary_dues",
     label: "Sanitary Dues",
     icon: ShieldCheck,
-    defaultCurrency: "USD",
+    defaultCurrency: "TRY",
     columns: [
-      { key: "gt_min", label: "GT Min", type: "number" },
-      { key: "gt_max", label: "GT Max", type: "number" },
-      { key: "fee", label: "Fee", type: "number" },
+      { key: "nrt_rate", label: "Rate per NRT (TL)", type: "number" },
       { key: "currency", label: "CCY", type: "currency" },
       { key: "valid_year", label: "Year", type: "year" },
     ],
     formFields: [
-      { key: "gt_min", label: "GT Min", type: "number" },
-      { key: "gt_max", label: "GT Max", type: "number" },
-      { key: "fee", label: "Fee", type: "number" },
+      { key: "nrt_rate", label: "Rate per NRT (TL)", type: "number" },
       { key: "currency", label: "Currency", type: "currency" },
       { key: "valid_year", label: "Valid Year", type: "year" },
       { key: "notes", label: "Notes", type: "textarea" },
@@ -725,7 +721,7 @@ function CategorySection({
       } else if (cat.key === "harbour_master_dues") {
         Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "sanitary_dues") {
-        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+        Object.assign(payload, { nrt_rate: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       }
 
       try {
@@ -1327,7 +1323,7 @@ export default function TariffManagement() {
       } else if (tableKey === "harbour_master_dues") {
         Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "sanitary_dues") {
-        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+        Object.assign(payload, { nrt_rate: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       }
 
       try {

@@ -8,7 +8,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated, registerAuthRoutes, authStorage } from "./replit_integrations/auth";
 import type { ProformaLineItem } from "@shared/schema";
 import { calculateProforma, type CalculationInput } from "./proforma-calculator";
-import { lookupPilotageFee, lookupTugboatFee, lookupMooringFee, lookupBerthingFee, lookupAgencyFee, lookupMarpolFee, lookupLcbFee, type VesselCategory } from "./tariff-lookup";
+import { lookupPilotageFee, lookupTugboatFee, lookupMooringFee, lookupBerthingFee, lookupAgencyFee, lookupMarpolFee, lookupLcbFee, lookupSanitaryDuesFee, type VesselCategory } from "./tariff-lookup";
 import { startAISStream, getPositions, searchVessels, isConnected, getCacheSize } from "./ais-stream";
 import { geocodeStats } from "./geocode-ports";
 import { checkSanctions, getSanctionsStatus, loadSanctionsList } from "./sanctions";
@@ -554,7 +554,7 @@ export async function registerRoutes(
       const dangerous = isDangerousCargo === true || isDangerousCargo === "true";
       const portIdNum = Number(portId);
 
-      const [pilotage, tugboat, mooring, berthing, agency, marpol, lcb] = await Promise.all([
+      const [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues] = await Promise.all([
         lookupPilotageFee(pool, portIdNum, grt, vesselCat, dangerous),
         lookupTugboatFee(pool, portIdNum, grt, vesselCat, dangerous),
         lookupMooringFee(pool, portIdNum, grt, dangerous),
@@ -562,9 +562,10 @@ export async function registerRoutes(
         lookupAgencyFee(pool, portIdNum, nrt, eurUsdParity, berthDays),
         lookupMarpolFee(pool, portIdNum, grt, eurUsdParity),
         lookupLcbFee(pool, portIdNum, nrt, usdTryRate),
+        lookupSanitaryDuesFee(pool, portIdNum, nrt, usdTryRate),
       ]);
 
-      const dbSources = [pilotage, tugboat, mooring, berthing, agency, marpol, lcb];
+      const dbSources = [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues];
       const anyFromDb = dbSources.some(r => r.source === "database");
       const tariffSource = anyFromDb ? "database" : "estimate";
 
@@ -599,6 +600,7 @@ export async function registerRoutes(
         dbAgencyFee: agency.fee || undefined,
         dbMarpolFee: marpol.fee || undefined,
         dbLcbFee: lcb.fee || undefined,
+        dbSanitaryFee: sanitaryDues.fee || undefined,
       };
 
       const result = calculateProforma(calcInput);
@@ -624,6 +626,7 @@ export async function registerRoutes(
           agency: agency.source,
           marpol: marpol.source,
           lcb: lcb.source,
+          sanitaryDues: sanitaryDues.source,
         },
       });
     } catch (error) {
@@ -4316,7 +4319,7 @@ export async function registerRoutes(
     chamber_of_shipping_fees: { label: "Chamber of Shipping Fee", feeFields: ["fee"] },
     chamber_freight_share: { label: "Chamber of Shipping Share on Freight", feeFields: ["percentage", "min_fee"] },
     harbour_master_dues: { label: "Harbour Master Dues", feeFields: ["fee"] },
-    sanitary_dues: { label: "Sanitary Dues", feeFields: ["fee"] },
+    sanitary_dues: { label: "Sanitary Dues", feeFields: ["nrt_rate"] },
   };
 
   app.get("/api/admin/tariffs/summary", isAuthenticated, async (req: any, res) => {

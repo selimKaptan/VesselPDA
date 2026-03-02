@@ -216,3 +216,26 @@ export async function lookupLcbFee(
     return { fee: 0, source: "fallback" };
   }
 }
+
+export async function lookupSanitaryDuesFee(
+  pool: Pool,
+  portId: number,
+  nrt: number,
+  usdTryRate: number
+): Promise<LookupResult> {
+  try {
+    const result = await pool.query(
+      `SELECT nrt_rate, currency FROM sanitary_dues
+       WHERE (port_id = $1 OR port_id IS NULL)
+       ORDER BY (CASE WHEN port_id = $1 THEN 0 ELSE 1 END) LIMIT 1`,
+      [portId]
+    );
+    if (result.rows.length === 0) return { fee: 0, source: "fallback" };
+    const nrtRate = parseFloat(result.rows[0].nrt_rate || "0");
+    if (!nrtRate) return { fee: 0, source: "fallback" };
+    const feeTry = nrt * nrtRate;
+    return { fee: Math.round((feeTry / usdTryRate) * 100) / 100, source: "database" };
+  } catch {
+    return { fee: 0, source: "fallback" };
+  }
+}
