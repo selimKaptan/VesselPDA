@@ -399,6 +399,29 @@ export async function ensureNewTariffTables() {
       console.log("[tariff-tables] Seeded 24 VTS fee rows.");
     }
 
+    const { rows: globalPilotageCheck } = await client.query(
+      "SELECT COUNT(*)::int AS cnt FROM pilotage_tariffs WHERE port_id IS NULL"
+    );
+    if (globalPilotageCheck[0].cnt === 0) {
+      await client.query(`
+        INSERT INTO pilotage_tariffs (port_id, service_type, vessel_category, grt_min, grt_max, base_fee, per_1000_grt, currency, valid_year, notes) VALUES
+        -- T.1.1 Pilotage (official 2026 rates)
+        (NULL, 'kabotaj',       'calisan_gemiler',                 0, 999999,  71.87, 25.67, 'USD', 2026, 'Port services x2 multiplier applies'),
+        (NULL, 'uluslararasi',  'yolcu_feribot_roro_car_carrier',  0, 999999, 116.00, 46.00, 'USD', 2026, 'Port services x2 multiplier applies'),
+        (NULL, 'uluslararasi',  'konteyner',                       0, 999999, 153.00, 65.00, 'USD', 2026, 'Port services x2 multiplier applies'),
+        (NULL, 'uluslararasi',  'diger_yuk',                       0, 999999, 202.27, 83.17, 'USD', 2026, 'Port services x2 multiplier applies'),
+        -- T.1.2 Tugboats (official 2026 rates)
+        (NULL, 'romorkör_kabotaj',      'calisan_gemiler',                0, 999999, 122.18, 25.67, 'USD', 2026, 'x2 multiplier applies'),
+        (NULL, 'romorkör_uluslararasi', 'yolcu_feribot_roro_car_carrier', 0, 999999, 224.00, 40.00, 'USD', 2026, 'x2 multiplier applies'),
+        (NULL, 'romorkör_uluslararasi', 'konteyner',                      0, 999999, 299.00, 56.00, 'USD', 2026, 'x2 multiplier applies'),
+        (NULL, 'romorkör_uluslararasi', 'diger_yuk',                      0, 999999, 382.99, 71.87, 'USD', 2026, 'x2 multiplier applies'),
+        -- T.1.3 Mooring (official 2026 rates)
+        (NULL, 'palamar_kabotaj',      'calisan_gemiler', 0, 999999, 11.29, 6.16,  'USD', 2026, 'Mooring x2 multiplier applies'),
+        (NULL, 'palamar_uluslararasi', 'diger_tum',       0, 999999, 22.58, 11.29, 'USD', 2026, 'Mooring x2 multiplier applies')
+      `);
+      console.log("[tariff-tables] Seeded 10 global Pilotage/Tugboat/Mooring rows (T.1.1–T.1.3).");
+    }
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS supervision_fees (
         id SERIAL PRIMARY KEY,
