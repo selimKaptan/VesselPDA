@@ -1,5 +1,6 @@
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import JSZip from "jszip";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
@@ -678,6 +679,7 @@ export default function Vessels() {
   const [certDragOver, setCertDragOver] = useState<string | null>(null);
   const [certUploadTarget, setCertUploadTarget] = useState<{ key: string; label: string; vesselId: number } | null>(null);
   const certFileInputRef = useRef<HTMLInputElement>(null);
+  const [certDownloadingAll, setCertDownloadingAll] = useState(false);
 
   // Crew state
   const defaultCrewForm = { firstName: "", lastName: "", rank: "", nationality: "", contractEndDate: "", passportNumber: "", passportExpiry: "", seamansBookNumber: "", seamansBookExpiry: "" };
@@ -817,6 +819,41 @@ export default function Vessels() {
       toast({ title: "File removed" });
     } catch {
       toast({ title: "Error", description: "Failed to remove file", variant: "destructive" });
+    }
+  };
+
+  const handleDownloadAllCerts = async (vesselName: string) => {
+    const uploadedCerts = VESSEL_CERT_TYPES
+      .map(({ key, label }) => ({ key, label, cert: vesselCerts.find((c: any) => c.certType === key && c.fileBase64) }))
+      .filter(({ cert }) => !!cert);
+
+    if (uploadedCerts.length === 0) return;
+
+    setCertDownloadingAll(true);
+    try {
+      const zip = new JSZip();
+      uploadedCerts.forEach(({ label, cert }) => {
+        const base64Data = cert.fileBase64.includes(",")
+          ? cert.fileBase64.split(",")[1]
+          : cert.fileBase64;
+        const fileName = cert.fileName || `${label}.pdf`;
+        zip.file(fileName, base64Data, { base64: true });
+      });
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      const date = new Date().toISOString().slice(0, 10);
+      const safeName = vesselName.replace(/[^a-z0-9]/gi, "_");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${safeName}_certificates_${date}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Download started", description: `${uploadedCerts.length} certificate(s) bundled into ZIP` });
+    } catch {
+      toast({ title: "Download failed", description: "Could not create ZIP file", variant: "destructive" });
+    } finally {
+      setCertDownloadingAll(false);
     }
   };
 
@@ -1259,6 +1296,22 @@ export default function Vessels() {
                             {vesselCerts.filter((c: any) => c.fileBase64).length}/{VESSEL_CERT_TYPES.length} uploaded
                           </Badge>
                         </div>
+                        {vesselCerts.some((c: any) => c.fileBase64) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5 text-xs h-7"
+                            onClick={() => handleDownloadAllCerts(v.name || "vessel")}
+                            disabled={certDownloadingAll}
+                            data-testid="button-download-all-certs"
+                          >
+                            {certDownloadingAll ? (
+                              <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Creating ZIP...</>
+                            ) : (
+                              <><Download className="w-3.5 h-3.5" /> Download All</>
+                            )}
+                          </Button>
+                        )}
                       </div>
 
                       {/* Hidden shared file input */}
