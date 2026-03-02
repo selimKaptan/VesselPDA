@@ -472,9 +472,9 @@ function InlineCell({
 
 // ── CategorySection ───────────────────────────────────────────────────────────
 function CategorySection({
-  cat, portId, externalAddOpen, onExternalAddOpenChange,
+  cat, portId, portName, isGlobal, externalAddOpen, onExternalAddOpenChange,
 }: {
-  cat: CategoryDef; portId: number | "global";
+  cat: CategoryDef; portId: number | "global"; portName: string; isGlobal: boolean;
   externalAddOpen?: boolean;
   onExternalAddOpenChange?: (open: boolean) => void;
 }) {
@@ -487,6 +487,8 @@ function CategorySection({
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkPercent, setBulkPercent] = useState("5");
+  const [catImportProgress, setCatImportProgress] = useState<{ current: number; total: number } | null>(null);
+  const catCsvInputRef = useRef<HTMLInputElement>(null);
   const Icon = cat.icon;
 
   const qk = ["/api/admin/tariffs", cat.key, portId];
@@ -502,6 +504,136 @@ function CategorySection({
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["/api/admin/tariffs", cat.key, portId] });
+
+  // ── Per-category CSV Export ──────────────────────────────────────────────────
+  const handleCategoryExport = async () => {
+    try {
+      const params = new URLSearchParams({ portId: String(portId) });
+      const res = await fetch(`/api/admin/tariffs/${cat.key}?${params}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      const rows: any[] = await res.json();
+
+      const lines: string[] = [
+        "tablo,id,port_id,alan1,alan2,aralik_min,aralik_max,ucret1,ucret2,ucret3,para_birimi,yil,notlar",
+      ];
+
+      rows.forEach(row => {
+        const esc = (v: any) => {
+          const s = String(v ?? "");
+          return s.includes(",") || s.includes('"') || s.includes("\n")
+            ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+        const alan1 = row.service_type ?? row.cargo_type ?? row.service_name ?? row.fee_name ?? "";
+        const alan2 = row.vessel_category ?? row.operation ?? row.tariff_no ?? row.service_description ?? "";
+        const rMin = row.grt_min ?? row.gt_min ?? row.nrt_min ?? row.nt_min ?? "";
+        const rMax = row.grt_max ?? row.gt_max ?? row.nrt_max ?? row.nt_max ?? "";
+        const f1 = row.base_fee ?? row.fixed_fee ?? row.intl_foreign_flag ?? row.fee ?? row.amount ?? row.rate ?? "";
+        const f2 = row.per_1000_grt ?? row.per_1000_nt ?? row.intl_turkish_flag ?? "";
+        const f3 = row.cabotage_turkish ?? row.per_additional_1000_grt ?? "";
+        lines.push([
+          esc(cat.key), esc(row.id), esc(row.port_id ?? portId),
+          esc(alan1), esc(alan2), esc(rMin), esc(rMax),
+          esc(f1), esc(f2), esc(f3),
+          esc(row.currency ?? ""), esc(row.valid_year ?? ""), esc(row.notes ?? ""),
+        ].join(","));
+      });
+
+      const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const safePort = portName.toLowerCase().replace(/\s/g, "_");
+      a.download = `tariffs_${safePort}_${cat.key}_2026.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "CSV downloaded", description: `${cat.label} — ${portName} (${rows.length} records)` });
+    } catch {
+      toast({ title: "Error", description: "Failed to generate CSV", variant: "destructive" });
+    }
+  };
+
+  // ── Per-category CSV Import ──────────────────────────────────────────────────
+  const handleCategoryImport = async (file: File) => {
+    const text = await file.text();
+    const lines = text.split("\n").filter(l => l.trim());
+    if (lines.length < 2) {
+      toast({ title: "Invalid file", description: "CSV is empty or has no data rows", variant: "destructive" });
+      return;
+    }
+
+    const headers = lines[0].split(",").map(h => h.trim().replace(/^\uFEFF/, "").replace(/^"|"$/g, ""));
+    const idIdx = headers.indexOf("id");
+
+    const col = (name: string, cols: string[]) => {
+      const idx = headers.indexOf(name);
+      return idx >= 0 ? (cols[idx] ?? "").replace(/^"|"$/g, "") : "";
+    };
+    const numOrNull = (v: string) => (v === "" ? null : Number(v));
+
+    const dataRows = lines.slice(1);
+    setCatImportProgress({ current: 0, total: dataRows.length });
+    let success = 0;
+    let failed = 0;
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const cols = dataRows[i].split(",");
+      const tableKey = col("tablo", cols) || cat.key;
+      const rowId = idIdx >= 0 ? parseInt(col("id", cols)) : NaN;
+
+      if (tableKey !== cat.key) {
+        failed++;
+        setCatImportProgress({ current: i + 1, total: dataRows.length });
+        continue;
+      }
+
+      const alan1 = col("alan1", cols);
+      const alan2 = col("alan2", cols);
+      const rMin = col("aralik_min", cols);
+      const rMax = col("aralik_max", cols);
+      const f1 = col("ucret1", cols);
+      const f2 = col("ucret2", cols);
+      const f3 = col("ucret3", cols);
+      const currency = col("para_birimi", cols) || cat.defaultCurrency;
+      const year = col("yil", cols) || "2026";
+      const notes = col("notlar", cols);
+
+      const payload: Record<string, any> = isGlobal ? {} : { port_id: portId };
+
+      if (cat.key === "pilotage_tariffs") {
+        Object.assign(payload, { service_type: alan1, vessel_category: alan2, grt_min: numOrNull(rMin), grt_max: numOrNull(rMax), base_fee: numOrNull(f1), per_1000_grt: numOrNull(f2), currency, valid_year: parseInt(year), notes });
+      } else if (cat.key === "berthing_tariffs") {
+        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), intl_foreign_flag: numOrNull(f1), intl_turkish_flag: numOrNull(f2), cabotage_turkish: numOrNull(f3), currency, valid_year: parseInt(year), notes });
+      } else if (cat.key === "agency_fees") {
+        Object.assign(payload, { tariff_no: alan2, service_type: alan1, nt_min: numOrNull(rMin), nt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+      } else if (cat.key === "marpol_tariffs") {
+        Object.assign(payload, { grt_min: numOrNull(rMin), grt_max: numOrNull(rMax), fixed_fee: numOrNull(f1), currency, valid_year: parseInt(year) });
+      } else if (cat.key === "lcb_tariffs") {
+        Object.assign(payload, { nrt_min: numOrNull(rMin), nrt_max: numOrNull(rMax), amount: numOrNull(f1), currency, valid_year: parseInt(year) });
+      } else if (cat.key === "other_services") {
+        Object.assign(payload, { service_name: alan1, fee: numOrNull(f1), unit: alan2, currency, valid_year: parseInt(year), notes });
+      }
+
+      try {
+        if (!isNaN(rowId) && rowId > 0) {
+          await apiRequest("PATCH", `/api/admin/tariffs/${cat.key}/${rowId}`, payload);
+        } else {
+          await apiRequest("POST", `/api/admin/tariffs/${cat.key}`, payload);
+        }
+        success++;
+      } catch {
+        failed++;
+      }
+      setCatImportProgress({ current: i + 1, total: dataRows.length });
+    }
+
+    setCatImportProgress(null);
+    invalidate();
+    toast({
+      title: "Import complete",
+      description: `${cat.label}: ${success} succeeded${failed > 0 ? `, ${failed} failed` : ""}`,
+      variant: failed > 0 ? "destructive" : "default",
+    });
+  };
 
   const addMutation = useMutation({
     mutationFn: () =>
@@ -606,6 +738,45 @@ function CategorySection({
               <TrendingUp className="w-3 h-3" /> % Increase
             </Button>
           )}
+          <Button
+            size="sm" variant="outline"
+            className="h-7 gap-1 text-xs"
+            onClick={e => { e.stopPropagation(); handleCategoryExport(); }}
+            data-testid={`button-export-csv-${cat.key}`}
+            title={`Export ${cat.label} as CSV`}
+          >
+            <Download className="w-3 h-3" /> CSV
+          </Button>
+          <Button
+            size="sm" variant="outline"
+            className="h-7 gap-1 text-xs"
+            onClick={e => { e.stopPropagation(); catCsvInputRef.current?.click(); }}
+            disabled={!!catImportProgress}
+            data-testid={`button-import-csv-${cat.key}`}
+            title={`Import ${cat.label} from CSV`}
+          >
+            {catImportProgress ? (
+              <>
+                <Loader2 className="w-3 h-3 animate-spin" />
+                {catImportProgress.current}/{catImportProgress.total}
+              </>
+            ) : (
+              <>
+                <Upload className="w-3 h-3" /> Import
+              </>
+            )}
+          </Button>
+          <input
+            ref={catCsvInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={e => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) handleCategoryImport(f);
+            }}
+          />
           <Button
             size="sm"
             className="h-7 gap-1 text-xs"
@@ -1262,6 +1433,8 @@ export default function TariffManagement() {
             key={`${cat.key}-${activePort}`}
             cat={cat}
             portId={activePort}
+            portName={activePortName}
+            isGlobal={isGlobalTab}
             externalAddOpen={cat.key === "other_services" ? ekHizmetOpen : undefined}
             onExternalAddOpenChange={cat.key === "other_services" ? setEkHizmetOpen : undefined}
           />
