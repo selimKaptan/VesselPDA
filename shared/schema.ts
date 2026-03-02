@@ -832,6 +832,10 @@ export const vesselCrew = pgTable("vessel_crew", {
   passportExpiry: timestamp("passport_expiry"),
   seamansBookNumber: text("seamans_book_number"),
   seamansBookExpiry: timestamp("seamans_book_expiry"),
+  passportFileBase64: text("passport_file_base64"),
+  passportFileName: text("passport_file_name"),
+  seamansBookFileBase64: text("seamans_book_file_base64"),
+  seamansBookFileName: text("seamans_book_file_name"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -687,6 +687,10 @@ export default function Vessels() {
   const [editCrewMember, setEditCrewMember] = useState<any>(null);
   const [crewDeleteTarget, setCrewDeleteTarget] = useState<{ id: number; vesselId: number } | null>(null);
   const [crewForm, setCrewForm] = useState({ ...defaultCrewForm });
+  const [crewFileUploading, setCrewFileUploading] = useState<{ id: number; field: "passport" | "seamansBook" } | null>(null);
+  const crewPassportInputRef = useRef<HTMLInputElement>(null);
+  const crewSeamansBookInputRef = useRef<HTMLInputElement>(null);
+  const [crewFileTarget, setCrewFileTarget] = useState<{ id: number; vesselId: number; field: "passport" | "seamansBook" } | null>(null);
   const [location] = useLocation();
 
   useEffect(() => {
@@ -855,6 +859,42 @@ export default function Vessels() {
     } finally {
       setCertDownloadingAll(false);
     }
+  };
+
+  const handleCrewFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!crewFileTarget) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const { id, vesselId, field } = crewFileTarget;
+    setCrewFileUploading({ id, field });
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64 = reader.result as string;
+        const payload = field === "passport"
+          ? { passportFileBase64: base64, passportFileName: file.name }
+          : { seamansBookFileBase64: base64, seamansBookFileName: file.name };
+        await apiRequest("PATCH", `/api/vessels/${vesselId}/crew/${id}`, payload);
+        queryClient.invalidateQueries({ queryKey: ["/api/vessels", vesselId, "crew"] });
+        toast({ title: field === "passport" ? "Passport uploaded" : "Seaman's Book uploaded" });
+        setCrewFileUploading(null);
+        setCrewFileTarget(null);
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      toast({ title: "Upload failed", variant: "destructive" });
+      setCrewFileUploading(null);
+    }
+    e.target.value = "";
+  };
+
+  const handleCrewFileRemove = async (member: any, field: "passport" | "seamansBook") => {
+    const payload = field === "passport"
+      ? { passportFileBase64: null, passportFileName: null }
+      : { seamansBookFileBase64: null, seamansBookFileName: null };
+    await apiRequest("PATCH", `/api/vessels/${member.vesselId}/crew/${member.id}`, payload);
+    queryClient.invalidateQueries({ queryKey: ["/api/vessels", member.vesselId, "crew"] });
+    toast({ title: "File removed" });
   };
 
   // Crew query and mutations
@@ -1328,6 +1368,9 @@ export default function Vessels() {
                           }
                         }}
                       />
+                      {/* Hidden crew document inputs */}
+                      <input ref={crewPassportInputRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleCrewFileUpload} />
+                      <input ref={crewSeamansBookInputRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={handleCrewFileUpload} />
 
                       {certsLoading ? (
                         <div className="flex justify-center py-8">
@@ -1523,7 +1566,7 @@ export default function Vessels() {
                             <table className="w-full text-xs">
                               <thead>
                                 <tr className="bg-muted/40 border-b">
-                                  {["#", "Name", "Rank", "Nationality", "Contract End", "Passport Exp", "Seaman's Book Exp", ""].map((h) => (
+                                  {["#", "Name", "Rank", "Nationality", "Contract End", "Passport Exp", "Passport Doc", "Seaman's Book Exp", "Seaman's Book Doc", ""].map((h) => (
                                     <th key={h} className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
                                       {h}
                                     </th>
@@ -1555,8 +1598,64 @@ export default function Vessels() {
                                     <td className="px-3 py-2.5 whitespace-nowrap">
                                       {expCell(member.passportExpiry, member.passportNumber)}
                                     </td>
+                                    <td className="px-3 py-2.5">
+                                      {crewFileUploading?.id === member.id && crewFileUploading.field === "passport"
+                                        ? <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                                        : member.passportFileBase64
+                                          ? <div className="flex items-center gap-0.5">
+                                              <Button size="icon" variant="ghost" className="h-6 w-6 text-green-600 dark:text-green-400" title={`Preview: ${member.passportFileName || "passport.pdf"}`}
+                                                onClick={() => window.open(member.passportFileBase64, "_blank")}
+                                                data-testid={`button-preview-passport-${member.id}`}>
+                                                <Eye className="w-3 h-3" />
+                                              </Button>
+                                              <Button size="icon" variant="ghost" className="h-6 w-6 text-green-600 dark:text-green-400" title="Download"
+                                                onClick={() => { const a = document.createElement("a"); a.href = member.passportFileBase64; a.download = member.passportFileName || "passport.pdf"; a.click(); }}
+                                                data-testid={`button-download-passport-${member.id}`}>
+                                                <Download className="w-3 h-3" />
+                                              </Button>
+                                              <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground/60 hover:text-destructive" title="Remove file"
+                                                onClick={() => handleCrewFileRemove({ ...member, vesselId: v.id }, "passport")}
+                                                data-testid={`button-remove-passport-${member.id}`}>
+                                                <X className="w-3 h-3" />
+                                              </Button>
+                                            </div>
+                                          : <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground/40 hover:text-primary" title="Upload passport PDF"
+                                              onClick={() => { setCrewFileTarget({ id: member.id, vesselId: v.id, field: "passport" }); setTimeout(() => crewPassportInputRef.current?.click(), 30); }}
+                                              data-testid={`button-upload-passport-${member.id}`}>
+                                              <Upload className="w-3 h-3" />
+                                            </Button>
+                                      }
+                                    </td>
                                     <td className="px-3 py-2.5 whitespace-nowrap">
                                       {expCell(member.seamansBookExpiry, member.seamansBookNumber)}
+                                    </td>
+                                    <td className="px-3 py-2.5">
+                                      {crewFileUploading?.id === member.id && crewFileUploading.field === "seamansBook"
+                                        ? <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                                        : member.seamansBookFileBase64
+                                          ? <div className="flex items-center gap-0.5">
+                                              <Button size="icon" variant="ghost" className="h-6 w-6 text-green-600 dark:text-green-400" title={`Preview: ${member.seamansBookFileName || "seamans_book.pdf"}`}
+                                                onClick={() => window.open(member.seamansBookFileBase64, "_blank")}
+                                                data-testid={`button-preview-seamansbook-${member.id}`}>
+                                                <Eye className="w-3 h-3" />
+                                              </Button>
+                                              <Button size="icon" variant="ghost" className="h-6 w-6 text-green-600 dark:text-green-400" title="Download"
+                                                onClick={() => { const a = document.createElement("a"); a.href = member.seamansBookFileBase64; a.download = member.seamansBookFileName || "seamans_book.pdf"; a.click(); }}
+                                                data-testid={`button-download-seamansbook-${member.id}`}>
+                                                <Download className="w-3 h-3" />
+                                              </Button>
+                                              <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground/60 hover:text-destructive" title="Remove file"
+                                                onClick={() => handleCrewFileRemove({ ...member, vesselId: v.id }, "seamansBook")}
+                                                data-testid={`button-remove-seamansbook-${member.id}`}>
+                                                <X className="w-3 h-3" />
+                                              </Button>
+                                            </div>
+                                          : <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground/40 hover:text-primary" title="Upload seaman's book PDF"
+                                              onClick={() => { setCrewFileTarget({ id: member.id, vesselId: v.id, field: "seamansBook" }); setTimeout(() => crewSeamansBookInputRef.current?.click(), 30); }}
+                                              data-testid={`button-upload-seamansbook-${member.id}`}>
+                                              <Upload className="w-3 h-3" />
+                                            </Button>
+                                      }
                                     </td>
                                     <td className="px-3 py-2.5">
                                       <div className="flex items-center gap-0.5">
