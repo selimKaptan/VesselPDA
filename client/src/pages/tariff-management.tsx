@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Navigation, Warehouse, Building2, Leaf, Layers, MoreHorizontal,
   Plus, Pencil, Trash2, Loader2, TrendingUp, Download, Upload,
-  ChevronDown, ChevronUp, Database, Ship, AlertTriangle, X, Search, PlusCircle, Wrench, Globe, Info,
+  ChevronDown, ChevronUp, Database, Ship, AlertTriangle, X, Search, PlusCircle, Globe, Info,
   Lightbulb, Briefcase, BarChart2, Anchor, ShieldCheck
 } from "lucide-react";
 
@@ -618,14 +618,12 @@ function InlineCell({
 
 // ── CategorySection ───────────────────────────────────────────────────────────
 function CategorySection({
-  cat, portId, portName, isGlobal, externalAddOpen, onExternalAddOpenChange,
+  cat, portId, portName, isGlobal,
 }: {
   cat: CategoryDef; portId: number | "global"; portName: string; isGlobal: boolean;
-  externalAddOpen?: boolean;
-  onExternalAddOpenChange?: (open: boolean) => void;
 }) {
   const { toast } = useToast();
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [addData, setAddData] = useState<Record<string, any>>({});
   const [editRowId, setEditRowId] = useState<number | null>(null);
@@ -845,22 +843,11 @@ function CategorySection({
       toast({ title: "Error", description: "Failed to apply increase", variant: "destructive" }),
   });
 
-  const isAddOpen = addOpen || (externalAddOpen ?? false);
-
-  const handleAddOpenChange = (open: boolean) => {
-    setAddOpen(open);
-    if (!open) onExternalAddOpenChange?.(false);
-  };
-
   const openAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
     setAddData({ currency: cat.defaultCurrency, valid_year: 2026 });
     setAddOpen(true);
   };
-
-  if (externalAddOpen && !addOpen && Object.keys(addData).length === 0) {
-    setAddData({ currency: cat.defaultCurrency, valid_year: 2026 });
-  }
 
   const openEdit = (row: any) => {
     setEditRowId(row.id);
@@ -1054,7 +1041,7 @@ function CategorySection({
       )}
 
       {/* ── Add Dialog ── */}
-      <Dialog open={isAddOpen} onOpenChange={handleAddOpenChange}>
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1173,7 +1160,6 @@ export default function TariffManagement() {
 
   const [addPortOpen, setAddPortOpen] = useState(false);
   const [portSearch, setPortSearch] = useState("");
-  const [ekHizmetOpen, setEkHizmetOpen] = useState(false);
 
   if (userRole && userRole !== "admin") {
     navigate("/dashboard");
@@ -1536,18 +1522,6 @@ export default function TariffManagement() {
                 — Tariffs added here apply to all ports automatically as a fallback when no port-specific tariff is found.
               </span>
             </div>
-            <div className="ml-auto shrink-0">
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5 text-xs h-7 border-dashed border-blue-400 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40"
-                onClick={() => setEkHizmetOpen(true)}
-                data-testid="button-ek-hizmet"
-              >
-                <Wrench className="w-3 h-3" />
-                Add Service
-              </Button>
-            </div>
           </div>
         ) : (
           <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
@@ -1578,18 +1552,6 @@ export default function TariffManagement() {
                 <span>{summary.outdatedCount} outdated records</span>
               </div>
             )}
-            <div className="ml-auto">
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5 text-xs h-7 border-dashed"
-                onClick={() => setEkHizmetOpen(true)}
-                data-testid="button-ek-hizmet"
-              >
-                <Wrench className="w-3 h-3" />
-                Add Service
-              </Button>
-            </div>
           </div>
         )}
       </div>
@@ -1603,8 +1565,6 @@ export default function TariffManagement() {
             portId={activePort}
             portName={activePortName}
             isGlobal={isGlobalTab}
-            externalAddOpen={cat.key === "other_services" ? ekHizmetOpen : undefined}
-            onExternalAddOpenChange={cat.key === "other_services" ? setEkHizmetOpen : undefined}
           />
         ))}
       </div>
