@@ -221,6 +221,12 @@ export default function Proformas() {
   const saveDraftMutation = useMutation({
     mutationFn: async () => {
       if (!quickResult) throw new Error("No result");
+      if (!quickVesselId || quickVesselId === "external" || quickVesselId === "" || isNaN(parseInt(quickVesselId))) {
+        throw new Error("Please select a vessel from your fleet to save as a draft.");
+      }
+      if (!quickPortId || isNaN(parseInt(quickPortId))) {
+        throw new Error("Please select a port to save as a draft.");
+      }
       const selectedCargoOption = CARGO_TYPE_OPTIONS.find(o => o.value === quickCargoType);
       const res = await apiRequest("POST", "/api/proformas", {
         vesselId: parseInt(quickVesselId),
@@ -245,7 +251,18 @@ export default function Proformas() {
       setShowQuickDialog(false);
       navigate(`/proformas/${data.id}`);
     },
-    onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+    onError: (err: any) => {
+      const msg = err?.message || "";
+      if (msg.includes("400:") || msg.includes("required")) {
+        toast({ title: "Missing fields", description: "Ensure a fleet vessel and port are selected.", variant: "destructive" });
+      } else if (msg.includes("403:") || msg.includes("LIMIT_REACHED") || msg.includes("limit")) {
+        toast({ title: "Proforma limit reached", description: "Upgrade your plan to save more proformas.", variant: "destructive" });
+      } else if (msg.includes("Please select")) {
+        toast({ title: "Cannot save", description: msg, variant: "destructive" });
+      } else {
+        toast({ title: "Failed to save", description: "Please try again.", variant: "destructive" });
+      }
+    },
   });
 
   const filteredProformas = (proformas || []).filter((p) => {
@@ -1097,17 +1114,17 @@ export default function Proformas() {
                 </p>
 
                 <div className="flex gap-2 pt-1">
-                  {quickVesselId === "external" ? (
+                  {(quickVesselId === "external" || quickVesselId === "") ? (
                     <Button
                       size="sm"
                       variant="outline"
                       className="flex-1 gap-1.5 text-xs"
                       disabled
-                      title="Add the vessel to your fleet first to save as draft"
+                      title="Select a vessel from your fleet to save as draft"
                       data-testid="button-save-draft-quick"
                     >
                       <FileText className="w-3.5 h-3.5" />
-                      Save as Draft (Add to Fleet First)
+                      Save as Draft (Select Fleet Vessel First)
                     </Button>
                   ) : (
                     <Button
@@ -1115,7 +1132,7 @@ export default function Proformas() {
                       variant="outline"
                       className="flex-1 gap-1.5 text-xs"
                       onClick={() => saveDraftMutation.mutate()}
-                      disabled={saveDraftMutation.isPending}
+                      disabled={saveDraftMutation.isPending || !quickPortId}
                       data-testid="button-save-draft-quick"
                     >
                       {saveDraftMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
