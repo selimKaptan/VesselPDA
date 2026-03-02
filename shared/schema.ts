@@ -628,6 +628,8 @@ export const vesselCertificates = pgTable("vessel_certificates", {
   certificateNumber: text("certificate_number"),
   notes: text("notes"),
   status: text("status").notNull().default("valid"),
+  fileBase64: text("file_base64"),
+  fileName: text("file_name"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

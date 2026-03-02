@@ -8,7 +8,7 @@ import {
   FileText, ChevronRight, Activity, ChevronDown,
   LayoutGrid, Map as MapIcon,
   ShieldCheck, Pencil, AlertTriangle, CheckCircle2, Clock,
-  ChevronLeft,
+  ChevronLeft, Download, Upload, Eye, X,
 } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Card } from "@/components/ui/card";
@@ -603,27 +603,53 @@ const FILTER_TABS: { key: FilterGroup; label: string }[] = [
 ];
 
 // ── Certificate helpers ───────────────────────────────────────────────────────
-const CERT_TYPES: Record<string, string> = {
-  ism: "ISM", isps: "ISPS", loadline: "Load Line",
-  marpol: "MARPOL", solas: "SOLAS", other: "Other",
-};
-const CERT_TYPE_COLORS: Record<string, string> = {
-  ism: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-  isps: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
-  loadline: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300",
-  marpol: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-  solas: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
-  other: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300",
-};
+const VESSEL_CERT_TYPES = [
+  { key: "ship_registry",       label: "Ship Registry Certificate" },
+  { key: "load_line",           label: "Load Line Certificate" },
+  { key: "tonnage_1969",        label: "International Tonnage Certificate (1969)" },
+  { key: "safe_manning",        label: "Minimum Safe Manning Certificate" },
+  { key: "safety_equipment",    label: "Safety Equipment Certificate & Form E" },
+  { key: "safety_construction", label: "Safety Construction Certificate" },
+  { key: "safety_radio",        label: "Safety Radio Certificate" },
+  { key: "oil_pollution",       label: "Oil Pollution Prevention Certificate" },
+  { key: "sewage_pollution",    label: "Sewage Pollution Prevention Certificate" },
+  { key: "csr",                 label: "Continuous Synopsis Record (CSR)" },
+  { key: "safety_management",   label: "Safety Management Certificate (ISM)" },
+  { key: "ship_security",       label: "Ship Security Certificate (ISPS)" },
+  { key: "clc_bunker",          label: "CLC 92 & Bunker 2001 Certificate" },
+  { key: "pni",                 label: "P&I Certificate" },
+  { key: "class_cert",          label: "Class Certificate" },
+  { key: "sanitation",          label: "Ship Sanitation Exemption Certificate" },
+  { key: "ballast",             label: "Ballast Water Management Certificate" },
+  { key: "bimco_shipman",       label: "BIMCO SHIPMAN 2009" },
+] as const;
+
+const CERT_TYPES: Record<string, string> = Object.fromEntries(VESSEL_CERT_TYPES.map(c => [c.key, c.label]));
+
 const defaultCertForm = {
-  name: "", certType: "ism", issuedAt: "", expiresAt: "",
+  name: "", certType: "ship_registry", issuedAt: "", expiresAt: "",
   issuingAuthority: "", certificateNumber: "", notes: "",
 };
+
+function certStatusFromExpiry(expiresAt: string | null): "valid" | "expiring_soon" | "expired" | "no_date" {
+  if (!expiresAt) return "no_date";
+  const exp = new Date(expiresAt);
+  const now = new Date();
+  if (exp < now) return "expired";
+  const soon = new Date();
+  soon.setDate(soon.getDate() + 60);
+  if (exp < soon) return "expiring_soon";
+  return "valid";
+}
+
 function certStatusBadge(status: string, expiresAt: string | null) {
-  if (status === "expired" || (expiresAt && new Date(expiresAt) < new Date()))
+  const computed = certStatusFromExpiry(expiresAt);
+  if (computed === "expired" || status === "expired")
     return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 gap-1 text-[10px]"><AlertTriangle className="w-3 h-3" />Expired</Badge>;
-  if (status === "expiring_soon")
+  if (computed === "expiring_soon" || status === "expiring_soon")
     return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 gap-1 text-[10px]"><Clock className="w-3 h-3" />Expiring Soon</Badge>;
+  if (computed === "no_date")
+    return <Badge className="bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 gap-1 text-[10px]"><Clock className="w-3 h-3" />No Expiry Set</Badge>;
   return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 gap-1 text-[10px]"><CheckCircle2 className="w-3 h-3" />Valid</Badge>;
 }
 function fmtDate(dt: string | null) {
@@ -648,6 +674,10 @@ export default function Vessels() {
   const [editCert, setEditCert] = useState<any>(null);
   const [certDeleteTarget, setCertDeleteTarget] = useState<{ id: number; vesselId: number } | null>(null);
   const [certForm, setCertForm] = useState({ ...defaultCertForm });
+  const [certUploading, setCertUploading] = useState<string | null>(null);
+  const [certDragOver, setCertDragOver] = useState<string | null>(null);
+  const [certUploadTarget, setCertUploadTarget] = useState<{ key: string; label: string; vesselId: number } | null>(null);
+  const certFileInputRef = useRef<HTMLInputElement>(null);
 
   // Crew state
   const defaultCrewForm = { firstName: "", lastName: "", rank: "", nationality: "", contractEndDate: "", passportNumber: "", passportExpiry: "", seamansBookNumber: "", seamansBookExpiry: "" };
@@ -730,6 +760,65 @@ export default function Vessels() {
       setCertDeleteTarget(null);
     },
   });
+
+  // ── Certificate file handlers ─────────────────────────────────────────────
+  const handleCertFileSelect = async (certTypeKey: string, certLabel: string, file: File, vesselId: number) => {
+    if (!file.type.includes("pdf") && !file.name.toLowerCase().endsWith(".pdf")) {
+      toast({ title: "PDF only", description: "Please upload a PDF file", variant: "destructive" });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Maximum file size is 10 MB", variant: "destructive" });
+      return;
+    }
+    setCertUploading(certTypeKey);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const fileBase64 = e.target?.result as string;
+      const existingCert = vesselCerts.find((c: any) => c.certType === certTypeKey);
+      try {
+        if (existingCert?.id) {
+          await apiRequest("PATCH", `/api/vessels/${vesselId}/certificates/${existingCert.id}`, { fileBase64, fileName: file.name });
+        } else {
+          await apiRequest("POST", `/api/vessels/${vesselId}/certificates`, {
+            name: certLabel, certType: certTypeKey, fileBase64, fileName: file.name,
+            issuedAt: null, expiresAt: null, issuingAuthority: null, certificateNumber: null, notes: null,
+          });
+        }
+        queryClient.invalidateQueries({ queryKey: ["/api/vessels", selectedVessel?.id, "certificates"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/certificates/expiring"] });
+        toast({ title: "PDF uploaded", description: `${certLabel} saved successfully` });
+      } catch {
+        toast({ title: "Upload failed", description: "Please try again", variant: "destructive" });
+      } finally {
+        setCertUploading(null);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCertDownload = (cert: any) => {
+    if (!cert.fileBase64) return;
+    const a = document.createElement("a");
+    a.href = cert.fileBase64;
+    a.download = cert.fileName || `${cert.name}.pdf`;
+    a.click();
+  };
+
+  const handleCertPreview = (cert: any) => {
+    if (!cert.fileBase64) return;
+    window.open(cert.fileBase64, "_blank");
+  };
+
+  const handleCertRemoveFile = async (cert: any, vesselId: number) => {
+    try {
+      await apiRequest("PATCH", `/api/vessels/${vesselId}/certificates/${cert.id}`, { fileBase64: null, fileName: null });
+      queryClient.invalidateQueries({ queryKey: ["/api/vessels", selectedVessel?.id, "certificates"] });
+      toast({ title: "File removed" });
+    } catch {
+      toast({ title: "Error", description: "Failed to remove file", variant: "destructive" });
+    }
+  };
 
   // Crew query and mutations
   const { data: vesselCrewList = [], isLoading: crewLoading } = useQuery<any[]>({
@@ -1166,93 +1255,159 @@ export default function Vessels() {
                         <div className="flex items-center gap-2">
                           <ShieldCheck className="w-4 h-4 text-primary" />
                           <span className="text-sm font-semibold">Vessel Certificates</span>
+                          <Badge variant="outline" className="text-[10px]">
+                            {vesselCerts.filter((c: any) => c.fileBase64).length}/{VESSEL_CERT_TYPES.length} uploaded
+                          </Badge>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1"
-                          onClick={() => {
-                            setEditCert({ vesselId: v.id, id: null });
-                            setCertForm({ ...defaultCertForm });
-                            setCertDialogOpen(true);
-                          }}
-                          data-testid="button-add-cert-vessel"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          Add Certificate
-                        </Button>
                       </div>
+
+                      {/* Hidden shared file input */}
+                      <input
+                        ref={certFileInputRef}
+                        type="file"
+                        accept=".pdf,application/pdf"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (file && certUploadTarget) {
+                            handleCertFileSelect(certUploadTarget.key, certUploadTarget.label, file, certUploadTarget.vesselId);
+                          }
+                        }}
+                      />
 
                       {certsLoading ? (
                         <div className="flex justify-center py-8">
                           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                         </div>
-                      ) : vesselCerts.length === 0 ? (
-                        <div className="text-center py-10 text-muted-foreground">
-                          <ShieldCheck className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                          <p className="text-sm">No certificates added yet</p>
-                          <p className="text-xs mt-1">Use the button above to add one</p>
-                        </div>
                       ) : (
-                        <div className="space-y-2">
-                          {vesselCerts.map((cert: any) => (
-                            <div
-                              key={cert.id}
-                              className="rounded-xl border bg-muted/20 p-3 space-y-2"
-                              data-testid={`cert-item-${cert.id}`}
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="space-y-1 min-w-0 flex-1">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="text-sm font-semibold">{cert.name}</span>
-                                    <Badge className={`${CERT_TYPE_COLORS[cert.certType] || CERT_TYPE_COLORS.other} text-[10px]`}>
-                                      {CERT_TYPES[cert.certType] || cert.certType}
-                                    </Badge>
-                                    {certStatusBadge(cert.status, cert.expiresAt)}
+                        <div className="grid grid-cols-1 gap-2">
+                          {VESSEL_CERT_TYPES.map(({ key, label }) => {
+                            const cert = vesselCerts.find((c: any) => c.certType === key);
+                            const isUploading = certUploading === key;
+                            const isDragOver = certDragOver === key;
+                            const hasFile = !!cert?.fileBase64;
+
+                            return (
+                              <div
+                                key={key}
+                                className={`rounded-xl border p-3 transition-colors ${isDragOver ? "border-primary bg-primary/5" : "bg-muted/10 hover:bg-muted/20"}`}
+                                data-testid={`cert-card-${key}`}
+                                onDragOver={e => { e.preventDefault(); setCertDragOver(key); }}
+                                onDragLeave={() => setCertDragOver(null)}
+                                onDrop={e => {
+                                  e.preventDefault();
+                                  setCertDragOver(null);
+                                  const file = e.dataTransfer.files?.[0];
+                                  if (file) handleCertFileSelect(key, label, file, v.id);
+                                }}
+                              >
+                                {/* Card header */}
+                                <div className="flex items-start justify-between gap-2 mb-2">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold leading-tight truncate" title={label}>{label}</p>
+                                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                      {certStatusBadge(cert?.status ?? "valid", cert?.expiresAt ?? null)}
+                                      {cert?.expiresAt && (
+                                        <span className="text-[10px] text-muted-foreground">
+                                          Exp: {fmtDate(cert.expiresAt)}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
-                                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-                                    {cert.certificateNumber && <span>No: {cert.certificateNumber}</span>}
-                                    {cert.issuingAuthority && <span>{cert.issuingAuthority}</span>}
-                                    {cert.issuedAt && <span>Issued: {fmtDate(cert.issuedAt)}</span>}
-                                    {cert.expiresAt && <span>Expires: {fmtDate(cert.expiresAt)}</span>}
-                                  </div>
-                                  {cert.notes && <p className="text-[11px] text-muted-foreground italic">{cert.notes}</p>}
-                                </div>
-                                <div className="flex items-center gap-1 shrink-0">
+                                  {/* Edit dates button */}
                                   <Button
                                     size="icon"
                                     variant="ghost"
-                                    className="h-7 w-7"
+                                    className="h-6 w-6 shrink-0"
+                                    title="Edit dates & details"
                                     onClick={() => {
-                                      setEditCert(cert);
+                                      setEditCert(cert ? cert : { vesselId: v.id, id: null });
                                       setCertForm({
-                                        name: cert.name || "",
-                                        certType: cert.certType || "ism",
-                                        issuedAt: cert.issuedAt ? cert.issuedAt.substring(0, 10) : "",
-                                        expiresAt: cert.expiresAt ? cert.expiresAt.substring(0, 10) : "",
-                                        issuingAuthority: cert.issuingAuthority || "",
-                                        certificateNumber: cert.certificateNumber || "",
-                                        notes: cert.notes || "",
+                                        name: cert?.name || label,
+                                        certType: key,
+                                        issuedAt: cert?.issuedAt ? cert.issuedAt.substring(0, 10) : "",
+                                        expiresAt: cert?.expiresAt ? cert.expiresAt.substring(0, 10) : "",
+                                        issuingAuthority: cert?.issuingAuthority || "",
+                                        certificateNumber: cert?.certificateNumber || "",
+                                        notes: cert?.notes || "",
                                       });
                                       setCertDialogOpen(true);
                                     }}
-                                    data-testid={`button-edit-cert-${cert.id}`}
+                                    data-testid={`button-edit-cert-${key}`}
                                   >
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7 text-destructive hover:text-destructive"
-                                    onClick={() => setCertDeleteTarget({ id: cert.id, vesselId: v.id })}
-                                    data-testid={`button-delete-cert-${cert.id}`}
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <Pencil className="w-3 h-3" />
                                   </Button>
                                 </div>
+
+                                {/* File area */}
+                                {hasFile ? (
+                                  <div className="flex items-center gap-2 bg-background/60 rounded-lg px-2.5 py-1.5 border">
+                                    <FileText className="w-3.5 h-3.5 text-primary shrink-0" />
+                                    <span className="text-[11px] truncate flex-1 text-muted-foreground" title={cert.fileName}>{cert.fileName || "certificate.pdf"}</span>
+                                    <div className="flex items-center gap-0.5 shrink-0">
+                                      <Button
+                                        size="icon" variant="ghost" className="h-6 w-6"
+                                        title="Preview" onClick={() => handleCertPreview(cert)}
+                                        data-testid={`button-preview-cert-${key}`}
+                                      >
+                                        <Eye className="w-3 h-3" />
+                                      </Button>
+                                      <Button
+                                        size="icon" variant="ghost" className="h-6 w-6"
+                                        title="Download" onClick={() => handleCertDownload(cert)}
+                                        data-testid={`button-download-cert-${key}`}
+                                      >
+                                        <Download className="w-3 h-3" />
+                                      </Button>
+                                      <Button
+                                        size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                        title="Remove file"
+                                        onClick={() => handleCertRemoveFile(cert, v.id)}
+                                        data-testid={`button-remove-cert-file-${key}`}
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className={`w-full flex items-center justify-center gap-1.5 border border-dashed rounded-lg py-2 text-[11px] transition-colors ${isDragOver ? "border-primary text-primary" : "border-muted-foreground/30 text-muted-foreground hover:border-primary/50 hover:text-primary/70"}`}
+                                    onClick={() => {
+                                      setCertUploadTarget({ key, label, vesselId: v.id });
+                                      setTimeout(() => certFileInputRef.current?.click(), 50);
+                                    }}
+                                    disabled={isUploading}
+                                    data-testid={`button-upload-cert-${key}`}
+                                  >
+                                    {isUploading ? (
+                                      <><Loader2 className="w-3 h-3 animate-spin" /> Uploading...</>
+                                    ) : (
+                                      <><Upload className="w-3 h-3" /> Drop PDF or click to upload</>
+                                    )}
+                                  </button>
+                                )}
+
+                                {/* Replace file button when file exists */}
+                                {hasFile && (
+                                  <button
+                                    type="button"
+                                    className="w-full flex items-center justify-center gap-1.5 mt-1.5 text-[10px] text-muted-foreground hover:text-primary transition-colors"
+                                    onClick={() => {
+                                      setCertUploadTarget({ key, label, vesselId: v.id });
+                                      setTimeout(() => certFileInputRef.current?.click(), 50);
+                                    }}
+                                    disabled={isUploading}
+                                    data-testid={`button-replace-cert-${key}`}
+                                  >
+                                    {isUploading ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Upload className="w-2.5 h-2.5" />}
+                                    Replace PDF
+                                  </button>
+                                )}
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -1448,32 +1603,13 @@ export default function Vessels() {
       <Dialog open={certDialogOpen} onOpenChange={setCertDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editCert?.id ? "Edit Certificate" : "Add New Certificate"}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-primary" />
+              {CERT_TYPES[certForm.certType] || "Certificate Details"}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <Label>Certificate Name *</Label>
-                <Input
-                  value={certForm.name}
-                  onChange={e => setCertForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. ISM Safety Management Certificate"
-                  data-testid="input-cert-name"
-                />
-              </div>
-              <div>
-                <Label>Type</Label>
-                <Select value={certForm.certType} onValueChange={v => setCertForm(f => ({ ...f, certType: v }))}>
-                  <SelectTrigger data-testid="select-cert-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(CERT_TYPES).map(([k, lbl]) => (
-                      <SelectItem key={k} value={k}>{lbl}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
               <div>
                 <Label>Certificate No.</Label>
                 <Input
@@ -1484,21 +1620,21 @@ export default function Vessels() {
                 />
               </div>
               <div>
+                <Label>Issuing Authority</Label>
+                <Input
+                  value={certForm.issuingAuthority}
+                  onChange={e => setCertForm(f => ({ ...f, issuingAuthority: e.target.value }))}
+                  placeholder="e.g. DNV, Lloyd's..."
+                  data-testid="input-cert-authority"
+                />
+              </div>
+              <div>
                 <Label>Issue Date</Label>
                 <Input type="date" value={certForm.issuedAt} onChange={e => setCertForm(f => ({ ...f, issuedAt: e.target.value }))} data-testid="input-cert-issued" />
               </div>
               <div>
                 <Label>Expiry Date</Label>
                 <Input type="date" value={certForm.expiresAt} onChange={e => setCertForm(f => ({ ...f, expiresAt: e.target.value }))} data-testid="input-cert-expires" />
-              </div>
-              <div className="col-span-2">
-                <Label>Issuing Authority</Label>
-                <Input
-                  value={certForm.issuingAuthority}
-                  onChange={e => setCertForm(f => ({ ...f, issuingAuthority: e.target.value }))}
-                  placeholder="e.g. Turkish Lloyd's, DNV, Lloyd's Register..."
-                  data-testid="input-cert-authority"
-                />
               </div>
               <div className="col-span-2">
                 <Label>Notes</Label>
