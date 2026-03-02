@@ -297,6 +297,45 @@ export async function ensureNewTariffTables() {
       console.log("[tariff-tables] Seeded sanitary_dues with global rate.");
     }
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS vts_fees (
+        id SERIAL PRIMARY KEY,
+        port_id INTEGER REFERENCES ports(id),
+        service_name VARCHAR,
+        fee NUMERIC,
+        unit VARCHAR,
+        currency VARCHAR DEFAULT 'USD',
+        valid_year INTEGER DEFAULT 2026,
+        notes TEXT,
+        updated_at TIMESTAMPTZ
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS custom_tariff_sections (
+        id SERIAL PRIMARY KEY,
+        label VARCHAR NOT NULL,
+        default_currency VARCHAR DEFAULT 'USD',
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS custom_tariff_entries (
+        id SERIAL PRIMARY KEY,
+        section_id INTEGER NOT NULL REFERENCES custom_tariff_sections(id) ON DELETE CASCADE,
+        port_id INTEGER REFERENCES ports(id),
+        service_name VARCHAR,
+        fee NUMERIC,
+        unit VARCHAR,
+        currency VARCHAR DEFAULT 'USD',
+        valid_year INTEGER DEFAULT 2026,
+        notes TEXT,
+        updated_at TIMESTAMPTZ
+      )
+    `);
+
     console.log("[tariff-tables] ✓ All new tariff tables verified.");
   } catch (err) {
     console.error("[tariff-tables] Error ensuring tariff tables:", err);

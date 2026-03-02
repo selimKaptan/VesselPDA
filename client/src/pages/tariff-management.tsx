@@ -19,7 +19,7 @@ import {
   Navigation, Warehouse, Building2, Leaf, Layers, MoreHorizontal,
   Plus, Pencil, Trash2, Loader2, TrendingUp, Download, Upload,
   ChevronDown, ChevronUp, Database, Ship, AlertTriangle, X, Search, PlusCircle, Globe, Info,
-  Lightbulb, Briefcase, BarChart2, Anchor, ShieldCheck
+  Lightbulb, Briefcase, BarChart2, Anchor, ShieldCheck, Radio, FolderPlus
 } from "lucide-react";
 
 // ── Human-readable label maps ────────────────────────────────────────────────
@@ -371,6 +371,27 @@ const CATEGORIES: CategoryDef[] = [
     ],
     formFields: [
       { key: "nrt_rate", label: "Rate per NRT (TL)", type: "number" },
+      { key: "currency", label: "Currency", type: "currency" },
+      { key: "valid_year", label: "Valid Year", type: "year" },
+      { key: "notes", label: "Notes", type: "textarea" },
+    ],
+  },
+  {
+    key: "vts_fees",
+    label: "VTS Fee",
+    icon: Radio,
+    defaultCurrency: "USD",
+    columns: [
+      { key: "service_name", label: "Service Name" },
+      { key: "fee", label: "Fee", type: "number" },
+      { key: "unit", label: "Unit" },
+      { key: "currency", label: "CCY", type: "currency" },
+      { key: "valid_year", label: "Year", type: "year" },
+    ],
+    formFields: [
+      { key: "service_name", label: "Service Name", type: "text" },
+      { key: "fee", label: "Fee", type: "number" },
+      { key: "unit", label: "Unit (per call / per vessel / etc.)", type: "text" },
       { key: "currency", label: "Currency", type: "currency" },
       { key: "valid_year", label: "Valid Year", type: "year" },
       { key: "notes", label: "Notes", type: "textarea" },
@@ -1154,6 +1175,290 @@ function CategorySection({
   );
 }
 
+// ── CustomCategorySection ─────────────────────────────────────────────────────
+function CustomCategorySection({
+  section, portId, isGlobal,
+}: {
+  section: { id: number; label: string; default_currency: string };
+  portId: number | "global";
+  isGlobal: boolean;
+}) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addData, setAddData] = useState<Record<string, any>>({});
+  const [editRowId, setEditRowId] = useState<number | null>(null);
+  const [editData, setEditData] = useState<Record<string, any>>({});
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [deleteSectionOpen, setDeleteSectionOpen] = useState(false);
+  const hasAutoOpened = useRef(false);
+
+  const qk = ["/api/admin/tariff-custom-sections", section.id, portId];
+  const { data: rows = [], isLoading } = useQuery<any[]>({
+    queryKey: qk,
+    queryFn: async () => {
+      const params = new URLSearchParams({ portId: String(portId) });
+      const res = await fetch(`/api/admin/tariff-custom-sections/${section.id}/entries?${params}`);
+      if (!res.ok) throw new Error("Failed to load data");
+      return res.json();
+    },
+  });
+
+  useEffect(() => {
+    if (!hasAutoOpened.current && !isLoading && rows.length > 0) {
+      setOpen(true);
+      hasAutoOpened.current = true;
+    }
+  }, [rows, isLoading]);
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/tariff-custom-sections", section.id, portId] });
+
+  const addMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("POST", `/api/admin/tariff-custom-sections/${section.id}/entries`, {
+        ...addData,
+        port_id: portId === "global" ? null : portId,
+        updated_at: new Date().toISOString(),
+      }),
+    onSuccess: () => {
+      setAddOpen(false);
+      setAddData({});
+      invalidate();
+      toast({ title: "Entry added", description: `Added to ${section.label}` });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to add entry", variant: "destructive" }),
+  });
+
+  const editMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("PATCH", `/api/admin/tariff-custom-sections/${section.id}/entries/${editRowId}`, {
+        ...editData,
+        updated_at: new Date().toISOString(),
+      }),
+    onSuccess: () => {
+      setEditRowId(null);
+      invalidate();
+      toast({ title: "Entry updated" });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to update entry", variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiRequest("DELETE", `/api/admin/tariff-custom-sections/${section.id}/entries/${id}`),
+    onSuccess: () => {
+      setDeleteTarget(null);
+      invalidate();
+      toast({ title: "Entry deleted" });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to delete entry", variant: "destructive" }),
+  });
+
+  const deleteSectionMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("DELETE", `/api/admin/tariff-custom-sections/${section.id}`),
+    onSuccess: () => {
+      setDeleteSectionOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tariff-custom-sections"] });
+      toast({ title: "Section deleted", description: `"${section.label}" has been removed` });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to delete section", variant: "destructive" }),
+  });
+
+  const columns = [
+    { key: "service_name", label: "Service Name" },
+    { key: "fee", label: "Fee", type: "number" as const },
+    { key: "unit", label: "Unit" },
+    { key: "currency", label: "CCY", type: "currency" as const },
+    { key: "valid_year", label: "Year", type: "year" as const },
+  ];
+
+  const openAdd = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAddData({ currency: section.default_currency, valid_year: 2026 });
+    setAddOpen(true);
+  };
+
+  return (
+    <Card className="overflow-hidden border-dashed border-2 border-muted">
+      <button
+        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
+        onClick={() => setOpen(o => !o)}
+        data-testid={`custom-section-toggle-${section.id}`}
+      >
+        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-muted shrink-0">
+          <FolderPlus className="w-4 h-4 text-muted-foreground" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm">{section.label}</p>
+          <p className="text-xs text-muted-foreground">
+            {isLoading ? "Loading..." : `${rows.length} records · ${section.default_currency}`}
+            <span className="ml-2 text-muted-foreground/60 text-[10px] italic">Custom section</span>
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+          <Button
+            size="sm" variant="outline"
+            className="h-7 gap-1 text-xs"
+            onClick={openAdd}
+            data-testid={`button-add-custom-${section.id}`}
+          >
+            <Plus className="w-3 h-3" /> Add
+          </Button>
+          <Button
+            size="sm" variant="ghost"
+            className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+            onClick={e => { e.stopPropagation(); setDeleteSectionOpen(true); }}
+            title="Delete this section"
+            data-testid={`button-delete-section-${section.id}`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+          {open
+            ? <ChevronUp className="w-4 h-4 text-muted-foreground ml-1" />
+            : <ChevronDown className="w-4 h-4 text-muted-foreground ml-1" />}
+        </div>
+      </button>
+
+      {open && (
+        <div className="border-t overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-muted/30 border-b">
+                {columns.map(col => (
+                  <th key={col.key} className="px-3 py-2 text-left font-semibold text-muted-foreground whitespace-nowrap">
+                    {col.label}
+                  </th>
+                ))}
+                <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                Array.from({ length: 2 }).map((_, i) => (
+                  <tr key={i} className="border-b">
+                    <td colSpan={columns.length + 1} className="px-3 py-2.5">
+                      <Skeleton className="h-4 w-full" />
+                    </td>
+                  </tr>
+                ))
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={columns.length + 1} className="px-3 py-10 text-center text-muted-foreground italic text-xs">
+                    {isGlobal
+                      ? 'No entries yet — click "+ Add" to create the first entry'
+                      : 'No records for this port — click "+ Add" to create a new entry'}
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row: any) => {
+                  const isEditing = editRowId === row.id;
+                  return (
+                    <tr key={row.id} className={`border-b transition-colors ${isEditing ? "bg-primary/5" : "hover:bg-muted/20"}`}>
+                      {columns.map(col => (
+                        <td key={col.key} className="px-3 py-2 whitespace-nowrap">
+                          <InlineCell col={col} value={row[col.key]} editData={editData} setEditData={setEditData} editing={isEditing} />
+                        </td>
+                      ))}
+                      <td className="px-3 py-2 text-right">
+                        {isEditing ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <Button size="sm" variant="outline" className="h-6 text-xs px-2" onClick={() => setEditRowId(null)}>Cancel</Button>
+                            <Button size="sm" className="h-6 text-xs px-2" onClick={() => editMutation.mutate()} disabled={editMutation.isPending}>
+                              {editMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-end gap-1">
+                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => { setEditRowId(row.id); setEditData({ ...row }); }}>
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(row.id)}>
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Add Dialog */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderPlus className="w-4 h-4 text-primary" />
+              {section.label} — New Entry
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-2">
+            {[
+              { key: "service_name", label: "Service Name", type: "text" },
+              { key: "fee", label: "Fee", type: "number" },
+              { key: "unit", label: "Unit (per call / per vessel / etc.)", type: "text" },
+              { key: "currency", label: "Currency", type: "currency" },
+              { key: "valid_year", label: "Valid Year", type: "year" },
+              { key: "notes", label: "Notes", type: "textarea" },
+            ].map(field => (
+              <div key={field.key} className={field.type === "textarea" ? "col-span-2" : ""}>
+                <Label className="text-xs mb-1 block">{field.label}</Label>
+                <FormField field={field as any} value={addData[field.key]} onChange={v => setAddData(d => ({ ...d, [field.key]: v }))} />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button onClick={() => addMutation.mutate()} disabled={addMutation.isPending}>
+              {addMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Entry Confirm */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={o => { if (!o) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Entry</AlertDialogTitle>
+            <AlertDialogDescription>This entry will be permanently deleted.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget)}>
+              {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Section Confirm */}
+      <AlertDialog open={deleteSectionOpen} onOpenChange={setDeleteSectionOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Section</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{section.label}" and all its entries will be permanently deleted. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => deleteSectionMutation.mutate()}>
+              {deleteSectionMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete Section"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function TariffManagement() {
   const { user } = useAuth();
@@ -1168,6 +1473,34 @@ export default function TariffManagement() {
 
   const [addPortOpen, setAddPortOpen] = useState(false);
   const [portSearch, setPortSearch] = useState("");
+  const [newSectionOpen, setNewSectionOpen] = useState(false);
+  const [newSectionLabel, setNewSectionLabel] = useState("");
+  const [newSectionCurrency, setNewSectionCurrency] = useState("USD");
+
+  const { data: customSections = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/tariff-custom-sections"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/tariff-custom-sections");
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const createSectionMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("POST", "/api/admin/tariff-custom-sections", {
+        label: newSectionLabel.trim(),
+        default_currency: newSectionCurrency,
+      }),
+    onSuccess: () => {
+      setNewSectionOpen(false);
+      setNewSectionLabel("");
+      setNewSectionCurrency("USD");
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tariff-custom-sections"] });
+      toast({ title: "Section created", description: `"${newSectionLabel}" added to tariff list` });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to create section", variant: "destructive" }),
+  });
 
   if (userRole && userRole !== "admin") {
     navigate("/dashboard");
@@ -1515,6 +1848,14 @@ export default function TariffManagement() {
               }}
               data-testid="input-csv-file"
             />
+            <Button
+              variant="outline" size="sm"
+              className="gap-1.5 text-xs h-8 border-dashed"
+              onClick={() => setNewSectionOpen(true)}
+              data-testid="button-new-section"
+            >
+              <FolderPlus className="w-3.5 h-3.5" /> New Section
+            </Button>
           </div>
         </div>
       </div>
@@ -1575,7 +1916,61 @@ export default function TariffManagement() {
             isGlobal={isGlobalTab}
           />
         ))}
+        {customSections.map((section: any) => (
+          <CustomCategorySection
+            key={`custom-${section.id}-${activePort}`}
+            section={section}
+            portId={activePort}
+            isGlobal={isGlobalTab}
+          />
+        ))}
       </div>
+
+      {/* ── New Section Dialog ── */}
+      <Dialog open={newSectionOpen} onOpenChange={o => { setNewSectionOpen(o); if (!o) { setNewSectionLabel(""); setNewSectionCurrency("USD"); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderPlus className="w-4 h-4 text-primary" /> New Tariff Section
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label className="text-xs mb-1 block">Section Name</Label>
+              <Input
+                placeholder="e.g. ISPS Fee, Wharfage, Port Security..."
+                value={newSectionLabel}
+                onChange={e => setNewSectionLabel(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && newSectionLabel.trim()) createSectionMutation.mutate(); }}
+                data-testid="input-new-section-label"
+              />
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Default Currency</Label>
+              <Select value={newSectionCurrency} onValueChange={setNewSectionCurrency}>
+                <SelectTrigger data-testid="select-new-section-currency">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USD">USD</SelectItem>
+                  <SelectItem value="EUR">EUR</SelectItem>
+                  <SelectItem value="TRY">TRY</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewSectionOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => createSectionMutation.mutate()}
+              disabled={!newSectionLabel.trim() || createSectionMutation.isPending}
+              data-testid="button-create-section"
+            >
+              {createSectionMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Section"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Add Port Dialog ── */}
       <Dialog open={addPortOpen} onOpenChange={o => { setAddPortOpen(o); if (!o) setPortSearch(""); }}>

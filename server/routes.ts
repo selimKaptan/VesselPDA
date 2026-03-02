@@ -4323,6 +4323,7 @@ export async function registerRoutes(
     chamber_freight_share: { label: "Chamber of Shipping Share on Freight", feeFields: ["fee"] },
     harbour_master_dues: { label: "Harbour Master Dues", feeFields: ["fee"] },
     sanitary_dues: { label: "Sanitary Dues", feeFields: ["nrt_rate"] },
+    vts_fees: { label: "VTS Fee", feeFields: ["fee"] },
   };
 
   app.get("/api/admin/tariffs/summary", isAuthenticated, async (req: any, res) => {
@@ -4511,6 +4512,135 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Bulk copy year error:", err);
       res.status(500).json({ message: "Failed to copy tariffs to year" });
+    }
+  });
+
+  // ── Custom Tariff Sections ──────────────────────────────────────────────────
+  const checkAdmin = async (req: any, res: any) => {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const userRow = await storage.getUser(userId);
+    if ((userRow as any)?.userRole !== "admin") {
+      res.status(403).json({ message: "Forbidden" });
+      return false;
+    }
+    return true;
+  };
+
+  app.get("/api/admin/tariff-custom-sections", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!await checkAdmin(req, res)) return;
+      const result = await pool.query("SELECT * FROM custom_tariff_sections ORDER BY sort_order, id");
+      res.json(result.rows);
+    } catch (err) {
+      console.error("Custom sections list error:", err);
+      res.status(500).json({ message: "Failed to fetch custom sections" });
+    }
+  });
+
+  app.post("/api/admin/tariff-custom-sections", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!await checkAdmin(req, res)) return;
+      const { label, default_currency } = req.body;
+      if (!label?.trim()) return res.status(400).json({ message: "Label is required" });
+      const result = await pool.query(
+        "INSERT INTO custom_tariff_sections (label, default_currency) VALUES ($1, $2) RETURNING *",
+        [label.trim(), default_currency || "USD"]
+      );
+      res.status(201).json(result.rows[0]);
+    } catch (err) {
+      console.error("Custom section create error:", err);
+      res.status(500).json({ message: "Failed to create custom section" });
+    }
+  });
+
+  app.delete("/api/admin/tariff-custom-sections/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!await checkAdmin(req, res)) return;
+      await pool.query("DELETE FROM custom_tariff_sections WHERE id = $1", [parseInt(req.params.id)]);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Custom section delete error:", err);
+      res.status(500).json({ message: "Failed to delete custom section" });
+    }
+  });
+
+  app.get("/api/admin/tariff-custom-sections/:id/entries", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!await checkAdmin(req, res)) return;
+      const sectionId = parseInt(req.params.id);
+      const params: any[] = [sectionId];
+      let portCondition = "";
+      if (req.query.portId === "global") {
+        portCondition = "AND port_id IS NULL";
+      } else if (req.query.portId && req.query.portId !== "all") {
+        params.push(parseInt(req.query.portId as string));
+        portCondition = `AND port_id = $${params.length}`;
+      }
+      const result = await pool.query(
+        `SELECT * FROM custom_tariff_entries WHERE section_id = $1 ${portCondition} ORDER BY id`,
+        params
+      );
+      res.json(result.rows);
+    } catch (err) {
+      console.error("Custom entries list error:", err);
+      res.status(500).json({ message: "Failed to fetch entries" });
+    }
+  });
+
+  app.post("/api/admin/tariff-custom-sections/:id/entries", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!await checkAdmin(req, res)) return;
+      const sectionId = parseInt(req.params.id);
+      const body = { ...req.body };
+      delete body.id;
+      body.section_id = sectionId;
+      body.updated_at = new Date().toISOString();
+      const keys = Object.keys(body).filter(k => body[k] !== undefined);
+      const cols = keys.map(k => `"${k}"`).join(", ");
+      const vals = keys.map((_, i) => `$${i + 1}`).join(", ");
+      const values = keys.map(k => (body[k] === "" ? null : body[k]));
+      const result = await pool.query(
+        `INSERT INTO custom_tariff_entries (${cols}) VALUES (${vals}) RETURNING *`,
+        values
+      );
+      res.status(201).json(result.rows[0]);
+    } catch (err) {
+      console.error("Custom entry create error:", err);
+      res.status(500).json({ message: "Failed to create entry" });
+    }
+  });
+
+  app.patch("/api/admin/tariff-custom-sections/:id/entries/:entryId", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!await checkAdmin(req, res)) return;
+      const entryId = parseInt(req.params.entryId);
+      const body = { ...req.body };
+      delete body.id;
+      delete body.section_id;
+      body.updated_at = new Date().toISOString();
+      const keys = Object.keys(body).filter(k => body[k] !== undefined);
+      const sets = keys.map((k, i) => `"${k}" = $${i + 1}`).join(", ");
+      const values = [...keys.map(k => (body[k] === "" ? null : body[k])), entryId];
+      const result = await pool.query(
+        `UPDATE custom_tariff_entries SET ${sets} WHERE id = $${values.length} RETURNING *`,
+        values
+      );
+      res.json(result.rows[0]);
+    } catch (err) {
+      console.error("Custom entry update error:", err);
+      res.status(500).json({ message: "Failed to update entry" });
+    }
+  });
+
+  app.delete("/api/admin/tariff-custom-sections/:id/entries/:entryId", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!await checkAdmin(req, res)) return;
+      const entryId = parseInt(req.params.entryId);
+      await pool.query("DELETE FROM custom_tariff_entries WHERE id = $1", [entryId]);
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Custom entry delete error:", err);
+      res.status(500).json({ message: "Failed to delete entry" });
     }
   });
 
