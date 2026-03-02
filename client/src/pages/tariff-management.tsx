@@ -19,7 +19,7 @@ import {
   Navigation, Warehouse, Building2, Leaf, Layers, MoreHorizontal,
   Plus, Pencil, Trash2, Loader2, TrendingUp, Download, Upload,
   ChevronDown, ChevronUp, Database, Ship, AlertTriangle, X, Search, PlusCircle, Globe, Info,
-  Lightbulb, Briefcase, BarChart2, Anchor, ShieldCheck, Radio, FolderPlus
+  Lightbulb, Briefcase, BarChart2, Anchor, ShieldCheck, Radio, FolderPlus, Eye
 } from "lucide-react";
 
 // ── Human-readable label maps ────────────────────────────────────────────────
@@ -401,6 +401,31 @@ const CATEGORIES: CategoryDef[] = [
       { key: "notes", label: "Notes", type: "textarea" },
     ],
   },
+  {
+    key: "supervision_fees",
+    label: "Supervision Fee",
+    icon: Eye,
+    defaultCurrency: "EUR",
+    columns: [
+      { key: "category", label: "Category" },
+      { key: "cargo_type", label: "Cargo Type" },
+      { key: "quantity_range", label: "Qty Range" },
+      { key: "rate", label: "Rate", type: "number" },
+      { key: "unit", label: "Unit" },
+      { key: "currency", label: "CCY", type: "currency" },
+      { key: "valid_year", label: "Year", type: "year" },
+    ],
+    formFields: [
+      { key: "category", label: "Category (A - Dokme Esya / Genel Kural / etc.)", type: "text" },
+      { key: "cargo_type", label: "Cargo Type", type: "text" },
+      { key: "quantity_range", label: "Quantity Range", type: "text" },
+      { key: "rate", label: "Rate", type: "number" },
+      { key: "unit", label: "Unit (EUR/MT / EUR/Adet / EUR/Metre)", type: "text" },
+      { key: "currency", label: "Currency", type: "currency" },
+      { key: "valid_year", label: "Valid Year", type: "year" },
+      { key: "notes", label: "Notes", type: "textarea" },
+    ],
+  },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -709,6 +734,14 @@ function CategorySection({
           f1 = row.rate_up_to_800 ?? "";
           f2 = row.rate_above_800 ?? "";
           f3 = "";
+        } else if (cat.key === "supervision_fees") {
+          alan1 = row.category ?? "";
+          alan2 = row.cargo_type ?? "";
+          rMin = row.quantity_range ?? "";
+          rMax = row.unit ?? "";
+          f1 = row.rate ?? "";
+          f2 = "";
+          f3 = "";
         } else {
           alan1 = row.service_type ?? row.cargo_type ?? row.service_name ?? row.fee_name ?? "";
           alan2 = row.vessel_category ?? row.operation ?? row.tariff_no ?? row.service_description ?? "";
@@ -800,6 +833,8 @@ function CategorySection({
         Object.assign(payload, { nrt_min: numOrNull(rMin), nrt_max: numOrNull(rMax), amount: numOrNull(f1), currency, valid_year: parseInt(year) });
       } else if (cat.key === "other_services") {
         Object.assign(payload, { service_name: alan1, fee: numOrNull(f1), unit: alan2, currency, valid_year: parseInt(year), notes });
+      } else if (cat.key === "supervision_fees") {
+        Object.assign(payload, { category: alan1, cargo_type: alan2, quantity_range: rMin, unit: rMax || null, rate: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "light_dues") {
         Object.assign(payload, { vessel_category: alan1, service_type: alan2, service_desc: rMin || null, rate_up_to_800: numOrNull(f1), rate_above_800: numOrNull(f2) || null, currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "chamber_of_shipping_fees") {
@@ -1710,6 +1745,8 @@ export default function TariffManagement() {
         Object.assign(payload, { nrt_min: numOrNull(rMin), nrt_max: numOrNull(rMax), amount: numOrNull(f1), currency, valid_year: parseInt(year) });
       } else if (tableKey === "other_services") {
         Object.assign(payload, { service_name: alan1, fee: numOrNull(f1), unit: alan2, currency, valid_year: parseInt(year), notes });
+      } else if (tableKey === "supervision_fees") {
+        Object.assign(payload, { category: alan1, cargo_type: alan2, quantity_range: rMin, unit: rMax || null, rate: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "light_dues") {
         Object.assign(payload, { vessel_category: alan1, service_type: alan2, service_desc: rMin || null, rate_up_to_800: numOrNull(f1), rate_above_800: numOrNull(f2) || null, currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "chamber_of_shipping_fees") {

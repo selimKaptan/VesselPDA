@@ -4324,6 +4324,7 @@ export async function registerRoutes(
     harbour_master_dues: { label: "Harbour Master Dues", feeFields: ["fee"] },
     sanitary_dues: { label: "Sanitary Dues", feeFields: ["nrt_rate"] },
     vts_fees: { label: "VTS Fee", feeFields: ["fee"] },
+    supervision_fees: { label: "Supervision Fee", feeFields: ["rate"] },
   };
 
   app.get("/api/admin/tariffs/summary", isAuthenticated, async (req: any, res) => {

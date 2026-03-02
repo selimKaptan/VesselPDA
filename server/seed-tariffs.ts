@@ -400,6 +400,67 @@ export async function ensureNewTariffTables() {
     }
 
     await client.query(`
+      CREATE TABLE IF NOT EXISTS supervision_fees (
+        id SERIAL PRIMARY KEY,
+        port_id INTEGER REFERENCES ports(id),
+        category VARCHAR,
+        cargo_type VARCHAR,
+        quantity_range VARCHAR,
+        rate NUMERIC,
+        unit VARCHAR,
+        currency VARCHAR DEFAULT 'EUR',
+        notes TEXT,
+        valid_year INTEGER DEFAULT 2026,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    const { rows: supCheck } = await client.query("SELECT COUNT(*)::int AS cnt FROM supervision_fees");
+    if (supCheck[0].cnt === 0) {
+      await client.query(`
+        INSERT INTO supervision_fees (port_id, category, cargo_type, quantity_range, rate, unit, currency, valid_year, notes) VALUES
+        (NULL, 'A - Dokme Esya', 'Kati Esya (Maden cevheri / hurda / komur / cimento / klinker / ponza / suni gubre)', '0 - 10.000 ton', 0.15, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'A - Dokme Esya', 'Kati Esya (Maden cevheri / hurda / komur / cimento / klinker / ponza / suni gubre)', '10.001 - 20.000 ton', 0.10, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'A - Dokme Esya', 'Kati Esya (Maden cevheri / hurda / komur / cimento / klinker / ponza / suni gubre)', '20.000 ton uzeri', 0.05, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'A - Dokme Esya', 'Tahil ve Tohumlar (Bugday / arpa / misir / pirinc / soya / aycicegi)', '0 - 10.000 ton', 0.10, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'A - Dokme Esya', 'Tahil ve Tohumlar (Bugday / arpa / misir / pirinc / soya / aycicegi)', '10.001 - 25.000 ton', 0.075, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'A - Dokme Esya', 'Tahil ve Tohumlar (Bugday / arpa / misir / pirinc / soya / aycicegi)', '25.000 ton uzeri', 0.045, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'A - Dokme Esya', 'Bakliyat (Bakla / fasulye / mercimek / nohut)', '0 - 5.000 ton', 0.30, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'A - Dokme Esya', 'Bakliyat (Bakla / fasulye / mercimek / nohut)', '5.000 ton uzeri', 0.15, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'A - Dokme Esya', 'Ham Petrol ve Akaryakit', '0 - 15.000 ton', 0.040, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'A - Dokme Esya', 'Ham Petrol ve Akaryakit', '15.001 - 35.000 ton', 0.030, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'A - Dokme Esya', 'Ham Petrol ve Akaryakit', '35.000 ton uzeri', 0.015, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'A - Dokme Esya', 'LPG ve LNG', '0 - 15.000 ton', 0.15, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'A - Dokme Esya', 'LPG ve LNG', '15.000 ton uzeri', 0.05, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'A - Dokme Esya', 'Kimyevi maddeler / Zeytinyagi / Melas / Madeni yag', 'Tum miktarlar', 0.15, 'EUR/MT', 'EUR', 2026, 'Sabit oran'),
+        (NULL, 'B - Dokme Olmayan Esya', 'Tahil-Un / Seker / Cimento / Mermer blok', '0 - 20.000 ton', 0.15, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'B - Dokme Olmayan Esya', 'Tahil-Un / Seker / Cimento / Mermer blok', '20.000 ton uzeri', 0.05, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'B - Dokme Olmayan Esya', 'Taze meyve-sebze / Narenciye / Dondurulmus gida', 'Tum miktarlar', 1.00, 'EUR/MT', 'EUR', 2026, 'Sabit oran'),
+        (NULL, 'B - Dokme Olmayan Esya', 'Bakliyat ve Tohumlar', 'Tum miktarlar', 0.60, 'EUR/MT', 'EUR', 2026, 'Sabit oran'),
+        (NULL, 'B - Dokme Olmayan Esya', 'Kagit ve Demir-celik urunleri (Sac / kangal / profil / boru / rulo sac)', '0 - 5.000 ton', 0.25, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'B - Dokme Olmayan Esya', 'Kagit ve Demir-celik urunleri (Sac / kangal / profil / boru / rulo sac)', '5.001 - 10.000 ton', 0.15, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'B - Dokme Olmayan Esya', 'Kagit ve Demir-celik urunleri (Sac / kangal / profil / boru / rulo sac)', '10.000 ton uzeri', 0.10, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'B - Dokme Olmayan Esya', 'Agac kutugu ve tomruk', '0 - 3.000 ton', 0.50, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'B - Dokme Olmayan Esya', 'Agac kutugu ve tomruk', '3.001 - 5.000 ton', 0.35, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'B - Dokme Olmayan Esya', 'Agac kutugu ve tomruk', '5.001 ton uzeri', 0.10, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'C - Bos Konteyner / Bos Treyler', 'Bos konteyner ve bos treyler', 'Tum miktarlar', 10.00, 'EUR/Adet', 'EUR', 2026, 'Yillik 25.000 adet uzerinde islem yapan hatlar muaf'),
+        (NULL, 'D - Canli Hayvanlar', 'Kucukbas hayvan', 'Tum miktarlar', 0.05, 'EUR/Adet', 'EUR', 2026, NULL),
+        (NULL, 'D - Canli Hayvanlar', 'Buyukbas hayvan', 'Tum miktarlar', 0.15, 'EUR/Adet', 'EUR', 2026, NULL),
+        (NULL, 'E - Diger / Kirkambar', 'Tasiyan tarafindan odenir', 'Tum miktarlar', 1.00, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'E - Diger / Kirkambar', 'Yukleyici veya alici tarafindan odenir', 'Tum miktarlar', 0.60, 'EUR/MT', 'EUR', 2026, NULL),
+        (NULL, 'F - Konteyner', 'Dolu konteyner (tum yukler)', 'Tum miktarlar', 15.00, 'EUR/Adet', 'EUR', 2026, 'Yillik 50.000 adet uzerinde islem yapan hatlar muaf'),
+        (NULL, 'F - Konteyner', 'Transit konteyner (yurt disi - yurt disi)', 'Tum miktarlar', 15.00, 'EUR/Adet', 'EUR', 2026, 'Yillik 50.000 adet uzerinde islem yapan hatlar muaf'),
+        (NULL, 'G - Otomobil / Hafif Araclar', 'Otomobil / Jeep / Pikap / Panelvan / Minibus / Midibus', '0 - 50 adet', 5.00, 'EUR/Adet', 'EUR', 2026, NULL),
+        (NULL, 'G - Otomobil / Hafif Araclar', 'Otomobil / Jeep / Pikap / Panelvan / Minibus / Midibus', '51 - 300 adet', 3.00, 'EUR/Adet', 'EUR', 2026, NULL),
+        (NULL, 'G - Otomobil / Hafif Araclar', 'Otomobil / Jeep / Pikap / Panelvan / Minibus / Midibus', '301 ve uzeri', 1.50, 'EUR/Adet', 'EUR', 2026, NULL),
+        (NULL, 'H - Ro-Ro / Is Makinalari', 'Tekerlekli-paletli vasita ve is makinalari', 'Tum miktarlar', 3.00, 'EUR/Metre', 'EUR', 2026, 'Uzunluk uzerinden beher metre icin'),
+        (NULL, 'Genel Kural', 'Asgari gozetim ucreti', '--', 300, 'EUR', 'EUR', 2026, 'Hesaplanan toplam ucret 300 EUR altinda olamaz'),
+        (NULL, 'Genel Kural', 'Azami gozetim ucreti', '--', 10000, 'EUR', 'EUR', 2026, 'Hesaplanan toplam ucret 10.000 EUR ustunde olamaz'),
+        (NULL, 'Genel Kural', 'Turk bayrakli gemiler indirimi', '--', NULL, '--', 'EUR', 2026, 'Turk bayrakli gemilere tum ucretler %50 indirimli uygulanir')
+      `);
+      console.log("[tariff-tables] Seeded 38 Supervision Fee rows.");
+    }
+
+    await client.query(`
       CREATE TABLE IF NOT EXISTS custom_tariff_sections (
         id SERIAL PRIMARY KEY,
         label VARCHAR NOT NULL,
