@@ -215,6 +215,62 @@ export async function ensureNewTariffTables() {
       )
     `);
 
+    await client.query(`ALTER TABLE light_dues ADD COLUMN IF NOT EXISTS vessel_category VARCHAR`);
+    await client.query(`ALTER TABLE light_dues ADD COLUMN IF NOT EXISTS service_type VARCHAR`);
+    await client.query(`ALTER TABLE light_dues ADD COLUMN IF NOT EXISTS service_desc VARCHAR`);
+    await client.query(`ALTER TABLE light_dues ADD COLUMN IF NOT EXISTS rate_up_to_800 NUMERIC`);
+    await client.query(`ALTER TABLE light_dues ADD COLUMN IF NOT EXISTS rate_above_800 NUMERIC`);
+
+    const { rows: lightCheck } = await client.query("SELECT COUNT(*)::int AS cnt FROM light_dues WHERE vessel_category IS NOT NULL");
+    if (lightCheck[0].cnt === 0) {
+      await client.query(`
+        INSERT INTO light_dues (port_id, vessel_category, service_type, service_desc, rate_up_to_800, rate_above_800, currency, valid_year, notes) VALUES
+        (NULL,'Foreign Flagged Commercial','Lighthouse Fee','Non-Stop Voyage (Round Trip)',2.4486,1.2243,'USD',2026,'TABLO 1 – Official 2026 rate'),
+        (NULL,'Foreign Flagged Commercial','Lighthouse Fee','Çanakkale Strait Entry',0.26136,0.13068,'USD',2026,'TABLO 1 – Official 2026 rate'),
+        (NULL,'Foreign Flagged Commercial','Lighthouse Fee','Çanakkale Strait Exit',0.26136,0.13068,'USD',2026,'TABLO 1 – Official 2026 rate'),
+        (NULL,'Foreign Flagged Commercial','Lighthouse Fee','Istanbul Strait Entry',0.26136,0.13068,'USD',2026,'TABLO 1 – Official 2026 rate'),
+        (NULL,'Foreign Flagged Commercial','Lighthouse Fee','Istanbul Strait Exit',0.26136,0.13068,'USD',2026,'TABLO 1 – Official 2026 rate'),
+        (NULL,'Foreign Flagged Commercial','Lighthouse Fee','Port Entry',0.22176,0.11088,'USD',2026,'TABLO 1 – Official 2026 rate'),
+        (NULL,'Foreign Flagged Commercial','Lighthouse Fee','Port Exit',0.22176,0.11088,'USD',2026,'TABLO 1 – Official 2026 rate'),
+        (NULL,'Foreign Flagged Commercial','Life-Saving Fee','Non-Stop Voyage (Round Trip)',0.583,NULL,'USD',2026,'TABLO 1 – Single rate'),
+        (NULL,'Foreign Flagged Commercial','Life-Saving Fee','Istanbul Strait Entry',0.13068,NULL,'USD',2026,'TABLO 1 – Single rate'),
+        (NULL,'Foreign Flagged Commercial','Life-Saving Fee','Istanbul Strait Exit',0.13068,NULL,'USD',2026,'TABLO 1 – Single rate'),
+        (NULL,'Foreign Flagged Passenger','Lighthouse Fee','Non-Stop Voyage (Round Trip)',2.4486,1.2243,'USD',2026,'TABLO 2 – Official 2026 rate'),
+        (NULL,'Foreign Flagged Passenger','Lighthouse Fee','Çanakkale Strait Entry',0.19008,0.09504,'USD',2026,'TABLO 2 – 27% discount'),
+        (NULL,'Foreign Flagged Passenger','Lighthouse Fee','Çanakkale Strait Exit',0.19008,0.09504,'USD',2026,'TABLO 2 – 27% discount'),
+        (NULL,'Foreign Flagged Passenger','Lighthouse Fee','Istanbul Strait Entry',0.19008,0.09504,'USD',2026,'TABLO 2 – 27% discount'),
+        (NULL,'Foreign Flagged Passenger','Lighthouse Fee','Istanbul Strait Exit',0.19008,0.09504,'USD',2026,'TABLO 2 – 27% discount'),
+        (NULL,'Foreign Flagged Passenger','Lighthouse Fee','Port Entry',0.16896,0.08448,'USD',2026,'TABLO 2 – 24% discount'),
+        (NULL,'Foreign Flagged Passenger','Lighthouse Fee','Port Exit',0.16896,0.08448,'USD',2026,'TABLO 2 – 24% discount'),
+        (NULL,'Foreign Flagged Passenger','Life-Saving Fee','Non-Stop Voyage (Round Trip)',0.583,NULL,'USD',2026,'TABLO 2 – Single rate'),
+        (NULL,'Foreign Flagged Passenger','Life-Saving Fee','Istanbul Strait Entry',0.09504,NULL,'USD',2026,'TABLO 2 – Single rate'),
+        (NULL,'Foreign Flagged Passenger','Life-Saving Fee','Istanbul Strait Exit',0.09504,NULL,'USD',2026,'TABLO 2 – Single rate'),
+        (NULL,'Turkish Flagged International','Lighthouse Fee','Non-Stop Voyage (Round Trip)',2.4486,1.2243,'USD',2026,'TABLO 3 – Official 2026 rate'),
+        (NULL,'Turkish Flagged International','Lighthouse Fee','Çanakkale Strait Entry',0.209088,0.104544,'USD',2026,'TABLO 3 – 20% discount'),
+        (NULL,'Turkish Flagged International','Lighthouse Fee','Çanakkale Strait Exit',0.209088,0.104544,'USD',2026,'TABLO 3 – 20% discount'),
+        (NULL,'Turkish Flagged International','Lighthouse Fee','Istanbul Strait Entry',0.209088,0.104544,'USD',2026,'TABLO 3 – 20% discount'),
+        (NULL,'Turkish Flagged International','Lighthouse Fee','Istanbul Strait Exit',0.209088,0.104544,'USD',2026,'TABLO 3 – 20% discount'),
+        (NULL,'Turkish Flagged International','Lighthouse Fee','Port Entry',0.1241856,0.0620928,'USD',2026,'TABLO 3 – 44% discount'),
+        (NULL,'Turkish Flagged International','Lighthouse Fee','Port Exit',0.1241856,0.0620928,'USD',2026,'TABLO 3 – 44% discount'),
+        (NULL,'Turkish Flagged International','Life-Saving Fee','Non-Stop Voyage (Round Trip)',0.583,NULL,'USD',2026,'TABLO 3 – Single rate'),
+        (NULL,'Turkish Flagged International','Life-Saving Fee','Istanbul Strait Entry',0.104544,NULL,'USD',2026,'TABLO 3 – Single rate'),
+        (NULL,'Turkish Flagged International','Life-Saving Fee','Istanbul Strait Exit',0.104544,NULL,'USD',2026,'TABLO 3 – Single rate'),
+        (NULL,'Turkish Cabotage','Lighthouse Fee','Çanakkale Strait Entry',0.066,0.033,'USD',2026,'TABLO 4 – 75% discount'),
+        (NULL,'Turkish Cabotage','Lighthouse Fee','Çanakkale Strait Exit',0.066,0.033,'USD',2026,'TABLO 4 – 75% discount'),
+        (NULL,'Turkish Cabotage','Lighthouse Fee','Istanbul Strait Entry',0.066,0.033,'USD',2026,'TABLO 4 – 75% discount'),
+        (NULL,'Turkish Cabotage','Lighthouse Fee','Istanbul Strait Exit',0.066,0.033,'USD',2026,'TABLO 4 – 75% discount'),
+        (NULL,'Turkish Cabotage','Lighthouse Fee','Port Entry',0.03528,0.01764,'USD',2026,'TABLO 4 – 84% discount'),
+        (NULL,'Turkish Cabotage','Lighthouse Fee','Port Exit',0.03528,0.01764,'USD',2026,'TABLO 4 – 84% discount'),
+        (NULL,'Turkish Cabotage','Life-Saving Fee','Istanbul Strait Entry',0.033,NULL,'USD',2026,'TABLO 4 – Single rate'),
+        (NULL,'Turkish Cabotage','Life-Saving Fee','Istanbul Strait Exit',0.033,NULL,'USD',2026,'TABLO 4 – Single rate'),
+        (NULL,'Foreign Yacht','Lighthouse + Life-Saving','Transit Log (Navigation Permit) – NT 30-50',60,NULL,'USD',2026,'TABLO 5 – NT 30-50, flat fee USD'),
+        (NULL,'Foreign Yacht','Lighthouse + Life-Saving','Transit Log (Navigation Permit) – NT 51-100',72,NULL,'USD',2026,'TABLO 5 – NT 51-100, flat fee USD'),
+        (NULL,'Foreign Yacht','Lighthouse + Life-Saving','Transit Log (Navigation Permit) – NT 101+',1.2,NULL,'USD',2026,'TABLO 5 – NT 101+, per NT USD'),
+        (NULL,'Annual Rate Vessels','Annual Fee','Annual Fee per NT',0.72,NULL,'USD',2026,'TABLO 6 – Single rate, all NT')
+      `);
+      console.log("[tariff-tables] Seeded 42 Light Dues rows.");
+    }
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS chamber_of_shipping_fees (
         id SERIAL PRIMARY KEY,

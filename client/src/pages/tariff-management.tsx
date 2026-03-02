@@ -277,16 +277,20 @@ const CATEGORIES: CategoryDef[] = [
     icon: Lightbulb,
     defaultCurrency: "USD",
     columns: [
-      { key: "gt_min", label: "GT Min", type: "number" },
-      { key: "gt_max", label: "GT Max", type: "number" },
-      { key: "fee", label: "Fee", type: "number" },
+      { key: "vessel_category", label: "Vessel Type" },
+      { key: "service_type", label: "Service Type" },
+      { key: "service_desc", label: "Description" },
+      { key: "rate_up_to_800", label: "Rate ≤800 NT", type: "number" },
+      { key: "rate_above_800", label: "Rate >800 NT", type: "number" },
       { key: "currency", label: "CCY", type: "currency" },
       { key: "valid_year", label: "Year", type: "year" },
     ],
     formFields: [
-      { key: "gt_min", label: "GT Min", type: "number" },
-      { key: "gt_max", label: "GT Max", type: "number" },
-      { key: "fee", label: "Fee", type: "number" },
+      { key: "vessel_category", label: "Vessel Category", type: "text" },
+      { key: "service_type", label: "Service Type", type: "text" },
+      { key: "service_desc", label: "Service Description", type: "text" },
+      { key: "rate_up_to_800", label: "Rate per NT (≤800 NT)", type: "number" },
+      { key: "rate_above_800", label: "Rate per NT (>800 NT, leave blank if single rate)", type: "number" },
       { key: "currency", label: "Currency", type: "currency" },
       { key: "valid_year", label: "Valid Year", type: "year" },
       { key: "notes", label: "Notes", type: "textarea" },
@@ -696,13 +700,24 @@ function CategorySection({
           return s.includes(",") || s.includes('"') || s.includes("\n")
             ? `"${s.replace(/"/g, '""')}"` : s;
         };
-        const alan1 = row.service_type ?? row.cargo_type ?? row.service_name ?? row.fee_name ?? "";
-        const alan2 = row.vessel_category ?? row.operation ?? row.tariff_no ?? row.service_description ?? "";
-        const rMin = row.grt_min ?? row.gt_min ?? row.nrt_min ?? row.nt_min ?? "";
-        const rMax = row.grt_max ?? row.gt_max ?? row.nrt_max ?? row.nt_max ?? "";
-        const f1 = row.base_fee ?? row.fixed_fee ?? row.intl_foreign_flag ?? row.fee ?? row.amount ?? row.rate ?? "";
-        const f2 = row.per_1000_grt ?? row.per_1000_nt ?? row.intl_turkish_flag ?? "";
-        const f3 = row.cabotage_turkish ?? row.per_additional_1000_grt ?? "";
+        let alan1, alan2, rMin, rMax, f1, f2, f3;
+        if (cat.key === "light_dues") {
+          alan1 = row.vessel_category ?? "";
+          alan2 = row.service_type ?? "";
+          rMin = row.service_desc ?? "";
+          rMax = "";
+          f1 = row.rate_up_to_800 ?? "";
+          f2 = row.rate_above_800 ?? "";
+          f3 = "";
+        } else {
+          alan1 = row.service_type ?? row.cargo_type ?? row.service_name ?? row.fee_name ?? "";
+          alan2 = row.vessel_category ?? row.operation ?? row.tariff_no ?? row.service_description ?? "";
+          rMin = row.grt_min ?? row.gt_min ?? row.nrt_min ?? row.nt_min ?? "";
+          rMax = row.grt_max ?? row.gt_max ?? row.nrt_max ?? row.nt_max ?? "";
+          f1 = row.base_fee ?? row.fixed_fee ?? row.intl_foreign_flag ?? row.fee ?? row.amount ?? row.rate ?? "";
+          f2 = row.per_1000_grt ?? row.per_1000_nt ?? row.intl_turkish_flag ?? "";
+          f3 = row.cabotage_turkish ?? row.per_additional_1000_grt ?? "";
+        }
         lines.push([
           esc(cat.key), esc(row.id), esc(row.port_id ?? portId),
           esc(alan1), esc(alan2), esc(rMin), esc(rMax),
@@ -786,7 +801,7 @@ function CategorySection({
       } else if (cat.key === "other_services") {
         Object.assign(payload, { service_name: alan1, fee: numOrNull(f1), unit: alan2, currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "light_dues") {
-        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+        Object.assign(payload, { vessel_category: alan1, service_type: alan2, service_desc: rMin || null, rate_up_to_800: numOrNull(f1), rate_above_800: numOrNull(f2) || null, currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "chamber_of_shipping_fees") {
         Object.assign(payload, { flag_category: alan1 || "turkish", gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "chamber_freight_share") {
@@ -1688,7 +1703,7 @@ export default function TariffManagement() {
       } else if (tableKey === "other_services") {
         Object.assign(payload, { service_name: alan1, fee: numOrNull(f1), unit: alan2, currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "light_dues") {
-        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+        Object.assign(payload, { vessel_category: alan1, service_type: alan2, service_desc: rMin || null, rate_up_to_800: numOrNull(f1), rate_above_800: numOrNull(f2) || null, currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "chamber_of_shipping_fees") {
         Object.assign(payload, { flag_category: alan1 || "turkish", gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "chamber_freight_share") {

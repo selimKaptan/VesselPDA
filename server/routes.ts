@@ -4318,7 +4318,7 @@ export async function registerRoutes(
     tonnage_tariffs: { label: "Tonaj Tarifeleri", feeFields: ["ithalat", "ihracat"] },
     other_services: { label: "Diğer Hizmetler", feeFields: ["fee"] },
     cargo_handling_tariffs: { label: "Yükleme/Boşaltma", feeFields: ["rate"] },
-    light_dues: { label: "Light Dues", feeFields: ["fee"] },
+    light_dues: { label: "Light Dues", feeFields: ["rate_up_to_800", "rate_above_800"] },
     chamber_of_shipping_fees: { label: "Chamber of Shipping Fee", feeFields: ["fee"] },
     chamber_freight_share: { label: "Chamber of Shipping Share on Freight", feeFields: ["fee"] },
     harbour_master_dues: { label: "Harbour Master Dues", feeFields: ["fee"] },
