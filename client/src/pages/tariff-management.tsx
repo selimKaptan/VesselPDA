@@ -18,7 +18,8 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Navigation, Warehouse, Building2, Leaf, Layers, MoreHorizontal,
   Plus, Pencil, Trash2, Loader2, TrendingUp, Download, Upload,
-  ChevronDown, ChevronUp, Database, Ship, AlertTriangle, X, Search, PlusCircle, Wrench, Globe, Info
+  ChevronDown, ChevronUp, Database, Ship, AlertTriangle, X, Search, PlusCircle, Wrench, Globe, Info,
+  Lightbulb, Briefcase, BarChart2, Anchor, ShieldCheck
 } from "lucide-react";
 
 // ── Human-readable label maps ────────────────────────────────────────────────
@@ -256,6 +257,109 @@ const CATEGORIES: CategoryDef[] = [
       { key: "service_name", label: "Service Name", type: "text" },
       { key: "fee", label: "Fee", type: "number" },
       { key: "unit", label: "Unit (per call / per ton / etc.)", type: "text" },
+      { key: "currency", label: "Currency", type: "currency" },
+      { key: "valid_year", label: "Valid Year", type: "year" },
+      { key: "notes", label: "Notes", type: "textarea" },
+    ],
+  },
+  {
+    key: "light_dues",
+    label: "Light Dues",
+    icon: Lightbulb,
+    defaultCurrency: "USD",
+    columns: [
+      { key: "gt_min", label: "GT Min", type: "number" },
+      { key: "gt_max", label: "GT Max", type: "number" },
+      { key: "fee", label: "Fee", type: "number" },
+      { key: "currency", label: "CCY", type: "currency" },
+      { key: "valid_year", label: "Year", type: "year" },
+    ],
+    formFields: [
+      { key: "gt_min", label: "GT Min", type: "number" },
+      { key: "gt_max", label: "GT Max", type: "number" },
+      { key: "fee", label: "Fee", type: "number" },
+      { key: "currency", label: "Currency", type: "currency" },
+      { key: "valid_year", label: "Valid Year", type: "year" },
+      { key: "notes", label: "Notes", type: "textarea" },
+    ],
+  },
+  {
+    key: "chamber_of_shipping_fees",
+    label: "Chamber of Shipping Fee",
+    icon: Briefcase,
+    defaultCurrency: "EUR",
+    columns: [
+      { key: "gt_min", label: "GT Min", type: "number" },
+      { key: "gt_max", label: "GT Max", type: "number" },
+      { key: "fee", label: "Fee", type: "number" },
+      { key: "currency", label: "CCY", type: "currency" },
+      { key: "valid_year", label: "Year", type: "year" },
+    ],
+    formFields: [
+      { key: "gt_min", label: "GT Min", type: "number" },
+      { key: "gt_max", label: "GT Max", type: "number" },
+      { key: "fee", label: "Fee", type: "number" },
+      { key: "currency", label: "Currency", type: "currency" },
+      { key: "valid_year", label: "Valid Year", type: "year" },
+      { key: "notes", label: "Notes", type: "textarea" },
+    ],
+  },
+  {
+    key: "chamber_freight_share",
+    label: "Chamber of Shipping (Freight Share)",
+    icon: BarChart2,
+    defaultCurrency: "EUR",
+    columns: [
+      { key: "percentage", label: "Percentage (%)", type: "number" },
+      { key: "min_fee", label: "Min Fee", type: "number" },
+      { key: "currency", label: "CCY", type: "currency" },
+      { key: "valid_year", label: "Year", type: "year" },
+    ],
+    formFields: [
+      { key: "percentage", label: "Percentage (%)", type: "number" },
+      { key: "min_fee", label: "Minimum Fee", type: "number" },
+      { key: "currency", label: "Currency", type: "currency" },
+      { key: "valid_year", label: "Valid Year", type: "year" },
+      { key: "notes", label: "Notes", type: "textarea" },
+    ],
+  },
+  {
+    key: "harbour_master_dues",
+    label: "Harbour Master Dues",
+    icon: Anchor,
+    defaultCurrency: "USD",
+    columns: [
+      { key: "gt_min", label: "GT Min", type: "number" },
+      { key: "gt_max", label: "GT Max", type: "number" },
+      { key: "fee", label: "Fee", type: "number" },
+      { key: "currency", label: "CCY", type: "currency" },
+      { key: "valid_year", label: "Year", type: "year" },
+    ],
+    formFields: [
+      { key: "gt_min", label: "GT Min", type: "number" },
+      { key: "gt_max", label: "GT Max", type: "number" },
+      { key: "fee", label: "Fee", type: "number" },
+      { key: "currency", label: "Currency", type: "currency" },
+      { key: "valid_year", label: "Valid Year", type: "year" },
+      { key: "notes", label: "Notes", type: "textarea" },
+    ],
+  },
+  {
+    key: "sanitary_dues",
+    label: "Sanitary Dues",
+    icon: ShieldCheck,
+    defaultCurrency: "USD",
+    columns: [
+      { key: "gt_min", label: "GT Min", type: "number" },
+      { key: "gt_max", label: "GT Max", type: "number" },
+      { key: "fee", label: "Fee", type: "number" },
+      { key: "currency", label: "CCY", type: "currency" },
+      { key: "valid_year", label: "Year", type: "year" },
+    ],
+    formFields: [
+      { key: "gt_min", label: "GT Min", type: "number" },
+      { key: "gt_max", label: "GT Max", type: "number" },
+      { key: "fee", label: "Fee", type: "number" },
       { key: "currency", label: "Currency", type: "currency" },
       { key: "valid_year", label: "Valid Year", type: "year" },
       { key: "notes", label: "Notes", type: "textarea" },
@@ -612,6 +716,16 @@ function CategorySection({
         Object.assign(payload, { nrt_min: numOrNull(rMin), nrt_max: numOrNull(rMax), amount: numOrNull(f1), currency, valid_year: parseInt(year) });
       } else if (cat.key === "other_services") {
         Object.assign(payload, { service_name: alan1, fee: numOrNull(f1), unit: alan2, currency, valid_year: parseInt(year), notes });
+      } else if (cat.key === "light_dues") {
+        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+      } else if (cat.key === "chamber_of_shipping_fees") {
+        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+      } else if (cat.key === "chamber_freight_share") {
+        Object.assign(payload, { percentage: numOrNull(f1), min_fee: numOrNull(f2), currency, valid_year: parseInt(year), notes });
+      } else if (cat.key === "harbour_master_dues") {
+        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+      } else if (cat.key === "sanitary_dues") {
+        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       }
 
       try {
@@ -1204,6 +1318,16 @@ export default function TariffManagement() {
         Object.assign(payload, { nrt_min: numOrNull(rMin), nrt_max: numOrNull(rMax), amount: numOrNull(f1), currency, valid_year: parseInt(year) });
       } else if (tableKey === "other_services") {
         Object.assign(payload, { service_name: alan1, fee: numOrNull(f1), unit: alan2, currency, valid_year: parseInt(year), notes });
+      } else if (tableKey === "light_dues") {
+        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+      } else if (tableKey === "chamber_of_shipping_fees") {
+        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+      } else if (tableKey === "chamber_freight_share") {
+        Object.assign(payload, { percentage: numOrNull(f1), min_fee: numOrNull(f2), currency, valid_year: parseInt(year), notes });
+      } else if (tableKey === "harbour_master_dues") {
+        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+      } else if (tableKey === "sanitary_dues") {
+        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       }
 
       try {
