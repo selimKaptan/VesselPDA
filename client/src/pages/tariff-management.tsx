@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -633,6 +633,7 @@ function CategorySection({
   const [bulkPercent, setBulkPercent] = useState("5");
   const [catImportProgress, setCatImportProgress] = useState<{ current: number; total: number } | null>(null);
   const catCsvInputRef = useRef<HTMLInputElement>(null);
+  const hasAutoOpened = useRef(false);
   const Icon = cat.icon;
 
   const qk = ["/api/admin/tariffs", cat.key, portId];
@@ -645,6 +646,13 @@ function CategorySection({
       return res.json();
     },
   });
+
+  useEffect(() => {
+    if (!hasAutoOpened.current && !isLoading && rows.length > 0) {
+      setOpen(true);
+      hasAutoOpened.current = true;
+    }
+  }, [rows, isLoading]);
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["/api/admin/tariffs", cat.key, portId] });
@@ -1519,7 +1527,7 @@ export default function TariffManagement() {
             <div className="flex-1 min-w-0">
               <span className="font-semibold">Shared Tariffs for All Ports</span>
               <span className="ml-2 font-normal opacity-80">
-                — Tariffs added here apply to all ports automatically as a fallback when no port-specific tariff is found.
+                — Tariffs added here apply to all ports automatically as a fallback when no port-specific tariff is found. Use the <strong>+ Add</strong> button in each category below to add tariff entries.
               </span>
             </div>
           </div>
