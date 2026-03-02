@@ -578,7 +578,8 @@ function CategorySection({
     for (let i = 0; i < dataRows.length; i++) {
       const cols = dataRows[i].split(",");
       const tableKey = col("tablo", cols) || cat.key;
-      const rowId = idIdx >= 0 ? parseInt(col("id", cols)) : NaN;
+      // On the global tab, always INSERT — never PATCH port-specific records by CSV id
+      const rowId = (!isGlobal && idIdx >= 0) ? parseInt(col("id", cols)) : NaN;
 
       if (tableKey !== cat.key) {
         failed++;
@@ -1168,7 +1169,8 @@ export default function TariffManagement() {
     for (let i = 0; i < dataRows.length; i++) {
       const cols = dataRows[i].split(",");
       const tableKey = col("tablo", cols);
-      const rowId = idIdx >= 0 ? parseInt(col("id", cols)) : NaN;
+      // On the global tab, always INSERT — never PATCH port-specific records by CSV id
+      const rowId = (!isGlobalTab && idIdx >= 0) ? parseInt(col("id", cols)) : NaN;
       const catDef = CATEGORIES.find(c => c.key === tableKey);
 
       if (!catDef) {
