@@ -236,8 +236,10 @@ app.use((req, res, next) => {
         seedDocumentTemplates().catch((err: Error) => console.error("Template seed error:", err));
       });
 
-      import("./seed-tariffs").then(({ seedTariffData }) => {
-        seedTariffData().catch((err: Error) => console.error("Tariff seed error:", err));
+      import("./seed-tariffs").then(({ seedTariffData, ensureNewTariffTables }) => {
+        ensureNewTariffTables()
+          .then(() => seedTariffData())
+          .catch((err: Error) => console.error("Tariff setup error:", err));
       });
 
       import("./startup-checks").then(({ runStartupChecks }) => {

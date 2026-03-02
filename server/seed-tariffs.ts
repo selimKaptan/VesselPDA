@@ -193,3 +193,115 @@ export async function seedTariffData() {
     client.release();
   }
 }
+
+export async function ensureNewTariffTables() {
+  const client = await pool.connect();
+  try {
+    console.log("[tariff-tables] Ensuring new tariff tables exist...");
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS light_dues (
+        id SERIAL PRIMARY KEY,
+        port_id INTEGER REFERENCES ports(id),
+        service_type VARCHAR,
+        vessel_category VARCHAR,
+        grt_min INTEGER,
+        grt_max INTEGER,
+        fee NUMERIC,
+        currency VARCHAR DEFAULT 'USD',
+        valid_year INTEGER DEFAULT 2026,
+        notes TEXT,
+        updated_at TIMESTAMPTZ
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS chamber_of_shipping_fees (
+        id SERIAL PRIMARY KEY,
+        port_id INTEGER REFERENCES ports(id),
+        service_type VARCHAR,
+        vessel_category VARCHAR,
+        grt_min INTEGER,
+        grt_max INTEGER,
+        fee NUMERIC,
+        flag_category VARCHAR DEFAULT 'turkish',
+        currency VARCHAR DEFAULT 'TRY',
+        valid_year INTEGER DEFAULT 2026,
+        notes TEXT,
+        updated_at TIMESTAMPTZ
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS chamber_freight_share (
+        id SERIAL PRIMARY KEY,
+        port_id INTEGER REFERENCES ports(id),
+        cargo_min INTEGER,
+        cargo_max INTEGER,
+        fee NUMERIC,
+        flag_category VARCHAR DEFAULT 'foreign',
+        currency VARCHAR DEFAULT 'USD',
+        valid_year INTEGER DEFAULT 2026,
+        notes TEXT,
+        updated_at TIMESTAMPTZ
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS harbour_master_dues (
+        id SERIAL PRIMARY KEY,
+        port_id INTEGER REFERENCES ports(id),
+        service_type VARCHAR,
+        vessel_category VARCHAR,
+        grt_min INTEGER,
+        grt_max INTEGER,
+        fee NUMERIC,
+        currency VARCHAR DEFAULT 'TRY',
+        valid_year INTEGER DEFAULT 2026,
+        notes TEXT,
+        updated_at TIMESTAMPTZ
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sanitary_dues (
+        id SERIAL PRIMARY KEY,
+        port_id INTEGER REFERENCES ports(id),
+        nrt_rate NUMERIC,
+        currency VARCHAR DEFAULT 'TRY',
+        valid_year INTEGER DEFAULT 2026,
+        notes TEXT,
+        updated_at TIMESTAMPTZ
+      )
+    `);
+
+    const { rows: freightCheck } = await client.query("SELECT COUNT(*)::int AS cnt FROM chamber_freight_share");
+    if (freightCheck[0].cnt === 0) {
+      await client.query(`
+        INSERT INTO chamber_freight_share (port_id, cargo_min, cargo_max, fee, flag_category, currency, valid_year, notes) VALUES
+          (NULL, 0,      20000,   580,  'foreign', 'USD', 2026, 'Official 2026 rate'),
+          (NULL, 20001,  40000,   870,  'foreign', 'USD', 2026, 'Official 2026 rate'),
+          (NULL, 40001,  60000,   1130, 'foreign', 'USD', 2026, 'Official 2026 rate'),
+          (NULL, 60001,  100000,  1400, 'foreign', 'USD', 2026, 'Official 2026 rate'),
+          (NULL, 100001, 999999,  1780, 'foreign', 'USD', 2026, 'Official 2026 rate')
+      `);
+      console.log("[tariff-tables] Seeded chamber_freight_share with 5 official rate bands.");
+    }
+
+    const { rows: sanitaryCheck } = await client.query("SELECT COUNT(*)::int AS cnt FROM sanitary_dues");
+    if (sanitaryCheck[0].cnt === 0) {
+      await client.query(`
+        INSERT INTO sanitary_dues (port_id, nrt_rate, currency, valid_year, notes)
+        VALUES (NULL, 21.67, 'TRY', 2026, 'Official 2026 rate')
+      `);
+      console.log("[tariff-tables] Seeded sanitary_dues with global rate.");
+    }
+
+    console.log("[tariff-tables] ✓ All new tariff tables verified.");
+  } catch (err) {
+    console.error("[tariff-tables] Error ensuring tariff tables:", err);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
