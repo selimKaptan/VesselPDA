@@ -40,6 +40,9 @@ export default function Proformas() {
   const [quickPortId, setQuickPortId] = useState<string>("");
   const [quickPortOpen, setQuickPortOpen] = useState(false);
   const [quickPortSearch, setQuickPortSearch] = useState("");
+  const [quickOriginPortId, setQuickOriginPortId] = useState<string>("");
+  const [quickOriginPortOpen, setQuickOriginPortOpen] = useState(false);
+  const [quickOriginPortSearch, setQuickOriginPortSearch] = useState("");
   const [quickDays, setQuickDays] = useState<number>(3);
   const [quickResult, setQuickResult] = useState<any>(null);
   const [quickLoading, setQuickLoading] = useState(false);
@@ -83,11 +86,15 @@ export default function Proformas() {
     return ["turkey", "turkish", "türk", "türkiye", "tr", "turk"].includes(flag);
   })();
 
+  const isAutoCabotage = isTurkishFlagVessel && !!quickOriginPortId && !!quickPortId;
+
   useEffect(() => {
-    if (quickVesselId && !isTurkishFlagVessel) {
+    if (isAutoCabotage) {
+      setQuickVoyageType("cabotage");
+    } else if (!isTurkishFlagVessel) {
       setQuickVoyageType("international");
     }
-  }, [quickVesselId, isTurkishFlagVessel]);
+  }, [isAutoCabotage, isTurkishFlagVessel]);
 
   useEffect(() => {
     setQuickImoResult(null);
@@ -174,6 +181,14 @@ export default function Proformas() {
       normalizeTR(p.name).includes(q) || normalizeTR(p.code || "").includes(q)
     ).slice(0, 40);
   }, [turkishPorts, quickPortSearch]);
+
+  const filteredOriginPorts = useMemo(() => {
+    if (!turkishPorts || !quickOriginPortSearch || quickOriginPortSearch.length < 2) return [];
+    const q = normalizeTR(quickOriginPortSearch);
+    return turkishPorts.filter(p =>
+      normalizeTR(p.name).includes(q) || normalizeTR(p.code || "").includes(q)
+    ).slice(0, 40);
+  }, [turkishPorts, quickOriginPortSearch]);
 
   const handleQuickCalculate = async () => {
     const useManual = quickVesselId === "external" || quickVesselId === "";
@@ -574,7 +589,7 @@ export default function Proformas() {
           <Button
             variant="outline"
             className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/30"
-            onClick={() => { setShowQuickDialog(true); setQuickResult(null); setQuickVesselId(""); setQuickVesselSearch(""); setQuickVesselOpen(false); setQuickExternalVessel(null); setQuickImoResult(null); setQuickImoLoading(false); setQuickManualGrt(""); setQuickManualNrt(""); setQuickManualFlag("Panama"); setQuickManualVesselName(""); setQuickPortId(""); setQuickPortSearch(""); setQuickDays(3); setQuickPurpose("Discharging"); setQuickCargoType("bulk_dry"); setQuickCargoQty("5000"); setQuickCargoUnit("MT"); setQuickDangerous(false); setQuickVoyageType("international"); }}
+            onClick={() => { setShowQuickDialog(true); setQuickResult(null); setQuickVesselId(""); setQuickVesselSearch(""); setQuickVesselOpen(false); setQuickExternalVessel(null); setQuickImoResult(null); setQuickImoLoading(false); setQuickManualGrt(""); setQuickManualNrt(""); setQuickManualFlag("Panama"); setQuickManualVesselName(""); setQuickPortId(""); setQuickPortSearch(""); setQuickOriginPortId(""); setQuickOriginPortSearch(""); setQuickOriginPortOpen(false); setQuickDays(3); setQuickPurpose("Discharging"); setQuickCargoType("bulk_dry"); setQuickCargoQty("5000"); setQuickCargoUnit("MT"); setQuickDangerous(false); setQuickVoyageType("international"); }}
             data-testid="button-quick-proforma"
           >
             <Zap className="w-4 h-4" /> Quick Estimate
@@ -608,80 +623,80 @@ export default function Proformas() {
                 <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Vessel & Port</span>
                 <div className="flex-1 h-px bg-border" />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Select Vessel</Label>
-                  <Popover open={quickVesselOpen} onOpenChange={setQuickVesselOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        className="w-full justify-start font-normal"
-                        data-testid="trigger-vessel-quick"
-                      >
-                        {quickVesselId === "external"
-                          ? <Globe className="w-4 h-4 mr-2 text-blue-500 flex-shrink-0" />
-                          : <Ship className="w-4 h-4 mr-2 text-muted-foreground flex-shrink-0" />}
-                        <span className="truncate">
-                          {quickVesselId === "external" && quickExternalVessel
-                            ? `${quickExternalVessel.name} (IMO ${quickExternalVessel.imoNumber})`
-                            : quickVesselId && vessels
-                              ? (vessels.find(v => String(v.id) === quickVesselId)?.name || "Select vessel...")
-                              : "Search by vessel name or IMO..."}
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[340px] p-0" align="start">
-                      <Command shouldFilter={false}>
-                        <CommandInput
-                          placeholder="Vessel name or IMO number..."
-                          value={quickVesselSearch}
-                          onValueChange={(v) => {
-                            setQuickVesselSearch(v);
-                            if (quickVesselId === "external") {
-                              setQuickVesselId("");
-                              setQuickExternalVessel(null);
-                            }
-                          }}
-                          data-testid="input-vessel-quick"
-                        />
-                        <CommandList>
-                          {(vessels || []).filter(v => {
-                            const q = quickVesselSearch.toLowerCase();
-                            return !q || v.name.toLowerCase().includes(q) || (v.imoNumber || "").toLowerCase().includes(q);
-                          }).length === 0 && !quickImoLoading && !quickImoResult && (
-                            <CommandEmpty>
-                              {quickVesselSearch.length >= 5
-                                ? "Not found in fleet. Waiting for IMO lookup..."
-                                : "Enter vessel name or IMO."}
-                            </CommandEmpty>
-                          )}
-                          <CommandGroup>
-                            {(vessels || [])
-                              .filter(v => {
-                                const q = quickVesselSearch.toLowerCase();
-                                return !q || v.name.toLowerCase().includes(q) || (v.imoNumber || "").toLowerCase().includes(q);
-                              })
-                              .map((v) => (
-                                <CommandItem
-                                  key={v.id}
-                                  value={String(v.id)}
-                                  onSelect={() => {
-                                    setQuickVesselId(String(v.id));
-                                    setQuickExternalVessel(null);
-                                    setQuickManualGrt("");
-                                    setQuickManualNrt("");
-                                    setQuickManualFlag("Panama");
-                                    setQuickManualVesselName("");
-                                    setQuickVesselSearch("");
-                                    setQuickVesselOpen(false);
-                                  }}
-                                  data-testid={`option-quick-vessel-${v.id}`}
-                                >
-                                  <Ship className="w-3 h-3 mr-2 text-muted-foreground flex-shrink-0" />
-                                  <span className="flex-1 font-medium">{v.name}</span>
-                                  <span className="text-xs text-muted-foreground ml-2">
-                                    {v.flag}{v.imoNumber ? ` · IMO ${v.imoNumber}` : ""}
+              {/* Vessel selector — full width row */}
+              <div className="space-y-2">
+                <Label>Select Vessel</Label>
+                <Popover open={quickVesselOpen} onOpenChange={setQuickVesselOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-start font-normal"
+                      data-testid="trigger-vessel-quick"
+                    >
+                      {quickVesselId === "external"
+                        ? <Globe className="w-4 h-4 mr-2 text-blue-500 flex-shrink-0" />
+                        : <Ship className="w-4 h-4 mr-2 text-muted-foreground flex-shrink-0" />}
+                      <span className="truncate">
+                        {quickVesselId === "external" && quickExternalVessel
+                          ? `${quickExternalVessel.name} (IMO ${quickExternalVessel.imoNumber})`
+                          : quickVesselId && vessels
+                            ? (vessels.find(v => String(v.id) === quickVesselId)?.name || "Select vessel...")
+                            : "Search by vessel name or IMO..."}
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[340px] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder="Vessel name or IMO number..."
+                        value={quickVesselSearch}
+                        onValueChange={(v) => {
+                          setQuickVesselSearch(v);
+                          if (quickVesselId === "external") {
+                            setQuickVesselId("");
+                            setQuickExternalVessel(null);
+                          }
+                        }}
+                        data-testid="input-vessel-quick"
+                      />
+                      <CommandList>
+                        {(vessels || []).filter(v => {
+                          const q = quickVesselSearch.toLowerCase();
+                          return !q || v.name.toLowerCase().includes(q) || (v.imoNumber || "").toLowerCase().includes(q);
+                        }).length === 0 && !quickImoLoading && !quickImoResult && (
+                          <CommandEmpty>
+                            {quickVesselSearch.length >= 5
+                              ? "Not found in fleet. Waiting for IMO lookup..."
+                              : "Enter vessel name or IMO."}
+                          </CommandEmpty>
+                        )}
+                        <CommandGroup>
+                          {(vessels || [])
+                            .filter(v => {
+                              const q = quickVesselSearch.toLowerCase();
+                              return !q || v.name.toLowerCase().includes(q) || (v.imoNumber || "").toLowerCase().includes(q);
+                            })
+                            .map((v) => (
+                              <CommandItem
+                                key={v.id}
+                                value={String(v.id)}
+                                onSelect={() => {
+                                  setQuickVesselId(String(v.id));
+                                  setQuickExternalVessel(null);
+                                  setQuickManualGrt("");
+                                  setQuickManualNrt("");
+                                  setQuickManualFlag("Panama");
+                                  setQuickManualVesselName("");
+                                  setQuickVesselSearch("");
+                                  setQuickVesselOpen(false);
+                                }}
+                                data-testid={`option-quick-vessel-${v.id}`}
+                              >
+                                <Ship className="w-3 h-3 mr-2 text-muted-foreground flex-shrink-0" />
+                                <span className="flex-1 font-medium">{v.name}</span>
+                                <span className="text-xs text-muted-foreground ml-2">
+                                  {v.flag}{v.imoNumber ? ` · IMO ${v.imoNumber}` : ""}
                                 </span>
                               </CommandItem>
                             ))}
@@ -723,53 +738,116 @@ export default function Proformas() {
                 </Popover>
               </div>
 
-              {/* Port combobox — second column of the Vessel & Port grid */}
-              <div className="space-y-2">
-                <Label>Port</Label>
-                <Popover open={quickPortOpen} onOpenChange={setQuickPortOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className="w-full justify-start font-normal"
-                      data-testid="trigger-port-quick"
-                    >
-                      <Anchor className="w-4 h-4 mr-2 text-muted-foreground" />
-                      {quickPortId && turkishPorts ? (turkishPorts.find(p => String(p.id) === quickPortId)?.name || "Select port...") : "Enter port name..."}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[320px] p-0" align="start">
-                    <Command shouldFilter={false}>
-                      <CommandInput
-                        placeholder="Search Turkish port... (min. 2 chars)"
-                        value={quickPortSearch}
-                        onValueChange={setQuickPortSearch}
-                        data-testid="input-port-quick"
-                      />
-                      <CommandList>
-                        <CommandEmpty>
-                          {quickPortSearch.length < 2 ? "Enter at least 2 characters." : "No Turkish port found."}
-                        </CommandEmpty>
-                        <CommandGroup>
-                          {filteredQuickPorts.map((p) => (
-                            <CommandItem
-                              key={p.id}
-                              value={p.name}
-                              onSelect={() => { setQuickPortId(String(p.id)); setQuickPortSearch(p.name); setQuickPortOpen(false); }}
-                              data-testid={`option-quick-port-${p.id}`}
-                            >
-                              <Anchor className="w-3 h-3 mr-2 text-muted-foreground" />
-                              {p.name}
-                              {p.code && <span className="ml-2 text-xs text-muted-foreground">{p.code}</span>}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+              {/* Departure + Destination port row — 2 columns */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Departure Port */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5">
+                    Departure Port
+                    <span className="text-[10px] text-muted-foreground font-normal">(Turkish ports only)</span>
+                  </Label>
+                  <Popover open={quickOriginPortOpen} onOpenChange={setQuickOriginPortOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-start font-normal"
+                        data-testid="trigger-origin-port-quick"
+                      >
+                        <Anchor className="w-4 h-4 mr-2 text-muted-foreground" />
+                        <span className="truncate">
+                          {quickOriginPortId && turkishPorts
+                            ? (turkishPorts.find(p => String(p.id) === quickOriginPortId)?.name || "Select departure port...")
+                            : "Enter departure port..."}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-0" align="start">
+                      <Command shouldFilter={false}>
+                        <CommandInput
+                          placeholder="Search Turkish port... (min. 2 chars)"
+                          value={quickOriginPortSearch}
+                          onValueChange={setQuickOriginPortSearch}
+                          data-testid="input-origin-port-quick"
+                        />
+                        <CommandList>
+                          <CommandEmpty>
+                            {quickOriginPortSearch.length < 2 ? "Enter at least 2 characters." : "No Turkish port found."}
+                          </CommandEmpty>
+                          <CommandGroup>
+                            {filteredOriginPorts.map((p) => (
+                              <CommandItem
+                                key={p.id}
+                                value={p.name}
+                                onSelect={() => { setQuickOriginPortId(String(p.id)); setQuickOriginPortSearch(p.name); setQuickOriginPortOpen(false); }}
+                                data-testid={`option-quick-origin-port-${p.id}`}
+                              >
+                                <Anchor className="w-3 h-3 mr-2 text-muted-foreground" />
+                                {p.name}
+                                {p.code && <span className="ml-2 text-xs text-muted-foreground">{p.code}</span>}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Destination Port */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5">
+                    Destination Port
+                    <span className="text-[10px] text-muted-foreground font-normal">(port of call)</span>
+                  </Label>
+                  <Popover open={quickPortOpen} onOpenChange={setQuickPortOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-start font-normal"
+                        data-testid="trigger-port-quick"
+                      >
+                        <Anchor className="w-4 h-4 mr-2 text-muted-foreground" />
+                        <span className="truncate">
+                          {quickPortId && turkishPorts
+                            ? (turkishPorts.find(p => String(p.id) === quickPortId)?.name || "Select destination port...")
+                            : "Enter destination port..."}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-0" align="start">
+                      <Command shouldFilter={false}>
+                        <CommandInput
+                          placeholder="Search Turkish port... (min. 2 chars)"
+                          value={quickPortSearch}
+                          onValueChange={setQuickPortSearch}
+                          data-testid="input-port-quick"
+                        />
+                        <CommandList>
+                          <CommandEmpty>
+                            {quickPortSearch.length < 2 ? "Enter at least 2 characters." : "No Turkish port found."}
+                          </CommandEmpty>
+                          <CommandGroup>
+                            {filteredQuickPorts.map((p) => (
+                              <CommandItem
+                                key={p.id}
+                                value={p.name}
+                                onSelect={() => { setQuickPortId(String(p.id)); setQuickPortSearch(p.name); setQuickPortOpen(false); }}
+                                data-testid={`option-quick-port-${p.id}`}
+                              >
+                                <Anchor className="w-3 h-3 mr-2 text-muted-foreground" />
+                                {p.name}
+                                {p.code && <span className="ml-2 text-xs text-muted-foreground">{p.code}</span>}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
-              </div>{/* end vessel+port grid */}
             </div>{/* end Section 1 */}
 
             {/* Manual Tonnage Entry — shown for external or unselected vessel */}
@@ -882,20 +960,29 @@ export default function Proformas() {
                 {isTurkishFlagVessel && (
                   <div className="space-y-2" data-testid="section-voyage-type">
                     <Label>Voyage Type</Label>
-                    <div className="grid grid-cols-2 gap-1.5" data-testid="select-voyage-type">
-                      <button
-                        type="button"
-                        onClick={() => setQuickVoyageType("international")}
-                        className={`px-2 py-2 rounded-md border text-xs font-medium transition-colors ${quickVoyageType === "international" ? "bg-blue-600 text-white border-blue-600" : "border-input bg-background hover:bg-muted"}`}
-                        data-testid="button-voyage-international"
-                      >🌍 International</button>
-                      <button
-                        type="button"
-                        onClick={() => setQuickVoyageType("cabotage")}
-                        className={`px-2 py-2 rounded-md border text-xs font-medium transition-colors ${quickVoyageType === "cabotage" ? "bg-blue-600 text-white border-blue-600" : "border-input bg-background hover:bg-muted"}`}
-                        data-testid="button-voyage-cabotage"
-                      >🇹🇷 Cabotage</button>
-                    </div>
+                    {isAutoCabotage ? (
+                      <div
+                        className="flex items-center gap-2 px-3 py-2 rounded-md border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 text-xs font-medium text-blue-700 dark:text-blue-300"
+                        data-testid="badge-auto-cabotage"
+                      >
+                        🇹🇷 Cabotage — auto-detected
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-1.5" data-testid="select-voyage-type">
+                        <button
+                          type="button"
+                          onClick={() => setQuickVoyageType("international")}
+                          className={`px-2 py-2 rounded-md border text-xs font-medium transition-colors ${quickVoyageType === "international" ? "bg-blue-600 text-white border-blue-600" : "border-input bg-background hover:bg-muted"}`}
+                          data-testid="button-voyage-international"
+                        >🌍 International</button>
+                        <button
+                          type="button"
+                          onClick={() => setQuickVoyageType("cabotage")}
+                          className={`px-2 py-2 rounded-md border text-xs font-medium transition-colors ${quickVoyageType === "cabotage" ? "bg-blue-600 text-white border-blue-600" : "border-input bg-background hover:bg-muted"}`}
+                          data-testid="button-voyage-cabotage"
+                        >🇹🇷 Cabotage</button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
