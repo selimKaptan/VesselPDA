@@ -398,7 +398,7 @@ export function calculateProforma(input: CalculationInput): CalculationResult {
   );
 
   addItem(
-    "Tugboats",
+    input.grt > 5000 ? "Tugboats ×2 (GRT > 5,000 — mandatory 2nd tug)" : "Tugboats",
     calcTugboat(input),
     "50% overtime will applicable on National/Religious holidays & Sundays"
   );
