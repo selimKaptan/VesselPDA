@@ -86,12 +86,18 @@ export async function seedTariffData() {
       (2,'T2','koruyucu_acentelik',5001,7500,1600.00,'EUR'),
       (2,'T1','acentelik',7501,10000,4000.00,'EUR'),
       (2,'T2','koruyucu_acentelik',7501,10000,2000.00,'EUR'),
-      (2,'T1','acentelik',10001,20000,125.00,'EUR'),
-      (2,'T2','koruyucu_acentelik',10001,20000,63.00,'EUR'),
-      (2,'T1','acentelik',20001,30000,100.00,'EUR'),
-      (2,'T2','koruyucu_acentelik',20001,30000,50.00,'EUR'),
-      (2,'T1','acentelik',30001,999999,75.00,'EUR'),
-      (2,'T2','koruyucu_acentelik',30001,999999,38.00,'EUR')
+      (2,'T1','acentelik',10001,20000,4000.00,'EUR'),
+      (2,'T2','koruyucu_acentelik',10001,20000,2000.00,'EUR'),
+      (2,'T1','acentelik',20001,30000,5250.00,'EUR'),
+      (2,'T2','koruyucu_acentelik',20001,30000,2625.00,'EUR'),
+      (2,'T1','acentelik',30001,999999,6250.00,'EUR'),
+      (2,'T2','koruyucu_acentelik',30001,999999,3125.00,'EUR')
+    `);
+
+    await client.query(`
+      UPDATE agency_fees SET per_1000_nt = 125.00 WHERE service_type='acentelik' AND nt_min = 10001 AND port_id = 2;
+      UPDATE agency_fees SET per_1000_nt = 100.00 WHERE service_type='acentelik' AND nt_min = 20001 AND port_id = 2;
+      UPDATE agency_fees SET per_1000_nt = 75.00  WHERE service_type='acentelik' AND nt_min = 30001 AND port_id = 2;
     `);
 
     // ── MARPOL Tariffs (İzmir port_id=3) ─────────────────────────────────
