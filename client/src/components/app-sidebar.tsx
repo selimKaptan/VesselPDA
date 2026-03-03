@@ -2,7 +2,7 @@ import {
   Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield,
   ChevronDown, MessageSquare, MessagesSquare, MessageCircle, Anchor, Gavel, Navigation, Languages,
   Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, Handshake, Package,
-  TrendingUp, BarChart3, Receipt, FileCheck, Star, Fuel, Scale,
+  TrendingUp, BarChart3, Receipt, FileCheck, Star, Fuel, Scale, Mail,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation, Link } from "wouter";
@@ -147,6 +147,12 @@ export function AppSidebar() {
   const activeOrgId = (user as any)?.activeOrganizationId;
   const activeOrg = myOrgs.find((o: any) => o.id === activeOrgId) || myOrgs[0];
 
+  const { data: emailBadge } = useQuery<{ count: number }>({
+    queryKey: ["/api/email/inbox/count"],
+    refetchInterval: 30000,
+  });
+  const unreadEmails = emailBadge?.count || 0;
+
   const { data: nomBadge } = useQuery<{ count: number }>({
     queryKey: ["/api/nominations/pending-count"],
     refetchInterval: 15000,
@@ -200,6 +206,7 @@ export function AppSidebar() {
     label: "Communication",
     items: [
       { title: "Messages", url: "/messages", icon: MessageSquare, badge: unreadMessages },
+      { title: "Email Inbox", url: "/email-inbox", icon: Mail, badge: unreadEmails },
       { title: "Forum", url: "/forum", icon: MessagesSquare },
       { title: "Team Chat", url: "/team-chat", icon: MessageCircle },
       { title: "Service Requests", url: "/service-requests", icon: Wrench },

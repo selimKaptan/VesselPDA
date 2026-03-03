@@ -260,6 +260,10 @@ app.use((req, res, next) => {
           .catch((err: Error) => console.error("Benchmark migration error:", err));
       });
 
+      import("./migrate-email-inbound").then(({ migrateEmailInbound }) => {
+        migrateEmailInbound().catch((err: Error) => console.error("Email inbound migration error:", err));
+      });
+
       import("./startup-checks").then(({ runStartupChecks }) => {
         setTimeout(() => {
           runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));

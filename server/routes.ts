@@ -7229,5 +7229,243 @@ export async function registerRoutes(
     } catch { res.status(500).json({ message: "Failed" }); }
   });
 
+  // ── EMAIL INBOUND SYSTEM ───────────────────────────────────────────────────
+
+  // Webhook — receives inbound emails from email service
+  app.post("/api/email/inbound", async (req, res) => {
+    try {
+      const { from, fromName, to, subject, bodyText, bodyHtml, attachments, secret } = req.body;
+      if (process.env.EMAIL_WEBHOOK_SECRET && secret !== process.env.EMAIL_WEBHOOK_SECRET) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      if (!from || !to) return res.status(400).json({ message: "from and to required" });
+
+      const { resolveForwardingEmail, saveInboundEmail, classifyEmailWithAI } = await import("./email-inbound");
+      const rule = await resolveForwardingEmail(to);
+      const userId = rule?.userId || null;
+      const organizationId = rule?.organizationId || null;
+      const linkedVoyageId = rule?.linkedVoyageId || null;
+
+      let aiClassification = "general", aiExtractedData = {}, aiSuggestion = "";
+      try {
+        const ai = await classifyEmailWithAI(subject || "", bodyText || "");
+        aiClassification = ai.classification; aiExtractedData = ai.extractedData; aiSuggestion = ai.suggestion;
+      } catch {}
+
+      const emailId = await saveInboundEmail({ userId, organizationId, fromEmail: from, fromName: fromName || null,
+        toEmail: to, subject, bodyText, bodyHtml, attachments: attachments || [],
+        linkedVoyageId, aiClassification, aiExtractedData, aiSuggestion });
+
+      if (userId) {
+        await pool.query(`INSERT INTO notifications (user_id, type, title, message, link) VALUES ($1,'email_received',$2,$3,$4)`,
+          [userId, `New Email: ${subject || "(no subject)"}`, `From ${fromName || from}`, `/email-inbox`]).catch(() => {});
+      }
+      res.json({ success: true, emailId });
+    } catch (err) { console.error("[email/inbound]", err); res.status(500).json({ message: "Failed" }); }
+  });
+
+  // Manual email add for testing
+  app.post("/api/email/inbound/manual", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { fromEmail, fromName, subject, bodyText, bodyHtml, attachments, linkedVoyageId } = req.body;
+      if (!fromEmail) return res.status(400).json({ message: "fromEmail required" });
+
+      const { saveInboundEmail, classifyEmailWithAI } = await import("./email-inbound");
+      const userRow = await pool.query(`SELECT active_organization_id, first_name, last_name FROM users WHERE id = $1`, [userId]);
+      const u = userRow.rows[0];
+      const orgId = u?.active_organization_id || null;
+
+      const ruleRow = await pool.query(`SELECT forwarding_email FROM email_forwarding_rules WHERE user_id = $1 AND is_active = TRUE LIMIT 1`, [userId]);
+      const toEmail = ruleRow.rows[0]?.forwarding_email || `manual@inbound.vesselpda.app`;
+
+      let aiClassification = "general", aiExtractedData = {}, aiSuggestion = "";
+      try {
+        const ai = await classifyEmailWithAI(subject || "", bodyText || "");
+        aiClassification = ai.classification; aiExtractedData = ai.extractedData; aiSuggestion = ai.suggestion;
+      } catch {}
+
+      const emailId = await saveInboundEmail({ userId, organizationId: orgId, fromEmail, fromName: fromName || null,
+        toEmail, subject, bodyText, bodyHtml, attachments: attachments || [],
+        linkedVoyageId: linkedVoyageId || null, aiClassification, aiExtractedData, aiSuggestion });
+
+      res.json({ success: true, emailId });
+    } catch (err) { console.error("[email/inbound/manual]", err); res.status(500).json({ message: "Failed" }); }
+  });
+
+  // Get inbox emails
+  app.get("/api/email/inbox", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const userRow = await pool.query(`SELECT active_organization_id FROM users WHERE id = $1`, [userId]);
+      const orgId = userRow.rows[0]?.active_organization_id || null;
+      const showProcessed = req.query.processed === "true";
+      const { rows } = await pool.query(
+        `SELECT ie.*, v.name AS voyage_name FROM inbound_emails ie
+         LEFT JOIN voyages v ON v.id = ie.linked_voyage_id
+         WHERE (ie.user_id = $1 OR ie.organization_id = $2) AND ie.is_processed = $3
+         ORDER BY ie.received_at DESC LIMIT 100`,
+        [userId, orgId, showProcessed]
+      );
+      res.json(rows);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  // Get unread count
+  app.get("/api/email/inbox/count", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const userRow = await pool.query(`SELECT active_organization_id FROM users WHERE id = $1`, [userId]);
+      const orgId = userRow.rows[0]?.active_organization_id || null;
+      const { rows } = await pool.query(
+        `SELECT COUNT(*) FROM inbound_emails WHERE (user_id = $1 OR organization_id = $2) AND is_processed = FALSE`,
+        [userId, orgId]
+      );
+      res.json({ count: parseInt(rows[0].count) });
+    } catch { res.json({ count: 0 }); }
+  });
+
+  // Get single email
+  app.get("/api/email/inbox/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { rows } = await pool.query(
+        `SELECT ie.*, v.name AS voyage_name FROM inbound_emails ie
+         LEFT JOIN voyages v ON v.id = ie.linked_voyage_id
+         WHERE ie.id = $1 AND (ie.user_id = $2 OR ie.organization_id IN (SELECT active_organization_id FROM users WHERE id = $2))`,
+        [req.params.id, userId]
+      );
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      res.json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  // Process email
+  app.post("/api/email/inbox/:id/process", isAuthenticated, async (req, res) => {
+    try {
+      const { action, entityId } = req.body;
+      const { markEmailProcessed } = await import("./email-inbound");
+      await markEmailProcessed(parseInt(req.params.id), action || "manual", entityId);
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  // Dismiss email
+  app.post("/api/email/inbox/:id/dismiss", isAuthenticated, async (req, res) => {
+    try {
+      await pool.query(`UPDATE inbound_emails SET is_processed = TRUE, processed_action = 'dismissed' WHERE id = $1`, [req.params.id]);
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  // Delete email
+  app.delete("/api/email/inbox/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      await pool.query(`DELETE FROM inbound_emails WHERE id = $1 AND user_id = $2`, [req.params.id, userId]);
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  // Link email to voyage
+  app.patch("/api/email/inbox/:id/link-voyage", isAuthenticated, async (req, res) => {
+    try {
+      const { voyageId } = req.body;
+      await pool.query(`UPDATE inbound_emails SET linked_voyage_id = $1 WHERE id = $2`, [voyageId || null, req.params.id]);
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  // Get forwarding rules
+  app.get("/api/email/forwarding-rules", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { rows } = await pool.query(
+        `SELECT efr.*, v.name AS voyage_name FROM email_forwarding_rules efr
+         LEFT JOIN voyages v ON v.id = efr.linked_voyage_id
+         WHERE efr.user_id = $1 ORDER BY efr.created_at DESC`,
+        [userId]
+      );
+      res.json(rows);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  // Create forwarding rule
+  app.post("/api/email/forwarding-rules", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { ruleType, linkedVoyageId } = req.body;
+      const userRow = await pool.query(
+        `SELECT u.first_name, u.last_name, u.active_organization_id, o.name AS org_name
+         FROM users u LEFT JOIN organizations o ON o.id = u.active_organization_id WHERE u.id = $1`, [userId]
+      );
+      const u = userRow.rows[0];
+      const slug = u?.org_name || `${u?.first_name || "user"}${u?.last_name || ""}`;
+      const { generateForwardingEmail } = await import("./email-inbound");
+      const forwardingEmail = generateForwardingEmail(slug);
+      const { rows } = await pool.query(
+        `INSERT INTO email_forwarding_rules (user_id, organization_id, forwarding_email, rule_type, linked_voyage_id)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [userId, u?.active_organization_id || null, forwardingEmail, ruleType || "general", linkedVoyageId || null]
+      );
+      res.json(rows[0]);
+    } catch (err: any) {
+      if (err.code === "23505") return res.status(409).json({ message: "Already exists" });
+      res.status(500).json({ message: "Failed" });
+    }
+  });
+
+  // Delete forwarding rule
+  app.delete("/api/email/forwarding-rules/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      await pool.query(`DELETE FROM email_forwarding_rules WHERE id = $1 AND user_id = $2`, [req.params.id, userId]);
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  // Get emails for a voyage
+  app.get("/api/voyages/:id/emails", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { rows } = await pool.query(
+        `SELECT ie.* FROM inbound_emails ie
+         WHERE ie.linked_voyage_id = $1
+           AND (ie.user_id = $2 OR ie.organization_id IN (SELECT active_organization_id FROM users WHERE id = $2))
+         ORDER BY ie.received_at DESC`,
+        [req.params.id, userId]
+      );
+      res.json(rows);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  // Push notification subscription (infrastructure)
+  app.post("/api/push/subscribe", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { endpoint, keys } = req.body;
+      if (!endpoint) return res.status(400).json({ message: "endpoint required" });
+      await pool.query(`CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id SERIAL PRIMARY KEY, user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        endpoint TEXT NOT NULL, keys JSONB, created_at TIMESTAMP DEFAULT NOW(), UNIQUE(user_id, endpoint)
+      )`).catch(() => {});
+      await pool.query(
+        `INSERT INTO push_subscriptions (user_id, endpoint, keys) VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, endpoint) DO UPDATE SET keys = EXCLUDED.keys`,
+        [userId, endpoint, JSON.stringify(keys || {})]
+      );
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.delete("/api/push/subscribe", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { endpoint } = req.body;
+      await pool.query(`DELETE FROM push_subscriptions WHERE user_id = $1 AND endpoint = $2`, [userId, endpoint]).catch(() => {});
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
   return httpServer;
 }

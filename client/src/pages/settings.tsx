@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle, CheckCircle2, AlertCircle, User, Lock, Mail, Shield, Building2, ShieldCheck, Clock, XCircle, Loader2, Globe } from "lucide-react";
+import { CheckCircle, CheckCircle2, AlertCircle, User, Lock, Mail, Shield, Building2, ShieldCheck, Clock, XCircle, Loader2, Globe, Copy, Plus, Trash2, Link2 } from "lucide-react";
 import type { CompanyProfile } from "@shared/schema";
 import { useLanguage, type Lang } from "@/lib/i18n";
 
@@ -29,6 +29,119 @@ const PROVIDER_COMPLETION_FIELDS = [
   { key: "phone", label: "Telefon Numarası", hint: "İletişim telefonu ekleyin", isArray: false },
   { key: "email", label: "İletişim E-postası", hint: "İletişim e-postası ekleyin", isArray: false },
 ];
+
+const RULE_TYPE_LABELS: Record<string, string> = {
+  general: "General",
+  voyage_update: "Voyage Update",
+  sof_update: "SOF Update",
+  nomination: "Nomination",
+};
+
+function EmailSettingsSection() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [newRuleType, setNewRuleType] = useState("general");
+
+  const { data: rules = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/email/forwarding-rules"],
+  });
+
+  const createRuleMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/email/forwarding-rules", { ruleType: newRuleType }),
+    onSuccess: () => {
+      toast({ title: "Forwarding address created", description: "Share this address with your contacts." });
+      queryClient.invalidateQueries({ queryKey: ["/api/email/forwarding-rules"] });
+    },
+    onError: () => toast({ title: "Failed to create address", variant: "destructive" }),
+  });
+
+  const deleteRuleMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/email/forwarding-rules/${id}`),
+    onSuccess: () => {
+      toast({ title: "Forwarding rule deleted" });
+      queryClient.invalidateQueries({ queryKey: ["/api/email/forwarding-rules"] });
+    },
+  });
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copied to clipboard" });
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* How it works */}
+      <div className="rounded-lg bg-muted/50 border p-3 text-xs text-muted-foreground space-y-1">
+        <p className="font-medium text-foreground flex items-center gap-1.5">
+          <Link2 className="w-3.5 h-3.5" /> How it works
+        </p>
+        <p>Generate a unique email address (e.g. <code className="bg-muted px-1 rounded font-mono">your-company-abc@inbound.vesselpda.app</code>).</p>
+        <p>Share it with shipowners, charterers, or agents. Emails sent to this address are automatically captured, AI-classified, and appear in your Email Inbox.</p>
+      </div>
+
+      {/* Create new rule */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <Label className="text-xs mb-1 block">Email Type</Label>
+          <select
+            value={newRuleType}
+            onChange={e => setNewRuleType(e.target.value)}
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            data-testid="select-settings-rule-type"
+          >
+            {Object.entries(RULE_TYPE_LABELS).map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </select>
+        </div>
+        <div className="pt-5">
+          <Button size="sm" onClick={() => createRuleMutation.mutate()} disabled={createRuleMutation.isPending}
+            className="gap-1.5" data-testid="button-settings-create-rule">
+            {createRuleMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+            Generate Address
+          </Button>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Existing rules */}
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground flex items-center gap-2">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading...
+        </div>
+      ) : rules.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No forwarding addresses yet. Generate one above to get started.</p>
+      ) : (
+        <div className="space-y-2">
+          {rules.map((rule: any) => (
+            <div key={rule.id} className="flex items-center gap-3 border rounded-lg px-3 py-2.5 bg-background">
+              <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-mono text-blue-600 dark:text-blue-400 truncate font-medium">
+                  {rule.forwarding_email}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {RULE_TYPE_LABELS[rule.rule_type] || rule.rule_type}
+                  {rule.voyage_name && ` · Voyage: ${rule.voyage_name}`}
+                  {rule.is_active ? " · Active" : " · Inactive"}
+                </p>
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0"
+                onClick={() => handleCopy(rule.forwarding_email)} data-testid={`button-settings-copy-rule-${rule.id}`}>
+                <Copy className="w-3.5 h-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 text-destructive hover:text-destructive"
+                onClick={() => deleteRuleMutation.mutate(rule.id)} data-testid={`button-settings-delete-rule-${rule.id}`}>
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Settings() {
   const { user } = useAuth();
@@ -496,6 +609,22 @@ export default function Settings() {
               {updateProfileMutation.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Email Inbox Settings */}
+      <Card data-testid="card-email-settings">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Mail className="w-4 h-4 text-muted-foreground" />
+            Email Inbox & Forwarding
+          </CardTitle>
+          <CardDescription>
+            Manage your inbound email forwarding addresses. Share these with shipowners, charterers, and other contacts so their emails are automatically captured and AI-classified in VesselPDA.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <EmailSettingsSection />
         </CardContent>
       </Card>
 

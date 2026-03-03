@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import {
   Ship, MapPin, Calendar, ArrowLeft, CheckCircle2, Circle, Trash2,
@@ -8,7 +8,7 @@ import {
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, UserPlus, Building2,
   Shield, Check, X as XIcon, Edit2, Route, Package, ChevronRight as ChevronRightIcon,
-  ArrowRight, Navigation, MoreVertical, RefreshCw, Wallet, ExternalLink
+  ArrowRight, Navigation, MoreVertical, RefreshCw, Wallet, ExternalLink, Mail, MailCheck, Bot, Copy, Link2
 } from "lucide-react";
 import { SofEditor } from "@/components/sof-editor";
 import { VoyageExpensesTab } from "@/components/voyage-expenses-tab";
@@ -166,6 +166,222 @@ function StarRatingInput({ value, onChange }: { value: number; onChange: (v: num
   );
 }
 
+function VoyageEmailTab({ voyageId }: { voyageId: number }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [showManual, setShowManual] = useState(false);
+  const [manualForm, setManualForm] = useState({ fromEmail: "", fromName: "", subject: "", bodyText: "" });
+  const [selectedEmail, setSelectedEmail] = useState<any>(null);
+
+  const { data: rawVoyageEmails, isLoading } = useQuery<any>({
+    queryKey: ["/api/voyages", voyageId, "emails"],
+    queryFn: async () => {
+      const res = await fetch(`/api/voyages/${voyageId}/emails`, { credentials: "include" });
+      return res.json();
+    },
+  });
+  const emails: any[] = Array.isArray(rawVoyageEmails) ? rawVoyageEmails : [];
+
+  const { data: rawVoyageRules } = useQuery<any>({ queryKey: ["/api/email/forwarding-rules"] });
+  const rules: any[] = Array.isArray(rawVoyageRules) ? rawVoyageRules : [];
+  const voyageRule = rules.find((r: any) => r.linked_voyage_id === voyageId);
+
+  const addManualMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/email/inbound/manual", { ...data, linkedVoyageId: voyageId }),
+    onSuccess: () => {
+      toast({ title: "Email added" });
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "emails"] });
+      setShowManual(false);
+      setManualForm({ fromEmail: "", fromName: "", subject: "", bodyText: "" });
+    },
+  });
+
+  const createRuleMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/email/forwarding-rules", { ruleType: "voyage_update", linkedVoyageId: voyageId }),
+    onSuccess: () => {
+      toast({ title: "Forwarding address created" });
+      queryClient.invalidateQueries({ queryKey: ["/api/email/forwarding-rules"] });
+    },
+  });
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copied!" });
+  };
+
+  const dismissMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("POST", `/api/email/inbox/${id}/dismiss`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "emails"] });
+      setSelectedEmail(null);
+    },
+  });
+
+  return (
+    <div className="space-y-4" data-testid="panel-email">
+      {/* Forwarding address banner */}
+      <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 p-4">
+        <div className="flex items-start gap-3">
+          <Link2 className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">Voyage Forwarding Address</p>
+            {voyageRule ? (
+              <div className="flex items-center gap-2 mt-1">
+                <code className="text-xs font-mono bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 rounded text-blue-700 dark:text-blue-300 break-all">
+                  {voyageRule.forwarding_email}
+                </code>
+                <Button variant="ghost" size="icon" className="h-6 w-6 flex-shrink-0"
+                  onClick={() => handleCopy(voyageRule.forwarding_email)} data-testid="button-copy-voyage-email">
+                  <Copy className="w-3 h-3" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  Generate a forwarding address to receive emails automatically for this voyage.
+                </p>
+                <Button size="sm" className="h-7 text-xs gap-1 flex-shrink-0" onClick={() => createRuleMutation.mutate()}
+                  disabled={createRuleMutation.isPending} data-testid="button-generate-voyage-email">
+                  <Plus className="w-3 h-3" /> Generate
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Mail className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+          <h2 className="font-semibold text-sm">Voyage Emails</h2>
+          <span className="text-xs text-muted-foreground">({emails.length})</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8" onClick={() => setShowManual(true)}
+            data-testid="button-add-voyage-email">
+            <Plus className="w-3.5 h-3.5" /> Add Email
+          </Button>
+          <Link href="/email-inbox">
+            <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-8" data-testid="button-view-inbox">
+              <ExternalLink className="w-3.5 h-3.5" /> Full Inbox
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-8 text-muted-foreground text-sm">
+          <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" /> Loading emails...
+        </div>
+      ) : emails.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <Mail className="w-10 h-10 mx-auto mb-3 opacity-40" />
+          <p className="text-sm">No emails linked to this voyage yet.</p>
+          <p className="text-xs mt-1">Share the forwarding address above or add emails manually.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {emails.map((email: any) => (
+            <div key={email.id} className={`rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors ${selectedEmail?.id === email.id ? "bg-muted" : ""}`}
+              onClick={() => setSelectedEmail(selectedEmail?.id === email.id ? null : email)}>
+              <div className="flex items-start gap-2">
+                <div className={`mt-0.5 w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${email.is_processed ? "bg-muted" : "bg-blue-100 dark:bg-blue-900/30"}`}>
+                  {email.is_processed ? <MailCheck className="w-3.5 h-3.5 text-muted-foreground" /> : <Mail className="w-3.5 h-3.5 text-blue-600" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium truncate">{email.from_name || email.from_email}</span>
+                    <span className="text-xs text-muted-foreground flex-shrink-0">
+                      {new Date(email.received_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate">{email.subject || "(no subject)"}</p>
+                  {email.ai_suggestion && !email.is_processed && (
+                    <div className="flex items-start gap-1 mt-1.5">
+                      <Bot className="w-3 h-3 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-xs text-blue-600 dark:text-blue-400">{email.ai_suggestion}</p>
+                    </div>
+                  )}
+                  {selectedEmail?.id === email.id && (
+                    <div className="mt-3 space-y-2">
+                      {email.body_text && (
+                        <pre className="text-xs whitespace-pre-wrap font-sans bg-muted/40 rounded p-2 max-h-40 overflow-y-auto">
+                          {email.body_text}
+                        </pre>
+                      )}
+                      {!email.is_processed && (
+                        <Button variant="outline" size="sm" className="h-7 text-xs gap-1"
+                          onClick={(e) => { e.stopPropagation(); dismissMutation.mutate(email.id); }}
+                          data-testid={`button-dismiss-voyage-email-${email.id}`}>
+                          Dismiss
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Manual email dialog */}
+      {showManual && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background border rounded-xl shadow-2xl p-5 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-sm flex items-center gap-2">
+                <Plus className="w-4 h-4" /> Add Email to Voyage
+              </h3>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowManual(false)}>
+                <XIcon className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">From Email *</Label>
+                  <Input className="h-8 text-sm" value={manualForm.fromEmail}
+                    onChange={e => setManualForm(f => ({ ...f, fromEmail: e.target.value }))}
+                    placeholder="sender@example.com" data-testid="input-voyage-email-from" />
+                </div>
+                <div>
+                  <Label className="text-xs">From Name</Label>
+                  <Input className="h-8 text-sm" value={manualForm.fromName}
+                    onChange={e => setManualForm(f => ({ ...f, fromName: e.target.value }))}
+                    placeholder="John Smith" />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs">Subject</Label>
+                <Input className="h-8 text-sm" value={manualForm.subject}
+                  onChange={e => setManualForm(f => ({ ...f, subject: e.target.value }))}
+                  placeholder="Email subject..." data-testid="input-voyage-email-subject" />
+              </div>
+              <div>
+                <Label className="text-xs">Body</Label>
+                <Textarea className="text-sm min-h-[80px]" value={manualForm.bodyText}
+                  onChange={e => setManualForm(f => ({ ...f, bodyText: e.target.value }))}
+                  placeholder="Email content..." data-testid="textarea-voyage-email-body" />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setShowManual(false)}>Cancel</Button>
+                <Button size="sm" onClick={() => addManualMutation.mutate(manualForm)}
+                  disabled={!manualForm.fromEmail || addManualMutation.isPending}
+                  data-testid="button-submit-voyage-email">
+                  {addManualMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Plus className="w-3.5 h-3.5 mr-1.5" />}
+                  Add & Classify
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function VoyageDetail() {
   const { id } = useParams<{ id: string }>();
   const voyageId = parseInt(id || "0");
@@ -176,7 +392,7 @@ export default function VoyageDetail() {
   const [newTask, setNewTask] = useState("");
   const [chatMessage, setChatMessage] = useState("");
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"route" | "operation" | "expenses" | "bunker" | "documents" | "comms" | "timeline" | "collaborators">("route");
+  const [activeTab, setActiveTab] = useState<"route" | "operation" | "expenses" | "bunker" | "documents" | "comms" | "timeline" | "collaborators" | "email">("route");
   const [showAddPortCallDialog, setShowAddPortCallDialog] = useState(false);
   const [editingPortCall, setEditingPortCall] = useState<any | null>(null);
   const [pcForm, setPcForm] = useState({
@@ -893,6 +1109,7 @@ export default function VoyageDetail() {
           { key: "comms",         label: "Comms",          icon: MessageCircle },
           { key: "timeline",      label: "Timeline",       icon: GitBranch },
           { key: "collaborators", label: "Collaborators",  icon: UsersIcon },
+          { key: "email",         label: "Email",          icon: Mail },
         ] as const).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -1830,6 +2047,11 @@ export default function VoyageDetail() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ── Tab: Email ──────────────────────────────────────────── */}
+      {activeTab === "email" && (
+        <VoyageEmailTab voyageId={voyageId} />
       )}
 
       {/* ── Add / Edit Port Call Dialog ──────────────────────────── */}

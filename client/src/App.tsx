@@ -59,6 +59,7 @@ import FinalDaEdit from "@/pages/final-da-edit";
 import BunkerManagement from "@/pages/bunker-management";
 import MaritimeDocView from "@/pages/maritime-doc-view";
 import PortBenchmarking from "@/pages/port-benchmarking";
+import EmailInbox from "@/pages/email-inbox";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -253,6 +254,7 @@ function AuthenticatedRouter() {
       <Route path="/final-da/new" component={FinalDaEdit} />
       <Route path="/final-da/:id" component={FinalDaEdit} />
       <Route path="/port-benchmarking" component={PortBenchmarking} />
+      <Route path="/email-inbox" component={EmailInbox} />
       <Route component={NotFound} />
     </Switch>
   );

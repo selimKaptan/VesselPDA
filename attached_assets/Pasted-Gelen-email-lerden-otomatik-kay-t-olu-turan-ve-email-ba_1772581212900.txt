@@ -1,0 +1,85 @@
+Gelen email'lerden otomatik kayıt oluşturan ve email bazlı workflow sağlayan sistem ekle.
+
+Yapılacaklar:
+
+1. shared/schema.ts dosyasına ekle:
+
+inboundEmails tablosu:
+- id (serial PK)
+- userId (varchar, FK users, nullable) — eşleşen kullanıcı
+- organizationId (integer, FK organizations, nullable)
+- fromEmail (text, not null)
+- fromName (text)
+- toEmail (text, not null)
+- subject (text)
+- bodyText (text)
+- bodyHtml (text)
+- receivedAt (timestamp, default now)
+- isProcessed (boolean, default false)
+- processedAction (text, nullable) — "created_voyage", "updated_sof", "created_nomination" vs.
+- processedEntityId (integer, nullable)
+- attachments (jsonb) — [{fileName, fileUrl, fileSize}]
+- createdAt (timestamp, default now)
+
+emailForwardingRules tablosu:
+- id (serial PK)
+- organizationId (integer, FK organizations, nullable)
+- userId (varchar, FK users, not null)
+- forwardingEmail (text, unique, not null) — ops-abc123@vesselpda.app gibi
+- ruleType (text, not null) — "voyage_update", "sof_update", "nomination", "general"
+- linkedVoyageId (integer, FK voyages, nullable)
+- isActive (boolean, default true)
+- createdAt (timestamp, default now)
+
+2. server/email-inbound.ts oluştur:
+   
+   a) Her kullanıcıya/organizasyona özel forwarding email adresi oluştur:
+      Format: {orgSlug}-{randomCode}@inbound.vesselpda.app
+      Örnek: abc-shipping-x7k9@inbound.vesselpda.app
+   
+   b) Email parsing fonksiyonları:
+      - parseNominationEmail(email): Gemi adı, liman, ETA çıkarma
+      - parseSOFUpdate(email): SOF event'lerini çıkarma
+      - parseDAEmail(email): DA bilgilerini çıkarma
+   
+   c) AI ile email sınıflandırma (Anthropic API kullan):
+      Email içeriğini analiz et → tip belirle (nomination, SOF update, DA, genel)
+      İlgili verileri extract et
+      Otomatik kayıt oluştur veya öner
+
+3. Endpoint'ler:
+
+POST /api/email/inbound — Webhook: gelen email'i işle (email servisinden gelir)
+GET /api/email/forwarding-rules — Forwarding kuralları
+POST /api/email/forwarding-rules — Yeni kural oluştur
+DELETE /api/email/forwarding-rules/:id — Kural sil
+GET /api/email/inbox — Gelen email'ler listesi (işlenmemiş)
+POST /api/email/inbox/:id/process — Email'i manuel işle (kayıt oluştur)
+POST /api/email/inbox/:id/dismiss — Email'i yoksay
+
+4. client/src/pages/email-inbox.tsx sayfası oluştur:
+   - Gelen email listesi (gönderen, konu, tarih, durum)
+   - Email detay: içerik + ekler
+   - AI önerisi: "Bu email bir nomination gibi görünüyor. Otomatik oluşturayım mı?"
+   - İşlem butonları: "Sefer Oluştur", "SOF Güncelle", "Nomination Oluştur", "Yoksay"
+   - İşlenmiş email'ler: hangi kayıda dönüştürüldü (link)
+
+5. client/src/pages/settings.tsx'e "Email Ayarları" bölümü ekle:
+   - Forwarding email adresi gösterimi (kopyala butonu)
+   - "Bu email adresine gelen mailleri sistemde otomatik işle"
+   - Kural ekleme: "Bu email'den gelenler → şu sefere bağlansın"
+   - AI otomatik sınıflandırma on/off
+
+6. Voyage detayında "Email" tab'ı:
+   - Bu seferle ilişkili email'ler
+   - "Bu sefere email bağla" butonu
+   - Forwarding adresi: "Bu adresi ilgili taraflara verin, gelen mailler otomatik bu sefere bağlanır"
+
+7. Email gönderme özelliğini genişlet:
+   - Proforma email gönderildiğinde, yanıtlar otomatik o proformaya bağlansın
+   - Nomination email'ine yanıt gelirse otomatik bildirim
+
+8. App.tsx'e /email-inbox route ekle.
+9. Sidebar'a "Email Inbox" menü öğesi ekle (Mail icon, okunmamış sayı badge).
+
+NOT: Gerçek email altyapısı (inbound webhook) Resend veya benzeri servis gerektirir. Şimdilik webhook endpoint'ini hazırla ve manuel email ekleme özelliği de koy (test için).
