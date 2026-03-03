@@ -64,6 +64,13 @@ router.post("/", isAuthenticated, async (req: any, res) => {
     // Set as active organization for the creator
     await pool.query("UPDATE users SET active_organization_id = $1 WHERE id = $2", [org.id, userId]);
 
+    // Auto-create General channel
+    await pool.query(
+      `INSERT INTO team_channels (organization_id, name, description, channel_type, created_by_user_id)
+       VALUES ($1, 'General', 'General team announcements and discussions', 'public', $2)`,
+      [org.id, userId]
+    );
+
     res.status(201).json(org);
   } catch (err: any) {
     console.error("[org] create error:", err);

@@ -1,6 +1,6 @@
 import {
   Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield,
-  ChevronDown, MessageSquare, MessagesSquare, Anchor, Gavel, Navigation, Languages,
+  ChevronDown, MessageSquare, MessagesSquare, MessageCircle, Anchor, Gavel, Navigation, Languages,
   Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, Handshake, Package,
   TrendingUp, BarChart3, Receipt, FileCheck, Star,
 } from "lucide-react";
@@ -199,6 +199,7 @@ export function AppSidebar() {
     items: [
       { title: "Messages", url: "/messages", icon: MessageSquare, badge: unreadMessages },
       { title: "Forum", url: "/forum", icon: MessagesSquare },
+      { title: "Team Chat", url: "/team-chat", icon: MessageCircle },
       { title: "Service Requests", url: "/service-requests", icon: Wrench },
     ],
   };

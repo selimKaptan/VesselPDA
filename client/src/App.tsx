@@ -10,7 +10,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, Menu, LayoutDashboard, Ship, Anchor, FileText, Building2, Gavel, MessageSquare, Navigation, MapPin, Star, Users, Settings as SettingsIcon, Crown, LogOut, Wrench } from "lucide-react";
+import { Moon, Sun, Menu, LayoutDashboard, Ship, Anchor, FileText, Building2, Gavel, MessageSquare, MessageCircle, Navigation, MapPin, Star, Users, Settings as SettingsIcon, Crown, LogOut, Wrench } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import RoleSelection from "@/pages/role-selection";
@@ -52,6 +52,7 @@ import Reports from "@/pages/reports";
 import OrganizationPage from "@/pages/organization";
 import OrganizationSelectPage from "@/pages/organization-select";
 import OrganizationJoinPage from "@/pages/organization-join";
+import TeamChat from "@/pages/team-chat";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -144,6 +145,7 @@ function MobileNav({ user }: { user: any }) {
             <MobileNavLink href="/service-ports" icon={Anchor} label="Service Ports" onClick={close} />
             <MobileNavLink href="/directory" icon={Building2} label="Directory" onClick={close} />
             <MobileNavLink href="/forum" icon={MessageSquare} label="Forum" onClick={close} />
+            <MobileNavLink href="/team-chat" icon={MessageCircle} label="Team Chat" onClick={close} />
             {(role === "shipowner" || role === "agent" || isAdmin) && (
               <MobileNavLink href="/voyages" icon={Ship} label="Seferler" onClick={close} />
             )}
@@ -237,6 +239,7 @@ function AuthenticatedRouter() {
       <Route path="/organization" component={OrganizationPage} />
       <Route path="/organization-select" component={OrganizationSelectPage} />
       <Route path="/organization/join/:token" component={OrganizationJoinPage} />
+      <Route path="/team-chat" component={TeamChat} />
       <Route component={NotFound} />
     </Switch>
   );

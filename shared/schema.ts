@@ -1199,3 +1199,57 @@ export const organizationActivityFeedRelations = relations(organizationActivityF
 
 export type OrgActivityFeedEntry = typeof organizationActivityFeed.$inferSelect;
 export type InsertOrgActivityFeedEntry = typeof organizationActivityFeed.$inferInsert;
+
+// ─── TEAM CHAT ────────────────────────────────────────────────────────────────
+
+export const teamChannels = pgTable("team_channels", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  channelType: text("channel_type").notNull().default("public"),
+  createdByUserId: varchar("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const teamChannelMembers = pgTable("team_channel_members", {
+  channelId: integer("channel_id").notNull().references(() => teamChannels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+}, (t) => ({ pk: primaryKey({ columns: [t.channelId, t.userId] }) }));
+
+export const teamMessages = pgTable("team_messages", {
+  id: serial("id").primaryKey(),
+  channelId: integer("channel_id").notNull().references(() => teamChannels.id, { onDelete: "cascade" }),
+  senderId: varchar("sender_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  messageType: text("message_type").notNull().default("text"),
+  fileUrl: text("file_url"),
+  fileName: text("file_name"),
+  isEdited: boolean("is_edited").notNull().default(false),
+  replyToId: integer("reply_to_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const teamChannelsRelations = relations(teamChannels, ({ one, many }) => ({
+  organization: one(organizations, { fields: [teamChannels.organizationId], references: [organizations.id] }),
+  createdBy: one(users, { fields: [teamChannels.createdByUserId], references: [users.id] }),
+  messages: many(teamMessages),
+  members: many(teamChannelMembers),
+}));
+
+export const teamChannelMembersRelations = relations(teamChannelMembers, ({ one }) => ({
+  channel: one(teamChannels, { fields: [teamChannelMembers.channelId], references: [teamChannels.id] }),
+  user: one(users, { fields: [teamChannelMembers.userId], references: [users.id] }),
+}));
+
+export const teamMessagesRelations = relations(teamMessages, ({ one }) => ({
+  channel: one(teamChannels, { fields: [teamMessages.channelId], references: [teamChannels.id] }),
+  sender: one(users, { fields: [teamMessages.senderId], references: [users.id] }),
+  replyTo: one(teamMessages, { fields: [teamMessages.replyToId], references: [teamMessages.id] }),
+}));
+
+export type TeamChannel = typeof teamChannels.$inferSelect;
+export type InsertTeamChannel = typeof teamChannels.$inferInsert;
+export type TeamMessage = typeof teamMessages.$inferSelect;
+export type InsertTeamMessage = typeof teamMessages.$inferInsert;

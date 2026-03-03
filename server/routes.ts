@@ -157,6 +157,38 @@ export async function registerRoutes(
   const { default: organizationRouter } = await import("./routes/organizations");
   app.use("/api/organizations", organizationRouter);
 
+  // ── Team Chat routes ──────────────────────────────────────────────────────
+  const { default: teamChatRouter } = await import("./routes/team-chat");
+  app.use("/api/organizations", teamChatRouter);
+
+  app.patch("/api/team-messages/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const id = parseInt(req.params.id);
+      const { content } = req.body;
+      if (!content?.trim()) return res.status(400).json({ message: "content required" });
+      const { rows } = await pool.query(
+        "UPDATE team_messages SET content = $1, is_edited = TRUE WHERE id = $2 AND sender_id = $3 RETURNING *",
+        [content.trim(), id, userId]
+      );
+      if (!rows.length) return res.status(404).json({ message: "Not found or not your message" });
+      res.json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed to edit message" }); }
+  });
+
+  app.delete("/api/team-messages/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const id = parseInt(req.params.id);
+      const { rows } = await pool.query(
+        "DELETE FROM team_messages WHERE id = $1 AND sender_id = $2 RETURNING id",
+        [id, userId]
+      );
+      if (!rows.length) return res.status(404).json({ message: "Not found or not your message" });
+      res.json({ message: "Deleted" });
+    } catch { res.status(500).json({ message: "Failed to delete message" }); }
+  });
+
   startAISStream();
 
   authStorage.markExistingUsersVerified().catch((err) =>
