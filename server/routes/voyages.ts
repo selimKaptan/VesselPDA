@@ -294,6 +294,269 @@ router.post("/voyages/:id/reviews", isAuthenticated, async (req: any, res) => {
   }
 });
 
+// ─── VOYAGE COLLABORATORS ────────────────────────────────────────────────────
+
+async function canAccessVoyage(userId: string, voyageId: number): Promise<boolean> {
+  const { rows } = await pool.query(
+    `SELECT v.user_id, v.agent_user_id, v.organization_id FROM voyages v WHERE v.id = $1`,
+    [voyageId]
+  );
+  if (!rows.length) return false;
+  const v = rows[0];
+  if (v.user_id === userId || v.agent_user_id === userId) return true;
+  // Check org membership
+  if (v.organization_id) {
+    const { rows: om } = await pool.query(
+      "SELECT 1 FROM organization_members WHERE organization_id = $1 AND user_id = $2 AND is_active = true",
+      [v.organization_id, userId]
+    );
+    if (om.length > 0) return true;
+  }
+  // Check collaborator
+  const { rows: col } = await pool.query(
+    `SELECT 1 FROM voyage_collaborators vc
+     WHERE vc.voyage_id = $1 AND vc.status = 'accepted'
+       AND (vc.user_id = $2 OR vc.organization_id IN (
+         SELECT organization_id FROM organization_members WHERE user_id = $2 AND is_active = true
+       ))`,
+    [voyageId, userId]
+  );
+  return col.length > 0;
+}
+
+async function getCollaboratorPerms(userId: string, voyageId: number): Promise<Record<string, boolean> | null> {
+  const { rows } = await pool.query(
+    `SELECT vc.permissions, v.user_id, v.agent_user_id FROM voyage_collaborators vc
+     JOIN voyages v ON v.id = vc.voyage_id
+     WHERE vc.voyage_id = $1 AND vc.status = 'accepted'
+       AND (vc.user_id = $2 OR vc.organization_id IN (
+         SELECT organization_id FROM organization_members WHERE user_id = $2 AND is_active = true
+       ))
+     LIMIT 1`,
+    [voyageId, userId]
+  );
+  if (!rows.length) return null;
+  return rows[0].permissions;
+}
+
+// GET /api/voyages/:id/collaborators
+router.get("/voyages/:id/collaborators", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const voyageId = parseInt(req.params.id);
+    if (!(await canAccessVoyage(userId, voyageId))) return res.status(403).json({ message: "Access denied" });
+
+    const { rows } = await pool.query(
+      `SELECT vc.*,
+        u.first_name AS user_first_name, u.last_name AS user_last_name, u.email AS user_email, u.profile_image_url AS user_avatar,
+        inv.first_name AS inviter_first_name, inv.last_name AS inviter_last_name,
+        o.name AS org_name, o.logo_url AS org_logo, o.type AS org_type
+       FROM voyage_collaborators vc
+       LEFT JOIN users u ON u.id = vc.user_id
+       LEFT JOIN users inv ON inv.id = vc.invited_by_user_id
+       LEFT JOIN organizations o ON o.id = vc.organization_id
+       WHERE vc.voyage_id = $1
+       ORDER BY vc.invited_at DESC`,
+      [voyageId]
+    );
+    res.json(rows);
+  } catch (e) {
+    console.error("GET collaborators error:", e);
+    res.status(500).json({ message: "Failed to fetch collaborators" });
+  }
+});
+
+// POST /api/voyages/:id/collaborators
+router.post("/voyages/:id/collaborators", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const voyageId = parseInt(req.params.id);
+    const voyage = await storage.getVoyageById(voyageId);
+    if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+    if (voyage.userId !== userId && voyage.agentUserId !== userId) {
+      return res.status(403).json({ message: "Only voyage owner can invite collaborators" });
+    }
+
+    const { organizationId, userId: targetUserId, role, permissions, notes } = req.body;
+    if (!organizationId && !targetUserId) return res.status(400).json({ message: "organizationId or userId required" });
+
+    const defaultPerms = role === "manager"
+      ? { viewVoyage: true, editVoyage: true, viewDocuments: true, uploadDocuments: true, deleteDocuments: true, signDocuments: true, viewProforma: true, editProforma: true, viewInvoice: true, viewChecklist: true, editChecklist: true, viewChat: true, sendChat: true, viewTimeline: true }
+      : role === "editor"
+      ? { viewVoyage: true, editVoyage: true, viewDocuments: true, uploadDocuments: true, deleteDocuments: false, signDocuments: false, viewProforma: true, editProforma: false, viewInvoice: true, viewChecklist: true, editChecklist: true, viewChat: true, sendChat: true, viewTimeline: true }
+      : { viewVoyage: true, editVoyage: false, viewDocuments: true, uploadDocuments: false, deleteDocuments: false, signDocuments: false, viewProforma: true, editProforma: false, viewInvoice: true, viewChecklist: true, editChecklist: false, viewChat: true, sendChat: false, viewTimeline: true };
+
+    const finalPerms = permissions || defaultPerms;
+
+    const { rows } = await pool.query(
+      `INSERT INTO voyage_collaborators (voyage_id, organization_id, user_id, invited_by_user_id, role, permissions, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [voyageId, organizationId || null, targetUserId || null, userId, role || "viewer", JSON.stringify(finalPerms), notes || null]
+    );
+    const collab = rows[0];
+
+    // Notify invited user(s)
+    const { rows: inviterRows } = await pool.query("SELECT first_name, last_name FROM users WHERE id = $1", [userId]);
+    const inviterName = `${inviterRows[0]?.first_name || ""} ${inviterRows[0]?.last_name || ""}`.trim() || "Someone";
+
+    if (targetUserId) {
+      await storage.createNotification({
+        userId: targetUserId,
+        type: "voyage_invite",
+        title: "Voyage Collaboration Invite",
+        message: `${inviterName} invited you to collaborate on Voyage #${voyageId} (${voyage.vesselName || "vessel"}) as ${role || "viewer"}.`,
+        link: `/voyages/${voyageId}`,
+      });
+    } else if (organizationId) {
+      const { rows: orgMembers } = await pool.query(
+        "SELECT user_id FROM organization_members WHERE organization_id = $1 AND is_active = true AND user_id != $2",
+        [organizationId, userId]
+      );
+      for (const m of orgMembers) {
+        await storage.createNotification({
+          userId: m.user_id,
+          type: "voyage_invite",
+          title: "Voyage Collaboration Invite",
+          message: `${inviterName} invited your organization to collaborate on Voyage #${voyageId} (${voyage.vesselName || "vessel"}) as ${role || "viewer"}.`,
+          link: `/voyages/${voyageId}`,
+        });
+      }
+    }
+
+    res.status(201).json(collab);
+  } catch (e) {
+    console.error("POST collaborator error:", e);
+    res.status(500).json({ message: "Failed to invite collaborator" });
+  }
+});
+
+// PATCH /api/voyages/:id/collaborators/:collabId
+router.patch("/voyages/:id/collaborators/:collabId", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const voyageId = parseInt(req.params.id);
+    const collabId = parseInt(req.params.collabId);
+    const voyage = await storage.getVoyageById(voyageId);
+    if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+    if (voyage.userId !== userId && voyage.agentUserId !== userId) {
+      return res.status(403).json({ message: "Only voyage owner can update collaborators" });
+    }
+
+    const { role, permissions } = req.body;
+    const sets: string[] = [];
+    const vals: any[] = [];
+    let i = 1;
+    if (role !== undefined) { sets.push(`role = $${i++}`); vals.push(role); }
+    if (permissions !== undefined) { sets.push(`permissions = $${i++}`); vals.push(JSON.stringify(permissions)); }
+    if (!sets.length) return res.status(400).json({ message: "Nothing to update" });
+    vals.push(collabId, voyageId);
+    const { rows } = await pool.query(
+      `UPDATE voyage_collaborators SET ${sets.join(", ")} WHERE id = $${i} AND voyage_id = $${i + 1} RETURNING *`,
+      vals
+    );
+    if (!rows.length) return res.status(404).json({ message: "Collaborator not found" });
+    res.json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ message: "Failed to update collaborator" });
+  }
+});
+
+// DELETE /api/voyages/:id/collaborators/:collabId
+router.delete("/voyages/:id/collaborators/:collabId", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const voyageId = parseInt(req.params.id);
+    const collabId = parseInt(req.params.collabId);
+    const voyage = await storage.getVoyageById(voyageId);
+    if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+    if (voyage.userId !== userId && voyage.agentUserId !== userId) {
+      return res.status(403).json({ message: "Only voyage owner can remove collaborators" });
+    }
+    await pool.query("DELETE FROM voyage_collaborators WHERE id = $1 AND voyage_id = $2", [collabId, voyageId]);
+    res.json({ message: "Removed" });
+  } catch (e) {
+    res.status(500).json({ message: "Failed to remove collaborator" });
+  }
+});
+
+// PATCH /api/voyages/:id/collaborators/:collabId/respond
+router.patch("/voyages/:id/collaborators/:collabId/respond", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const voyageId = parseInt(req.params.id);
+    const collabId = parseInt(req.params.collabId);
+    const { status } = req.body;
+    if (!["accepted", "declined"].includes(status)) return res.status(400).json({ message: "status must be accepted or declined" });
+
+    // Check: must be the invited user or member of invited org
+    const { rows: existing } = await pool.query(
+      "SELECT * FROM voyage_collaborators WHERE id = $1 AND voyage_id = $2",
+      [collabId, voyageId]
+    );
+    if (!existing.length) return res.status(404).json({ message: "Not found" });
+    const collab = existing[0];
+
+    let authorized = collab.user_id === userId;
+    if (!authorized && collab.organization_id) {
+      const { rows: om } = await pool.query(
+        "SELECT 1 FROM organization_members WHERE organization_id = $1 AND user_id = $2 AND is_active = true",
+        [collab.organization_id, userId]
+      );
+      authorized = om.length > 0;
+    }
+    if (!authorized) return res.status(403).json({ message: "Not authorized to respond" });
+
+    const { rows } = await pool.query(
+      "UPDATE voyage_collaborators SET status = $1, responded_at = NOW() WHERE id = $2 RETURNING *",
+      [status, collabId]
+    );
+
+    // Notify voyage owner
+    const voyage = await storage.getVoyageById(voyageId);
+    if (voyage?.userId) {
+      const { rows: ur } = await pool.query("SELECT first_name, last_name FROM users WHERE id = $1", [userId]);
+      const respName = `${ur[0]?.first_name || ""} ${ur[0]?.last_name || ""}`.trim() || "Someone";
+      await storage.createNotification({
+        userId: voyage.userId,
+        type: "collab_response",
+        title: `Collaboration ${status === "accepted" ? "Accepted" : "Declined"}`,
+        message: `${respName} ${status === "accepted" ? "accepted" : "declined"} the collaboration invite for Voyage #${voyageId}.`,
+        link: `/voyages/${voyageId}`,
+      });
+    }
+
+    res.json(rows[0]);
+  } catch (e) {
+    res.status(500).json({ message: "Failed to respond to invite" });
+  }
+});
+
+// GET /api/voyages/shared
+router.get("/voyages/shared", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const { rows } = await pool.query(
+      `SELECT vc.*, v.vessel_name, v.status AS voyage_status, v.eta, v.port_id,
+        v.purpose_of_call, v.user_id AS owner_id, v.created_at AS voyage_created_at,
+        u.first_name AS owner_first_name, u.last_name AS owner_last_name,
+        o.name AS org_name, o.logo_url AS org_logo
+       FROM voyage_collaborators vc
+       JOIN voyages v ON v.id = vc.voyage_id
+       JOIN users u ON u.id = v.user_id
+       LEFT JOIN organizations o ON o.id = vc.organization_id
+       WHERE (vc.user_id = $1 OR vc.organization_id IN (
+         SELECT organization_id FROM organization_members WHERE user_id = $1 AND is_active = true
+       ))
+       ORDER BY vc.invited_at DESC`,
+      [userId]
+    );
+    res.json(rows);
+  } catch (e) {
+    console.error("GET shared voyages error:", e);
+    res.status(500).json({ message: "Failed to fetch shared voyages" });
+  }
+});
+
 // ─── PORT CALL APPOINTMENTS ─────────────────────────────────────────────────
 
 router.get("/voyages/:voyageId/appointments", isAuthenticated, async (req: any, res) => {

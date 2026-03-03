@@ -1253,3 +1253,76 @@ export type TeamChannel = typeof teamChannels.$inferSelect;
 export type InsertTeamChannel = typeof teamChannels.$inferInsert;
 export type TeamMessage = typeof teamMessages.$inferSelect;
 export type InsertTeamMessage = typeof teamMessages.$inferInsert;
+
+// ─── VOYAGE COLLABORATORS ─────────────────────────────────────────────────────
+
+export interface VoyagePermissions {
+  viewVoyage: boolean;
+  editVoyage: boolean;
+  viewDocuments: boolean;
+  uploadDocuments: boolean;
+  deleteDocuments: boolean;
+  signDocuments: boolean;
+  viewProforma: boolean;
+  editProforma: boolean;
+  viewInvoice: boolean;
+  viewChecklist: boolean;
+  editChecklist: boolean;
+  viewChat: boolean;
+  sendChat: boolean;
+  viewTimeline: boolean;
+}
+
+export const DEFAULT_VIEWER_PERMISSIONS: VoyagePermissions = {
+  viewVoyage: true, editVoyage: false,
+  viewDocuments: true, uploadDocuments: false, deleteDocuments: false, signDocuments: false,
+  viewProforma: true, editProforma: false,
+  viewInvoice: true,
+  viewChecklist: true, editChecklist: false,
+  viewChat: true, sendChat: false,
+  viewTimeline: true,
+};
+
+export const DEFAULT_EDITOR_PERMISSIONS: VoyagePermissions = {
+  viewVoyage: true, editVoyage: true,
+  viewDocuments: true, uploadDocuments: true, deleteDocuments: false, signDocuments: false,
+  viewProforma: true, editProforma: false,
+  viewInvoice: true,
+  viewChecklist: true, editChecklist: true,
+  viewChat: true, sendChat: true,
+  viewTimeline: true,
+};
+
+export const DEFAULT_MANAGER_PERMISSIONS: VoyagePermissions = {
+  viewVoyage: true, editVoyage: true,
+  viewDocuments: true, uploadDocuments: true, deleteDocuments: true, signDocuments: true,
+  viewProforma: true, editProforma: true,
+  viewInvoice: true,
+  viewChecklist: true, editChecklist: true,
+  viewChat: true, sendChat: true,
+  viewTimeline: true,
+};
+
+export const voyageCollaborators = pgTable("voyage_collaborators", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  invitedByUserId: varchar("invited_by_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: text("role").notNull().default("viewer"),
+  permissions: jsonb("permissions").notNull().$type<VoyagePermissions>(),
+  status: text("status").notNull().default("pending"),
+  invitedAt: timestamp("invited_at").defaultNow().notNull(),
+  respondedAt: timestamp("responded_at"),
+  notes: text("notes"),
+});
+
+export const voyageCollaboratorsRelations = relations(voyageCollaborators, ({ one }) => ({
+  voyage: one(voyages, { fields: [voyageCollaborators.voyageId], references: [voyages.id] }),
+  organization: one(organizations, { fields: [voyageCollaborators.organizationId], references: [organizations.id] }),
+  user: one(users, { fields: [voyageCollaborators.userId], references: [users.id] }),
+  invitedBy: one(users, { fields: [voyageCollaborators.invitedByUserId], references: [users.id] }),
+}));
+
+export type VoyageCollaborator = typeof voyageCollaborators.$inferSelect;
+export type InsertVoyageCollaborator = typeof voyageCollaborators.$inferInsert;

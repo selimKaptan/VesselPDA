@@ -6,7 +6,8 @@ import {
   Plus, Loader2, ChevronDown, Wrench, Fuel, ShoppingCart, Users as UsersIcon,
   Sparkles, HelpCircle, Clock, PlayCircle, XCircle, ClipboardList,
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
-  CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck
+  CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, UserPlus, Building2,
+  Shield, Check, X as XIcon, Edit2
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { VoyageTimeline } from "@/components/voyage-timeline";
@@ -119,7 +120,23 @@ export default function VoyageDetail() {
   const [newTask, setNewTask] = useState("");
   const [chatMessage, setChatMessage] = useState("");
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "timeline">("operation");
+  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "timeline" | "collaborators">("operation");
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [inviteSearch, setInviteSearch] = useState("");
+  const [inviteTargetType, setInviteTargetType] = useState<"org" | "user">("org");
+  const [inviteTargetId, setInviteTargetId] = useState<string | number | null>(null);
+  const [inviteTargetName, setInviteTargetName] = useState("");
+  const [inviteRole, setInviteRole] = useState<"viewer" | "editor" | "manager">("viewer");
+  const [invitePerms, setInvitePerms] = useState<Record<string, boolean>>({
+    viewVoyage: true, editVoyage: false,
+    viewDocuments: true, uploadDocuments: false, deleteDocuments: false, signDocuments: false,
+    viewProforma: true, editProforma: false,
+    viewInvoice: true,
+    viewChecklist: true, editChecklist: false,
+    viewChat: true, sendChat: false,
+    viewTimeline: true,
+  });
+  const [editingCollab, setEditingCollab] = useState<any | null>(null);
   const [docFilter, setDocFilter] = useState<string>("all");
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [showServiceDialog, setShowServiceDialog] = useState(false);
@@ -201,6 +218,27 @@ export default function VoyageDetail() {
     queryKey: ["/api/document-templates"],
   });
 
+  const { data: collaborators = [], refetch: refetchCollabs } = useQuery<any[]>({
+    queryKey: ["/api/voyages", voyageId, "collaborators"],
+    queryFn: async () => {
+      const res = await fetch(`/api/voyages/${voyageId}/collaborators`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!voyageId,
+  });
+
+  const { data: orgSearchResults = [] } = useQuery<any[]>({
+    queryKey: ["/api/directory", inviteSearch],
+    queryFn: async () => {
+      if (inviteSearch.length < 2) return [];
+      const res = await fetch(`/api/directory?q=${encodeURIComponent(inviteSearch)}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: inviteSearch.length >= 2 && inviteTargetType === "org",
+  });
+
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
@@ -211,6 +249,70 @@ export default function VoyageDetail() {
 
   const revieweeUserId = isOwner ? voyage?.agentUserId : (isAgent ? voyage?.userId : null);
   const canReview = voyage?.status === "completed" && (isOwner || isAgent) && revieweeUserId && !reviewData?.myReview;
+
+  const inviteCollabMutation = useMutation({
+    mutationFn: async () => {
+      const body: any = { role: inviteRole, permissions: invitePerms };
+      if (inviteTargetType === "org") body.organizationId = inviteTargetId;
+      else body.userId = inviteTargetId;
+      return apiRequest("POST", `/api/voyages/${voyageId}/collaborators`, body);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "collaborators"] });
+      setShowInviteDialog(false);
+      setInviteSearch(""); setInviteTargetId(null); setInviteTargetName(""); setInviteRole("viewer");
+      toast({ title: "Invitation sent" });
+    },
+    onError: () => toast({ title: "Failed to invite", variant: "destructive" }),
+  });
+
+  const updateCollabMutation = useMutation({
+    mutationFn: async ({ collabId, role, permissions }: { collabId: number; role: string; permissions: Record<string, boolean> }) => {
+      return apiRequest("PATCH", `/api/voyages/${voyageId}/collaborators/${collabId}`, { role, permissions });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "collaborators"] });
+      setEditingCollab(null);
+      toast({ title: "Permissions updated" });
+    },
+    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
+  });
+
+  const removeCollabMutation = useMutation({
+    mutationFn: async (collabId: number) => {
+      return apiRequest("DELETE", `/api/voyages/${voyageId}/collaborators/${collabId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "collaborators"] });
+      toast({ title: "Collaborator removed" });
+    },
+    onError: () => toast({ title: "Failed to remove", variant: "destructive" }),
+  });
+
+  const respondCollabMutation = useMutation({
+    mutationFn: async ({ collabId, status }: { collabId: number; status: string }) => {
+      return apiRequest("PATCH", `/api/voyages/${voyageId}/collaborators/${collabId}/respond`, { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "collaborators"] });
+      toast({ title: "Response recorded" });
+    },
+    onError: () => toast({ title: "Failed to respond", variant: "destructive" }),
+  });
+
+  const myPendingInvite = collaborators.find((c: any) =>
+    c.status === "pending" && (c.user_id === userId)
+  );
+
+  function applyRoleDefaults(role: "viewer" | "editor" | "manager") {
+    const presets: Record<string, Record<string, boolean>> = {
+      viewer: { viewVoyage: true, editVoyage: false, viewDocuments: true, uploadDocuments: false, deleteDocuments: false, signDocuments: false, viewProforma: true, editProforma: false, viewInvoice: true, viewChecklist: true, editChecklist: false, viewChat: true, sendChat: false, viewTimeline: true },
+      editor: { viewVoyage: true, editVoyage: true, viewDocuments: true, uploadDocuments: true, deleteDocuments: false, signDocuments: false, viewProforma: true, editProforma: false, viewInvoice: true, viewChecklist: true, editChecklist: true, viewChat: true, sendChat: true, viewTimeline: true },
+      manager: { viewVoyage: true, editVoyage: true, viewDocuments: true, uploadDocuments: true, deleteDocuments: true, signDocuments: true, viewProforma: true, editProforma: true, viewInvoice: true, viewChecklist: true, editChecklist: true, viewChat: true, sendChat: true, viewTimeline: true },
+    };
+    setInvitePerms(presets[role]);
+    setInviteRole(role);
+  }
 
   const statusMutation = useMutation({
     mutationFn: async (status: string) => {
@@ -583,17 +685,18 @@ export default function VoyageDetail() {
       </Card>
 
       {/* Tab Bar */}
-      <div className="flex gap-1 bg-muted/40 p-1 rounded-xl">
+      <div className="flex gap-1 bg-muted/40 p-1 rounded-xl overflow-x-auto">
         {([
-          { key: "operation", label: "Operasyon",  icon: ClipboardList },
-          { key: "documents", label: "Dokümanlar", icon: FolderOpen },
-          { key: "comms",     label: "İletişim",   icon: MessageCircle },
-          { key: "timeline",  label: "Timeline",   icon: GitBranch },
+          { key: "operation",     label: "Operation",      icon: ClipboardList },
+          { key: "documents",     label: "Documents",      icon: FolderOpen },
+          { key: "comms",         label: "Comms",          icon: MessageCircle },
+          { key: "timeline",      label: "Timeline",       icon: GitBranch },
+          { key: "collaborators", label: "Collaborators",  icon: UsersIcon },
         ] as const).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
               activeTab === key
                 ? "bg-background shadow-sm text-foreground"
                 : "text-muted-foreground hover:text-foreground"
@@ -604,6 +707,11 @@ export default function VoyageDetail() {
             {key === "comms" && chatMessages.length > 0 && (
               <span className="ml-1 text-[10px] bg-[hsl(var(--maritime-primary)/0.15)] text-[hsl(var(--maritime-primary))] px-1.5 py-0.5 rounded-full font-semibold">
                 {chatMessages.length}
+              </span>
+            )}
+            {key === "collaborators" && collaborators.filter((c: any) => c.status === "pending").length > 0 && (
+              <span className="ml-1 text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded-full font-semibold">
+                {collaborators.filter((c: any) => c.status === "pending").length}
               </span>
             )}
           </button>
@@ -1073,6 +1181,255 @@ export default function VoyageDetail() {
           <VoyageTimeline voyageId={Number(voyageId)} />
         </Card>
       )}
+
+      {/* ── Tab: Collaborators ─────────────────────────────────── */}
+      {activeTab === "collaborators" && (
+        <div className="space-y-4" data-testid="panel-collaborators">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <UsersIcon className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              <h2 className="font-semibold text-sm">Voyage Collaborators</h2>
+              <span className="text-xs text-muted-foreground">({collaborators.length})</span>
+            </div>
+            {isOwner && (
+              <Button size="sm" className="gap-1.5" onClick={() => setShowInviteDialog(true)} data-testid="button-invite-collaborator">
+                <UserPlus className="w-3.5 h-3.5" /> Invite
+              </Button>
+            )}
+          </div>
+
+          {/* My pending invite banner */}
+          {myPendingInvite && (
+            <Card className="p-4 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium">You have a pending collaboration invite</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Role: <span className="font-medium capitalize">{myPendingInvite.role}</span></p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <Button size="sm" variant="outline" className="gap-1 border-red-200 text-red-600 hover:bg-red-50"
+                    onClick={() => respondCollabMutation.mutate({ collabId: myPendingInvite.id, status: "declined" })}>
+                    <XIcon className="w-3 h-3" /> Decline
+                  </Button>
+                  <Button size="sm" className="gap-1 bg-green-600 hover:bg-green-700"
+                    onClick={() => respondCollabMutation.mutate({ collabId: myPendingInvite.id, status: "accepted" })}>
+                    <Check className="w-3 h-3" /> Accept
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* Collaborator list */}
+          {collaborators.length === 0 ? (
+            <Card className="p-8 text-center">
+              <UsersIcon className="w-8 h-8 mx-auto mb-3 text-muted-foreground/30" />
+              <p className="text-sm text-muted-foreground">No collaborators yet.</p>
+              {isOwner && <p className="text-xs text-muted-foreground mt-1">Invite agents, brokers or partners to collaborate on this voyage.</p>}
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {collaborators.map((c: any) => (
+                <Card key={c.id} className="p-4" data-testid={`collab-card-${c.id}`}>
+                  {editingCollab?.id === c.id ? (
+                    /* Edit mode */
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Edit2 className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Edit Permissions — {c.org_name || `${c.user_first_name} ${c.user_last_name}`}</span>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Role</Label>
+                        <Select value={editingCollab.role} onValueChange={r => setEditingCollab((prev: any) => ({ ...prev, role: r }))}>
+                          <SelectTrigger className="h-8 mt-1"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="viewer">Viewer</SelectItem>
+                            <SelectItem value="editor">Editor</SelectItem>
+                            <SelectItem value="manager">Manager</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {Object.entries(editingCollab.permissions || {}).map(([key, val]) => (
+                          <label key={key} className="flex items-center gap-2 text-xs cursor-pointer">
+                            <input type="checkbox" checked={!!val} onChange={e => setEditingCollab((prev: any) => ({ ...prev, permissions: { ...prev.permissions, [key]: e.target.checked } }))} className="rounded" />
+                            <span className="capitalize">{key.replace(/([A-Z])/g, " $1").trim()}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <Button size="sm" onClick={() => updateCollabMutation.mutate({ collabId: c.id, role: editingCollab.role, permissions: editingCollab.permissions })} disabled={updateCollabMutation.isPending}>
+                          {updateCollabMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditingCollab(null)}>Cancel</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* View mode */
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          {c.org_name ? <Building2 className="w-4 h-4 text-primary" /> : <UsersIcon className="w-4 h-4 text-primary" />}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium truncate">
+                              {c.org_name || `${c.user_first_name || ""} ${c.user_last_name || ""}`.trim() || c.user_email}
+                            </span>
+                            <Badge variant="outline" className={`text-[10px] capitalize ${c.role === "manager" ? "border-blue-300 text-blue-600" : c.role === "editor" ? "border-green-300 text-green-600" : "border-gray-300 text-gray-600"}`}>
+                              {c.role}
+                            </Badge>
+                            <Badge variant="outline" className={`text-[10px] ${c.status === "accepted" ? "border-green-300 text-green-600" : c.status === "declined" ? "border-red-300 text-red-600" : "border-amber-300 text-amber-600"}`}>
+                              {c.status}
+                            </Badge>
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {c.permissions && Object.entries(c.permissions).filter(([, v]) => v).slice(0, 6).map(([k]) => (
+                              <span key={k} className="text-[9px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                                {k.replace(/([A-Z])/g, " $1").trim()}
+                              </span>
+                            ))}
+                            {c.permissions && Object.entries(c.permissions).filter(([, v]) => v).length > 6 && (
+                              <span className="text-[9px] text-muted-foreground">+{Object.entries(c.permissions).filter(([, v]) => v).length - 6} more</span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            Invited by {c.inviter_first_name} {c.inviter_last_name} · {new Date(c.invited_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      {isOwner && (
+                        <div className="flex gap-1 flex-shrink-0">
+                          <Button size="icon" variant="ghost" className="h-7 w-7" title="Edit permissions"
+                            onClick={() => setEditingCollab({ id: c.id, role: c.role, permissions: { ...c.permissions } })}>
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" title="Remove"
+                            onClick={() => removeCollabMutation.mutate(c.id)}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Invite Collaborator Dialog */}
+      <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2"><UserPlus className="w-4 h-4" /> Invite Collaborator</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Target type toggle */}
+            <div className="flex gap-2">
+              <Button size="sm" variant={inviteTargetType === "org" ? "default" : "outline"} onClick={() => { setInviteTargetType("org"); setInviteTargetId(null); setInviteTargetName(""); setInviteSearch(""); }} className="gap-1.5 flex-1">
+                <Building2 className="w-3.5 h-3.5" /> Organization
+              </Button>
+              <Button size="sm" variant={inviteTargetType === "user" ? "default" : "outline"} onClick={() => { setInviteTargetType("user"); setInviteTargetId(null); setInviteTargetName(""); setInviteSearch(""); }} className="gap-1.5 flex-1">
+                <UsersIcon className="w-3.5 h-3.5" /> Individual User
+              </Button>
+            </div>
+
+            {/* Search */}
+            <div className="space-y-1.5">
+              <Label>{inviteTargetType === "org" ? "Search Organization" : "Enter User Email or ID"}</Label>
+              {inviteTargetId ? (
+                <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-muted/50">
+                  <span className="text-sm flex-1">{inviteTargetName}</span>
+                  <button onClick={() => { setInviteTargetId(null); setInviteTargetName(""); setInviteSearch(""); }}><XIcon className="w-4 h-4 text-muted-foreground" /></button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Input
+                    data-testid="input-invite-search"
+                    value={inviteSearch}
+                    onChange={e => setInviteSearch(e.target.value)}
+                    placeholder={inviteTargetType === "org" ? "Search by company name..." : "Enter user ID or email..."}
+                  />
+                  {inviteTargetType === "org" && orgSearchResults.length > 0 && (
+                    <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {orgSearchResults.slice(0, 8).map((o: any) => (
+                        <button key={o.id} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                          onClick={() => { setInviteTargetId(o.organizationId || o.id); setInviteTargetName(o.companyName || o.name); setInviteSearch(""); }}>
+                          <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                          <span>{o.companyName || o.name}</span>
+                          {o.companyType && <span className="text-xs text-muted-foreground ml-auto">{o.companyType}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {inviteTargetType === "user" && inviteSearch.length > 2 && (
+                    <div className="mt-1 flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => { setInviteTargetId(inviteSearch); setInviteTargetName(inviteSearch); }}>
+                        Use "{inviteSearch}"
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Role */}
+            <div className="space-y-1.5">
+              <Label>Role</Label>
+              <Select value={inviteRole} onValueChange={(r: any) => applyRoleDefaults(r)}>
+                <SelectTrigger data-testid="select-invite-role"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="viewer">Viewer — read-only access</SelectItem>
+                  <SelectItem value="editor">Editor — can edit voyage & checklist</SelectItem>
+                  <SelectItem value="manager">Manager — full access including documents & proforma</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Custom permissions */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> Permissions</Label>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 p-3 bg-muted/40 rounded-md">
+                {[
+                  ["viewVoyage", "View Voyage"], ["editVoyage", "Edit Voyage"],
+                  ["viewDocuments", "View Documents"], ["uploadDocuments", "Upload Documents"],
+                  ["deleteDocuments", "Delete Documents"], ["signDocuments", "Sign Documents"],
+                  ["viewProforma", "View Proforma"], ["editProforma", "Edit Proforma"],
+                  ["viewInvoice", "View Invoice"], ["viewChecklist", "View Checklist"],
+                  ["editChecklist", "Edit Checklist"], ["viewChat", "View Chat"],
+                  ["sendChat", "Send Chat"], ["viewTimeline", "View Timeline"],
+                ].map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2 text-xs cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!invitePerms[key]}
+                      onChange={e => setInvitePerms(p => ({ ...p, [key]: e.target.checked }))}
+                      className="rounded"
+                      data-testid={`perm-${key}`}
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowInviteDialog(false)}>Cancel</Button>
+              <Button
+                data-testid="button-send-invite"
+                onClick={() => inviteCollabMutation.mutate()}
+                disabled={!inviteTargetId || inviteCollabMutation.isPending}
+              >
+                {inviteCollabMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <UserPlus className="w-4 h-4 mr-1" />}
+                Send Invite
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Service Request Dialog */}
       <Dialog open={showServiceDialog} onOpenChange={setShowServiceDialog}>
