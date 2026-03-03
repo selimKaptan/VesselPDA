@@ -1364,3 +1364,42 @@ export const voyageCollaboratorsRelations = relations(voyageCollaborators, ({ on
 
 export type VoyageCollaborator = typeof voyageCollaborators.$inferSelect;
 export type InsertVoyageCollaborator = typeof voyageCollaborators.$inferInsert;
+
+export const voyageExpenses = pgTable("voyage_expenses", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  portCallId: integer("port_call_id").references(() => voyagePortCalls.id, { onDelete: "set null" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
+  category: text("category").notNull(),
+  description: text("description").notNull(),
+  budgetAmount: real("budget_amount"),
+  actualAmount: real("actual_amount").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  exchangeRate: real("exchange_rate").notNull().default(1),
+  amountUsd: real("amount_usd"),
+  vendor: text("vendor"),
+  invoiceNumber: text("invoice_number"),
+  invoiceDate: timestamp("invoice_date"),
+  receiptFileUrl: text("receipt_file_url"),
+  paymentStatus: text("payment_status").notNull().default("unpaid"),
+  paidAt: timestamp("paid_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type VoyageExpense = typeof voyageExpenses.$inferSelect;
+export type InsertVoyageExpense = typeof voyageExpenses.$inferInsert;
+
+export const voyageBudgets = pgTable("voyage_budgets", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  category: text("category").notNull(),
+  budgetAmount: real("budget_amount").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type VoyageBudget = typeof voyageBudgets.$inferSelect;
+export type InsertVoyageBudget = typeof voyageBudgets.$inferInsert;

@@ -1,0 +1,77 @@
+Her sefer icin detayli maliyet takibi sistemi ekle. Seferde olusan tum masraflarin kaydedilmesi ve butce ile karsilastirilmasi.
+
+Yapilacaklar:
+
+1. shared/schema.ts dosyasina ekle:
+
+voyageExpenses tablosu:
+- id (serial PK)
+- voyageId (integer, FK voyages, not null)
+- portCallId (integer, FK voyagePortCalls, nullable) — hangi limanda olustuysa
+- userId (varchar, FK users, not null)
+- organizationId (integer, FK organizations, nullable)
+- category (text, not null) — "port_charges", "agency_fee", "pilotage", "tugboat", "mooring", "bunker", "provisions", "crew", "repairs", "insurance", "communication", "misc"
+- description (text, not null)
+- budgetAmount (real, nullable) — planlanan tutar
+- actualAmount (real, not null) — gercek tutar
+- currency (text, default "USD")
+- exchangeRate (real, default 1)
+- amountUsd (real) — USD karsiligi (otomatik hesapla)
+- vendor (text, nullable) — tedarikci/firma
+- invoiceNumber (text, nullable)
+- invoiceDate (timestamp, nullable)
+- receiptFileUrl (text, nullable) — makbuz/fatura dosyasi
+- paymentStatus (text, default "unpaid") — "unpaid", "paid", "partially_paid"
+- paidAt (timestamp, nullable)
+- notes (text, nullable)
+- createdAt (timestamp, default now)
+
+voyageBudgets tablosu:
+- id (serial PK)
+- voyageId (integer, FK voyages, not null)
+- category (text, not null)
+- budgetAmount (real, not null)
+- currency (text, default "USD")
+- notes (text)
+- createdAt (timestamp, default now)
+
+2. Endpoint'ler:
+
+GET /api/voyages/:id/expenses — Sefer masraflari listesi (kategoriye gore gruplu)
+POST /api/voyages/:id/expenses — Yeni masraf ekle
+PATCH /api/voyages/:id/expenses/:expenseId — Masraf guncelle
+DELETE /api/voyages/:id/expenses/:expenseId — Masraf sil
+GET /api/voyages/:id/expenses/summary — Kategori bazli masraf ozeti + butce karsilastirma
+
+GET /api/voyages/:id/budgets — Sefer butcesi
+POST /api/voyages/:id/budgets — Butce kalemi ekle/guncelle (upsert by category)
+GET /api/voyages/:id/expenses/pdf — Masraf raporu PDF
+
+3. client/src/pages/voyage-detail.tsx'e "Masraflar" tab'i ekle:
+
+   Ozet Kartlari:
+   - Toplam Butce: $XX,XXX
+   - Toplam Harcama: $XX,XXX
+   - Kalan Butce: $X,XXX (yesil) veya Butce Asimi: $X,XXX (kirmizi)
+   - Odenmis / Odenmemis
+
+   Kategori Bazli Tablo:
+   | Kategori | Butce | Harcama | Fark | Durum |
+   | Liman Masraflari | $5,000 | $4,800 | -$200 | ✅ |
+   | Acente Ucreti | $2,000 | $2,500 | +$500 | ⚠️ |
+   Her kategori tiklaninca alt kalemlere acilir (accordion)
+
+   Butce vs Gercek Bar Chart (recharts): Yan yana cubuk grafik
+
+   Masraf Ekleme Dialog:
+   - Kategori secimi
+   - Aciklama, tutar, para birimi
+   - Tedarikci, fatura no
+   - Makbuz/fatura dosyasi yukleme
+   - Odeme durumu
+
+   Liman Bazli Gruplama: Multi-port seferlerde her limanin masraflari ayri gosterilsin
+
+4. Masraf eklendiginde otomatik amountUsd hesapla (exchange rate kullanarak).
+
+5. Masraf raporu PDF: Gemi bilgileri, liman bazli masraf tablosu, kategori bazli ozet, toplam, butce karsilastirma.

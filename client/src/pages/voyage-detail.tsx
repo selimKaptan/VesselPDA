@@ -8,9 +8,10 @@ import {
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, UserPlus, Building2,
   Shield, Check, X as XIcon, Edit2, Route, Package, ChevronRight as ChevronRightIcon,
-  ArrowRight, Navigation, MoreVertical, RefreshCw
+  ArrowRight, Navigation, MoreVertical, RefreshCw, Wallet
 } from "lucide-react";
 import { SofEditor } from "@/components/sof-editor";
+import { VoyageExpensesTab } from "@/components/voyage-expenses-tab";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { VoyageTimeline } from "@/components/voyage-timeline";
 import { Button } from "@/components/ui/button";
@@ -174,7 +175,7 @@ export default function VoyageDetail() {
   const [newTask, setNewTask] = useState("");
   const [chatMessage, setChatMessage] = useState("");
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"route" | "operation" | "documents" | "comms" | "timeline" | "collaborators">("route");
+  const [activeTab, setActiveTab] = useState<"route" | "operation" | "expenses" | "documents" | "comms" | "timeline" | "collaborators">("route");
   const [showAddPortCallDialog, setShowAddPortCallDialog] = useState(false);
   const [editingPortCall, setEditingPortCall] = useState<any | null>(null);
   const [pcForm, setPcForm] = useState({
@@ -863,6 +864,7 @@ export default function VoyageDetail() {
         {([
           { key: "route",         label: "Route",          icon: Route },
           { key: "operation",     label: "Operation",      icon: ClipboardList },
+          { key: "expenses",      label: "Expenses",       icon: Wallet },
           { key: "documents",     label: "Documents",      icon: FolderOpen },
           { key: "comms",         label: "Comms",          icon: MessageCircle },
           { key: "timeline",      label: "Timeline",       icon: GitBranch },
@@ -1327,6 +1329,14 @@ export default function VoyageDetail() {
             </Card>
           )}
         </div>
+      )}
+
+      {/* ── Tab: Expenses ───────────────────────────────────────── */}
+      {activeTab === "expenses" && (
+        <VoyageExpensesTab
+          voyageId={voyage.id}
+          portCalls={portCalls}
+        />
       )}
 
       {/* ── Tab: Dokümanlar ────────────────────────────────────── */}

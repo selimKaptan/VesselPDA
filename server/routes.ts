@@ -4689,6 +4689,158 @@ export async function registerRoutes(
     }
   });
 
+  // ─── VOYAGE EXPENSES & BUDGETS ───────────────────────────────────────────────
+
+  const EXPENSE_CATEGORIES = [
+    "port_charges","agency_fee","pilotage","tugboat","mooring","bunker",
+    "provisions","crew","repairs","insurance","communication","misc"
+  ];
+
+  app.get("/api/voyages/:id/expenses", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const { rows } = await pool.query(
+        `SELECT ve.*, vpc.port_call_order, p.name AS port_name
+         FROM voyage_expenses ve
+         LEFT JOIN voyage_port_calls vpc ON vpc.id = ve.port_call_id
+         LEFT JOIN ports p ON p.id = vpc.port_id
+         WHERE ve.voyage_id = $1
+         ORDER BY ve.created_at ASC`,
+        [voyageId]
+      );
+      res.json(rows);
+    } catch { res.status(500).json({ message: "Failed to fetch expenses" }); }
+  });
+
+  app.post("/api/voyages/:id/expenses", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const {
+        portCallId, category, description, budgetAmount, actualAmount,
+        currency = "USD", exchangeRate = 1, vendor, invoiceNumber,
+        invoiceDate, paymentStatus = "unpaid", notes, organizationId
+      } = req.body;
+      if (!category || !description || actualAmount == null)
+        return res.status(400).json({ message: "category, description, actualAmount required" });
+      const amountUsd = parseFloat(actualAmount) * parseFloat(exchangeRate);
+      const { rows } = await pool.query(
+        `INSERT INTO voyage_expenses
+           (voyage_id, port_call_id, user_id, organization_id, category, description,
+            budget_amount, actual_amount, currency, exchange_rate, amount_usd,
+            vendor, invoice_number, invoice_date, payment_status, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+         RETURNING *`,
+        [voyageId, portCallId || null, userId, organizationId || null, category, description,
+         budgetAmount || null, actualAmount, currency, exchangeRate, amountUsd,
+         vendor || null, invoiceNumber || null, invoiceDate || null, paymentStatus, notes || null]
+      );
+      res.status(201).json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed to add expense" }); }
+  });
+
+  app.patch("/api/voyages/:id/expenses/:expenseId", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const expenseId = parseInt(req.params.expenseId);
+      const fields: string[] = [];
+      const vals: any[] = [];
+      let p = 1;
+      const allowed = ["port_call_id","category","description","budget_amount","actual_amount",
+                       "currency","exchange_rate","vendor","invoice_number","invoice_date",
+                       "payment_status","paid_at","notes"];
+      const keyMap: Record<string, string> = {
+        portCallId:"port_call_id", category:"category", description:"description",
+        budgetAmount:"budget_amount", actualAmount:"actual_amount", currency:"currency",
+        exchangeRate:"exchange_rate", vendor:"vendor", invoiceNumber:"invoice_number",
+        invoiceDate:"invoice_date", paymentStatus:"payment_status", paidAt:"paid_at", notes:"notes"
+      };
+      for (const [camel, col] of Object.entries(keyMap)) {
+        if (req.body[camel] !== undefined) { fields.push(`${col} = $${p++}`); vals.push(req.body[camel]); }
+      }
+      if (fields.length === 0) return res.status(400).json({ message: "No fields to update" });
+      if (req.body.actualAmount !== undefined && req.body.exchangeRate !== undefined) {
+        fields.push(`amount_usd = $${p++}`);
+        vals.push(parseFloat(req.body.actualAmount) * parseFloat(req.body.exchangeRate));
+      }
+      vals.push(expenseId, voyageId);
+      const { rows } = await pool.query(
+        `UPDATE voyage_expenses SET ${fields.join(", ")} WHERE id = $${p++} AND voyage_id = $${p} RETURNING *`, vals
+      );
+      if (!rows.length) return res.status(404).json({ message: "Expense not found" });
+      res.json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed to update expense" }); }
+  });
+
+  app.delete("/api/voyages/:id/expenses/:expenseId", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const expenseId = parseInt(req.params.expenseId);
+      await pool.query("DELETE FROM voyage_expenses WHERE id = $1 AND voyage_id = $2", [expenseId, voyageId]);
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "Failed to delete expense" }); }
+  });
+
+  app.get("/api/voyages/:id/expenses/summary", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const { rows: expenses } = await pool.query(
+        "SELECT category, amount_usd, payment_status FROM voyage_expenses WHERE voyage_id = $1", [voyageId]
+      );
+      const { rows: budgets } = await pool.query(
+        "SELECT category, budget_amount FROM voyage_budgets WHERE voyage_id = $1", [voyageId]
+      );
+      const budgetMap: Record<string, number> = {};
+      for (const b of budgets) budgetMap[b.category] = parseFloat(b.budget_amount) || 0;
+
+      const catMap: Record<string, { actual: number; paid: number }> = {};
+      for (const e of expenses) {
+        if (!catMap[e.category]) catMap[e.category] = { actual: 0, paid: 0 };
+        catMap[e.category].actual += parseFloat(e.amount_usd) || 0;
+        if (e.payment_status === "paid") catMap[e.category].paid += parseFloat(e.amount_usd) || 0;
+      }
+
+      const categories = EXPENSE_CATEGORIES.map(cat => ({
+        category: cat,
+        budget: budgetMap[cat] || 0,
+        actual: catMap[cat]?.actual || 0,
+        paid: catMap[cat]?.paid || 0,
+        variance: (catMap[cat]?.actual || 0) - (budgetMap[cat] || 0),
+      }));
+
+      const totalBudget = categories.reduce((s, c) => s + c.budget, 0);
+      const totalActual = categories.reduce((s, c) => s + c.actual, 0);
+      const totalPaid = categories.reduce((s, c) => s + c.paid, 0);
+      res.json({ categories, totalBudget, totalActual, totalPaid, totalVariance: totalActual - totalBudget });
+    } catch { res.status(500).json({ message: "Failed to get expense summary" }); }
+  });
+
+  app.get("/api/voyages/:id/budgets", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const { rows } = await pool.query(
+        "SELECT * FROM voyage_budgets WHERE voyage_id = $1 ORDER BY category ASC", [voyageId]
+      );
+      res.json(rows);
+    } catch { res.status(500).json({ message: "Failed to fetch budgets" }); }
+  });
+
+  app.post("/api/voyages/:id/budgets", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const { category, budgetAmount, currency = "USD", notes } = req.body;
+      if (!category || budgetAmount == null) return res.status(400).json({ message: "category and budgetAmount required" });
+      const { rows } = await pool.query(
+        `INSERT INTO voyage_budgets (voyage_id, category, budget_amount, currency, notes)
+         VALUES ($1,$2,$3,$4,$5)
+         ON CONFLICT (voyage_id, category) DO UPDATE SET budget_amount = $3, currency = $4, notes = $5
+         RETURNING *`,
+        [voyageId, category, budgetAmount, currency, notes || null]
+      );
+      res.status(201).json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed to save budget" }); }
+  });
+
   // ─── FINAL DISBURSEMENT ACCOUNTS (FDA) ───────────────────────────────────────
 
   async function genFdaRefNumber(): Promise<string> {

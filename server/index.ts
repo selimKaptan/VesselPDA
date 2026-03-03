@@ -238,6 +238,10 @@ app.use((req, res, next) => {
         ensureFinalDaSchema().catch((err: Error) => console.error("Final DA migration error:", err));
       });
 
+      import("./migrate-voyage-expenses").then(({ ensureVoyageExpensesSchema }) => {
+        ensureVoyageExpensesSchema().catch((err: Error) => console.error("Voyage expenses migration error:", err));
+      });
+
       import("./startup-checks").then(({ runStartupChecks }) => {
         setTimeout(() => {
           runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));
