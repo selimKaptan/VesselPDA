@@ -242,6 +242,10 @@ app.use((req, res, next) => {
         ensureVoyageExpensesSchema().catch((err: Error) => console.error("Voyage expenses migration error:", err));
       });
 
+      import("./migrate-bunker").then(({ ensureBunkerSchema }) => {
+        ensureBunkerSchema().catch((err: Error) => console.error("Bunker migration error:", err));
+      });
+
       import("./startup-checks").then(({ runStartupChecks }) => {
         setTimeout(() => {
           runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));

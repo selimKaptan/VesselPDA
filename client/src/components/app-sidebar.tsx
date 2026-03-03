@@ -2,7 +2,7 @@ import {
   Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield,
   ChevronDown, MessageSquare, MessagesSquare, MessageCircle, Anchor, Gavel, Navigation, Languages,
   Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, Handshake, Package,
-  TrendingUp, BarChart3, Receipt, FileCheck, Star,
+  TrendingUp, BarChart3, Receipt, FileCheck, Star, Fuel,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation, Link } from "wouter";
@@ -165,6 +165,7 @@ export function AppSidebar() {
       { title: "Dashboard", url: "/", icon: LayoutDashboard },
       { title: "Vessels", url: "/vessels", icon: Ship },
       { title: "Voyages", url: "/voyages", icon: Navigation },
+      { title: "Bunker", url: "/bunker-management", icon: Fuel },
       { title: "Vessel Track", url: "/vessel-track", icon: MapPin },
       { title: "Port Info", url: "/port-info", icon: Anchor },
       { title: "Vessel Certificates", url: "/vessel-certificates", icon: FileCheck },

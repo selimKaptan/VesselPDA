@@ -1,0 +1,91 @@
+Gemi yakit yonetimi sistemi ekle: ROB takibi, yakit alim kayitlari, tuketim analizi.
+
+Yapilacaklar:
+
+1. shared/schema.ts dosyasina ekle:
+
+bunkerRecords tablosu:
+- id (serial PK)
+- vesselId (integer, FK vessels, not null)
+- voyageId (integer, FK voyages, nullable)
+- portCallId (integer, FK voyagePortCalls, nullable)
+- userId (varchar, FK users, not null)
+- organizationId (integer, FK organizations, nullable)
+- recordType (text, not null) — "rob_report", "bunkering", "consumption"
+- recordDate (timestamp, not null)
+- fuelType (text, not null) — "IFO380", "VLSFO", "MGO", "LSMGO", "LNG"
+- quantity (real, not null) — metrik ton
+- unit (text, default "MT")
+- pricePerTon (real, nullable) — yakit alimlarinda birim fiyat
+- totalCost (real, nullable)
+- currency (text, default "USD")
+- supplier (text, nullable) — yakit tedarikci
+- deliveryNote (text, nullable) — BDN numarasi
+- robBefore (real, nullable) — islem oncesi ROB
+- robAfter (real, nullable) — islem sonrasi ROB
+- portName (text, nullable)
+- notes (text, nullable)
+- fileUrl (text, nullable) — BDN dosyasi
+- createdAt (timestamp, default now)
+
+bunkerSurveys tablosu:
+- id (serial PK)
+- vesselId (integer, FK vessels, not null)
+- surveyDate (timestamp, not null)
+- userId (varchar, FK users, not null)
+- ifo380Rob (real, default 0)
+- vlsfoRob (real, default 0)
+- mgoRob (real, default 0)
+- lsmgoRob (real, default 0)
+- notes (text)
+- createdAt (timestamp, default now)
+
+2. Endpoint'ler:
+
+GET /api/vessels/:vesselId/bunker — Yakit kayitlari (tarih araligi filtreli)
+POST /api/vessels/:vesselId/bunker — Yeni yakit kaydi (alim, rob, tuketim)
+PATCH /api/vessels/:vesselId/bunker/:id — Kayit guncelle
+DELETE /api/vessels/:vesselId/bunker/:id — Kayit sil
+
+GET /api/vessels/:vesselId/bunker/rob — Guncel ROB (son survey veya hesaplanan)
+GET /api/vessels/:vesselId/bunker/consumption — Tuketim analizi (gunluk ortalama, seyir/liman)
+GET /api/vessels/:vesselId/bunker/cost-analysis — Maliyet analizi (donem bazli)
+
+POST /api/vessels/:vesselId/bunker/survey — ROB survey kaydi
+GET /api/vessels/:vesselId/bunker/surveys — Survey gecmisi
+
+3. client/src/pages/bunker-management.tsx sayfasi olustur:
+
+   Gemi Secimi: Dropdown ile gemi sec
+
+   ROB Karti:
+   | Yakit Tipi | ROB (MT) | Son Guncelleme |
+   | IFO 380 | 450.5 | 2 saat once |
+   | VLSFO | 120.3 | 2 saat once |
+   | MGO | 35.8 | 2 saat once |
+
+   Yakit Alim Kayitlari Tablosu:
+   Tarih, liman, yakit tipi, miktar, fiyat, toplam, tedarikci
+
+   Tuketim Grafigi (recharts):
+   - Son 30 gun gunluk tuketim (line chart)
+   - Yakit tipine gore ayri cizgiler
+   - Seyir vs liman tuketimi karsilastirma
+
+   Maliyet Analizi:
+   - Aylik yakit maliyeti (bar chart)
+   - Ortalama ton fiyati trendi
+
+   Yakit Alim Formu:
+   - Tarih, liman, yakit tipi, miktar, birim fiyat
+   - Tedarikci, BDN no, BDN dosyasi yukleme
+   - ROB before/after otomatik hesaplansin
+
+   ROB Survey Formu:
+   - Her yakit tipi icin guncel ROB girisi
+   - Survey tarihi ve notlar
+
+4. App.tsx'e /bunker-management route ekle.
+5. Sidebar'a "Bunker" menu ogesi ekle (Operasyonlar grubunda, Fuel icon).
+
+6. Voyage detayinda "Bunker" tab'i: O sefere ait yakit kayitlari ve tuketim bilgisi.

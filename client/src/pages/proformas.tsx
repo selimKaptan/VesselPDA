@@ -651,13 +651,13 @@ export default function Proformas() {
       {showQuickDialog && (
         <>
           <div
-            className="fixed inset-y-0 right-0 z-40 bg-black/60"
-            style={{ left: sidebarOpen ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)' }}
+            className="fixed right-0 z-40 bg-black/60"
+            style={{ left: sidebarOpen ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)', top: 0, bottom: 0 }}
             onClick={() => setShowQuickDialog(false)}
           />
           <div
-            className="fixed inset-y-0 right-0 z-50 flex flex-col bg-background border-l shadow-2xl overflow-hidden"
-            style={{ left: sidebarOpen ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)' }}
+            className="fixed right-0 z-50 flex flex-col bg-background border-l shadow-2xl overflow-hidden"
+            style={{ left: sidebarOpen ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)', top: 0, bottom: 0 }}
             data-testid="dialog-quick-proforma"
           >
             <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b bg-background">

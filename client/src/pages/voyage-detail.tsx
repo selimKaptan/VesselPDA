@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { SofEditor } from "@/components/sof-editor";
 import { VoyageExpensesTab } from "@/components/voyage-expenses-tab";
+import { VoyageBunkerTab } from "@/components/voyage-bunker-tab";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { VoyageTimeline } from "@/components/voyage-timeline";
 import { Button } from "@/components/ui/button";
@@ -175,7 +176,7 @@ export default function VoyageDetail() {
   const [newTask, setNewTask] = useState("");
   const [chatMessage, setChatMessage] = useState("");
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"route" | "operation" | "expenses" | "documents" | "comms" | "timeline" | "collaborators">("route");
+  const [activeTab, setActiveTab] = useState<"route" | "operation" | "expenses" | "bunker" | "documents" | "comms" | "timeline" | "collaborators">("route");
   const [showAddPortCallDialog, setShowAddPortCallDialog] = useState(false);
   const [editingPortCall, setEditingPortCall] = useState<any | null>(null);
   const [pcForm, setPcForm] = useState({
@@ -865,6 +866,7 @@ export default function VoyageDetail() {
           { key: "route",         label: "Route",          icon: Route },
           { key: "operation",     label: "Operation",      icon: ClipboardList },
           { key: "expenses",      label: "Expenses",       icon: Wallet },
+          { key: "bunker",        label: "Bunker",         icon: Fuel },
           { key: "documents",     label: "Documents",      icon: FolderOpen },
           { key: "comms",         label: "Comms",          icon: MessageCircle },
           { key: "timeline",      label: "Timeline",       icon: GitBranch },
@@ -1335,6 +1337,15 @@ export default function VoyageDetail() {
       {activeTab === "expenses" && (
         <VoyageExpensesTab
           voyageId={voyage.id}
+          portCalls={portCalls}
+        />
+      )}
+
+      {/* ── Tab: Bunker ─────────────────────────────────────────── */}
+      {activeTab === "bunker" && (
+        <VoyageBunkerTab
+          voyageId={voyage.id}
+          vesselId={voyage.vesselId || voyage.vessel_id}
           portCalls={portCalls}
         />
       )}

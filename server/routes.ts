@@ -4841,6 +4841,183 @@ export async function registerRoutes(
     } catch { res.status(500).json({ message: "Failed to save budget" }); }
   });
 
+  // ─── BUNKER MANAGEMENT ───────────────────────────────────────────────────────
+
+  const FUEL_TYPES = ["IFO380", "VLSFO", "MGO", "LSMGO", "LNG"];
+
+  app.get("/api/vessels/:vesselId/bunker", isAuthenticated, async (req: any, res) => {
+    try {
+      const vesselId = parseInt(req.params.vesselId);
+      const { from, to, fuelType, recordType, voyageId } = req.query;
+      const conds: string[] = ["vessel_id = $1"];
+      const vals: any[] = [vesselId];
+      let p = 2;
+      if (from) { conds.push(`record_date >= $${p++}`); vals.push(from); }
+      if (to) { conds.push(`record_date <= $${p++}`); vals.push(to); }
+      if (fuelType) { conds.push(`fuel_type = $${p++}`); vals.push(fuelType); }
+      if (recordType) { conds.push(`record_type = $${p++}`); vals.push(recordType); }
+      if (voyageId) { conds.push(`voyage_id = $${p++}`); vals.push(parseInt(voyageId as string)); }
+      const { rows } = await pool.query(
+        `SELECT * FROM bunker_records WHERE ${conds.join(" AND ")} ORDER BY record_date DESC`, vals
+      );
+      res.json(rows);
+    } catch { res.status(500).json({ message: "Failed to fetch bunker records" }); }
+  });
+
+  app.post("/api/vessels/:vesselId/bunker", isAuthenticated, async (req: any, res) => {
+    try {
+      const vesselId = parseInt(req.params.vesselId);
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { recordType, recordDate, fuelType, quantity, unit = "MT", pricePerTon,
+              totalCost, currency = "USD", supplier, deliveryNote, robBefore, robAfter,
+              portName, notes, fileUrl, voyageId, portCallId, organizationId } = req.body;
+      if (!recordType || !recordDate || !fuelType || quantity == null)
+        return res.status(400).json({ message: "recordType, recordDate, fuelType, quantity required" });
+      const computedCost = (totalCost != null) ? totalCost
+        : (pricePerTon && quantity) ? parseFloat(pricePerTon) * parseFloat(quantity) : null;
+      const { rows } = await pool.query(
+        `INSERT INTO bunker_records
+           (vessel_id, voyage_id, port_call_id, user_id, organization_id, record_type,
+            record_date, fuel_type, quantity, unit, price_per_ton, total_cost, currency,
+            supplier, delivery_note, rob_before, rob_after, port_name, notes, file_url)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+         RETURNING *`,
+        [vesselId, voyageId || null, portCallId || null, userId, organizationId || null,
+         recordType, recordDate, fuelType, quantity, unit, pricePerTon || null, computedCost,
+         currency, supplier || null, deliveryNote || null, robBefore ?? null, robAfter ?? null,
+         portName || null, notes || null, fileUrl || null]
+      );
+      res.status(201).json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed to add bunker record" }); }
+  });
+
+  app.patch("/api/vessels/:vesselId/bunker/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const vesselId = parseInt(req.params.vesselId);
+      const id = parseInt(req.params.id);
+      const keyMap: Record<string, string> = {
+        recordType:"record_type", recordDate:"record_date", fuelType:"fuel_type",
+        quantity:"quantity", unit:"unit", pricePerTon:"price_per_ton", totalCost:"total_cost",
+        currency:"currency", supplier:"supplier", deliveryNote:"delivery_note",
+        robBefore:"rob_before", robAfter:"rob_after", portName:"port_name",
+        notes:"notes", fileUrl:"file_url", voyageId:"voyage_id", portCallId:"port_call_id"
+      };
+      const fields: string[] = []; const vals: any[] = []; let p = 1;
+      for (const [camel, col] of Object.entries(keyMap)) {
+        if (req.body[camel] !== undefined) { fields.push(`${col} = $${p++}`); vals.push(req.body[camel]); }
+      }
+      if (!fields.length) return res.status(400).json({ message: "No fields" });
+      vals.push(id, vesselId);
+      const { rows } = await pool.query(
+        `UPDATE bunker_records SET ${fields.join(", ")} WHERE id = $${p++} AND vessel_id = $${p} RETURNING *`, vals
+      );
+      if (!rows.length) return res.status(404).json({ message: "Not found" });
+      res.json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed to update bunker record" }); }
+  });
+
+  app.delete("/api/vessels/:vesselId/bunker/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const vesselId = parseInt(req.params.vesselId);
+      const id = parseInt(req.params.id);
+      await pool.query("DELETE FROM bunker_records WHERE id = $1 AND vessel_id = $2", [id, vesselId]);
+      res.json({ success: true });
+    } catch { res.status(500).json({ message: "Failed to delete bunker record" }); }
+  });
+
+  app.get("/api/vessels/:vesselId/bunker/rob", isAuthenticated, async (req: any, res) => {
+    try {
+      const vesselId = parseInt(req.params.vesselId);
+      const { rows: surveys } = await pool.query(
+        "SELECT * FROM bunker_surveys WHERE vessel_id = $1 ORDER BY survey_date DESC LIMIT 1", [vesselId]
+      );
+      if (surveys.length) {
+        const s = surveys[0];
+        return res.json({
+          source: "survey",
+          surveyDate: s.survey_date,
+          robs: {
+            IFO380: s.ifo380_rob, VLSFO: s.vlsfo_rob,
+            MGO: s.mgo_rob, LSMGO: s.lsmgo_rob,
+          }
+        });
+      }
+      const { rows: robRows } = await pool.query(
+        `SELECT fuel_type, rob_after, record_date FROM bunker_records
+         WHERE vessel_id = $1 AND rob_after IS NOT NULL
+         ORDER BY record_date DESC`, [vesselId]
+      );
+      const robs: Record<string, any> = {};
+      for (const r of robRows) {
+        if (!robs[r.fuel_type]) robs[r.fuel_type] = { rob: r.rob_after, date: r.record_date };
+      }
+      res.json({ source: "records", robs });
+    } catch { res.status(500).json({ message: "Failed to get ROB" }); }
+  });
+
+  app.get("/api/vessels/:vesselId/bunker/consumption", isAuthenticated, async (req: any, res) => {
+    try {
+      const vesselId = parseInt(req.params.vesselId);
+      const days = parseInt((req.query.days as string) || "30");
+      const { rows } = await pool.query(
+        `SELECT date_trunc('day', record_date) AS day, fuel_type, SUM(quantity) AS consumed
+         FROM bunker_records
+         WHERE vessel_id = $1 AND record_type = 'consumption'
+           AND record_date >= NOW() - INTERVAL '${days} days'
+         GROUP BY day, fuel_type ORDER BY day ASC`,
+        [vesselId]
+      );
+      const dailyMap: Record<string, Record<string, number>> = {};
+      for (const r of rows) {
+        const d = r.day.toISOString().split("T")[0];
+        if (!dailyMap[d]) dailyMap[d] = {};
+        dailyMap[d][r.fuel_type] = parseFloat(r.consumed);
+      }
+      res.json({ daily: dailyMap, days });
+    } catch { res.status(500).json({ message: "Failed to get consumption" }); }
+  });
+
+  app.get("/api/vessels/:vesselId/bunker/cost-analysis", isAuthenticated, async (req: any, res) => {
+    try {
+      const vesselId = parseInt(req.params.vesselId);
+      const { rows } = await pool.query(
+        `SELECT date_trunc('month', record_date) AS month, fuel_type,
+                SUM(total_cost) AS total_cost, SUM(quantity) AS quantity,
+                AVG(price_per_ton) AS avg_price
+         FROM bunker_records
+         WHERE vessel_id = $1 AND record_type = 'bunkering' AND total_cost IS NOT NULL
+         GROUP BY month, fuel_type ORDER BY month ASC`,
+        [vesselId]
+      );
+      res.json(rows);
+    } catch { res.status(500).json({ message: "Failed to get cost analysis" }); }
+  });
+
+  app.post("/api/vessels/:vesselId/bunker/survey", isAuthenticated, async (req: any, res) => {
+    try {
+      const vesselId = parseInt(req.params.vesselId);
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { surveyDate, ifo380Rob = 0, vlsfoRob = 0, mgoRob = 0, lsmgoRob = 0, notes } = req.body;
+      if (!surveyDate) return res.status(400).json({ message: "surveyDate required" });
+      const { rows } = await pool.query(
+        `INSERT INTO bunker_surveys (vessel_id, survey_date, user_id, ifo380_rob, vlsfo_rob, mgo_rob, lsmgo_rob, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [vesselId, surveyDate, userId, ifo380Rob, vlsfoRob, mgoRob, lsmgoRob, notes || null]
+      );
+      res.status(201).json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed to save survey" }); }
+  });
+
+  app.get("/api/vessels/:vesselId/bunker/surveys", isAuthenticated, async (req: any, res) => {
+    try {
+      const vesselId = parseInt(req.params.vesselId);
+      const { rows } = await pool.query(
+        "SELECT * FROM bunker_surveys WHERE vessel_id = $1 ORDER BY survey_date DESC LIMIT 20", [vesselId]
+      );
+      res.json(rows);
+    } catch { res.status(500).json({ message: "Failed to get surveys" }); }
+  });
+
   // ─── FINAL DISBURSEMENT ACCOUNTS (FDA) ───────────────────────────────────────
 
   async function genFdaRefNumber(): Promise<string> {

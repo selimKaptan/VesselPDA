@@ -1403,3 +1403,47 @@ export const voyageBudgets = pgTable("voyage_budgets", {
 
 export type VoyageBudget = typeof voyageBudgets.$inferSelect;
 export type InsertVoyageBudget = typeof voyageBudgets.$inferInsert;
+
+export const bunkerRecords = pgTable("bunker_records", {
+  id: serial("id").primaryKey(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
+  portCallId: integer("port_call_id").references(() => voyagePortCalls.id, { onDelete: "set null" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
+  recordType: text("record_type").notNull(),
+  recordDate: timestamp("record_date").notNull(),
+  fuelType: text("fuel_type").notNull(),
+  quantity: real("quantity").notNull(),
+  unit: text("unit").notNull().default("MT"),
+  pricePerTon: real("price_per_ton"),
+  totalCost: real("total_cost"),
+  currency: text("currency").notNull().default("USD"),
+  supplier: text("supplier"),
+  deliveryNote: text("delivery_note"),
+  robBefore: real("rob_before"),
+  robAfter: real("rob_after"),
+  portName: text("port_name"),
+  notes: text("notes"),
+  fileUrl: text("file_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type BunkerRecord = typeof bunkerRecords.$inferSelect;
+export type InsertBunkerRecord = typeof bunkerRecords.$inferInsert;
+
+export const bunkerSurveys = pgTable("bunker_surveys", {
+  id: serial("id").primaryKey(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  surveyDate: timestamp("survey_date").notNull(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  ifo380Rob: real("ifo380_rob").notNull().default(0),
+  vlsfoRob: real("vlsfo_rob").notNull().default(0),
+  mgoRob: real("mgo_rob").notNull().default(0),
+  lsmgoRob: real("lsmgo_rob").notNull().default(0),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type BunkerSurvey = typeof bunkerSurveys.$inferSelect;
+export type InsertBunkerSurvey = typeof bunkerSurveys.$inferInsert;
