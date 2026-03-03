@@ -300,3 +300,25 @@ export async function lookupLightDuesFee(
     return { fee: 0, source: "fallback" };
   }
 }
+
+export async function lookupMiscExpenses(
+  pool: Pool,
+  portId: number
+): Promise<Record<string, number>> {
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT ON (expense_type) expense_type, fee_usd
+       FROM misc_expenses
+       WHERE port_id = $1 OR port_id IS NULL
+       ORDER BY expense_type, (CASE WHEN port_id = $1 THEN 0 ELSE 1 END)`,
+      [portId]
+    );
+    const map: Record<string, number> = {};
+    for (const row of result.rows) {
+      map[row.expense_type] = parseFloat(row.fee_usd);
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}

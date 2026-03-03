@@ -25,6 +25,11 @@ export interface CalculationInput {
   dbSanitaryFee?: number;
   dbChamberFreightShareFee?: number;
   dbLightDuesFee?: number;
+  dbMotorboatFee?: number;
+  dbFacilitiesFee?: number;
+  dbTransportationFee?: number;
+  dbFiscalFee?: number;
+  dbCommunicationFee?: number;
 }
 
 export interface CalculatedLineItem {
@@ -445,11 +450,11 @@ export function calculateProforma(input: CalculationInput): CalculationResult {
 
   addItem("Contr. to Maritime Association Fee", calcVda(input));
 
-  addItem("Motorboat Exp.", 500);
-  addItem("Facilities & Other Exp.", 550);
-  addItem("Transportation Exp.", 500);
-  addItem("Fiscal & Notary Exp.", 250);
-  addItem("Communication & Copy & Stamp Exp.", 250);
+  addItem("Motorboat Exp.", input.dbMotorboatFee ?? 500);
+  addItem("Facilities & Other Exp.", input.dbFacilitiesFee ?? 550);
+  addItem("Transportation Exp.", input.dbTransportationFee ?? 500);
+  addItem("Fiscal & Notary Exp.", input.dbFiscalFee ?? 250);
+  addItem("Communication & Copy & Stamp Exp.", input.dbCommunicationFee ?? 250);
 
   addItem("Supervision Fee", calcSupervision(input), "As per official tariff");
 

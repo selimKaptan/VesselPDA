@@ -508,6 +508,43 @@ export async function ensureNewTariffTables() {
       )
     `);
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS misc_expenses (
+        id SERIAL PRIMARY KEY,
+        port_id INT REFERENCES ports(id) ON DELETE SET NULL,
+        expense_type TEXT NOT NULL,
+        fee_usd NUMERIC(10,2) NOT NULL DEFAULT 0,
+        currency TEXT NOT NULL DEFAULT 'USD',
+        valid_year INT DEFAULT 2026,
+        notes TEXT,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS misc_expenses_global_idx
+        ON misc_expenses (expense_type)
+        WHERE port_id IS NULL
+    `);
+
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS misc_expenses_port_idx
+        ON misc_expenses (port_id, expense_type)
+        WHERE port_id IS NOT NULL
+    `);
+
+    for (const [expense_type, fee_usd] of [
+      ['motorboat', 500], ['facilities', 550], ['transportation', 500],
+      ['fiscal', 250], ['communication', 250],
+    ]) {
+      await client.query(
+        `INSERT INTO misc_expenses (port_id, expense_type, fee_usd, valid_year)
+         SELECT NULL, $1, $2, 2026
+         WHERE NOT EXISTS (SELECT 1 FROM misc_expenses WHERE expense_type = $1 AND port_id IS NULL)`,
+        [expense_type, fee_usd]
+      );
+    }
+
     console.log("[tariff-tables] ✓ All new tariff tables verified.");
   } catch (err) {
     console.error("[tariff-tables] Error ensuring tariff tables:", err);

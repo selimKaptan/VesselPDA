@@ -19,7 +19,7 @@ import {
   Navigation, Warehouse, Building2, Leaf, Layers, MoreHorizontal,
   Plus, Pencil, Trash2, Loader2, TrendingUp, Download, Upload,
   ChevronDown, ChevronUp, Database, Ship, AlertTriangle, X, Search, PlusCircle, Globe, Info,
-  Lightbulb, Briefcase, BarChart2, Anchor, ShieldCheck, Radio, FolderPlus, Eye
+  Lightbulb, Briefcase, BarChart2, Anchor, ShieldCheck, Radio, FolderPlus, Eye, Receipt
 } from "lucide-react";
 
 // ── Human-readable label maps ────────────────────────────────────────────────
@@ -41,6 +41,11 @@ const SERVICE_LABELS: Record<string, string> = {
   palamar_uluslararasi_yeni: "International Mooring (New)",
   acentelik: "Agency Fee",
   koruyucu_acentelik: "Protective Agency Fee",
+  motorboat: "Motorboat Exp.",
+  facilities: "Facilities & Other Exp.",
+  transportation: "Transportation Exp.",
+  fiscal: "Fiscal & Notary Exp.",
+  communication: "Communication & Copy & Stamp Exp.",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -421,6 +426,25 @@ const CATEGORIES: CategoryDef[] = [
       { key: "quantity_range", label: "Quantity Range", type: "text" },
       { key: "rate", label: "Rate", type: "number" },
       { key: "unit", label: "Unit (EUR/MT / EUR/Adet / EUR/Metre)", type: "text" },
+      { key: "currency", label: "Currency", type: "currency" },
+      { key: "valid_year", label: "Valid Year", type: "year" },
+      { key: "notes", label: "Notes", type: "textarea" },
+    ],
+  },
+  {
+    key: "misc_expenses",
+    label: "Miscellaneous Expenses",
+    icon: Receipt,
+    defaultCurrency: "USD",
+    columns: [
+      { key: "expense_type", label: "Expense Type" },
+      { key: "fee_usd", label: "Fee (USD)", type: "number" },
+      { key: "currency", label: "CCY", type: "currency" },
+      { key: "valid_year", label: "Year", type: "year" },
+    ],
+    formFields: [
+      { key: "expense_type", label: "Expense Type (motorboat / facilities / transportation / fiscal / communication)", type: "text" },
+      { key: "fee_usd", label: "Fee (USD)", type: "number" },
       { key: "currency", label: "Currency", type: "currency" },
       { key: "valid_year", label: "Valid Year", type: "year" },
       { key: "notes", label: "Notes", type: "textarea" },
