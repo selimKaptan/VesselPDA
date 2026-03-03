@@ -4443,7 +4443,7 @@ export async function registerRoutes(
         conditions.push("port_id IS NULL");
       } else if (req.query.portId && req.query.portId !== "all") {
         params.push(parseInt(req.query.portId as string));
-        conditions.push(`port_id = $${params.length}`);
+        conditions.push(`(port_id = $${params.length} OR port_id IS NULL)`);
       }
       if (req.query.currency && req.query.currency !== "all") {
         params.push(req.query.currency as string);
