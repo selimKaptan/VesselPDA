@@ -877,3 +877,27 @@ export const vesselPositionsRelations = relations(vesselPositions, ({ one }) => 
 export const insertVesselPositionSchema = createInsertSchema(vesselPositions).omit({ id: true, timestamp: true });
 export type InsertVesselPosition = z.infer<typeof insertVesselPositionSchema>;
 export type VesselPositionRecord = typeof vesselPositions.$inferSelect;
+
+// ─── SANCTIONS CHECKS HISTORY ─────────────────────────────────────────────────
+
+export const sanctionsChecks = pgTable("sanctions_checks", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  vesselName: text("vessel_name"),
+  imoNumber: text("imo_number"),
+  mmsi: text("mmsi"),
+  entityName: text("entity_name"),
+  checkType: text("check_type").notNull().default("entity"),
+  result: text("result").notNull(),
+  matchDetails: jsonb("match_details"),
+  source: text("source").notNull().default("ofac"),
+  checkedAt: timestamp("checked_at").defaultNow().notNull(),
+});
+
+export const sanctionsChecksRelations = relations(sanctionsChecks, ({ one }) => ({
+  user: one(users, { fields: [sanctionsChecks.userId], references: [users.id] }),
+}));
+
+export const insertSanctionsCheckSchema = createInsertSchema(sanctionsChecks).omit({ id: true, checkedAt: true });
+export type InsertSanctionsCheck = z.infer<typeof insertSanctionsCheckSchema>;
+export type SanctionsCheck = typeof sanctionsChecks.$inferSelect;
