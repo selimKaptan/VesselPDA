@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { authLimiter, generalLimiter, aiLimiter, uploadLimiter, searchLimiter } from "./middleware/rate-limit";
 import path from "path";
 import fs from "fs";
 import multer from "multer";
@@ -57,6 +58,20 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   await setupAuth(app);
+
+  // ── Rate Limiting ──────────────────────────────────────────────────────────
+  // MUST be applied after setupAuth() (so session/passport middleware is on
+  // the stack and req.user is populated by the time skip functions run) but
+  // BEFORE registerAuthRoutes() and all other route registrations, so that
+  // rate limiters sit in front of every route handler in the middleware stack.
+  app.use("/api/auth", authLimiter);           // 5 req/min — brute force guard
+  app.use("/api/ai", aiLimiter);               // 10 req/min — costly AI calls
+  app.use("/api/files", uploadLimiter);        // 20 req/min — file storage abuse
+  app.use("/api/search", searchLimiter);       // 30 req/min — search/enumeration guard
+  app.use("/api/vessel-track/search", searchLimiter);  // vessel search
+  app.use("/api/vessels/lookup", searchLimiter);       // IMO lookup
+  app.use("/api", generalLimiter);             // 100 req/min — baseline for all API routes
+
   registerAuthRoutes(app);
   startAISStream();
 

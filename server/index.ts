@@ -1,6 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -52,24 +51,6 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  message: { message: "Too many requests, please try again later." },
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => config.NODE_ENV !== "production",
-});
-
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 200,
-  message: { message: "Too many requests." },
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => config.NODE_ENV !== "production",
-});
-
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
@@ -85,9 +66,6 @@ if (config.NODE_ENV === "production") {
     next();
   });
 }
-
-app.use("/api/auth", authLimiter);
-app.use("/api", apiLimiter);
 
 app.use(
   express.json({
