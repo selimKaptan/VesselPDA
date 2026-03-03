@@ -189,20 +189,13 @@ export default function Proformas() {
 
   const finalDaMutation = useMutation({
     mutationFn: async (pda: Proforma) => {
-      const res = await apiRequest("POST", "/api/invoices", {
-        title: `${pda.referenceNumber} Final DA`,
-        invoiceType: "final_da",
-        amount: (pda as any).totalUsd || 0,
-        currency: "USD",
-        linkedProformaId: pda.id,
-        notes: `Auto-generated from Proforma DA ${pda.referenceNumber}.`,
-      });
+      const res = await apiRequest("POST", `/api/final-da/from-proforma/${pda.id}`, {});
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
-      toast({ title: "Final DA created", description: "Redirecting to Financial Flow page" });
-      navigate("/invoices");
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/final-da"] });
+      toast({ title: "Final DA created", description: `${data.reference_number} — opening editor` });
+      navigate(`/final-da/${data.id}`);
     },
     onError: () => toast({ title: "Error", description: "Failed to create Final DA", variant: "destructive" }),
   });

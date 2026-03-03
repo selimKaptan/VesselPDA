@@ -174,6 +174,7 @@ export function AppSidebar() {
   // ── COMMERCIAL ────────────────────────────────────────────────────────────
   const commercialItems: NavItem[] = [
     { title: "Proformas", url: "/proformas", icon: FileText },
+    { title: "Final DA", url: "/final-da", icon: BarChart3 },
   ];
   if (canSeeAll) {
     commercialItems.push({ title: "Invoices", url: "/invoices", icon: Receipt });

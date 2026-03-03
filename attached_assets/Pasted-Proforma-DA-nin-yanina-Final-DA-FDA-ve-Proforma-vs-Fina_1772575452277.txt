@@ -1,0 +1,73 @@
+Proforma DA'nin yanina Final DA (FDA) ve Proforma vs Final karsilastirma raporu ekle.
+
+Mevcut: proformas tablosu var (tahmini masraf hesabi)
+Yeni: finalDA (gercek masraf hesabi) + variance raporu
+
+Yapilacaklar:
+
+1. shared/schema.ts dosyasina ekle:
+
+finalDisbursements tablosu:
+- id (serial PK)
+- proformaId (integer, FK proformas, nullable) — iliskili proforma
+- portCallId (integer, FK voyagePortCalls, nullable)
+- voyageId (integer, FK voyages, nullable)
+- userId (varchar, FK users, not null)
+- organizationId (integer, FK organizations, nullable)
+- vesselId (integer, FK vessels, nullable)
+- portId (integer, FK ports, not null)
+- referenceNumber (text, not null) — FDA-2024-001
+- toCompany (text)
+- lineItems (jsonb, not null) — [{description, proformaAmount, actualAmount, difference, notes}]
+- totalProforma (real) — proforma toplam
+- totalActual (real, not null) — gercek toplam
+- totalVariance (real) — fark (actual - proforma)
+- variancePercentage (real) — yuzdesel fark
+- currency (text, default "USD")
+- exchangeRate (real, default 1)
+- bankDetails (jsonb)
+- status (text, default "draft") — "draft", "final", "sent", "paid"
+- closedAt (timestamp, nullable) — FDA kapanma tarihi
+- notes (text)
+- createdAt (timestamp, default now)
+
+2. Endpoint'ler:
+
+POST /api/final-da — Yeni FDA olustur
+  Eger proformaId verilirse, proforma line item'lari otomatik kopyalansin (proformaAmount olarak)
+POST /api/final-da/from-proforma/:proformaId — Proformadan FDA olustur (line item'lari kopyala)
+GET /api/final-da — FDA listesi
+GET /api/final-da/:id — FDA detay
+PATCH /api/final-da/:id — FDA guncelle
+DELETE /api/final-da/:id — FDA sil
+
+GET /api/final-da/:id/variance-report — Variance raporu (proforma vs final karsilastirma)
+GET /api/final-da/:id/pdf — FDA PDF export
+GET /api/final-da/:id/variance-pdf — Variance raporu PDF
+
+3. client/src/pages/final-da.tsx sayfasi olustur:
+   - FDA listesi tablosu (ref no, gemi, liman, proforma tutar, gercek tutar, fark, status)
+   - Fark kolonu renk kodlu: yesil (altinda), kirmizi (ustunde), gri (esit)
+
+4. client/src/pages/final-da-edit.tsx sayfasi olustur:
+   - Line item tablosu:
+     | Kalem | Proforma (USD) | Gercek (USD) | Fark | Fark % | Not |
+     Proforma tutarlari readonly (proformadan gelir), gercek tutarlar duzenlenebilir
+   - Her satirdaki fark otomatik hesaplansin
+   - Alt kisimda toplamlar
+   - Banka bilgileri
+   - Status degistirme: Draft -> Final -> Sent -> Paid
+
+5. Variance Report gorunumu:
+   - Yan yana bar chart: her kalem icin proforma vs gercek (recharts)
+   - Toplam fark ozet karti: "+$1,250 (%8.5 uzerinde)" veya "-$500 (%3.2 altinda)"
+   - En buyuk fark olan 3 kalem vurgulansin
+   - PDF olarak indirilebilsin
+
+6. Proforma sayfasina "FDA Olustur" butonu ekle:
+   - Tiklayinca proforma verilerini FDA'ya kopyalayip yeni FDA sayfasina git
+
+7. App.tsx'e /final-da, /final-da/new, /final-da/:id route'lari ekle.
+8. Sidebar'a "Final DA" menu ogesi ekle (Ticari grubunda).
+
+FDA PDF: Profesyonel gorunum, ust kisimda sirket logosu ve bilgileri, gemi+liman bilgileri, line item tablosu (proforma | gercek | fark kolonlari), toplamlar, banka bilgileri, imza alani.

@@ -4689,6 +4689,262 @@ export async function registerRoutes(
     }
   });
 
+  // ─── FINAL DISBURSEMENT ACCOUNTS (FDA) ───────────────────────────────────────
+
+  async function genFdaRefNumber(): Promise<string> {
+    const year = new Date().getFullYear();
+    const { rows } = await pool.query("SELECT COUNT(*) FROM final_disbursements WHERE EXTRACT(YEAR FROM created_at) = $1", [year]);
+    const seq = parseInt(rows[0].count) + 1;
+    return `FDA-${year}-${String(seq).padStart(3, "0")}`;
+  }
+
+  function calcFdaTotals(lineItems: any[]) {
+    const totalProforma = lineItems.reduce((s: number, i: any) => s + (parseFloat(i.proformaAmount) || 0), 0);
+    const totalActual = lineItems.reduce((s: number, i: any) => s + (parseFloat(i.actualAmount) || 0), 0);
+    const totalVariance = totalActual - totalProforma;
+    const variancePercentage = totalProforma !== 0 ? (totalVariance / totalProforma) * 100 : 0;
+    return { totalProforma, totalActual, totalVariance, variancePercentage };
+  }
+
+  app.get("/api/final-da", isAuthenticated, attachOrgContext, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const { rows: aRows } = await pool.query("SELECT user_role FROM users WHERE id = $1", [userId]);
+      const isAdminUser = aRows[0]?.user_role === "admin";
+      let query: string;
+      let params: any[];
+      if (isAdminUser) {
+        query = `SELECT fd.*, p.name AS port_name, v.name AS vessel_name,
+                   pr.reference_number AS proforma_ref
+                 FROM final_disbursements fd
+                 LEFT JOIN ports p ON p.id = fd.port_id
+                 LEFT JOIN vessels v ON v.id = fd.vessel_id
+                 LEFT JOIN proformas pr ON pr.id = fd.proforma_id
+                 ORDER BY fd.created_at DESC`;
+        params = [];
+      } else if (req.organizationId) {
+        query = `SELECT fd.*, p.name AS port_name, v.name AS vessel_name,
+                   pr.reference_number AS proforma_ref
+                 FROM final_disbursements fd
+                 LEFT JOIN ports p ON p.id = fd.port_id
+                 LEFT JOIN vessels v ON v.id = fd.vessel_id
+                 LEFT JOIN proformas pr ON pr.id = fd.proforma_id
+                 WHERE fd.user_id = $1 OR fd.organization_id = $2
+                 ORDER BY fd.created_at DESC`;
+        params = [userId, req.organizationId];
+      } else {
+        query = `SELECT fd.*, p.name AS port_name, v.name AS vessel_name,
+                   pr.reference_number AS proforma_ref
+                 FROM final_disbursements fd
+                 LEFT JOIN ports p ON p.id = fd.port_id
+                 LEFT JOIN vessels v ON v.id = fd.vessel_id
+                 LEFT JOIN proformas pr ON pr.id = fd.proforma_id
+                 WHERE fd.user_id = $1
+                 ORDER BY fd.created_at DESC`;
+        params = [userId];
+      }
+      const { rows } = await pool.query(query, params);
+      res.json(rows);
+    } catch (err) {
+      console.error("GET final-da error:", err);
+      res.status(500).json({ message: "Failed to fetch Final DAs" });
+    }
+  });
+
+  app.get("/api/final-da/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { rows } = await pool.query(
+        `SELECT fd.*, p.name AS port_name, p.code AS port_locode,
+           v.name AS vessel_name, v.imo_number,
+           pr.reference_number AS proforma_ref, pr.line_items AS proforma_line_items,
+           pr.total_usd AS proforma_total_usd,
+           u.first_name, u.last_name, u.email
+         FROM final_disbursements fd
+         LEFT JOIN ports p ON p.id = fd.port_id
+         LEFT JOIN vessels v ON v.id = fd.vessel_id
+         LEFT JOIN proformas pr ON pr.id = fd.proforma_id
+         LEFT JOIN users u ON u.id = fd.user_id
+         WHERE fd.id = $1`,
+        [parseInt(req.params.id)]
+      );
+      if (!rows.length) return res.status(404).json({ message: "Final DA not found" });
+      res.json(rows[0]);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to fetch Final DA" });
+    }
+  });
+
+  app.post("/api/final-da/from-proforma/:proformaId", isAuthenticated, attachOrgContext, async (req: any, res) => {
+    try {
+      const proformaId = parseInt(req.params.proformaId);
+      const userId = req.user?.claims?.sub;
+      const { rows: pRows } = await pool.query(
+        "SELECT * FROM proformas WHERE id = $1",
+        [proformaId]
+      );
+      if (!pRows.length) return res.status(404).json({ message: "Proforma not found" });
+      const pf = pRows[0];
+      const proformaItems: any[] = pf.line_items || [];
+      const lineItems = proformaItems.map((item: any) => ({
+        description: item.description,
+        proformaAmount: parseFloat(item.amountUsd) || 0,
+        actualAmount: parseFloat(item.amountUsd) || 0,
+        difference: 0,
+        notes: item.notes || "",
+      }));
+      const { totalProforma, totalActual, totalVariance, variancePercentage } = calcFdaTotals(lineItems);
+      const refNumber = await genFdaRefNumber();
+      const { rows } = await pool.query(
+        `INSERT INTO final_disbursements
+           (proforma_id, voyage_id, user_id, organization_id, vessel_id, port_id,
+            reference_number, to_company, line_items, total_proforma, total_actual,
+            total_variance, variance_percentage, currency, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'draft') RETURNING *`,
+        [
+          proformaId,
+          pf.voyage_id || null,
+          userId,
+          req.organizationId || null,
+          pf.vessel_id || null,
+          pf.port_id,
+          refNumber,
+          pf.to_company || null,
+          JSON.stringify(lineItems),
+          totalProforma,
+          totalActual,
+          totalVariance,
+          variancePercentage,
+          pf.currency || "USD",
+        ]
+      );
+      res.status(201).json(rows[0]);
+    } catch (err) {
+      console.error("Create FDA from proforma error:", err);
+      res.status(500).json({ message: "Failed to create Final DA from proforma" });
+    }
+  });
+
+  app.post("/api/final-da", isAuthenticated, attachOrgContext, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const { proformaId, portId, vesselId, voyageId, portCallId, toCompany, lineItems = [], currency, notes, bankDetails } = req.body;
+      if (!portId) return res.status(400).json({ message: "portId is required" });
+      const items = lineItems.map((item: any) => ({
+        ...item,
+        difference: (parseFloat(item.actualAmount) || 0) - (parseFloat(item.proformaAmount) || 0),
+      }));
+      const { totalProforma, totalActual, totalVariance, variancePercentage } = calcFdaTotals(items);
+      const refNumber = await genFdaRefNumber();
+      const { rows } = await pool.query(
+        `INSERT INTO final_disbursements
+           (proforma_id, port_call_id, voyage_id, user_id, organization_id, vessel_id, port_id,
+            reference_number, to_company, line_items, total_proforma, total_actual,
+            total_variance, variance_percentage, currency, notes, bank_details, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'draft') RETURNING *`,
+        [
+          proformaId || null, portCallId || null, voyageId || null,
+          userId, req.organizationId || null, vesselId || null, portId,
+          refNumber, toCompany || null, JSON.stringify(items),
+          totalProforma, totalActual, totalVariance, variancePercentage,
+          currency || "USD", notes || null, bankDetails ? JSON.stringify(bankDetails) : null,
+        ]
+      );
+      res.status(201).json(rows[0]);
+    } catch (err) {
+      console.error("Create FDA error:", err);
+      res.status(500).json({ message: "Failed to create Final DA" });
+    }
+  });
+
+  app.patch("/api/final-da/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { lineItems, toCompany, currency, notes, status, bankDetails, closedAt } = req.body;
+      const fields: string[] = [];
+      const vals: any[] = [];
+      let p = 1;
+      if (toCompany !== undefined) { fields.push(`to_company = $${p++}`); vals.push(toCompany); }
+      if (currency !== undefined) { fields.push(`currency = $${p++}`); vals.push(currency); }
+      if (notes !== undefined) { fields.push(`notes = $${p++}`); vals.push(notes); }
+      if (status !== undefined) {
+        fields.push(`status = $${p++}`); vals.push(status);
+        if (status === "paid" || status === "final") {
+          fields.push(`closed_at = $${p++}`); vals.push(new Date());
+        }
+      }
+      if (closedAt !== undefined) { fields.push(`closed_at = $${p++}`); vals.push(closedAt ? new Date(closedAt) : null); }
+      if (bankDetails !== undefined) { fields.push(`bank_details = $${p++}`); vals.push(JSON.stringify(bankDetails)); }
+      if (lineItems !== undefined) {
+        const items = lineItems.map((item: any) => ({
+          ...item,
+          difference: (parseFloat(item.actualAmount) || 0) - (parseFloat(item.proformaAmount) || 0),
+        }));
+        const { totalProforma, totalActual, totalVariance, variancePercentage } = calcFdaTotals(items);
+        fields.push(`line_items = $${p++}`); vals.push(JSON.stringify(items));
+        fields.push(`total_proforma = $${p++}`); vals.push(totalProforma);
+        fields.push(`total_actual = $${p++}`); vals.push(totalActual);
+        fields.push(`total_variance = $${p++}`); vals.push(totalVariance);
+        fields.push(`variance_percentage = $${p++}`); vals.push(variancePercentage);
+      }
+      if (!fields.length) return res.status(400).json({ message: "No fields to update" });
+      vals.push(id);
+      const { rows } = await pool.query(`UPDATE final_disbursements SET ${fields.join(",")} WHERE id = $${p} RETURNING *`, vals);
+      if (!rows.length) return res.status(404).json({ message: "Final DA not found" });
+      res.json(rows[0]);
+    } catch (err) {
+      console.error("PATCH FDA error:", err);
+      res.status(500).json({ message: "Failed to update Final DA" });
+    }
+  });
+
+  app.delete("/api/final-da/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const { rows: aRows } = await pool.query("SELECT user_role FROM users WHERE id = $1", [userId]);
+      const isAdminUser = aRows[0]?.user_role === "admin";
+      const { rows: fdaRows } = await pool.query("SELECT user_id FROM final_disbursements WHERE id = $1", [parseInt(req.params.id)]);
+      if (!fdaRows.length) return res.status(404).json({ message: "Not found" });
+      if (!isAdminUser && fdaRows[0].user_id !== userId) return res.status(403).json({ message: "Access denied" });
+      await pool.query("DELETE FROM final_disbursements WHERE id = $1", [parseInt(req.params.id)]);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to delete Final DA" });
+    }
+  });
+
+  app.get("/api/final-da/:id/variance-report", isAuthenticated, async (req: any, res) => {
+    try {
+      const { rows } = await pool.query(
+        `SELECT fd.*, p.name AS port_name, v.name AS vessel_name
+         FROM final_disbursements fd
+         LEFT JOIN ports p ON p.id = fd.port_id
+         LEFT JOIN vessels v ON v.id = fd.vessel_id
+         WHERE fd.id = $1`,
+        [parseInt(req.params.id)]
+      );
+      if (!rows.length) return res.status(404).json({ message: "Final DA not found" });
+      const fda = rows[0];
+      const items: any[] = fda.line_items || [];
+      const sortedByVariance = [...items]
+        .sort((a, b) => Math.abs((parseFloat(b.actualAmount) || 0) - (parseFloat(b.proformaAmount) || 0)) -
+                        Math.abs((parseFloat(a.actualAmount) || 0) - (parseFloat(a.proformaAmount) || 0)));
+      res.json({
+        id: fda.id,
+        referenceNumber: fda.reference_number,
+        portName: fda.port_name,
+        vesselName: fda.vessel_name,
+        totalProforma: fda.total_proforma,
+        totalActual: fda.total_actual,
+        totalVariance: fda.total_variance,
+        variancePercentage: fda.variance_percentage,
+        lineItems: items,
+        topVarianceItems: sortedByVariance.slice(0, 3),
+      });
+    } catch {
+      res.status(500).json({ message: "Failed to get variance report" });
+    }
+  });
+
   // ─── FIXTURES ───────────────────────────────────────────────────────────────
 
   app.get("/api/fixtures", isAuthenticated, attachOrgContext, async (req: any, res) => {

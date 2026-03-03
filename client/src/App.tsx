@@ -54,6 +54,8 @@ import OrganizationSelectPage from "@/pages/organization-select";
 import OrganizationJoinPage from "@/pages/organization-join";
 import TeamChat from "@/pages/team-chat";
 import OrganizationDashboard from "@/pages/organization-dashboard";
+import FinalDa from "@/pages/final-da";
+import FinalDaEdit from "@/pages/final-da-edit";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -242,6 +244,9 @@ function AuthenticatedRouter() {
       <Route path="/organization/join/:token" component={OrganizationJoinPage} />
       <Route path="/organization-dashboard" component={OrganizationDashboard} />
       <Route path="/team-chat" component={TeamChat} />
+      <Route path="/final-da" component={FinalDa} />
+      <Route path="/final-da/new" component={FinalDaEdit} />
+      <Route path="/final-da/:id" component={FinalDaEdit} />
       <Route component={NotFound} />
     </Switch>
   );

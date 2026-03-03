@@ -234,6 +234,10 @@ app.use((req, res, next) => {
         ensureSofSchema().catch((err: Error) => console.error("SOF migration error:", err));
       });
 
+      import("./migrate-final-da").then(({ ensureFinalDaSchema }) => {
+        ensureFinalDaSchema().catch((err: Error) => console.error("Final DA migration error:", err));
+      });
+
       import("./startup-checks").then(({ runStartupChecks }) => {
         setTimeout(() => {
           runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));
