@@ -9,6 +9,7 @@ import { users, companyProfiles } from "./models/auth";
 export const vessels = pgTable("vessels", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: varchar("user_id").notNull().references(() => users.id),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   companyProfileId: integer("company_profile_id").references(() => companyProfiles.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   flag: text("flag").notNull(),
@@ -73,6 +74,7 @@ export const tariffRateRelations = relations(tariffRates, ({ one }) => ({
 export const proformas = pgTable("proformas", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: varchar("user_id").notNull().references(() => users.id),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   companyProfileId: integer("company_profile_id").references(() => companyProfiles.id, { onDelete: "set null" }),
   vesselId: integer("vessel_id").notNull().references(() => vessels.id),
   portId: integer("port_id").notNull().references(() => ports.id),
@@ -223,6 +225,7 @@ export type ForumLike = typeof forumLikes.$inferSelect;
 export const portTenders = pgTable("port_tenders", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: varchar("user_id").notNull().references(() => users.id),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   portId: integer("port_id").notNull().references(() => ports.id),
   vesselName: text("vessel_name"),
   description: text("description"),
@@ -245,6 +248,7 @@ export const portTenders = pgTable("port_tenders", {
 
 export const tenderBids = pgTable("tender_bids", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   tenderId: integer("tender_id").notNull().references(() => portTenders.id),
   agentUserId: varchar("agent_user_id").notNull().references(() => users.id),
   agentCompanyId: integer("agent_company_id").references(() => companyProfiles.id),
@@ -365,6 +369,7 @@ export type Notification = typeof notifications.$inferSelect;
 export const voyages = pgTable("voyages", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: varchar("user_id").notNull().references(() => users.id),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   vesselId: integer("vessel_id").references(() => vessels.id),
   portId: integer("port_id").notNull().references(() => ports.id),
   agentUserId: varchar("agent_user_id").references(() => users.id),
@@ -416,6 +421,7 @@ export const voyageChecklistRelations = relations(voyageChecklists, ({ one }) =>
 
 export const serviceRequests = pgTable("service_requests", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   requesterId: varchar("requester_id").notNull().references(() => users.id),
   portId: integer("port_id").notNull().references(() => ports.id),
   voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
@@ -521,6 +527,7 @@ export const voyageChatMessageRelations = relations(voyageChatMessages, ({ one }
 
 export const conversations = pgTable("conversations", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   user1Id: varchar("user1_id").notNull().references(() => users.id),
   user2Id: varchar("user2_id").notNull().references(() => users.id),
   voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
@@ -567,6 +574,7 @@ export const messageRelations = relations(messages, ({ one }) => ({
 
 export const directNominations = pgTable("direct_nominations", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   nominatorUserId: varchar("nominator_user_id").notNull().references(() => users.id),
   agentUserId: varchar("agent_user_id").notNull().references(() => users.id),
   agentCompanyId: integer("agent_company_id").references(() => companyProfiles.id),
@@ -648,6 +656,7 @@ export type Endorsement = typeof endorsements.$inferSelect;
 
 export const vesselCertificates = pgTable("vessel_certificates", {
   id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   userId: varchar("user_id").notNull().references(() => users.id),
   vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
@@ -702,6 +711,7 @@ export type PortCallAppointment = typeof portCallAppointments.$inferSelect;
 export const fixtures = pgTable("fixtures", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   status: text("status").notNull().default("negotiating"),
   vesselName: text("vessel_name").notNull(),
   imoNumber: text("imo_number"),
@@ -767,6 +777,7 @@ export type LaytimeCalculation = typeof laytimeCalculations.$inferSelect;
 export const cargoPositions = pgTable("cargo_positions", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   positionType: text("position_type").notNull().default("cargo"),
   title: text("title").notNull(),
   description: text("description"),
@@ -831,6 +842,7 @@ export type DocumentTemplate = typeof documentTemplates.$inferSelect;
 
 export const invoices = pgTable("invoices", {
   id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
   proformaId: integer("proforma_id").references(() => proformas.id, { onDelete: "set null" }),
   createdByUserId: varchar("created_by_user_id").notNull().references(() => users.id),
@@ -887,6 +899,7 @@ export type PortAlert = typeof portAlerts.$inferSelect;
 // ── Vessel Crew ──────────────────────────────────────────────────────────────
 export const vesselCrew = pgTable("vessel_crew", {
   id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
   userId: varchar("user_id").notNull().references(() => users.id),
   firstName: text("first_name").notNull(),
@@ -992,6 +1005,7 @@ export type ExchangeRate = typeof exchangeRates.$inferSelect;
 export const fleets = pgTable("fleets", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   description: text("description"),
   color: text("color").notNull().default("#2563EB"),
@@ -1164,3 +1178,24 @@ export const organizationRolesRelations = relations(organizationRoles, ({ one })
 
 export type OrganizationRole = typeof organizationRoles.$inferSelect;
 export type InsertOrganizationRole = typeof organizationRoles.$inferInsert;
+
+// ─── ORGANIZATION ACTIVITY FEED ───────────────────────────────────────────────
+
+export const organizationActivityFeed = pgTable("organization_activity_feed", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: integer("entity_id"),
+  description: text("description").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const organizationActivityFeedRelations = relations(organizationActivityFeed, ({ one }) => ({
+  organization: one(organizations, { fields: [organizationActivityFeed.organizationId], references: [organizations.id] }),
+  user: one(users, { fields: [organizationActivityFeed.userId], references: [users.id] }),
+}));
+
+export type OrgActivityFeedEntry = typeof organizationActivityFeed.$inferSelect;
+export type InsertOrgActivityFeedEntry = typeof organizationActivityFeed.$inferInsert;

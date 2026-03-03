@@ -68,8 +68,8 @@ export interface IStorage {
   incrementProformaCount(userId: string): Promise<void>;
   updateSubscription(userId: string, plan: string, limit: number): Promise<User | undefined>;
 
-  getVesselsByUser(userId: string): Promise<Vessel[]>;
-  getVessel(id: number, userId: string): Promise<Vessel | undefined>;
+  getVesselsByUser(userId: string, organizationId?: number | null): Promise<Vessel[]>;
+  getVessel(id: number, userId: string, organizationId?: number | null): Promise<Vessel | undefined>;
   createVessel(vessel: InsertVessel): Promise<Vessel>;
   updateVessel(id: number, userId: string, data: Partial<InsertVessel>): Promise<Vessel | undefined>;
   updateVesselById(id: number, data: Partial<InsertVessel>): Promise<Vessel | undefined>;
@@ -89,7 +89,7 @@ export interface IStorage {
   createTariffRate(rate: InsertTariffRate): Promise<TariffRate>;
   getTariffRateForGrt(categoryId: number, grt: number): Promise<TariffRate | undefined>;
 
-  getProformasByUser(userId: string): Promise<Proforma[]>;
+  getProformasByUser(userId: string, organizationId?: number | null): Promise<Proforma[]>;
   getAllProformas(): Promise<Proforma[]>;
   getProforma(id: number, userId: string): Promise<(Proforma & { vessel?: Vessel; port?: Port }) | undefined>;
   getProformaById(id: number): Promise<(Proforma & { vessel?: Vessel; port?: Port }) | undefined>;
@@ -159,7 +159,7 @@ export interface IStorage {
   getAllFeedbacks(): Promise<Feedback[]>;
 
   createVoyage(data: InsertVoyage): Promise<Voyage>;
-  getVoyagesByUser(userId: string, role: string, agentUserId?: string): Promise<any[]>;
+  getVoyagesByUser(userId: string, role?: string, organizationId?: number | null): Promise<any[]>;
   getVoyageById(id: number): Promise<any | undefined>;
   getVoyageByTenderId(tenderId: number): Promise<Voyage | undefined>;
   updateVoyageStatus(id: number, status: string): Promise<Voyage | undefined>;
@@ -231,7 +231,8 @@ export interface IStorage {
   updatePortCallAppointment(id: number, data: Partial<InsertPortCallAppointment>): Promise<PortCallAppointment | undefined>;
   deletePortCallAppointment(id: number): Promise<boolean>;
 
-  getFixtures(userId: string): Promise<Fixture[]>;
+  getFixtures(userId: string, organizationId?: number | null): Promise<Fixture[]>;
+  getInvoicesByUser(userId: string, organizationId?: number | null): Promise<any[]>;
   getAllFixtures(): Promise<Fixture[]>;
   getFixture(id: number): Promise<Fixture | undefined>;
   createFixture(data: InsertFixture): Promise<Fixture>;

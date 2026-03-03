@@ -52,7 +52,12 @@ import { alias } from "drizzle-orm/pg-core";
 import { emitToUser } from "../socket";
 
 export const marketMethods = {
-async getFixtures(userId: string): Promise<Fixture[]> {
+async getFixtures(userId: string, organizationId?: number | null): Promise<Fixture[]> {
+  if (organizationId) {
+    return db.select().from(fixtures)
+      .where(eq(fixtures.organizationId, organizationId))
+      .orderBy(desc(fixtures.createdAt));
+  }
   return db.select().from(fixtures)
     .where(eq(fixtures.userId, userId))
     .orderBy(desc(fixtures.createdAt));
@@ -155,15 +160,21 @@ async createInvoice(data: InsertInvoice): Promise<Invoice> {
   return row;
 },
 
-async getInvoicesByUser(userId: string): Promise<any[]> {
-  const rows = await db.execute(sql`
-    SELECT i.*, v.vessel_name, v.port_id, p2.name as port_name_ref
-    FROM invoices i
-    LEFT JOIN voyages v ON v.id = i.voyage_id
-    LEFT JOIN ports p2 ON p2.id = v.port_id
-    WHERE i.created_by_user_id = ${userId}
-    ORDER BY i.created_at DESC
-  `);
+async getInvoicesByUser(userId: string, organizationId?: number | null): Promise<any[]> {
+  const rows = await db.execute(organizationId
+    ? sql`SELECT i.*, v.vessel_name, v.port_id, p2.name as port_name_ref
+          FROM invoices i
+          LEFT JOIN voyages v ON v.id = i.voyage_id
+          LEFT JOIN ports p2 ON p2.id = v.port_id
+          WHERE i.organization_id = ${organizationId}
+          ORDER BY i.created_at DESC`
+    : sql`SELECT i.*, v.vessel_name, v.port_id, p2.name as port_name_ref
+          FROM invoices i
+          LEFT JOIN voyages v ON v.id = i.voyage_id
+          LEFT JOIN ports p2 ON p2.id = v.port_id
+          WHERE i.created_by_user_id = ${userId}
+          ORDER BY i.created_at DESC`
+  );
   const arr: any[] = rows.rows ?? (rows as any);
   return arr.map((r: any) => ({
     id: r.id,

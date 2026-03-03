@@ -52,11 +52,18 @@ import { alias } from "drizzle-orm/pg-core";
 import { emitToUser } from "../socket";
 
 export const vesselsMethods = {
-async getVesselsByUser(userId: string): Promise<Vessel[]> {
+async getVesselsByUser(userId: string, organizationId?: number | null): Promise<Vessel[]> {
+  if (organizationId) {
+    return db.select().from(vessels).where(eq(vessels.organizationId, organizationId)).orderBy(desc(vessels.createdAt));
+  }
   return db.select().from(vessels).where(eq(vessels.userId, userId));
 },
 
-async getVessel(id: number, userId: string): Promise<Vessel | undefined> {
+async getVessel(id: number, userId: string, organizationId?: number | null): Promise<Vessel | undefined> {
+  if (organizationId) {
+    const [vessel] = await db.select().from(vessels).where(and(eq(vessels.id, id), eq(vessels.organizationId, organizationId)));
+    return vessel;
+  }
   const [vessel] = await db.select().from(vessels).where(and(eq(vessels.id, id), eq(vessels.userId, userId)));
   return vessel;
 },

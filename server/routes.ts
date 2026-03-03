@@ -23,6 +23,8 @@ import { handleAiChat } from "./anthropic";
 import { getOrFetchRates, fetchTCMBRates } from "./exchange-rates";
 import { logAction, getClientIp } from "./audit";
 import { cache } from "./cache";
+import { attachOrgContext } from "./middleware/org-context";
+import { logOrgActivity } from "./utils/orgActivity";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "logos");
 if (!fs.existsSync(uploadsDir)) {
@@ -216,24 +218,29 @@ export async function registerRoutes(
     }
   }
 
-  app.get("/api/vessels", isAuthenticated, async (req: any, res) => {
+  app.get("/api/vessels", isAuthenticated, attachOrgContext, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       if (await isAdmin(req)) {
         const vessels = await storage.getAllVessels();
         return res.json(vessels);
       }
-      const vessels = await storage.getVesselsByUser(userId);
+      const vessels = await storage.getVesselsByUser(userId, req.organizationId);
       res.json(vessels);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch vessels" });
     }
   });
 
-  app.post("/api/vessels", isAuthenticated, validateBody(vesselBodySchema), async (req: any, res) => {
+  app.post("/api/vessels", isAuthenticated, attachOrgContext, validateBody(vesselBodySchema), async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const vessel = await storage.createVessel({ ...req.body, userId });
+      const vessel = await storage.createVessel({ ...req.body, userId, organizationId: req.organizationId ?? null });
+      if (req.organizationId) {
+        const { rows } = await pool.query("SELECT first_name, last_name FROM users WHERE id = $1", [userId]);
+        const name = `${rows[0]?.first_name || ""} ${rows[0]?.last_name || ""}`.trim() || "A user";
+        logOrgActivity({ organizationId: req.organizationId, userId, action: "created_vessel", entityType: "vessel", entityId: vessel.id, description: `${name} added vessel ${vessel.name}` });
+      }
       res.json(vessel);
     } catch (error) {
       res.status(500).json({ message: "Failed to create vessel" });
@@ -497,14 +504,14 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/proformas", isAuthenticated, async (req: any, res) => {
+  app.get("/api/proformas", isAuthenticated, attachOrgContext, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       if (await isAdmin(req)) {
         const allProformas = await storage.getAllProformas();
         return res.json(allProformas);
       }
-      const proformas = await storage.getProformasByUser(userId);
+      const proformas = await storage.getProformasByUser(userId, req.organizationId);
       res.json(proformas);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch proformas" });
@@ -819,7 +826,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/proformas", isAuthenticated, async (req: any, res) => {
+  app.post("/api/proformas", isAuthenticated, attachOrgContext, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
 
@@ -846,6 +853,7 @@ export async function registerRoutes(
       const exchangeRate = req.body.exchangeRate ? Number(req.body.exchangeRate) : 1.1593;
       const proforma = await storage.createProforma({
         userId,
+        organizationId: (req as any).organizationId ?? null,
         vesselId: Number(vesselId),
         portId: Number(portId),
         referenceNumber: req.body.referenceNumber || refNum,
@@ -866,6 +874,11 @@ export async function registerRoutes(
 
       await storage.incrementProformaCount(userId);
       logAction(userId, "create", "proforma", proforma.id, { referenceNumber: proforma.referenceNumber, portId: Number(portId), vesselId: Number(vesselId), totalUsd: Number(totalUsd) }, getClientIp(req));
+      if ((req as any).organizationId) {
+        const { rows: ur } = await pool.query("SELECT first_name, last_name FROM users WHERE id = $1", [userId]);
+        const uname = `${ur[0]?.first_name || ""} ${ur[0]?.last_name || ""}`.trim() || "A user";
+        logOrgActivity({ organizationId: (req as any).organizationId, userId, action: "created_proforma", entityType: "proforma", entityId: proforma.id, description: `${uname} created proforma ${proforma.referenceNumber}` });
+      }
 
       res.json(proforma);
     } catch (error) {
@@ -3435,25 +3448,30 @@ export async function registerRoutes(
 
   // ─── VOYAGES ──────────────────────────────────────────────────────────────────
 
-  app.get("/api/voyages", isAuthenticated, async (req: any, res) => {
+  app.get("/api/voyages", isAuthenticated, attachOrgContext, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const role = req.user?.activeRole || req.user?.userRole || "shipowner";
-      const voyageList = await storage.getVoyagesByUser(userId, role);
+      const voyageList = await storage.getVoyagesByUser(userId, role, req.organizationId);
       res.json(voyageList);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch voyages" });
     }
   });
 
-  app.post("/api/voyages", isAuthenticated, async (req: any, res) => {
+  app.post("/api/voyages", isAuthenticated, attachOrgContext, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
-      const data = { ...req.body, userId };
+      const data = { ...req.body, userId, organizationId: req.organizationId ?? null };
       if (data.eta) data.eta = new Date(data.eta);
       if (data.etd) data.etd = new Date(data.etd);
       const voyage = await storage.createVoyage(data);
       logAction(userId, "create", "voyage", voyage.id, { portId: voyage.portId, vesselName: voyage.vesselName, status: voyage.status }, getClientIp(req));
+      if (req.organizationId) {
+        const { rows } = await pool.query("SELECT first_name, last_name FROM users WHERE id = $1", [userId]);
+        const name = `${rows[0]?.first_name || ""} ${rows[0]?.last_name || ""}`.trim() || "A user";
+        logOrgActivity({ organizationId: req.organizationId, userId, action: "created_voyage", entityType: "voyage", entityId: voyage.id, description: `${name} created voyage for ${voyage.vesselName || "vessel"}` });
+      }
       res.json(voyage);
     } catch (error) {
       res.status(500).json({ message: "Failed to create voyage" });
@@ -4385,21 +4403,26 @@ export async function registerRoutes(
 
   // ─── FIXTURES ───────────────────────────────────────────────────────────────
 
-  app.get("/api/fixtures", isAuthenticated, async (req: any, res) => {
+  app.get("/api/fixtures", isAuthenticated, attachOrgContext, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const isAdmin = req.user.userRole === "admin" || req.user.activeRole === "admin";
-      const result = isAdmin ? await storage.getAllFixtures() : await storage.getFixtures(userId);
+      const result = isAdmin ? await storage.getAllFixtures() : await storage.getFixtures(userId, req.organizationId);
       res.json(result);
     } catch {
       res.status(500).json({ message: "Failed to fetch fixtures" });
     }
   });
 
-  app.post("/api/fixtures", isAuthenticated, async (req: any, res) => {
+  app.post("/api/fixtures", isAuthenticated, attachOrgContext, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const fixture = await storage.createFixture({ ...req.body, userId });
+      const fixture = await storage.createFixture({ ...req.body, userId, organizationId: req.organizationId ?? null });
+      if (req.organizationId) {
+        const { rows } = await pool.query("SELECT first_name, last_name FROM users WHERE id = $1", [userId]);
+        const name = `${rows[0]?.first_name || ""} ${rows[0]?.last_name || ""}`.trim() || "A user";
+        logOrgActivity({ organizationId: req.organizationId, userId, action: "created_fixture", entityType: "fixture", entityId: fixture.id, description: `${name} created fixture for ${fixture.vesselName}` });
+      }
       res.status(201).json(fixture);
     } catch {
       res.status(500).json({ message: "Failed to create fixture" });
@@ -4604,10 +4627,10 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/cargo-positions", isAuthenticated, async (req: any, res) => {
+  app.post("/api/cargo-positions", isAuthenticated, attachOrgContext, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
-      const pos = await storage.createCargoPosition({ ...req.body, userId });
+      const pos = await storage.createCargoPosition({ ...req.body, userId, organizationId: req.organizationId ?? null });
       res.status(201).json(pos);
 
       if (pos.positionType === "cargo") {
@@ -4989,17 +5012,17 @@ export async function registerRoutes(
 
   // ─── INVOICES ────────────────────────────────────────────────────────────────
 
-  app.get("/api/invoices", isAuthenticated, async (req: any, res) => {
+  app.get("/api/invoices", isAuthenticated, attachOrgContext, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
-      const items = await storage.getInvoicesByUser(userId);
+      const items = await storage.getInvoicesByUser(userId, req.organizationId);
       res.json(items);
     } catch {
       res.status(500).json({ message: "Failed to get invoices" });
     }
   });
 
-  app.post("/api/invoices", isAuthenticated, async (req: any, res) => {
+  app.post("/api/invoices", isAuthenticated, attachOrgContext, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { title, amount, currency, dueDate, notes, invoiceType, voyageId, proformaId, linkedProformaId } = req.body;
@@ -5007,6 +5030,7 @@ export async function registerRoutes(
 
       const invoice = await storage.createInvoice({
         createdByUserId: userId,
+        organizationId: req.organizationId ?? null,
         title,
         amount: parseFloat(amount),
         currency: currency || "USD",

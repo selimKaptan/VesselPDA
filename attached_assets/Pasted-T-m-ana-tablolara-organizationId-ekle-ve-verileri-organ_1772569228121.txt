@@ -1,0 +1,66 @@
+Tüm ana tablolara organizationId ekle ve verileri organizasyon bazlı izole et.
+
+ÖNEMLİ: Bu değişiklik geriye uyumlu olmalı. organizationId nullable olacak — bireysel kullanıcılar (organizasyona üye olmayanlar) mevcut sistemi kullanmaya devam edecek.
+
+Yapılacaklar:
+
+1. shared/schema.ts dosyasında şu tablolara organizationId (integer, FK organizations, nullable) kolonu ekle:
+- vessels
+- proformas
+- voyages
+- portTenders
+- tenderBids
+- serviceRequests
+- invoices
+- fixtures
+- cargoPositions
+- conversations
+- directNominations
+- vesselCertificates
+- vesselCrew
+- fleets
+
+2. server/middleware/org-context.ts oluştur:
+   - attachOrgContext middleware'i: Her request'te kullanıcının aktif organizasyonunu belirle
+   - req.organizationId olarak ekle
+   - Organizasyona üye değilse null olsun
+
+3. server/storage/ dosyalarındaki tüm sorguları güncelle:
+   - Eğer kullanıcının aktif organizasyonu varsa: WHERE organizationId = req.organizationId
+   - Eğer organizasyonu yoksa (bireysel): WHERE userId = req.userId (mevcut davranış)
+   - Yeni kayıt oluştururken: organizationId'yi otomatik ekle
+
+   Örnek:
+   async getVessels(userId, organizationId) {
+     if (organizationId) {
+       return db.select().from(vessels).where(eq(vessels.organizationId, organizationId));
+     }
+     return db.select().from(vessels).where(eq(vessels.userId, userId));
+   }
+
+4. Tüm ilgili route'larda org context'i kullan:
+   - Vessel oluşturma: organizationId otomatik eklensin
+   - Proforma listeleme: organizasyon üyeleri aynı proformaları görsün
+   - Voyage: organizasyon üyeleri aynı seferleri görsün
+   - Invoice: organizasyon üyeleri aynı faturaları görsün
+
+5. Veri erişim kuralları:
+   - Aynı organizasyondaki herkes verileri GÖREBILIR (view yetkisi varsa)
+   - OLUŞTURMA/DÜZENLEME/SİLME → rol bazlı yetki kontrolü (checkPermission)
+   - Farklı organizasyonların verileri KESİNLİKLE birbirinden izole
+
+6. organizationActivityFeed tablosu ekle:
+   - id (serial PK)
+   - organizationId (FK organizations)
+   - userId (FK users)
+   - action (text) — "created_vessel", "updated_proforma", "uploaded_document" vs.
+   - entityType (text)
+   - entityId (integer)
+   - description (text) — "Ahmet, MV BLUE STAR gemisine sertifika yükledi"
+   - createdAt (timestamp)
+
+7. Her CRUD işleminde organizationActivityFeed'e kayıt ekle:
+   - Kullanıcı adı + ne yaptığı + zaman
+   - Bu kayıtlar organizasyon dashboard'unda gösterilecek
+
+Migration'ın sorunsuz çalıştığından emin ol. Mevcut veriler organizationId=null olarak kalacak.

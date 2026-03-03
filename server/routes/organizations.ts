@@ -403,4 +403,22 @@ router.post("/switch/:id", isAuthenticated, async (req: any, res) => {
   }
 });
 
+// ── GET /api/organizations/:id/activity ── activity feed
+router.get("/:id/activity", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = getUserId(req);
+    const orgId = parseInt(req.params.id);
+    const isMember = await isOrgMember(orgId, userId);
+    const isOwner = await isOrgOwner(orgId, userId);
+    if (!isMember && !isOwner) return res.status(403).json({ message: "Not a member" });
+    const limit = Math.min(parseInt(req.query.limit as string || "50"), 100);
+    const { getOrgActivityFeed } = await import("../utils/orgActivity");
+    const feed = await getOrgActivityFeed(orgId, limit);
+    res.json(feed);
+  } catch (err) {
+    console.error("[org] activity feed error:", err);
+    res.status(500).json({ message: "Failed to fetch activity feed" });
+  }
+});
+
 export default router;

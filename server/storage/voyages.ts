@@ -62,39 +62,31 @@ async getVoyageByTenderId(tenderId: number): Promise<Voyage | undefined> {
   return row;
 },
 
-async getVoyagesByUser(userId: string, role: string): Promise<any[]> {
+async getVoyagesByUser(userId: string, role?: string, organizationId?: number | null): Promise<any[]> {
   let rows: any[];
   if (role === "admin") {
     rows = await db
-      .select({
-        voyage: voyages,
-        portName: ports.name,
-        portLat: ports.latitude,
-        portLng: ports.longitude,
-      })
+      .select({ voyage: voyages, portName: ports.name, portLat: ports.latitude, portLng: ports.longitude })
       .from(voyages)
       .leftJoin(ports, eq(voyages.portId, ports.id))
       .orderBy(desc(voyages.createdAt));
+  } else if (organizationId) {
+    rows = await db
+      .select({ voyage: voyages, portName: ports.name, portLat: ports.latitude, portLng: ports.longitude })
+      .from(voyages)
+      .leftJoin(ports, eq(voyages.portId, ports.id))
+      .where(eq(voyages.organizationId, organizationId))
+      .orderBy(desc(voyages.createdAt));
   } else if (role === "agent") {
     rows = await db
-      .select({
-        voyage: voyages,
-        portName: ports.name,
-        portLat: ports.latitude,
-        portLng: ports.longitude,
-      })
+      .select({ voyage: voyages, portName: ports.name, portLat: ports.latitude, portLng: ports.longitude })
       .from(voyages)
       .leftJoin(ports, eq(voyages.portId, ports.id))
       .where(eq(voyages.agentUserId, userId))
       .orderBy(desc(voyages.createdAt));
   } else {
     rows = await db
-      .select({
-        voyage: voyages,
-        portName: ports.name,
-        portLat: ports.latitude,
-        portLng: ports.longitude,
-      })
+      .select({ voyage: voyages, portName: ports.name, portLat: ports.latitude, portLng: ports.longitude })
       .from(voyages)
       .leftJoin(ports, eq(voyages.portId, ports.id))
       .where(eq(voyages.userId, userId))

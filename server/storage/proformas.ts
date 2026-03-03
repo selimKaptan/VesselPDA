@@ -52,7 +52,12 @@ import { alias } from "drizzle-orm/pg-core";
 import { emitToUser } from "../socket";
 
 export const proformasMethods = {
-async getProformasByUser(userId: string): Promise<Proforma[]> {
+async getProformasByUser(userId: string, organizationId?: number | null): Promise<Proforma[]> {
+  if (organizationId) {
+    return db.select().from(proformas)
+      .where(eq(proformas.organizationId, organizationId))
+      .orderBy(desc(proformas.createdAt));
+  }
   return db.select().from(proformas)
     .where(eq(proformas.userId, userId))
     .orderBy(desc(proformas.createdAt));
