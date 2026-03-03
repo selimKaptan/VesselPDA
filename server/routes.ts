@@ -17,6 +17,7 @@ import { sql as drizzleSql } from "drizzle-orm";
 import { handleAiChat } from "./anthropic";
 import { getOrFetchRates, fetchTCMBRates } from "./exchange-rates";
 import { logAction, getClientIp } from "./audit";
+import { cache } from "./cache";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "logos");
 if (!fs.existsSync(uploadsDir)) {
@@ -164,15 +165,14 @@ export async function registerRoutes(
       const q = req.query.q as string | undefined;
       const country = req.query.country as string | undefined;
       if (q && q.trim().length > 0) {
-        const results = await storage.searchPorts(q.trim(), country);
-        return res.json(results);
+        return res.json(await storage.searchPorts(q.trim(), country));
       }
-      if (country) {
-        const results = await storage.getPorts(undefined, country);
-        return res.json(results);
-      }
-      const portList = await storage.getPorts(100);
-      res.json(portList);
+      const cacheKey = country ? `ports:country:${country}` : "ports:top100";
+      const cached = cache.get(cacheKey);
+      if (cached) return res.json(cached);
+      const results = country ? await storage.getPorts(undefined, country) : await storage.getPorts(100);
+      cache.set(cacheKey, results, 3600);
+      res.json(results);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch ports" });
     }
@@ -294,8 +294,11 @@ export async function registerRoutes(
   });
 
   app.get("/api/exchange-rates", async (_req, res) => {
+    const cached = cache.get("exchange-rates");
+    if (cached) return res.json(cached);
     try {
       const rates = await getOrFetchRates();
+      cache.set("exchange-rates", rates, 30 * 60);
       res.json(rates);
     } catch (error: any) {
       console.error("Exchange rate fetch error:", error.message);
@@ -307,6 +310,7 @@ export async function registerRoutes(
     try {
       if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
       const rates = await fetchTCMBRates();
+      cache.invalidate("exchange-rates");
       res.json({ success: true, rates });
     } catch (error: any) {
       console.error("Exchange rate refresh error:", error.message);
@@ -946,6 +950,8 @@ export async function registerRoutes(
           link: "/admin",
         });
       }
+      cache.invalidatePrefix("directory:");
+      cache.invalidate("service-ports");
       res.json(profile);
     } catch (error) {
       res.status(500).json({ message: "Failed to create company profile" });
@@ -971,6 +977,8 @@ export async function registerRoutes(
       if (serviceTypes !== undefined) safeData.serviceTypes = serviceTypes;
       const updated = await storage.updateCompanyProfile(id, userId, safeData);
       if (!updated) return res.status(404).json({ message: "Profile not found" });
+      cache.invalidatePrefix("directory:");
+      cache.invalidate("service-ports");
       res.json(updated);
     } catch (error) {
       res.status(500).json({ message: "Failed to update company profile" });
@@ -1874,6 +1882,8 @@ export async function registerRoutes(
   });
 
   app.get("/api/service-ports", async (req, res) => {
+    const cached = cache.get("service-ports");
+    if (cached) return res.json(cached);
     try {
       const profiles = await storage.getPublicCompanyProfiles();
       const allPorts = await storage.getPorts();
@@ -1908,6 +1918,7 @@ export async function registerRoutes(
         .filter(entry => entry.companies.length > 0)
         .sort((a, b) => b.companies.length - a.companies.length);
 
+      cache.set("service-ports", result, 30 * 60);
       res.json(result);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch service ports" });
@@ -1918,9 +1929,13 @@ export async function registerRoutes(
     try {
       const companyType = req.query.type as string | undefined;
       const portId = req.query.portId ? parseInt(req.query.portId as string) : undefined;
+      const cacheKey = `directory:${companyType ?? "all"}:${portId ?? "all"}`;
+      const cached = cache.get(cacheKey);
+      if (cached) return res.json(cached);
       const profiles = await storage.getPublicCompanyProfiles({ companyType, portId });
       // Attach avgRating and reviewCount for agent profiles
       const agentProfiles = profiles.filter(p => p.companyType === "agent");
+      let result: any[];
       if (agentProfiles.length > 0) {
         const reviewsMap = new Map<number, { sum: number; count: number }>();
         await Promise.all(agentProfiles.map(async (p) => {
@@ -1930,16 +1945,17 @@ export async function registerRoutes(
             reviewsMap.set(p.id, { sum, count: reviews.length });
           }
         }));
-        const enriched = profiles.map(p => {
+        result = profiles.map(p => {
           const rating = reviewsMap.get(p.id);
           return rating
             ? { ...p, avgRating: Math.round((rating.sum / rating.count) * 10) / 10, reviewCount: rating.count }
             : { ...p, avgRating: null, reviewCount: 0 };
         });
-        res.json(enriched);
       } else {
-        res.json(profiles.map(p => ({ ...p, avgRating: null, reviewCount: 0 })));
+        result = profiles.map(p => ({ ...p, avgRating: null, reviewCount: 0 }));
       }
+      cache.set(cacheKey, result, 10 * 60);
+      res.json(result);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch directory" });
     }
@@ -2031,17 +2047,21 @@ export async function registerRoutes(
   });
 
   app.get("/api/stats", async (_req, res) => {
+    const cached = cache.get("stats");
+    if (cached) return res.json(cached);
     try {
       const [users, proformas, companies] = await Promise.all([
         storage.getAllUsers(),
         storage.getAllProformas(),
         storage.getAllCompanyProfiles(),
       ]);
-      res.json({
+      const data = {
         userCount: users.length,
         proformaCount: proformas.length,
         companyCount: companies.length,
-      });
+      };
+      cache.set("stats", data, 5 * 60);
+      res.json(data);
     } catch {
       res.json({ userCount: 0, proformaCount: 0, companyCount: 0 });
     }
@@ -2142,8 +2162,11 @@ export async function registerRoutes(
   });
 
   app.get("/api/forum/categories", async (_req, res) => {
+    const cached = cache.get("forum:categories");
+    if (cached) return res.json(cached);
     try {
       const categories = await storage.getForumCategories();
+      cache.set("forum:categories", categories, 3600);
       res.json(categories);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch forum categories" });
@@ -4364,12 +4387,16 @@ export async function registerRoutes(
   }
 
   app.get("/api/market/freight-indices", isAuthenticated, async (_req, res) => {
+    const simpleCached = cache.get("market:freight-indices");
+    if (simpleCached) return res.json(simpleCached);
     try {
       const now = Date.now();
       const cacheValid = freightIndexCache && (now - freightIndexCache.fetchedAt) < FREIGHT_CACHE_TTL;
 
       if (cacheValid) {
-        return res.json({ ...freightIndexCache!.data, cached: true });
+        const data = { ...freightIndexCache!.data, cached: true };
+        cache.set("market:freight-indices", data, 15 * 60);
+        return res.json(data);
       }
 
       const fresh = await fetchFreightIndices();
@@ -4383,7 +4410,7 @@ export async function registerRoutes(
       };
 
       if (fresh) freightIndexCache = { data, fetchedAt: now };
-
+      cache.set("market:freight-indices", data, 15 * 60);
       res.json(data);
     } catch {
       res.json({ indices: FREIGHT_FALLBACK, lastUpdated: new Date().toISOString(), source: "Fallback", cached: false, hasApiKey: false });
@@ -4393,8 +4420,11 @@ export async function registerRoutes(
   // ─── BUNKER PRICES ───────────────────────────────────────────────────────────
 
   app.get("/api/market/bunker-prices", isAuthenticated, async (_req, res) => {
+    const cached = cache.get("market:bunker-prices");
+    if (cached) return res.json(cached);
     try {
       const prices = await storage.getBunkerPrices();
+      cache.set("market:bunker-prices", prices, 15 * 60);
       res.json(prices);
     } catch {
       res.status(500).json({ message: "Failed to fetch bunker prices" });
@@ -4407,6 +4437,7 @@ export async function registerRoutes(
       const user = await storage.getUser(userId);
       if (user?.userRole !== "admin") return res.status(403).json({ message: "Admin only" });
       const price = await storage.upsertBunkerPrice({ ...req.body, updatedBy: userId });
+      cache.invalidate("market:bunker-prices");
       res.status(201).json(price);
     } catch {
       res.status(500).json({ message: "Failed to save bunker price" });
@@ -4420,6 +4451,7 @@ export async function registerRoutes(
       if (user?.userRole !== "admin") return res.status(403).json({ message: "Admin only" });
       const id = parseInt(req.params.id);
       const price = await storage.upsertBunkerPrice({ ...req.body, updatedBy: userId });
+      cache.invalidate("market:bunker-prices");
       res.json(price);
     } catch {
       res.status(500).json({ message: "Failed to update bunker price" });
@@ -4433,6 +4465,7 @@ export async function registerRoutes(
       if (user?.userRole !== "admin") return res.status(403).json({ message: "Admin only" });
       const id = parseInt(req.params.id);
       await storage.deleteBunkerPrice(id);
+      cache.invalidate("market:bunker-prices");
       res.json({ success: true });
     } catch {
       res.status(500).json({ message: "Failed to delete bunker price" });

@@ -8,6 +8,7 @@ import { storage } from "../storage";
 import { db, pool } from "../db";
 import { sql as drizzleSql } from "drizzle-orm";
 import { logAction, getClientIp } from "../audit";
+import { cache } from "../cache";
 
 async function isAdmin(req: any): Promise<boolean> {
   const userId = req.user?.claims?.sub;
@@ -1188,6 +1189,25 @@ router.get("/admin/audit-logs", isAuthenticated, async (req: any, res) => {
   } catch (error) {
     console.error("Audit log fetch error:", error);
     res.status(500).json({ message: "Failed to fetch audit logs" });
+  }
+});
+
+router.get("/admin/cache-stats", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    res.json(cache.stats());
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch cache stats" });
+  }
+});
+
+router.post("/admin/cache-clear", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    cache.clear();
+    res.json({ success: true, message: "Cache cleared successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to clear cache" });
   }
 });
 
