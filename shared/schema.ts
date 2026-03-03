@@ -22,7 +22,9 @@ export const vessels = pgTable("vessels", {
   callSign: text("call_sign"),
   fleetStatus: text("fleet_status").default("idle"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  userIdIdx: index("vessels_user_id_idx").on(t.userId),
+}));
 
 export const vesselRelations = relations(vessels, ({ one }) => ({
   user: one(users, { fields: [vessels.userId], references: [users.id] }),
@@ -90,7 +92,11 @@ export const proformas = pgTable("proformas", {
   bankDetails: jsonb("bank_details").$type<BankDetails>(),
   status: text("status").notNull().default("draft"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  userIdIdx: index("proformas_user_id_idx").on(t.userId),
+  portIdIdx: index("proformas_port_id_idx").on(t.portId),
+  statusIdx: index("proformas_status_idx").on(t.status),
+}));
 
 export const proformaRelations = relations(proformas, ({ one }) => ({
   user: one(users, { fields: [proformas.userId], references: [users.id] }),
@@ -140,7 +146,9 @@ export const forumTopics = pgTable("forum_topics", {
   isLocked: boolean("is_locked").notNull().default(false),
   lastActivityAt: timestamp("last_activity_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  categoryActivityIdx: index("forum_topics_category_activity_idx").on(t.categoryId, t.lastActivityAt),
+}));
 
 export const forumTopicRelations = relations(forumTopics, ({ one, many }) => ({
   category: one(forumCategories, { fields: [forumTopics.categoryId], references: [forumCategories.id] }),
@@ -231,7 +239,9 @@ export const portTenders = pgTable("port_tenders", {
   nominatedAgentId: varchar("nominated_agent_id"),
   nominatedAt: timestamp("nominated_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  statusCreatedIdx: index("port_tenders_status_created_idx").on(t.status, t.createdAt),
+}));
 
 export const tenderBids = pgTable("tender_bids", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -244,7 +254,9 @@ export const tenderBids = pgTable("tender_bids", {
   currency: text("currency").notNull().default("USD"),
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  tenderAgentIdx: index("tender_bids_tender_agent_idx").on(t.tenderId, t.agentUserId),
+}));
 
 export const portTenderRelations = relations(portTenders, ({ one, many }) => ({
   user: one(users, { fields: [portTenders.userId], references: [users.id] }),
@@ -335,7 +347,10 @@ export const notifications = pgTable("notifications", {
   link: text("link"),
   isRead: boolean("is_read").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  userIsReadIdx: index("notifications_user_is_read_idx").on(t.userId, t.isRead),
+  createdAtIdx: index("notifications_created_at_idx").on(t.createdAt),
+}));
 
 export const notificationRelations = relations(notifications, ({ one }) => ({
   user: one(users, { fields: [notifications.userId], references: [users.id] }),
@@ -367,7 +382,12 @@ export const voyages = pgTable("voyages", {
   purposeOfCall: text("purpose_of_call").notNull().default("Loading"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  userIdIdx: index("voyages_user_id_idx").on(t.userId),
+  portIdIdx: index("voyages_port_id_idx").on(t.portId),
+  statusIdx: index("voyages_status_idx").on(t.status),
+  etaIdx: index("voyages_eta_idx").on(t.eta),
+}));
 
 export const voyageRelations = relations(voyages, ({ one, many }) => ({
   user: one(users, { fields: [voyages.userId], references: [users.id] }),
@@ -408,7 +428,9 @@ export const serviceRequests = pgTable("service_requests", {
   preferredDate: timestamp("preferred_date"),
   status: text("status").notNull().default("open"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  statusPortIdx: index("service_requests_status_port_idx").on(t.status, t.portId),
+}));
 
 export const serviceRequestRelations = relations(serviceRequests, ({ one, many }) => ({
   requester: one(users, { fields: [serviceRequests.requesterId], references: [users.id] }),
@@ -508,7 +530,10 @@ export const conversations = pgTable("conversations", {
   externalEmail: text("external_email"),
   externalEmailName: text("external_email_name"),
   externalEmailForward: boolean("external_email_forward").notNull().default(false),
-});
+}, (t) => ({
+  user1Idx: index("conversations_user1_idx").on(t.user1Id),
+  user2Idx: index("conversations_user2_idx").on(t.user2Id),
+}));
 
 export const conversationRelations = relations(conversations, ({ one, many }) => ({
   user1: one(users, { fields: [conversations.user1Id], references: [users.id] }),
@@ -529,7 +554,9 @@ export const messages = pgTable("messages", {
   fileSize: integer("file_size"),
   readAt: timestamp("read_at"),
   mentions: text("mentions"),
-});
+}, (t) => ({
+  convCreatedIdx: index("messages_conversation_created_idx").on(t.conversationId, t.createdAt),
+}));
 
 export const messageRelations = relations(messages, ({ one }) => ({
   conversation: one(conversations, { fields: [messages.conversationId], references: [conversations.id] }),
@@ -817,7 +844,9 @@ export const invoices = pgTable("invoices", {
   invoiceType: text("invoice_type").notNull().default("invoice"),
   linkedProformaId: integer("linked_proforma_id"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (t) => ({
+  creatorStatusIdx: index("invoices_creator_status_idx").on(t.createdByUserId, t.status),
+}));
 
 export const invoiceRelations = relations(invoices, ({ one }) => ({
   voyage: one(voyages, { fields: [invoices.voyageId], references: [voyages.id] }),
@@ -929,7 +958,9 @@ export const sanctionsChecks = pgTable("sanctions_checks", {
   matchDetails: jsonb("match_details"),
   source: text("source").notNull().default("ofac"),
   checkedAt: timestamp("checked_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  userCheckedIdx: index("sanctions_checks_user_checked_idx").on(t.userId, t.checkedAt),
+}));
 
 export const sanctionsChecksRelations = relations(sanctionsChecks, ({ one }) => ({
   user: one(users, { fields: [sanctionsChecks.userId], references: [users.id] }),
