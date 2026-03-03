@@ -108,7 +108,7 @@ const loadActivePortIds = (): number[] => {
     const stored = localStorage.getItem("tariff_active_ports");
     if (stored) {
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch {}
   return DEFAULT_PORT_IDS;
@@ -1594,7 +1594,7 @@ export default function TariffManagement() {
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   const [activePorts, setActivePorts] = useState<number[]>(() => loadActivePortIds());
-  const [activePort, setActivePort] = useState<number | "global">(() => loadActivePortIds()[0] ?? 2);
+  const [activePort, setActivePort] = useState<number | "global">(() => loadActivePortIds()[0] ?? "global");
   const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
 
   const [addPortOpen, setAddPortOpen] = useState(false);
