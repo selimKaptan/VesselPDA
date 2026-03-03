@@ -7,7 +7,8 @@ import {
   Sparkles, HelpCircle, Clock, PlayCircle, XCircle, ClipboardList,
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, UserPlus, Building2,
-  Shield, Check, X as XIcon, Edit2
+  Shield, Check, X as XIcon, Edit2, Route, Package, ChevronRight as ChevronRightIcon,
+  ArrowRight, Navigation, MoreVertical, RefreshCw
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { VoyageTimeline } from "@/components/voyage-timeline";
@@ -21,7 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
@@ -59,9 +60,32 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
 };
 
+const PC_STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
+  planned:     { label: "Planned",    color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",      icon: Clock },
+  approaching: { label: "Approaching",color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",      icon: Navigation },
+  at_anchor:   { label: "At Anchor",  color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400", icon: Anchor },
+  berthed:     { label: "Berthed",    color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400", icon: MapPin },
+  operations:  { label: "Operations", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",  icon: PlayCircle },
+  completed:   { label: "Completed",  color: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400",         icon: CheckCircle2 },
+  skipped:     { label: "Skipped",    color: "bg-red-100 text-red-500 dark:bg-red-900/30 dark:text-red-400",          icon: XCircle },
+};
+
+const PC_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
+  loading:     { label: "Loading",     color: "text-green-600 bg-green-50 dark:bg-green-900/20" },
+  discharging: { label: "Discharging", color: "text-orange-600 bg-orange-50 dark:bg-orange-900/20" },
+  bunkering:   { label: "Bunkering",   color: "text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20" },
+  transit:     { label: "Transit",     color: "text-blue-600 bg-blue-50 dark:bg-blue-900/20" },
+  repair:      { label: "Repair",      color: "text-red-600 bg-red-50 dark:bg-red-900/20" },
+  crew_change: { label: "Crew Change", color: "text-purple-600 bg-purple-50 dark:bg-purple-900/20" },
+  other:       { label: "Other",       color: "text-gray-600 bg-gray-50 dark:bg-gray-800" },
+};
+
+const PC_STATUS_ORDER = ["planned","approaching","at_anchor","berthed","operations","completed","skipped"] as const;
+
 function PortSearch({ value, onChange }: { value: string; onChange: (portId: number, portName: string) => void }) {
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
+  const closeTimeout = useState<ReturnType<typeof setTimeout> | null>(null);
   const { data: ports } = useQuery<Port[]>({
     queryKey: ["/api/ports", query],
     queryFn: async () => {
@@ -71,14 +95,43 @@ function PortSearch({ value, onChange }: { value: string; onChange: (portId: num
     },
     enabled: query.length >= 2,
   });
+  const selectPort = (id: number, name: string) => {
+    onChange(id, name);
+    setQuery(name);
+    setOpen(false);
+  };
   return (
     <div className="relative">
-      <Input value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }} placeholder="Liman ara..." onFocus={() => setOpen(true)} />
+      <Input
+        value={query}
+        onChange={e => { setQuery(e.target.value); setOpen(true); }}
+        placeholder="Search port..."
+        onFocus={() => setOpen(true)}
+        onBlur={() => { closeTimeout[1](setTimeout(() => setOpen(false), 200)); }}
+        onKeyDown={e => {
+          if (e.key === "Enter" && ports && ports.length > 0 && open) {
+            e.preventDefault();
+            selectPort(ports[0].id, ports[0].name);
+          }
+          if (e.key === "Escape") setOpen(false);
+        }}
+        data-testid="input-port-search"
+      />
       {open && ports && ports.length > 0 && (
-        <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
-          {ports.map(p => (
-            <button key={p.id} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors" onMouseDown={() => { onChange(p.id, p.name); setQuery(p.name); setOpen(false); }}>
-              <span className="font-medium">{p.name}</span>{p.code && <span className="ml-2 text-xs text-muted-foreground">{p.code}</span>}
+        <div className="absolute z-[200] top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto" role="listbox">
+          {ports.map((p, idx) => (
+            <button
+              key={p.id}
+              type="button"
+              role="option"
+              aria-selected={false}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+              data-testid={`port-search-option-${idx}`}
+              onMouseDown={e => { e.preventDefault(); selectPort(p.id, p.name); }}
+              onClick={() => selectPort(p.id, p.name)}
+            >
+              <span className="font-medium">{p.name}</span>
+              {p.code && <span className="ml-2 text-xs text-muted-foreground">{p.code}</span>}
             </button>
           ))}
         </div>
@@ -120,7 +173,14 @@ export default function VoyageDetail() {
   const [newTask, setNewTask] = useState("");
   const [chatMessage, setChatMessage] = useState("");
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "timeline" | "collaborators">("operation");
+  const [activeTab, setActiveTab] = useState<"route" | "operation" | "documents" | "comms" | "timeline" | "collaborators">("route");
+  const [showAddPortCallDialog, setShowAddPortCallDialog] = useState(false);
+  const [editingPortCall, setEditingPortCall] = useState<any | null>(null);
+  const [pcForm, setPcForm] = useState({
+    portId: 0, portName: "", portCallType: "discharging", status: "planned",
+    eta: "", etd: "", berthName: "", terminalName: "",
+    cargoType: "", cargoQuantity: "", cargoUnit: "MT", notes: "",
+  });
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [inviteSearch, setInviteSearch] = useState("");
   const [inviteTargetType, setInviteTargetType] = useState<"org" | "user">("org");
@@ -222,6 +282,16 @@ export default function VoyageDetail() {
     queryKey: ["/api/voyages", voyageId, "collaborators"],
     queryFn: async () => {
       const res = await fetch(`/api/voyages/${voyageId}/collaborators`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!voyageId,
+  });
+
+  const { data: portCalls = [], refetch: refetchPortCalls } = useQuery<any[]>({
+    queryKey: ["/api/voyages", voyageId, "port-calls"],
+    queryFn: async () => {
+      const res = await fetch(`/api/voyages/${voyageId}/port-calls`);
       if (!res.ok) return [];
       return res.json();
     },
@@ -500,6 +570,108 @@ export default function VoyageDetail() {
     onError: () => toast({ title: "Mesaj gönderilemedi", variant: "destructive" }),
   });
 
+  const addPortCallMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", `/api/voyages/${voyageId}/port-calls`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "port-calls"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages"] });
+      toast({ title: "Port call added" });
+      setShowAddPortCallDialog(false);
+      setEditingPortCall(null);
+      setPcForm({ portId: 0, portName: "", portCallType: "discharging", status: "planned", eta: "", etd: "", berthName: "", terminalName: "", cargoType: "", cargoQuantity: "", cargoUnit: "MT", notes: "" });
+    },
+    onError: () => toast({ title: "Failed to add port call", variant: "destructive" }),
+  });
+
+  const updatePortCallMutation = useMutation({
+    mutationFn: async ({ pcId, data }: { pcId: number; data: any }) => {
+      const res = await apiRequest("PATCH", `/api/voyages/${voyageId}/port-calls/${pcId}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "port-calls"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages"] });
+      toast({ title: "Port call updated" });
+      setShowAddPortCallDialog(false);
+      setEditingPortCall(null);
+    },
+    onError: () => toast({ title: "Failed to update port call", variant: "destructive" }),
+  });
+
+  const updatePcStatusMutation = useMutation({
+    mutationFn: async ({ pcId, status }: { pcId: number; status: string }) => {
+      const res = await apiRequest("PATCH", `/api/voyages/${voyageId}/port-calls/${pcId}/status`, { status });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "port-calls"] });
+      toast({ title: "Port call status updated" });
+    },
+    onError: () => toast({ title: "Failed to update status", variant: "destructive" }),
+  });
+
+  const deletePortCallMutation = useMutation({
+    mutationFn: async (pcId: number) => {
+      await apiRequest("DELETE", `/api/voyages/${voyageId}/port-calls/${pcId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "port-calls"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages"] });
+      toast({ title: "Port call removed" });
+    },
+    onError: () => toast({ title: "Failed to delete port call", variant: "destructive" }),
+  });
+
+  function openAddPortCall() {
+    setEditingPortCall(null);
+    setPcForm({ portId: 0, portName: "", portCallType: "discharging", status: "planned", eta: "", etd: "", berthName: "", terminalName: "", cargoType: "", cargoQuantity: "", cargoUnit: "MT", notes: "" });
+    setShowAddPortCallDialog(true);
+  }
+
+  function openEditPortCall(pc: any) {
+    setEditingPortCall(pc);
+    setPcForm({
+      portId: pc.port_id,
+      portName: pc.port_name || "",
+      portCallType: pc.port_call_type || "discharging",
+      status: pc.status || "planned",
+      eta: pc.eta ? new Date(pc.eta).toISOString().slice(0, 16) : "",
+      etd: pc.etd ? new Date(pc.etd).toISOString().slice(0, 16) : "",
+      berthName: pc.berth_name || "",
+      terminalName: pc.terminal_name || "",
+      cargoType: pc.cargo_type || "",
+      cargoQuantity: pc.cargo_quantity ? String(pc.cargo_quantity) : "",
+      cargoUnit: pc.cargo_unit || "MT",
+      notes: pc.notes || "",
+    });
+    setShowAddPortCallDialog(true);
+  }
+
+  function submitPortCallForm() {
+    const payload: any = {
+      portId: pcForm.portId,
+      portCallType: pcForm.portCallType,
+      status: pcForm.status,
+      berthName: pcForm.berthName || null,
+      terminalName: pcForm.terminalName || null,
+      cargoType: pcForm.cargoType || null,
+      cargoQuantity: pcForm.cargoQuantity ? parseFloat(pcForm.cargoQuantity) : null,
+      cargoUnit: pcForm.cargoUnit,
+      notes: pcForm.notes || null,
+    };
+    if (pcForm.eta) payload.eta = pcForm.eta;
+    if (pcForm.etd) payload.etd = pcForm.etd;
+
+    if (editingPortCall) {
+      updatePortCallMutation.mutate({ pcId: editingPortCall.id, data: payload });
+    } else {
+      addPortCallMutation.mutate(payload);
+    }
+  }
+
   function handleChatKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter" && !e.shiftKey && chatMessage.trim()) {
       e.preventDefault();
@@ -687,6 +859,7 @@ export default function VoyageDetail() {
       {/* Tab Bar */}
       <div className="flex gap-1 bg-muted/40 p-1 rounded-xl overflow-x-auto">
         {([
+          { key: "route",         label: "Route",          icon: Route },
           { key: "operation",     label: "Operation",      icon: ClipboardList },
           { key: "documents",     label: "Documents",      icon: FolderOpen },
           { key: "comms",         label: "Comms",          icon: MessageCircle },
@@ -704,6 +877,11 @@ export default function VoyageDetail() {
             data-testid={`tab-${key}`}
           >
             <Icon className="w-4 h-4" /> {label}
+            {key === "route" && portCalls.length > 0 && (
+              <span className="ml-1 text-[10px] bg-[hsl(var(--maritime-primary)/0.15)] text-[hsl(var(--maritime-primary))] px-1.5 py-0.5 rounded-full font-semibold">
+                {portCalls.length}
+              </span>
+            )}
             {key === "comms" && chatMessages.length > 0 && (
               <span className="ml-1 text-[10px] bg-[hsl(var(--maritime-primary)/0.15)] text-[hsl(var(--maritime-primary))] px-1.5 py-0.5 rounded-full font-semibold">
                 {chatMessages.length}
@@ -717,6 +895,173 @@ export default function VoyageDetail() {
           </button>
         ))}
       </div>
+
+      {/* ── Tab: Route ─────────────────────────────────────────── */}
+      {activeTab === "route" && (
+        <div className="space-y-4">
+          {/* Route Breadcrumb */}
+          {portCalls.length > 0 && (
+            <Card className="p-4">
+              <div className="flex items-center gap-2 flex-wrap">
+                {portCalls.map((pc: any, idx: number) => {
+                  const scfg = PC_STATUS_CONFIG[pc.status] || PC_STATUS_CONFIG.planned;
+                  const SIcon = scfg.icon;
+                  return (
+                    <div key={pc.id} className="flex items-center gap-2">
+                      {idx > 0 && <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
+                      <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium ${
+                        pc.status === "operations" || pc.status === "berthed"
+                          ? "border-green-300 bg-green-50 dark:bg-green-900/20"
+                          : pc.status === "completed"
+                          ? "border-gray-300 bg-gray-50 dark:bg-gray-800/50"
+                          : "border-border bg-background"
+                      }`}>
+                        <SIcon className={`w-3.5 h-3.5 ${
+                          pc.status === "operations" ? "text-green-600" :
+                          pc.status === "completed" ? "text-gray-400" : "text-muted-foreground"
+                        }`} />
+                        <span>{pc.port_name || `Port #${pc.port_id}`}</span>
+                        <span className={`text-[9px] px-1 rounded ${
+                          PC_TYPE_CONFIG[pc.port_call_type]?.color || "text-gray-500 bg-gray-50"
+                        }`}>
+                          {PC_TYPE_CONFIG[pc.port_call_type]?.label || pc.port_call_type}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+
+          {/* Port Call List */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Route className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              <h2 className="font-semibold text-sm">Port Calls</h2>
+              {portCalls.length > 0 && (
+                <Badge variant="secondary" className="text-[10px]">{portCalls.length} stop{portCalls.length !== 1 ? "s" : ""}</Badge>
+              )}
+            </div>
+            <Button size="sm" onClick={openAddPortCall} className="gap-1.5 h-8 text-xs" data-testid="button-add-port-call">
+              <Plus className="w-3.5 h-3.5" /> Add Port Call
+            </Button>
+          </div>
+
+          {portCalls.length === 0 ? (
+            <Card className="p-10 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-[hsl(var(--maritime-primary)/0.08)] flex items-center justify-center mx-auto mb-4">
+                <Anchor className="w-7 h-7 text-[hsl(var(--maritime-primary)/0.4)]" />
+              </div>
+              <p className="text-sm font-semibold text-muted-foreground mb-1">No port calls yet</p>
+              <p className="text-xs text-muted-foreground/70 mb-4">Add port calls to build the voyage route</p>
+              <Button size="sm" onClick={openAddPortCall} className="gap-1.5">
+                <Plus className="w-3.5 h-3.5" /> Add First Port Call
+              </Button>
+            </Card>
+          ) : (
+            <div className="relative">
+              {/* Vertical connector line */}
+              <div className="absolute left-[22px] top-8 bottom-8 w-0.5 bg-border z-0" />
+
+              <div className="space-y-3">
+                {portCalls.map((pc: any, idx: number) => {
+                  const scfg = PC_STATUS_CONFIG[pc.status] || PC_STATUS_CONFIG.planned;
+                  const SIcon = scfg.icon;
+                  const tcfg = PC_TYPE_CONFIG[pc.port_call_type] || PC_TYPE_CONFIG.other;
+                  const isActive = pc.status === "operations" || pc.status === "berthed";
+                  return (
+                    <Card key={pc.id} className={`relative z-10 p-4 ${isActive ? "border-green-300 dark:border-green-700 shadow-sm" : ""}`} data-testid={`card-port-call-${pc.id}`}>
+                      <div className="flex items-start gap-3">
+                        {/* Step indicator */}
+                        <div className={`w-11 h-11 rounded-full flex flex-col items-center justify-center flex-shrink-0 border-2 ${
+                          isActive ? "border-green-400 bg-green-50 dark:bg-green-900/20" :
+                          pc.status === "completed" ? "border-gray-300 bg-gray-50 dark:bg-gray-800" :
+                          "border-[hsl(var(--maritime-primary)/0.3)] bg-[hsl(var(--maritime-primary)/0.05)]"
+                        }`}>
+                          <span className="text-[10px] font-bold text-muted-foreground">{String(idx + 1).padStart(2, "0")}</span>
+                          <SIcon className={`w-3 h-3 ${isActive ? "text-green-600" : pc.status === "completed" ? "text-gray-400" : "text-[hsl(var(--maritime-primary))]"}`} />
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-semibold text-sm">{pc.port_name || `Port #${pc.port_id}`}</span>
+                                {pc.port_locode && <span className="text-[10px] font-mono text-muted-foreground">{pc.port_locode}</span>}
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${tcfg.color}`}>{tcfg.label}</span>
+                                {isActive && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 font-semibold animate-pulse">● CURRENT</span>}
+                              </div>
+                              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                                {pc.eta && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />ETA: {new Date(pc.eta).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>}
+                                {pc.etd && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />ETD: {new Date(pc.etd).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>}
+                                {pc.berth_name && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{pc.berth_name}</span>}
+                                {pc.cargo_quantity && <span className="flex items-center gap-1"><Package className="w-3 h-3" />{pc.cargo_quantity.toLocaleString()} {pc.cargo_unit}</span>}
+                              </div>
+                              {pc.notes && <p className="text-xs text-muted-foreground mt-1 italic">{pc.notes}</p>}
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs gap-1" data-testid={`button-pc-status-${pc.id}`}>
+                                    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${scfg.color}`}>
+                                      <SIcon className="w-3 h-3" />{scfg.label}
+                                    </span>
+                                    <ChevronDown className="w-3 h-3" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-44">
+                                  {PC_STATUS_ORDER.map(s => {
+                                    const c = PC_STATUS_CONFIG[s];
+                                    const CIcon = c.icon;
+                                    return (
+                                      <DropdownMenuItem
+                                        key={s}
+                                        onClick={() => updatePcStatusMutation.mutate({ pcId: pc.id, status: s })}
+                                        className={`text-xs gap-2 ${s === pc.status ? "font-semibold" : ""}`}
+                                      >
+                                        <CIcon className="w-3.5 h-3.5" />{c.label}
+                                        {s === pc.status && <Check className="w-3 h-3 ml-auto" />}
+                                      </DropdownMenuItem>
+                                    );
+                                  })}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" data-testid={`button-pc-menu-${pc.id}`}>
+                                    <MoreVertical className="w-3.5 h-3.5" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => openEditPortCall(pc)} className="text-xs gap-2">
+                                    <Edit2 className="w-3.5 h-3.5" /> Edit Details
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => deletePortCallMutation.mutate(pc.id)}
+                                    className="text-xs gap-2 text-destructive focus:text-destructive"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" /> Remove
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Tab: Operasyon ─────────────────────────────────────── */}
       {activeTab === "operation" && (
@@ -1319,6 +1664,133 @@ export default function VoyageDetail() {
           )}
         </div>
       )}
+
+      {/* ── Add / Edit Port Call Dialog ──────────────────────────── */}
+      <Dialog open={showAddPortCallDialog} onOpenChange={v => { setShowAddPortCallDialog(v); if (!v) setEditingPortCall(null); }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" data-testid="dialog-add-port-call">
+          <DialogHeader>
+            <DialogTitle className="font-serif flex items-center gap-2">
+              <Route className="w-4 h-4" />
+              {editingPortCall ? "Edit Port Call" : "Add Port Call"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Port <span className="text-destructive">*</span></Label>
+              <PortSearch
+                value={pcForm.portName}
+                onChange={(id, name) => setPcForm(f => ({ ...f, portId: id, portName: name }))}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Call Type</Label>
+                <Select value={pcForm.portCallType} onValueChange={v => setPcForm(f => ({ ...f, portCallType: v }))}>
+                  <SelectTrigger data-testid="select-pc-type"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="loading">Loading</SelectItem>
+                    <SelectItem value="discharging">Discharging</SelectItem>
+                    <SelectItem value="bunkering">Bunkering</SelectItem>
+                    <SelectItem value="transit">Transit</SelectItem>
+                    <SelectItem value="repair">Repair</SelectItem>
+                    <SelectItem value="crew_change">Crew Change</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Status</Label>
+                <Select value={pcForm.status} onValueChange={v => setPcForm(f => ({ ...f, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {PC_STATUS_ORDER.map(s => (
+                      <SelectItem key={s} value={s}>{PC_STATUS_CONFIG[s].label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>ETA</Label>
+                <Input type="datetime-local" value={pcForm.eta} onChange={e => setPcForm(f => ({ ...f, eta: e.target.value }))} data-testid="input-pc-eta" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>ETD</Label>
+                <Input type="datetime-local" value={pcForm.etd} onChange={e => setPcForm(f => ({ ...f, etd: e.target.value }))} data-testid="input-pc-etd" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Berth Name</Label>
+                <Input value={pcForm.berthName} onChange={e => setPcForm(f => ({ ...f, berthName: e.target.value }))} placeholder="e.g. Berth 7" data-testid="input-pc-berth" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Terminal</Label>
+                <Input value={pcForm.terminalName} onChange={e => setPcForm(f => ({ ...f, terminalName: e.target.value }))} placeholder="e.g. T3" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5 col-span-2">
+                <Label>Cargo Type</Label>
+                <Input value={pcForm.cargoType} onChange={e => setPcForm(f => ({ ...f, cargoType: e.target.value }))} placeholder="e.g. Bulk Coal, Crude Oil..." />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Unit</Label>
+                <Select value={pcForm.cargoUnit} onValueChange={v => setPcForm(f => ({ ...f, cargoUnit: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MT">MT</SelectItem>
+                    <SelectItem value="CBM">CBM</SelectItem>
+                    <SelectItem value="TEU">TEU</SelectItem>
+                    <SelectItem value="BBL">BBL</SelectItem>
+                    <SelectItem value="Units">Units</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Cargo Quantity</Label>
+              <Input
+                type="number"
+                value={pcForm.cargoQuantity}
+                onChange={e => setPcForm(f => ({ ...f, cargoQuantity: e.target.value }))}
+                placeholder="0"
+                data-testid="input-pc-cargo-qty"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Notes</Label>
+              <Textarea
+                value={pcForm.notes}
+                onChange={e => setPcForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Additional notes..."
+                rows={2}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowAddPortCallDialog(false); setEditingPortCall(null); }}>Cancel</Button>
+            <Button
+              onClick={submitPortCallForm}
+              disabled={!pcForm.portId || addPortCallMutation.isPending || updatePortCallMutation.isPending}
+              data-testid="button-save-port-call"
+            >
+              {(addPortCallMutation.isPending || updatePortCallMutation.isPending) ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{editingPortCall ? "Updating..." : "Adding..."}</>
+              ) : (editingPortCall ? "Update Port Call" : "Add Port Call")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Invite Collaborator Dialog */}
       <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>

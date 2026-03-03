@@ -297,6 +297,10 @@ router.post("/voyages/:id/reviews", isAuthenticated, async (req: any, res) => {
 // ─── VOYAGE COLLABORATORS ────────────────────────────────────────────────────
 
 async function canAccessVoyage(userId: string, voyageId: number): Promise<boolean> {
+  // Admins have universal access
+  const { rows: adminCheck } = await pool.query("SELECT user_role FROM users WHERE id = $1", [userId]);
+  if (adminCheck[0]?.user_role === "admin") return true;
+
   const { rows } = await pool.query(
     `SELECT v.user_id, v.agent_user_id, v.organization_id FROM voyages v WHERE v.id = $1`,
     [voyageId]
@@ -631,8 +635,11 @@ router.post("/voyages/:id/port-calls", isAuthenticated, async (req: any, res) =>
   try {
     const voyageId = parseInt(req.params.id);
     const userId = req.user?.claims?.sub || req.user?.id;
-    const canAccess = await canAccessVoyage(userId, voyageId);
-    if (!canAccess) return res.status(403).json({ message: "Access denied" });
+    const userIsAdmin = req.user?.userRole === "admin" || (await isAdmin(req));
+    if (!userIsAdmin) {
+      const canAccess = await canAccessVoyage(userId, voyageId);
+      if (!canAccess) return res.status(403).json({ message: "Access denied" });
+    }
 
     const {
       portId, portCallOrder, portCallType, status,
@@ -688,8 +695,11 @@ router.patch("/voyages/:id/port-calls/:portCallId", isAuthenticated, async (req:
     const voyageId = parseInt(req.params.id);
     const portCallId = parseInt(req.params.portCallId);
     const userId = req.user?.claims?.sub || req.user?.id;
-    const canAccess = await canAccessVoyage(userId, voyageId);
-    if (!canAccess) return res.status(403).json({ message: "Access denied" });
+    const userIsAdmin = req.user?.userRole === "admin" || (await isAdmin(req));
+    if (!userIsAdmin) {
+      const canAccess = await canAccessVoyage(userId, voyageId);
+      if (!canAccess) return res.status(403).json({ message: "Access denied" });
+    }
 
     const fields: string[] = [];
     const vals: any[] = [];
@@ -755,8 +765,11 @@ router.delete("/voyages/:id/port-calls/:portCallId", isAuthenticated, async (req
     const voyageId = parseInt(req.params.id);
     const portCallId = parseInt(req.params.portCallId);
     const userId = req.user?.claims?.sub || req.user?.id;
-    const canAccess = await canAccessVoyage(userId, voyageId);
-    if (!canAccess) return res.status(403).json({ message: "Access denied" });
+    const userIsAdmin = req.user?.userRole === "admin" || (await isAdmin(req));
+    if (!userIsAdmin) {
+      const canAccess = await canAccessVoyage(userId, voyageId);
+      if (!canAccess) return res.status(403).json({ message: "Access denied" });
+    }
     await pool.query("DELETE FROM voyage_port_calls WHERE id = $1 AND voyage_id = $2", [portCallId, voyageId]);
 
     // Renumber remaining port calls
