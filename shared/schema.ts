@@ -1128,3 +1128,39 @@ export type Organization = typeof organizations.$inferSelect;
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
 export type OrganizationMember = typeof organizationMembers.$inferSelect;
 export type OrganizationInvite = typeof organizationInvites.$inferSelect;
+
+// ─── ORGANIZATION ROLES ────────────────────────────────────────────────────────
+
+export interface OrgPermissions {
+  vessels:      { view: boolean; create: boolean; edit: boolean; delete: boolean };
+  voyages:      { view: boolean; create: boolean; edit: boolean; delete: boolean };
+  proformas:    { view: boolean; create: boolean; edit: boolean; delete: boolean; approve: boolean; send: boolean };
+  invoices:     { view: boolean; create: boolean; edit: boolean; delete: boolean; pay: boolean };
+  tenders:      { view: boolean; create: boolean; bid: boolean; nominate: boolean };
+  documents:    { view: boolean; upload: boolean; delete: boolean; sign: boolean };
+  messages:     { view: boolean; send: boolean };
+  fixtures:     { view: boolean; create: boolean; edit: boolean };
+  crew:         { view: boolean; manage: boolean };
+  certificates: { view: boolean; manage: boolean };
+  reports:      { view: boolean; export: boolean };
+  settings:     { view: boolean; manage: boolean };
+  members:      { view: boolean; invite: boolean; remove: boolean; editRoles: boolean };
+}
+
+export const organizationRoles = pgTable("organization_roles", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  color: text("color").notNull().default("#3B82F6"),
+  isDefault: boolean("is_default").notNull().default(false),
+  isOwnerRole: boolean("is_owner_role").notNull().default(false),
+  permissions: jsonb("permissions").notNull().$type<OrgPermissions>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const organizationRolesRelations = relations(organizationRoles, ({ one }) => ({
+  organization: one(organizations, { fields: [organizationRoles.organizationId], references: [organizations.id] }),
+}));
+
+export type OrganizationRole = typeof organizationRoles.$inferSelect;
+export type InsertOrganizationRole = typeof organizationRoles.$inferInsert;

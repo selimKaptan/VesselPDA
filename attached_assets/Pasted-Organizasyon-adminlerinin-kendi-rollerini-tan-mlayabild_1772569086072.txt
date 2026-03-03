@@ -1,0 +1,63 @@
+Organizasyon adminlerinin kendi rollerini tanımlayabildiği esnek yetki sistemi ekle.
+
+Yapılacaklar:
+
+1. shared/schema.ts dosyasına şu tabloları ekle:
+
+organizationRoles tablosu:
+- id (serial PK)
+- organizationId (integer, FK organizations, not null)
+- name (text, not null) — "Müdür", "Operatör", "Muhasebe" vs.
+- color (text, default "#3B82F6") — rol rengi
+- isDefault (boolean, default false) — yeni üyelere otomatik atanan rol
+- isOwnerRole (boolean, default false) — tam yetki rolu
+- permissions (jsonb, not null) — yetki listesi
+- createdAt (timestamp, default now)
+
+permissions jsonb formatı:
+{
+  "vessels": { "view": true, "create": true, "edit": true, "delete": false },
+  "voyages": { "view": true, "create": true, "edit": true, "delete": false },
+  "proformas": { "view": true, "create": true, "edit": true, "delete": false, "approve": true, "send": true },
+  "invoices": { "view": true, "create": true, "edit": false, "delete": false, "pay": false },
+  "tenders": { "view": true, "create": true, "bid": true, "nominate": true },
+  "documents": { "view": true, "upload": true, "delete": false, "sign": false },
+  "messages": { "view": true, "send": true },
+  "fixtures": { "view": true, "create": true, "edit": true },
+  "crew": { "view": true, "manage": false },
+  "certificates": { "view": true, "manage": false },
+  "reports": { "view": true, "export": false },
+  "settings": { "view": false, "manage": false },
+  "members": { "view": true, "invite": false, "remove": false, "editRoles": false }
+}
+
+2. Endpoint'ler (server/routes/organization.ts'e ekle):
+
+GET /api/organizations/:id/roles — Tüm roller
+POST /api/organizations/:id/roles — Yeni rol oluştur
+PATCH /api/organizations/:id/roles/:roleId — Rol güncelle
+DELETE /api/organizations/:id/roles/:roleId — Rol sil (üyesi olan rol silinemez)
+
+3. Organizasyon oluşturulduğunda otomatik 3 varsayılan rol oluştur:
+- "Admin" → tüm yetkiler true, isOwnerRole: true
+- "Üye" → temel yetkiler (view, create), isDefault: true
+- "Viewer" → sadece view yetkileri
+
+4. server/middleware/permissions.ts oluştur:
+- checkPermission(module, action) middleware'i
+- Kullanıcının aktif organizasyonundaki rolünü kontrol et
+- Yetkisi yoksa 403 Forbidden dön
+- Organizasyona üye değilse 403 dön
+- Örnek kullanım: router.post("/api/proformas", isAuthenticated, checkPermission("proformas", "create"), ...)
+
+5. client/src/pages/organization.tsx sayfasına "Roller" tab'ı ekle:
+- Mevcut roller listesi (isim, renk, üye sayısı)
+- Yeni rol oluşturma dialog'u
+- Rol düzenleme: her modül için checkbox grid
+  Satırlar: Vessels, Voyages, Proformas, Invoices, Tenders, Documents, Messages, Fixtures, Crew, Certificates, Reports, Settings, Members
+  Sütunlar: Her modülün action'ları (view, create, edit, delete, + modüle özel)
+- Rolü sil butonu (üyesi varsa uyarı)
+
+6. Üye düzenleme dialog'unda rol dropdown'u ekle.
+
+Mevcut isAuthenticated middleware'ini koru. checkPermission ek middleware olarak eklenir. Organizasyona üye olmayan kullanıcılar (bireysel) eski sistemi kullanmaya devam eder.
