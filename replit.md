@@ -38,7 +38,7 @@ The platform is built with a modern web stack. The UI/UX is maritime-themed, pre
     - **Mutual Assessment**: Rating system for shipowners/agents after completed voyages.
     - **Direct Messaging**: Private messaging system between users with real-time updates and notifications.
     - **Notification System**: Real-time in-app notifications for various events.
-    - **Internationalization**: TR/EN language toggle.
+    - **Internationalization**: Full TR/EN language toggle. `client/src/locales/en.json` + `tr.json` contain ~250 translation keys covering nav, buttons, status, dashboard, vessels, proformas, tenders, voyages, forum, directory, settings, notifications, market, AI assistant, vessel tracking, and certificates. `useLanguage()` hook exposes `t(key, vars?)` with English fallback and `formatDate(date)` for locale-aware date formatting (DD.MM.YYYY in TR, MM/DD/YYYY in EN). Language switcher card on Settings page; preference persisted in localStorage. `i18n.tsx` loads from JSON files.
     - **Dark Mode**: Full dark/light mode toggle.
     - **Mobile Navigation**: Sheet-based hamburger menu for small screens.
     - **Admin User Management**: Comprehensive admin panel with 16 tabs: user CRUD (create/suspend/delete/role-change/email-verify), KPI dashboard (8 cards + activity feed), content management (voyages + service requests overview), announcements (bulk notifications by role), financial overview (plan distribution), reports (user growth chart + active users table), system settings (API status), plus bunker prices, port alerts management, and **Audit Log** (filterable by user/action/entity/date range, CSV export, pagination).

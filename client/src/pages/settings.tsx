@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle, CheckCircle2, AlertCircle, User, Lock, Mail, Shield, Building2, ShieldCheck, Clock, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle, CheckCircle2, AlertCircle, User, Lock, Mail, Shield, Building2, ShieldCheck, Clock, XCircle, Loader2, Globe } from "lucide-react";
 import type { CompanyProfile } from "@shared/schema";
+import { useLanguage, type Lang } from "@/lib/i18n";
 
 const AGENT_COMPLETION_FIELDS = [
   { key: "logoUrl", label: "Şirket Logosu", hint: "Güven oluşturmak için logo yükleyin", isArray: false },
@@ -33,6 +34,7 @@ export default function Settings() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { lang, setLang, t } = useLanguage();
 
   useEffect(() => {
     if (window.location.hash === "#section-verification") {
@@ -400,14 +402,67 @@ export default function Settings() {
         </CardContent>
       </Card>
 
+      {/* Language & Region */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Globe className="w-4 h-4 text-muted-foreground" />
+            {t("settings.language")}
+          </CardTitle>
+          <CardDescription>{t("settings.languageDesc")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>{t("settings.languageSelect")}</Label>
+            <div className="flex gap-2">
+              <Button
+                variant={lang === "en" ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setLang("en");
+                  toast({ title: "Language set to English" });
+                }}
+                data-testid="button-lang-en"
+                className="gap-2"
+              >
+                <span className="text-base leading-none">🇬🇧</span>
+                {t("settings.en")}
+              </Button>
+              <Button
+                variant={lang === "tr" ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setLang("tr");
+                  toast({ title: "Dil Türkçe olarak ayarlandı" });
+                }}
+                data-testid="button-lang-tr"
+                className="gap-2"
+              >
+                <span className="text-base leading-none">🇹🇷</span>
+                {t("settings.tr")}
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>{t("settings.dateFormat")}</Label>
+            <p className="text-sm text-muted-foreground">
+              {lang === "tr" ? t("settings.dateFormatTR") : t("settings.dateFormatEN")}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {lang === "tr" ? "Örnek: 03.03.2026" : "Example: 03/03/2026"}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Profile Info */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <User className="w-4 h-4 text-muted-foreground" />
-            Profile Information
+            {t("settings.profile")}
           </CardTitle>
-          <CardDescription>Update your display name.</CardDescription>
+          <CardDescription>{t("settings.profileDesc")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleProfileSave} className="space-y-4">
