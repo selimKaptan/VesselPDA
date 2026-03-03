@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign, Zap, Loader2, Calculator, Ship, Anchor, Globe, Package, AlertTriangle } from "lucide-react";
+import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign, Zap, Loader2, Calculator, Ship, Anchor, Globe, Package, AlertTriangle, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useSidebar } from "@/components/ui/sidebar";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -29,6 +29,7 @@ export default function Proformas() {
   const [vesselFilter, setVesselFilter] = useState("all");
   const { toast } = useToast();
   const { user } = useAuth();
+  const { open: sidebarOpen } = useSidebar();
 
   const userRole = (user as any)?.userRole;
   const activeRole = (user as any)?.activeRole;
@@ -628,14 +629,33 @@ export default function Proformas() {
         </div>
       </div>
 
-      <Dialog open={showQuickDialog} onOpenChange={setShowQuickDialog}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="dialog-quick-proforma">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 font-serif">
-              <Zap className="w-5 h-5 text-blue-600" />
-              Quick Proforma Estimate
-            </DialogTitle>
-          </DialogHeader>
+      {showQuickDialog && (
+        <>
+          <div
+            className="fixed inset-y-0 right-0 z-40 bg-black/60"
+            style={{ left: sidebarOpen ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)' }}
+            onClick={() => setShowQuickDialog(false)}
+          />
+          <div
+            className="fixed inset-y-0 right-0 z-50 flex flex-col bg-background border-l shadow-2xl overflow-hidden"
+            style={{ left: sidebarOpen ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)' }}
+            data-testid="dialog-quick-proforma"
+          >
+            <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b bg-background">
+              <h2 className="flex items-center gap-2 text-lg font-semibold font-serif">
+                <Zap className="w-5 h-5 text-blue-600" />
+                Quick Proforma Estimate
+              </h2>
+              <button
+                onClick={() => setShowQuickDialog(false)}
+                className="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Close</span>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              <div className="max-w-3xl mx-auto">
 
           <div className="space-y-5">
             <p className="text-sm text-muted-foreground">
@@ -1303,8 +1323,12 @@ export default function Proformas() {
               </Card>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {isAgent ? (
         <Tabs defaultValue="proformas">
