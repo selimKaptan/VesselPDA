@@ -2046,6 +2046,42 @@ export async function registerRoutes(
     }
   });
 
+  // ─── GLOBAL SEARCH ─────────────────────────────────────────────────────────
+
+  app.get("/api/search", isAuthenticated, async (req: any, res) => {
+    const q = ((req.query.q as string) || "").trim();
+    const type = (req.query.type as string) || "all";
+    if (q.length < 2) return res.json({ vessels: [], ports: [], proformas: [], voyages: [], directory: [], forum: [], tenders: [], fixtures: [] });
+
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const like = `%${q}%`;
+
+    try {
+      const run = async (sql: string, params: any[]) => {
+        const r = await pool.query(sql, params);
+        return r.rows;
+      };
+
+      const want = (cat: string) => type === "all" || type === cat;
+
+      const [vessels, ports, proformas, voyages, directory, forum, tenders, fixtures] = await Promise.all([
+        want("vessels")   ? run(`SELECT id, name, imo_number AS "imoNumber", flag, vessel_type AS "vesselType" FROM vessels WHERE user_id=$1 AND (name ILIKE $2 OR imo_number ILIKE $2) ORDER BY name LIMIT 5`, [userId, like]) : [],
+        want("ports")     ? run(`SELECT id, name, country, code FROM ports WHERE name ILIKE $1 OR code ILIKE $1 ORDER BY name LIMIT 5`, [like]) : [],
+        want("proformas") ? run(`SELECT id, reference_number AS "referenceNumber", to_company AS "toCompany", status, created_at AS "createdAt" FROM proformas WHERE user_id=$1 AND (reference_number ILIKE $2 OR to_company ILIKE $2) ORDER BY created_at DESC LIMIT 5`, [userId, like]) : [],
+        want("voyages")   ? run(`SELECT id, vessel_name AS "vesselName", status, port_id AS "portId" FROM voyages WHERE (user_id=$1 OR agent_user_id=$1) AND vessel_name ILIKE $2 ORDER BY created_at DESC LIMIT 5`, [userId, like]) : [],
+        want("directory") ? run(`SELECT id, company_name AS "companyName", company_type AS "companyType", city, country FROM company_profiles WHERE is_active=true AND company_name ILIKE $1 ORDER BY company_name LIMIT 5`, [like]) : [],
+        want("forum")     ? run(`SELECT id, title, reply_count AS "replyCount" FROM forum_topics WHERE title ILIKE $1 ORDER BY last_activity_at DESC LIMIT 5`, [like]) : [],
+        want("tenders")   ? run(`SELECT id, vessel_name AS "vesselName", status, created_at AS "createdAt" FROM port_tenders WHERE vessel_name ILIKE $1 ORDER BY created_at DESC LIMIT 5`, [like]) : [],
+        want("fixtures")  ? run(`SELECT id, vessel_name AS "vesselName", cargo_type AS "cargoType", status FROM fixtures WHERE user_id=$1 AND (vessel_name ILIKE $2 OR cargo_type ILIKE $2) ORDER BY created_at DESC LIMIT 5`, [userId, like]) : [],
+      ]);
+
+      res.json({ vessels, ports, proformas, voyages, directory, forum, tenders, fixtures });
+    } catch (err) {
+      console.error("[search]", err);
+      res.status(500).json({ message: "Search failed" });
+    }
+  });
+
   app.get("/api/stats", async (_req, res) => {
     const cached = cache.get("stats");
     if (cached) return res.json(cached);
