@@ -61,6 +61,11 @@ export default function Proformas() {
   const [quickManualNrt, setQuickManualNrt] = useState<string>("");
   const [quickManualFlag, setQuickManualFlag] = useState<string>("Panama");
   const [quickManualVesselName, setQuickManualVesselName] = useState<string>("");
+  const [quickOriginWorldPorts, setQuickOriginWorldPorts] = useState<Port[]>([]);
+  const [quickOriginPortName, setQuickOriginPortName] = useState<string>("");
+  const [quickOriginPortCountry, setQuickOriginPortCountry] = useState<string>("");
+  const [quickOriginPortLoading, setQuickOriginPortLoading] = useState(false);
+  const [quickCargoDescription, setQuickCargoDescription] = useState<string>("");
 
   const CARGO_TYPE_OPTIONS = [
     { value: "grain",      label: "🌾 Grain (Wheat / Barley / Corn / Soya)",    unit: "MT",    isDangerous: false, examples: "Wheat, barley, corn, soya, sunflower seed" },
@@ -96,7 +101,7 @@ export default function Proformas() {
     return ["turkey", "turkish", "türk", "türkiye", "tr", "turk"].includes(flag);
   })();
 
-  const isAutoCabotage = isTurkishFlagVessel && !!quickOriginPortId && !!quickPortId;
+  const isAutoCabotage = isTurkishFlagVessel && quickOriginPortCountry === "Turkey" && !!quickPortId;
 
   useEffect(() => {
     if (isAutoCabotage) {
@@ -192,13 +197,21 @@ export default function Proformas() {
     ).slice(0, 40);
   }, [turkishPorts, quickPortSearch]);
 
-  const filteredOriginPorts = useMemo(() => {
-    if (!turkishPorts || !quickOriginPortSearch || quickOriginPortSearch.length < 2) return [];
-    const q = normalizeTR(quickOriginPortSearch);
-    return turkishPorts.filter(p =>
-      normalizeTR(p.name).includes(q) || normalizeTR(p.code || "").includes(q)
-    ).slice(0, 40);
-  }, [turkishPorts, quickOriginPortSearch]);
+  useEffect(() => {
+    if (!showQuickDialog || quickOriginPortSearch.length < 2) {
+      setQuickOriginWorldPorts([]);
+      return;
+    }
+    setQuickOriginPortLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/ports?q=${encodeURIComponent(quickOriginPortSearch)}`, { credentials: "include" });
+        if (res.ok) { const data = await res.json(); setQuickOriginWorldPorts(data.slice(0, 50)); }
+      } catch (_) {}
+      setQuickOriginPortLoading(false);
+    }, 400);
+    return () => { clearTimeout(timer); setQuickOriginPortLoading(false); };
+  }, [quickOriginPortSearch, showQuickDialog]);
 
   const handleQuickCalculate = async () => {
     const useManual = quickVesselId === "external" || quickVesselId === "";
@@ -217,11 +230,13 @@ export default function Proformas() {
     setQuickLoading(true);
     setQuickResult(null);
     try {
+      const selectedCargoOpt = CARGO_TYPE_OPTIONS.find(o => o.value === quickCargoType);
+      const resolvedCargoType = quickCargoDescription.trim() || selectedCargoOpt?.label.replace(/^[^\s]+\s/, "") || quickCargoType;
       const basePayload = {
         portId: parseInt(quickPortId),
         berthStayDays: quickDays,
         purposeOfCall: quickPurpose,
-        cargoType: quickCargoType,
+        cargoType: resolvedCargoType,
         cargoQuantity: parseFloat(quickCargoQty) || 5000,
         isDangerousCargo: quickDangerous,
         voyageType: quickVoyageType,
@@ -253,11 +268,12 @@ export default function Proformas() {
         throw new Error("Please select a port to save as a draft.");
       }
       const selectedCargoOption = CARGO_TYPE_OPTIONS.find(o => o.value === quickCargoType);
+      const resolvedCargoTypeDraft = quickCargoDescription.trim() || selectedCargoOption?.label.replace(/^[^\s]+\s/, "") || quickCargoType;
       const res = await apiRequest("POST", "/api/proformas", {
         vesselId: parseInt(quickVesselId),
         portId: parseInt(quickPortId),
         purposeOfCall: quickPurpose,
-        cargoType: selectedCargoOption?.label.replace(/^[^\s]+\s/, "") || quickCargoType,
+        cargoType: resolvedCargoTypeDraft,
         cargoQuantity: parseFloat(quickCargoQty) || 5000,
         cargoUnit: quickCargoUnit,
         berthStayDays: quickDays,
@@ -750,11 +766,11 @@ export default function Proformas() {
 
               {/* Departure + Destination port row — 2 columns */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Departure Port */}
+                {/* Departure Port — worldwide */}
                 <div className="space-y-2">
                   <Label className="flex items-center gap-1.5">
                     Departure Port
-                    <span className="text-[10px] text-muted-foreground font-normal">(Turkish ports only)</span>
+                    <span className="text-[10px] text-muted-foreground font-normal">(worldwide)</span>
                   </Label>
                   <Popover open={quickOriginPortOpen} onOpenChange={setQuickOriginPortOpen}>
                     <PopoverTrigger asChild>
@@ -764,37 +780,48 @@ export default function Proformas() {
                         className="w-full justify-start font-normal"
                         data-testid="trigger-origin-port-quick"
                       >
-                        <Anchor className="w-4 h-4 mr-2 text-muted-foreground" />
+                        <Globe className="w-4 h-4 mr-2 text-muted-foreground" />
                         <span className="truncate">
-                          {quickOriginPortId && turkishPorts
-                            ? (turkishPorts.find(p => String(p.id) === quickOriginPortId)?.name || "Select departure port...")
-                            : "Enter departure port..."}
+                          {quickOriginPortName || "Enter departure port..."}
                         </span>
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-[300px] p-0" align="start">
+                    <PopoverContent className="w-[340px] p-0" align="start">
                       <Command shouldFilter={false}>
                         <CommandInput
-                          placeholder="Search Turkish port... (min. 2 chars)"
+                          placeholder="Search worldwide... (min. 2 chars)"
                           value={quickOriginPortSearch}
-                          onValueChange={setQuickOriginPortSearch}
+                          onValueChange={(v) => { setQuickOriginPortSearch(v); if (!v) { setQuickOriginPortId(""); setQuickOriginPortName(""); setQuickOriginPortCountry(""); } }}
                           data-testid="input-origin-port-quick"
                         />
                         <CommandList>
                           <CommandEmpty>
-                            {quickOriginPortSearch.length < 2 ? "Enter at least 2 characters." : "No Turkish port found."}
+                            {quickOriginPortSearch.length < 2
+                              ? "Enter at least 2 characters."
+                              : quickOriginPortLoading
+                                ? "Searching..."
+                                : "No port found."}
                           </CommandEmpty>
                           <CommandGroup>
-                            {filteredOriginPorts.map((p) => (
+                            {quickOriginWorldPorts.map((p) => (
                               <CommandItem
                                 key={p.id}
                                 value={p.name}
-                                onSelect={() => { setQuickOriginPortId(String(p.id)); setQuickOriginPortSearch(p.name); setQuickOriginPortOpen(false); }}
+                                onSelect={() => {
+                                  setQuickOriginPortId(String(p.id));
+                                  setQuickOriginPortName(p.name);
+                                  setQuickOriginPortCountry(p.country || "");
+                                  setQuickOriginPortSearch(p.name);
+                                  setQuickOriginPortOpen(false);
+                                }}
                                 data-testid={`option-quick-origin-port-${p.id}`}
                               >
-                                <Anchor className="w-3 h-3 mr-2 text-muted-foreground" />
-                                {p.name}
-                                {p.code && <span className="ml-2 text-xs text-muted-foreground">{p.code}</span>}
+                                <Globe className="w-3 h-3 mr-2 text-muted-foreground shrink-0" />
+                                <span className="flex-1 truncate">{p.name}</span>
+                                <span className="ml-2 text-xs text-muted-foreground shrink-0">
+                                  {p.code && <span className="mr-1">{p.code}</span>}
+                                  {p.country && <span className="opacity-70">{p.country}</span>}
+                                </span>
                               </CommandItem>
                             ))}
                           </CommandGroup>
@@ -804,11 +831,11 @@ export default function Proformas() {
                   </Popover>
                 </div>
 
-                {/* Destination Port */}
+                {/* Destination Port — Turkish ports only */}
                 <div className="space-y-2">
                   <Label className="flex items-center gap-1.5">
                     Destination Port
-                    <span className="text-[10px] text-muted-foreground font-normal">(port of call)</span>
+                    <span className="text-[10px] text-muted-foreground font-normal">(Turkish ports only)</span>
                   </Label>
                   <Popover open={quickPortOpen} onOpenChange={setQuickPortOpen}>
                     <PopoverTrigger asChild>
@@ -1012,6 +1039,7 @@ export default function Proformas() {
                     value={quickCargoType}
                     onValueChange={(v) => {
                       setQuickCargoType(v);
+                      setQuickCargoDescription("");
                       const opt = CARGO_TYPE_OPTIONS.find(o => o.value === v);
                       if (opt) {
                         setQuickCargoUnit(opt.unit);
@@ -1061,6 +1089,20 @@ export default function Proformas() {
                     <p className="text-xs text-blue-600 dark:text-blue-400">ℹ️ Supervision fee is fixed-rate for this cargo type.</p>
                   )}
                 </div>
+              </div>
+
+              {/* Cargo description — manual free text */}
+              <div className="space-y-1.5">
+                <Label className="text-sm">
+                  Specific Cargo Name
+                  <span className="ml-1.5 text-xs text-muted-foreground font-normal">(optional — overrides category label)</span>
+                </Label>
+                <Input
+                  value={quickCargoDescription}
+                  onChange={(e) => setQuickCargoDescription(e.target.value)}
+                  placeholder="e.g. HRS Coil, Petcoke, ULSD 10ppm, Sunflower Oil..."
+                  data-testid="input-cargo-desc-quick"
+                />
               </div>
 
               {/* Dangerous Goods toggle with Switch */}
