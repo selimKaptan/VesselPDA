@@ -45,6 +45,11 @@ const uploadLogo = multer({
   },
 });
 
+const fileUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -58,6 +63,26 @@ export async function registerRoutes(
   );
 
   app.use("/uploads", (await import("express")).default.static(path.join(process.cwd(), "uploads")));
+
+  // ─── GENERIC FILE UPLOAD ──────────────────────────────────────────────────────
+
+  app.post("/api/files/upload", isAuthenticated, fileUpload.single("file"), async (req: any, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No file provided" });
+      const { uploadFile } = await import("./file-storage");
+      const folder = (req.query.folder as string) || "documents";
+      const allowedFolders = ["documents", "certificates", "crew"];
+      const safeFolder = allowedFolders.includes(folder) ? folder : "documents";
+      const url = uploadFile(req.file.buffer, req.file.originalname, safeFolder);
+      res.json({
+        url,
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
+      });
+    } catch (e: any) {
+      res.status(500).json({ message: "Upload failed", error: e.message });
+    }
+  });
 
   async function isAdmin(req: any): Promise<boolean> {
     const userId = req.user?.claims?.sub;
@@ -3380,13 +3405,16 @@ export async function registerRoutes(
   app.post("/api/voyages/:id/documents", isAuthenticated, async (req: any, res) => {
     try {
       const voyageId = parseInt(req.params.id);
-      const { name, docType, fileBase64, notes } = req.body;
-      if (!name || !fileBase64) return res.status(400).json({ message: "name and fileBase64 required" });
+      const { name, docType, fileBase64, fileUrl, fileName, fileSize, notes } = req.body;
+      if (!name || (!fileBase64 && !fileUrl)) return res.status(400).json({ message: "name and file required" });
       const doc = await storage.createVoyageDocument({
         voyageId,
         name,
         docType: docType || "other",
-        fileBase64,
+        fileBase64: fileBase64 || null,
+        fileUrl: fileUrl || null,
+        fileName: fileName || null,
+        fileSize: fileSize || null,
         notes: notes || null,
         uploadedByUserId: req.user.claims.sub,
       });

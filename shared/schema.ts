@@ -443,7 +443,10 @@ export const voyageDocuments = pgTable("voyage_documents", {
   voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   docType: text("doc_type").notNull().default("other"),
-  fileBase64: text("file_base64").notNull(),
+  fileBase64: text("file_base64"),
+  fileUrl: text("file_url"),
+  fileName: text("file_name"),
+  fileSize: integer("file_size"),
   notes: text("notes"),
   uploadedByUserId: varchar("uploaded_by_user_id").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
@@ -630,6 +633,8 @@ export const vesselCertificates = pgTable("vessel_certificates", {
   status: text("status").notNull().default("valid"),
   fileBase64: text("file_base64"),
   fileName: text("file_name"),
+  fileUrl: text("file_url"),
+  fileSize: integer("file_size"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -836,47 +836,53 @@ export default function Vessels() {
       return;
     }
     setCertUploading(certTypeKey);
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const fileBase64 = e.target?.result as string;
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const uploadRes = await fetch("/api/files/upload?folder=certificates", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      if (!uploadRes.ok) throw new Error("Upload failed");
+      const { url: fileUrl, fileSize } = await uploadRes.json();
       const existingCert = vesselCerts.find((c: any) => c.certType === certTypeKey);
-      try {
-        if (existingCert?.id) {
-          await apiRequest("PATCH", `/api/vessels/${vesselId}/certificates/${existingCert.id}`, { fileBase64, fileName: file.name });
-        } else {
-          await apiRequest("POST", `/api/vessels/${vesselId}/certificates`, {
-            name: certLabel, certType: certTypeKey, fileBase64, fileName: file.name,
-            issuedAt: null, expiresAt: null, issuingAuthority: null, certificateNumber: null, notes: null,
-          });
-        }
-        queryClient.invalidateQueries({ queryKey: ["/api/vessels", selectedVessel?.id, "certificates"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/certificates/expiring"] });
-        toast({ title: "PDF uploaded", description: `${certLabel} saved successfully` });
-      } catch {
-        toast({ title: "Upload failed", description: "Please try again", variant: "destructive" });
-      } finally {
-        setCertUploading(null);
+      if (existingCert?.id) {
+        await apiRequest("PATCH", `/api/vessels/${vesselId}/certificates/${existingCert.id}`, { fileUrl, fileName: file.name, fileSize });
+      } else {
+        await apiRequest("POST", `/api/vessels/${vesselId}/certificates`, {
+          name: certLabel, certType: certTypeKey, fileUrl, fileName: file.name, fileSize,
+          issuedAt: null, expiresAt: null, issuingAuthority: null, certificateNumber: null, notes: null,
+        });
       }
-    };
-    reader.readAsDataURL(file);
+      queryClient.invalidateQueries({ queryKey: ["/api/vessels", selectedVessel?.id, "certificates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/certificates/expiring"] });
+      toast({ title: "PDF uploaded", description: `${certLabel} saved successfully` });
+    } catch {
+      toast({ title: "Upload failed", description: "Please try again", variant: "destructive" });
+    } finally {
+      setCertUploading(null);
+    }
   };
 
   const handleCertDownload = (cert: any) => {
-    if (!cert.fileBase64) return;
+    const href = cert.fileUrl || cert.fileBase64;
+    if (!href) return;
     const a = document.createElement("a");
-    a.href = cert.fileBase64;
+    a.href = href;
     a.download = cert.fileName || `${cert.name}.pdf`;
     a.click();
   };
 
   const handleCertPreview = (cert: any) => {
-    if (!cert.fileBase64) return;
-    window.open(cert.fileBase64, "_blank");
+    const href = cert.fileUrl || cert.fileBase64;
+    if (!href) return;
+    window.open(href, "_blank");
   };
 
   const handleCertRemoveFile = async (cert: any, vesselId: number) => {
     try {
-      await apiRequest("PATCH", `/api/vessels/${vesselId}/certificates/${cert.id}`, { fileBase64: null, fileName: null });
+      await apiRequest("PATCH", `/api/vessels/${vesselId}/certificates/${cert.id}`, { fileBase64: null, fileUrl: null, fileName: null });
       queryClient.invalidateQueries({ queryKey: ["/api/vessels", selectedVessel?.id, "certificates"] });
       toast({ title: "File removed" });
     } catch {
@@ -886,7 +892,7 @@ export default function Vessels() {
 
   const handleDownloadAllCerts = async (vesselName: string) => {
     const uploadedCerts = VESSEL_CERT_TYPES
-      .map(({ key, label }) => ({ key, label, cert: vesselCerts.find((c: any) => c.certType === key && c.fileBase64) }))
+      .map(({ key, label }) => ({ key, label, cert: vesselCerts.find((c: any) => c.certType === key && (c.fileBase64 || c.fileUrl)) }))
       .filter(({ cert }) => !!cert);
 
     if (uploadedCerts.length === 0) return;
@@ -894,13 +900,17 @@ export default function Vessels() {
     setCertDownloadingAll(true);
     try {
       const zip = new JSZip();
-      uploadedCerts.forEach(({ label, cert }) => {
-        const base64Data = cert.fileBase64.includes(",")
-          ? cert.fileBase64.split(",")[1]
-          : cert.fileBase64;
+      for (const { label, cert } of uploadedCerts) {
         const fileName = cert.fileName || `${label}.pdf`;
-        zip.file(fileName, base64Data, { base64: true });
-      });
+        if (cert.fileUrl) {
+          const response = await fetch(cert.fileUrl);
+          const arrayBuffer = await response.arrayBuffer();
+          zip.file(fileName, arrayBuffer);
+        } else if (cert.fileBase64) {
+          const base64Data = cert.fileBase64.includes(",") ? cert.fileBase64.split(",")[1] : cert.fileBase64;
+          zip.file(fileName, base64Data, { base64: true });
+        }
+      }
 
       const blob = await zip.generateAsync({ type: "blob" });
       const date = new Date().toISOString().slice(0, 10);
@@ -1492,7 +1502,7 @@ export default function Vessels() {
                           <ShieldCheck className="w-4 h-4 text-primary" />
                           <span className="text-sm font-semibold">Vessel Certificates</span>
                           <Badge variant="outline" className="text-[10px]">
-                            {vesselCerts.filter((c: any) => c.fileBase64).length}/{VESSEL_CERT_TYPES.length} uploaded
+                            {vesselCerts.filter((c: any) => c.fileBase64 || c.fileUrl).length}/{VESSEL_CERT_TYPES.length} uploaded
                           </Badge>
                         </div>
                         <Button
@@ -1500,7 +1510,7 @@ export default function Vessels() {
                           variant="outline"
                           className="gap-1.5 text-xs h-7"
                           onClick={() => handleDownloadAllCerts(v.name || "vessel")}
-                          disabled={certDownloadingAll || !vesselCerts.some((c: any) => c.fileBase64)}
+                          disabled={certDownloadingAll || !vesselCerts.some((c: any) => c.fileBase64 || c.fileUrl)}
                           data-testid="button-download-all-certs"
                         >
                           {certDownloadingAll ? (
@@ -1536,7 +1546,7 @@ export default function Vessels() {
                             const cert = vesselCerts.find((c: any) => c.certType === key);
                             const isUploading = certUploading === key;
                             const isDragOver = certDragOver === key;
-                            const hasFile = !!cert?.fileBase64;
+                            const hasFile = !!(cert?.fileBase64 || cert?.fileUrl);
 
                             return (
                               <div

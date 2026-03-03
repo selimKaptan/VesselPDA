@@ -124,7 +124,8 @@ export default function VoyageDetail() {
   const [showServiceDialog, setShowServiceDialog] = useState(false);
   const [showDocDialog, setShowDocDialog] = useState(false);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
-  const [docForm, setDocForm] = useState({ name: "", docType: "other", notes: "", fileBase64: "", fileName: "" });
+  const [docForm, setDocForm] = useState({ name: "", docType: "other", notes: "", fileBase64: "", fileUrl: "", fileName: "", fileSize: 0 });
+  const [docUploading, setDocUploading] = useState(false);
   const [isDragOverDropzone, setIsDragOverDropzone] = useState(false);
   const [isPanelDragOver, setIsPanelDragOver] = useState(false);
   const [reviewForm, setReviewForm] = useState({ rating: 0, comment: "" });
@@ -303,16 +304,28 @@ export default function VoyageDetail() {
 
   const uploadDocMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/voyages/${voyageId}/documents`, docForm);
+      const payload: any = {
+        name: docForm.name,
+        docType: docForm.docType,
+        notes: docForm.notes,
+      };
+      if (docForm.fileUrl) {
+        payload.fileUrl = docForm.fileUrl;
+        payload.fileName = docForm.fileName;
+        payload.fileSize = docForm.fileSize;
+      } else {
+        payload.fileBase64 = docForm.fileBase64;
+      }
+      const res = await apiRequest("POST", `/api/voyages/${voyageId}/documents`, payload);
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "documents"] });
-      toast({ title: "Doküman yüklendi" });
+      toast({ title: "Document uploaded" });
       setShowDocDialog(false);
-      setDocForm({ name: "", docType: "other", notes: "", fileBase64: "", fileName: "" });
+      setDocForm({ name: "", docType: "other", notes: "", fileBase64: "", fileUrl: "", fileName: "", fileSize: 0 });
     },
-    onError: () => toast({ title: "Yükleme hatası", variant: "destructive" }),
+    onError: () => toast({ title: "Upload error", variant: "destructive" }),
   });
 
   const deleteDocMutation = useMutation({
@@ -391,18 +404,35 @@ export default function VoyageDetail() {
     }
   }
 
-  function processDroppedFile(file: File) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = reader.result as string;
+  async function processDroppedFile(file: File) {
+    if (file.size > 20 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Maximum size is 20 MB", variant: "destructive" });
+      return;
+    }
+    setDocUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/files/upload?folder=documents", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const { url, fileName: uploadedName, fileSize } = await res.json();
       setDocForm(f => ({
         ...f,
-        fileBase64: base64,
-        fileName: file.name,
+        fileUrl: url,
+        fileBase64: "",
+        fileName: uploadedName,
+        fileSize,
         name: f.name || file.name.replace(/\.[^/.]+$/, ""),
       }));
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      toast({ title: "Upload error", description: "Failed to upload file", variant: "destructive" });
+    } finally {
+      setDocUploading(false);
+    }
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -421,10 +451,17 @@ export default function VoyageDetail() {
   }
 
   function downloadDoc(doc: any) {
+    const href = doc.fileUrl || doc.fileBase64;
+    if (!href) return;
     const a = document.createElement("a");
-    a.href = doc.fileBase64;
-    a.download = doc.name;
+    a.href = href;
+    a.download = doc.fileName || doc.name;
     a.click();
+  }
+
+  function previewDoc(doc: any) {
+    const href = doc.fileUrl || doc.fileBase64;
+    if (href) window.open(href, "_blank");
   }
 
   if (isLoading) {
@@ -1102,20 +1139,26 @@ export default function VoyageDetail() {
                 }}
                 data-testid="doc-dropzone"
               >
-                {docForm.fileName ? (
+                {docUploading ? (
+                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Uploading...</span>
+                  </div>
+                ) : docForm.fileName ? (
                   <div className="flex items-center justify-center gap-2 text-sm">
                     <FileText className="w-4 h-4 text-blue-500" />
                     <span className="font-medium">{docForm.fileName}</span>
+                    {docForm.fileSize > 0 && <span className="text-xs text-muted-foreground">({(docForm.fileSize / 1024).toFixed(0)} KB)</span>}
                     <button
-                      onClick={e => { e.stopPropagation(); setDocForm(f => ({ ...f, fileBase64: "", fileName: "" })); }}
+                      onClick={e => { e.stopPropagation(); setDocForm(f => ({ ...f, fileBase64: "", fileUrl: "", fileName: "", fileSize: 0 })); }}
                       className="text-muted-foreground hover:text-destructive transition-colors ml-1"
                     >×</button>
                   </div>
                 ) : (
                   <div className="text-muted-foreground">
                     <Upload className={`w-7 h-7 mx-auto mb-2 transition-colors ${isDragOverDropzone ? "text-[hsl(var(--maritime-primary))]" : "opacity-40"}`} />
-                    <p className="text-sm font-medium">{isDragOverDropzone ? "Dosyayı bırakın" : "Sürükleyip bırakın veya tıklayın"}</p>
-                    <p className="text-xs text-muted-foreground/70 mt-1">PDF, PNG, JPG, DOCX</p>
+                    <p className="text-sm font-medium">{isDragOverDropzone ? "Drop file here" : "Drag & drop or click to select"}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1">PDF, PNG, JPG, DOCX — max 20 MB</p>
                   </div>
                 )}
               </div>
@@ -1154,7 +1197,7 @@ export default function VoyageDetail() {
             <Button variant="outline" onClick={() => setShowDocDialog(false)}>İptal</Button>
             <Button
               onClick={() => uploadDocMutation.mutate()}
-              disabled={uploadDocMutation.isPending || !docForm.fileBase64 || !docForm.name.trim()}
+              disabled={uploadDocMutation.isPending || docUploading || (!docForm.fileBase64 && !docForm.fileUrl) || !docForm.name.trim()}
               data-testid="button-save-doc"
             >
               {uploadDocMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Yükle"}
