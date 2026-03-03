@@ -47,7 +47,7 @@ export default function Proformas() {
   const [quickResult, setQuickResult] = useState<any>(null);
   const [quickLoading, setQuickLoading] = useState(false);
   const [quickPurpose, setQuickPurpose] = useState<string>("Discharging");
-  const [quickCargoType, setQuickCargoType] = useState<string>("bulk_dry");
+  const [quickCargoType, setQuickCargoType] = useState<string>("grain");
   const [quickCargoQty, setQuickCargoQty] = useState<string>("5000");
   const [quickCargoUnit, setQuickCargoUnit] = useState<string>("MT");
   const [quickDangerous, setQuickDangerous] = useState<boolean>(false);
@@ -63,13 +63,23 @@ export default function Proformas() {
   const [quickManualVesselName, setQuickManualVesselName] = useState<string>("");
 
   const CARGO_TYPE_OPTIONS = [
-    { value: "bulk_dry", label: "🌾 Bulk Dry Cargo", unit: "MT", examples: "Grain, coal, ore, fertilizer, scrap, cement" },
-    { value: "general", label: "📦 General Cargo / Breakbulk", unit: "MT", examples: "Steel, timber, project cargo, bagged goods" },
-    { value: "container", label: "🚢 Container", unit: "TEU", examples: "FCL, LCL, ISO containers" },
-    { value: "roro", label: "🚗 Ro-Ro / Vehicles", unit: "Units", examples: "Automobiles, trucks, heavy machinery" },
-    { value: "liquid", label: "⛽ Tanker / Liquid Cargo", unit: "MT", examples: "Crude oil, fuel oil, vegetable oil, molasses" },
-    { value: "chemical", label: "⚗️ Chemical Tanker", unit: "MT", examples: "Chemicals, acids, methanol, solvents" },
-    { value: "gas", label: "💨 LPG / LNG / Gas", unit: "MT", examples: "Liquefied petroleum / natural gas, ammonia" },
+    { value: "grain",      label: "🌾 Grain (Wheat / Barley / Corn / Soya)",    unit: "MT",    isDangerous: false, examples: "Wheat, barley, corn, soya, sunflower seed" },
+    { value: "coal",       label: "⚫ Coal",                                     unit: "MT",    isDangerous: false, examples: "Thermal coal, coking coal, petcoke" },
+    { value: "ore",        label: "🪨 Iron Ore / Bauxite / Metal Ore",           unit: "MT",    isDangerous: false, examples: "Iron ore, bauxite, copper ore, manganese" },
+    { value: "fertilizer", label: "🌱 Fertilizer (Urea / DAP / NPK)",           unit: "MT",    isDangerous: false, examples: "Urea, DAP, NPK, ammonium nitrate (non-classified)" },
+    { value: "scrap",      label: "🔧 Scrap Metal",                              unit: "MT",    isDangerous: false, examples: "Steel scrap, HMS, shredded scrap" },
+    { value: "clinker",    label: "🏗️ Clinker & Cement",                        unit: "MT",    isDangerous: false, examples: "Clinker, bulk cement, fly ash, gypsum" },
+    { value: "bulk_dry",   label: "📦 Other Dry Bulk",                          unit: "MT",    isDangerous: false, examples: "Salt, sand, aggregate, timber, sugar" },
+    { value: "steel",      label: "🔩 Steel Products (Coil / Pipe / Plate)",    unit: "MT",    isDangerous: false, examples: "Steel coil, HR coil, steel pipes, plates" },
+    { value: "general",    label: "📦 General Cargo / Breakbulk",               unit: "MT",    isDangerous: false, examples: "Project cargo, bagged goods, machinery, timber" },
+    { value: "container",  label: "🚢 Container (FCL / LCL)",                   unit: "TEU",   isDangerous: false, examples: "FCL, LCL, ISO containers" },
+    { value: "roro",       label: "🚗 Ro-Ro / Vehicles",                        unit: "Units", isDangerous: false, examples: "Automobiles, trucks, heavy machinery, roll-on cargo" },
+    { value: "crude",      label: "🛢️ Crude Oil & Condensate",                  unit: "MT",    isDangerous: true,  examples: "Crude oil, condensate, slop oil" },
+    { value: "petroleum",  label: "⛽ Petroleum Products (Gasoil / Naphtha)",   unit: "MT",    isDangerous: true,  examples: "Gasoil, diesel, naphtha, fuel oil, lube oil, bitumen" },
+    { value: "liquid",     label: "🌻 Edible Oils & Molasses",                  unit: "MT",    isDangerous: false, examples: "Vegetable oil, palm oil, molasses, glycerin" },
+    { value: "chemical",   label: "⚗️ Chemical Tanker (Acids / Methanol)",      unit: "MT",    isDangerous: true,  examples: "Methanol, caustic soda, acids, ethanol, solvents" },
+    { value: "gas",        label: "💨 LPG / LNG / Gas",                         unit: "MT",    isDangerous: true,  examples: "LPG, LNG, propane, butane, ammonia" },
+    { value: "ammonia",    label: "🧪 Ammonia",                                 unit: "MT",    isDangerous: true,  examples: "Anhydrous ammonia, aqueous ammonia" },
   ];
 
   const { data: proformas, isLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"] });
@@ -1003,7 +1013,10 @@ export default function Proformas() {
                     onValueChange={(v) => {
                       setQuickCargoType(v);
                       const opt = CARGO_TYPE_OPTIONS.find(o => o.value === v);
-                      if (opt) setQuickCargoUnit(opt.unit);
+                      if (opt) {
+                        setQuickCargoUnit(opt.unit);
+                        setQuickDangerous(opt.isDangerous);
+                      }
                     }}
                     data-testid="select-cargo-type-quick"
                   >
@@ -1012,7 +1025,10 @@ export default function Proformas() {
                       {CARGO_TYPE_OPTIONS.map(opt => (
                         <SelectItem key={opt.value} value={opt.value}>
                           <div>
-                            <div>{opt.label}</div>
+                            <div className="flex items-center gap-1.5">
+                              {opt.label}
+                              {opt.isDangerous && <span className="text-[10px] text-orange-600 font-semibold">⚠️ IMDG</span>}
+                            </div>
                             <div className="text-xs text-muted-foreground">{opt.examples}</div>
                           </div>
                         </SelectItem>
@@ -1041,7 +1057,7 @@ export default function Proformas() {
                       {quickCargoUnit}
                     </div>
                   </div>
-                  {(quickCargoType === "liquid" || quickCargoType === "chemical" || quickCargoType === "gas") && (
+                  {(quickCargoType === "liquid" || quickCargoType === "crude" || quickCargoType === "petroleum" || quickCargoType === "chemical" || quickCargoType === "gas" || quickCargoType === "ammonia") && (
                     <p className="text-xs text-blue-600 dark:text-blue-400">ℹ️ Supervision fee is fixed-rate for this cargo type.</p>
                   )}
                 </div>
@@ -1054,7 +1070,12 @@ export default function Proformas() {
               >
                 <AlertTriangle className={`w-4 h-4 shrink-0 ${quickDangerous ? "text-orange-500" : "text-muted-foreground"}`} />
                 <div className="flex-1">
-                  <div className={`text-sm font-medium ${quickDangerous ? "text-orange-700 dark:text-orange-300" : ""}`}>IMDG Dangerous Cargo</div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-medium ${quickDangerous ? "text-orange-700 dark:text-orange-300" : ""}`}>IMDG Dangerous Cargo</span>
+                    {CARGO_TYPE_OPTIONS.find(o => o.value === quickCargoType)?.isDangerous && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 font-semibold border border-orange-300 dark:border-orange-700">Auto-detected</span>
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground">+30% surcharge on Pilotage, Tugboat & Mooring</div>
                 </div>
                 <Switch

@@ -22,6 +22,26 @@ import type { Vessel, Port, ProformaLineItem } from "@shared/schema";
 const purposeOptions = ["Loading", "Discharging", "Loading/Discharging", "Transit", "Bunkering", "Repair", "Survey"];
 const cargoUnits = ["MT", "CBM", "TEU", "Units"];
 
+const CARGO_TYPE_OPTIONS = [
+  { value: "grain",      label: "🌾 Grain (Wheat / Barley / Corn / Soya)",   unit: "MT",    isDangerous: false, examples: "Wheat, barley, corn, soya, sunflower seed" },
+  { value: "coal",       label: "⚫ Coal",                                    unit: "MT",    isDangerous: false, examples: "Thermal coal, coking coal, petcoke" },
+  { value: "ore",        label: "🪨 Iron Ore / Bauxite / Metal Ore",          unit: "MT",    isDangerous: false, examples: "Iron ore, bauxite, copper ore, manganese" },
+  { value: "fertilizer", label: "🌱 Fertilizer (Urea / DAP / NPK)",          unit: "MT",    isDangerous: false, examples: "Urea, DAP, NPK, ammonium nitrate (non-classified)" },
+  { value: "scrap",      label: "🔧 Scrap Metal",                             unit: "MT",    isDangerous: false, examples: "Steel scrap, HMS, shredded scrap" },
+  { value: "clinker",    label: "🏗️ Clinker & Cement",                       unit: "MT",    isDangerous: false, examples: "Clinker, bulk cement, fly ash, gypsum" },
+  { value: "bulk_dry",   label: "📦 Other Dry Bulk",                         unit: "MT",    isDangerous: false, examples: "Salt, sand, aggregate, timber, sugar" },
+  { value: "steel",      label: "🔩 Steel Products (Coil / Pipe / Plate)",   unit: "MT",    isDangerous: false, examples: "Steel coil, HR coil, steel pipes, plates" },
+  { value: "general",    label: "📦 General Cargo / Breakbulk",              unit: "MT",    isDangerous: false, examples: "Project cargo, bagged goods, machinery, timber" },
+  { value: "container",  label: "🚢 Container (FCL / LCL)",                  unit: "TEU",   isDangerous: false, examples: "FCL, LCL, ISO containers" },
+  { value: "roro",       label: "🚗 Ro-Ro / Vehicles",                       unit: "Units", isDangerous: false, examples: "Automobiles, trucks, heavy machinery, roll-on cargo" },
+  { value: "crude",      label: "🛢️ Crude Oil & Condensate",                 unit: "MT",    isDangerous: true,  examples: "Crude oil, condensate, slop oil" },
+  { value: "petroleum",  label: "⛽ Petroleum Products (Gasoil / Naphtha)",  unit: "MT",    isDangerous: true,  examples: "Gasoil, diesel, naphtha, fuel oil, lube oil, bitumen" },
+  { value: "liquid",     label: "🌻 Edible Oils & Molasses",                 unit: "MT",    isDangerous: false, examples: "Vegetable oil, palm oil, molasses, glycerin" },
+  { value: "chemical",   label: "⚗️ Chemical Tanker (Acids / Methanol)",     unit: "MT",    isDangerous: true,  examples: "Methanol, caustic soda, acids, ethanol, solvents" },
+  { value: "gas",        label: "💨 LPG / LNG / Gas",                        unit: "MT",    isDangerous: true,  examples: "LPG, LNG, propane, butane, ammonia" },
+  { value: "ammonia",    label: "🧪 Ammonia",                                unit: "MT",    isDangerous: true,  examples: "Anhydrous ammonia, aqueous ammonia" },
+];
+
 const CITY_CODE_NAMES: Record<string, string> = {
   ALA: "Alanya", ALI: "Aliağa", AMA: "Amasra", AMB: "Ambarlı (İstanbul)",
   ANA: "Anamur", AYT: "Antalya", AYV: "Ayvalık", BDM: "Bodrum",
@@ -64,6 +84,7 @@ export default function ProformaNew() {
   const [anchorageDays, setAnchorageDays] = useState<number>(0);
   const [purposeOfCall, setPurposeOfCall] = useState<string>("Discharging");
   const [cargoQuantity, setCargoQuantity] = useState<string>("3001");
+  const [cargoCategory, setCargoCategory] = useState<string>("grain");
   const [cargoType, setCargoType] = useState<string>("");
   const [cargoUnit, setCargoUnit] = useState<string>("MT");
   const [isDangerousCargo, setIsDangerousCargo] = useState<boolean>(false);
@@ -129,6 +150,7 @@ export default function ProformaNew() {
           portId: parseInt(selectedPort),
           berthStayDays,
           cargoQuantity: cargoQuantity ? parseFloat(cargoQuantity) : 5000,
+          cargoType: cargoType || cargoCategory,
           isDangerousCargo,
           customsType,
         });
@@ -137,7 +159,7 @@ export default function ProformaNew() {
       setQuickEstimateLoading(false);
     }, 900);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [selectedVessel, selectedPort, berthStayDays, cargoQuantity, isDangerousCargo, customsType]);
+  }, [selectedVessel, selectedPort, berthStayDays, cargoQuantity, cargoType, cargoCategory, isDangerousCargo, customsType]);
 
   const citiesWithCounts = useMemo(() => {
     if (!ports) return [];
@@ -235,6 +257,7 @@ export default function ProformaNew() {
       berthStayDays,
       anchorageDays,
       cargoQuantity: cargoQuantity ? parseFloat(cargoQuantity) : undefined,
+      cargoType: cargoType || cargoCategory,
       purposeOfCall,
       isDangerousCargo,
       customsType,
@@ -246,7 +269,7 @@ export default function ProformaNew() {
       usdTryRate,
       eurTryRate,
     });
-  }, [selectedVessel, selectedPort, berthStayDays, anchorageDays, cargoQuantity, purposeOfCall, isDangerousCargo, customsType, flagCategory, dtoCategory, lighthouseCategory, vtsCategory, wharfageCategory, usdTryRate, eurTryRate]);
+  }, [selectedVessel, selectedPort, berthStayDays, anchorageDays, cargoQuantity, cargoType, cargoCategory, purposeOfCall, isDangerousCargo, customsType, flagCategory, dtoCategory, lighthouseCategory, vtsCategory, wharfageCategory, usdTryRate, eurTryRate]);
 
   const handleSave = () => {
     if (!calculatedItems || !selectedVessel || !selectedPort) return;
@@ -465,20 +488,60 @@ export default function ProformaNew() {
                   </Select>
                 </div>
               </div>
-              <div className="space-y-2 sm:col-span-2 lg:col-span-3">
-                <Label>Cargo Description</Label>
+              <div className="space-y-2 sm:col-span-3">
+                <Label>Cargo Category</Label>
+                <Select
+                  value={cargoCategory}
+                  onValueChange={(v) => {
+                    setCargoCategory(v);
+                    const opt = CARGO_TYPE_OPTIONS.find(o => o.value === v);
+                    if (opt) {
+                      setCargoUnit(opt.unit);
+                      setIsDangerousCargo(opt.isDangerous);
+                    }
+                  }}
+                  data-testid="select-cargo-category"
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CARGO_TYPE_OPTIONS.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            {opt.label}
+                            {opt.isDangerous && <span className="text-[10px] text-orange-600 font-semibold">⚠️ IMDG</span>}
+                          </div>
+                          <div className="text-xs text-muted-foreground">{opt.examples}</div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 sm:col-span-3">
+                <Label>Cargo Description <span className="text-xs text-muted-foreground font-normal">(optional — add specific cargo name)</span></Label>
                 <Input
                   value={cargoType}
                   onChange={(e) => setCargoType(e.target.value)}
-                  placeholder="e.g. Wheat, SFS OIL, Coal, Container, Bulk Cement..."
+                  placeholder="e.g. HRS Coil, Sunflower Oil, ULSD 10ppm..."
                   data-testid="input-cargo-type"
                 />
               </div>
             </div>
 
-            <div className="flex items-center gap-3 p-3 rounded-md border bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800">
-              <AlertTriangle className="w-4 h-4 text-orange-500 shrink-0" />
-              <Label htmlFor="dangerous-cargo" className="text-sm cursor-pointer flex-1">Dangerous Cargo (IMDG)</Label>
+            <div
+              className={`flex items-center gap-3 p-3 rounded-md border transition-colors ${isDangerousCargo ? "bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800" : "border-input bg-background"}`}
+            >
+              <AlertTriangle className={`w-4 h-4 shrink-0 ${isDangerousCargo ? "text-orange-500" : "text-muted-foreground"}`} />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="dangerous-cargo" className={`text-sm cursor-pointer ${isDangerousCargo ? "text-orange-700 dark:text-orange-300" : ""}`}>Dangerous Cargo (IMDG)</Label>
+                  {CARGO_TYPE_OPTIONS.find(o => o.value === cargoCategory)?.isDangerous && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 font-semibold border border-orange-300 dark:border-orange-700">Auto-detected</span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">+30% surcharge on Pilotage, Tugboat & Mooring</p>
+              </div>
               <Switch
                 id="dangerous-cargo"
                 checked={isDangerousCargo}
