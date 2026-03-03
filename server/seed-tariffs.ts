@@ -552,6 +552,43 @@ export async function ensureNewTariffTables() {
       );
     }
 
+    // ── Global Agency Fee rows (port_id=NULL) — per_1000_nt doğru değerleriyle ──
+    const { rows: globalAgencyCheck } = await client.query(
+      "SELECT COUNT(*)::int AS cnt FROM agency_fees WHERE port_id IS NULL AND service_type='acentelik'"
+    );
+
+    if (globalAgencyCheck[0].cnt === 0) {
+      await client.query(`
+        INSERT INTO agency_fees (port_id, tariff_no, service_type, nt_min, nt_max, fee, per_1000_nt, currency, valid_year) VALUES
+        (NULL,'T1','acentelik',0,500,600,NULL,'EUR',2026),
+        (NULL,'T1','acentelik',501,1000,1000,NULL,'EUR',2026),
+        (NULL,'T1','acentelik',1001,2000,1500,NULL,'EUR',2026),
+        (NULL,'T1','acentelik',2001,3000,1850,NULL,'EUR',2026),
+        (NULL,'T1','acentelik',3001,4000,2300,NULL,'EUR',2026),
+        (NULL,'T1','acentelik',4001,5000,2750,NULL,'EUR',2026),
+        (NULL,'T1','acentelik',5001,7500,3200,NULL,'EUR',2026),
+        (NULL,'T1','acentelik',7501,10000,4000,NULL,'EUR',2026),
+        (NULL,'T1','acentelik',10001,20000,4000,125,'EUR',2026),
+        (NULL,'T1','acentelik',20001,30000,5250,100,'EUR',2026),
+        (NULL,'T1','acentelik',30001,40000,6250,75,'EUR',2026),
+        (NULL,'T1','acentelik',40001,50000,7000,75,'EUR',2026),
+        (NULL,'T1','acentelik',50001,999999,7750,75,'EUR',2026)
+      `);
+    } else {
+      await client.query(`
+        UPDATE agency_fees SET per_1000_nt = 125, fee = 4000
+          WHERE port_id IS NULL AND service_type='acentelik' AND nt_min = 10001;
+        UPDATE agency_fees SET per_1000_nt = 100, fee = 5250
+          WHERE port_id IS NULL AND service_type='acentelik' AND nt_min = 20001;
+        UPDATE agency_fees SET per_1000_nt = 75, fee = 6250
+          WHERE port_id IS NULL AND service_type='acentelik' AND nt_min = 30001;
+        UPDATE agency_fees SET per_1000_nt = 75, fee = 7000
+          WHERE port_id IS NULL AND service_type='acentelik' AND nt_min = 40001;
+        UPDATE agency_fees SET per_1000_nt = 75, fee = 7750
+          WHERE port_id IS NULL AND service_type='acentelik' AND nt_min = 50001;
+      `);
+    }
+
     console.log("[tariff-tables] ✓ All new tariff tables verified.");
   } catch (err) {
     console.error("[tariff-tables] Error ensuring tariff tables:", err);
