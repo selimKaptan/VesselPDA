@@ -1266,6 +1266,66 @@ export async function registerRoutes(
     }
   });
 
+  // ─── ADMIN SYSTEM HEALTH ───────────────────────────────────────────────────
+  app.get("/api/admin/system-health", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const [dbSizeRow, tableCountsRow] = await Promise.all([
+        pool.query(`SELECT pg_size_pretty(pg_database_size(current_database())) as size, pg_database_size(current_database()) as bytes`),
+        pool.query(`SELECT
+          (SELECT COUNT(*) FROM users) as users,
+          (SELECT COUNT(*) FROM voyages) as voyages,
+          (SELECT COUNT(*) FROM proformas) as proformas,
+          (SELECT COUNT(*) FROM port_tenders) as tenders,
+          (SELECT COUNT(*) FROM vessel_positions) as positions
+        `),
+      ]);
+      const cacheStats = cache.stats();
+      const dbSize = dbSizeRow.rows[0];
+      const tableCounts = tableCountsRow.rows[0];
+      res.json({
+        db: { size: dbSize.size, bytes: parseInt(dbSize.bytes) },
+        tables: {
+          users: parseInt(tableCounts.users),
+          voyages: parseInt(tableCounts.voyages),
+          proformas: parseInt(tableCounts.proformas),
+          tenders: parseInt(tableCounts.tenders),
+          positions: parseInt(tableCounts.positions),
+        },
+        cache: cacheStats,
+        ais: { connected: isConnected(), cacheSize: getCacheSize() },
+        apiKeys: {
+          ais: !!process.env.AIS_STREAM_API_KEY,
+          tradingEconomics: !!process.env.TRADING_ECONOMICS_API_KEY,
+          resend: !!process.env.RESEND_API_KEY,
+          mapbox: !!process.env.VITE_MAPBOX_TOKEN,
+        },
+      });
+    } catch (error) {
+      console.error("[admin/system-health]", error);
+      res.status(500).json({ message: "Failed to fetch system health" });
+    }
+  });
+
+  app.get("/api/admin/hourly-activity", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const rows = await pool.query(`
+        SELECT EXTRACT(HOUR FROM created_at)::int as hour, COUNT(*)::int as count
+        FROM audit_logs
+        WHERE created_at >= NOW() - INTERVAL '7 days'
+        GROUP BY hour ORDER BY hour
+      `);
+      const map: Record<number, number> = {};
+      for (const r of rows.rows) map[r.hour] = r.count;
+      const result = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: map[h] ?? 0 }));
+      res.json(result);
+    } catch (error) {
+      console.error("[admin/hourly-activity]", error);
+      res.status(500).json({ message: "Failed to fetch hourly activity" });
+    }
+  });
+
   // ─── ADMIN ACTIVITY FEED ───────────────────────────────────────────────────
   app.get("/api/admin/activity", isAuthenticated, async (req: any, res) => {
     try {
