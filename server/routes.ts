@@ -1,12 +1,16 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { authLimiter, generalLimiter, aiLimiter, uploadLimiter, searchLimiter } from "./middleware/rate-limit";
+import { validateBody, validateQuery, validateParams, integerIdParam } from "./middleware/validate";
+import { sanitizeInput, sanitizeFilename } from "./utils/sanitize";
 import path from "path";
 import fs from "fs";
 import multer from "multer";
+import { z } from "zod";
 import { sendNominationEmail, sendNominationResponseEmail, sendContactEmail, sendBidReceivedEmail, sendBidSelectedEmail, sendNewTenderEmail, sendForumReplyEmail, sendProformaEmail } from "./email";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, registerAuthRoutes, authStorage } from "./replit_integrations/auth";
+import { insertVesselSchema } from "@shared/schema";
 import type { ProformaLineItem } from "@shared/schema";
 import { calculateProforma, type CalculationInput } from "./proforma-calculator";
 import { lookupPilotageFee, lookupTugboatFee, lookupMooringFee, lookupBerthingFee, lookupAgencyFee, lookupMarpolFee, lookupLcbFee, lookupSanitaryDuesFee, lookupChamberFreightShareFee, lookupChamberShippingFee, lookupLightDuesFee, lookupMiscExpenses, lookupSupervisionFee, type VesselCategory } from "./tariff-lookup";
@@ -48,9 +52,82 @@ const uploadLogo = multer({
   },
 });
 
+const ALLOWED_FILE_EXTENSIONS = new Set([".pdf", ".doc", ".docx", ".xls", ".xlsx", ".png", ".jpg", ".jpeg", ".svg", ".webp"]);
+const ALLOWED_MIME_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "image/png", "image/jpeg", "image/jpg", "image/svg+xml", "image/webp",
+]);
+
 const fileUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ALLOWED_FILE_EXTENSIONS.has(ext) && ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`File type not allowed. Accepted: PDF, DOC, DOCX, XLS, XLSX, PNG, JPG, JPEG`));
+    }
+  },
+});
+
+// ── Request Body Validation Schemas ──────────────────────────────────────────
+
+const vesselBodySchema = insertVesselSchema.omit({ userId: true }).extend({
+  name: z.string().min(1).max(200),
+  flag: z.string().min(1).max(100),
+  vesselType: z.string().min(1).max(100),
+  grt: z.coerce.number().positive(),
+  nrt: z.coerce.number().positive(),
+  dwt: z.coerce.number().positive().optional().nullable(),
+  loa: z.coerce.number().positive().optional().nullable(),
+  beam: z.coerce.number().positive().optional().nullable(),
+  draft: z.coerce.number().positive().optional().nullable(),
+  yearBuilt: z.coerce.number().int().min(1900).max(new Date().getFullYear() + 1).optional().nullable(),
+});
+
+const tenderBodySchema = z.object({
+  portId: z.coerce.number().int().positive(),
+  vesselName: z.string().min(1).max(200),
+  flag: z.string().min(1).max(100),
+  grt: z.coerce.number().positive(),
+  nrt: z.coerce.number().positive(),
+  cargoType: z.string().min(1).max(100),
+  cargoQuantity: z.string().min(1).max(50),
+  previousPort: z.string().min(1).max(200),
+  expiryHours: z.coerce.number().refine(v => [24, 48].includes(v), "Must be 24 or 48"),
+  description: z.string().max(2000).optional().nullable(),
+  cargoInfo: z.string().max(2000).optional().nullable(),
+  q88Base64: z.string().optional().nullable(),
+});
+
+const bidBodySchema = z.object({
+  totalAmount: z.coerce.number().positive().optional().nullable(),
+  currency: z.string().length(3).default("USD"),
+  notes: z.string().max(2000).optional().nullable(),
+  lineItems: z.array(z.any()).optional(),
+});
+
+const forumTopicBodySchema = z.object({
+  title: z.string().min(3, "Title must be at least 3 characters").max(300),
+  content: z.string().min(10, "Content must be at least 10 characters").max(20000),
+  categoryId: z.coerce.number().int().positive(),
+  isAnonymous: z.boolean().optional().default(false),
+});
+
+const forumReplyBodySchema = z.object({
+  content: z.string().min(1, "Reply cannot be empty").max(10000),
+});
+
+const contactBodySchema = z.object({
+  name: z.string().min(1).max(200),
+  email: z.string().email(),
+  subject: z.string().min(1).max(300),
+  message: z.string().min(1).max(5000),
 });
 
 export async function registerRoutes(
@@ -90,10 +167,11 @@ export async function registerRoutes(
       const folder = (req.query.folder as string) || "documents";
       const allowedFolders = ["documents", "certificates", "crew"];
       const safeFolder = allowedFolders.includes(folder) ? folder : "documents";
-      const url = uploadFile(req.file.buffer, req.file.originalname, safeFolder);
+      const safeName = sanitizeFilename(req.file.originalname);
+      const url = uploadFile(req.file.buffer, safeName, safeFolder);
       res.json({
         url,
-        fileName: req.file.originalname,
+        fileName: safeName,
         fileSize: req.file.size,
       });
     } catch (e: any) {
@@ -147,29 +225,17 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/vessels", isAuthenticated, async (req: any, res) => {
+  app.post("/api/vessels", isAuthenticated, validateBody(vesselBodySchema), async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { name, flag, vesselType, grt, nrt } = req.body;
-      if (!name || !flag || !vesselType || !grt || !nrt) {
-        return res.status(400).json({ message: "name, flag, vesselType, grt, and nrt are required" });
-      }
-      const vessel = await storage.createVessel({
-        ...req.body,
-        userId,
-        grt: Number(grt),
-        nrt: Number(nrt),
-        dwt: req.body.dwt ? Number(req.body.dwt) : null,
-        loa: req.body.loa ? Number(req.body.loa) : null,
-        beam: req.body.beam ? Number(req.body.beam) : null,
-      });
+      const vessel = await storage.createVessel({ ...req.body, userId });
       res.json(vessel);
     } catch (error) {
       res.status(500).json({ message: "Failed to create vessel" });
     }
   });
 
-  app.patch("/api/vessels/:id", isAuthenticated, async (req: any, res) => {
+  app.patch("/api/vessels/:id", isAuthenticated, validateBody(vesselBodySchema.partial()), async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const id = parseInt(req.params.id);
@@ -2347,27 +2413,15 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/forum/topics", isAuthenticated, async (req: any, res) => {
+  app.post("/api/forum/topics", isAuthenticated, validateBody(forumTopicBodySchema), async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { title, content, categoryId, isAnonymous } = req.body;
 
-      if (!title || !content || !categoryId) {
-        return res.status(400).json({ message: "title, content, and categoryId are required" });
-      }
-
-      if (title.trim().length < 3) {
-        return res.status(400).json({ message: "Title must be at least 3 characters" });
-      }
-
-      if (content.trim().length < 10) {
-        return res.status(400).json({ message: "Content must be at least 10 characters" });
-      }
-
       const topic = await storage.createForumTopic({
         userId,
-        title: title.trim(),
-        content: content.trim(),
+        title: sanitizeInput(title).trim(),
+        content: sanitizeInput(content).trim(),
         categoryId: Number(categoryId),
         isAnonymous: isAnonymous === true,
       });
@@ -2398,15 +2452,11 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/forum/topics/:id/replies", isAuthenticated, async (req: any, res) => {
+  app.post("/api/forum/topics/:id/replies", isAuthenticated, validateBody(forumReplyBodySchema), async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const topicId = parseInt(req.params.id);
       const { content } = req.body;
-
-      if (!content || content.trim().length < 1) {
-        return res.status(400).json({ message: "Content is required" });
-      }
 
       const topic = await storage.getForumTopic(topicId);
       if (!topic) return res.status(404).json({ message: "Topic not found" });
@@ -2418,7 +2468,7 @@ export async function registerRoutes(
       const reply = await storage.createForumReply({
         topicId,
         userId,
-        content: content.trim(),
+        content: sanitizeInput(content).trim(),
       });
 
       res.json(reply);
@@ -2568,7 +2618,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/tenders", isAuthenticated, async (req: any, res) => {
+  app.post("/api/tenders", isAuthenticated, validateBody(tenderBodySchema), async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -2580,17 +2630,6 @@ export async function registerRoutes(
       }
 
       const { portId, vesselName, description, cargoInfo, expiryHours, grt, nrt, flag, cargoType, cargoQuantity, previousPort, q88Base64 } = req.body;
-      if (!portId) return res.status(400).json({ message: "Port is required" });
-      if (!vesselName) return res.status(400).json({ message: "Vessel name is required" });
-      if (!flag) return res.status(400).json({ message: "Flag is required" });
-      if (!grt) return res.status(400).json({ message: "GRT is required" });
-      if (!nrt) return res.status(400).json({ message: "NRT is required" });
-      if (!cargoType) return res.status(400).json({ message: "Cargo type is required" });
-      if (!cargoQuantity) return res.status(400).json({ message: "Cargo quantity is required" });
-      if (!previousPort) return res.status(400).json({ message: "Previous port is required" });
-      if (![24, 48].includes(Number(expiryHours))) {
-        return res.status(400).json({ message: "Expiry must be 24 or 48 hours" });
-      }
 
       const tender = await storage.createPortTender({
         userId,
