@@ -698,6 +698,38 @@ export const insertFixtureSchema = createInsertSchema(fixtures).omit({ id: true,
 export type InsertFixture = z.infer<typeof insertFixtureSchema>;
 export type Fixture = typeof fixtures.$inferSelect;
 
+// ─── LAYTIME CALCULATIONS ────────────────────────────────────────────────────
+
+export const laytimeCalculations = pgTable("laytime_calculations", {
+  id: serial("id").primaryKey(),
+  fixtureId: integer("fixture_id").notNull().references(() => fixtures.id, { onDelete: "cascade" }),
+  portCallType: text("port_call_type").notNull().default("loading"),
+  portName: text("port_name"),
+  allowedLaytimeHours: real("allowed_laytime_hours").notNull().default(0),
+  norStartedAt: timestamp("nor_started_at"),
+  berthingAt: timestamp("berthing_at"),
+  loadingStartedAt: timestamp("loading_started_at"),
+  loadingCompletedAt: timestamp("loading_completed_at"),
+  departedAt: timestamp("departed_at"),
+  timeUsedHours: real("time_used_hours").default(0),
+  demurrageRate: real("demurrage_rate").default(0),
+  despatchRate: real("despatch_rate").default(0),
+  demurrageAmount: real("demurrage_amount").default(0),
+  despatchAmount: real("despatch_amount").default(0),
+  currency: text("currency").notNull().default("USD"),
+  deductions: jsonb("deductions").default([]),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const laytimeRelations = relations(laytimeCalculations, ({ one }) => ({
+  fixture: one(fixtures, { fields: [laytimeCalculations.fixtureId], references: [fixtures.id] }),
+}));
+
+export const insertLaytimeSchema = createInsertSchema(laytimeCalculations).omit({ id: true, createdAt: true, timeUsedHours: true, demurrageAmount: true, despatchAmount: true });
+export type InsertLaytime = z.infer<typeof insertLaytimeSchema>;
+export type LaytimeCalculation = typeof laytimeCalculations.$inferSelect;
+
 // ─── CARGO POSITIONS ────────────────────────────────────────────────────────
 
 export const cargoPositions = pgTable("cargo_positions", {

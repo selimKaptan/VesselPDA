@@ -3965,6 +3965,143 @@ export async function registerRoutes(
     }
   });
 
+  // ─── LAYTIME CALCULATIONS ────────────────────────────────────────────────────
+
+  app.get("/api/fixtures/:id/laytime", isAuthenticated, async (req: any, res) => {
+    try {
+      const fixtureId = parseInt(req.params.id);
+      const { rows } = await pool.query(
+        "SELECT * FROM laytime_calculations WHERE fixture_id = $1 ORDER BY created_at ASC",
+        [fixtureId]
+      );
+      res.json(rows);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch laytime calculations" });
+    }
+  });
+
+  app.post("/api/fixtures/:id/laytime", isAuthenticated, async (req: any, res) => {
+    try {
+      const fixtureId = parseInt(req.params.id);
+      const { calculateLaytime } = await import("./laytime-calculator");
+      const {
+        portCallType = "loading",
+        portName,
+        allowedLaytimeHours = 0,
+        norStartedAt,
+        berthingAt,
+        loadingStartedAt,
+        loadingCompletedAt,
+        departedAt,
+        demurrageRate = 0,
+        despatchRate = 0,
+        currency = "USD",
+        deductions = [],
+        notes,
+      } = req.body;
+
+      const calc = calculateLaytime({
+        allowedLaytimeHours: Number(allowedLaytimeHours),
+        norStartedAt,
+        berthingAt,
+        loadingStartedAt,
+        loadingCompletedAt,
+        departedAt,
+        demurrageRate: Number(demurrageRate),
+        despatchRate: Number(despatchRate),
+        deductions,
+      });
+
+      const { rows } = await pool.query(
+        `INSERT INTO laytime_calculations
+          (fixture_id, port_call_type, port_name, allowed_laytime_hours,
+           nor_started_at, berthing_at, loading_started_at, loading_completed_at, departed_at,
+           time_used_hours, demurrage_rate, despatch_rate, demurrage_amount, despatch_amount,
+           currency, deductions, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+         RETURNING *`,
+        [
+          fixtureId, portCallType, portName || null, allowedLaytimeHours,
+          norStartedAt || null, berthingAt || null, loadingStartedAt || null,
+          loadingCompletedAt || null, departedAt || null,
+          calc.timeUsedHours, demurrageRate, despatchRate,
+          calc.demurrageAmount, calc.despatchAmount,
+          currency, JSON.stringify(deductions), notes || null,
+        ]
+      );
+      res.status(201).json(rows[0]);
+    } catch (e: any) {
+      res.status(500).json({ message: "Failed to create laytime calculation", error: e.message });
+    }
+  });
+
+  app.put("/api/laytime/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { calculateLaytime } = await import("./laytime-calculator");
+      const {
+        portCallType,
+        portName,
+        allowedLaytimeHours,
+        norStartedAt,
+        berthingAt,
+        loadingStartedAt,
+        loadingCompletedAt,
+        departedAt,
+        demurrageRate,
+        despatchRate,
+        currency,
+        deductions,
+        notes,
+      } = req.body;
+
+      const calc = calculateLaytime({
+        allowedLaytimeHours: Number(allowedLaytimeHours || 0),
+        norStartedAt,
+        berthingAt,
+        loadingStartedAt,
+        loadingCompletedAt,
+        departedAt,
+        demurrageRate: Number(demurrageRate || 0),
+        despatchRate: Number(despatchRate || 0),
+        deductions: deductions || [],
+      });
+
+      const { rows } = await pool.query(
+        `UPDATE laytime_calculations SET
+          port_call_type = $2, port_name = $3, allowed_laytime_hours = $4,
+          nor_started_at = $5, berthing_at = $6, loading_started_at = $7,
+          loading_completed_at = $8, departed_at = $9,
+          time_used_hours = $10, demurrage_rate = $11, despatch_rate = $12,
+          demurrage_amount = $13, despatch_amount = $14,
+          currency = $15, deductions = $16, notes = $17
+         WHERE id = $1 RETURNING *`,
+        [
+          id, portCallType, portName || null, allowedLaytimeHours || 0,
+          norStartedAt || null, berthingAt || null, loadingStartedAt || null,
+          loadingCompletedAt || null, departedAt || null,
+          calc.timeUsedHours, demurrageRate || 0, despatchRate || 0,
+          calc.demurrageAmount, calc.despatchAmount,
+          currency || "USD", JSON.stringify(deductions || []), notes || null,
+        ]
+      );
+      if (rows.length === 0) return res.status(404).json({ message: "Not found" });
+      res.json(rows[0]);
+    } catch (e: any) {
+      res.status(500).json({ message: "Failed to update laytime calculation", error: e.message });
+    }
+  });
+
+  app.delete("/api/laytime/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await pool.query("DELETE FROM laytime_calculations WHERE id = $1", [id]);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to delete laytime calculation" });
+    }
+  });
+
   // ─── CARGO POSITIONS ────────────────────────────────────────────────────────
 
   app.get("/api/cargo-positions", isAuthenticated, async (req: any, res) => {
