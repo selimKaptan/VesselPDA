@@ -301,6 +301,100 @@ export async function lookupLightDuesFee(
   }
 }
 
+function getSupervisionCargoKeyword(cargoType: string): { keyword: string; unit: string } {
+  const t = (cargoType || "").toLowerCase().trim();
+  if (/lpg|lng|gaz|propane|propan|butane/.test(t) || (t.includes("gas") && !t.includes("gasoil")))
+    return { keyword: "LPG ve LNG", unit: "MT" };
+  if (/crude|ham petrol|akaryakit|slop|naphtha|naptha|gasoil|diesel|fuel oil|mazot|bitumen|asphalt/.test(t))
+    return { keyword: "Ham Petrol", unit: "MT" };
+  if (/chemical|kimyasal|methanol|solvent|acid|asit|caustic|vegetable oil|palm|molasses|melas|zeytinyagi|olive oil|lube|lubricant|glycerin/.test(t))
+    return { keyword: "Kimyevi maddeler", unit: "MT" };
+  if (/container|konteyner|teu|box/.test(t))
+    return { keyword: "Dolu konteyner", unit: "Adet" };
+  if (/ro.?ro|roro|vehicle|araç|otomobil|car\b|truck|kamyon|jeep|minibus|pickup|panelvan/.test(t))
+    return { keyword: "Otomobil", unit: "Adet" };
+  if (/steel|çelik|coil|pipe|boru|sac|kangal|profil|paper|breakbulk|break.?bulk|timber|kereste|lumber|bag|çuval/.test(t))
+    return { keyword: "Demir-celik", unit: "MT" };
+  if (/grain|tahıl|tahil|wheat|buğday|bugday|barley|arpa|corn|mısır|misir|soya|pirinç|rice|sunflower|aycicek/.test(t))
+    return { keyword: "Tahil ve Tohumlar", unit: "MT" };
+  return { keyword: "Kati Esya", unit: "MT" };
+}
+
+function parseQuantityRange(range: string): { min: number; max: number } {
+  if (!range || range === "--" || range.toLowerCase().includes("tum")) return { min: 0, max: Infinity };
+  const cleaned = range.replace(/\./g, "").replace(/,/g, "");
+  const nums = cleaned.match(/\d+/g);
+  if (!nums || nums.length === 0) return { min: 0, max: Infinity };
+  const isUzeri = /uzeri|ve uzeri/i.test(range);
+  if (nums.length === 1 || isUzeri) return { min: parseInt(nums[0]), max: Infinity };
+  return { min: parseInt(nums[0]), max: parseInt(nums[1]) };
+}
+
+export async function lookupSupervisionFee(
+  pool: Pool,
+  portId: number,
+  cargoType: string,
+  cargoQuantity: number,
+  vesselCategory: VesselCategory,
+  eurUsdParity: number
+): Promise<LookupResult> {
+  if (cargoQuantity <= 0) return { fee: 0, source: "database" };
+  if (vesselCategory === "turkish_cabotage") return { fee: 0, source: "database" };
+  try {
+    const { keyword, unit } = getSupervisionCargoKeyword(cargoType);
+    const [cargoRows, ruleRows] = await Promise.all([
+      pool.query(
+        `SELECT rate, unit, quantity_range FROM supervision_fees
+         WHERE cargo_type ILIKE $1
+           AND (port_id = $2 OR port_id IS NULL)
+         ORDER BY (CASE WHEN port_id = $2 THEN 0 ELSE 1 END), id`,
+        [`%${keyword}%`, portId]
+      ),
+      pool.query(
+        `SELECT cargo_type, rate FROM supervision_fees
+         WHERE category = 'Genel Kural'
+           AND (port_id = $1 OR port_id IS NULL)
+         ORDER BY (CASE WHEN port_id = $1 THEN 0 ELSE 1 END), id`,
+        [portId]
+      ),
+    ]);
+
+    if (cargoRows.rows.length === 0) return { fee: 0, source: "fallback" };
+
+    let matchedRow = cargoRows.rows.find(row => {
+      const { min, max } = parseQuantityRange(row.quantity_range);
+      return cargoQuantity >= min && cargoQuantity <= max;
+    });
+    if (!matchedRow) matchedRow = cargoRows.rows[cargoRows.rows.length - 1];
+
+    const rate = parseFloat(matchedRow.rate || "0");
+    let feeEur = cargoQuantity * rate;
+
+    let minFeeEur = 300;
+    let maxFeeEur = 10000;
+    for (const rule of ruleRows.rows) {
+      const ct = (rule.cargo_type || "").toLowerCase();
+      if (ct.includes("asgari") || ct.includes("minimum")) {
+        const v = parseFloat(rule.rate);
+        if (!isNaN(v)) minFeeEur = v;
+      }
+      if (ct.includes("azami") || ct.includes("maksimum") || ct.includes("maximum")) {
+        const v = parseFloat(rule.rate);
+        if (!isNaN(v)) maxFeeEur = v;
+      }
+    }
+
+    feeEur = Math.min(maxFeeEur, Math.max(minFeeEur, feeEur));
+
+    if (vesselCategory === "turkish_intl") feeEur *= 0.5;
+
+    const feeUsd = Math.round(feeEur * eurUsdParity * 100) / 100;
+    return { fee: feeUsd, source: "database" };
+  } catch {
+    return { fee: 0, source: "fallback" };
+  }
+}
+
 export async function lookupMiscExpenses(
   pool: Pool,
   portId: number

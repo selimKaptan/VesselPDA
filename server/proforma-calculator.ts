@@ -34,6 +34,7 @@ export interface CalculationInput {
   dbCustomsFee?: number;
   dbChamberDtoFee?: number;
   dbAnchoragePerDay?: number;
+  dbSupervisionFee?: number;
 }
 
 export interface CalculatedLineItem {
@@ -256,6 +257,10 @@ function calcSupervision(input: CalculationInput): number {
   if (input.flagCategory === "cabotage") return 0;
   const { cargoQuantity, cargoType, eurUsdParity } = input;
   if (cargoQuantity <= 0) return 0;
+
+  if (input.dbSupervisionFee != null && input.dbSupervisionFee >= 0) {
+    return input.dbSupervisionFee;
+  }
 
   const category = getCargoCategory(cargoType);
   let amountUsd: number;
