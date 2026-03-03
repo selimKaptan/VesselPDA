@@ -48,6 +48,7 @@ import Fixtures from "@/pages/fixtures";
 import CargoPositions from "@/pages/cargo-positions";
 import MarketData from "@/pages/market-data";
 import Invoices from "@/pages/invoices";
+import Reports from "@/pages/reports";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -229,6 +230,7 @@ function AuthenticatedRouter() {
       <Route path="/cargo-positions" component={CargoPositions} />
       <Route path="/market-data" component={MarketData} />
       <Route path="/invoices" component={Invoices} />
+      <Route path="/reports" component={Reports} />
       <Route component={NotFound} />
     </Switch>
   );

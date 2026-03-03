@@ -5377,5 +5377,305 @@ export async function registerRoutes(
     }
   });
 
+  // ─── REPORTS ────────────────────────────────────────────────────────────────
+
+  app.get("/api/reports/voyages", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { from, to } = req.query as { from?: string; to?: string };
+
+      const params: any[] = [userId];
+      let dateFilter = "";
+      if (from) { params.push(from); dateFilter += ` AND v.created_at >= $${params.length}`; }
+      if (to)   { params.push(to);   dateFilter += ` AND v.created_at <= $${params.length}`; }
+
+      const [statsRow, byPort, list] = await Promise.all([
+        pool.query(`
+          SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
+            SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
+            SUM(CASE WHEN status = 'active'    THEN 1 ELSE 0 END) AS active,
+            SUM(CASE WHEN status = 'planned'   THEN 1 ELSE 0 END) AS planned,
+            AVG(CASE WHEN eta IS NOT NULL AND etd IS NOT NULL
+                THEN EXTRACT(EPOCH FROM (etd - eta)) / 86400 END) AS avg_duration_days
+          FROM voyages v
+          WHERE (user_id = $1 OR agent_user_id = $1) ${dateFilter}
+        `, params),
+        pool.query(`
+          SELECT p.name AS port_name, COUNT(*) AS count
+          FROM voyages v
+          JOIN ports p ON p.id = v.port_id
+          WHERE (v.user_id = $1 OR v.agent_user_id = $1) ${dateFilter}
+          GROUP BY p.name ORDER BY count DESC LIMIT 10
+        `, params),
+        pool.query(`
+          SELECT v.id, v.vessel_name, v.status, v.purpose_of_call,
+                 v.eta, v.etd, v.created_at, p.name AS port_name
+          FROM voyages v
+          JOIN ports p ON p.id = v.port_id
+          WHERE (v.user_id = $1 OR v.agent_user_id = $1) ${dateFilter}
+          ORDER BY v.created_at DESC LIMIT 100
+        `, params),
+      ]);
+
+      const s = statsRow.rows[0];
+      res.json({
+        stats: {
+          total: parseInt(s.total),
+          completed: parseInt(s.completed),
+          cancelled: parseInt(s.cancelled),
+          active: parseInt(s.active),
+          planned: parseInt(s.planned),
+          avgDurationDays: s.avg_duration_days ? parseFloat(parseFloat(s.avg_duration_days).toFixed(1)) : null,
+        },
+        byPort: byPort.rows.map(r => ({ portName: r.port_name, count: parseInt(r.count) })),
+        list: list.rows,
+      });
+    } catch (err) {
+      console.error("Voyage report error:", err);
+      res.status(500).json({ message: "Failed to generate voyage report" });
+    }
+  });
+
+  app.get("/api/reports/financial", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { from, to } = req.query as { from?: string; to?: string };
+
+      const pParams: any[] = [userId];
+      let pDateFilter = "";
+      if (from) { pParams.push(from); pDateFilter += ` AND p.created_at >= $${pParams.length}`; }
+      if (to)   { pParams.push(to);   pDateFilter += ` AND p.created_at <= $${pParams.length}`; }
+
+      const iParams: any[] = [userId];
+      let iDateFilter = "";
+      if (from) { iParams.push(from); iDateFilter += ` AND i.created_at >= $${iParams.length}`; }
+      if (to)   { iParams.push(to);   iDateFilter += ` AND i.created_at <= $${iParams.length}`; }
+
+      const [proformaStats, invoiceStats, monthly, byPort] = await Promise.all([
+        pool.query(`
+          SELECT
+            COUNT(*) AS total_count,
+            COALESCE(SUM(total_usd), 0) AS total_usd,
+            COALESCE(SUM(total_eur), 0) AS total_eur
+          FROM proformas p
+          WHERE p.user_id = $1 ${pDateFilter}
+        `, pParams),
+        pool.query(`
+          SELECT
+            status,
+            COUNT(*) AS count,
+            COALESCE(SUM(amount), 0) AS total
+          FROM invoices i
+          WHERE i.created_by_user_id = $1 ${iDateFilter}
+          GROUP BY status
+        `, iParams),
+        pool.query(`
+          SELECT
+            TO_CHAR(p.created_at, 'YYYY-MM') AS month,
+            COALESCE(SUM(p.total_usd), 0) AS total_usd,
+            COUNT(*) AS count
+          FROM proformas p
+          WHERE p.user_id = $1 ${pDateFilter}
+          GROUP BY month ORDER BY month ASC LIMIT 12
+        `, pParams),
+        pool.query(`
+          SELECT po.name AS port_name,
+                 COALESCE(SUM(p.total_usd), 0) AS total_usd,
+                 COUNT(*) AS count
+          FROM proformas p
+          JOIN ports po ON po.id = p.port_id
+          WHERE p.user_id = $1 ${pDateFilter}
+          GROUP BY po.name ORDER BY total_usd DESC LIMIT 8
+        `, pParams),
+      ]);
+
+      const ps = proformaStats.rows[0];
+      const invoiceMap: Record<string, { count: number; total: number }> = {};
+      for (const r of invoiceStats.rows) {
+        invoiceMap[r.status] = { count: parseInt(r.count), total: parseFloat(r.total) };
+      }
+
+      res.json({
+        proforma: {
+          totalCount: parseInt(ps.total_count),
+          totalUsd: parseFloat(ps.total_usd),
+          totalEur: parseFloat(ps.total_eur),
+        },
+        invoices: {
+          pending:   invoiceMap["pending"]   || { count: 0, total: 0 },
+          paid:      invoiceMap["paid"]      || { count: 0, total: 0 },
+          cancelled: invoiceMap["cancelled"] || { count: 0, total: 0 },
+        },
+        monthly: monthly.rows.map(r => ({
+          month: r.month,
+          totalUsd: parseFloat(r.total_usd),
+          count: parseInt(r.count),
+        })),
+        byPort: byPort.rows.map(r => ({
+          portName: r.port_name,
+          totalUsd: parseFloat(r.total_usd),
+          count: parseInt(r.count),
+        })),
+      });
+    } catch (err) {
+      console.error("Financial report error:", err);
+      res.status(500).json({ message: "Failed to generate financial report" });
+    }
+  });
+
+  app.get("/api/reports/fleet", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+
+      const [vessels, voyagesPerVessel, certs] = await Promise.all([
+        pool.query(`
+          SELECT id, name, vessel_type, flag, grt, fleet_status
+          FROM vessels
+          WHERE user_id = $1
+          ORDER BY name ASC
+        `, [userId]),
+        pool.query(`
+          SELECT vessel_id,
+                 COUNT(*) AS total_voyages,
+                 SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_voyages,
+                 SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed_voyages
+          FROM voyages
+          WHERE user_id = $1 AND vessel_id IS NOT NULL
+          GROUP BY vessel_id
+        `, [userId]),
+        pool.query(`
+          SELECT vc.vessel_id,
+                 COUNT(*) AS total_certs,
+                 SUM(CASE WHEN vc.expires_at > NOW() + INTERVAL '30 days' THEN 1 ELSE 0 END) AS valid,
+                 SUM(CASE WHEN vc.expires_at BETWEEN NOW() AND NOW() + INTERVAL '30 days' THEN 1 ELSE 0 END) AS expiring,
+                 SUM(CASE WHEN vc.expires_at < NOW() THEN 1 ELSE 0 END) AS expired
+          FROM vessel_certificates vc
+          JOIN vessels v ON v.id = vc.vessel_id
+          WHERE v.user_id = $1
+          GROUP BY vc.vessel_id
+        `, [userId]),
+      ]);
+
+      const voyageMap: Record<number, any> = {};
+      for (const r of voyagesPerVessel.rows) {
+        voyageMap[r.vessel_id] = {
+          totalVoyages: parseInt(r.total_voyages),
+          activeVoyages: parseInt(r.active_voyages),
+          completedVoyages: parseInt(r.completed_voyages),
+        };
+      }
+      const certMap: Record<number, any> = {};
+      for (const r of certs.rows) {
+        certMap[r.vessel_id] = {
+          totalCerts: parseInt(r.total_certs),
+          valid: parseInt(r.valid),
+          expiring: parseInt(r.expiring),
+          expired: parseInt(r.expired),
+        };
+      }
+
+      const vesselList = vessels.rows.map((v: any) => ({
+        id: v.id,
+        name: v.name,
+        vesselType: v.vessel_type,
+        flag: v.flag,
+        grt: v.grt,
+        status: v.fleet_status,
+        voyages: voyageMap[v.id] || { totalVoyages: 0, activeVoyages: 0, completedVoyages: 0 },
+        certs: certMap[v.id] || { totalCerts: 0, valid: 0, expiring: 0, expired: 0 },
+      }));
+
+      const totalVessels = vesselList.length;
+      const activeVessels = vesselList.filter((v: any) => v.voyages.activeVoyages > 0).length;
+      const totalCerts = vesselList.reduce((acc: number, v: any) => acc + v.certs.totalCerts, 0);
+      const expiredCerts = vesselList.reduce((acc: number, v: any) => acc + v.certs.expired, 0);
+      const expiringCerts = vesselList.reduce((acc: number, v: any) => acc + v.certs.expiring, 0);
+
+      res.json({
+        summary: {
+          totalVessels,
+          activeVessels,
+          utilizationRate: totalVessels > 0 ? Math.round((activeVessels / totalVessels) * 100) : 0,
+          totalCerts,
+          expiredCerts,
+          expiringCerts,
+        },
+        vessels: vesselList,
+      });
+    } catch (err) {
+      console.error("Fleet report error:", err);
+      res.status(500).json({ message: "Failed to generate fleet report" });
+    }
+  });
+
+  app.get("/api/reports/performance", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+
+      const [bids, reviews, monthly] = await Promise.all([
+        pool.query(`
+          SELECT
+            COUNT(*) AS total_bids,
+            SUM(CASE WHEN tb.status = 'selected' THEN 1 ELSE 0 END) AS won,
+            SUM(CASE WHEN tb.status = 'rejected' THEN 1 ELSE 0 END) AS lost,
+            AVG(EXTRACT(EPOCH FROM (tb.created_at - pt.created_at)) / 3600) AS avg_response_hours
+          FROM tender_bids tb
+          JOIN port_tenders pt ON pt.id = tb.tender_id
+          WHERE tb.agent_user_id = $1
+        `, [userId]),
+        pool.query(`
+          SELECT
+            COUNT(*) AS total_reviews,
+            AVG(rating) AS avg_rating,
+            SUM(CASE WHEN rating >= 4 THEN 1 ELSE 0 END) AS positive,
+            SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS neutral,
+            SUM(CASE WHEN rating <= 2 THEN 1 ELSE 0 END) AS negative
+          FROM voyage_reviews
+          WHERE reviewee_user_id = $1
+        `, [userId]),
+        pool.query(`
+          SELECT
+            TO_CHAR(created_at, 'YYYY-MM') AS month,
+            COUNT(*) AS count,
+            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed
+          FROM voyages
+          WHERE (user_id = $1 OR agent_user_id = $1)
+            AND created_at >= NOW() - INTERVAL '12 months'
+          GROUP BY month ORDER BY month ASC
+        `, [userId]),
+      ]);
+
+      const b = bids.rows[0];
+      const r = reviews.rows[0];
+
+      res.json({
+        bids: {
+          total: parseInt(b.total_bids) || 0,
+          won: parseInt(b.won) || 0,
+          lost: parseInt(b.lost) || 0,
+          winRate: b.total_bids > 0 ? Math.round((parseInt(b.won) / parseInt(b.total_bids)) * 100) : 0,
+          avgResponseHours: b.avg_response_hours ? parseFloat(parseFloat(b.avg_response_hours).toFixed(1)) : null,
+        },
+        reviews: {
+          total: parseInt(r.total_reviews) || 0,
+          avgRating: r.avg_rating ? parseFloat(parseFloat(r.avg_rating).toFixed(2)) : null,
+          positive: parseInt(r.positive) || 0,
+          neutral: parseInt(r.neutral) || 0,
+          negative: parseInt(r.negative) || 0,
+        },
+        monthly: monthly.rows.map(row => ({
+          month: row.month,
+          count: parseInt(row.count),
+          completed: parseInt(row.completed),
+        })),
+      });
+    } catch (err) {
+      console.error("Performance report error:", err);
+      res.status(500).json({ message: "Failed to generate performance report" });
+    }
+  });
+
   return httpServer;
 }
