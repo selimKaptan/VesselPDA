@@ -294,6 +294,24 @@ export async function ensureNewTariffTables() {
       )
     `);
 
+    const chamberShippingCount = await client.query("SELECT COUNT(*) FROM chamber_of_shipping_fees");
+    if (parseInt(chamberShippingCount.rows[0].count) === 0) {
+      await client.query(`
+        INSERT INTO chamber_of_shipping_fees
+          (port_id, gt_min, gt_max, fee, flag_category, currency, valid_year, notes)
+        VALUES
+          (NULL, 0,     500,    250,  'foreign', 'USD', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 501,   1500,   400,  'foreign', 'USD', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 1501,  3000,   600,  'foreign', 'USD', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 3001,  6000,   900,  'foreign', 'USD', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 6001,  12000,  1200, 'foreign', 'USD', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 12001, 25000,  1700, 'foreign', 'USD', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 25001, 50000,  2200, 'foreign', 'USD', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 50001, 999999, 2700, 'foreign', 'USD', 2026, '2026 Chamber of Shipping Fee')
+      `);
+      console.log("[tariff-tables] Seeded 8 Chamber of Shipping Fee rows.");
+    }
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS chamber_freight_share (
         id SERIAL PRIMARY KEY,

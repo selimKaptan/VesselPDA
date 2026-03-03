@@ -240,6 +240,30 @@ export async function lookupChamberFreightShareFee(
   }
 }
 
+export async function lookupChamberShippingFee(
+  pool: Pool,
+  portId: number,
+  grt: number,
+  vesselCat: VesselCategory
+): Promise<LookupResult> {
+  const flagCat = vesselCat === "turkish_intl" || vesselCat === "turkish_cabotage" ? "turkish" : "foreign";
+  try {
+    const result = await pool.query(
+      `SELECT fee, currency FROM chamber_of_shipping_fees
+       WHERE (port_id = $1 OR port_id IS NULL)
+         AND (flag_category = $2 OR flag_category = 'all')
+         AND gt_min <= $3
+       ORDER BY (CASE WHEN port_id = $1 THEN 0 ELSE 1 END), gt_min DESC LIMIT 1`,
+      [portId, flagCat, grt]
+    );
+    if (result.rows.length === 0) return { fee: 0, source: "fallback" };
+    const fee = parseFloat(result.rows[0].fee || "0");
+    return { fee: Math.round(fee * 100) / 100, source: "database" };
+  } catch {
+    return { fee: 0, source: "fallback" };
+  }
+}
+
 export async function lookupSanitaryDuesFee(
   pool: Pool,
   portId: number,
