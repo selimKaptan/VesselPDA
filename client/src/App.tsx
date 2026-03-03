@@ -57,6 +57,7 @@ import OrganizationDashboard from "@/pages/organization-dashboard";
 import FinalDa from "@/pages/final-da";
 import FinalDaEdit from "@/pages/final-da-edit";
 import BunkerManagement from "@/pages/bunker-management";
+import MaritimeDocView from "@/pages/maritime-doc-view";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -236,6 +237,7 @@ function AuthenticatedRouter() {
       <Route path="/sanctions-check" component={SanctionsCheck} />
       <Route path="/vessel-certificates" component={VesselCertificates} />
       <Route path="/bunker-management" component={BunkerManagement} />
+      <Route path="/maritime-docs/:id" component={MaritimeDocView} />
       <Route path="/fixtures" component={Fixtures} />
       <Route path="/cargo-positions" component={CargoPositions} />
       <Route path="/market-data" component={MarketData} />

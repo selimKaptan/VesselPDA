@@ -246,6 +246,10 @@ app.use((req, res, next) => {
         ensureBunkerSchema().catch((err: Error) => console.error("Bunker migration error:", err));
       });
 
+      import("./migrate-maritime-docs").then(({ ensureMaritimeDocsSchema }) => {
+        ensureMaritimeDocsSchema().catch((err: Error) => console.error("Maritime docs migration error:", err));
+      });
+
       import("./startup-checks").then(({ runStartupChecks }) => {
         setTimeout(() => {
           runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));

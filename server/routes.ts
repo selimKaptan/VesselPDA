@@ -6745,5 +6745,260 @@ export async function registerRoutes(
     }
   });
 
+  // ─── MARITIME DOC TEMPLATES ──────────────────────────────────────────────────
+
+  app.get("/api/maritime-doc-templates", isAuthenticated, async (_req, res) => {
+    try {
+      const { rows } = await pool.query(`SELECT * FROM maritime_doc_templates ORDER BY category, name`);
+      res.json(rows);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.get("/api/maritime-doc-templates/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { rows } = await pool.query(`SELECT * FROM maritime_doc_templates WHERE id = $1`, [req.params.id]);
+      if (!rows[0]) return res.status(404).json({ message: "Template not found" });
+      res.json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.post("/api/maritime-doc-templates", isAuthenticated, async (req: any, res) => {
+    try {
+      const { name, code, category, description, fields } = req.body;
+      if (!name || !code || !fields) return res.status(400).json({ message: "name, code, fields required" });
+      const { rows } = await pool.query(
+        `INSERT INTO maritime_doc_templates (name, code, category, description, fields, is_built_in)
+         VALUES ($1, $2, $3, $4, $5::jsonb, FALSE) RETURNING *`,
+        [name, code, category || "cargo", description || "", JSON.stringify(fields)]
+      );
+      res.status(201).json(rows[0]);
+    } catch (err: any) {
+      if (err.code === "23505") return res.status(409).json({ message: "Template code already exists" });
+      res.status(500).json({ message: "Failed" });
+    }
+  });
+
+  // ─── MARITIME DOCUMENTS ───────────────────────────────────────────────────────
+
+  app.post("/api/voyages/:id/maritime-docs", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const voyageId = parseInt(req.params.id);
+      const { templateId, portCallId } = req.body;
+      if (!templateId) return res.status(400).json({ message: "templateId required" });
+
+      const { rows: vRows } = await pool.query(`SELECT * FROM voyages WHERE id = $1`, [voyageId]);
+      const voyage = vRows[0];
+      if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+
+      const { rows: tRows } = await pool.query(`SELECT * FROM maritime_doc_templates WHERE id = $1`, [templateId]);
+      const template = tRows[0];
+      if (!template) return res.status(404).json({ message: "Template not found" });
+
+      const { rows: countRows } = await pool.query(
+        `SELECT COUNT(*) as cnt FROM maritime_documents WHERE template_id = $1 AND voyage_id = $2`,
+        [templateId, voyageId]
+      );
+      const seq = parseInt(countRows[0].cnt) + 1;
+      const year = new Date().getFullYear();
+      const docNumber = `${template.code}-${year}-${String(voyageId).padStart(3, "0")}-${seq}`;
+
+      let portName = voyage.load_port || "";
+      if (portCallId) {
+        const { rows: pcRows } = await pool.query(`SELECT port_name FROM voyage_port_calls WHERE id = $1`, [portCallId]);
+        if (pcRows[0]) portName = pcRows[0].port_name || portName;
+      }
+
+      const autoData: Record<string, string> = {
+        vesselName: voyage.vessel_name || "",
+        voyageNo: `VOY-${voyageId}`,
+        loadPort: voyage.load_port || "",
+        dischargePort: voyage.discharge_port || "",
+        imoNumber: voyage.imo_number || "",
+        portOfLoading: voyage.load_port || "",
+        portOfDischarge: voyage.discharge_port || "",
+        placeOfIssue: portName,
+        port: portName,
+      };
+
+      const fields: any[] = Array.isArray(template.fields) ? template.fields : [];
+      const data: Record<string, any> = {};
+      for (const field of fields) {
+        if (field.autoFill && autoData[field.autoFill]) {
+          data[field.fieldName] = autoData[field.autoFill];
+        } else if (field.defaultValue !== undefined && field.defaultValue !== "") {
+          data[field.fieldName] = field.defaultValue;
+        } else {
+          data[field.fieldName] = field.fieldType === "table" ? [] : "";
+        }
+      }
+
+      const { rows } = await pool.query(
+        `INSERT INTO maritime_documents (template_id, voyage_id, port_call_id, user_id, organization_id, document_number, data, status, version)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, 'draft', 1) RETURNING *`,
+        [templateId, voyageId, portCallId || null, userId, req.organizationId || null, docNumber, JSON.stringify(data)]
+      );
+
+      const { rows: fullRows } = await pool.query(`
+        SELECT md.*, mdt.name as template_name, mdt.code as template_code, mdt.category as template_category,
+               mdt.fields as template_fields,
+               u.first_name || ' ' || u.last_name as creator_name
+        FROM maritime_documents md
+        JOIN maritime_doc_templates mdt ON md.template_id = mdt.id
+        JOIN users u ON md.user_id = u.id
+        WHERE md.id = $1
+      `, [rows[0].id]);
+
+      res.status(201).json(fullRows[0]);
+    } catch (err) {
+      console.error("maritime-doc create error:", err);
+      res.status(500).json({ message: "Failed to create document" });
+    }
+  });
+
+  app.get("/api/voyages/:id/maritime-docs", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const { rows } = await pool.query(`
+        SELECT md.*, mdt.name as template_name, mdt.code as template_code, mdt.category as template_category,
+               u.first_name || ' ' || u.last_name as creator_name
+        FROM maritime_documents md
+        JOIN maritime_doc_templates mdt ON md.template_id = mdt.id
+        JOIN users u ON md.user_id = u.id
+        WHERE md.voyage_id = $1 AND md.parent_id IS NULL
+        ORDER BY md.created_at DESC
+      `, [voyageId]);
+      res.json(rows);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.get("/api/maritime-docs/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { rows } = await pool.query(`
+        SELECT md.*, mdt.name as template_name, mdt.code as template_code, mdt.category as template_category,
+               mdt.fields as template_fields, mdt.description as template_description,
+               u.first_name || ' ' || u.last_name as creator_name,
+               su.first_name || ' ' || su.last_name as signer_name,
+               ru.first_name || ' ' || ru.last_name as reviewer_name
+        FROM maritime_documents md
+        JOIN maritime_doc_templates mdt ON md.template_id = mdt.id
+        JOIN users u ON md.user_id = u.id
+        LEFT JOIN users su ON md.signed_by_user_id = su.id
+        LEFT JOIN users ru ON md.reviewed_by_user_id = ru.id
+        WHERE md.id = $1
+      `, [req.params.id]);
+      if (!rows[0]) return res.status(404).json({ message: "Document not found" });
+      res.json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.patch("/api/maritime-docs/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const docId = parseInt(req.params.id);
+      const { data, notes } = req.body;
+
+      const { rows: existing } = await pool.query(`SELECT * FROM maritime_documents WHERE id = $1`, [docId]);
+      if (!existing[0]) return res.status(404).json({ message: "Document not found" });
+      if (existing[0].status === "signed") return res.status(400).json({ message: "Signed documents cannot be edited" });
+
+      const updates: string[] = [];
+      const values: any[] = [];
+      let idx = 1;
+      if (data !== undefined) { updates.push(`data = $${idx++}::jsonb`); values.push(JSON.stringify(data)); }
+      if (notes !== undefined) { updates.push(`notes = $${idx++}`); values.push(notes); }
+      if (!updates.length) return res.status(400).json({ message: "Nothing to update" });
+      values.push(docId);
+
+      const { rows } = await pool.query(
+        `UPDATE maritime_documents SET ${updates.join(", ")} WHERE id = $${idx} RETURNING *`,
+        values
+      );
+      res.json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed to update" }); }
+  });
+
+  app.patch("/api/maritime-docs/:id/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const docId = parseInt(req.params.id);
+      const { status } = req.body;
+      const allowed = ["draft", "pending_review", "approved", "void"];
+      if (!allowed.includes(status)) return res.status(400).json({ message: "Invalid status" });
+
+      const updates: Record<string, any> = { status };
+      if (status === "approved") {
+        updates.reviewed_by_user_id = userId;
+        updates.reviewed_at = new Date().toISOString();
+      }
+
+      const setClauses = Object.keys(updates).map((k, i) => `${k} = $${i + 1}`).join(", ");
+      const vals = [...Object.values(updates), docId];
+      const { rows } = await pool.query(
+        `UPDATE maritime_documents SET ${setClauses} WHERE id = $${vals.length} RETURNING *`,
+        vals
+      );
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      res.json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.post("/api/maritime-docs/:id/sign", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const docId = parseInt(req.params.id);
+      const { signatureText } = req.body;
+      if (!signatureText) return res.status(400).json({ message: "signatureText required" });
+
+      const { rows } = await pool.query(
+        `UPDATE maritime_documents
+         SET status = 'signed', signed_by_user_id = $1, signed_at = NOW(), signature_text = $2
+         WHERE id = $3 AND status != 'void' RETURNING *`,
+        [userId, signatureText, docId]
+      );
+      if (!rows[0]) return res.status(404).json({ message: "Document not found or voided" });
+      res.json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.post("/api/maritime-docs/:id/new-version", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const docId = parseInt(req.params.id);
+
+      const { rows: orig } = await pool.query(`SELECT * FROM maritime_documents WHERE id = $1`, [docId]);
+      if (!orig[0]) return res.status(404).json({ message: "Document not found" });
+
+      const newVersion = orig[0].version + 1;
+      const newDocNumber = orig[0].document_number ? `${orig[0].document_number}-v${newVersion}` : null;
+
+      const { rows } = await pool.query(
+        `INSERT INTO maritime_documents (template_id, voyage_id, port_call_id, user_id, organization_id, document_number, data, status, notes, version, parent_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, 'draft', $8, $9, $10) RETURNING *`,
+        [orig[0].template_id, orig[0].voyage_id, orig[0].port_call_id, userId,
+         orig[0].organization_id, newDocNumber, JSON.stringify(orig[0].data),
+         orig[0].notes, newVersion, orig[0].parent_id ?? orig[0].id]
+      );
+      res.status(201).json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.get("/api/maritime-docs/:id/versions", isAuthenticated, async (req, res) => {
+    try {
+      const docId = parseInt(req.params.id);
+      const { rows: orig } = await pool.query(`SELECT parent_id, id FROM maritime_documents WHERE id = $1`, [docId]);
+      if (!orig[0]) return res.status(404).json({ message: "Not found" });
+      const rootId = orig[0].parent_id ?? orig[0].id;
+      const { rows } = await pool.query(
+        `SELECT md.id, md.version, md.status, md.document_number, md.created_at,
+                u.first_name || ' ' || u.last_name as creator_name
+         FROM maritime_documents md JOIN users u ON md.user_id = u.id
+         WHERE md.id = $1 OR md.parent_id = $1 ORDER BY md.version ASC`,
+        [rootId]
+      );
+      res.json(rows);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
   return httpServer;
 }

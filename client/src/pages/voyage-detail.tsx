@@ -8,7 +8,7 @@ import {
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, UserPlus, Building2,
   Shield, Check, X as XIcon, Edit2, Route, Package, ChevronRight as ChevronRightIcon,
-  ArrowRight, Navigation, MoreVertical, RefreshCw, Wallet
+  ArrowRight, Navigation, MoreVertical, RefreshCw, Wallet, ExternalLink
 } from "lucide-react";
 import { SofEditor } from "@/components/sof-editor";
 import { VoyageExpensesTab } from "@/components/voyage-expenses-tab";
@@ -237,6 +237,28 @@ export default function VoyageDetail() {
       return res.json();
     },
     enabled: !!voyageId,
+  });
+
+  const { data: maritimeTemplates = [] } = useQuery<any[]>({
+    queryKey: ["/api/maritime-doc-templates"],
+    queryFn: () => fetch("/api/maritime-doc-templates", { credentials: "include" }).then(r => r.json()),
+    enabled: activeTab === "documents",
+  });
+
+  const { data: maritimeDocs = [], isLoading: maritimeDocsLoading } = useQuery<any[]>({
+    queryKey: ["/api/voyages", voyageId, "maritime-docs"],
+    queryFn: () => fetch(`/api/voyages/${voyageId}/maritime-docs`, { credentials: "include" }).then(r => r.json()),
+    enabled: activeTab === "documents" && !!voyageId,
+  });
+
+  const createMaritimeDocMutation = useMutation({
+    mutationFn: (templateId: number) =>
+      apiRequest("POST", `/api/voyages/${voyageId}/maritime-docs`, { templateId }).then(r => r.json()),
+    onSuccess: (doc) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "maritime-docs"] });
+      toast({ title: `${doc.template_name} created`, description: doc.document_number });
+    },
+    onError: () => toast({ title: "Failed to create document", variant: "destructive" }),
   });
 
   const { data: reviewData } = useQuery<{ reviews: any[]; myReview: any }>({
@@ -1456,6 +1478,104 @@ export default function VoyageDetail() {
               </div>
             );
           })()}
+        </Card>
+      )}
+
+      {/* ── Standard Maritime Documents (always shown under documents tab) ── */}
+      {activeTab === "documents" && (
+        <Card className="p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              <h2 className="font-semibold text-sm">Standard Maritime Documents</h2>
+              {(maritimeDocs as any[]).length > 0 && (
+                <span className="text-xs text-muted-foreground">({(maritimeDocs as any[]).length} created)</span>
+              )}
+            </div>
+          </div>
+
+          {/* Template cards grid */}
+          <div>
+            <p className="text-xs text-muted-foreground mb-3">Click a template to create a new document — vessel and voyage details auto-filled.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              {(maritimeTemplates as any[]).map((tmpl: any) => {
+                const CATEGORY_COLORS: Record<string, string> = {
+                  cargo: "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300",
+                  port: "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-300",
+                  crew: "bg-violet-50 border-violet-200 text-violet-700 dark:bg-violet-900/20 dark:border-violet-800 dark:text-violet-300",
+                  customs: "bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-900/20 dark:border-orange-800 dark:text-orange-300",
+                  safety: "bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300",
+                };
+                const colorClass = CATEGORY_COLORS[tmpl.category] ?? "bg-muted border-border text-muted-foreground";
+                return (
+                  <button
+                    key={tmpl.id}
+                    onClick={() => createMaritimeDocMutation.mutate(tmpl.id)}
+                    disabled={createMaritimeDocMutation.isPending}
+                    className={`flex flex-col items-start gap-1.5 p-3 rounded-lg border transition-all hover:shadow-sm hover:scale-[1.02] text-left ${colorClass}`}
+                    data-testid={`card-maritime-template-${tmpl.id}`}
+                  >
+                    <div className="flex items-center gap-1.5 w-full">
+                      <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider">{tmpl.code}</span>
+                    </div>
+                    <p className="text-xs font-medium leading-tight">{tmpl.name}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Created maritime documents list */}
+          {(maritimeDocs as any[]).length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Created Documents</p>
+              <div className="space-y-1.5">
+                {(maritimeDocs as any[]).map((mdoc: any) => {
+                  const STATUS_COLORS: Record<string, string> = {
+                    draft: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+                    pending_review: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+                    approved: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+                    signed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+                    void: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+                  };
+                  const STATUS_LABELS: Record<string, string> = {
+                    draft: "Draft", pending_review: "Review", approved: "Approved", signed: "Signed", void: "Void",
+                  };
+                  return (
+                    <Link
+                      key={mdoc.id}
+                      href={`/maritime-docs/${mdoc.id}`}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group"
+                      data-testid={`maritime-doc-${mdoc.id}`}
+                    >
+                      <FileText className="w-4 h-4 flex-shrink-0 text-[hsl(var(--maritime-primary))]" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-medium truncate">{mdoc.template_name}</p>
+                          <span className="text-[10px] font-mono text-muted-foreground">{mdoc.document_number}</span>
+                          {mdoc.version > 1 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium">v{mdoc.version}</span>
+                          )}
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[mdoc.status] ?? ""}`} data-testid={`badge-maritime-status-${mdoc.id}`}>
+                            {STATUS_LABELS[mdoc.status] ?? mdoc.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {mdoc.creator_name} · {new Date(mdoc.created_at).toLocaleDateString("en-GB")}
+                        </p>
+                      </div>
+                      <ExternalLink className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {(maritimeDocs as any[]).length === 0 && !maritimeDocsLoading && (
+            <p className="text-xs text-muted-foreground text-center py-4">No standard documents created yet. Click a template above to get started.</p>
+          )}
         </Card>
       )}
 

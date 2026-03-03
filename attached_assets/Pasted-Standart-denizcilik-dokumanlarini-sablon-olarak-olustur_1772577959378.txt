@@ -1,0 +1,94 @@
+Standart denizcilik dokumanlarini sablon olarak olusturup sefer bazinda dolduran dokuman workflow sistemi ekle.
+
+Yapilacaklar:
+
+1. shared/schema.ts dosyasina ekle:
+
+maritimeDocTemplates tablosu:
+- id (serial PK)
+- name (text, not null)
+- code (text, unique) — "SOF", "BL", "MANIFEST", "MATES_RECEIPT", "CREW_LIST", "CUSTOMS_DEC", "PORT_CLEARANCE", "HEALTH_DEC", "CARGO_PLAN", "DAMAGE_REPORT", "TIMESHEET"
+- category (text) — "cargo", "port", "crew", "customs", "safety"
+- description (text)
+- fields (jsonb, not null) — sablon alanlari: [{fieldName, fieldType, label, required, defaultValue}]
+  fieldType: "text", "number", "date", "select", "textarea", "table"
+- isBuiltIn (boolean, default true)
+- createdAt (timestamp, default now)
+
+maritimeDocuments tablosu:
+- id (serial PK)
+- templateId (integer, FK maritimeDocTemplates, not null)
+- voyageId (integer, FK voyages, not null)
+- portCallId (integer, FK voyagePortCalls, nullable)
+- userId (varchar, FK users, not null)
+- organizationId (integer, FK organizations, nullable)
+- documentNumber (text) — BL-2024-001 gibi
+- data (jsonb, not null) — doldurulan alan verileri
+- status (text, default "draft") — "draft", "pending_review", "approved", "signed", "void"
+- reviewedByUserId (varchar, FK users, nullable)
+- reviewedAt (timestamp)
+- signedByUserId (varchar, FK users, nullable)
+- signedAt (timestamp)
+- signatureText (text, nullable)
+- pdfFileUrl (text, nullable) — uretilen PDF
+- notes (text)
+- version (integer, default 1)
+- createdAt (timestamp, default now)
+
+2. Varsayilan sablonlari seed data olarak ekle:
+
+Bill of Lading (BL):
+  fields: shipper, consignee, notifyParty, vesselName, voyageNo, portOfLoading, portOfDischarge, cargoDescription, grossWeight, measurement, marksAndNumbers, freightDetails, numberOfOriginals, placeOfIssue, dateOfIssue
+
+Cargo Manifest:
+  fields: vesselName, voyageNo, portOfLoading, portOfDischarge, blNumber, shipper, consignee, cargoDescription, packages, grossWeight, measurement, hsCode
+
+Mate's Receipt:
+  fields: vesselName, date, shipper, cargoDescription, quantity, condition, remarks, receivedBy
+
+Crew List:
+  fields: table tipi — [{name, rank, nationality, birthDate, passportNo, seamansBookNo}]
+
+Customs Declaration:
+  fields: vesselName, flag, lastPort, nextPort, cargoOnBoard, crewNumber, passengerNumber, stores, dunnage, personalEffects
+
+Port Clearance:
+  fields: vesselName, flag, gt, nt, master, nextPort, crewNumber, departureDate
+
+Damage Report:
+  fields: vesselName, date, location, cargoAffected, damageDescription, estimatedLoss, surveyorName, photos
+
+3. Endpoint'ler:
+
+GET /api/maritime-doc-templates — Tum sablonlar
+GET /api/maritime-doc-templates/:id — Sablon detayi (fields)
+POST /api/maritime-doc-templates — Yeni sablon (ozel)
+
+POST /api/voyages/:id/maritime-docs — Sablondan yeni dokuman olustur (body: templateId)
+  Gemi ve sefer bilgilerini otomatik doldur
+GET /api/voyages/:id/maritime-docs — Seferin dokumalari
+GET /api/maritime-docs/:id — Dokuman detayi
+PATCH /api/maritime-docs/:id — Dokuman guncelle (data alanlari)
+PATCH /api/maritime-docs/:id/status — Status degistir (draft->review->approved->signed)
+POST /api/maritime-docs/:id/sign — E-imza (signatureText ile)
+GET /api/maritime-docs/:id/pdf — Dokuman PDF export
+POST /api/maritime-docs/:id/new-version — Yeni versiyon olustur
+
+4. client/src/components/maritime-doc-editor.tsx olustur:
+   - Sablon alanlarini otomatik form olarak render et
+   - fieldType'a gore input: text->input, date->datepicker, textarea->textarea, select->select, table->editable tablo
+   - Otomatik doldurulan alanlar (gemi adi, liman vs) readonly gosterilsin
+   - Ust kisimda: dokuman adi, numara, status badge
+   - Alt kisimda: Kaydet, Onaya Gonder, Imzala, PDF Indir butonlari
+   - Status workflow gorseli: Draft → Review → Approved → Signed
+   - Versiyon gecmisi (v1, v2, v3 listesi)
+
+5. voyage-detail.tsx'e "Belgeler" tab'ini guncelle:
+   - Mevcut dokuman yukleme sistemi korunsun
+   - Yeni bolum: "Standart Belgeler" — sablondan olusturma
+   - Template kartlari: BL, Manifest, Crew List vs. — tiklayinca olustur
+   - Olusturulan belgelerin listesi + durumu
+
+6. App.tsx'e gerekli route'lari ekle.
+
+Her sablon PDF'i profesyonel gorunumlu olsun. A4 format, ust kisimda sirket bilgileri, dokuman numarasi, tarih. Alt kisimda imza alani.
