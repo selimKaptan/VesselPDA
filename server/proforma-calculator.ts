@@ -336,6 +336,7 @@ export function getCargoCategory(cargoType?: string): "bulk_dry" | "general" | "
 }
 
 function calcSupervision(input: CalculationInput): number {
+  if (input.flagCategory === "cabotage") return 0;
   const { cargoQuantity, cargoType, eurUsdParity } = input;
   if (cargoQuantity <= 0) return 0;
 
@@ -456,7 +457,7 @@ export function calculateProforma(input: CalculationInput): CalculationResult {
   addItem("Fiscal & Notary Exp.", input.dbFiscalFee ?? 250);
   addItem("Communication & Copy & Stamp Exp.", input.dbCommunicationFee ?? 250);
 
-  addItem("Supervision Fee", calcSupervision(input), "As per official tariff");
+  addItem("Supervision Fee", calcSupervision(input), input.flagCategory === "cabotage" ? "Not applicable for cabotage voyages." : "As per official tariff.");
 
   addItem(
     "Agency Fee",
