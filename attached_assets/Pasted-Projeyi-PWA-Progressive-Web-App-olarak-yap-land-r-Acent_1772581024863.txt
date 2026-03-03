@@ -1,0 +1,70 @@
+Projeyi PWA (Progressive Web App) olarak yapılandır. Acenteler sahada telefondan kullanacak.
+
+Yapılacaklar:
+
+1. client/public/manifest.json oluştur:
+{
+  "name": "VesselPDA - Maritime Platform",
+  "short_name": "VesselPDA",
+  "description": "Maritime port agency and vessel management platform",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B1120",
+  "theme_color": "#0B1120",
+  "icons": [
+    { "src": "/icons/icon-72.png", "sizes": "72x72", "type": "image/png" },
+    { "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" },
+    { "src": "/icons/icon-128.png", "sizes": "128x128", "type": "image/png" },
+    { "src": "/icons/icon-144.png", "sizes": "144x144", "type": "image/png" },
+    { "src": "/icons/icon-152.png", "sizes": "152x152", "type": "image/png" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-384.png", "sizes": "384x384", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
+
+2. client/public/sw.js (Service Worker) oluştur:
+   - App shell caching (HTML, CSS, JS dosyaları)
+   - API response caching (network-first stratejisi)
+   - Offline fallback sayfası
+   - Background sync (offline yapılan işlemler online olunca gönderilsin)
+
+3. client/src/main.tsx dosyasında service worker'ı register et:
+   if ('serviceWorker' in navigator) {
+     navigator.serviceWorker.register('/sw.js');
+   }
+
+4. client/index.html dosyasına ekle:
+   - <link rel="manifest" href="/manifest.json">
+   - <meta name="theme-color" content="#0B1120">
+   - <meta name="apple-mobile-web-app-capable" content="yes">
+   - <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+   - <link rel="apple-touch-icon" href="/icons/icon-192.png">
+   - viewport meta tag'inin mobile-optimized olduğundan emin ol
+
+5. PWA Install Banner componenti oluştur (client/src/components/pwa-install-banner.tsx):
+   - "Uygulamayı yükle" banner'ı
+   - beforeinstallprompt event'ini yakala
+   - iOS için özel talimat göster ("Paylaş > Ana Ekrana Ekle")
+   - Kullanıcı kapatırsa 7 gün gösterme (localStorage)
+
+6. Mobil optimizasyonlar:
+   - Tüm tablo componentlerini responsive yap (mobilde yatay scroll veya card görünüm)
+   - Sidebar mobilde bottom navigation bar olarak göster:
+     Alt tab bar: Dashboard, Voyages, Messages, Notifications, Menu
+   - Touch-friendly butonlar (minimum 44x44px)
+   - Pull-to-refresh desteği
+   - Swipe gesture'lar (mesajlarda sola kaydır = sil/arşivle)
+
+7. Offline desteği:
+   - Offline durumda üst kısımda "Çevrimdışı - veriler senkronize edilecek" banner'ı
+   - Son yüklenen verileri göster (cached)
+   - Form gönderimi offline yapılırsa kuyruğa al, online olunca gönder
+
+8. Push notification hazırlığı:
+   - Notification permission request
+   - Push subscription endpoint'i (server/routes)
+   - Şimdilik sadece altyapı, gerçek push sonra eklenebilir
+
+Icon dosyalarını oluştur: Basit bir denizcilik temalı ikon (mavi arka plan, beyaz çapa veya gemi simgesi). SVG'den farklı boyutlarda PNG üret. client/public/icons/ klasörüne koy.
