@@ -16,6 +16,7 @@ import { db, pool } from "./db";
 import { sql as drizzleSql } from "drizzle-orm";
 import { handleAiChat } from "./anthropic";
 import { getOrFetchRates, fetchTCMBRates } from "./exchange-rates";
+import { logAction, getClientIp } from "./audit";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "logos");
 if (!fs.existsSync(uploadsDir)) {
@@ -749,6 +750,7 @@ export async function registerRoutes(
       });
 
       await storage.incrementProformaCount(userId);
+      logAction(userId, "create", "proforma", proforma.id, { referenceNumber: proforma.referenceNumber, portId: Number(portId), vesselId: Number(vesselId), totalUsd: Number(totalUsd) }, getClientIp(req));
 
       res.json(proforma);
     } catch (error) {
@@ -785,6 +787,7 @@ export async function registerRoutes(
       const id = parseInt(req.params.id);
       const deleted = await storage.deleteProforma(id, userId);
       if (!deleted) return res.status(404).json({ message: "Proforma not found" });
+      logAction(userId, "delete", "proforma", id, null, getClientIp(req));
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to delete proforma" });
@@ -797,6 +800,7 @@ export async function registerRoutes(
       const id = parseInt(req.params.id);
       const duplicated = await storage.duplicateProforma(id, userId);
       if (!duplicated) return res.status(404).json({ message: "Proforma not found" });
+      logAction(userId, "create", "proforma", duplicated.id, { duplicatedFrom: id }, getClientIp(req));
       res.json(duplicated);
     } catch (error) {
       res.status(500).json({ message: "Failed to duplicate proforma" });
@@ -1086,6 +1090,7 @@ export async function registerRoutes(
       const id = parseInt(req.params.id);
       const profile = await storage.approveCompanyProfile(id);
       if (!profile) return res.status(404).json({ message: "Profile not found" });
+      logAction(req.user?.claims?.sub, "approve", "company_profile", id, { companyName: profile.companyName }, getClientIp(req));
       // Notify company owner
       await storage.createNotification({
         userId: profile.userId,
@@ -2441,6 +2446,7 @@ export async function registerRoutes(
         expiryHours: Number(expiryHours),
       });
 
+      logAction(userId, "create", "tender", tender.id, { portId: Number(portId), vesselName, cargoType, expiryHours: Number(expiryHours) }, getClientIp(req));
       const agents = await storage.getAgentsByPort(Number(portId));
       res.json({ tender, agentCount: agents.length });
 
@@ -2568,6 +2574,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Can only cancel open tenders" });
       }
       await storage.updatePortTenderStatus(tenderId, "cancelled");
+      logAction(userId, "delete", "tender", tenderId, { status: "cancelled" }, getClientIp(req));
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to cancel tender" });
@@ -2610,6 +2617,7 @@ export async function registerRoutes(
         currency: currency || "USD",
       });
 
+      logAction(userId, "create", "tender_bid", bid.id, { tenderId, totalAmount, currency }, getClientIp(req));
       res.json(bid);
 
       // Notify tender owner — async, non-blocking
@@ -2663,6 +2671,7 @@ export async function registerRoutes(
       await storage.updatePortTenderStatus(tenderId, "closed");
 
       const selectedBid = bids.find(b => b.id === bidId);
+      logAction(userId, "select", "tender_bid", bidId, { tenderId, selectedBidId: bidId }, getClientIp(req));
       res.json({ success: true, selectedBid });
 
       // Notify the winning agent — async, non-blocking
@@ -3154,6 +3163,7 @@ export async function registerRoutes(
       if (data.eta) data.eta = new Date(data.eta);
       if (data.etd) data.etd = new Date(data.etd);
       const voyage = await storage.createVoyage(data);
+      logAction(userId, "create", "voyage", voyage.id, { portId: voyage.portId, vesselName: voyage.vesselName, status: voyage.status }, getClientIp(req));
       res.json(voyage);
     } catch (error) {
       res.status(500).json({ message: "Failed to create voyage" });
@@ -3234,6 +3244,8 @@ export async function registerRoutes(
       const { status } = req.body;
       const voyage = await storage.updateVoyageStatus(id, status);
       if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+      const uid = req.user?.claims?.sub || req.user?.id;
+      logAction(uid, "update", "voyage", id, { newStatus: status }, getClientIp(req));
       res.json(voyage);
     } catch (error) {
       res.status(500).json({ message: "Failed to update voyage status" });
@@ -4553,6 +4565,7 @@ export async function registerRoutes(
         proformaId: proformaId ? parseInt(proformaId) : null,
         linkedProformaId: linkedProformaId ? parseInt(linkedProformaId) : null,
       });
+      logAction(userId, "create", "invoice", invoice.id, { title, amount: parseFloat(amount), currency: currency || "USD", invoiceType: invoiceType || "invoice" }, getClientIp(req));
       res.status(201).json(invoice);
     } catch {
       res.status(500).json({ message: "Failed to create invoice" });
@@ -4564,6 +4577,7 @@ export async function registerRoutes(
       const id = parseInt(req.params.id);
       const { paidAt } = req.body;
       await storage.updateInvoiceStatus(id, "paid", paidAt ? new Date(paidAt) : new Date());
+      logAction(req.user?.claims?.sub || req.user?.id, "pay", "invoice", id, { status: "paid" }, getClientIp(req));
       res.json({ success: true });
     } catch {
       res.status(500).json({ message: "Failed to mark invoice paid" });
@@ -4574,6 +4588,7 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       await storage.updateInvoiceStatus(id, "cancelled");
+      logAction(req.user?.claims?.sub || req.user?.id, "cancel", "invoice", id, { status: "cancelled" }, getClientIp(req));
       res.json({ success: true });
     } catch {
       res.status(500).json({ message: "Failed to cancel invoice" });
@@ -5036,6 +5051,48 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Custom entry delete error:", err);
       res.status(500).json({ message: "Failed to delete entry" });
+    }
+  });
+
+  // ─── AUDIT LOGS (Admin only) ─────────────────────────────────────────────────
+
+  app.get("/api/admin/audit-logs", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const { userId, action, entityType, from, to, limit: lim, offset: off } = req.query;
+      let query = `
+        SELECT al.*, u.email, u.first_name, u.last_name
+        FROM audit_logs al
+        LEFT JOIN users u ON al.user_id = u.id
+        WHERE 1=1
+      `;
+      const params: any[] = [];
+      if (userId) { params.push(userId); query += ` AND al.user_id = $${params.length}`; }
+      if (action) { params.push(action); query += ` AND al.action = $${params.length}`; }
+      if (entityType) { params.push(entityType); query += ` AND al.entity_type = $${params.length}`; }
+      if (from) { params.push(from); query += ` AND al.created_at >= $${params.length}`; }
+      if (to) { params.push(to); query += ` AND al.created_at <= $${params.length}`; }
+      query += ` ORDER BY al.created_at DESC`;
+      const limitVal = Math.min(parseInt(lim as string) || 100, 500);
+      const offsetVal = parseInt(off as string) || 0;
+      params.push(limitVal); query += ` LIMIT $${params.length}`;
+      params.push(offsetVal); query += ` OFFSET $${params.length}`;
+      const result = await pool.query(query, params);
+
+      // Count query
+      let countQ = `SELECT COUNT(*) FROM audit_logs al WHERE 1=1`;
+      const countParams: any[] = [];
+      if (userId) { countParams.push(userId); countQ += ` AND al.user_id = $${countParams.length}`; }
+      if (action) { countParams.push(action); countQ += ` AND al.action = $${countParams.length}`; }
+      if (entityType) { countParams.push(entityType); countQ += ` AND al.entity_type = $${countParams.length}`; }
+      if (from) { countParams.push(from); countQ += ` AND al.created_at >= $${countParams.length}`; }
+      if (to) { countParams.push(to); countQ += ` AND al.created_at <= $${countParams.length}`; }
+      const countResult = await pool.query(countQ, countParams);
+
+      res.json({ logs: result.rows, total: parseInt(countResult.rows[0].count) });
+    } catch (error) {
+      console.error("Audit log fetch error:", error);
+      res.status(500).json({ message: "Failed to fetch audit logs" });
     }
   });
 

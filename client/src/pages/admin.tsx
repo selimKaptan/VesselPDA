@@ -88,6 +88,53 @@ export default function AdminPanel() {
   const { data: bunkerPricesList = [], isLoading: bunkerLoading } = useQuery<any[]>({ queryKey: ["/api/market/bunker-prices"] });
   const { data: portAlerts = [], isLoading: portAlertsLoading } = useQuery<any[]>({ queryKey: ["/api/port-alerts"] });
 
+  // Audit log filters
+  const [auditUserId, setAuditUserId] = useState("");
+  const [auditAction, setAuditAction] = useState("all");
+  const [auditEntityType, setAuditEntityType] = useState("all");
+  const [auditFrom, setAuditFrom] = useState("");
+  const [auditTo, setAuditTo] = useState("");
+  const [auditPage, setAuditPage] = useState(0);
+  const [auditEnabled, setAuditEnabled] = useState(false);
+
+  const auditParams = new URLSearchParams();
+  if (auditUserId) auditParams.set("userId", auditUserId);
+  if (auditAction !== "all") auditParams.set("action", auditAction);
+  if (auditEntityType !== "all") auditParams.set("entityType", auditEntityType);
+  if (auditFrom) auditParams.set("from", auditFrom);
+  if (auditTo) auditParams.set("to", auditTo);
+  auditParams.set("limit", "50");
+  auditParams.set("offset", String(auditPage * 50));
+
+  const { data: auditData, isLoading: auditLoading, refetch: refetchAudit } = useQuery<{ logs: any[]; total: number }>({
+    queryKey: ["/api/admin/audit-logs", auditUserId, auditAction, auditEntityType, auditFrom, auditTo, auditPage],
+    queryFn: () => fetch(`/api/admin/audit-logs?${auditParams}`, { credentials: "include" }).then(r => r.json()),
+    enabled: auditEnabled,
+  });
+  const auditLogs = auditData?.logs ?? [];
+  const auditTotal = auditData?.total ?? 0;
+
+  const exportAuditCsv = () => {
+    if (!auditLogs.length) return;
+    const headers = ["ID", "User", "Action", "Entity Type", "Entity ID", "Details", "IP Address", "Timestamp"];
+    const rows = auditLogs.map((l: any) => [
+      l.id,
+      `${l.first_name || ""} ${l.last_name || ""}`.trim() || l.email || l.user_id || "—",
+      l.action,
+      l.entity_type,
+      l.entity_id ?? "",
+      l.details ? JSON.stringify(l.details) : "",
+      l.ip_address || "",
+      l.created_at ? new Date(l.created_at).toISOString() : "",
+    ]);
+    const csv = [headers, ...rows].map(r => r.map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const [bunkerDialog, setBunkerDialog] = useState(false);
   const [alertDialog, setAlertDialog] = useState(false);
   const [editAlert, setEditAlert] = useState<any | null>(null);
@@ -537,6 +584,7 @@ export default function AdminPanel() {
           </TabsTrigger>
           <TabsTrigger value="port-alerts" data-testid="tab-port-alerts">⚠️ Port Alerts</TabsTrigger>
           <TabsTrigger value="settings" data-testid="tab-settings">⚙️ System Settings</TabsTrigger>
+          <TabsTrigger value="audit-log" data-testid="tab-audit-log" onClick={() => setAuditEnabled(true)}>🔍 Audit Log</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
@@ -1635,6 +1683,165 @@ export default function AdminPanel() {
                 </div>
               ))}
             </div>
+          </Card>
+        </TabsContent>
+
+        {/* Audit Log Tab */}
+        <TabsContent value="audit-log" className="space-y-4">
+          <Card className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                <h3 className="font-semibold">Audit Log</h3>
+                {auditTotal > 0 && <Badge variant="secondary" className="text-[10px]">{auditTotal.toLocaleString()} records</Badge>}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => refetchAudit()} data-testid="button-audit-refresh">
+                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" />Refresh
+                </Button>
+                <Button variant="outline" size="sm" onClick={exportAuditCsv} disabled={!auditLogs.length} data-testid="button-audit-csv">
+                  <ChevronRight className="w-3.5 h-3.5 mr-1.5" />Export CSV
+                </Button>
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+              <div>
+                <Label className="text-[11px] text-muted-foreground mb-1 block">User ID</Label>
+                <Input
+                  placeholder="User ID..."
+                  value={auditUserId}
+                  onChange={e => { setAuditUserId(e.target.value); setAuditPage(0); }}
+                  className="h-8 text-sm"
+                  data-testid="input-audit-user"
+                />
+              </div>
+              <div>
+                <Label className="text-[11px] text-muted-foreground mb-1 block">Action</Label>
+                <Select value={auditAction} onValueChange={v => { setAuditAction(v); setAuditPage(0); }}>
+                  <SelectTrigger className="h-8 text-sm" data-testid="select-audit-action">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Actions</SelectItem>
+                    <SelectItem value="login">login</SelectItem>
+                    <SelectItem value="create">create</SelectItem>
+                    <SelectItem value="update">update</SelectItem>
+                    <SelectItem value="delete">delete</SelectItem>
+                    <SelectItem value="approve">approve</SelectItem>
+                    <SelectItem value="select">select</SelectItem>
+                    <SelectItem value="cancel">cancel</SelectItem>
+                    <SelectItem value="pay">pay</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[11px] text-muted-foreground mb-1 block">Entity Type</Label>
+                <Select value={auditEntityType} onValueChange={v => { setAuditEntityType(v); setAuditPage(0); }}>
+                  <SelectTrigger className="h-8 text-sm" data-testid="select-audit-entity">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="user">user</SelectItem>
+                    <SelectItem value="proforma">proforma</SelectItem>
+                    <SelectItem value="voyage">voyage</SelectItem>
+                    <SelectItem value="tender">tender</SelectItem>
+                    <SelectItem value="tender_bid">tender_bid</SelectItem>
+                    <SelectItem value="invoice">invoice</SelectItem>
+                    <SelectItem value="company_profile">company_profile</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[11px] text-muted-foreground mb-1 block">From</Label>
+                <Input
+                  type="date"
+                  value={auditFrom}
+                  onChange={e => { setAuditFrom(e.target.value); setAuditPage(0); }}
+                  className="h-8 text-sm"
+                  data-testid="input-audit-from"
+                />
+              </div>
+              <div>
+                <Label className="text-[11px] text-muted-foreground mb-1 block">To</Label>
+                <Input
+                  type="date"
+                  value={auditTo}
+                  onChange={e => { setAuditTo(e.target.value); setAuditPage(0); }}
+                  className="h-8 text-sm"
+                  data-testid="input-audit-to"
+                />
+              </div>
+            </div>
+
+            {/* Table */}
+            {auditLoading ? (
+              <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-10" />)}</div>
+            ) : !auditEnabled ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">Click the tab to load audit logs.</div>
+            ) : auditLogs.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground text-sm">No audit log entries found for the selected filters.</div>
+            ) : (
+              <div className="overflow-x-auto rounded-md border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left bg-muted/30">
+                      <th className="p-2.5 font-medium text-xs">Time</th>
+                      <th className="p-2.5 font-medium text-xs">User</th>
+                      <th className="p-2.5 font-medium text-xs">Action</th>
+                      <th className="p-2.5 font-medium text-xs">Entity</th>
+                      <th className="p-2.5 font-medium text-xs">ID</th>
+                      <th className="p-2.5 font-medium text-xs">Details</th>
+                      <th className="p-2.5 font-medium text-xs">IP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditLogs.map((log: any) => (
+                      <tr key={log.id} className="border-b last:border-0 hover:bg-muted/20" data-testid={`row-audit-${log.id}`}>
+                        <td className="p-2.5 text-xs text-muted-foreground whitespace-nowrap">
+                          {log.created_at ? new Date(log.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
+                        </td>
+                        <td className="p-2.5 text-xs">
+                          <div className="font-medium">{`${log.first_name || ""} ${log.last_name || ""}`.trim() || "—"}</div>
+                          <div className="text-muted-foreground truncate max-w-[120px]">{log.email || log.user_id || ""}</div>
+                        </td>
+                        <td className="p-2.5">
+                          <Badge className={`text-[10px] ${
+                            log.action === "create" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" :
+                            log.action === "delete" || log.action === "cancel" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" :
+                            log.action === "approve" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" :
+                            log.action === "login" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" :
+                            log.action === "pay" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" :
+                            "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                          }`}>{log.action}</Badge>
+                        </td>
+                        <td className="p-2.5 text-xs font-mono">{log.entity_type}</td>
+                        <td className="p-2.5 text-xs text-muted-foreground">{log.entity_id ?? "—"}</td>
+                        <td className="p-2.5 text-xs text-muted-foreground max-w-[200px] truncate">
+                          {log.details ? JSON.stringify(log.details) : "—"}
+                        </td>
+                        <td className="p-2.5 text-xs font-mono text-muted-foreground">{log.ip_address || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {auditTotal > 50 && (
+              <div className="flex items-center justify-between mt-3 text-sm">
+                <span className="text-muted-foreground text-xs">
+                  Showing {auditPage * 50 + 1}–{Math.min((auditPage + 1) * 50, auditTotal)} of {auditTotal}
+                </span>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" disabled={auditPage === 0} onClick={() => setAuditPage(p => p - 1)} data-testid="button-audit-prev">Previous</Button>
+                  <Button size="sm" variant="outline" disabled={(auditPage + 1) * 50 >= auditTotal} onClick={() => setAuditPage(p => p + 1)} data-testid="button-audit-next">Next</Button>
+                </div>
+              </div>
+            )}
           </Card>
         </TabsContent>
 

@@ -4,6 +4,7 @@ import { isAuthenticated } from "./replitAuth";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../../email";
+import { logAction, getClientIp } from "../../audit";
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
@@ -111,6 +112,7 @@ export function registerAuthRoutes(app: Express): void {
       }
 
       req.session.userId = user.id;
+      logAction(user.id, "login", "user", null, { email: user.email }, getClientIp(req));
       res.json(user);
     } catch (error) {
       console.error("Login error:", error);

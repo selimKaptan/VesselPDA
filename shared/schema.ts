@@ -989,3 +989,22 @@ export const fleetVesselsRelations = relations(fleetVessels, ({ one }) => ({
 export const insertFleetSchema = createInsertSchema(fleets).omit({ id: true, createdAt: true });
 export type InsertFleet = z.infer<typeof insertFleetSchema>;
 export type Fleet = typeof fleets.$inferSelect;
+
+// ─── AUDIT LOGS ──────────────────────────────────────────────────────────────
+export const auditLogs = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: integer("entity_id"),
+  details: jsonb("details"),
+  ipAddress: text("ip_address"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  userCreatedIdx: index("audit_logs_user_created_idx").on(t.userId, t.createdAt),
+  entityIdx: index("audit_logs_entity_idx").on(t.entityType, t.entityId),
+}));
+
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type AuditLog = typeof auditLogs.$inferSelect;
