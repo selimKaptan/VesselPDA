@@ -140,6 +140,13 @@ export function AppSidebar() {
   });
   const unreadMessages = msgBadge?.count || 0;
 
+  const { data: myOrgs = [] } = useQuery<any[]>({
+    queryKey: ["/api/organizations/my"],
+    refetchInterval: 120000,
+  });
+  const activeOrgId = (user as any)?.activeOrganizationId;
+  const activeOrg = myOrgs.find((o: any) => o.id === activeOrgId) || myOrgs[0];
+
   const { data: nomBadge } = useQuery<{ count: number }>({
     queryKey: ["/api/nominations/pending-count"],
     refetchInterval: 15000,
@@ -215,6 +222,7 @@ export function AppSidebar() {
   // ── SETTINGS ─────────────────────────────────────────────────────────────
   const settingsItems: NavItem[] = [
     { title: "Settings", url: "/settings", icon: Settings },
+    { title: "Organization", url: "/organization", icon: Building2 },
     { title: "Company Profile", url: "/company-profile", icon: Star },
     { title: "Pricing", url: "/pricing", icon: Crown },
   ];
@@ -264,6 +272,38 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="py-3">
+        {/* Organization indicator */}
+        {activeOrg && (
+          <Link href="/organization-select">
+            <div className={`mx-2 mb-1 rounded-lg border border-sidebar-border/40 bg-sidebar-accent/30 hover:bg-sidebar-accent/60 transition-colors cursor-pointer ${isCollapsed ? "p-1.5 flex justify-center" : "p-2"}`}
+              data-testid="sidebar-org-indicator"
+            >
+              {isCollapsed ? (
+                <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0" title={activeOrg.name}>
+                  {activeOrg.logo_url
+                    ? <img src={activeOrg.logo_url} alt={activeOrg.name} className="w-5 h-5 rounded object-contain" />
+                    : <Building2 className="w-3.5 h-3.5 text-primary" />}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    {activeOrg.logo_url
+                      ? <img src={activeOrg.logo_url} alt={activeOrg.name} className="w-6 h-6 rounded object-contain" />
+                      : <Building2 className="w-3.5 h-3.5 text-primary" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-semibold text-sidebar-foreground truncate">{activeOrg.name}</p>
+                    <p className="text-[9px] text-sidebar-foreground/40 uppercase tracking-wider">
+                      {myOrgs.length > 1 ? `${myOrgs.length} orgs · switch` : "Active Organization"}
+                    </p>
+                  </div>
+                  <ChevronDown className="w-3 h-3 text-sidebar-foreground/40 flex-shrink-0" />
+                </div>
+              )}
+            </div>
+          </Link>
+        )}
+
         {/* Admin Role Switcher — hidden when collapsed */}
         {isAdminUser && !isCollapsed && (
           <div className="mx-3 mb-1 rounded-lg border border-red-500/20 bg-red-500/8 p-2.5">

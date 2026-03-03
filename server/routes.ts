@@ -150,6 +150,11 @@ export async function registerRoutes(
   app.use("/api", generalLimiter);             // 100 req/min — baseline for all API routes
 
   registerAuthRoutes(app);
+
+  // ── Organization routes ──────────────────────────────────────────────────
+  const { default: organizationRouter } = await import("./routes/organizations");
+  app.use("/api/organizations", organizationRouter);
+
   startAISStream();
 
   authStorage.markExistingUsersVerified().catch((err) =>

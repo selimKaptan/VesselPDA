@@ -49,6 +49,9 @@ import CargoPositions from "@/pages/cargo-positions";
 import MarketData from "@/pages/market-data";
 import Invoices from "@/pages/invoices";
 import Reports from "@/pages/reports";
+import OrganizationPage from "@/pages/organization";
+import OrganizationSelectPage from "@/pages/organization-select";
+import OrganizationJoinPage from "@/pages/organization-join";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -231,6 +234,9 @@ function AuthenticatedRouter() {
       <Route path="/market-data" component={MarketData} />
       <Route path="/invoices" component={Invoices} />
       <Route path="/reports" component={Reports} />
+      <Route path="/organization" component={OrganizationPage} />
+      <Route path="/organization-select" component={OrganizationSelectPage} />
+      <Route path="/organization/join/:token" component={OrganizationJoinPage} />
       <Route component={NotFound} />
     </Switch>
   );

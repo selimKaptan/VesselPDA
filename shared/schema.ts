@@ -1057,3 +1057,74 @@ export const notificationPreferences = pgTable("notification_preferences", {
 
 export type NotificationPreferences = typeof notificationPreferences.$inferSelect;
 export type InsertNotificationPreferences = typeof notificationPreferences.$inferInsert;
+
+// ─── ORGANIZATIONS ─────────────────────────────────────────────────────────────
+
+export const organizations = pgTable("organizations", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  name: text("name").notNull(),
+  slug: text("slug").unique(),
+  type: text("type").notNull().default("other"),
+  logoUrl: text("logo_url"),
+  website: text("website"),
+  phone: text("phone"),
+  email: text("email"),
+  address: text("address"),
+  country: text("country"),
+  taxId: text("tax_id"),
+  subscriptionPlan: text("subscription_plan").notNull().default("free"),
+  maxMembers: integer("max_members").notNull().default(5),
+  isActive: boolean("is_active").notNull().default(true),
+  ownerId: varchar("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const organizationMembers = pgTable("organization_members", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: text("role").notNull().default("member"),
+  displayName: text("display_name"),
+  department: text("department"),
+  jobTitle: text("job_title"),
+  isActive: boolean("is_active").notNull().default(true),
+  joinedAt: timestamp("joined_at").defaultNow(),
+  invitedBy: varchar("invited_by").references(() => users.id),
+});
+
+export const organizationInvites = pgTable("organization_invites", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  invitedEmail: text("invited_email").notNull(),
+  invitedByUserId: varchar("invited_by_user_id").notNull().references(() => users.id),
+  role: text("role").notNull().default("member"),
+  token: text("token").notNull().unique(),
+  status: text("status").notNull().default("pending"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const organizationsRelations = relations(organizations, ({ one, many }) => ({
+  owner: one(users, { fields: [organizations.ownerId], references: [users.id] }),
+  members: many(organizationMembers),
+  invites: many(organizationInvites),
+}));
+
+export const organizationMembersRelations = relations(organizationMembers, ({ one }) => ({
+  organization: one(organizations, { fields: [organizationMembers.organizationId], references: [organizations.id] }),
+  user: one(users, { fields: [organizationMembers.userId], references: [users.id] }),
+}));
+
+export const organizationInvitesRelations = relations(organizationInvites, ({ one }) => ({
+  organization: one(organizations, { fields: [organizationInvites.organizationId], references: [organizations.id] }),
+  invitedBy: one(users, { fields: [organizationInvites.invitedByUserId], references: [users.id] }),
+}));
+
+export const insertOrganizationSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true, ownerId: true });
+export const insertOrganizationMemberSchema = createInsertSchema(organizationMembers).omit({ id: true, joinedAt: true });
+export const insertOrganizationInviteSchema = createInsertSchema(organizationInvites).omit({ id: true, createdAt: true });
+
+export type Organization = typeof organizations.$inferSelect;
+export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
+export type OrganizationMember = typeof organizationMembers.$inferSelect;
+export type OrganizationInvite = typeof organizationInvites.$inferSelect;

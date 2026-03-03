@@ -1,0 +1,88 @@
+Projeye organizasyon (şirket) ve üyelik sistemi ekle. Şu an kullanıcılar bireysel çalışıyor. Aynı şirketteki çalışanlar aynı verilere erişememeli. Bu prompt ile organizasyon altyapısını kuruyoruz.
+
+Yapılacaklar:
+
+1. shared/schema.ts dosyasına şu tabloları ekle:
+
+organizations tablosu:
+- id (serial PK)
+- name (text, not null) — şirket adı
+- slug (text, unique) — URL-friendly isim
+- type (text) — "agent", "shipowner", "broker", "operator", "provider", "other"
+- logoUrl (text, nullable)
+- website (text, nullable)
+- phone (text, nullable)
+- email (text, nullable)
+- address (text, nullable)
+- country (text, nullable)
+- taxId (text, nullable)
+- subscriptionPlan (text, default "free")
+- maxMembers (integer, default 5)
+- isActive (boolean, default true)
+- createdAt (timestamp, default now)
+- ownerId (varchar, FK users) — organizasyonu oluşturan kişi
+
+organizationMembers tablosu:
+- id (serial PK)
+- organizationId (integer, FK organizations, not null)
+- userId (varchar, FK users, not null)
+- roleId (integer, FK organizationRoles, nullable) — özel rol
+- displayName (text) — şirket içi görünen isim
+- department (text, nullable)
+- jobTitle (text, nullable)
+- isActive (boolean, default true)
+- joinedAt (timestamp, default now)
+- invitedBy (varchar, FK users, nullable)
+- UNIQUE constraint: (organizationId, userId)
+
+organizationInvites tablosu:
+- id (serial PK)
+- organizationId (integer, FK organizations, not null)
+- invitedEmail (text, not null)
+- invitedByUserId (varchar, FK users, not null)
+- roleId (integer, FK organizationRoles, nullable)
+- token (text, unique, not null) — davet linki için
+- status (text, default "pending") — pending, accepted, expired
+- expiresAt (timestamp)
+- createdAt (timestamp, default now)
+
+Relations, insert schema ve type export'ları ekle.
+
+2. server/routes/ içine organization.ts dosyası oluştur. Endpoint'ler:
+
+POST /api/organizations — Yeni organizasyon oluştur (otomatik owner olarak ekle)
+GET /api/organizations/my — Kullanıcının organizasyonları
+GET /api/organizations/:id — Organizasyon detayı
+PATCH /api/organizations/:id — Organizasyon güncelle (sadece owner/admin)
+DELETE /api/organizations/:id — Organizasyon sil (sadece owner)
+
+GET /api/organizations/:id/members — Üye listesi
+POST /api/organizations/:id/invite — Email ile üye davet et (davet maili gönder)
+DELETE /api/organizations/:id/members/:userId — Üye çıkar
+PATCH /api/organizations/:id/members/:userId — Üye rolünü güncelle
+
+POST /api/organizations/join/:token — Davet token'ı ile organizasyona katıl
+GET /api/organizations/invite/:token — Davet detayını getir
+
+3. users tablosuna şu alanları ekle:
+- activeOrganizationId (integer, FK organizations, nullable) — şu an aktif organizasyon
+- Kullanıcı birden fazla organizasyona üye olabilir ama aynı anda birinde aktif olur
+
+4. client/src/pages/organization.tsx sayfası oluştur:
+- Organizasyon oluşturma formu (isim, tip, logo, iletişim bilgileri)
+- Üye listesi tablosu (isim, rol, department, katılım tarihi)
+- Üye davet formu (email gir, rol seç)
+- Bekleyen davetler listesi
+- Organizasyon ayarları (isim, logo değiştir)
+
+5. client/src/pages/organization-select.tsx sayfası oluştur:
+- Kullanıcı birden fazla organizasyona üyeyse seçim ekranı
+- Organizasyon kartları, tıklayınca aktif organizasyon değişir
+
+6. App.tsx'e /organization ve /organization-select route'larını ekle.
+
+7. Sidebar'a organizasyon göstergesi ekle:
+- Üstte aktif organizasyon adı ve logosu
+- Tıklayınca organizasyon değiştirme
+
+Auth middleware'i güncelle: Her authenticated request'te kullanıcının aktif organizasyonunu da req.user'a ekle.
