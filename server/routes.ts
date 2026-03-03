@@ -6983,6 +6983,123 @@ export async function registerRoutes(
     } catch { res.status(500).json({ message: "Failed" }); }
   });
 
+  // ─── REMINDERS ────────────────────────────────────────────────────────────────
+
+  app.get("/api/reminders", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const filter = (req.query.filter as string) || "active";
+      let whereClause = "r.user_id = $1";
+      if (filter === "active") whereClause += " AND r.is_completed = FALSE AND (r.is_snoozed = FALSE OR r.snoozed_until <= NOW())";
+      else if (filter === "completed") whereClause += " AND r.is_completed = TRUE";
+      else if (filter === "snoozed") whereClause += " AND r.is_snoozed = TRUE AND r.snoozed_until > NOW()";
+
+      const { rows } = await pool.query(
+        `SELECT r.* FROM reminders r WHERE ${whereClause} ORDER BY
+          CASE r.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
+          r.due_date ASC NULLS LAST, r.created_at DESC
+         LIMIT 100`,
+        [userId]
+      );
+      const { rows: countRows } = await pool.query(
+        `SELECT COUNT(*) as cnt FROM reminders WHERE user_id = $1 AND is_completed = FALSE AND (is_snoozed = FALSE OR snoozed_until <= NOW())`,
+        [userId]
+      );
+      res.json({ reminders: rows, pendingCount: parseInt(countRows[0].cnt) });
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.get("/api/reminders/pending-count", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { rows } = await pool.query(
+        `SELECT COUNT(*) as cnt FROM reminders WHERE user_id = $1 AND is_completed = FALSE AND (is_snoozed = FALSE OR snoozed_until <= NOW())`,
+        [userId]
+      );
+      res.json({ count: parseInt(rows[0].cnt) });
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.post("/api/reminders", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { title, message, category, priority, dueDate, entityType, entityId, notes } = req.body;
+      if (!title || !message) return res.status(400).json({ message: "title and message required" });
+      const { rows } = await pool.query(
+        `INSERT INTO reminders (user_id, organization_id, type, category, title, message, entity_type, entity_id, priority, due_date)
+         VALUES ($1, $2, 'manual', $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+        [userId, req.organizationId || null, category || "custom", title, message,
+         entityType || null, entityId || null, priority || "normal", dueDate || null]
+      );
+      res.status(201).json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.patch("/api/reminders/:id/complete", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { rows } = await pool.query(
+        `UPDATE reminders SET is_completed = TRUE, completed_at = NOW() WHERE id = $1 AND user_id = $2 RETURNING *`,
+        [req.params.id, userId]
+      );
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      res.json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.patch("/api/reminders/:id/snooze", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { until } = req.body;
+      if (!until) return res.status(400).json({ message: "until required" });
+      const { rows } = await pool.query(
+        `UPDATE reminders SET is_snoozed = TRUE, snoozed_until = $1 WHERE id = $2 AND user_id = $3 RETURNING *`,
+        [until, req.params.id, userId]
+      );
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      res.json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.delete("/api/reminders/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      await pool.query(`DELETE FROM reminders WHERE id = $1 AND user_id = $2`, [req.params.id, userId]);
+      res.status(204).end();
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  // ─── REMINDER RULES ───────────────────────────────────────────────────────────
+
+  app.get("/api/reminder-rules", isAuthenticated, async (_req, res) => {
+    try {
+      const { rows } = await pool.query(
+        `SELECT * FROM reminder_rules WHERE organization_id IS NULL AND user_id IS NULL ORDER BY rule_type`
+      );
+      res.json(rows);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  app.patch("/api/reminder-rules/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { isActive, emailEnabled, triggerCondition } = req.body;
+      const updates: string[] = [];
+      const vals: any[] = [];
+      let i = 1;
+      if (isActive !== undefined) { updates.push(`is_active = $${i++}`); vals.push(isActive); }
+      if (emailEnabled !== undefined) { updates.push(`email_enabled = $${i++}`); vals.push(emailEnabled); }
+      if (triggerCondition !== undefined) { updates.push(`trigger_condition = $${i++}`); vals.push(triggerCondition); }
+      if (!updates.length) return res.status(400).json({ message: "Nothing to update" });
+      vals.push(req.params.id);
+      const { rows } = await pool.query(
+        `UPDATE reminder_rules SET ${updates.join(", ")} WHERE id = $${i} RETURNING *`,
+        vals
+      );
+      if (!rows[0]) return res.status(404).json({ message: "Not found" });
+      res.json(rows[0]);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
   app.get("/api/maritime-docs/:id/versions", isAuthenticated, async (req, res) => {
     try {
       const docId = parseInt(req.params.id);

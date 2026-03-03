@@ -250,6 +250,10 @@ app.use((req, res, next) => {
         ensureMaritimeDocsSchema().catch((err: Error) => console.error("Maritime docs migration error:", err));
       });
 
+      import("./migrate-reminders").then(({ ensureRemindersSchema }) => {
+        ensureRemindersSchema().catch((err: Error) => console.error("Reminders migration error:", err));
+      });
+
       import("./startup-checks").then(({ runStartupChecks }) => {
         setTimeout(() => {
           runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));
