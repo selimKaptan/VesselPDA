@@ -10,6 +10,7 @@ import {
   LayoutGrid, Map as MapIcon,
   ShieldCheck, Pencil, AlertTriangle, CheckCircle2, Clock,
   ChevronLeft, Download, Upload, Eye, X,
+  Layers,
 } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Card } from "@/components/ui/card";
@@ -57,6 +58,25 @@ const FLAG_EMOJI: Record<string, string> = {
   "Cyprus": "🇨🇾", "Singapore": "🇸🇬", "Hong Kong": "🇭🇰",
   "Norway": "🇳🇴", "United Kingdom": "🇬🇧",
 };
+
+// ─── Fleet Group Types ────────────────────────────────────────────────────────
+
+interface FleetItem {
+  id: number;
+  name: string;
+  description: string | null;
+  color: string;
+  vessel_count: number;
+  vessel_ids: number[];
+  vessel_mmsis: string[];
+  created_at: string;
+}
+
+const FLEET_COLOR_PALETTE = [
+  "#2563EB", "#DC2626", "#16A34A", "#D97706",
+  "#7C3AED", "#0891B2", "#BE185D", "#65A30D",
+  "#EA580C", "#0F766E",
+];
 
 // ─── Fleet Status Config ──────────────────────────────────────────────────────
 
@@ -489,12 +509,15 @@ function FleetMap({
 
 // ─── Vessel Card ──────────────────────────────────────────────────────────────
 
-function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete }: {
+function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete, fleets, onAddToFleet, onRemoveFromFleet }: {
   vessel: Vessel;
   voyage: any;
   onSelect: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  fleets: FleetItem[];
+  onAddToFleet: (fleetId: number) => void;
+  onRemoveFromFleet: (fleetId: number) => void;
 }) {
   const cfg = getCfg(vessel.fleetStatus);
   const progress = getProgress(voyage);
@@ -580,10 +603,42 @@ function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete }: {
               onClick={(e) => { e.stopPropagation(); onDelete(); }} data-testid={`button-delete-vessel-${vessel.id}`}>
               <Trash2 className="w-3.5 h-3.5" />
             </button>
+            {fleets.length > 0 && (
+              <div onClick={(e) => e.stopPropagation()}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="p-1.5 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground"
+                      data-testid={`button-fleet-vessel-${vessel.id}`}
+                      title="Add to Fleet"
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-[160px]">
+                    {fleets.map((f) => {
+                      const inFleet = f.vessel_ids.includes(vessel.id);
+                      return (
+                        <DropdownMenuItem
+                          key={f.id}
+                          onClick={() => inFleet ? onRemoveFromFleet(f.id) : onAddToFleet(f.id)}
+                          className="gap-2 text-xs"
+                          data-testid={`fleet-option-${f.id}-vessel-${vessel.id}`}
+                        >
+                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: f.color }} />
+                          <span className="flex-1 truncate">{f.name}</span>
+                          {inFleet && <span className="text-emerald-600 text-[10px] font-bold">✓</span>}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
           </div>
           <button className="flex items-center gap-1 text-xs text-[hsl(var(--maritime-primary))] font-medium hover:underline"
             onClick={onSelect} data-testid={`button-detail-vessel-${vessel.id}`}>
-            Detay <ChevronRight className="w-3.5 h-3.5" />
+            Detail <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -694,8 +749,14 @@ export default function Vessels() {
     if (location.includes("new=true")) setShowForm(true);
   }, [location]);
 
+  const [fleetFilter, setFleetFilter] = useState<number | null>(null);
+  const [showFleetDialog, setShowFleetDialog] = useState(false);
+  const [editingFleet, setEditingFleet] = useState<FleetItem | null>(null);
+  const [fleetForm, setFleetForm] = useState({ name: "", description: "", color: "#2563EB" });
+
   const { data: vessels = [], isLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
   const { data: voyages = [] } = useQuery<any[]>({ queryKey: ["/api/voyages"] });
+  const { data: fleets = [] } = useQuery<FleetItem[]>({ queryKey: ["/api/fleets"] });
 
   const vesselVoyageMap = useMemo(() => {
     const map = new Map<number, any>();
@@ -913,11 +974,17 @@ export default function Vessels() {
     },
   });
 
+  const activeFleet = fleetFilter !== null ? fleets.find(f => f.id === fleetFilter) ?? null : null;
+
   const filtered = useMemo(() => vessels.filter((v) => {
     if (search.trim() && !v.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (fleetFilter !== null) {
+      const fleet = fleets.find(f => f.id === fleetFilter);
+      if (!fleet || !fleet.vessel_ids.includes(v.id)) return false;
+    }
     if (statusFilter === "all") return true;
     return getCfg(v.fleetStatus).group === statusFilter;
-  }), [vessels, statusFilter, search]);
+  }), [vessels, statusFilter, search, fleetFilter, fleets]);
 
   const stats = useMemo(() => ({
     total:    vessels.length,
@@ -967,6 +1034,53 @@ export default function Vessels() {
     onError: (error: Error) => {
       toast({ title: "Failed to delete", description: error.message, variant: "destructive" });
     },
+  });
+
+  const createFleetMutation = useMutation({
+    mutationFn: async (body: { name: string; description: string; color: string }) =>
+      (await apiRequest("POST", "/api/fleets", body)).json(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/fleets"] });
+      toast({ title: "Fleet created" });
+      setShowFleetDialog(false);
+    },
+    onError: () => toast({ title: "Failed to create fleet", variant: "destructive" }),
+  });
+
+  const updateFleetMutation = useMutation({
+    mutationFn: async ({ id, body }: { id: number; body: { name: string; description: string; color: string } }) =>
+      (await apiRequest("PUT", `/api/fleets/${id}`, body)).json(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/fleets"] });
+      toast({ title: "Fleet updated" });
+      setShowFleetDialog(false);
+      setEditingFleet(null);
+    },
+    onError: () => toast({ title: "Failed to update fleet", variant: "destructive" }),
+  });
+
+  const deleteFleetMutation = useMutation({
+    mutationFn: async (id: number) => apiRequest("DELETE", `/api/fleets/${id}`),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/fleets"] });
+      if (fleetFilter === id) setFleetFilter(null);
+      toast({ title: "Fleet deleted" });
+    },
+    onError: () => toast({ title: "Failed to delete fleet", variant: "destructive" }),
+  });
+
+  const addToFleetMutation = useMutation({
+    mutationFn: async ({ fleetId, vesselId }: { fleetId: number; vesselId: number }) =>
+      apiRequest("POST", `/api/fleets/${fleetId}/vessels`, { vesselId }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/fleets"] }),
+    onError: () => toast({ title: "Failed to add vessel to fleet", variant: "destructive" }),
+  });
+
+  const removeFromFleetMutation = useMutation({
+    mutationFn: async ({ fleetId, vesselId }: { fleetId: number; vesselId: number }) =>
+      apiRequest("DELETE", `/api/fleets/${fleetId}/vessels/${vesselId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/fleets"] }),
+    onError: () => toast({ title: "Failed to remove vessel from fleet", variant: "destructive" }),
   });
 
   const handleSave = (data: Record<string, unknown>) => {
@@ -1023,6 +1137,78 @@ export default function Vessels() {
       {/* ── List Mode ── */}
       {viewMode === "list" && (
         <>
+          {/* Fleet Strip */}
+          {(fleets.length > 0 || true) && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+              <button
+                onClick={() => setFleetFilter(null)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0 border transition-all ${
+                  fleetFilter === null
+                    ? "bg-[hsl(var(--maritime-primary))] text-white border-transparent"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground hover:border-[hsl(var(--maritime-primary)/0.4)]"
+                }`}
+                data-testid="fleet-filter-all"
+              >
+                <Ship className="w-3 h-3" />
+                All Vessels
+                <span className="opacity-70">({vessels.length})</span>
+              </button>
+              {fleets.map((f) => (
+                <div key={f.id} className="flex items-center gap-0.5 flex-shrink-0">
+                  <button
+                    onClick={() => setFleetFilter(fleetFilter === f.id ? null : f.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      fleetFilter === f.id
+                        ? "text-white border-transparent"
+                        : "bg-background border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                    style={fleetFilter === f.id ? { background: f.color, borderColor: f.color } : {}}
+                    data-testid={`fleet-filter-${f.id}`}
+                  >
+                    <span className="w-2 h-2 rounded-full" style={{ background: fleetFilter === f.id ? "white" : f.color }} />
+                    {f.name}
+                    <span className="opacity-70">({f.vessel_count})</span>
+                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="p-1 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted transition-colors" data-testid={`fleet-menu-${f.id}`}>
+                        <ChevronDown className="w-3 h-3" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuItem onClick={() => { setEditingFleet(f); setFleetForm({ name: f.name, description: f.description || "", color: f.color }); setShowFleetDialog(true); }} className="gap-2 text-xs">
+                        <Edit2 className="w-3 h-3" /> Edit Fleet
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => deleteFleetMutation.mutate(f.id)} className="gap-2 text-xs text-destructive focus:text-destructive">
+                        <Trash2 className="w-3 h-3" /> Delete Fleet
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              ))}
+              <button
+                onClick={() => { setEditingFleet(null); setFleetForm({ name: "", description: "", color: "#2563EB" }); setShowFleetDialog(true); }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-[hsl(var(--maritime-primary)/0.4)] transition-all flex-shrink-0"
+                data-testid="button-create-fleet"
+              >
+                <Plus className="w-3 h-3" /> New Fleet
+              </button>
+            </div>
+          )}
+
+          {/* Active fleet indicator */}
+          {activeFleet && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs" style={{ background: `${activeFleet.color}18`, border: `1px solid ${activeFleet.color}40` }}>
+              <span className="w-2 h-2 rounded-full" style={{ background: activeFleet.color }} />
+              <span className="font-medium" style={{ color: activeFleet.color }}>Filtered by fleet:</span>
+              <span className="text-foreground font-semibold">{activeFleet.name}</span>
+              <span className="text-muted-foreground">— {filtered.length} vessel{filtered.length !== 1 ? "s" : ""}</span>
+              <button onClick={() => setFleetFilter(null)} className="ml-auto text-muted-foreground hover:text-foreground">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Stat Cards */}
           {!isLoading && vessels.length > 0 && (
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -1099,6 +1285,9 @@ export default function Vessels() {
                   onSelect={() => { setSelectedVessel(vessel); setDetailTab("general"); }}
                   onEdit={() => setEditingVessel(vessel)}
                   onDelete={() => setDeleteVesselId(vessel.id)}
+                  fleets={fleets}
+                  onAddToFleet={(fleetId) => addToFleetMutation.mutate({ fleetId, vesselId: vessel.id })}
+                  onRemoveFromFleet={(fleetId) => removeFromFleetMutation.mutate({ fleetId, vesselId: vessel.id })}
                 />
               ))}
             </div>
@@ -1942,6 +2131,74 @@ export default function Vessels() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Fleet Create / Edit Dialog ──────────────────────────────────── */}
+      <Dialog open={showFleetDialog} onOpenChange={(open) => { if (!open) { setShowFleetDialog(false); setEditingFleet(null); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              {editingFleet ? "Edit Fleet" : "Create New Fleet"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Fleet Name <span className="text-destructive">*</span></Label>
+              <Input
+                placeholder="e.g. Tanker Fleet, Black Sea Fleet..."
+                value={fleetForm.name}
+                onChange={(e) => setFleetForm(f => ({ ...f, name: e.target.value }))}
+                data-testid="input-fleet-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea
+                placeholder="Optional description..."
+                value={fleetForm.description}
+                onChange={(e) => setFleetForm(f => ({ ...f, description: e.target.value }))}
+                rows={2}
+                data-testid="input-fleet-description"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Color</Label>
+              <div className="flex items-center gap-2 flex-wrap">
+                {FLEET_COLOR_PALETTE.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setFleetForm(f => ({ ...f, color: c }))}
+                    className={`w-7 h-7 rounded-full transition-transform ${fleetForm.color === c ? "scale-125 ring-2 ring-offset-2 ring-foreground" : "hover:scale-110"}`}
+                    style={{ background: c }}
+                    data-testid={`fleet-color-${c}`}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowFleetDialog(false); setEditingFleet(null); }} data-testid="button-cancel-fleet">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!fleetForm.name.trim()) return;
+                if (editingFleet) {
+                  updateFleetMutation.mutate({ id: editingFleet.id, body: fleetForm });
+                } else {
+                  createFleetMutation.mutate(fleetForm);
+                }
+              }}
+              disabled={!fleetForm.name.trim() || createFleetMutation.isPending || updateFleetMutation.isPending}
+              data-testid="button-save-fleet"
+            >
+              {(createFleetMutation.isPending || updateFleetMutation.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {editingFleet ? "Save Changes" : "Create Fleet"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

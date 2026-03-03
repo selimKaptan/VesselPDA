@@ -82,6 +82,14 @@ function createPopupHtml(v: AISVessel): string {
   </div>`;
 }
 
+interface TrackFleetItem {
+  id: number;
+  name: string;
+  color: string;
+  vessel_count: number;
+  vessel_mmsis: string[];
+}
+
 const VESSEL_TYPES = [
   "Container", "Tanker", "Gas Carrier", "Bulk Carrier", "General Cargo",
   "Ro-Ro", "Passenger", "Offshore", "Tugs & Harbor Craft", "Bunkering",
@@ -101,10 +109,13 @@ function VesselListView({
   const [committedSearch, setCommittedSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
+  const [fleetFilter, setFleetFilter] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<"name" | "speed" | "type">("name");
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const PAGE_SIZE = 10;
+
+  const { data: fleets = [] } = useQuery<TrackFleetItem[]>({ queryKey: ["/api/fleets"] });
 
   const commitSearch = () => {
     setCommittedSearch(search);
@@ -119,6 +130,12 @@ function VesselListView({
     });
     setPage(1);
   };
+
+  const activeFleetMmsis = useMemo(() => {
+    if (fleetFilter === null) return null;
+    const f = fleets.find(fl => fl.id === fleetFilter);
+    return f ? new Set(f.vessel_mmsis) : null;
+  }, [fleetFilter, fleets]);
 
   const filtered = useMemo(() => {
     let list = [...positions];
@@ -139,17 +156,20 @@ function VesselListView({
     if (statusFilters.size > 0) {
       list = list.filter(v => statusFilters.has(v.status));
     }
+    if (activeFleetMmsis) {
+      list = list.filter(v => v.mmsi && activeFleetMmsis.has(v.mmsi));
+    }
     list.sort((a, b) => {
       if (sortBy === "speed") return (b.speed || 0) - (a.speed || 0);
       if (sortBy === "type") return (a.vesselType || "").localeCompare(b.vesselType || "");
       return (a.vesselName || a.name || "").localeCompare(b.vesselName || b.name || "");
     });
     return list;
-  }, [positions, committedSearch, typeFilter, statusFilters, sortBy]);
+  }, [positions, committedSearch, typeFilter, statusFilters, sortBy, activeFleetMmsis]);
 
   const paginated = filtered.slice(0, page * PAGE_SIZE);
   const hasMore = paginated.length < filtered.length;
-  const activeFilterCount = (typeFilter ? 1 : 0) + statusFilters.size;
+  const activeFilterCount = (typeFilter ? 1 : 0) + statusFilters.size + (fleetFilter !== null ? 1 : 0);
 
   return (
     <div className="flex h-full overflow-hidden bg-background">
@@ -226,6 +246,37 @@ function VesselListView({
               })}
             </div>
           </div>
+
+          {/* My Fleets */}
+          {fleets.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-foreground uppercase tracking-wide">My Fleets</p>
+                {fleetFilter !== null && (
+                  <button onClick={() => { setFleetFilter(null); setPage(1); }} className="text-[10px] text-blue-600 hover:underline">
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="space-y-0.5">
+                {fleets.map(f => (
+                  <button
+                    key={f.id}
+                    onClick={() => { setFleetFilter(fleetFilter === f.id ? null : f.id); setPage(1); }}
+                    data-testid={`track-fleet-filter-${f.id}`}
+                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors ${
+                      fleetFilter === f.id ? "bg-muted font-semibold text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: f.color }} />
+                    <span className="flex-1 text-left truncate">{f.name}</span>
+                    <span className="text-[10px] opacity-60">({f.vessel_count})</span>
+                    {fleetFilter === f.id && <span className="ml-auto text-[hsl(var(--maritime-primary))]">✓</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,7 +1,7 @@
 export * from "./models/auth";
 
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, integer, real, timestamp, jsonb, boolean, serial, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, real, timestamp, jsonb, boolean, serial, index, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users, companyProfiles } from "./models/auth";
@@ -918,3 +918,37 @@ export const exchangeRates = pgTable("exchange_rates", {
 export const insertExchangeRateSchema = createInsertSchema(exchangeRates).omit({ id: true, updatedAt: true });
 export type InsertExchangeRate = z.infer<typeof insertExchangeRateSchema>;
 export type ExchangeRate = typeof exchangeRates.$inferSelect;
+
+// ─── FLEET GROUPING ────────────────────────────────────────────────────────────
+
+export const fleets = pgTable("fleets", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").notNull().default("#2563EB"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const fleetVessels = pgTable("fleet_vessels", {
+  fleetId: integer("fleet_id").notNull().references(() => fleets.id, { onDelete: "cascade" }),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  addedAt: timestamp("added_at").defaultNow().notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.fleetId, t.vesselId] }),
+}));
+
+export const fleetsRelations = relations(fleets, ({ one, many }) => ({
+  user: one(users, { fields: [fleets.userId], references: [users.id] }),
+  fleetVessels: many(fleetVessels),
+}));
+
+export const fleetVesselsRelations = relations(fleetVessels, ({ one }) => ({
+  fleet: one(fleets, { fields: [fleetVessels.fleetId], references: [fleets.id] }),
+  vessel: one(vessels, { fields: [fleetVessels.vesselId], references: [vessels.id] }),
+}));
+
+export const insertFleetSchema = createInsertSchema(fleets).omit({ id: true, createdAt: true });
+export type InsertFleet = z.infer<typeof insertFleetSchema>;
+export type Fleet = typeof fleets.$inferSelect;
