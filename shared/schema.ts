@@ -371,7 +371,7 @@ export const voyages = pgTable("voyages", {
   userId: varchar("user_id").notNull().references(() => users.id),
   organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   vesselId: integer("vessel_id").references(() => vessels.id),
-  portId: integer("port_id").notNull().references(() => ports.id),
+  portId: integer("port_id").references(() => ports.id),
   agentUserId: varchar("agent_user_id").references(() => users.id),
   tenderId: integer("tender_id").references(() => portTenders.id),
   vesselName: text("vessel_name"),
@@ -387,12 +387,49 @@ export const voyages = pgTable("voyages", {
   purposeOfCall: text("purpose_of_call").notNull().default("Loading"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
+  voyageNumber: text("voyage_number"),
+  loadPort: text("load_port"),
+  voyageType: text("voyage_type").default("single"),
+  currentPortCallId: integer("current_port_call_id"),
 }, (t) => ({
   userIdIdx: index("voyages_user_id_idx").on(t.userId),
   portIdIdx: index("voyages_port_id_idx").on(t.portId),
   statusIdx: index("voyages_status_idx").on(t.status),
   etaIdx: index("voyages_eta_idx").on(t.eta),
 }));
+
+export const voyagePortCalls = pgTable("voyage_port_calls", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  portId: integer("port_id").notNull().references(() => ports.id),
+  portCallOrder: integer("port_call_order").notNull().default(1),
+  portCallType: text("port_call_type").notNull().default("discharging"),
+  status: text("status").notNull().default("planned"),
+  eta: timestamp("eta"),
+  etd: timestamp("etd"),
+  ata: timestamp("ata"),
+  atd: timestamp("atd"),
+  berthName: text("berth_name"),
+  terminalName: text("terminal_name"),
+  cargoType: text("cargo_type"),
+  cargoQuantity: real("cargo_quantity"),
+  cargoUnit: text("cargo_unit").default("MT"),
+  agentUserId: varchar("agent_user_id").references(() => users.id, { onDelete: "set null" }),
+  agentCompanyId: integer("agent_company_id"),
+  proformaId: integer("proforma_id").references(() => proformas.id, { onDelete: "set null" }),
+  notes: text("notes"),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const voyagePortCallRelations = relations(voyagePortCalls, ({ one }) => ({
+  voyage: one(voyages, { fields: [voyagePortCalls.voyageId], references: [voyages.id] }),
+  port: one(ports, { fields: [voyagePortCalls.portId], references: [ports.id] }),
+  agent: one(users, { fields: [voyagePortCalls.agentUserId], references: [users.id] }),
+}));
+
+export type VoyagePortCall = typeof voyagePortCalls.$inferSelect;
+export type InsertVoyagePortCall = typeof voyagePortCalls.$inferInsert;
 
 export const voyageRelations = relations(voyages, ({ one, many }) => ({
   user: one(users, { fields: [voyages.userId], references: [users.id] }),
@@ -401,6 +438,7 @@ export const voyageRelations = relations(voyages, ({ one, many }) => ({
   tender: one(portTenders, { fields: [voyages.tenderId], references: [portTenders.id] }),
   checklists: many(voyageChecklists),
   serviceRequests: many(serviceRequests),
+  portCalls: many(voyagePortCalls),
 }));
 
 export const voyageChecklists = pgTable("voyage_checklists", {

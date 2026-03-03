@@ -1,0 +1,65 @@
+Mevcut sefer yapısını çok limanlı sefere dönüştür. Şu an bir sefer = bir liman. Gerçekte bir sefer birden fazla liman içerir: Istanbul -> Mersin -> Iskenderun -> Piraeus gibi.
+
+MEVCUT YAPI: voyages tablosu portId ile tek limana bağlı.
+YENİ YAPI: voyages ana sefer bilgisi, voyagePortCalls her liman uğraması.
+
+Yapılacaklar:
+
+1. shared/schema.ts dosyasına voyagePortCalls tablosu ekle:
+- id (serial PK)
+- voyageId (integer, FK voyages, not null)
+- portId (integer, FK ports, not null)
+- portCallOrder (integer, not null) — sıralama: 1, 2, 3...
+- portCallType (text, not null) — "loading", "discharging", "bunkering", "transit", "drydock", "crew_change"
+- status (text, default "planned") — "planned", "approaching", "at_anchor", "berthed", "operations", "completed", "skipped"
+- eta (timestamp)
+- etd (timestamp)
+- ata (timestamp) — Actual Time of Arrival
+- atd (timestamp) — Actual Time of Departure
+- berthName (text, nullable)
+- terminalName (text, nullable)
+- cargoType (text, nullable)
+- cargoQuantity (real, nullable)
+- cargoUnit (text, default "MT")
+- agentUserId (varchar, FK users, nullable) — bu limandaki acente
+- agentCompanyId (integer, FK companyProfiles, nullable)
+- proformaId (integer, FK proformas, nullable) — bu liman icin proforma
+- notes (text, nullable)
+- createdAt (timestamp, default now)
+- organizationId (integer, FK organizations, nullable)
+
+Relations: voyage, port, agent ile iliskilendir.
+
+2. voyages tablosunu guncelle:
+- portId alanini nullable yap (artik port bilgisi portCalls'ta)
+- Yeni alanlar ekle:
+  - voyageNumber (text, nullable) — V-2024-001 gibi
+  - loadPort (text, nullable) — kisa ozet: "Istanbul > Mersin > Piraeus"
+  - currentPortCallId (integer, FK voyagePortCalls, nullable) — su anki liman
+  - voyageType (text, default "single") — "single", "multi"
+
+3. server/routes guncelle - yeni endpoint'ler:
+
+GET /api/voyages/:id/port-calls — Seferin tum liman ugramalari (sirali)
+POST /api/voyages/:id/port-calls — Yeni liman ugrama ekle
+PATCH /api/voyages/:id/port-calls/:portCallId — Liman ugrama guncelle (status, tarihler vs)
+DELETE /api/voyages/:id/port-calls/:portCallId — Liman ugrama sil
+PATCH /api/voyages/:id/port-calls/reorder — Siralama degistir (body: [{id, order}])
+PATCH /api/voyages/:id/port-calls/:portCallId/status — Status degistir (planned -> approaching -> berthed -> completed)
+
+4. Sefer olusturma akisini guncelle:
+   - Sefer olusturma formunda "Liman Ekle" butonu ile birden fazla liman eklenebilsin
+   - Drag-and-drop ile sira degistirilebilsin
+   - Her liman icin: port secimi, tip (loading/discharging/vs), ETA, ETD, kargo bilgisi, acente secimi
+
+5. client/src/pages/voyage-detail.tsx guncelle:
+   - Ust kisimda liman rotasi gorseli: Istanbul ──→ Mersin ──→ Piraeus
+   - Her liman bir step indicator gibi gosterilsin (tamamlanan yesil, aktif mavi, bekleyen gri)
+   - Limana tiklaninca o limanin detaylari acilsin
+   - Her liman icin ayri tab: SOF, DA, Documents, Checklist (sonraki promptlarda eklenecek)
+
+6. Mevcut tek-limanli seferleri uyumlu tut:
+   - Eski seferler icin mevcut portId'den otomatik bir portCall olustur (migration)
+   - voyageType="single" olan seferler eski gibi calissin
+
+Mevcut sefer sayfasini BOZMA. Yeni yapi eski ile geriye uyumlu olsun.

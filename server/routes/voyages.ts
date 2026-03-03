@@ -602,4 +602,211 @@ router.delete("/voyages/:voyageId/appointments/:id", isAuthenticated, async (req
 });
 
 
+// ─── VOYAGE PORT CALLS ────────────────────────────────────────────────────────
+
+// GET /api/voyages/:id/port-calls
+router.get("/voyages/:id/port-calls", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const { rows } = await pool.query(
+      `SELECT vpc.*,
+         p.name AS port_name, p.country AS port_country, p.locode AS port_locode,
+         u.first_name AS agent_first_name, u.last_name AS agent_last_name, u.email AS agent_email
+       FROM voyage_port_calls vpc
+       LEFT JOIN ports p ON p.id = vpc.port_id
+       LEFT JOIN users u ON u.id = vpc.agent_user_id
+       WHERE vpc.voyage_id = $1
+       ORDER BY vpc.port_call_order ASC, vpc.id ASC`,
+      [voyageId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error("GET port-calls error:", err);
+    res.status(500).json({ message: "Failed to fetch port calls" });
+  }
+});
+
+// POST /api/voyages/:id/port-calls
+router.post("/voyages/:id/port-calls", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const canAccess = await canAccessVoyage(userId, voyageId);
+    if (!canAccess) return res.status(403).json({ message: "Access denied" });
+
+    const {
+      portId, portCallOrder, portCallType, status,
+      eta, etd, berthName, terminalName,
+      cargoType, cargoQuantity, cargoUnit,
+      agentUserId, notes, organizationId
+    } = req.body;
+
+    if (!portId) return res.status(400).json({ message: "portId is required" });
+
+    const { rows: countRows } = await pool.query(
+      "SELECT COALESCE(MAX(port_call_order), 0) + 1 AS next_order FROM voyage_port_calls WHERE voyage_id = $1",
+      [voyageId]
+    );
+    const nextOrder = portCallOrder || countRows[0].next_order;
+
+    const { rows } = await pool.query(
+      `INSERT INTO voyage_port_calls
+         (voyage_id, port_id, port_call_order, port_call_type, status, eta, etd, berth_name, terminal_name,
+          cargo_type, cargo_quantity, cargo_unit, agent_user_id, notes, organization_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+       RETURNING *`,
+      [voyageId, portId, nextOrder, portCallType || "discharging", status || "planned",
+       eta ? new Date(eta) : null, etd ? new Date(etd) : null,
+       berthName || null, terminalName || null,
+       cargoType || null, cargoQuantity || null, cargoUnit || "MT",
+       agentUserId || null, notes || null, organizationId || null]
+    );
+
+    const portCall = rows[0];
+
+    // Update voyage load_port summary
+    const { rows: allCalls } = await pool.query(
+      `SELECT p.name FROM voyage_port_calls vpc JOIN ports p ON p.id = vpc.port_id WHERE vpc.voyage_id = $1 ORDER BY vpc.port_call_order`,
+      [voyageId]
+    );
+    const loadPortSummary = allCalls.map((r: any) => r.name).join(" → ");
+    await pool.query(
+      "UPDATE voyages SET load_port = $1, voyage_type = CASE WHEN $2::int > 1 THEN 'multi' ELSE voyage_type END WHERE id = $3",
+      [loadPortSummary, allCalls.length, voyageId]
+    );
+
+    res.status(201).json(portCall);
+  } catch (err) {
+    console.error("POST port-call error:", err);
+    res.status(500).json({ message: "Failed to create port call" });
+  }
+});
+
+// PATCH /api/voyages/:id/port-calls/:portCallId
+router.patch("/voyages/:id/port-calls/:portCallId", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const portCallId = parseInt(req.params.portCallId);
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const canAccess = await canAccessVoyage(userId, voyageId);
+    if (!canAccess) return res.status(403).json({ message: "Access denied" });
+
+    const fields: string[] = [];
+    const vals: any[] = [];
+    let p = 1;
+    const allowed = ["port_call_type","status","eta","etd","ata","atd","berth_name","terminal_name",
+                     "cargo_type","cargo_quantity","cargo_unit","agent_user_id","notes","port_call_order"];
+    const keyMap: Record<string, string> = {
+      portCallType:"port_call_type", berthName:"berth_name", terminalName:"terminal_name",
+      cargoType:"cargo_type", cargoQuantity:"cargo_quantity", cargoUnit:"cargo_unit",
+      agentUserId:"agent_user_id", portCallOrder:"port_call_order"
+    };
+
+    for (const [k, v] of Object.entries(req.body)) {
+      const col = keyMap[k] || k;
+      if (!allowed.includes(col)) continue;
+      const parsedVal = (col === "eta" || col === "etd" || col === "ata" || col === "atd") && v
+        ? new Date(v as string) : v;
+      fields.push(`${col} = $${p++}`);
+      vals.push(parsedVal);
+    }
+    if (!fields.length) return res.status(400).json({ message: "No valid fields" });
+    vals.push(portCallId, voyageId);
+
+    const { rows } = await pool.query(
+      `UPDATE voyage_port_calls SET ${fields.join(", ")} WHERE id = $${p++} AND voyage_id = $${p} RETURNING *`,
+      vals
+    );
+    if (!rows.length) return res.status(404).json({ message: "Port call not found" });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error("PATCH port-call error:", err);
+    res.status(500).json({ message: "Failed to update port call" });
+  }
+});
+
+// PATCH /api/voyages/:id/port-calls/:portCallId/status — quick status change
+router.patch("/voyages/:id/port-calls/:portCallId/status", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const portCallId = parseInt(req.params.portCallId);
+    const { status } = req.body;
+    const VALID = ["planned","approaching","at_anchor","berthed","operations","completed","skipped"];
+    if (!VALID.includes(status)) return res.status(400).json({ message: "Invalid status" });
+
+    const { rows } = await pool.query(
+      "UPDATE voyage_port_calls SET status = $1 WHERE id = $2 AND voyage_id = $3 RETURNING *",
+      [status, portCallId, voyageId]
+    );
+    if (!rows.length) return res.status(404).json({ message: "Port call not found" });
+
+    if (status === "berthed" || status === "operations") {
+      await pool.query("UPDATE voyages SET current_port_call_id = $1 WHERE id = $2", [portCallId, voyageId]);
+    }
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update port call status" });
+  }
+});
+
+// DELETE /api/voyages/:id/port-calls/:portCallId
+router.delete("/voyages/:id/port-calls/:portCallId", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const portCallId = parseInt(req.params.portCallId);
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const canAccess = await canAccessVoyage(userId, voyageId);
+    if (!canAccess) return res.status(403).json({ message: "Access denied" });
+    await pool.query("DELETE FROM voyage_port_calls WHERE id = $1 AND voyage_id = $2", [portCallId, voyageId]);
+
+    // Renumber remaining port calls
+    const { rows } = await pool.query(
+      "SELECT id FROM voyage_port_calls WHERE voyage_id = $1 ORDER BY port_call_order ASC, id ASC",
+      [voyageId]
+    );
+    for (let i = 0; i < rows.length; i++) {
+      await pool.query("UPDATE voyage_port_calls SET port_call_order = $1 WHERE id = $2", [i + 1, rows[i].id]);
+    }
+    // Update load_port summary
+    const { rows: allCalls } = await pool.query(
+      `SELECT p.name FROM voyage_port_calls vpc JOIN ports p ON p.id = vpc.port_id WHERE vpc.voyage_id = $1 ORDER BY vpc.port_call_order`,
+      [voyageId]
+    );
+    const loadPortSummary = allCalls.map((r: any) => r.name).join(" → ");
+    await pool.query("UPDATE voyages SET load_port = $1 WHERE id = $2", [loadPortSummary, voyageId]);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete port call" });
+  }
+});
+
+// PATCH /api/voyages/:id/port-calls/reorder
+router.patch("/voyages/:id/port-calls/reorder", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const { order } = req.body as { order: Array<{ id: number; order: number }> };
+    if (!Array.isArray(order)) return res.status(400).json({ message: "order must be array" });
+
+    for (const item of order) {
+      await pool.query(
+        "UPDATE voyage_port_calls SET port_call_order = $1 WHERE id = $2 AND voyage_id = $3",
+        [item.order, item.id, voyageId]
+      );
+    }
+    // Update load_port summary
+    const { rows: allCalls } = await pool.query(
+      `SELECT p.name FROM voyage_port_calls vpc JOIN ports p ON p.id = vpc.port_id WHERE vpc.voyage_id = $1 ORDER BY vpc.port_call_order`,
+      [voyageId]
+    );
+    const loadPortSummary = allCalls.map((r: any) => r.name).join(" → ");
+    await pool.query("UPDATE voyages SET load_port = $1, voyage_type = CASE WHEN $2::int > 1 THEN 'multi' ELSE voyage_type END WHERE id = $3",
+      [loadPortSummary, allCalls.length, voyageId]);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to reorder port calls" });
+  }
+});
+
 export default router;

@@ -226,6 +226,10 @@ app.use((req, res, next) => {
           .catch((err: Error) => console.error("Tariff setup error:", err));
       });
 
+      import("./migrate-port-calls").then(({ ensurePortCallsSchema }) => {
+        ensurePortCallsSchema().catch((err: Error) => console.error("Port-calls migration error:", err));
+      });
+
       import("./startup-checks").then(({ runStartupChecks }) => {
         setTimeout(() => {
           runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));
