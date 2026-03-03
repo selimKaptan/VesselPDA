@@ -536,6 +536,7 @@ export async function ensureNewTariffTables() {
     for (const [expense_type, fee_usd] of [
       ['motorboat', 500], ['facilities', 550], ['transportation', 500],
       ['fiscal', 250], ['communication', 250],
+      ['vts', 0], ['customs', 0], ['chamber_dto', 0], ['anchorage', 0],
     ]) {
       await client.query(
         `INSERT INTO misc_expenses (port_id, expense_type, fee_usd, valid_year)

@@ -30,6 +30,10 @@ export interface CalculationInput {
   dbTransportationFee?: number;
   dbFiscalFee?: number;
   dbCommunicationFee?: number;
+  dbVtsFee?: number;
+  dbCustomsFee?: number;
+  dbChamberDtoFee?: number;
+  dbAnchoragePerDay?: number;
 }
 
 export interface CalculatedLineItem {
@@ -88,29 +92,6 @@ const OVERTIME_LCB_TABLE = [
   { minNrt: 50001, rateTL: 15059.0 },
 ];
 
-const DTO_TABLE_TURK = [
-  { minGrt: 0, rateTL: 670 },
-  { minGrt: 501, rateTL: 1120 },
-  { minGrt: 1501, rateTL: 2050 },
-  { minGrt: 2501, rateTL: 2800 },
-  { minGrt: 5001, rateTL: 3400 },
-  { minGrt: 10001, rateTL: 4000 },
-  { minGrt: 25001, rateTL: 4500 },
-  { minGrt: 35001, rateTL: 5000 },
-  { minGrt: 50001, rateTL: 5300 },
-];
-
-const DTO_TABLE_FOREIGN = [
-  { minGrt: 0, rateTL: 1400 },
-  { minGrt: 501, rateTL: 2800 },
-  { minGrt: 1501, rateTL: 4200 },
-  { minGrt: 2501, rateTL: 4900 },
-  { minGrt: 5001, rateTL: 5600 },
-  { minGrt: 10001, rateTL: 6300 },
-  { minGrt: 25001, rateTL: 7000 },
-  { minGrt: 35001, rateTL: 7500 },
-  { minGrt: 50001, rateTL: 8000 },
-];
 
 const DTO_FREIGHT_TABLE = [
   { minCargo: 0, rate: 580 },
@@ -120,43 +101,6 @@ const DTO_FREIGHT_TABLE = [
   { minCargo: 100001, rate: 1780 },
 ];
 
-const CUSTOMS_IMPORT_TABLE = [
-  { minCargo: 0, rateTL: 20100 },
-  { minCargo: 3001, rateTL: 26350 },
-  { minCargo: 6001, rateTL: 32700 },
-  { minCargo: 9001, rateTL: 38840 },
-  { minCargo: 12001, rateTL: 45305 },
-  { minCargo: 15001, rateTL: 51585 },
-  { minCargo: 18001, rateTL: 57935 },
-  { minCargo: 21001, rateTL: 62210 },
-  { minCargo: 25001, rateTL: 68525 },
-  { minCargo: 30001, rateTL: 77205 },
-  { minCargo: 35001, rateTL: 106105 },
-];
-
-const CUSTOMS_EXPORT_TABLE = [
-  { minCargo: 0, rateTL: 8615 },
-  { minCargo: 3001, rateTL: 11230 },
-  { minCargo: 6001, rateTL: 13750 },
-  { minCargo: 9001, rateTL: 16465 },
-  { minCargo: 12001, rateTL: 18505 },
-  { minCargo: 15001, rateTL: 21345 },
-  { minCargo: 18001, rateTL: 24915 },
-  { minCargo: 21001, rateTL: 28395 },
-  { minCargo: 25001, rateTL: 35830 },
-  { minCargo: 30001, rateTL: 42335 },
-  { minCargo: 35001, rateTL: 46770 },
-];
-
-const VTS_TABLE = [
-  { minNrt: 0, foreign: 0, turkish: 0, cabotage: 0 },
-  { minNrt: 300, foreign: 92.4, turkish: 23.1, cabotage: 8.4 },
-  { minNrt: 2001, foreign: 184.8, turkish: 46.2, cabotage: 16.8 },
-  { minNrt: 5001, foreign: 346.5, turkish: 86.625, cabotage: 31.5 },
-  { minNrt: 10001, foreign: 519.75, turkish: 129.9375, cabotage: 47.25 },
-  { minNrt: 20001, foreign: 693, turkish: 173.25, cabotage: 63 },
-  { minNrt: 50001, foreign: 1039.5, turkish: 259.875, cabotage: 94.5 },
-];
 
 const AGENCY_FEE_TABLE = [
   { minNrt: 0, baseEur: 600, perExtra1000Eur: 0 },
@@ -232,12 +176,7 @@ function calcGarbage(input: CalculationInput): number {
 }
 
 function calcAnchorageDues(input: CalculationInput): number {
-  const { grt, anchorageDays } = input;
-  if (anchorageDays <= 0) return 0;
-  if (anchorageDays <= 7) {
-    return grt * 0.004 * anchorageDays;
-  }
-  return (grt * 0.004 * 7) + (grt * 0.006 * (anchorageDays - 7));
+  return (input.dbAnchoragePerDay ?? 0) * input.anchorageDays;
 }
 
 function calcSanitary(input: CalculationInput): number {
@@ -257,9 +196,6 @@ function calcHarbourMaster(input: CalculationInput): number {
   return lcb + overtimeLcb + 2 * ordino;
 }
 
-function calcOtoService(input: CalculationInput): number {
-  return input.grt * 0.01;
-}
 
 function calcLightDues(input: CalculationInput): number {
   if (input.dbLightDuesFee != null && input.dbLightDuesFee > 0) return input.dbLightDuesFee;
@@ -279,29 +215,15 @@ function calcLightDues(input: CalculationInput): number {
 }
 
 function calcVts(input: CalculationInput): number {
-  const { nrt, vtsCategory } = input;
-  if (nrt < 300) return 0;
-  const row = vlookup(nrt, VTS_TABLE, "minNrt");
-  const rate = vtsCategory === "foreign" ? row.foreign : vtsCategory === "cabotage" ? row.cabotage : row.turkish;
-  return rate * 2;
+  return input.dbVtsFee ?? 0;
 }
 
 function calcCustomsOvertime(input: CalculationInput): number {
-  const { cargoQuantity, customsType, usdTryRate } = input;
-  if (customsType === "transit" || customsType === "none") return 0;
-  if (cargoQuantity <= 0) return 0;
-  const table = customsType === "import" ? CUSTOMS_IMPORT_TABLE : CUSTOMS_EXPORT_TABLE;
-  const row = vlookup(cargoQuantity, table, "minCargo");
-  const baseFee = row.rateTL / usdTryRate;
-  const additionalStampFee = 3865 / usdTryRate;
-  return baseFee + additionalStampFee;
+  return input.dbCustomsFee ?? 0;
 }
 
 function calcChamberOfShipping(input: CalculationInput): number {
-  const { grt, dtoCategory, usdTryRate } = input;
-  const table = dtoCategory === "turkish" ? DTO_TABLE_TURK : DTO_TABLE_FOREIGN;
-  const row = vlookup(grt, table, "minGrt");
-  return row.rateTL / usdTryRate;
+  return input.dbChamberDtoFee ?? 0;
 }
 
 function calcChamberFreightShare(input: CalculationInput): number {
@@ -314,11 +236,6 @@ function calcChamberFreightShare(input: CalculationInput): number {
   return row.rate;
 }
 
-function calcVda(input: CalculationInput): number {
-  const { grt, eurUsdParity } = input;
-  const base = grt <= 5000 ? 20 : 40;
-  return base * eurUsdParity;
-}
 
 export function getCargoCategory(cargoType?: string): "bulk_dry" | "general" | "container" | "roro" | "liquid" | "chemical" | "gas" {
   const t = (cargoType || "").toLowerCase().trim();
@@ -426,8 +343,6 @@ export function calculateProforma(input: CalculationInput): CalculationResult {
 
   addItem("Garbage", calcGarbage(input), "Compulsory charge");
 
-  addItem("Oto Service", calcOtoService(input));
-
   addItem("Harbour Master Dues", calcHarbourMaster(input));
 
   addItem("Sanitary Dues", calcSanitary(input));
@@ -438,18 +353,14 @@ export function calculateProforma(input: CalculationInput): CalculationResult {
 
   addItem("Customs Overtime", calcCustomsOvertime(input));
 
-  const anchorage = calcAnchorageDues(input);
-  lineItems.push({
-    description: `Anchorage Dues${input.anchorageDays > 0 ? ` for (${input.anchorageDays})` : ""}`,
-    amountUsd: Math.round(anchorage * 100) / 100,
-    amountEur: Math.round((anchorage / eurUsdParity) * 100) / 100,
-  });
+  addItem(
+    `Anchorage Dues${input.anchorageDays > 0 ? ` (${input.anchorageDays} days)` : ""}`,
+    calcAnchorageDues(input)
+  );
 
   addItem("Chamber of Shipping Fee", calcChamberOfShipping(input));
 
   addItem("Chamber of Shipping Share on Freight", calcChamberFreightShare(input));
-
-  addItem("Contr. to Maritime Association Fee", calcVda(input));
 
   addItem("Motorboat Exp.", input.dbMotorboatFee ?? 500);
   addItem("Facilities & Other Exp.", input.dbFacilitiesFee ?? 550);

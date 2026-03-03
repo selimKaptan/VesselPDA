@@ -46,6 +46,10 @@ const SERVICE_LABELS: Record<string, string> = {
   transportation: "Transportation Exp.",
   fiscal: "Fiscal & Notary Exp.",
   communication: "Communication & Copy & Stamp Exp.",
+  vts: "VTS Fee",
+  customs: "Customs Overtime",
+  chamber_dto: "Chamber of Shipping Fee",
+  anchorage: "Anchorage Dues (per day)",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {

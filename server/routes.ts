@@ -484,6 +484,10 @@ export async function registerRoutes(
         dbTransportationFee: misc['transportation'],
         dbFiscalFee: misc['fiscal'],
         dbCommunicationFee: misc['communication'],
+        dbVtsFee: misc['vts'],
+        dbCustomsFee: misc['customs'],
+        dbChamberDtoFee: misc['chamber_dto'],
+        dbAnchoragePerDay: misc['anchorage'],
       };
 
       const result = calculateProforma(calcInput);
@@ -657,6 +661,10 @@ export async function registerRoutes(
         dbTransportationFee: misc['transportation'],
         dbFiscalFee: misc['fiscal'],
         dbCommunicationFee: misc['communication'],
+        dbVtsFee: misc['vts'],
+        dbCustomsFee: misc['customs'],
+        dbChamberDtoFee: misc['chamber_dto'],
+        dbAnchoragePerDay: misc['anchorage'],
       };
 
       const result = calculateProforma(calcInput);
