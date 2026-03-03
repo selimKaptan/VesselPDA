@@ -1,22 +1,22 @@
-import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, MessageCircle, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, Handshake, Package, TrendingUp, Wallet, BarChart3 } from "lucide-react";
+import {
+  Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield,
+  ChevronDown, MessageSquare, MessagesSquare, Anchor, Gavel, Navigation, Languages,
+  Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, Handshake, Package,
+  TrendingUp, BarChart3, Receipt, FileCheck, Star,
+} from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarHeader,
-  SidebarFooter,
+  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
+  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
 
@@ -32,28 +32,91 @@ const PLAN_BADGE: Record<string, string> = {
   unlimited: "bg-[hsl(var(--maritime-primary)/0.15)] text-[hsl(var(--maritime-primary))]",
 };
 
+type NavItem = {
+  title: string;
+  url: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: number;
+};
+
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
+function NavGroupSection({
+  group,
+  isActive,
+}: {
+  group: NavGroup;
+  isActive: (url: string) => boolean;
+}) {
+  if (group.items.length === 0) return null;
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 text-sidebar-foreground/40">
+        {group.label}
+      </SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {group.items.map((item) => {
+            const active = isActive(item.url);
+            const hasBadge = (item.badge ?? 0) > 0;
+            return (
+              <SidebarMenuItem key={item.url}>
+                <SidebarMenuButton asChild data-active={active} tooltip={item.title}>
+                  <Link
+                    href={item.url}
+                    data-testid={`nav-${item.url.replace(/\//g, "").replace(/-/g, "-") || "home"}`}
+                    style={
+                      active
+                        ? {
+                            borderLeft: "3px solid hsl(var(--sidebar-primary))",
+                            background: "hsl(var(--sidebar-primary) / 0.12)",
+                            color: "hsl(var(--sidebar-primary))",
+                            paddingLeft: "calc(0.75rem - 3px)",
+                          }
+                        : {}
+                    }
+                    className="transition-all duration-150"
+                  >
+                    <item.icon className="w-4 h-4" />
+                    <span className="font-medium flex-1">{item.title}</span>
+                    {hasBadge && (
+                      <span className="ml-auto flex-shrink-0 min-w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center px-1">
+                        {item.badge}
+                      </span>
+                    )}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
+
 export function AppSidebar() {
   const [location] = useLocation();
-  const { lang, setLang, t } = useLanguage();
+  const { lang, setLang } = useLanguage();
   const { user } = useAuth();
   const { state, setOpen } = useSidebar();
   const isCollapsed = state === "collapsed";
+
   const userRole = (user as any)?.userRole || "shipowner";
   const activeRole = (user as any)?.activeRole || "agent";
   const plan = (user as any)?.subscriptionPlan || "free";
+  const isAdminUser = userRole === "admin";
+  const effectiveRole = isAdminUser ? activeRole : userRole;
+  const isAgent = effectiveRole === "agent";
+  const isProvider = effectiveRole === "provider";
+  const isShipowner = effectiveRole === "shipowner" || effectiveRole === "broker";
 
   const initials = user
     ? `${(user.firstName || "")[0] || ""}${(user.lastName || "")[0] || ""}`.toUpperCase() || "U"
     : "U";
-
-  const mainNav = [
-    { title: t("nav.dashboard"), url: "/", icon: LayoutDashboard },
-    { title: t("nav.directory"), url: "/directory", icon: Users },
-    { title: t("nav.forum"), url: "/forum", icon: MessageSquare },
-  ];
-
-  const isAdminUser = userRole === "admin";
-  const effectiveRole = isAdminUser ? activeRole : userRole;
 
   const switchRoleMutation = useMutation({
     mutationFn: async (newRole: string) => {
@@ -81,71 +144,103 @@ export function AppSidebar() {
     queryKey: ["/api/nominations/pending-count"],
     refetchInterval: 15000,
     refetchOnWindowFocus: true,
-    enabled: effectiveRole === "agent",
+    enabled: isAgent,
   });
   const pendingNominations = nomBadge?.count || 0;
 
-  const isAgent = effectiveRole === "agent";
+  // ── Group visibility helpers ──────────────────────────────────────────────
+  const canSeeAll = isAdminUser || isShipowner || isAgent;
 
-  const toolsNav: any[] = [];
-  if (effectiveRole !== "provider" && !isAgent) {
-    toolsNav.push({ title: t("nav.vessels"), url: "/vessels", icon: Ship });
+  // ── OPERATIONS ────────────────────────────────────────────────────────────
+  const operationsGroup: NavGroup = {
+    label: "Operations",
+    items: [
+      { title: "Dashboard", url: "/", icon: LayoutDashboard },
+      { title: "Vessels", url: "/vessels", icon: Ship },
+      { title: "Voyages", url: "/voyages", icon: Navigation },
+      { title: "Vessel Track", url: "/vessel-track", icon: MapPin },
+      { title: "Port Info", url: "/port-info", icon: Anchor },
+      { title: "Vessel Certificates", url: "/vessel-certificates", icon: FileCheck },
+    ],
+  };
+
+  // ── COMMERCIAL ────────────────────────────────────────────────────────────
+  const commercialItems: NavItem[] = [
+    { title: "Proformas", url: "/proformas", icon: FileText },
+  ];
+  if (canSeeAll) {
+    commercialItems.push({ title: "Invoices", url: "/invoices", icon: Receipt });
   }
-  if (effectiveRole !== "provider") {
-    toolsNav.push({ title: t("nav.proformas"), url: "/proformas", icon: FileText });
-    toolsNav.push({ title: t("nav.vesselTrack"), url: "/vessel-track", icon: Navigation });
+  commercialItems.push({ title: "Tenders", url: "/tenders", icon: Gavel, badge: tenderCount });
+  if (canSeeAll) {
+    commercialItems.push({ title: "Nominations", url: "/nominations", icon: UserCheck, badge: pendingNominations });
   }
-  if (!isAgent && effectiveRole !== "provider") {
-    toolsNav.push({ title: t("nav.tenders"), url: "/tenders", icon: Gavel, badge: tenderCount });
+  commercialItems.push({ title: "Fixtures", url: "/fixtures", icon: Handshake });
+  if (canSeeAll) {
+    commercialItems.push({ title: "Cargo Positions", url: "/cargo-positions", icon: Package });
   }
-  if (effectiveRole === "shipowner" || isAgent || effectiveRole === "admin") {
-    toolsNav.push({ title: "Seferler", url: "/voyages", icon: Ship });
-  }
-  if (!isAgent) {
-    toolsNav.push({ title: "Hizmet Talepleri", url: "/service-requests", icon: Wrench });
-  }
-  if (effectiveRole === "shipowner" || isAgent || effectiveRole === "admin") {
-    toolsNav.push({ title: "Nominasyonlar", url: "/nominations", icon: UserCheck, badge: pendingNominations });
-  }
-  if (!isAgent) {
-    toolsNav.push({ title: "Mesajlar", url: "/messages", icon: MessageCircle, badge: unreadMessages });
-  }
-  if (isAgent || effectiveRole === "shipowner") {
-    toolsNav.push({ title: "OFAC Sorgula", url: "/sanctions-check", icon: ShieldAlert });
-  }
-  if (effectiveRole === "shipowner" || effectiveRole === "broker" || isAdminUser) {
-    toolsNav.push({ title: "Fixtureler", url: "/fixtures", icon: Handshake });
-  }
-  if (effectiveRole === "shipowner" || effectiveRole === "broker" || effectiveRole === "provider" || isAdminUser) {
-    toolsNav.push({ title: "Piyasa Verileri", url: "/market-data", icon: TrendingUp });
-  }
-  if (isAgent || effectiveRole === "shipowner" || isAdminUser) {
-    toolsNav.push({ title: "Finansal Akış", url: "/invoices", icon: Wallet });
-  }
-  if (isAgent || effectiveRole === "shipowner" || effectiveRole === "broker" || isAdminUser) {
-    toolsNav.push({ title: "Raporlar", url: "/reports", icon: BarChart3 });
-  }
-  if (!isAgent) {
-    toolsNav.push({ title: "Kargo/Pozisyon", url: "/cargo-positions", icon: Package });
-  }
-  toolsNav.push({ title: t("nav.portInfo"), url: "/port-info", icon: Anchor });
-  if (!isAgent) {
-    toolsNav.push({ title: t("nav.servicePorts"), url: "/service-ports", icon: MapPin });
+  commercialItems.push({ title: "Market Data", url: "/market-data", icon: TrendingUp });
+
+  const commercialGroup: NavGroup = {
+    label: "Commercial",
+    items: commercialItems,
+  };
+
+  // ── COMMUNICATION ─────────────────────────────────────────────────────────
+  const communicationGroup: NavGroup = {
+    label: "Communication",
+    items: [
+      { title: "Messages", url: "/messages", icon: MessageSquare, badge: unreadMessages },
+      { title: "Forum", url: "/forum", icon: MessagesSquare },
+      { title: "Service Requests", url: "/service-requests", icon: Wrench },
+    ],
+  };
+
+  // ── DIRECTORY ─────────────────────────────────────────────────────────────
+  const directoryGroup: NavGroup = {
+    label: "Directory",
+    items: [
+      { title: "Directory", url: "/directory", icon: Building2 },
+      { title: "Service Ports", url: "/service-ports", icon: Anchor },
+      { title: "Sanctions Check", url: "/sanctions-check", icon: ShieldAlert },
+    ],
+  };
+
+  // ── REPORTS ───────────────────────────────────────────────────────────────
+  const reportsGroup: NavGroup = {
+    label: "Reports",
+    items: canSeeAll ? [{ title: "Reports", url: "/reports", icon: BarChart3 }] : [],
+  };
+
+  // ── SETTINGS ─────────────────────────────────────────────────────────────
+  const settingsItems: NavItem[] = [
+    { title: "Settings", url: "/settings", icon: Settings },
+    { title: "Company Profile", url: "/company-profile", icon: Star },
+    { title: "Pricing", url: "/pricing", icon: Crown },
+  ];
+  if (isAdminUser) {
+    settingsItems.push({ title: "Admin Panel", url: "/admin", icon: Users });
   }
 
-  const adminNav = isAdminUser ? [
-    { title: t("nav.admin"), url: "/admin", icon: Shield },
-    { title: "Tarife Yönetimi", url: "/tariff-management", icon: Wallet },
-  ] : [];
+  const settingsGroup: NavGroup = { label: "Settings", items: settingsItems };
 
-  const roleLabel = isAdminUser
-    ? ACTIVE_ROLE_OPTIONS.find(r => r.value === activeRole)?.label || "Admin"
-    : effectiveRole === "agent" ? "Ship Agent" : effectiveRole === "provider" ? "Provider" : "Shipowner";
+  const allGroups: NavGroup[] = [
+    operationsGroup,
+    commercialGroup,
+    communicationGroup,
+    directoryGroup,
+    reportsGroup,
+    settingsGroup,
+  ];
 
   function isActive(url: string) {
     if (url === "/") return location === "/";
     return location === url || location.startsWith(url + "/");
   }
+
+  const roleLabel = isAdminUser
+    ? ACTIVE_ROLE_OPTIONS.find((r) => r.value === activeRole)?.label || "Admin"
+    : isAgent ? "Ship Agent" : isProvider ? "Provider" : "Shipowner";
 
   const userDisplayName = user?.firstName
     ? `${user.firstName} ${(user as any).lastName || ""}`.trim()
@@ -200,117 +295,9 @@ export function AppSidebar() {
           </div>
         )}
 
-        {/* Main Nav */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 text-sidebar-foreground/40">
-            Main
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {mainNav.map((item) => {
-                const active = isActive(item.url);
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild data-active={active} tooltip={item.title}>
-                      <Link
-                        href={item.url}
-                        data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
-                        style={active ? {
-                          borderLeft: "3px solid hsl(var(--sidebar-primary))",
-                          background: "hsl(var(--sidebar-primary) / 0.12)",
-                          color: "hsl(var(--sidebar-primary))",
-                          paddingLeft: "calc(0.75rem - 3px)",
-                        } : {}}
-                        className="transition-all duration-150"
-                      >
-                        <item.icon className="w-4 h-4" />
-                        <span className="font-medium">{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Tools Nav */}
-        {toolsNav.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 text-sidebar-foreground/40">
-              Tools
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {toolsNav.map((item) => {
-                  const active = isActive(item.url);
-                  const hasBadge = (item as any).badge > 0;
-                  return (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild data-active={active} tooltip={item.title}>
-                        <Link
-                          href={item.url}
-                          data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
-                          style={active ? {
-                            borderLeft: "3px solid hsl(var(--sidebar-primary))",
-                            background: "hsl(var(--sidebar-primary) / 0.12)",
-                            color: "hsl(var(--sidebar-primary))",
-                            paddingLeft: "calc(0.75rem - 3px)",
-                          } : {}}
-                          className="transition-all duration-150"
-                        >
-                          <item.icon className="w-4 h-4" />
-                          <span className="font-medium flex-1">{item.title}</span>
-                          {hasBadge && (
-                            <span className="ml-auto flex-shrink-0 w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
-                              {(item as any).badge}
-                            </span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {/* Admin Nav */}
-        {adminNav.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 text-sidebar-foreground/40">
-              Administration
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {adminNav.map((item) => {
-                  const active = isActive(item.url);
-                  return (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild data-active={active} tooltip={item.title}>
-                        <Link
-                          href={item.url}
-                          data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
-                          style={active ? {
-                            borderLeft: "3px solid hsl(0 84% 35%)",
-                            background: "hsl(0 84% 35% / 0.10)",
-                            color: "hsl(0 84% 35%)",
-                            paddingLeft: "calc(0.75rem - 3px)",
-                          } : {}}
-                          className="transition-all duration-150"
-                        >
-                          <item.icon className="w-4 h-4" />
-                          <span className="font-medium">{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+        {allGroups.map((group) => (
+          <NavGroupSection key={group.label} group={group} isActive={isActive} />
+        ))}
       </SidebarContent>
 
       {/* Footer */}
@@ -341,7 +328,9 @@ export function AppSidebar() {
                     data-testid={`menu-role-${opt.value}`}
                   >
                     {opt.label}
-                    {activeRole === opt.value && <span className="ml-auto text-[hsl(var(--maritime-primary))]">✓</span>}
+                    {activeRole === opt.value && (
+                      <span className="ml-auto text-[hsl(var(--maritime-primary))]">✓</span>
+                    )}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -378,14 +367,14 @@ export function AppSidebar() {
             <button
               data-testid="button-user-menu"
               className={`flex items-center rounded-lg hover:bg-sidebar-accent/60 transition-colors ${
-                isCollapsed
-                  ? "w-full justify-center py-1.5"
-                  : "w-full gap-3 px-2 py-2 text-left"
+                isCollapsed ? "w-full justify-center py-1.5" : "w-full gap-3 px-2 py-2 text-left"
               }`}
             >
               <Avatar className="w-8 h-8 ring-2 ring-sidebar-primary/20 flex-shrink-0">
                 <AvatarImage src={user?.profileImageUrl || undefined} />
-                <AvatarFallback className="bg-[hsl(var(--sidebar-primary))] text-[hsl(var(--sidebar-primary-foreground))] text-xs font-bold">{initials}</AvatarFallback>
+                <AvatarFallback className="bg-[hsl(var(--sidebar-primary))] text-[hsl(var(--sidebar-primary-foreground))] text-xs font-bold">
+                  {initials}
+                </AvatarFallback>
               </Avatar>
               {!isCollapsed && (
                 <>
@@ -407,12 +396,7 @@ export function AppSidebar() {
               )}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            side="top"
-            align="start"
-            sideOffset={8}
-            className="w-56"
-          >
+          <DropdownMenuContent side="top" align="start" sideOffset={8} className="w-56">
             <div className="px-2 py-1.5">
               <p className="text-sm font-semibold truncate">{userDisplayName}</p>
               <p className="text-xs text-muted-foreground truncate">{(user as any)?.email}</p>
