@@ -1,4 +1,5 @@
 import { startAISStream, getPositions, searchVessels, isConnected, getCacheSize } from "../ais-stream";
+import { config } from "../config";
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { storage } from "../storage";
@@ -87,7 +88,7 @@ router.get("/vessels/lookup", isAuthenticated, async (req, res) => {
   if (!imo || imo.length < 5) {
     return res.status(400).json({ message: "Please enter a valid IMO number (5–7 digits)" });
   }
-  const apiKey = process.env.VESSEL_API_KEY;
+  const apiKey = config.VESSEL_API_KEY;
   if (!apiKey) {
     return res.status(503).json({
       message: "Vessel lookup is not configured. Add a RapidAPI key as VESSEL_API_KEY to enable auto-fill.",

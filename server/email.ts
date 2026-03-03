@@ -6,15 +6,16 @@ let _connectionSettings: any;
 async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: string } | null> {
   const FROM_EMAIL = "noreply@vesselpda.com";
 
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY
-    ? "repl " + process.env.REPL_IDENTITY
-    : process.env.WEB_REPL_RENEWAL
-    ? "depl " + process.env.WEB_REPL_RENEWAL
+  const { config } = await import("./config");
+  const hostname = config.REPLIT_CONNECTORS_HOSTNAME;
+  const xReplitToken = config.REPL_IDENTITY
+    ? "repl " + config.REPL_IDENTITY
+    : config.WEB_REPL_RENEWAL
+    ? "depl " + config.WEB_REPL_RENEWAL
     : null;
 
   if (!hostname || !xReplitToken) {
-    const fallback = process.env.RESEND_API_KEY;
+    const fallback = config.RESEND_API_KEY;
     if (fallback) return { apiKey: fallback, fromEmail: FROM_EMAIL };
     return null;
   }

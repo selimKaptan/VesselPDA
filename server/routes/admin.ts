@@ -1,5 +1,6 @@
 import { geocodeStats } from "../geocode-ports";
 import { loadSanctionsList } from "../sanctions";
+import { config } from "../config";
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { storage } from "../storage";
@@ -228,9 +229,9 @@ router.get("/admin/stats/enhanced", isAuthenticated, async (req: any, res) => {
 
     // System health
     const dbOk = true;
-    const aisOk = !!process.env.AIS_STREAM_API_KEY;
-    const teOk = !!process.env.TRADING_ECONOMICS_API_KEY;
-    const resendOk = !!process.env.RESEND_API_KEY;
+    const aisOk = !!config.AIS_STREAM_API_KEY;
+    const teOk = !!config.TRADING_ECONOMICS_API_KEY;
+    const resendOk = !!config.RESEND_API_KEY;
 
     res.json({
       totalUsers: allUsers.length,

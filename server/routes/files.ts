@@ -1,6 +1,7 @@
 import path from "path";
 import multer from "multer";
 import { getOrFetchRates, fetchTCMBRates } from "../exchange-rates";
+import { config } from "../config";
 
 const fileUpload = multer({
   storage: multer.memoryStorage(),
@@ -78,7 +79,7 @@ router.get("/port-info/:locode", async (req, res) => {
     const dbPort = await storage.getPortByCode(locode);
 
     let extended: any = null;
-    const apiKey = process.env.VESSEL_API_KEY;
+    const apiKey = config.VESSEL_API_KEY;
     if (apiKey) {
       try {
         const response = await fetch(

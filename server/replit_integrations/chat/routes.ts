@@ -1,10 +1,11 @@
 import type { Express, Request, Response } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { chatStorage } from "./storage";
+import { config } from "../../config";
 
 const anthropic = new Anthropic({
-  apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+  apiKey: config.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+  baseURL: config.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
 });
 
 export function registerChatRoutes(app: Express): void {

@@ -4,6 +4,7 @@ import { storage } from "../storage";
 import { db, pool } from "../db";
 import { sql as drizzleSql } from "drizzle-orm";
 import { logAction, getClientIp } from "../audit";
+import { config } from "../config";
 
 async function isAdmin(req: any): Promise<boolean> {
   const userId = req.user?.claims?.sub;
@@ -302,7 +303,7 @@ const FREIGHT_FALLBACK = [
 
 // ── Attempt 1: Trading Economics API (requires TRADING_ECONOMICS_API_KEY) ──
 async function fetchFromTradingEconomics(): Promise<any[] | null> {
-  const teKey = process.env.TRADING_ECONOMICS_API_KEY;
+  const teKey = config.TRADING_ECONOMICS_API_KEY;
   if (!teKey) return null;
   try {
     const symbols = "BDI:IND,BCTI:IND,BDTI:IND";
@@ -447,7 +448,7 @@ router.get("/market/freight-indices", isAuthenticated, async (_req, res) => {
     }
 
     const fresh = await fetchFreightIndices();
-    const hasApiKey = !!process.env.TRADING_ECONOMICS_API_KEY;
+    const hasApiKey = !!config.TRADING_ECONOMICS_API_KEY;
     const data = {
       indices: fresh?.indices ?? FREIGHT_FALLBACK,
       lastUpdated: new Date().toISOString(),
