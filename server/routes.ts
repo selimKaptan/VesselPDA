@@ -4512,6 +4512,26 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/admin/tariffs/:table/clear", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const userRow = await storage.getUser(userId);
+      if ((userRow as any)?.userRole !== "admin") return res.status(403).json({ message: "Forbidden" });
+      const tbl = req.params.table;
+      if (!ALLOWED_TARIFF_TABLES[tbl]) return res.status(400).json({ message: "Invalid table" });
+      const portId = req.query.portId as string | undefined;
+      if (!portId || portId === "null" || portId === "global") {
+        await pool.query(`DELETE FROM ${tbl} WHERE port_id IS NULL`);
+      } else {
+        await pool.query(`DELETE FROM ${tbl} WHERE port_id = $1`, [parseInt(portId)]);
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Tariff clear error:", err);
+      res.status(500).json({ message: "Failed to clear tariff records" });
+    }
+  });
+
   app.delete("/api/admin/tariffs/:table/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;

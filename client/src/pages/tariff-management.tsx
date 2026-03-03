@@ -709,6 +709,7 @@ function CategorySection({
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkPercent, setBulkPercent] = useState("5");
+  const [clearAllOpen, setClearAllOpen] = useState(false);
   const [catImportProgress, setCatImportProgress] = useState<{ current: number; total: number } | null>(null);
   const catCsvInputRef = useRef<HTMLInputElement>(null);
   const hasAutoOpened = useRef(false);
@@ -950,6 +951,18 @@ function CategorySection({
       toast({ title: "Error", description: "Failed to apply increase", variant: "destructive" }),
   });
 
+  const clearAllMutation = useMutation({
+    mutationFn: () =>
+      apiRequest("DELETE", `/api/admin/tariffs/${cat.key}/clear?portId=${portId}`),
+    onSuccess: () => {
+      invalidate();
+      toast({ title: "All records cleared", description: `${rows.length} records removed from ${cat.label}` });
+      setClearAllOpen(false);
+    },
+    onError: () =>
+      toast({ title: "Error", description: "Failed to clear records", variant: "destructive" }),
+  });
+
   const openAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
     setAddData({ currency: cat.defaultCurrency, valid_year: 2026 });
@@ -987,6 +1000,17 @@ function CategorySection({
               data-testid={`button-bulk-${cat.key}`}
             >
               <TrendingUp className="w-3 h-3" /> % Increase
+            </Button>
+          )}
+          {rows.length > 0 && (
+            <Button
+              size="sm" variant="ghost"
+              className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={e => { e.stopPropagation(); setClearAllOpen(true); }}
+              title="Clear all records for this port"
+              data-testid={`button-clear-all-${cat.key}`}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
             </Button>
           )}
           <Button
@@ -1201,6 +1225,30 @@ function CategorySection({
               data-testid="button-confirm-delete"
             >
               {deleteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Clear All Confirm ── */}
+      <AlertDialog open={clearAllOpen} onOpenChange={setClearAllOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear all records?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all <span className="font-semibold">{rows.length}</span> records
+              in <span className="font-semibold">"{cat.label}"</span> for this port. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid={`button-cancel-clear-all-${cat.key}`}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => clearAllMutation.mutate()}
+              disabled={clearAllMutation.isPending}
+              data-testid={`button-confirm-clear-all-${cat.key}`}
+            >
+              {clearAllMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Yes, Clear All"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
