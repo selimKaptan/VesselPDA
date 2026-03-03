@@ -137,8 +137,7 @@ export async function lookupAgencyFee(
   pool: Pool,
   portId: number,
   nrt: number,
-  eurUsdParity: number,
-  berthDays: number
+  eurUsdParity: number
 ): Promise<LookupResult> {
   try {
     const result = await pool.query(
@@ -160,11 +159,7 @@ export async function lookupAgencyFee(
     } else {
       feeEur = baseFee;
     }
-    let feeUsd = currency === "EUR" ? feeEur * eurUsdParity : feeEur;
-    if (berthDays > 7) {
-      const extraPeriods = Math.ceil((berthDays - 7) / 5);
-      feeUsd = feeUsd * (1 + 0.2 * extraPeriods);
-    }
+    const feeUsd = currency === "EUR" ? feeEur * eurUsdParity : feeEur;
     return { fee: Math.round(feeUsd * 100) / 100, source: "database" };
   } catch {
     return { fee: 0, source: "fallback" };
@@ -344,7 +339,7 @@ export async function lookupSupervisionFee(
     const { keyword, unit } = getSupervisionCargoKeyword(cargoType);
     const [cargoRows, ruleRows] = await Promise.all([
       pool.query(
-        `SELECT rate, unit, quantity_range FROM supervision_fees
+        `SELECT rate, unit, quantity_range, port_id FROM supervision_fees
          WHERE cargo_type ILIKE $1
            AND (port_id = $2 OR port_id IS NULL)
          ORDER BY (CASE WHEN port_id = $2 THEN 0 ELSE 1 END), id`,
@@ -361,14 +356,25 @@ export async function lookupSupervisionFee(
 
     if (cargoRows.rows.length === 0) return { fee: 0, source: "fallback" };
 
-    let matchedRow = cargoRows.rows.find(row => {
-      const { min, max } = parseQuantityRange(row.quantity_range);
-      return cargoQuantity >= min && cargoQuantity <= max;
-    });
-    if (!matchedRow) matchedRow = cargoRows.rows[cargoRows.rows.length - 1];
+    const portSpecificRows = cargoRows.rows.filter((r: any) => r.port_id !== null);
+    const globalTariffRows = cargoRows.rows.filter((r: any) => r.port_id === null);
+    const tieredRows = portSpecificRows.length > 0 ? portSpecificRows : globalTariffRows;
 
-    const rate = parseFloat(matchedRow.rate || "0");
-    let feeEur = cargoQuantity * rate;
+    const sortedTiers = tieredRows
+      .map((row: any) => ({ ...row, ...parseQuantityRange(row.quantity_range) }))
+      .sort((a: any, b: any) => a.min - b.min);
+
+    let feeEur = 0;
+    let processedQty = 0;
+    for (const tier of sortedTiers) {
+      if (processedQty >= cargoQuantity) break;
+      const tierEnd = tier.max === Infinity ? cargoQuantity : Math.min(cargoQuantity, tier.max);
+      const tierQty = tierEnd - processedQty;
+      if (tierQty > 0) {
+        feeEur += tierQty * parseFloat(tier.rate || "0");
+        processedQty = tierEnd;
+      }
+    }
 
     let minFeeEur = 300;
     let maxFeeEur = 10000;

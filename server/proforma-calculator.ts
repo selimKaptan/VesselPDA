@@ -298,14 +298,10 @@ function calcAgencyFee(input: CalculationInput): number {
   if (input.dbAgencyFee != null && input.dbAgencyFee > 0) {
     fee = input.dbAgencyFee;
   } else {
-    const { nrt, eurUsdParity, berthStayDays } = input;
+    const { nrt, eurUsdParity } = input;
     const row = vlookup(nrt, AGENCY_FEE_TABLE, "minNrt");
     const extra = row.perExtra1000Eur > 0 ? Math.ceil(Math.max(0, nrt - row.minNrt) / 1000) * row.perExtra1000Eur : 0;
     fee = (row.baseEur + extra) * eurUsdParity;
-    if (berthStayDays > 7) {
-      const extraPeriods = Math.ceil((berthStayDays - 7) / 5);
-      fee = fee * (1 + 0.2 * extraPeriods);
-    }
   }
   if (input.flagCategory === "cabotage") fee *= 0.5;
   return fee;
