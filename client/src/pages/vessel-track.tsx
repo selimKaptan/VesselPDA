@@ -2,7 +2,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Navigation, Search, X, Ship, MapPin, ArrowRight, AlertTriangle, Loader2, List, Map as MapIcon, ChevronDown, ChevronUp, SlidersHorizontal } from "lucide-react";
+import { Navigation, Search, X, Ship, MapPin, ArrowRight, AlertTriangle, Loader2, List, Map as MapIcon, ChevronDown, ChevronUp, SlidersHorizontal, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -425,6 +425,9 @@ export default function VesselTrack() {
   const [isMapSearching, setIsMapSearching] = useState(false);
   const mapSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
+  const [selectedHistoryMmsi, setSelectedHistoryMmsi] = useState<string | null>(null);
+  const [historyRange, setHistoryRange] = useState<"1" | "3" | "7">("1");
+  const historyPopupRef = useRef<mapboxgl.Popup | null>(null);
 
   const { data: aisStatus } = useQuery<{ connected: boolean; vesselCount: number; mode: "live" | "demo" }>({
     queryKey: ["/api/vessel-track/status"],
@@ -436,6 +439,22 @@ export default function VesselTrack() {
   const { data: positions = [] } = useQuery<AISVessel[]>({ queryKey: ["/api/vessel-track/positions"], refetchInterval });
   const { data: fleet = [] } = useQuery<AISVessel[]>({ queryKey: ["/api/vessel-track/fleet"], refetchInterval });
   const { data: agencyVessels = [] } = useQuery<AISVessel[]>({ queryKey: ["/api/vessel-track/agency-vessels"], enabled: isAgent || isAdmin, refetchInterval });
+
+  const historyDays = historyRange === "1" ? 1 : historyRange === "3" ? 3 : 7;
+  const { data: historyData } = useQuery<{
+    type: string; count: number; features: any[]; line: any | null;
+  }>({
+    queryKey: ["/api/vessel-track/history", selectedHistoryMmsi, historyRange],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/vessel-track/history/${encodeURIComponent(selectedHistoryMmsi!)}?days=${historyDays}`,
+        { credentials: "include" }
+      );
+      return res.json();
+    },
+    enabled: !!selectedHistoryMmsi,
+    staleTime: 60000,
+  });
 
   const handleFocus = useCallback((v: AISVessel) => {
     const id = String(v.mmsi || v.id || "");
@@ -570,6 +589,8 @@ export default function VesselTrack() {
         el.addEventListener("click", () => {
           setHighlightedId(id);
           setFlyTarget([v.lat, v.lng]);
+          setSelectedHistoryMmsi(v.mmsi || null);
+          if (v.mmsi) setHistoryRange("1");
         });
 
         markersRef.current.set(id, marker);
@@ -594,6 +615,78 @@ export default function VesselTrack() {
       });
     }
   }, [flyTarget]);
+
+  // History route layers
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const LINE_SRC = "vessel-history-line";
+    const PTS_SRC = "vessel-history-points";
+    const LINE_LAYER = "vessel-history-line-layer";
+    const PTS_LAYER = "vessel-history-points-layer";
+
+    function safeRemove() {
+      try {
+        historyPopupRef.current?.remove();
+        if (map.getLayer(LINE_LAYER)) map.removeLayer(LINE_LAYER);
+        if (map.getLayer(PTS_LAYER)) map.removeLayer(PTS_LAYER);
+        if (map.getSource(LINE_SRC)) map.removeSource(LINE_SRC);
+        if (map.getSource(PTS_SRC)) map.removeSource(PTS_SRC);
+      } catch { /* map might be mid-removal */ }
+    }
+
+    if (!selectedHistoryMmsi || !historyData || historyData.count === 0 || !historyData.line) {
+      safeRemove();
+      return;
+    }
+
+    const doAdd = () => {
+      safeRemove();
+      try {
+        map.addSource(LINE_SRC, { type: "geojson", data: historyData.line });
+        map.addLayer({
+          id: LINE_LAYER, type: "line", source: LINE_SRC,
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: { "line-color": "#60A5FA", "line-width": 2.5, "line-opacity": 0.85 },
+        });
+        map.addSource(PTS_SRC, { type: "geojson", data: { type: "FeatureCollection", features: historyData.features } });
+        map.addLayer({
+          id: PTS_LAYER, type: "circle", source: PTS_SRC,
+          paint: { "circle-radius": 5, "circle-color": "#BFDBFE", "circle-stroke-width": 1.5, "circle-stroke-color": "#2563EB", "circle-opacity": 0.9 },
+        });
+
+        const popup = new mapboxgl.Popup({ closeButton: false, offset: 10 });
+        historyPopupRef.current = popup;
+
+        map.on("mouseenter", PTS_LAYER, (e) => {
+          map.getCanvas().style.cursor = "pointer";
+          const f = e.features?.[0];
+          if (!f || !e.lngLat) return;
+          const { speed, timestamp, destination } = f.properties as any;
+          const dateStr = timestamp
+            ? new Date(timestamp).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+            : "—";
+          popup.setLngLat(e.lngLat).setHTML(
+            `<div style="font-size:11px;font-family:system-ui;line-height:1.6;min-width:130px">
+              <div style="font-weight:700;color:#1d4ed8;margin-bottom:3px">${dateStr}</div>
+              ${speed != null ? `<div>Speed: <strong>${speed} kn</strong></div>` : ""}
+              ${destination ? `<div>Dest: ${destination}</div>` : ""}
+            </div>`
+          ).addTo(map);
+        });
+        map.on("mouseleave", PTS_LAYER, () => {
+          map.getCanvas().style.cursor = "";
+          popup.remove();
+        });
+      } catch (err: any) {
+        console.error("History layer error:", err?.message);
+      }
+    };
+
+    if (map.loaded()) doAdd(); else map.once("load", doAdd);
+    return safeRemove;
+  }, [selectedHistoryMmsi, historyData]);
 
   // Resize map when switching back to map view
   useEffect(() => {
@@ -738,6 +831,42 @@ export default function VesselTrack() {
               onClick={() => setDemoBarDismissed(true)}
               data-testid="button-dismiss-demo-banner"
               className="text-amber-600 hover:text-amber-800 ml-auto flex-shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* History route control panel */}
+        {selectedHistoryMmsi && (
+          <div className="absolute top-3 left-3 z-[1000] bg-background/95 backdrop-blur border rounded-lg shadow-lg px-3 py-2 flex items-center gap-2" data-testid="panel-history-controls">
+            <Clock className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+            <span className="text-xs font-semibold text-foreground whitespace-nowrap">Route History</span>
+            <div className="flex gap-1">
+              {(["1", "3", "7"] as const).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setHistoryRange(d)}
+                  data-testid={`button-history-range-${d}`}
+                  className={`px-2 py-0.5 text-[11px] rounded font-semibold transition-colors ${
+                    historyRange === d
+                      ? "bg-blue-600 text-white"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  {d === "1" ? "24h" : d === "3" ? "3d" : "7d"}
+                </button>
+              ))}
+            </div>
+            {historyData && (
+              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                {historyData.count} pts
+              </span>
+            )}
+            <button
+              onClick={() => setSelectedHistoryMmsi(null)}
+              data-testid="button-clear-history"
+              className="ml-1 text-muted-foreground hover:text-foreground transition-colors"
             >
               <X className="w-3.5 h-3.5" />
             </button>

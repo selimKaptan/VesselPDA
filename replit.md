@@ -28,7 +28,7 @@ The platform is built with a modern web stack. The UI/UX is maritime-themed, pre
     - **Proforma Generation**: Formula-based calculation engine for instant disbursement account generation, supporting PDF export and quick estimates based on live exchange rates.
     - **Company Profiles & Directory**: Detailed, customizable profiles for maritime companies and a searchable directory. Includes a Trust & Verification System with company verification status, sanction list checks, and endorsements.
     - **Subscription System**: 3-tier model (Free, Standard, Unlimited) with usage tracking.
-    - **Vessel Tracking**: Interactive Mapbox GL JS map with live AIS data for vessel positions in Turkish waters.
+    - **Vessel Tracking**: Interactive Mapbox GL JS map with live AIS data for vessel positions in Turkish waters. Includes **AIS Position History** — `vessel_positions` table stores position snapshots (every 5 min) for watchlisted vessels; map renders dashed blue polyline route + circle point markers with hover popup (speed, timestamp, destination); date range selector: 24h / 3d / 7d. Endpoints: `GET /api/vessel-track/history/:mmsi?days=`, `GET /api/vessel-positions/:mmsi`, `GET /api/vessel-positions/:mmsi/latest`.
     - **Port Call Tender System**: Facilitates tender creation by shipowners, bid submission by agents, and nomination with automated voyage creation and conversation initiation.
     - **Voyage Management**: Comprehensive system for managing voyages, including checklists, linked service requests, and status lifecycle.
     - **Service Request System**: Enables posting and fulfilling service requests (e.g., fuel, repair) with offer management.

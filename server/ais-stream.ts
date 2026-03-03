@@ -1,4 +1,5 @@
 import WebSocket from "ws";
+import { pool } from "./db";
 
 export interface VesselPosition {
   mmsi: string;
@@ -18,6 +19,59 @@ export interface VesselPosition {
 
 const vesselCache = new Map<string, VesselPosition>();
 let wsConnected = false;
+
+// ── AIS Position Persistence ────────────────────────────────────────────────
+const watchlistMmsiSet = new Set<string>();
+const lastSavedAt = new Map<string, number>(); // mmsi → epoch ms
+const SAVE_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function refreshWatchlist() {
+  try {
+    const res = await pool.query("SELECT mmsi FROM vessel_watchlist WHERE mmsi IS NOT NULL AND mmsi <> ''");
+    watchlistMmsiSet.clear();
+    for (const row of res.rows) {
+      watchlistMmsiSet.add(row.mmsi);
+    }
+  } catch (err: any) {
+    console.error("AISStream: failed to refresh watchlist", err?.message);
+  }
+}
+
+async function maybeSavePosition(pos: VesselPosition) {
+  if (!pos.mmsi || !watchlistMmsiSet.has(pos.mmsi)) return;
+  const now = Date.now();
+  const last = lastSavedAt.get(pos.mmsi) || 0;
+  if (now - last < SAVE_INTERVAL_MS) return;
+  lastSavedAt.set(pos.mmsi, now);
+  try {
+    const watchlistRow = await pool.query(
+      "SELECT id FROM vessel_watchlist WHERE mmsi = $1 LIMIT 1",
+      [pos.mmsi]
+    );
+    const watchlistItemId = watchlistRow.rows[0]?.id ?? null;
+    await pool.query(
+      `INSERT INTO vessel_positions
+        (watchlist_item_id, mmsi, imo, vessel_name, latitude, longitude,
+         speed, course, heading, navigation_status, destination)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [
+        watchlistItemId,
+        pos.mmsi,
+        pos.imo ?? null,
+        pos.name ?? null,
+        pos.lat,
+        pos.lng,
+        pos.speed ?? null,
+        null,
+        pos.heading ?? null,
+        pos.status ?? null,
+        pos.destination ?? null,
+      ]
+    );
+  } catch (err: any) {
+    console.error("AISStream: failed to save position for", pos.mmsi, err?.message);
+  }
+}
 let wsInstance: WebSocket | null = null;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let reconnectDelay = 5000;
@@ -114,7 +168,7 @@ function handleMessage(raw: string) {
       if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
 
       const existing = vesselCache.get(mmsi);
-      vesselCache.set(mmsi, {
+      const updated: VesselPosition = {
         mmsi,
         name: (meta.ShipName || existing?.name || "").trim() || `MMSI ${mmsi}`,
         flag: existing?.flag || mmsiToFlag(mmsi),
@@ -127,7 +181,9 @@ function handleMessage(raw: string) {
         eta: existing?.eta || null,
         status: navStatusToString(report.NavigationalStatus ?? 0),
         lastUpdated: new Date(),
-      });
+      };
+      vesselCache.set(mmsi, updated);
+      maybeSavePosition(updated).catch(() => {});
     } else if (type === "ShipStaticData") {
       const data = msg.Message?.ShipStaticData || {};
       const existing = vesselCache.get(mmsi);
@@ -225,6 +281,11 @@ function connect(apiKey: string) {
 
 export function startAISStream() {
   const apiKey = process.env.AIS_STREAM_API_KEY;
+
+  // Load watchlisted MMSIs and keep them refreshed every 5 min
+  refreshWatchlist();
+  setInterval(refreshWatchlist, SAVE_INTERVAL_MS);
+
   if (!apiKey) {
     console.log("AISStream: AIS_STREAM_API_KEY not set — running in demo mode (mock data)");
     return;

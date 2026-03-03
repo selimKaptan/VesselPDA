@@ -2888,6 +2888,73 @@ export async function registerRoutes(
     }
   });
 
+  // ── VESSEL POSITION HISTORY ────────────────────────────────────────────────
+
+  app.get("/api/vessel-positions/:mmsi/latest", isAuthenticated, async (req, res) => {
+    try {
+      const { mmsi } = req.params;
+      const result = await pool.query(
+        `SELECT * FROM vessel_positions WHERE mmsi = $1 ORDER BY timestamp DESC LIMIT 1`,
+        [mmsi]
+      );
+      res.json(result.rows[0] || null);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch latest position" });
+    }
+  });
+
+  app.get("/api/vessel-positions/:mmsi", isAuthenticated, async (req, res) => {
+    try {
+      const { mmsi } = req.params;
+      const days = Math.min(parseInt(req.query.days as string) || 7, 30);
+      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      const result = await pool.query(
+        `SELECT * FROM vessel_positions WHERE mmsi = $1 AND timestamp >= $2 ORDER BY timestamp DESC`,
+        [mmsi, cutoff]
+      );
+      res.json(result.rows);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch position history" });
+    }
+  });
+
+  app.get("/api/vessel-track/history/:mmsi", isAuthenticated, async (req, res) => {
+    try {
+      const { mmsi } = req.params;
+      const days = Math.min(parseInt(req.query.days as string) || 1, 30);
+      const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      const result = await pool.query(
+        `SELECT latitude, longitude, speed, course, heading, navigation_status, destination, timestamp
+         FROM vessel_positions WHERE mmsi = $1 AND timestamp >= $2 ORDER BY timestamp ASC`,
+        [mmsi, cutoff]
+      );
+      const rows = result.rows;
+      const pointFeatures = rows.map((r: any) => ({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [r.longitude, r.latitude] },
+        properties: {
+          speed: r.speed,
+          course: r.course,
+          heading: r.heading,
+          status: r.navigation_status,
+          destination: r.destination,
+          timestamp: r.timestamp,
+        },
+      }));
+      const lineCoords = rows.map((r: any) => [r.longitude, r.latitude]);
+      res.json({
+        type: "FeatureCollection",
+        count: rows.length,
+        features: pointFeatures,
+        line: lineCoords.length >= 2
+          ? { type: "Feature", geometry: { type: "LineString", coordinates: lineCoords }, properties: {} }
+          : null,
+      });
+    } catch {
+      res.status(500).json({ message: "Failed to fetch vessel track history" });
+    }
+  });
+
   app.get("/api/tenders/:id/bids/:bidId/pdf", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

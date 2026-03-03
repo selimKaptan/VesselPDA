@@ -1,7 +1,7 @@
 export * from "./models/auth";
 
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, integer, real, timestamp, jsonb, boolean, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, real, timestamp, jsonb, boolean, serial, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users, companyProfiles } from "./models/auth";
@@ -847,3 +847,33 @@ export const vesselCrewRelations = relations(vesselCrew, ({ one }) => ({
 export const insertVesselCrewSchema = createInsertSchema(vesselCrew).omit({ id: true, createdAt: true });
 export type InsertVesselCrew = z.infer<typeof insertVesselCrewSchema>;
 export type VesselCrew = typeof vesselCrew.$inferSelect;
+
+// ─── VESSEL POSITIONS (AIS History) ───────────────────────────────────────────
+
+export const vesselPositions = pgTable("vessel_positions", {
+  id: serial("id").primaryKey(),
+  watchlistItemId: integer("watchlist_item_id").references(() => vesselWatchlist.id, { onDelete: "set null" }),
+  mmsi: text("mmsi").notNull(),
+  imo: text("imo"),
+  vesselName: text("vessel_name"),
+  latitude: real("latitude").notNull(),
+  longitude: real("longitude").notNull(),
+  speed: real("speed"),
+  course: real("course"),
+  heading: real("heading"),
+  navigationStatus: text("navigation_status"),
+  destination: text("destination"),
+  eta: timestamp("eta"),
+  draught: real("draught"),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+}, (table) => ({
+  mmsiTimestampIdx: index("vessel_positions_mmsi_timestamp_idx").on(table.mmsi, table.timestamp),
+}));
+
+export const vesselPositionsRelations = relations(vesselPositions, ({ one }) => ({
+  watchlistItem: one(vesselWatchlist, { fields: [vesselPositions.watchlistItemId], references: [vesselWatchlist.id] }),
+}));
+
+export const insertVesselPositionSchema = createInsertSchema(vesselPositions).omit({ id: true, timestamp: true });
+export type InsertVesselPosition = z.infer<typeof insertVesselPositionSchema>;
+export type VesselPositionRecord = typeof vesselPositions.$inferSelect;
