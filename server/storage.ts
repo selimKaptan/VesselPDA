@@ -49,6 +49,7 @@ import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
 import { eq, and, lte, gte, or, isNull, desc, asc, sql, count, countDistinct, ilike } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { emitToUser } from "./socket";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -1045,6 +1046,7 @@ export class DatabaseStorage implements IStorage {
 
   async createNotification(data: InsertNotification): Promise<Notification> {
     const [row] = await db.insert(notifications).values(data).returning();
+    try { emitToUser(data.userId, "new_notification", row); } catch {}
     return row;
   }
 

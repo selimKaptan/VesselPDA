@@ -9,9 +9,11 @@ import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { startCronJobs } from "./cron-jobs";
+import { initSocket } from "./socket";
 
 const app = express();
 const httpServer = createServer(app);
+initSocket(httpServer);
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -22,6 +24,8 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "blob:", "https:", "https://tiles.openseamap.org"],
       connectSrc: [
         "'self'",
+        "ws://localhost:5000",
+        "wss://localhost:5000",
         "wss://stream.aisstream.io",
         "https://stream.aisstream.io",
         "https://evds2.tcmb.gov.tr",
