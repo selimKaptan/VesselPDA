@@ -15,6 +15,7 @@ import { checkSanctions, getSanctionsStatus, loadSanctionsList } from "./sanctio
 import { db, pool } from "./db";
 import { sql as drizzleSql } from "drizzle-orm";
 import { handleAiChat } from "./anthropic";
+import { getOrFetchRates, fetchTCMBRates } from "./exchange-rates";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "logos");
 if (!fs.existsSync(uploadsDir)) {
@@ -268,36 +269,22 @@ export async function registerRoutes(
 
   app.get("/api/exchange-rates", async (_req, res) => {
     try {
-      const response = await fetch("https://www.tcmb.gov.tr/kurlar/today.xml", {
-        headers: { "User-Agent": "VesselPDA/1.0" },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!response.ok) throw new Error(`TCMB responded with ${response.status}`);
-      const xml = await response.text();
-
-      const extractRate = (currencyCode: string): number | null => {
-        const blockRe = new RegExp(
-          `<Currency[^>]*CurrencyCode="${currencyCode}"[^>]*>([\\s\\S]*?)<\\/Currency>`,
-          "i"
-        );
-        const block = xml.match(blockRe)?.[1];
-        if (!block) return null;
-        const buying = parseFloat(block.match(/<ForexBuying>([\d.]+)<\/ForexBuying>/i)?.[1] ?? "");
-        const selling = parseFloat(block.match(/<ForexSelling>([\d.]+)<\/ForexSelling>/i)?.[1] ?? "");
-        if (isNaN(buying) || isNaN(selling)) return null;
-        return Math.round(((buying + selling) / 2) * 10000) / 10000;
-      };
-
-      const dateMatch = xml.match(/Date="([^"]+)"/);
-      const usdTry = extractRate("USD");
-      const eurTry = extractRate("EUR");
-
-      if (!usdTry || !eurTry) throw new Error("Could not parse rates from TCMB response");
-
-      res.json({ usdTry, eurTry, date: dateMatch?.[1] ?? null, source: "TCMB" });
+      const rates = await getOrFetchRates();
+      res.json(rates);
     } catch (error: any) {
       console.error("Exchange rate fetch error:", error.message);
       res.status(502).json({ message: "Could not fetch live rates from TCMB. Please enter rates manually.", error: error.message });
+    }
+  });
+
+  app.post("/api/exchange-rates/refresh", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const rates = await fetchTCMBRates();
+      res.json({ success: true, rates });
+    } catch (error: any) {
+      console.error("Exchange rate refresh error:", error.message);
+      res.status(502).json({ message: "Could not fetch live rates from TCMB.", error: error.message });
     }
   });
 
@@ -564,30 +551,11 @@ export async function registerRoutes(
       const port = await storage.getPort(Number(portId));
       if (!port) return res.status(404).json({ message: "Port not found" });
 
-      let usdTryRate = 43.86;
-      let eurTryRate = 51.73;
-      try {
-        const rateRes = await fetch("https://www.tcmb.gov.tr/kurlar/today.xml", {
-          headers: { "User-Agent": "VesselPDA/1.0" },
-          signal: AbortSignal.timeout(5000),
-        });
-        if (rateRes.ok) {
-          const xml = await rateRes.text();
-          const extractRate = (code: string): number | null => {
-            const blockRe = new RegExp(`<Currency[^>]*CurrencyCode="${code}"[^>]*>([\\s\\S]*?)<\\/Currency>`, "i");
-            const block = xml.match(blockRe)?.[1];
-            if (!block) return null;
-            const b = parseFloat(block.match(/<ForexBuying>([\d.]+)<\/ForexBuying>/i)?.[1] ?? "");
-            const s = parseFloat(block.match(/<ForexSelling>([\d.]+)<\/ForexSelling>/i)?.[1] ?? "");
-            if (isNaN(b) || isNaN(s)) return null;
-            return Math.round(((b + s) / 2) * 10000) / 10000;
-          };
-          usdTryRate = extractRate("USD") || 43.86;
-          eurTryRate = extractRate("EUR") || 51.73;
-        }
-      } catch (_) { /* use fallback */ }
+      const cachedRates = await getOrFetchRates();
+      let usdTryRate = cachedRates.usdTry;
+      let eurTryRate = cachedRates.eurTry;
 
-      const eurUsdParity = eurTryRate / usdTryRate;
+      const eurUsdParity = cachedRates.eurUsd;
 
       const isTurkishFlag = (flag: string) => {
         const f = (flag || "").toLowerCase().trim();

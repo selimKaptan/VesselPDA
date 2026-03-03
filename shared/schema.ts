@@ -901,3 +901,20 @@ export const sanctionsChecksRelations = relations(sanctionsChecks, ({ one }) => 
 export const insertSanctionsCheckSchema = createInsertSchema(sanctionsChecks).omit({ id: true, checkedAt: true });
 export type InsertSanctionsCheck = z.infer<typeof insertSanctionsCheckSchema>;
 export type SanctionsCheck = typeof sanctionsChecks.$inferSelect;
+
+// ─── EXCHANGE RATES ────────────────────────────────────────────────────────────
+
+export const exchangeRates = pgTable("exchange_rates", {
+  id: serial("id").primaryKey(),
+  baseCurrency: text("base_currency").notNull(),
+  targetCurrency: text("target_currency").notNull(),
+  buyRate: real("buy_rate"),
+  sellRate: real("sell_rate"),
+  effectiveRate: real("effective_rate").notNull(),
+  source: text("source").notNull().default("tcmb"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertExchangeRateSchema = createInsertSchema(exchangeRates).omit({ id: true, updatedAt: true });
+export type InsertExchangeRate = z.infer<typeof insertExchangeRateSchema>;
+export type ExchangeRate = typeof exchangeRates.$inferSelect;

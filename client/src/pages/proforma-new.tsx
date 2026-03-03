@@ -228,23 +228,26 @@ export default function ProformaNew() {
     },
   });
 
+  const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
+
   const liveRatesMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("GET", "/api/exchange-rates");
-      return res.json() as Promise<{ usdTry: number; eurTry: number; date: string | null; source: string }>;
+      return res.json() as Promise<{ usdTry: number; eurTry: number; gbpTry?: number; eurUsd?: number; source: string; updatedAt: string | null }>;
     },
     onSuccess: (data) => {
       setUsdTryRate(data.usdTry);
       setEurTryRate(data.eurTry);
-      toast({
-        title: "Live rates loaded",
-        description: `USD/TRY: ${data.usdTry} · EUR/TRY: ${data.eurTry}${data.date ? ` (TCMB ${data.date})` : ""}`,
-      });
+      setRatesUpdatedAt(data.updatedAt);
     },
     onError: () => {
       toast({ title: "Could not fetch live rates", description: "TCMB may be unavailable. Enter rates manually.", variant: "destructive" });
     },
   });
+
+  useEffect(() => {
+    liveRatesMutation.mutate();
+  }, []);
 
   const triggerCalculation = useCallback(() => {
     if (!selectedVessel || !selectedPort) {
@@ -629,7 +632,14 @@ export default function ProformaNew() {
             <Separator />
 
             <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Exchange Rates (TRY)</span>
+              <div className="space-y-0.5">
+                <span className="text-sm font-medium text-muted-foreground">Exchange Rates (TRY)</span>
+                {ratesUpdatedAt && (
+                  <p className="text-[10px] text-muted-foreground/70">
+                    TCMB · {new Date(ratesUpdatedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                )}
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -642,7 +652,7 @@ export default function ProformaNew() {
                 {liveRatesMutation.isPending
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   : <RefreshCw className="w-3.5 h-3.5" />}
-                {liveRatesMutation.isPending ? "Fetching..." : "Fetch Live Rates (TCMB)"}
+                {liveRatesMutation.isPending ? "Loading..." : "Use Current Rate"}
               </Button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

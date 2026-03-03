@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import { pool } from "./db";
 import { getPositionByMmsi } from "./ais-stream";
+import { fetchTCMBRates } from "./exchange-rates";
 
 // ────────────────────────────────────────────────────────────────────────────
 // a) syncWatchlistPositions — Every 5 minutes
@@ -200,7 +201,21 @@ async function checkVoyageETA() {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// e) cleanOldPositions — Every Sunday at 02:00
+// e) refreshExchangeRates — Daily at 06:00 and 15:30 Turkey time (03:00 & 12:30 UTC)
+//    Fetches latest USD/TRY, EUR/TRY, GBP/TRY rates from TCMB and saves to DB.
+// ────────────────────────────────────────────────────────────────────────────
+async function refreshExchangeRates() {
+  console.log("[cron] refreshExchangeRates: starting...");
+  try {
+    const rates = await fetchTCMBRates();
+    console.log(`[cron] refreshExchangeRates: USD/TRY=${rates.usdTry} EUR/TRY=${rates.eurTry} EUR/USD=${rates.eurUsd}`);
+  } catch (err: any) {
+    console.error("[cron] refreshExchangeRates error:", err?.message);
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// f) cleanOldPositions — Every Sunday at 02:00
 //    Removes vessel position records older than 90 days.
 // ────────────────────────────────────────────────────────────────────────────
 async function cleanOldPositions() {
@@ -224,12 +239,16 @@ export function startCronJobs() {
   cron.schedule("0 8 * * *", checkExpiringCertificates);
   cron.schedule("0 0 * * *", autoCloseTenders);
   cron.schedule("0 * * * *", checkVoyageETA);
+  cron.schedule("0 3 * * *", refreshExchangeRates);
+  cron.schedule("30 12 * * *", refreshExchangeRates);
   cron.schedule("0 2 * * 0", cleanOldPositions);
 
-  console.log("[cron] All 5 scheduled jobs registered:");
+  console.log("[cron] All 7 scheduled jobs registered:");
   console.log("[cron]   */5 * * * *  — syncWatchlistPositions");
   console.log("[cron]   0 8 * * *    — checkExpiringCertificates");
   console.log("[cron]   0 0 * * *    — autoCloseTenders");
   console.log("[cron]   0 * * * *    — checkVoyageETA");
+  console.log("[cron]   0 3 * * *    — refreshExchangeRates (06:00 TRT)");
+  console.log("[cron]   30 12 * * *  — refreshExchangeRates (15:30 TRT)");
   console.log("[cron]   0 2 * * 0    — cleanOldPositions");
 }
