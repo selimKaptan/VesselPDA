@@ -53,6 +53,7 @@ import OrganizationPage from "@/pages/organization";
 import OrganizationSelectPage from "@/pages/organization-select";
 import OrganizationJoinPage from "@/pages/organization-join";
 import TeamChat from "@/pages/team-chat";
+import OrganizationDashboard from "@/pages/organization-dashboard";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -239,6 +240,7 @@ function AuthenticatedRouter() {
       <Route path="/organization" component={OrganizationPage} />
       <Route path="/organization-select" component={OrganizationSelectPage} />
       <Route path="/organization/join/:token" component={OrganizationJoinPage} />
+      <Route path="/organization-dashboard" component={OrganizationDashboard} />
       <Route path="/team-chat" component={TeamChat} />
       <Route component={NotFound} />
     </Switch>

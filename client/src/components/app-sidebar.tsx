@@ -231,6 +231,15 @@ export function AppSidebar() {
     settingsItems.push({ title: "Admin Panel", url: "/admin", icon: Users });
   }
 
+  // ── COMPANY PANEL ─────────────────────────────────────────────────────
+  const hasOrg = myOrgs.length > 0;
+  const companyGroup: NavGroup = {
+    label: "Company",
+    items: hasOrg ? [
+      { title: "Company Panel", url: "/organization-dashboard", icon: BarChart3 },
+    ] : [],
+  };
+
   const settingsGroup: NavGroup = { label: "Settings", items: settingsItems };
 
   const allGroups: NavGroup[] = [
@@ -239,6 +248,7 @@ export function AppSidebar() {
     communicationGroup,
     directoryGroup,
     reportsGroup,
+    companyGroup,
     settingsGroup,
   ];
 
