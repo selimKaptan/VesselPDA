@@ -7100,6 +7100,118 @@ export async function registerRoutes(
     } catch { res.status(500).json({ message: "Failed" }); }
   });
 
+  // ─── PORT COST BENCHMARKS ─────────────────────────────────────────────────────
+
+  // GET /api/benchmarks/ports — all ports that have benchmark data
+  app.get("/api/benchmarks/ports", async (_req, res) => {
+    try {
+      const { rows } = await pool.query(`
+        SELECT
+          p.id AS port_id, p.name AS port_name, p.code,
+          COUNT(DISTINCT b.purpose_of_call) AS purposes,
+          SUM(b.sample_count) AS total_samples,
+          MIN(b.avg_total_cost) AS min_avg_cost,
+          MAX(b.avg_total_cost) AS max_avg_cost,
+          MAX(b.last_updated) AS last_updated
+        FROM port_cost_benchmarks b
+        JOIN ports p ON p.id = b.port_id
+        GROUP BY p.id, p.name, p.code
+        ORDER BY total_samples DESC
+      `);
+      res.json(rows);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  // GET /api/benchmarks/ports/:portId — detailed breakdown for a port
+  app.get("/api/benchmarks/ports/:portId", async (req, res) => {
+    try {
+      const portId = parseInt(req.params.portId);
+      const { rows } = await pool.query(
+        `SELECT b.*, p.name AS port_name, p.code
+         FROM port_cost_benchmarks b
+         JOIN ports p ON p.id = b.port_id
+         WHERE b.port_id = $1
+         ORDER BY b.purpose_of_call, b.vessel_size_category`,
+        [portId]
+      );
+      if (!rows.length) return res.status(404).json({ message: "No benchmark data for this port" });
+      res.json(rows);
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  // GET /api/benchmarks/compare?ports=1,2,3&grt=15000&purpose=loading
+  app.get("/api/benchmarks/compare", async (req, res) => {
+    try {
+      const portIds = ((req.query.ports as string) || "").split(",").map(Number).filter(Boolean);
+      if (portIds.length < 1) return res.status(400).json({ message: "At least 1 port required" });
+      const grt = parseInt(req.query.grt as string) || 10000;
+      const purpose = (req.query.purpose as string) || "loading";
+
+      // Map GRT to category
+      let sizeCategory = "medium";
+      if (grt < 5000) sizeCategory = "small";
+      else if (grt < 20000) sizeCategory = "medium";
+      else if (grt < 50000) sizeCategory = "large";
+      else sizeCategory = "vlarge";
+
+      const { rows } = await pool.query(
+        `SELECT b.*, p.name AS port_name, p.code
+         FROM port_cost_benchmarks b
+         JOIN ports p ON p.id = b.port_id
+         WHERE b.port_id = ANY($1::int[])
+           AND b.purpose_of_call = $2
+           AND b.vessel_size_category = $3`,
+        [portIds, purpose, sizeCategory]
+      );
+      res.json({ rows, sizeCategory, purpose, grt });
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
+  // GET /api/benchmarks/estimate?portId=123&grt=15000&purpose=loading
+  app.get("/api/benchmarks/estimate", async (req, res) => {
+    try {
+      const portId = parseInt(req.query.portId as string);
+      if (!portId) return res.status(400).json({ message: "portId required" });
+      const grt = parseInt(req.query.grt as string) || 10000;
+      const purpose = (req.query.purpose as string) || "loading";
+
+      let sizeCategory = "medium";
+      if (grt < 5000) sizeCategory = "small";
+      else if (grt < 20000) sizeCategory = "medium";
+      else if (grt < 50000) sizeCategory = "large";
+      else sizeCategory = "vlarge";
+
+      const { rows } = await pool.query(
+        `SELECT b.*, p.name AS port_name
+         FROM port_cost_benchmarks b
+         JOIN ports p ON p.id = b.port_id
+         WHERE b.port_id = $1 AND b.purpose_of_call = $2 AND b.vessel_size_category = $3
+         LIMIT 1`,
+        [portId, purpose, sizeCategory]
+      );
+      if (!rows[0]) return res.json({ hasData: false });
+      const r = rows[0];
+      res.json({
+        hasData: true,
+        portName: r.port_name,
+        sizeCategory,
+        purpose,
+        grt,
+        avgTotalCost: r.avg_total_cost,
+        minTotalCost: r.min_total_cost,
+        maxTotalCost: r.max_total_cost,
+        avgAgencyFee: r.avg_agency_fee,
+        avgPilotage: r.avg_pilotage,
+        avgTugboat: r.avg_tugboat,
+        avgBerthing: r.avg_berthing,
+        avgPortDues: r.avg_port_dues,
+        sampleCount: r.sample_count,
+        lastUpdated: r.last_updated,
+        insufficientData: r.sample_count < 3,
+      });
+    } catch { res.status(500).json({ message: "Failed" }); }
+  });
+
   app.get("/api/maritime-docs/:id/versions", isAuthenticated, async (req, res) => {
     try {
       const docId = parseInt(req.params.id);

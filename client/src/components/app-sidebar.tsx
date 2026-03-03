@@ -2,7 +2,7 @@ import {
   Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield,
   ChevronDown, MessageSquare, MessagesSquare, MessageCircle, Anchor, Gavel, Navigation, Languages,
   Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, Handshake, Package,
-  TrendingUp, BarChart3, Receipt, FileCheck, Star, Fuel,
+  TrendingUp, BarChart3, Receipt, FileCheck, Star, Fuel, Scale,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation, Link } from "wouter";
@@ -213,6 +213,7 @@ export function AppSidebar() {
       { title: "Directory", url: "/directory", icon: Building2 },
       { title: "Service Ports", url: "/service-ports", icon: Anchor },
       { title: "Sanctions Check", url: "/sanctions-check", icon: ShieldAlert },
+      { title: "Cost Benchmarking", url: "/port-benchmarking", icon: Scale },
     ],
   };
 

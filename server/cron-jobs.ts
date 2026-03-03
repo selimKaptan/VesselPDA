@@ -3,6 +3,7 @@ import { pool } from "./db";
 import { getPositionByMmsi } from "./ais-stream";
 import { fetchTCMBRates } from "./exchange-rates";
 import { runReminderEngine } from "./reminder-engine";
+import { calculateBenchmarks } from "./benchmark-calculator";
 
 // ────────────────────────────────────────────────────────────────────────────
 // a) syncWatchlistPositions — Every 5 minutes
@@ -244,8 +245,9 @@ export function startCronJobs() {
   cron.schedule("30 12 * * *", refreshExchangeRates);
   cron.schedule("0 2 * * 0", cleanOldPositions);
   cron.schedule("0 * * * *", runReminderEngine);
+  cron.schedule("0 3 * * 1", calculateBenchmarks);
 
-  console.log("[cron] All 8 scheduled jobs registered:");
+  console.log("[cron] All 9 scheduled jobs registered:");
   console.log("[cron]   */5 * * * *  — syncWatchlistPositions");
   console.log("[cron]   0 8 * * *    — checkExpiringCertificates");
   console.log("[cron]   0 0 * * *    — autoCloseTenders");

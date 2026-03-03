@@ -254,6 +254,12 @@ app.use((req, res, next) => {
         ensureRemindersSchema().catch((err: Error) => console.error("Reminders migration error:", err));
       });
 
+      import("./benchmark-calculator").then(({ ensureBenchmarkSchema, calculateBenchmarks }) => {
+        ensureBenchmarkSchema()
+          .then(() => calculateBenchmarks())
+          .catch((err: Error) => console.error("Benchmark migration error:", err));
+      });
+
       import("./startup-checks").then(({ runStartupChecks }) => {
         setTimeout(() => {
           runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));

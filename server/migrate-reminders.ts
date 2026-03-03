@@ -35,8 +35,7 @@ export async function ensureRemindersSchema() {
         trigger_condition TEXT NOT NULL,
         is_active BOOLEAN NOT NULL DEFAULT TRUE,
         email_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE (COALESCE(organization_id, 0), COALESCE(user_id, ''), rule_type)
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `);
 

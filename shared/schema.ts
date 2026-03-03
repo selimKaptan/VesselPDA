@@ -1447,3 +1447,24 @@ export const bunkerSurveys = pgTable("bunker_surveys", {
 
 export type BunkerSurvey = typeof bunkerSurveys.$inferSelect;
 export type InsertBunkerSurvey = typeof bunkerSurveys.$inferInsert;
+
+export const portCostBenchmarks = pgTable("port_cost_benchmarks", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").notNull().references(() => ports.id, { onDelete: "cascade" }),
+  vesselSizeCategory: text("vessel_size_category").notNull(),
+  purposeOfCall: text("purpose_of_call").notNull(),
+  avgTotalCost: real("avg_total_cost"),
+  minTotalCost: real("min_total_cost"),
+  maxTotalCost: real("max_total_cost"),
+  avgAgencyFee: real("avg_agency_fee"),
+  avgPilotage: real("avg_pilotage"),
+  avgTugboat: real("avg_tugboat"),
+  avgBerthing: real("avg_berthing"),
+  avgPortDues: real("avg_port_dues"),
+  sampleCount: integer("sample_count").default(0),
+  currency: text("currency").default("USD"),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+});
+
+export type PortCostBenchmark = typeof portCostBenchmarks.$inferSelect;
+export type InsertPortCostBenchmark = typeof portCostBenchmarks.$inferInsert;
