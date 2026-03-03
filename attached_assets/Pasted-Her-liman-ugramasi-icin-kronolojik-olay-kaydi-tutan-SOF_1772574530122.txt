@@ -1,0 +1,100 @@
+Her liman ugramasi icin kronolojik olay kaydi tutan SOF (Statement of Facts) sistemi ekle. SOF denizciligin en temel dokumanidir - limanda ne zaman ne oldu kaydeder.
+
+Yapilacaklar:
+
+1. shared/schema.ts dosyasina su tablolari ekle:
+
+sofEvents tablosu:
+- id (serial PK)
+- portCallId (integer, FK voyagePortCalls, not null)
+- voyageId (integer, FK voyages, not null)
+- eventCode (text, not null) — standart event kodu
+- eventName (text, not null) — okunabilir isim
+- eventTime (timestamp, not null)
+- remarks (text, nullable)
+- isOfficial (boolean, default false) — resmi kayit mi
+- recordedByUserId (varchar, FK users)
+- createdAt (timestamp, default now)
+- organizationId (integer, FK organizations, nullable)
+
+sofTemplates tablosu:
+- id (serial PK)
+- name (text, not null) — "Standard Loading SOF", "Discharge SOF"
+- portCallType (text) — "loading", "discharging", "bunkering"
+- events (jsonb, not null) — [{eventCode, eventName, order}]
+- isDefault (boolean, default true)
+- organizationId (integer, FK organizations, nullable)
+
+2. Standart SOF event kodlari ve isimleri (seed data olarak ekle):
+
+Loading SOF:
+- VESSEL_ARRIVED — Vessel arrived at port / anchorage
+- NOR_TENDERED — Notice of Readiness tendered
+- NOR_ACCEPTED — Notice of Readiness accepted
+- FREE_PRATIQUE — Free pratique granted
+- BERTH_ORDERED — Berth ordered
+- BERTHED — All fast / Vessel berthed
+- HATCH_OPEN — Hatches opened
+- LOADING_COMMENCED — Loading commenced
+- LOADING_COMPLETED — Loading completed
+- HATCH_CLOSED — Hatches closed / sealed
+- DOCS_ON_BOARD — Documents on board
+- PILOT_ON_BOARD — Pilot on board
+- UNBERTHED — Vessel unberthed
+- VESSEL_SAILED — Vessel sailed
+
+Discharging SOF:
+- VESSEL_ARRIVED, NOR_TENDERED, NOR_ACCEPTED, FREE_PRATIQUE, BERTH_ORDERED, BERTHED, HATCH_OPEN
+- DISCHARGE_COMMENCED — Discharge commenced
+- DISCHARGE_COMPLETED — Discharge completed
+- HATCH_CLOSED, DOCS_ON_BOARD, PILOT_ON_BOARD, UNBERTHED, VESSEL_SAILED
+
+Interruption events:
+- RAIN_STARTED — Rain started (operations stopped)
+- RAIN_STOPPED — Rain stopped (operations resumed)
+- BREAKDOWN — Crane/equipment breakdown
+- BREAKDOWN_REPAIRED — Crane/equipment repaired
+- SHIFT_START — Shift started
+- SHIFT_END — Shift ended
+- HOLIDAY — Holiday / Sunday (no work)
+- BUNKER_START — Bunkering commenced
+- BUNKER_END — Bunkering completed
+
+3. Endpoint'ler:
+
+GET /api/voyages/:voyageId/port-calls/:portCallId/sof — SOF event listesi (kronolojik)
+POST /api/voyages/:voyageId/port-calls/:portCallId/sof — Yeni SOF event ekle
+PATCH /api/sof-events/:id — SOF event guncelle (zaman duzeltme)
+DELETE /api/sof-events/:id — SOF event sil
+
+POST /api/voyages/:voyageId/port-calls/:portCallId/sof/from-template — Template'ten SOF olustur
+GET /api/sof-templates — Tum template'ler
+POST /api/sof-templates — Yeni template olustur
+
+GET /api/voyages/:voyageId/port-calls/:portCallId/sof/pdf — SOF PDF export
+
+4. client/src/components/sof-editor.tsx olustur:
+   - Kronolojik liste gorunumu (zaman cizelgesi)
+   - Her event: tarih/saat + event ismi + remarks
+   - Yeni event ekle: event secimi (dropdown) + tarih/saat + not
+   - Event sirasi otomatik (tarihe gore)
+   - Template'ten hizli olusturma butonu
+   - Interruption event'ler farkli renkte (kirmizi: rain, sari: breakdown)
+   - Sureler otomatik hesaplansin:
+     NOR'dan berthing'e: X saat
+     Berthing'den loading start'a: X saat
+     Loading suresi: X saat
+     Toplam liman suresi: X saat
+
+5. voyage-detail.tsx icinde her port call'in altinda "SOF" tab'i ekle.
+   Port call detayina tiklaninca SOF editor acilsin.
+
+6. SOF'tan laytime'a veri aktarimi:
+   NOR_TENDERED -> laytime.norStartedAt
+   BERTHED -> laytime.berthingAt
+   LOADING_COMMENCED -> laytime.loadingStartedAt
+   LOADING_COMPLETED -> laytime.loadingCompletedAt
+   VESSEL_SAILED -> laytime.departedAt
+   "SOF'tan Laytime'i Doldur" butonu ekle - SOF event zamanlari otomatik laytime formuna aktarilsin
+
+SOF PDF: Tablo formatinda, ust kisimda gemi+liman bilgisi, event listesi, alt kisimda imza alanlari.

@@ -10,6 +10,7 @@ import {
   Shield, Check, X as XIcon, Edit2, Route, Package, ChevronRight as ChevronRightIcon,
   ArrowRight, Navigation, MoreVertical, RefreshCw
 } from "lucide-react";
+import { SofEditor } from "@/components/sof-editor";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { VoyageTimeline } from "@/components/voyage-timeline";
 import { Button } from "@/components/ui/button";
@@ -187,6 +188,7 @@ export default function VoyageDetail() {
   const [inviteTargetId, setInviteTargetId] = useState<string | number | null>(null);
   const [inviteTargetName, setInviteTargetName] = useState("");
   const [inviteRole, setInviteRole] = useState<"viewer" | "editor" | "manager">("viewer");
+  const [sofOpenPcId, setSofOpenPcId] = useState<number | null>(null);
   const [invitePerms, setInvitePerms] = useState<Record<string, boolean>>({
     viewVoyage: true, editVoyage: false,
     viewDocuments: true, uploadDocuments: false, deleteDocuments: false, signDocuments: false,
@@ -1054,6 +1056,30 @@ export default function VoyageDetail() {
                           </div>
                         </div>
                       </div>
+                      {/* ── SOF toggle button ── */}
+                      <div className="mt-3 pt-2 border-t flex items-center justify-between">
+                        <button
+                          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={() => setSofOpenPcId(sofOpenPcId === pc.id ? null : pc.id)}
+                          data-testid={`button-sof-toggle-${pc.id}`}
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span className="font-medium">Statement of Facts (SOF)</span>
+                          <ChevronDown className={`w-3 h-3 transition-transform ${sofOpenPcId === pc.id ? "rotate-180" : ""}`} />
+                        </button>
+                      </div>
+                      {/* ── SOF Editor panel ── */}
+                      {sofOpenPcId === pc.id && (
+                        <div className="mt-3 pt-3 border-t">
+                          <SofEditor
+                            voyageId={voyageId}
+                            portCallId={pc.id}
+                            portCallType={pc.port_call_type || "discharging"}
+                            vesselName={voyage?.vesselName}
+                            portName={pc.port_name}
+                          />
+                        </div>
+                      )}
                     </Card>
                   );
                 })}

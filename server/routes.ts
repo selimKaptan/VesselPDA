@@ -4568,6 +4568,127 @@ export async function registerRoutes(
     }
   });
 
+  // ─── SOF (STATEMENT OF FACTS) ────────────────────────────────────────────────
+
+  const INTERRUPTION_CODES = new Set(["RAIN_STARTED","RAIN_STOPPED","BREAKDOWN","BREAKDOWN_REPAIRED","SHIFT_START","SHIFT_END","HOLIDAY","BUNKER_START","BUNKER_END"]);
+
+  app.get("/api/voyages/:voyageId/port-calls/:portCallId/sof", isAuthenticated, async (req: any, res) => {
+    try {
+      const portCallId = parseInt(req.params.portCallId);
+      const { rows } = await pool.query(
+        `SELECT se.*, u.first_name, u.last_name
+         FROM sof_events se
+         LEFT JOIN users u ON u.id = se.recorded_by_user_id
+         WHERE se.port_call_id = $1
+         ORDER BY se.event_time ASC, se.id ASC`,
+        [portCallId]
+      );
+      res.json(rows);
+    } catch (err) {
+      console.error("GET SOF error:", err);
+      res.status(500).json({ message: "Failed to fetch SOF events" });
+    }
+  });
+
+  app.post("/api/voyages/:voyageId/port-calls/:portCallId/sof", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.voyageId);
+      const portCallId = parseInt(req.params.portCallId);
+      const userId = req.user?.claims?.sub;
+      const { eventCode, eventName, eventTime, remarks, isOfficial, organizationId } = req.body;
+      if (!eventCode || !eventName || !eventTime) return res.status(400).json({ message: "eventCode, eventName, eventTime required" });
+      const { rows } = await pool.query(
+        `INSERT INTO sof_events (port_call_id, voyage_id, event_code, event_name, event_time, remarks, is_official, recorded_by_user_id, organization_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [portCallId, voyageId, eventCode, eventName, new Date(eventTime), remarks || null, isOfficial || false, userId, organizationId || null]
+      );
+      res.status(201).json(rows[0]);
+    } catch (err) {
+      console.error("POST SOF event error:", err);
+      res.status(500).json({ message: "Failed to add SOF event" });
+    }
+  });
+
+  app.post("/api/voyages/:voyageId/port-calls/:portCallId/sof/from-template", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.voyageId);
+      const portCallId = parseInt(req.params.portCallId);
+      const userId = req.user?.claims?.sub;
+      const { templateId, baseDate } = req.body;
+      const { rows: tmpl } = await pool.query("SELECT * FROM sof_templates WHERE id = $1", [templateId]);
+      if (!tmpl.length) return res.status(404).json({ message: "Template not found" });
+      const events: any[] = tmpl[0].events;
+      const base = baseDate ? new Date(baseDate) : new Date();
+      const insertedIds: number[] = [];
+      for (const ev of events) {
+        const evTime = new Date(base.getTime() + (ev.order - 1) * 60 * 60 * 1000);
+        const { rows } = await pool.query(
+          `INSERT INTO sof_events (port_call_id, voyage_id, event_code, event_name, event_time, recorded_by_user_id)
+           VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+          [portCallId, voyageId, ev.eventCode, ev.eventName, evTime, userId]
+        );
+        insertedIds.push(rows[0].id);
+      }
+      res.status(201).json({ inserted: insertedIds.length });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to apply template" });
+    }
+  });
+
+  app.patch("/api/sof-events/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { eventCode, eventName, eventTime, remarks, isOfficial } = req.body;
+      const fields: string[] = [];
+      const vals: any[] = [];
+      let p = 1;
+      if (eventCode !== undefined) { fields.push(`event_code = $${p++}`); vals.push(eventCode); }
+      if (eventName !== undefined) { fields.push(`event_name = $${p++}`); vals.push(eventName); }
+      if (eventTime !== undefined) { fields.push(`event_time = $${p++}`); vals.push(new Date(eventTime)); }
+      if (remarks !== undefined) { fields.push(`remarks = $${p++}`); vals.push(remarks); }
+      if (isOfficial !== undefined) { fields.push(`is_official = $${p++}`); vals.push(isOfficial); }
+      if (!fields.length) return res.status(400).json({ message: "No fields to update" });
+      vals.push(id);
+      const { rows } = await pool.query(`UPDATE sof_events SET ${fields.join(",")} WHERE id = $${p} RETURNING *`, vals);
+      if (!rows.length) return res.status(404).json({ message: "SOF event not found" });
+      res.json(rows[0]);
+    } catch {
+      res.status(500).json({ message: "Failed to update SOF event" });
+    }
+  });
+
+  app.delete("/api/sof-events/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      await pool.query("DELETE FROM sof_events WHERE id = $1", [parseInt(req.params.id)]);
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ message: "Failed to delete SOF event" });
+    }
+  });
+
+  app.get("/api/sof-templates", isAuthenticated, async (req: any, res) => {
+    try {
+      const { rows } = await pool.query("SELECT * FROM sof_templates ORDER BY is_default DESC, id ASC");
+      res.json(rows);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch SOF templates" });
+    }
+  });
+
+  app.post("/api/sof-templates", isAuthenticated, async (req: any, res) => {
+    try {
+      const { name, portCallType, events } = req.body;
+      if (!name || !events) return res.status(400).json({ message: "name and events required" });
+      const { rows } = await pool.query(
+        "INSERT INTO sof_templates (name, port_call_type, events, is_default) VALUES ($1,$2,$3,false) RETURNING *",
+        [name, portCallType || null, JSON.stringify(events)]
+      );
+      res.status(201).json(rows[0]);
+    } catch {
+      res.status(500).json({ message: "Failed to create SOF template" });
+    }
+  });
+
   // ─── FIXTURES ───────────────────────────────────────────────────────────────
 
   app.get("/api/fixtures", isAuthenticated, attachOrgContext, async (req: any, res) => {

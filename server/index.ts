@@ -230,6 +230,10 @@ app.use((req, res, next) => {
         ensurePortCallsSchema().catch((err: Error) => console.error("Port-calls migration error:", err));
       });
 
+      import("./migrate-sof").then(({ ensureSofSchema }) => {
+        ensureSofSchema().catch((err: Error) => console.error("SOF migration error:", err));
+      });
+
       import("./startup-checks").then(({ runStartupChecks }) => {
         setTimeout(() => {
           runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));
