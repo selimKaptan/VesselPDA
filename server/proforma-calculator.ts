@@ -112,11 +112,11 @@ const AGENCY_FEE_TABLE = [
   { minNrt: 4001, baseEur: 2750, perExtra1000Eur: 0 },
   { minNrt: 5001, baseEur: 3200, perExtra1000Eur: 0 },
   { minNrt: 7501, baseEur: 4000, perExtra1000Eur: 0 },
-  { minNrt: 10001, baseEur: 4000, perExtra1000Eur: 75 },
-  { minNrt: 20001, baseEur: 4750, perExtra1000Eur: 65 },
-  { minNrt: 30001, baseEur: 5400, perExtra1000Eur: 55 },
-  { minNrt: 40001, baseEur: 5950, perExtra1000Eur: 40 },
-  { minNrt: 50001, baseEur: 6350, perExtra1000Eur: 25 },
+  { minNrt: 10001, baseEur: 4000, perExtra1000Eur: 125 },
+  { minNrt: 20001, baseEur: 5250, perExtra1000Eur: 100 },
+  { minNrt: 30001, baseEur: 6250, perExtra1000Eur: 75 },
+  { minNrt: 40001, baseEur: 7000, perExtra1000Eur: 75 },
+  { minNrt: 50001, baseEur: 7750, perExtra1000Eur: 75 },
 ];
 
 function vlookup<T extends Record<string, number>>(value: number, table: T[], minKey: keyof T): T {
