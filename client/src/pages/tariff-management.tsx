@@ -1656,11 +1656,10 @@ export default function TariffManagement() {
   };
 
   const removeActivePort = (portId: number) => {
-    if (activePorts.length <= 1) return;
     const updated = activePorts.filter(id => id !== portId);
     setActivePorts(updated);
     saveActivePorts(updated);
-    if (activePort === portId) setActivePort(updated[0]);
+    if (activePort === portId) setActivePort(updated[0] ?? "global");
   };
 
   // Türk limanlarını API'den çek (Liman Ekle dialog için)
@@ -1917,18 +1916,16 @@ export default function TariffManagement() {
                       isActive ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
                     }`}>{disp.code}</span>
                   </button>
-                  {activePorts.length > 1 && (
-                    <button
-                      onClick={e => { e.stopPropagation(); removeActivePort(portId); }}
-                      className={`absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity w-4 h-4 flex items-center justify-center rounded-full ${
-                        isActive ? "hover:bg-white/20 text-white" : "hover:bg-muted-foreground/20 text-muted-foreground"
-                      }`}
-                      title="Remove port"
-                      data-testid={`button-remove-port-${portId}`}
-                    >
-                      <X className="w-2.5 h-2.5" />
-                    </button>
-                  )}
+                  <button
+                    onClick={e => { e.stopPropagation(); removeActivePort(portId); }}
+                    className={`absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity w-4 h-4 flex items-center justify-center rounded-full ${
+                      isActive ? "hover:bg-white/20 text-white" : "hover:bg-muted-foreground/20 text-muted-foreground"
+                    }`}
+                    title="Remove port"
+                    data-testid={`button-remove-port-${portId}`}
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
                 </div>
               );
             })}
