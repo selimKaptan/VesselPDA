@@ -294,22 +294,33 @@ export async function ensureNewTariffTables() {
       )
     `);
 
+    await client.query(`DELETE FROM chamber_of_shipping_fees WHERE currency = 'USD' AND port_id IS NULL`);
     const chamberShippingCount = await client.query("SELECT COUNT(*) FROM chamber_of_shipping_fees");
     if (parseInt(chamberShippingCount.rows[0].count) === 0) {
       await client.query(`
         INSERT INTO chamber_of_shipping_fees
           (port_id, gt_min, gt_max, fee, flag_category, currency, valid_year, notes)
         VALUES
-          (NULL, 0,     500,    250,  'foreign', 'USD', 2026, '2026 Chamber of Shipping Fee'),
-          (NULL, 501,   1500,   400,  'foreign', 'USD', 2026, '2026 Chamber of Shipping Fee'),
-          (NULL, 1501,  3000,   600,  'foreign', 'USD', 2026, '2026 Chamber of Shipping Fee'),
-          (NULL, 3001,  6000,   900,  'foreign', 'USD', 2026, '2026 Chamber of Shipping Fee'),
-          (NULL, 6001,  12000,  1200, 'foreign', 'USD', 2026, '2026 Chamber of Shipping Fee'),
-          (NULL, 12001, 25000,  1700, 'foreign', 'USD', 2026, '2026 Chamber of Shipping Fee'),
-          (NULL, 25001, 50000,  2200, 'foreign', 'USD', 2026, '2026 Chamber of Shipping Fee'),
-          (NULL, 50001, 999999, 2700, 'foreign', 'USD', 2026, '2026 Chamber of Shipping Fee')
+          (NULL, 0,     500,    500,  'turkish', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 501,   1500,   1120, 'turkish', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 1501,  2500,   2050, 'turkish', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 2501,  5000,   2800, 'turkish', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 5001,  10000,  3400, 'turkish', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 10001, 25000,  4000, 'turkish', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 25001, 35000,  4500, 'turkish', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 35001, 50000,  5000, 'turkish', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 50001, 999999, 5300, 'turkish', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 0,     500,    1400, 'foreign', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 501,   1500,   2800, 'foreign', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 1501,  2500,   4200, 'foreign', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 2501,  5000,   4900, 'foreign', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 5001,  10000,  5900, 'foreign', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 10001, 25000,  7100, 'foreign', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 25001, 35000,  8200, 'foreign', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 35001, 50000,  9000, 'foreign', 'TRY', 2026, '2026 Chamber of Shipping Fee'),
+          (NULL, 50001, 999999, 9700, 'foreign', 'TRY', 2026, '2026 Chamber of Shipping Fee')
       `);
-      console.log("[tariff-tables] Seeded 8 Chamber of Shipping Fee rows.");
+      console.log("[tariff-tables] Seeded 18 Chamber of Shipping Fee rows (TRY).");
     }
 
     await client.query(`

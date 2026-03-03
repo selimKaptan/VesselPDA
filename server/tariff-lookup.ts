@@ -244,7 +244,8 @@ export async function lookupChamberShippingFee(
   pool: Pool,
   portId: number,
   grt: number,
-  vesselCat: VesselCategory
+  vesselCat: VesselCategory,
+  usdTryRate: number
 ): Promise<LookupResult> {
   const flagCat = vesselCat === "turkish_intl" || vesselCat === "turkish_cabotage" ? "turkish" : "foreign";
   try {
@@ -258,7 +259,9 @@ export async function lookupChamberShippingFee(
     );
     if (result.rows.length === 0) return { fee: 0, source: "fallback" };
     const fee = parseFloat(result.rows[0].fee || "0");
-    return { fee: Math.round(fee * 100) / 100, source: "database" };
+    const currency = result.rows[0].currency || "USD";
+    const feeUsd = currency === "TRY" ? fee / usdTryRate : fee;
+    return { fee: Math.round(feeUsd * 100) / 100, source: "database" };
   } catch {
     return { fee: 0, source: "fallback" };
   }
