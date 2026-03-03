@@ -21,6 +21,7 @@ The platform is built with a modern web stack. The UI/UX is maritime-themed, pre
 **Technical Implementations:**
 - **Frontend**: React, Vite, Tailwind CSS, and Shadcn UI.
 - **Backend**: Express.js with PostgreSQL as the database, managed via Drizzle ORM.
+- **Storage Layer**: Modular — `server/storage.ts` is a thin re-export shim; all DB operations live in `server/storage/` (index.ts, users.ts, vessels.ts, proformas.ts, voyages.ts, tenders.ts, forum.ts, messages.ts, services.ts, market.ts). Each module exports a `*Methods` object; `DatabaseStorage` class in index.ts mixes them all in via `Object.assign`. Usage: `storage.getVesselsByUser()` unchanged.
 - **Authentication**: Custom email/password authentication with email verification, session-based authentication using `connect-pg-simple`, and password hashing with `bcryptjs`.
 - **Core Features**:
     - **User & Role Management**: Role-based access (Admin, Shipowner/Broker, Ship Agent, Service Provider) with distinct dashboards.
