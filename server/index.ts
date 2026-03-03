@@ -8,6 +8,7 @@ import { storage } from "./storage";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
+import { startCronJobs } from "./cron-jobs";
 
 const app = express();
 const httpServer = createServer(app);
@@ -263,6 +264,8 @@ app.use((req, res, next) => {
           geocodeMissingPorts().catch((err: Error) => console.error("Geocode error:", err));
         }, 15000);
       });
+
+      startCronJobs();
     },
   );
 })();
