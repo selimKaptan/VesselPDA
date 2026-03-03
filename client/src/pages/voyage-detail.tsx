@@ -9,6 +9,7 @@ import {
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
+import { VoyageTimeline } from "@/components/voyage-timeline";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -118,7 +119,7 @@ export default function VoyageDetail() {
   const [newTask, setNewTask] = useState("");
   const [chatMessage, setChatMessage] = useState("");
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms">("operation");
+  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "timeline">("operation");
   const [docFilter, setDocFilter] = useState<string>("all");
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [showServiceDialog, setShowServiceDialog] = useState(false);
@@ -587,6 +588,7 @@ export default function VoyageDetail() {
           { key: "operation", label: "Operasyon",  icon: ClipboardList },
           { key: "documents", label: "Dokümanlar", icon: FolderOpen },
           { key: "comms",     label: "İletişim",   icon: MessageCircle },
+          { key: "timeline",  label: "Timeline",   icon: GitBranch },
         ] as const).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -1059,6 +1061,18 @@ export default function VoyageDetail() {
           </Card>
         );
       })()}
+
+      {/* ── Tab: Timeline ──────────────────────────────────────── */}
+      {activeTab === "timeline" && (
+        <Card className="p-6" data-testid="panel-timeline">
+          <div className="flex items-center gap-2 mb-5">
+            <GitBranch className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+            <h2 className="font-semibold text-sm">Voyage Timeline</h2>
+            <span className="text-xs text-muted-foreground ml-auto">Chronological event history</span>
+          </div>
+          <VoyageTimeline voyageId={Number(voyageId)} />
+        </Card>
+      )}
 
       {/* Service Request Dialog */}
       <Dialog open={showServiceDialog} onOpenChange={setShowServiceDialog}>

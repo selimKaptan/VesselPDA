@@ -3567,6 +3567,158 @@ export async function registerRoutes(
     }
   });
 
+  // ─── VOYAGE TIMELINE ────────────────────────────────────────────────────────
+
+  app.get("/api/voyages/:id/timeline", isAuthenticated, async (req: any, res) => {
+    try {
+      const voyageId = parseInt(req.params.id);
+      const voyage = await storage.getVoyageById(voyageId);
+      if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+
+      const [docs, checklists] = await Promise.all([
+        storage.getVoyageDocuments(voyageId),
+        pool.query(
+          `SELECT id, title, is_completed, completed_at, created_at FROM voyage_checklists WHERE voyage_id = $1 ORDER BY created_at ASC`,
+          [voyageId]
+        ).then(r => r.rows),
+      ]);
+
+      const events: Array<{
+        id: string;
+        type: string;
+        title: string;
+        description: string;
+        timestamp: string | null;
+        status: "completed" | "active" | "pending";
+        icon: string;
+      }> = [];
+
+      // 1. Voyage created
+      events.push({
+        id: "voyage_created",
+        type: "voyage_created",
+        title: "Voyage Created",
+        description: `Port call for ${voyage.vesselName || "vessel"} was created`,
+        timestamp: voyage.createdAt ? new Date(voyage.createdAt).toISOString() : null,
+        status: "completed",
+        icon: "anchor",
+      });
+
+      // 2. ETA / NOR
+      if (voyage.eta) {
+        const etaPast = new Date(voyage.eta) <= new Date();
+        events.push({
+          id: "nor_given",
+          type: "nor",
+          title: "Notice of Readiness (NOR)",
+          description: `Expected: ${new Date(voyage.eta).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}`,
+          timestamp: new Date(voyage.eta).toISOString(),
+          status: etaPast ? "completed" : voyage.status === "planned" ? "pending" : "active",
+          icon: "radio",
+        });
+      }
+
+      // 3. Berthing (active status)
+      const berthingAt = voyage.status === "active" || voyage.status === "completed"
+        ? voyage.createdAt
+        : null;
+      if (voyage.status !== "planned") {
+        events.push({
+          id: "berthed",
+          type: "berthing",
+          title: "Vessel Berthed",
+          description: `Vessel arrived at port and berthed`,
+          timestamp: berthingAt ? new Date(berthingAt).toISOString() : null,
+          status: voyage.status === "completed" ? "completed" : "active",
+          icon: "ship",
+        });
+      }
+
+      // 4. Loading / Discharging started
+      if (voyage.status === "active" || voyage.status === "completed") {
+        const purpose = voyage.purposeOfCall || "Loading";
+        events.push({
+          id: "cargo_started",
+          type: "cargo_start",
+          title: `${purpose} Started`,
+          description: `${purpose} operations commenced`,
+          timestamp: null,
+          status: voyage.status === "completed" ? "completed" : "active",
+          icon: purpose === "Loading" ? "upload" : "download",
+        });
+      }
+
+      // 5. Completed checklist items (sorted by completedAt)
+      const completedChecks = checklists
+        .filter((c: any) => c.is_completed && c.completed_at)
+        .sort((a: any, b: any) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime());
+
+      for (const item of completedChecks) {
+        events.push({
+          id: `checklist_${item.id}`,
+          type: "checklist",
+          title: "Checklist Item Completed",
+          description: item.title,
+          timestamp: new Date(item.completed_at).toISOString(),
+          status: "completed",
+          icon: "check",
+        });
+      }
+
+      // 6. Documents uploaded (sorted by createdAt)
+      const sortedDocs = [...docs].sort(
+        (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+      for (const doc of sortedDocs) {
+        events.push({
+          id: `doc_${doc.id}`,
+          type: "document",
+          title: "Document Uploaded",
+          description: doc.name,
+          timestamp: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
+          status: "completed",
+          icon: "file",
+        });
+      }
+
+      // 7. Voyage completed / ETD
+      if (voyage.status === "completed") {
+        events.push({
+          id: "voyage_completed",
+          type: "voyage_completed",
+          title: "Voyage Completed",
+          description: "Port call successfully completed",
+          timestamp: voyage.etd ? new Date(voyage.etd).toISOString() : null,
+          status: "completed",
+          icon: "flag",
+        });
+      } else if (voyage.etd) {
+        events.push({
+          id: "etd_planned",
+          type: "etd",
+          title: "Planned Departure (ETD)",
+          description: `Expected: ${new Date(voyage.etd).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}`,
+          timestamp: new Date(voyage.etd).toISOString(),
+          status: "pending",
+          icon: "flag",
+        });
+      }
+
+      // Sort all events chronologically (null timestamps go to end)
+      events.sort((a, b) => {
+        if (!a.timestamp && !b.timestamp) return 0;
+        if (!a.timestamp) return 1;
+        if (!b.timestamp) return -1;
+        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+      });
+
+      res.json(events);
+    } catch (error) {
+      console.error("Timeline error:", error);
+      res.status(500).json({ message: "Failed to build timeline" });
+    }
+  });
+
   // ─── VOYAGE CHAT ────────────────────────────────────────────────────────────
 
   app.get("/api/voyages/:id/chat", isAuthenticated, async (req: any, res) => {
