@@ -1,5 +1,6 @@
 import { startAISStream, getPositions, searchVessels, isConnected, getCacheSize } from "../ais-stream";
 import { config } from "../config";
+import { parsePaginationParams, paginateArray } from "../utils/pagination";
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { storage } from "../storage";
@@ -19,12 +20,20 @@ const router = Router();
 router.get("/vessels", isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user.claims.sub;
-    if (await isAdmin(req)) {
-      const vessels = await storage.getAllVessels();
-      return res.json(vessels);
+    const { page, limit } = parsePaginationParams(req.query);
+    const search = (req.query.search as string || "").toLowerCase();
+    let vessels = await isAdmin(req)
+      ? await storage.getAllVessels()
+      : await storage.getVesselsByUser(userId);
+    if (search) {
+      vessels = vessels.filter((v: any) =>
+        v.name?.toLowerCase().includes(search) ||
+        v.flag?.toLowerCase().includes(search) ||
+        v.vesselType?.toLowerCase().includes(search) ||
+        v.imoNumber?.toLowerCase().includes(search)
+      );
     }
-    const vessels = await storage.getVesselsByUser(userId);
-    res.json(vessels);
+    res.json(paginateArray(vessels, page, limit));
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch vessels" });
   }

@@ -1,5 +1,6 @@
 import { emitToUser, emitToConversation } from "../socket";
 import { sendMessageBridgeEmail } from "../email";
+import { parsePaginationParams, paginateArray } from "../utils/pagination";
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { storage } from "../storage";
@@ -29,8 +30,16 @@ router.get("/messages/unread-count", isAuthenticated, async (req: any, res) => {
 
 router.get("/messages", isAuthenticated, async (req: any, res) => {
   try {
-    const convs = await storage.getConversationsByUser(req.user.claims.sub);
-    res.json(convs);
+    const { page, limit } = parsePaginationParams(req.query);
+    const search = (req.query.search as string || "").toLowerCase();
+    let convs = await storage.getConversationsByUser(req.user.claims.sub);
+    if (search) {
+      convs = convs.filter((c: any) =>
+        c.otherUserName?.toLowerCase().includes(search) ||
+        c.lastMessage?.toLowerCase().includes(search)
+      );
+    }
+    res.json(paginateArray(convs, page, limit));
   } catch (error) {
     console.error("[messages] getConversationsByUser error:", error);
     res.status(500).json({ message: "Failed to get conversations" });

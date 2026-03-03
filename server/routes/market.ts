@@ -1,3 +1,4 @@
+import { parsePaginationParams, paginateArray } from "../utils/pagination";
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { storage } from "../storage";
@@ -20,9 +21,18 @@ const router = Router();
 router.get("/fixtures", isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user.claims.sub;
-    const isAdmin = req.user.userRole === "admin" || req.user.activeRole === "admin";
-    const result = isAdmin ? await storage.getAllFixtures() : await storage.getFixtures(userId);
-    res.json(result);
+    const isAdminUser = req.user.userRole === "admin" || req.user.activeRole === "admin";
+    const { page, limit } = parsePaginationParams(req.query);
+    const search = (req.query.search as string || "").toLowerCase();
+    let result = isAdminUser ? await storage.getAllFixtures() : await storage.getFixtures(userId);
+    if (search) {
+      result = result.filter((f: any) =>
+        f.vesselName?.toLowerCase().includes(search) ||
+        f.cargoName?.toLowerCase().includes(search) ||
+        f.status?.toLowerCase().includes(search)
+      );
+    }
+    res.json(paginateArray(result, page, limit));
   } catch {
     res.status(500).json({ message: "Failed to fetch fixtures" });
   }
@@ -217,12 +227,21 @@ router.delete("/laytime/:id", isAuthenticated, async (req: any, res) => {
 });
 
 // ─── CARGO POSITIONS ────────────────────────────────────────────────────────
-// ─── CARGO POSITIONS ────────────────────────────────────────────────────────
 
 router.get("/cargo-positions", isAuthenticated, async (req: any, res) => {
   try {
-    const positions = await storage.getCargoPositions();
-    res.json(positions);
+    const { page, limit } = parsePaginationParams(req.query);
+    const search = (req.query.search as string || "").toLowerCase();
+    let positions = await storage.getCargoPositions();
+    if (search) {
+      positions = positions.filter((p: any) =>
+        p.cargoName?.toLowerCase().includes(search) ||
+        p.loadPort?.toLowerCase().includes(search) ||
+        p.dischargePort?.toLowerCase().includes(search) ||
+        p.positionType?.toLowerCase().includes(search)
+      );
+    }
+    res.json(paginateArray(positions, page, limit));
   } catch {
     res.status(500).json({ message: "Failed to fetch cargo positions" });
   }

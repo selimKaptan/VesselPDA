@@ -65,14 +65,19 @@ export default function Dashboard() {
     },
   });
 
-  const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({
-    queryKey: ["/api/vessels"],
+  const { data: vesselsRes, isLoading: vesselsLoading } = useQuery<{ data: Vessel[]; pagination: any }>({
+    queryKey: ["/api/vessels", "dashboard"],
+    queryFn: () => fetch("/api/vessels?limit=500", { credentials: "include" }).then(r => r.json()),
     enabled: effectiveRole === "shipowner" || isAdmin,
   });
-  const { data: proformas, isLoading: proformasLoading } = useQuery<Proforma[]>({
-    queryKey: ["/api/proformas"],
+  const vessels = vesselsRes?.data ?? [];
+
+  const { data: proformasRes, isLoading: proformasLoading } = useQuery<{ data: Proforma[]; pagination: any }>({
+    queryKey: ["/api/proformas", "dashboard"],
+    queryFn: () => fetch("/api/proformas?limit=500", { credentials: "include" }).then(r => r.json()),
     enabled: effectiveRole !== "provider" || isAdmin,
   });
+  const proformas = proformasRes?.data ?? [];
   const { data: myProfile } = useQuery<CompanyProfile | null>({
     queryKey: ["/api/company-profile/me"],
     enabled: effectiveRole === "agent" || effectiveRole === "provider" || isAdmin,

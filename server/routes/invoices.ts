@@ -1,3 +1,4 @@
+import { parsePaginationParams, paginateArray } from "../utils/pagination";
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { storage } from "../storage";
@@ -19,8 +20,16 @@ const router = Router();
 router.get("/invoices", isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user?.claims?.sub || req.user?.id;
-    const items = await storage.getInvoicesByUser(userId);
-    res.json(items);
+    const { page, limit } = parsePaginationParams(req.query);
+    const search = (req.query.search as string || "").toLowerCase();
+    let items = await storage.getInvoicesByUser(userId);
+    if (search) {
+      items = items.filter((i: any) =>
+        i.title?.toLowerCase().includes(search) ||
+        i.status?.toLowerCase().includes(search)
+      );
+    }
+    res.json(paginateArray(items, page, limit));
   } catch {
     res.status(500).json({ message: "Failed to get invoices" });
   }

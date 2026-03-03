@@ -1,4 +1,5 @@
 import { emitToConversation } from "../socket";
+import { parsePaginationParams, paginateArray } from "../utils/pagination";
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { storage } from "../storage";
@@ -21,8 +22,21 @@ router.get("/voyages", isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user?.claims?.sub || req.user?.id;
     const role = req.user?.activeRole || req.user?.userRole || "shipowner";
-    const voyageList = await storage.getVoyagesByUser(userId, role);
-    res.json(voyageList);
+    const { page, limit } = parsePaginationParams(req.query);
+    const search = (req.query.search as string || "").toLowerCase();
+    const status = req.query.status as string | undefined;
+    let voyageList = await storage.getVoyagesByUser(userId, role);
+    if (search) {
+      voyageList = voyageList.filter((v: any) =>
+        v.vesselName?.toLowerCase().includes(search) ||
+        v.portName?.toLowerCase().includes(search) ||
+        v.status?.toLowerCase().includes(search)
+      );
+    }
+    if (status && status !== "all") {
+      voyageList = voyageList.filter((v: any) => v.status === status);
+    }
+    res.json(paginateArray(voyageList, page, limit));
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch voyages" });
   }

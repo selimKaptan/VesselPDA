@@ -3,6 +3,7 @@ import { lookupPilotageFee, lookupTugboatFee, lookupMooringFee, lookupBerthingFe
 import { sendProformaEmail } from "../email";
 import { getOrFetchRates } from "../exchange-rates";
 import type { ProformaLineItem } from "@shared/schema";
+import { parsePaginationParams, paginateArray } from "../utils/pagination";
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { storage } from "../storage";
@@ -22,12 +23,23 @@ const router = Router();
 router.get("/proformas", isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user.claims.sub;
-    if (await isAdmin(req)) {
-      const allProformas = await storage.getAllProformas();
-      return res.json(allProformas);
+    const { page, limit } = parsePaginationParams(req.query);
+    const search = (req.query.search as string || "").toLowerCase();
+    const status = req.query.status as string | undefined;
+    let proformas = await isAdmin(req)
+      ? await storage.getAllProformas()
+      : await storage.getProformasByUser(userId);
+    if (search) {
+      proformas = proformas.filter((p: any) =>
+        p.portName?.toLowerCase().includes(search) ||
+        p.vesselName?.toLowerCase().includes(search) ||
+        p.purpose?.toLowerCase().includes(search)
+      );
     }
-    const proformas = await storage.getProformasByUser(userId);
-    res.json(proformas);
+    if (status && status !== "all") {
+      proformas = proformas.filter((p: any) => p.status === status);
+    }
+    res.json(paginateArray(proformas, page, limit));
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch proformas" });
   }

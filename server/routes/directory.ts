@@ -1,4 +1,5 @@
 import { sendContactEmail } from "../email";
+import { parsePaginationParams, paginateArray } from "../utils/pagination";
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { storage } from "../storage";
@@ -224,28 +225,39 @@ router.get("/directory", async (req, res) => {
   try {
     const companyType = req.query.type as string | undefined;
     const portId = req.query.portId ? parseInt(req.query.portId as string) : undefined;
-    const profiles = await storage.getPublicCompanyProfiles({ companyType, portId });
+    const search = (req.query.search as string || "").toLowerCase();
+    const { page, limit } = parsePaginationParams(req.query);
+    let profiles = await storage.getPublicCompanyProfiles({ companyType, portId });
+
+    if (search) {
+      profiles = profiles.filter((p: any) =>
+        p.companyName?.toLowerCase().includes(search) ||
+        p.city?.toLowerCase().includes(search) ||
+        p.country?.toLowerCase().includes(search)
+      );
+    }
+
     // Attach avgRating and reviewCount for agent profiles
-    const agentProfiles = profiles.filter(p => p.companyType === "agent");
+    const agentProfiles = profiles.filter((p: any) => p.companyType === "agent");
+    let enriched: any[] = profiles.map((p: any) => ({ ...p, avgRating: null, reviewCount: 0 }));
     if (agentProfiles.length > 0) {
       const reviewsMap = new Map<number, { sum: number; count: number }>();
-      await Promise.all(agentProfiles.map(async (p) => {
+      await Promise.all(agentProfiles.map(async (p: any) => {
         const reviews = await storage.getReviewsByCompany(p.id);
         if (reviews.length > 0) {
           const sum = reviews.reduce((acc: number, r: any) => acc + (r.rating || 0), 0);
           reviewsMap.set(p.id, { sum, count: reviews.length });
         }
       }));
-      const enriched = profiles.map(p => {
+      enriched = profiles.map((p: any) => {
         const rating = reviewsMap.get(p.id);
         return rating
           ? { ...p, avgRating: Math.round((rating.sum / rating.count) * 10) / 10, reviewCount: rating.count }
           : { ...p, avgRating: null, reviewCount: 0 };
       });
-      res.json(enriched);
-    } else {
-      res.json(profiles.map(p => ({ ...p, avgRating: null, reviewCount: 0 })));
     }
+
+    res.json(paginateArray(enriched, page, limit));
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch directory" });
   }

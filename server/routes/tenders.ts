@@ -1,4 +1,5 @@
 import { sendNominationEmail, sendNominationResponseEmail, sendBidReceivedEmail, sendBidSelectedEmail, sendNewTenderEmail } from "../email";
+import { parsePaginationParams, paginateArray } from "../utils/pagination";
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { storage } from "../storage";
@@ -25,25 +26,42 @@ router.get("/tenders", isAuthenticated, async (req: any, res) => {
 
     const isAdminUser = user.userRole === "admin";
     const effectiveRole = isAdminUser ? (user.activeRole || "shipowner") : user.userRole;
+    const { page, limit } = parsePaginationParams(req.query);
+    const search = (req.query.search as string || "").toLowerCase();
+
+    let allTenders: any[] = [];
+    let role: string;
+    let ownUserId: string | undefined;
 
     if (effectiveRole === "agent") {
+      role = "agent";
       if (isAdminUser) {
-        // Admin in agent view: show ALL open tenders (own tenders shown but can't bid on them)
-        const allOpen = await storage.getPortTenders({ status: "open" });
-        return res.json({ role: "agent", tenders: allOpen, ownUserId: userId });
+        allTenders = await storage.getPortTenders({ status: "open" });
+        ownUserId = userId;
+      } else {
+        const profile = await storage.getCompanyProfileByUser(userId);
+        const servedPorts = (profile?.servedPorts as number[]) || [];
+        const tendersByPort = await Promise.all(
+          servedPorts.map(portId => storage.getPortTenders({ portId, status: "open" }))
+        );
+        const flat = tendersByPort.flat();
+        allTenders = flat.filter((t, i, arr) => arr.findIndex(x => x.id === t.id) === i);
       }
-      const profile = await storage.getCompanyProfileByUser(userId);
-      const servedPorts = (profile?.servedPorts as number[]) || [];
-      const tenders = await Promise.all(
-        servedPorts.map(portId => storage.getPortTenders({ portId, status: "open" }))
-      );
-      const flat = tenders.flat();
-      const unique = flat.filter((t, i, arr) => arr.findIndex(x => x.id === t.id) === i);
-      return res.json({ role: "agent", tenders: unique });
+    } else {
+      role = "shipowner";
+      allTenders = await storage.getPortTenders({ userId });
     }
 
-    const myTenders = await storage.getPortTenders({ userId });
-    return res.json({ role: "shipowner", tenders: myTenders });
+    if (search) {
+      allTenders = allTenders.filter((t: any) =>
+        t.vesselName?.toLowerCase().includes(search) ||
+        t.portName?.toLowerCase().includes(search) ||
+        t.status?.toLowerCase().includes(search)
+      );
+    }
+
+    const paged = paginateArray(allTenders, page, limit);
+    return res.json({ role, tenders: paged.data, ownUserId, pagination: paged.pagination });
   } catch (error) {
     console.error("Get tenders error:", error);
     res.status(500).json({ message: "Failed to get tenders" });
@@ -552,10 +570,30 @@ router.get("/nominations/pending-count", isAuthenticated, async (req: any, res) 
 router.get("/nominations", isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user.claims.sub;
-    const role = req.user.userRole || req.user.activeRole;
-    const sent = await storage.getNominationsByNominator(userId);
-    const received = await storage.getNominationsByAgent(userId);
-    res.json({ sent, received });
+    const { page, limit } = parsePaginationParams(req.query);
+    const search = (req.query.search as string || "").toLowerCase();
+    let sent = await storage.getNominationsByNominator(userId);
+    let received = await storage.getNominationsByAgent(userId);
+    if (search) {
+      sent = sent.filter((n: any) =>
+        n.vesselName?.toLowerCase().includes(search) ||
+        n.portName?.toLowerCase().includes(search) ||
+        n.status?.toLowerCase().includes(search)
+      );
+      received = received.filter((n: any) =>
+        n.vesselName?.toLowerCase().includes(search) ||
+        n.portName?.toLowerCase().includes(search) ||
+        n.status?.toLowerCase().includes(search)
+      );
+    }
+    const pagedSent = paginateArray(sent, page, limit);
+    const pagedReceived = paginateArray(received, page, limit);
+    res.json({
+      sent: pagedSent.data,
+      received: pagedReceived.data,
+      sentPagination: pagedSent.pagination,
+      receivedPagination: pagedReceived.pagination,
+    });
   } catch (error) {
     res.status(500).json({ message: "Failed to get nominations" });
   }

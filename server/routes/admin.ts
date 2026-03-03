@@ -1,6 +1,7 @@
 import { geocodeStats } from "../geocode-ports";
 import { loadSanctionsList } from "../sanctions";
 import { config } from "../config";
+import { parsePaginationParams, paginateArray, buildPaginationMeta } from "../utils/pagination";
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { storage } from "../storage";
@@ -20,8 +21,18 @@ const router = Router();
 router.get("/admin/users", isAuthenticated, async (req: any, res) => {
   try {
     if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
-    const allUsers = await storage.getAllUsers();
-    res.json(allUsers);
+    const { page, limit } = parsePaginationParams(req.query);
+    const search = (req.query.search as string || "").toLowerCase();
+    let allUsers = await storage.getAllUsers();
+    if (search) {
+      allUsers = allUsers.filter((u: any) =>
+        u.email?.toLowerCase().includes(search) ||
+        u.firstName?.toLowerCase().includes(search) ||
+        u.lastName?.toLowerCase().includes(search) ||
+        u.userRole?.toLowerCase().includes(search)
+      );
+    }
+    res.json(paginateArray(allUsers, page, limit));
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch users" });
   }
@@ -1142,7 +1153,9 @@ router.delete("/admin/tariff-custom-sections/:id/entries/:entryId", isAuthentica
 router.get("/admin/audit-logs", isAuthenticated, async (req: any, res) => {
   try {
     if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
-    const { userId, action, entityType, from, to, limit: lim, offset: off } = req.query;
+    const { userId, action, entityType, from, to } = req.query;
+    const { page, limit } = parsePaginationParams(req.query);
+
     let query = `
       SELECT al.*, u.email, u.first_name, u.last_name
       FROM audit_logs al
@@ -1156,10 +1169,8 @@ router.get("/admin/audit-logs", isAuthenticated, async (req: any, res) => {
     if (from) { params.push(from); query += ` AND al.created_at >= $${params.length}`; }
     if (to) { params.push(to); query += ` AND al.created_at <= $${params.length}`; }
     query += ` ORDER BY al.created_at DESC`;
-    const limitVal = Math.min(parseInt(lim as string) || 100, 500);
-    const offsetVal = parseInt(off as string) || 0;
-    params.push(limitVal); query += ` LIMIT $${params.length}`;
-    params.push(offsetVal); query += ` OFFSET $${params.length}`;
+    params.push(limit); query += ` LIMIT $${params.length}`;
+    params.push((page - 1) * limit); query += ` OFFSET $${params.length}`;
     const result = await pool.query(query, params);
 
     // Count query
@@ -1171,8 +1182,9 @@ router.get("/admin/audit-logs", isAuthenticated, async (req: any, res) => {
     if (from) { countParams.push(from); countQ += ` AND al.created_at >= $${countParams.length}`; }
     if (to) { countParams.push(to); countQ += ` AND al.created_at <= $${countParams.length}`; }
     const countResult = await pool.query(countQ, countParams);
+    const total = parseInt(countResult.rows[0].count);
 
-    res.json({ logs: result.rows, total: parseInt(countResult.rows[0].count) });
+    res.json({ data: result.rows, pagination: buildPaginationMeta(page, limit, total) });
   } catch (error) {
     console.error("Audit log fetch error:", error);
     res.status(500).json({ message: "Failed to fetch audit logs" });

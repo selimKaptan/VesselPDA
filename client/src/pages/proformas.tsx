@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign, Zap, Loader2, Calculator, Ship, Anchor, Globe, Package, AlertTriangle, X } from "lucide-react";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -88,8 +89,28 @@ export default function Proformas() {
     { value: "ammonia",    label: "🧪 Ammonia",                                 unit: "MT",    isDangerous: true,  examples: "Anhydrous ammonia, aqueous ammonia" },
   ];
 
-  const { data: proformas, isLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"] });
-  const { data: vessels } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
+  const [proformaPage, setProformaPage] = useState(1);
+  const [proformaPageSize, setProformaPageSize] = useState(20);
+
+  const { data: proformasRes, isLoading } = useQuery<{ data: Proforma[]; pagination: any }>({
+    queryKey: ["/api/proformas", proformaPage, proformaPageSize, searchTerm, statusFilter],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      params.set("page", String(proformaPage));
+      params.set("limit", String(proformaPageSize));
+      if (searchTerm) params.set("search", searchTerm);
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      return fetch(`/api/proformas?${params}`, { credentials: "include" }).then(r => r.json());
+    },
+  });
+  const proformas = proformasRes?.data ?? [];
+  const proformasPagination = proformasRes?.pagination;
+
+  const { data: vesselsRes } = useQuery<{ data: Vessel[]; pagination: any }>({
+    queryKey: ["/api/vessels", "all"],
+    queryFn: () => fetch("/api/vessels?limit=500", { credentials: "include" }).then(r => r.json()),
+  });
+  const vessels = vesselsRes?.data ?? [];
   const { data: turkishPorts } = useQuery<Port[]>({ queryKey: ["/api/ports?country=Turkey"], enabled: showQuickDialog });
 
   const selectedVessel = vessels?.find(v => String(v.id) === quickVesselId);
@@ -307,14 +328,10 @@ export default function Proformas() {
     },
   });
 
+  useEffect(() => { setProformaPage(1); }, [searchTerm, statusFilter, vesselFilter]);
+
   const filteredProformas = (proformas || []).filter((p) => {
-    const matchesSearch =
-      p.referenceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.toCompany || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.cargoType || "").toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || p.status === statusFilter;
-    const matchesVessel = vesselFilter === "all" || String(p.vesselId) === vesselFilter;
-    return matchesSearch && matchesStatus && matchesVessel;
+    return vesselFilter === "all" || String(p.vesselId) === vesselFilter;
   });
 
   const statusBadge: Record<string, "secondary" | "default" | "outline"> = {
@@ -394,6 +411,7 @@ export default function Proformas() {
           {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
         </div>
       ) : filteredProformas.length > 0 ? (
+        <>
         <Card>
           <Table>
             <TableHeader>
@@ -466,6 +484,14 @@ export default function Proformas() {
             </TableBody>
           </Table>
         </Card>
+        {proformasPagination && (
+          <PaginationControls
+            pagination={proformasPagination}
+            onPageChange={setProformaPage}
+            onPageSizeChange={(s) => { setProformaPageSize(s); setProformaPage(1); }}
+          />
+        )}
+        </>
       ) : (
         <Card className="p-12 text-center space-y-4">
           <FileText className="w-16 h-16 text-muted-foreground/20 mx-auto" />

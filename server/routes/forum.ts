@@ -1,4 +1,5 @@
 import { sendForumReplyEmail } from "../email";
+import { parsePaginationParams, buildPaginationMeta } from "../utils/pagination";
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { storage } from "../storage";
@@ -28,8 +29,8 @@ router.get("/forum/topics", async (req, res) => {
   try {
     const categoryId = req.query.categoryId ? parseInt(req.query.categoryId as string) : undefined;
     const sort = (req.query.sort as string) || "latest";
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : 20;
-    const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
+    const { page, limit } = parsePaginationParams(req.query);
+    const offset = req.query.offset ? parseInt(req.query.offset as string) : (page - 1) * limit;
 
     const topics = await storage.getForumTopics({ categoryId, sort, limit, offset });
 
@@ -40,7 +41,13 @@ router.get("/forum/topics", async (req, res) => {
       })
     );
 
-    res.json(topicsWithParticipants);
+    const allTopics = await storage.getForumTopics({ categoryId, sort, limit: 9999, offset: 0 });
+    const total = allTopics.length;
+
+    res.json({
+      data: topicsWithParticipants,
+      pagination: buildPaginationMeta(page, limit, total),
+    });
   } catch (error) {
     console.error("Forum topics error:", error);
     res.status(500).json({ message: "Failed to fetch forum topics" });

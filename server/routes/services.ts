@@ -1,3 +1,4 @@
+import { parsePaginationParams, paginateArray } from "../utils/pagination";
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { storage } from "../storage";
@@ -20,16 +21,27 @@ router.get("/service-requests", isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user?.claims?.sub || req.user?.id;
     const role = req.user?.activeRole || req.user?.userRole || "shipowner";
+    const { page, limit } = parsePaginationParams(req.query);
+    const search = (req.query.search as string || "").toLowerCase();
+    let requests: any[];
+    let myOffers: any[] = [];
     if (role === "provider") {
       const profile = await storage.getCompanyProfile(userId);
       const portIds: number[] = (profile?.servedPorts as any[]) || [];
-      const requests = await storage.getServiceRequestsByPort(portIds);
-      const myOffers = await storage.getProviderOffersByUser(userId);
-      res.json({ requests, myOffers });
+      requests = await storage.getServiceRequestsByPort(portIds);
+      myOffers = await storage.getProviderOffersByUser(userId);
     } else {
-      const requests = await storage.getServiceRequestsByUser(userId);
-      res.json({ requests, myOffers: [] });
+      requests = await storage.getServiceRequestsByUser(userId);
     }
+    if (search) {
+      requests = requests.filter((r: any) =>
+        r.vesselName?.toLowerCase().includes(search) ||
+        r.serviceType?.toLowerCase().includes(search) ||
+        r.status?.toLowerCase().includes(search)
+      );
+    }
+    const paged = paginateArray(requests, page, limit);
+    res.json({ requests: paged.data, myOffers, pagination: paged.pagination });
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch service requests" });
   }
