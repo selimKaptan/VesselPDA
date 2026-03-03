@@ -366,16 +366,21 @@ function calcSupervision(input: CalculationInput): number {
 }
 
 function calcAgencyFee(input: CalculationInput): number {
-  if (input.dbAgencyFee != null && input.dbAgencyFee > 0) return input.dbAgencyFee;
-  const { nrt, eurUsdParity, berthStayDays } = input;
-  const row = vlookup(nrt, AGENCY_FEE_TABLE, "minNrt");
-  const extra = row.perExtra1000Eur > 0 ? Math.ceil(Math.max(0, nrt - row.minNrt) / 1000) * row.perExtra1000Eur : 0;
-  let baseFee = (row.baseEur + extra) * eurUsdParity;
-  if (berthStayDays > 7) {
-    const extraPeriods = Math.ceil((berthStayDays - 7) / 5);
-    baseFee = baseFee * (1 + 0.2 * extraPeriods);
+  let fee: number;
+  if (input.dbAgencyFee != null && input.dbAgencyFee > 0) {
+    fee = input.dbAgencyFee;
+  } else {
+    const { nrt, eurUsdParity, berthStayDays } = input;
+    const row = vlookup(nrt, AGENCY_FEE_TABLE, "minNrt");
+    const extra = row.perExtra1000Eur > 0 ? Math.ceil(Math.max(0, nrt - row.minNrt) / 1000) * row.perExtra1000Eur : 0;
+    fee = (row.baseEur + extra) * eurUsdParity;
+    if (berthStayDays > 7) {
+      const extraPeriods = Math.ceil((berthStayDays - 7) / 5);
+      fee = fee * (1 + 0.2 * extraPeriods);
+    }
   }
-  return baseFee;
+  if (input.flagCategory === "cabotage") fee *= 0.5;
+  return fee;
 }
 
 export function calculateProforma(input: CalculationInput): CalculationResult {
@@ -451,7 +456,9 @@ export function calculateProforma(input: CalculationInput): CalculationResult {
   addItem(
     "Agency Fee",
     calcAgencyFee(input),
-    "As per official tariff. Basic fee covers up to 7 days. +20% for each additional 5 days."
+    input.flagCategory === "cabotage"
+      ? "As per official tariff. Basic fee covers up to 7 days. +20% for each additional 5 days. 50% discount applied for cabotage voyages."
+      : "As per official tariff. Basic fee covers up to 7 days. +20% for each additional 5 days."
   );
 
   const totalUsd = Math.round(lineItems.reduce((sum, item) => sum + item.amountUsd, 0) * 100) / 100;
