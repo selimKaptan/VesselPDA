@@ -1039,3 +1039,21 @@ export const auditLogs = pgTable("audit_logs", {
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
+
+// ─── NOTIFICATION PREFERENCES ─────────────────────────────────────────────────
+export const notificationPreferences = pgTable("notification_preferences", {
+  userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  emailOnNewTender:        boolean("email_on_new_tender").notNull().default(true),
+  emailOnBidReceived:      boolean("email_on_bid_received").notNull().default(true),
+  emailOnNomination:       boolean("email_on_nomination").notNull().default(true),
+  emailOnMessage:          boolean("email_on_message").notNull().default(false),
+  emailOnForumReply:       boolean("email_on_forum_reply").notNull().default(false),
+  emailOnCertificateExpiry:boolean("email_on_certificate_expiry").notNull().default(true),
+  emailOnVoyageUpdate:     boolean("email_on_voyage_update").notNull().default(true),
+  pushEnabled:             boolean("push_enabled").notNull().default(true),
+  dailyDigest:             boolean("daily_digest").notNull().default(false),
+  updatedAt:               timestamp("updated_at").defaultNow(),
+});
+
+export type NotificationPreferences = typeof notificationPreferences.$inferSelect;
+export type InsertNotificationPreferences = typeof notificationPreferences.$inferInsert;

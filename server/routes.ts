@@ -93,6 +93,31 @@ export async function registerRoutes(
     return user?.userRole === "admin";
   }
 
+  // Helper: get a single notification preference field for a user (returns DB default if no row)
+  const NOTIF_DEFAULTS: Record<string, boolean> = {
+    email_on_new_tender: true,
+    email_on_bid_received: true,
+    email_on_nomination: true,
+    email_on_message: false,
+    email_on_forum_reply: false,
+    email_on_certificate_expiry: true,
+    email_on_voyage_update: true,
+    push_enabled: true,
+    daily_digest: false,
+  };
+  async function getNotifPref(userId: string, field: string): Promise<boolean> {
+    try {
+      const r = await pool.query(
+        `SELECT ${field} FROM notification_preferences WHERE user_id = $1`,
+        [userId]
+      );
+      if (r.rows.length === 0) return NOTIF_DEFAULTS[field] ?? true;
+      return r.rows[0][field];
+    } catch {
+      return NOTIF_DEFAULTS[field] ?? true;
+    }
+  }
+
   app.get("/api/vessels", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -2398,15 +2423,18 @@ export async function registerRoutes(
             message: `${replierName} replied to "${topic.title}"`,
             link: `/forum/${topicId}`,
           });
-          // Send email notification to topic author
+          // Send email notification to topic author (check preferences)
           if (topicAuthor?.email) {
-            const preview = content.trim().slice(0, 200) + (content.trim().length > 200 ? "..." : "");
-            sendForumReplyEmail({
-              toEmail: topicAuthor.email,
-              topicTitle: topic.title,
-              topicId,
-              replyAuthor: replierName,
-              replyPreview: preview,
+            getNotifPref(topic.userId, "email_on_forum_reply").then(allowed => {
+              if (!allowed) return;
+              const preview = content.trim().slice(0, 200) + (content.trim().length > 200 ? "..." : "");
+              sendForumReplyEmail({
+                toEmail: topicAuthor.email,
+                topicTitle: topic.title,
+                topicId,
+                replyAuthor: replierName,
+                replyPreview: preview,
+              }).catch(() => {});
             }).catch(() => {});
           }
         }
@@ -2574,17 +2602,20 @@ export async function registerRoutes(
         const port = await storage.getPort(Number(portId));
         const agentUsers = await Promise.all(agents.slice(0, 50).map((a: any) => storage.getUser(a.userId)));
         for (const agentUser of agentUsers) {
-          if (agentUser?.email) {
-            sendNewTenderEmail({
-              agentEmail: agentUser.email,
-              agentName: agentUser.firstName || undefined,
-              portName: (port as any)?.name || `Port #${portId}`,
-              vesselName: vesselName || undefined,
-              cargoType: cargoType || undefined,
-              cargoQuantity: cargoQuantity || undefined,
-              expiryHours: Number(expiryHours),
-              tenderId: tender.id,
-            }).catch(e => console.warn("[email] sendNewTenderEmail failed:", e));
+          if (agentUser?.email && agentUser.id) {
+            getNotifPref(agentUser.id, "email_on_new_tender").then(allowed => {
+              if (!allowed) return;
+              sendNewTenderEmail({
+                agentEmail: agentUser.email,
+                agentName: agentUser.firstName || undefined,
+                portName: (port as any)?.name || `Port #${portId}`,
+                vesselName: vesselName || undefined,
+                cargoType: cargoType || undefined,
+                cargoQuantity: cargoQuantity || undefined,
+                expiryHours: Number(expiryHours),
+                tenderId: tender.id,
+              }).catch(e => console.warn("[email] sendNewTenderEmail failed:", e));
+            }).catch(() => {});
           }
         }
       } catch (emailErr) { console.warn("[email] sendNewTenderEmail batch failed (non-critical):", emailErr); }
@@ -2745,17 +2776,20 @@ export async function registerRoutes(
         const port = await storage.getPort(tender.portId);
         const portName = (port as any)?.name || `Port #${tender.portId}`;
         const agentName = profile?.companyName || user.firstName || "An agent";
-        if (owner?.email) {
-          await sendBidReceivedEmail({
-            ownerEmail: owner.email,
-            ownerName: owner.firstName || owner.email,
-            agentName,
-            portName,
-            vesselName: tender.vesselName || undefined,
-            totalAmount: totalAmount || undefined,
-            currency: currency || "USD",
-            tenderId,
-          });
+        if (owner?.email && owner.id) {
+          const sendBid = await getNotifPref(owner.id, "email_on_bid_received");
+          if (sendBid) {
+            await sendBidReceivedEmail({
+              ownerEmail: owner.email,
+              ownerName: owner.firstName || owner.email,
+              agentName,
+              portName,
+              vesselName: tender.vesselName || undefined,
+              totalAmount: totalAmount || undefined,
+              currency: currency || "USD",
+              tenderId,
+            });
+          }
         }
         await storage.createNotification({
           userId: tender.userId,
@@ -3235,6 +3269,84 @@ export async function registerRoutes(
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Failed to mark read" });
+    }
+  });
+
+  // ─── NOTIFICATION PREFERENCES ────────────────────────────────────────────────
+
+  app.get("/api/notification-preferences", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const r = await pool.query(
+        `SELECT * FROM notification_preferences WHERE user_id = $1`,
+        [userId]
+      );
+      if (r.rows.length === 0) {
+        res.json({ userId, ...NOTIF_DEFAULTS });
+      } else {
+        const row = r.rows[0];
+        res.json({
+          userId: row.user_id,
+          emailOnNewTender: row.email_on_new_tender,
+          emailOnBidReceived: row.email_on_bid_received,
+          emailOnNomination: row.email_on_nomination,
+          emailOnMessage: row.email_on_message,
+          emailOnForumReply: row.email_on_forum_reply,
+          emailOnCertificateExpiry: row.email_on_certificate_expiry,
+          emailOnVoyageUpdate: row.email_on_voyage_update,
+          pushEnabled: row.push_enabled,
+          dailyDigest: row.daily_digest,
+        });
+      }
+    } catch (err) {
+      console.error("Notification prefs fetch error:", err);
+      res.status(500).json({ message: "Failed to fetch preferences" });
+    }
+  });
+
+  app.put("/api/notification-preferences", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const {
+        emailOnNewTender, emailOnBidReceived, emailOnNomination,
+        emailOnMessage, emailOnForumReply, emailOnCertificateExpiry,
+        emailOnVoyageUpdate, pushEnabled, dailyDigest,
+      } = req.body;
+
+      await pool.query(`
+        INSERT INTO notification_preferences
+          (user_id, email_on_new_tender, email_on_bid_received, email_on_nomination,
+           email_on_message, email_on_forum_reply, email_on_certificate_expiry,
+           email_on_voyage_update, push_enabled, daily_digest, updated_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+        ON CONFLICT (user_id) DO UPDATE SET
+          email_on_new_tender         = EXCLUDED.email_on_new_tender,
+          email_on_bid_received       = EXCLUDED.email_on_bid_received,
+          email_on_nomination         = EXCLUDED.email_on_nomination,
+          email_on_message            = EXCLUDED.email_on_message,
+          email_on_forum_reply        = EXCLUDED.email_on_forum_reply,
+          email_on_certificate_expiry = EXCLUDED.email_on_certificate_expiry,
+          email_on_voyage_update      = EXCLUDED.email_on_voyage_update,
+          push_enabled                = EXCLUDED.push_enabled,
+          daily_digest                = EXCLUDED.daily_digest,
+          updated_at                  = NOW()
+      `, [
+        userId,
+        emailOnNewTender  ?? true,
+        emailOnBidReceived ?? true,
+        emailOnNomination  ?? true,
+        emailOnMessage     ?? false,
+        emailOnForumReply  ?? false,
+        emailOnCertificateExpiry ?? true,
+        emailOnVoyageUpdate ?? true,
+        pushEnabled ?? true,
+        dailyDigest ?? false,
+      ]);
+
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Notification prefs update error:", err);
+      res.status(500).json({ message: "Failed to update preferences" });
     }
   });
 
