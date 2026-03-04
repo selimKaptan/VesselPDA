@@ -1,0 +1,201 @@
+Her rol için özelleştirilmiş dashboard oluştur.
+
+Yapılacaklar:
+
+1. client/src/components/dashboards/ klasöründeki dashboard'ları yeniden yaz:
+
+SHIP AGENT DASHBOARD (agent-dashboard.tsx):
+─────────────────────────────────────────
+Üst Kartlar (5 adet):
+- Aktif Seferler: sayı + "2 gemi bugün limanda" alt yazı
+- Bekleyen Proformalar: sayı + son oluşturulan tarih
+- Gelen Tender'lar: teklif bekleyen tender sayısı (proforma istekleri)
+- Açık Hatırlatmalar: sayı + en acil olanın açıklaması
+- Bu Ay Ciro: toplam proforma tutarı (USD)
+
+Bugünün İşleri (sol kolon):
+- Bugün ETA'sı olan gemiler listesi (gemi adı, liman, ETA saati)
+- Tamamlanmamış SOF'lar (gemi, liman, eksik event sayısı)
+- Bekleyen dokümanlar (imza bekleyen, onay bekleyen)
+- YENİ GELEN TENDER'LAR: Armatör/broker'dan gelen proforma talepleri
+  "MV BLUE STAR — Istanbul — Loading — Proforma isteniyor"
+  Hızlı "Teklif Ver" butonu → proforma oluşturma sayfasına git
+- Yanıt bekleyen nomination'lar
+
+Son Aktiviteler (sağ kolon):
+- Son 10 aktivite akışı (zaman + açıklama)
+
+Alt Grafik:
+- Son 30 gün sefer sayısı (bar chart, haftalık)
+- Son 30 gün proforma toplamı (line chart)
+- Tender kazanma oranı (teklif verilen vs kazanılan)
+
+Hızlı Erişim Butonları:
+- + Yeni Sefer
+- + Yeni Proforma
+- ⚡ Quick Proforma
+- + SOF Kaydı
+- Gelen Tender'lar
+
+SHIPOWNER DASHBOARD (owner-dashboard.tsx):
+──────────────────────────────────────────
+Üst Kartlar (5 adet):
+- Filo Durumu: "8 gemi — 5 seyirde, 2 limanda, 1 bakımda"
+- Aktif Seferler: sayı + devam eden port call sayısı
+- Açık Fixture'lar: sayı + aktif C/P
+- Bu Ay Masraf: toplam voyage expense (USD)
+- Uyumluluk: "ISM %94, ISPS %88" özet
+
+Filo Haritası (üst yarı):
+- Tüm gemilerin anlık konumu haritada
+- Her gemi bir marker (renk: seyirde=yeşil, limanda=mavi, bakım=turuncu)
+- Tıklayınca gemi detayı popup
+
+Gemi Durumları (sol kolon):
+- Her gemi bir satır: isim, durum, konum, ETA sonraki liman
+- Kritik: sertifikası sona erecek gemiler kırmızı vurgu
+- Bunker ROB düşük olanlar uyarı
+
+Kiralama & Piyasa (orta kolon):
+- Açık fixture'lar listesi (gemi, kargo, rota)
+- Bekleyen tender'lar (acenteden proforma beklenen)
+- Bekleyen nomination'lar
+- Cargo pozisyon özeti
+
+Finansal Özet (sağ kolon):
+- Bu ay FDA toplamı vs bütçe
+- Bekleyen faturalar
+- Laytime durumu: demurrage alacaklar / despatch borçlar
+- Freight & bunker fiyat trendi (mini sparkline)
+
+Alt Grafik:
+- Aylık gemi masraf karşılaştırması (grouped bar chart)
+- Bunker tüketim trendi (line chart)
+
+Hızlı Erişim:
+- Fleet Map (tam harita)
+- + Yeni Sefer
+- ⚡ Quick Proforma
+- + Yeni Tender (acenteden proforma iste)
+- + Yeni Fixture
+- Bunker Raporu
+
+SHIP BROKER DASHBOARD (broker-dashboard.tsx):
+─────────────────────────────────────────────
+Üst Kartlar (5 adet):
+- Filo Durumu: "X gemi — Y seyirde, Z limanda" (yönettiği gemiler)
+- Açık Fixture'lar: sayı
+- Aktif Cargo Pozisyonlar: sayı
+- Bekleyen Tenderlar: sayı
+- Bu Ay Nomination: sayı
+
+Filo Haritası (üst yarı — owner dashboard ile aynı):
+- Yönettiği tüm gemilerin anlık konumu haritada
+- Her gemi bir marker (renk: seyirde=yeşil, limanda=mavi)
+- Tıklayınca gemi detayı popup (isim, konum, hız, ETA, bunker ROB)
+- Sağ üstte: filo özet — toplam gemi, seyirde, limanda
+
+Gemi & Bunker Durumu (sol kolon):
+- Her gemi bir satır: isim, durum, konum, bunker ROB özet
+- Kritik: ROB düşük olanlar turuncu uyarı
+- Kritik: sertifikası sona erecek gemiler kırmızı uyarı
+- Bunker tüketim trendi mini grafik
+
+Piyasa Özeti (sağ kolon):
+- Freight Index tablosu (son 5 rota, değişim yüzdesi)
+- Bunker fiyat tablosu (IFO380, VLSFO, MGO — son fiyat + değişim)
+- Döviz kurları (USD/TRY, EUR/TRY)
+
+Aktif İşler (alt sol):
+- Açık fixture'lar listesi (gemi, kargo, rota, durum)
+- Yanıt bekleyen nomination'lar
+- Süresi dolmak üzere olan tenderlar
+- Aktif seferler ve port call durumları
+
+Cargo Board (alt sağ):
+- Açık cargo pozisyonlar mini listesi (kargo tipi, miktar, rota)
+- "Yeni ilan geldi" bildirimleri
+
+Alt Grafik:
+- Aylık fixture kapanış sayısı (bar chart)
+- Freight trend (line chart, seçilen rota)
+- Filo masraf özeti (grouped bar chart)
+
+Hızlı Erişim:
+- Fleet Map (tam harita)
+- + Yeni Fixture
+- + Cargo Pozisyon
+- ⚡ Quick Proforma
+- Bunker Raporu
+- Market Data
+
+SHIP PROVIDER DASHBOARD (provider-dashboard.tsx):
+─────────────────────────────────────────────────
+Üst Kartlar (4 adet):
+- Yeni Talepler: bu hafta gelen hizmet talepleri
+- Açık Teklifler: yanıt bekleyen tekliflerim
+- Kazanma Oranı: %X (kabul edilen / toplam teklif)
+- Bu Ay Gelir: fatura toplamı
+
+Gelen Talepler (sol kolon):
+- Son hizmet talepleri listesi (liman, gemi, hizmet tipi, tarih)
+- "Yeni!" badge'i cevaplanmamışlarda
+- Hızlı teklif ver butonu
+
+Performansım (sağ kolon):
+- Müşteri puanı (yıldız ortalaması)
+- Teklif kabul oranı (daire grafik)
+- Ortalama yanıt süresi
+- Hizmet verilen liman sayısı
+
+Fatura Durumu:
+- Bekleyen ödemeler listesi
+- Toplam alacak
+- Gecikmiş faturalar (kırmızı)
+
+Alt Grafik:
+- Aylık gelir trendi (line chart)
+- Hizmet tipi dağılımı (pie chart)
+
+Hızlı Erişim:
+- Gelen Talepler
+- Fatura Oluştur
+- Profilimi Düzenle
+
+ADMIN DASHBOARD (admin-dashboard.tsx):
+──────────────────────────────────────
+Üst Kartlar:
+- Toplam Kullanıcı (rol bazlı dağılım)
+- Aktif Organizasyon sayısı
+- Bu Ay Sefer sayısı
+- Sistem Durumu (DB, cache, AIS bağlantı)
+
+Kullanıcı İstatistikleri:
+- Rol dağılımı (pie chart: agent, owner, broker, provider)
+- Son 30 gün kayıt grafiği
+- Aktif kullanıcı (bugün login olan)
+
+Son İşlemler:
+- Audit log son 20 kayıt
+- Sistem uyarıları
+
+2. client/src/pages/dashboard.tsx güncelle:
+   Kullanıcı rolüne göre doğru dashboard'u render et:
+   
+   switch(user.role) {
+     case "ship_agent": return <AgentDashboard />;
+     case "shipowner": return <OwnerDashboard />;
+     case "ship_broker": return <BrokerDashboard />;
+     case "ship_provider": return <ProviderDashboard />;
+     case "admin": return <AdminDashboard />;
+   }
+
+3. Dashboard API endpoint'leri:
+   GET /api/dashboard/agent-stats
+   GET /api/dashboard/owner-stats
+   GET /api/dashboard/broker-stats
+   GET /api/dashboard/provider-stats
+   GET /api/dashboard/admin-stats
+   Her endpoint sadece ilgili rol tarafından çağrılabilir (requireRole middleware).
+
+Tüm dashboard'lar Recharts ile grafik, shadcn Card ile kartlar, responsive tasarım.

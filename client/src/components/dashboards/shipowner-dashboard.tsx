@@ -87,11 +87,24 @@ function daysUntil(dateStr: string) {
   return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
-export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, proformasLoading, tenders, notificationsData, plan, proformaCount, proformaLimit }: {
-  user: any; vessels?: Vessel[]; vesselsLoading?: boolean; proformas?: Proforma[];
-  proformasLoading?: boolean; tenders: any[]; notificationsData: any; plan: string;
-  proformaCount: number; proformaLimit: number;
+export function ShipownerDashboard({ user, vessels: vesselsProp, vesselsLoading: vesselsLoadingProp, proformas: proformasProp, proformasLoading: proformasLoadingProp, tenders: tendersProp, notificationsData, plan: planProp, proformaCount: proformaCountProp, proformaLimit: proformaLimitProp }: {
+  user?: any; vessels?: Vessel[]; vesselsLoading?: boolean; proformas?: Proforma[];
+  proformasLoading?: boolean; tenders?: any[]; notificationsData?: any; plan?: string;
+  proformaCount?: number; proformaLimit?: number;
 }) {
+  const { data: vesselsInternal = [], isLoading: vesselsLoadingInternal } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
+  const { data: proformasInternal = [], isLoading: proformasLoadingInternal } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"] });
+  const { data: tendersInternal = [] } = useQuery<any[]>({ queryKey: ["/api/tenders"] });
+
+  const vessels = vesselsProp ?? vesselsInternal;
+  const vesselsLoading = vesselsLoadingProp ?? vesselsLoadingInternal;
+  const proformas = proformasProp ?? proformasInternal;
+  const proformasLoading = proformasLoadingProp ?? proformasLoadingInternal;
+  const tenders = tendersProp ?? tendersInternal;
+  const plan = planProp ?? (user?.subscriptionPlan || user?.plan || "free");
+  const proformaCount = proformaCountProp ?? 0;
+  const proformaLimit = proformaLimitProp ?? (plan === "unlimited" ? Infinity : plan === "standard" ? 30 : 5);
+
   const { data: voyages = [], isLoading: voyagesLoading } = useQuery<any[]>({
     queryKey: ["/api/voyages"],
   });

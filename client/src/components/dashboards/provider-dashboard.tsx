@@ -30,8 +30,14 @@ function buildMonthlyActivity(requests: any[]) {
   return months;
 }
 
-export function ProviderDashboard({ user, myProfile }: { user: any; myProfile?: CompanyProfile | null }) {
+export function ProviderDashboard({ user, myProfile: myProfileProp }: { user?: any; myProfile?: CompanyProfile | null }) {
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
+
+  const { data: myProfileInternal } = useQuery<CompanyProfile | null>({
+    queryKey: ["/api/company-profile/me"],
+    queryFn: () => fetch("/api/company-profile/me", { credentials: "include" }).then(r => r.ok ? r.json() : null),
+  });
+  const myProfile = myProfileProp ?? myProfileInternal;
 
   const { data: serviceRequests = [], isLoading: srLoading } = useQuery<any[]>({
     queryKey: ["/api/service-requests"],

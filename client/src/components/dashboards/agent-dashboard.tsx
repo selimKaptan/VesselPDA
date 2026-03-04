@@ -64,9 +64,21 @@ function build7DayChart(voyages: any[]) {
   return days;
 }
 
-export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificationsData }: {
-  user: any; tenders: any[]; myBidsData: any; myProfile?: CompanyProfile | null; notificationsData: any;
+export function AgentDashboard({ user, tenders: tendersProp, myBidsData: myBidsDataProp, myProfile: myProfileProp, notificationsData: notificationsDataProp }: {
+  user?: any; tenders?: any[]; myBidsData?: any; myProfile?: CompanyProfile | null; notificationsData?: any;
 }) {
+  const { data: tendersInternal = [] } = useQuery<any[]>({ queryKey: ["/api/tenders"] });
+  const { data: myBidsInternal } = useQuery<any[]>({ queryKey: ["/api/tenders/my-bids"] });
+  const { data: myProfileInternal } = useQuery<CompanyProfile | null>({
+    queryKey: ["/api/company-profile/me"],
+    queryFn: () => fetch("/api/company-profile/me", { credentials: "include" }).then(r => r.ok ? r.json() : null),
+  });
+
+  const tenders = tendersProp ?? tendersInternal;
+  const myBidsData = myBidsDataProp ?? myBidsInternal;
+  const myProfile = myProfileProp ?? myProfileInternal;
+  const notificationsData = notificationsDataProp;
+
   const profileId = (myProfile as any)?.id;
 
   const { data: agentStats, isLoading: statsLoading } = useQuery<any>({

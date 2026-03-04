@@ -76,7 +76,14 @@ function HourlyHeatmap({ data }: { data: { hour: number; count: number }[] }) {
   );
 }
 
-export function AdminDashboard({ adminStats }: { adminStats: any }) {
+export function AdminDashboard({ adminStats: adminStatsProp, user }: { adminStats?: any; user?: any }) {
+  const { data: adminStatsInternal } = useQuery<any>({
+    queryKey: ["/api/admin/stats"],
+    queryFn: () => fetch("/api/admin/stats", { credentials: "include" }).then(r => r.ok ? r.json() : null),
+    staleTime: 30000,
+  });
+  const adminStats = adminStatsProp ?? adminStatsInternal;
+
   const { data: activityFeed, isLoading: activityLoading } = useQuery<any[]>({
     queryKey: ["/api/activity-feed"],
   });
