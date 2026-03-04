@@ -163,6 +163,7 @@ export interface IStorage {
   getVoyageById(id: number): Promise<any | undefined>;
   getVoyageByTenderId(tenderId: number): Promise<Voyage | undefined>;
   updateVoyageStatus(id: number, status: string): Promise<Voyage | undefined>;
+  updateVoyage(id: number, data: Partial<InsertVoyage>): Promise<Voyage | undefined>;
   createChecklistItem(data: InsertVoyageChecklist): Promise<VoyageChecklist>;
   getChecklistByVoyage(voyageId: number): Promise<VoyageChecklist[]>;
   toggleChecklistItem(id: number, voyageId: number): Promise<VoyageChecklist | undefined>;
@@ -182,6 +183,9 @@ export interface IStorage {
   createVoyageDocument(data: InsertVoyageDocument): Promise<VoyageDocument>;
   getVoyageDocuments(voyageId: number): Promise<any[]>;
   deleteVoyageDocument(id: number, voyageId: number): Promise<boolean>;
+  getDocumentTemplates(): Promise<DocumentTemplate[]>;
+  signVoyageDocument(docId: number, signatureText: string, signedAt: Date): Promise<void>;
+  createNewDocumentVersion(parentDoc: any, newData: { name: string; fileBase64: string; notes?: string; uploadedByUserId: string }): Promise<any>;
 
   createVoyageReview(data: InsertVoyageReview): Promise<VoyageReview>;
   getVoyageReviews(voyageId: number): Promise<any[]>;
@@ -233,6 +237,13 @@ export interface IStorage {
 
   getFixtures(userId: string, organizationId?: number | null): Promise<Fixture[]>;
   getInvoicesByUser(userId: string, organizationId?: number | null): Promise<any[]>;
+  createInvoice(data: InsertInvoice): Promise<Invoice>;
+  updateInvoiceStatus(id: number, status: string, paidAt?: Date): Promise<void>;
+  getPortAlerts(portId?: number, portName?: string): Promise<PortAlert[]>;
+  getAllPortAlerts(): Promise<PortAlert[]>;
+  createPortAlert(data: InsertPortAlert): Promise<PortAlert>;
+  updatePortAlert(id: number, data: Partial<InsertPortAlert>): Promise<void>;
+  deletePortAlert(id: number): Promise<boolean>;
   getAllFixtures(): Promise<Fixture[]>;
   getFixture(id: number): Promise<Fixture | undefined>;
   createFixture(data: InsertFixture): Promise<Fixture>;

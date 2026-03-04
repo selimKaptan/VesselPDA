@@ -80,7 +80,7 @@ const fileUpload = multer({
 
 // ── Request Body Validation Schemas ──────────────────────────────────────────
 
-const vesselBodySchema = insertVesselSchema.omit({ userId: true }).extend({
+const vesselBodySchema = (insertVesselSchema as any).omit({ userId: true }).extend({
   name: z.string().min(1).max(200),
   flag: z.string().min(1).max(100),
   vesselType: z.string().min(1).max(100),
@@ -311,7 +311,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/ports", async (req, res) => {
+  app.get("/api/ports", async (req: any, res) => {
     try {
       const q = req.query.q as string | undefined;
       const country = req.query.country as string | undefined;
@@ -329,7 +329,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/ports/:id", async (req, res) => {
+  app.get("/api/ports/:id", async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
@@ -341,7 +341,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/port-info/:locode", async (req, res) => {
+  app.get("/api/port-info/:locode", async (req: any, res) => {
     try {
       const locode = req.params.locode.toUpperCase();
       const dbPort = await storage.getPortByCode(locode);
@@ -469,7 +469,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/vessels/lookup", isAuthenticated, async (req, res) => {
+  app.get("/api/vessels/lookup", isAuthenticated, async (req: any, res) => {
     const imo = (req.query.imo as string || "").replace(/\D/g, "");
     if (!imo || imo.length < 5) {
       return res.status(400).json({ message: "Please enter a valid IMO number (5–7 digits)" });
@@ -1810,7 +1810,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/agent-stats/:companyProfileId", async (req, res) => {
+  app.get("/api/agent-stats/:companyProfileId", async (req: any, res) => {
     try {
       const companyProfileId = parseInt(req.params.companyProfileId);
       const profile = await storage.getCompanyProfile(companyProfileId);
@@ -1839,7 +1839,7 @@ export async function registerRoutes(
 
   // ─── TRUST SCORE ──────────────────────────────────────────────────────────
 
-  app.get("/api/trust-score/:userId", async (req, res) => {
+  app.get("/api/trust-score/:userId", async (req: any, res) => {
     try {
       const { userId } = req.params;
       const allVoyages = await storage.getVoyagesByUser(userId);
@@ -1939,7 +1939,7 @@ export async function registerRoutes(
 
   // ─── ENDORSEMENTS ─────────────────────────────────────────────────────────
 
-  app.get("/api/endorsements/:companyProfileId", async (req, res) => {
+  app.get("/api/endorsements/:companyProfileId", async (req: any, res) => {
     try {
       const id = parseInt(req.params.companyProfileId);
       const list = await storage.getEndorsements(id);
@@ -2082,7 +2082,7 @@ export async function registerRoutes(
       const name = req.query.name as string;
       const imo = req.query.imo as string | undefined;
       if (!name) return res.status(400).json({ message: "name is required" });
-      const result = checkSanctions(name, imo);
+      const result = checkSanctions(name);
       res.json(result);
     } catch (error) {
       res.status(500).json({ message: "Failed to check sanctions" });
@@ -2098,7 +2098,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/service-ports", async (req, res) => {
+  app.get("/api/service-ports", async (req: any, res) => {
     const cached = cache.get("service-ports");
     if (cached) return res.json(cached);
     try {
@@ -2142,7 +2142,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/directory", async (req, res) => {
+  app.get("/api/directory", async (req: any, res) => {
     try {
       const companyType = req.query.type as string | undefined;
       const portId = req.query.portId ? parseInt(req.query.portId as string) : undefined;
@@ -2178,7 +2178,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/directory/featured", async (req, res) => {
+  app.get("/api/directory/featured", async (req: any, res) => {
     try {
       const profiles = await storage.getFeaturedCompanyProfiles();
       res.json(profiles);
@@ -2187,7 +2187,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/directory/:id", async (req, res) => {
+  app.get("/api/directory/:id", async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       const profile = await storage.getCompanyProfile(id);
@@ -2198,7 +2198,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/reviews/:companyProfileId", async (req, res) => {
+  app.get("/api/reviews/:companyProfileId", async (req: any, res) => {
     try {
       const companyProfileId = parseInt(req.params.companyProfileId);
       const reviews = await storage.getReviewsByCompany(companyProfileId);
@@ -2320,7 +2320,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/contact", async (req, res) => {
+  app.post("/api/contact", async (req: any, res) => {
     const { name, email, subject, message } = req.body || {};
     if (!name || !email || !subject || !message) {
       return res.status(400).json({ ok: false, error: "All fields are required" });
@@ -2333,7 +2333,7 @@ export async function registerRoutes(
   });
 
   // ── Demo Mode Routes ─────────────────────────────────────────────────────────
-  app.post("/api/demo/start", async (req, res) => {
+  app.post("/api/demo/start", async (req: any, res) => {
     const role: DemoRole = VALID_DEMO_ROLES.includes(req.body?.role) ? req.body.role : "ship_agent";
     const session = createDemoSession(role);
     res.json({
@@ -2344,7 +2344,7 @@ export async function registerRoutes(
     });
   });
 
-  app.post("/api/demo/switch-role", async (req, res) => {
+  app.post("/api/demo/switch-role", async (req: any, res) => {
     const { token, role } = req.body || {};
     if (!token || typeof token !== "string") return res.status(400).json({ error: "token required" });
     if (!VALID_DEMO_ROLES.includes(role)) return res.status(400).json({ error: "invalid role" });
@@ -2353,7 +2353,7 @@ export async function registerRoutes(
     res.json({ token: session.token, role: session.role });
   });
 
-  app.post("/api/demo/reset", async (req, res) => {
+  app.post("/api/demo/reset", async (req: any, res) => {
     const { token } = req.body || {};
     if (!token) return res.status(400).json({ error: "token required" });
     deleteDemoSession(token);
@@ -2361,7 +2361,7 @@ export async function registerRoutes(
     res.json({ token: session.token, role: session.role });
   });
 
-  app.get("/api/demo/status", async (req, res) => {
+  app.get("/api/demo/status", async (req: any, res) => {
     const token = req.headers["x-demo-token"] as string || req.query.token as string;
     if (!token) return res.json({ active: false });
     const session = getDemoSession(token);
@@ -2462,7 +2462,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/forum/topics", async (req, res) => {
+  app.get("/api/forum/topics", async (req: any, res) => {
     try {
       const categoryId = req.query.categoryId ? parseInt(req.query.categoryId as string) : undefined;
       const sort = (req.query.sort as string) || "latest";
@@ -2485,7 +2485,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/forum/topics/:id", async (req, res) => {
+  app.get("/api/forum/topics/:id", async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       const topic = await storage.getForumTopic(id);
@@ -2581,7 +2581,7 @@ export async function registerRoutes(
               if (!allowed) return;
               const preview = content.trim().slice(0, 200) + (content.trim().length > 200 ? "..." : "");
               sendForumReplyEmail({
-                toEmail: topicAuthor.email,
+                toEmail: topicAuthor.email as string,
                 topicTitle: topic.title,
                 topicId,
                 replyAuthor: replierName,
@@ -2747,7 +2747,7 @@ export async function registerRoutes(
             getNotifPref(agentUser.id, "email_on_new_tender").then(allowed => {
               if (!allowed) return;
               sendNewTenderEmail({
-                agentEmail: agentUser.email,
+                agentEmail: agentUser.email as string,
                 agentName: agentUser.firstName || undefined,
                 portName: (port as any)?.name || `Port #${portId}`,
                 vesselName: vesselName || undefined,
@@ -3176,7 +3176,7 @@ export async function registerRoutes(
     res.json(livePositions.length > 0 ? livePositions : MOCK_AIS_DATA);
   });
 
-  app.get("/api/vessel-track/search", isAuthenticated, async (req, res) => {
+  app.get("/api/vessel-track/search", isAuthenticated, async (req: any, res) => {
     const q = (req.query.q as string || "").toLowerCase().trim();
     if (!q) return res.json([]);
     const liveResults = searchVessels(q);
@@ -3287,7 +3287,7 @@ export async function registerRoutes(
 
   // ── VESSEL POSITION HISTORY ────────────────────────────────────────────────
 
-  app.get("/api/vessel-positions/:mmsi/latest", isAuthenticated, async (req, res) => {
+  app.get("/api/vessel-positions/:mmsi/latest", isAuthenticated, async (req: any, res) => {
     try {
       const { mmsi } = req.params;
       const result = await pool.query(
@@ -3300,7 +3300,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/vessel-positions/:mmsi", isAuthenticated, async (req, res) => {
+  app.get("/api/vessel-positions/:mmsi", isAuthenticated, async (req: any, res) => {
     try {
       const { mmsi } = req.params;
       const days = Math.min(parseInt(req.query.days as string) || 7, 30);
@@ -3315,7 +3315,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/vessel-track/history/:mmsi", isAuthenticated, async (req, res) => {
+  app.get("/api/vessel-track/history/:mmsi", isAuthenticated, async (req: any, res) => {
     try {
       const { mmsi } = req.params;
       const days = Math.min(parseInt(req.query.days as string) || 1, 30);
@@ -4149,7 +4149,7 @@ export async function registerRoutes(
               userId: mentionedId,
               type: "mention",
               title: "Sizi etiketledi",
-              message: `${senderUser?.name || "Bir kullanıcı"} mesajda sizi etiketledi`,
+              message: `${[senderUser?.firstName, senderUser?.lastName].filter(Boolean).join(" ") || "Bir kullanıcı"} mesajda sizi etiketledi`,
               link: `/messages/${conversationId}`,
             });
           }
@@ -4162,7 +4162,7 @@ export async function registerRoutes(
         sendMessageBridgeEmail(
           conv.externalEmail,
           conv.externalEmailName || conv.externalEmail,
-          senderUser?.name || "VesselPDA Kullanıcısı",
+          [senderUser?.firstName, senderUser?.lastName].filter(Boolean).join(" ") || "VesselPDA Kullanıcısı",
           content || "",
           fileName || undefined
         ).catch((e: any) => console.error("[bridge] email failed:", e));
@@ -4246,22 +4246,24 @@ export async function registerRoutes(
         userId: agentUserId,
         type: "nomination",
         title: "Yeni Nominasyon",
-        message: `${req.user.name || "Bir armatör"} sizi ${vesselName} gemisi için nomine etti`,
+        message: `Bir armatör sizi ${vesselName} gemisi için nomine etti`,
         link: "/nominations",
       });
 
       // Notify agent (email)
       const agentUser = await storage.getUser(agentUserId);
+      const shipownerUser = await storage.getUser(req.user.claims.sub);
+      const shipownerName = [shipownerUser?.firstName, shipownerUser?.lastName].filter(Boolean).join(" ") || undefined;
       if (agentUser?.email) {
         const enriched = await storage.getNominationById(nom.id);
+        const agentCompanyFull = enriched?.agentCompanyName || [agentUser.firstName, agentUser.lastName].filter(Boolean).join(" ") || agentUserId;
         sendNominationEmail({
           agentEmail: agentUser.email,
-          agentCompanyName: enriched?.agentCompanyName || agentUser.name || agentUserId,
+          agentCompanyName: agentCompanyFull,
           portName: enriched?.portName || `Port #${portId}`,
           vesselName: vesselName,
-          eta: eta ? new Date(eta).toLocaleString("tr-TR") : undefined,
           note: notes || undefined,
-          shipownerName: req.user.name || undefined,
+          shipownerName,
         }).catch(err => console.error("[email] Nomination email failed (non-blocking):", err));
       }
 
@@ -4312,7 +4314,7 @@ export async function registerRoutes(
       if (nominatorUser?.email) {
         sendNominationResponseEmail({
           nominatorEmail: nominatorUser.email,
-          nominatorName: nominatorUser.name || "Sayın Kullanıcı",
+          nominatorName: [nominatorUser.firstName, nominatorUser.lastName].filter(Boolean).join(" ") || "Sayın Kullanıcı",
           agentCompanyName: nom.agentCompanyName || nom.agentName || "Acente",
           status: status as "accepted" | "declined",
           portName: nom.portName || `Port #${nom.portId}`,
@@ -5983,7 +5985,7 @@ export async function registerRoutes(
 
   // ─── PORT ALERTS ─────────────────────────────────────────────────────────────
 
-  app.get("/api/port-alerts", async (req, res) => {
+  app.get("/api/port-alerts", async (req: any, res) => {
     try {
       const portId = req.query.portId ? parseInt(req.query.portId as string) : undefined;
       const portName = req.query.portName as string | undefined;
@@ -6791,7 +6793,7 @@ export async function registerRoutes(
     } catch { res.status(500).json({ message: "Failed" }); }
   });
 
-  app.get("/api/maritime-doc-templates/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/maritime-doc-templates/:id", isAuthenticated, async (req: any, res) => {
     try {
       const { rows } = await pool.query(`SELECT * FROM maritime_doc_templates WHERE id = $1`, [req.params.id]);
       if (!rows[0]) return res.status(404).json({ message: "Template not found" });
@@ -6909,7 +6911,7 @@ export async function registerRoutes(
     } catch { res.status(500).json({ message: "Failed" }); }
   });
 
-  app.get("/api/maritime-docs/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/maritime-docs/:id", isAuthenticated, async (req: any, res) => {
     try {
       const { rows } = await pool.query(`
         SELECT md.*, mdt.name as template_name, mdt.code as template_code, mdt.category as template_category,
@@ -7117,7 +7119,7 @@ export async function registerRoutes(
     } catch { res.status(500).json({ message: "Failed" }); }
   });
 
-  app.patch("/api/reminder-rules/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/reminder-rules/:id", isAuthenticated, async (req: any, res) => {
     try {
       const { isActive, emailEnabled, triggerCondition } = req.body;
       const updates: string[] = [];
@@ -7160,7 +7162,7 @@ export async function registerRoutes(
   });
 
   // GET /api/benchmarks/ports/:portId — detailed breakdown for a port
-  app.get("/api/benchmarks/ports/:portId", async (req, res) => {
+  app.get("/api/benchmarks/ports/:portId", async (req: any, res) => {
     try {
       const portId = parseInt(req.params.portId);
       const { rows } = await pool.query(
@@ -7177,7 +7179,7 @@ export async function registerRoutes(
   });
 
   // GET /api/benchmarks/compare?ports=1,2,3&grt=15000&purpose=loading
-  app.get("/api/benchmarks/compare", async (req, res) => {
+  app.get("/api/benchmarks/compare", async (req: any, res) => {
     try {
       const portIds = ((req.query.ports as string) || "").split(",").map(Number).filter(Boolean);
       if (portIds.length < 1) return res.status(400).json({ message: "At least 1 port required" });
@@ -7205,7 +7207,7 @@ export async function registerRoutes(
   });
 
   // GET /api/benchmarks/estimate?portId=123&grt=15000&purpose=loading
-  app.get("/api/benchmarks/estimate", async (req, res) => {
+  app.get("/api/benchmarks/estimate", async (req: any, res) => {
     try {
       const portId = parseInt(req.query.portId as string);
       if (!portId) return res.status(400).json({ message: "portId required" });
@@ -7249,7 +7251,7 @@ export async function registerRoutes(
     } catch { res.status(500).json({ message: "Failed" }); }
   });
 
-  app.get("/api/maritime-docs/:id/versions", isAuthenticated, async (req, res) => {
+  app.get("/api/maritime-docs/:id/versions", isAuthenticated, async (req: any, res) => {
     try {
       const docId = parseInt(req.params.id);
       const { rows: orig } = await pool.query(`SELECT parent_id, id FROM maritime_documents WHERE id = $1`, [docId]);
@@ -7269,7 +7271,7 @@ export async function registerRoutes(
   // ── EMAIL INBOUND SYSTEM ───────────────────────────────────────────────────
 
   // Webhook — receives inbound emails from email service
-  app.post("/api/email/inbound", async (req, res) => {
+  app.post("/api/email/inbound", async (req: any, res) => {
     try {
       const { from, fromName, to, subject, bodyText, bodyHtml, attachments, secret } = req.body;
       if (process.env.EMAIL_WEBHOOK_SECRET && secret !== process.env.EMAIL_WEBHOOK_SECRET) {
@@ -7302,7 +7304,7 @@ export async function registerRoutes(
   });
 
   // Manual email add for testing
-  app.post("/api/email/inbound/manual", isAuthenticated, async (req, res) => {
+  app.post("/api/email/inbound/manual", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { fromEmail, fromName, subject, bodyText, bodyHtml, attachments, linkedVoyageId } = req.body;
@@ -7331,7 +7333,7 @@ export async function registerRoutes(
   });
 
   // Get inbox emails
-  app.get("/api/email/inbox", isAuthenticated, async (req, res) => {
+  app.get("/api/email/inbox", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const userRow = await pool.query(`SELECT active_organization_id FROM users WHERE id = $1`, [userId]);
@@ -7349,7 +7351,7 @@ export async function registerRoutes(
   });
 
   // Get unread count
-  app.get("/api/email/inbox/count", isAuthenticated, async (req, res) => {
+  app.get("/api/email/inbox/count", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const userRow = await pool.query(`SELECT active_organization_id FROM users WHERE id = $1`, [userId]);
@@ -7363,7 +7365,7 @@ export async function registerRoutes(
   });
 
   // Get single email
-  app.get("/api/email/inbox/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/email/inbox/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { rows } = await pool.query(
@@ -7378,7 +7380,7 @@ export async function registerRoutes(
   });
 
   // Process email
-  app.post("/api/email/inbox/:id/process", isAuthenticated, async (req, res) => {
+  app.post("/api/email/inbox/:id/process", isAuthenticated, async (req: any, res) => {
     try {
       const { action, entityId } = req.body;
       const { markEmailProcessed } = await import("./email-inbound");
@@ -7388,7 +7390,7 @@ export async function registerRoutes(
   });
 
   // Dismiss email
-  app.post("/api/email/inbox/:id/dismiss", isAuthenticated, async (req, res) => {
+  app.post("/api/email/inbox/:id/dismiss", isAuthenticated, async (req: any, res) => {
     try {
       await pool.query(`UPDATE inbound_emails SET is_processed = TRUE, processed_action = 'dismissed' WHERE id = $1`, [req.params.id]);
       res.json({ success: true });
@@ -7396,7 +7398,7 @@ export async function registerRoutes(
   });
 
   // Delete email
-  app.delete("/api/email/inbox/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/email/inbox/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       await pool.query(`DELETE FROM inbound_emails WHERE id = $1 AND user_id = $2`, [req.params.id, userId]);
@@ -7405,7 +7407,7 @@ export async function registerRoutes(
   });
 
   // Link email to voyage
-  app.patch("/api/email/inbox/:id/link-voyage", isAuthenticated, async (req, res) => {
+  app.patch("/api/email/inbox/:id/link-voyage", isAuthenticated, async (req: any, res) => {
     try {
       const { voyageId } = req.body;
       await pool.query(`UPDATE inbound_emails SET linked_voyage_id = $1 WHERE id = $2`, [voyageId || null, req.params.id]);
@@ -7414,7 +7416,7 @@ export async function registerRoutes(
   });
 
   // Get forwarding rules
-  app.get("/api/email/forwarding-rules", isAuthenticated, async (req, res) => {
+  app.get("/api/email/forwarding-rules", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { rows } = await pool.query(
@@ -7428,7 +7430,7 @@ export async function registerRoutes(
   });
 
   // Create forwarding rule
-  app.post("/api/email/forwarding-rules", isAuthenticated, async (req, res) => {
+  app.post("/api/email/forwarding-rules", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { ruleType, linkedVoyageId } = req.body;
@@ -7453,7 +7455,7 @@ export async function registerRoutes(
   });
 
   // Delete forwarding rule
-  app.delete("/api/email/forwarding-rules/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/email/forwarding-rules/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       await pool.query(`DELETE FROM email_forwarding_rules WHERE id = $1 AND user_id = $2`, [req.params.id, userId]);
@@ -7462,7 +7464,7 @@ export async function registerRoutes(
   });
 
   // Get emails for a voyage
-  app.get("/api/voyages/:id/emails", isAuthenticated, async (req, res) => {
+  app.get("/api/voyages/:id/emails", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { rows } = await pool.query(
@@ -7477,7 +7479,7 @@ export async function registerRoutes(
   });
 
   // Push notification subscription (infrastructure)
-  app.post("/api/push/subscribe", isAuthenticated, async (req, res) => {
+  app.post("/api/push/subscribe", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { endpoint, keys } = req.body;
@@ -7518,7 +7520,7 @@ ${pages.map(p => `  <url>
     res.send(xml);
   });
 
-  app.delete("/api/push/subscribe", isAuthenticated, async (req, res) => {
+  app.delete("/api/push/subscribe", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { endpoint } = req.body;
@@ -7529,7 +7531,7 @@ ${pages.map(p => `  <url>
 
   // ── Compliance Management ──────────────────────────────────────────────────
 
-  app.get("/api/compliance/checklists", isAuthenticated, async (req, res) => {
+  app.get("/api/compliance/checklists", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { vesselId, standard } = req.query;
@@ -7545,7 +7547,7 @@ ${pages.map(p => `  <url>
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post("/api/compliance/checklists", isAuthenticated, async (req, res) => {
+  app.post("/api/compliance/checklists", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { vesselId, organizationId, standardCode, version, notes, nextAuditDate } = req.body;
@@ -7570,7 +7572,7 @@ ${pages.map(p => `  <url>
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get("/api/compliance/checklists/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/compliance/checklists/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { rows: [cl] } = await pool.query(
@@ -7588,7 +7590,7 @@ ${pages.map(p => `  <url>
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.patch("/api/compliance/checklists/:id", isAuthenticated, async (req, res) => {
+  app.patch("/api/compliance/checklists/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { status, notes, nextAuditDate, lastAuditDate, auditorName } = req.body;
@@ -7603,7 +7605,7 @@ ${pages.map(p => `  <url>
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get("/api/compliance/checklists/:id/items", isAuthenticated, async (req, res) => {
+  app.get("/api/compliance/checklists/:id/items", isAuthenticated, async (req: any, res) => {
     try {
       const { rows } = await pool.query(
         `SELECT * FROM compliance_items WHERE checklist_id = $1 ORDER BY section_number, id`,
@@ -7613,7 +7615,7 @@ ${pages.map(p => `  <url>
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.patch("/api/compliance/items/:itemId", isAuthenticated, async (req, res) => {
+  app.patch("/api/compliance/items/:itemId", isAuthenticated, async (req: any, res) => {
     try {
       const { isCompliant, evidence, evidenceFileUrl, responsiblePerson, dueDate, findingType,
               correctiveAction, correctiveActionDueDate, correctiveActionStatus, notes } = req.body;
@@ -7655,7 +7657,7 @@ ${pages.map(p => `  <url>
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post("/api/compliance/checklists/:id/audits", isAuthenticated, async (req, res) => {
+  app.post("/api/compliance/checklists/:id/audits", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { auditType, auditorName, auditorOrganization, auditDate, findings, overallResult, reportFileUrl, nextAuditDate, notes } = req.body;
@@ -7676,7 +7678,7 @@ ${pages.map(p => `  <url>
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get("/api/compliance/checklists/:id/audits", isAuthenticated, async (req, res) => {
+  app.get("/api/compliance/checklists/:id/audits", isAuthenticated, async (req: any, res) => {
     try {
       const { rows } = await pool.query(
         `SELECT * FROM compliance_audits WHERE checklist_id = $1 ORDER BY audit_date DESC`,
@@ -7686,7 +7688,7 @@ ${pages.map(p => `  <url>
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get("/api/compliance/dashboard", isAuthenticated, async (req, res) => {
+  app.get("/api/compliance/dashboard", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { rows: checklists } = await pool.query(
@@ -7720,7 +7722,7 @@ ${pages.map(p => `  <url>
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get("/api/compliance/vessels/:vesselId/status", isAuthenticated, async (req, res) => {
+  app.get("/api/compliance/vessels/:vesselId/status", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { rows } = await pool.query(
@@ -7733,7 +7735,7 @@ ${pages.map(p => `  <url>
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get("/api/compliance/expiring", isAuthenticated, async (req, res) => {
+  app.get("/api/compliance/expiring", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { rows } = await pool.query(
@@ -7750,7 +7752,7 @@ ${pages.map(p => `  <url>
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.delete("/api/compliance/checklists/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/compliance/checklists/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       await pool.query(`DELETE FROM compliance_checklists WHERE id = $1 AND user_id = $2`, [req.params.id, userId]);

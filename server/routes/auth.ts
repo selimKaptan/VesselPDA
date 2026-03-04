@@ -9,7 +9,7 @@ const logoStorage = multer.diskStorage({
   destination: (_req: any, _file: any, cb: any) => cb(null, uploadsDir),
   filename: (_req: any, file: any, cb: any) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const uniqueName = \`logo_\${Date.now()}_\${Math.random().toString(36).slice(2, 8)}\${ext}\`;
+    const uniqueName = `logo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
     cb(null, uniqueName);
   },
 });

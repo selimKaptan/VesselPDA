@@ -8,6 +8,22 @@ import { db, pool } from "../db";
 import { sql as drizzleSql } from "drizzle-orm";
 import { logAction, getClientIp } from "../audit";
 
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed + 1) * 10000;
+  return x - Math.floor(x);
+}
+
+const MOCK_AIS_DATA = [
+  { name: "BARBAROS", mmsi: "271001234", lat: 41.02, lng: 28.95, destination: "ISTANBUL", eta: "2026-03-10 08:00" },
+  { name: "MARMARA SEA", mmsi: "271002345", lat: 40.98, lng: 29.01, destination: "HAYDARPASA", eta: "2026-03-10 10:00" },
+  { name: "BOSPHORUS STAR", mmsi: "271003456", lat: 41.05, lng: 28.98, destination: "AMBARLΙ", eta: "2026-03-10 12:00" },
+  { name: "IZMIR TRADER", mmsi: "271004567", lat: 38.42, lng: 27.14, destination: "IZMIR", eta: "2026-03-11 06:00" },
+  { name: "MERSIN QUEEN", mmsi: "271005678", lat: 36.80, lng: 34.64, destination: "MERSIN", eta: "2026-03-11 14:00" },
+  { name: "TRABZON STAR", mmsi: "271006789", lat: 41.00, lng: 39.73, destination: "TRABZON", eta: "2026-03-12 09:00" },
+  { name: "AEGEAN WIND", mmsi: "271007890", lat: 37.04, lng: 27.43, destination: "BODRUM", eta: "2026-03-10 16:00" },
+  { name: "BLACK SEA", mmsi: "271008901", lat: 41.65, lng: 32.33, destination: "ZONGULDAK", eta: "2026-03-11 18:00" },
+];
+
 async function isAdmin(req: any): Promise<boolean> {
   const userId = req.user?.claims?.sub;
   if (!userId) return false;

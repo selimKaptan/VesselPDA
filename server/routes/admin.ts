@@ -4,11 +4,13 @@ import { config } from "../config";
 import { parsePaginationParams, paginateArray, buildPaginationMeta } from "../utils/pagination";
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
+import { authStorage } from "../replit_integrations/auth/storage";
 import { storage } from "../storage";
 import { db, pool } from "../db";
 import { sql as drizzleSql } from "drizzle-orm";
 import { logAction, getClientIp } from "../audit";
 import { cache } from "../cache";
+import { handleAiChat } from "../anthropic";
 
 async function isAdmin(req: any): Promise<boolean> {
   const userId = req.user?.claims?.sub;
@@ -1404,8 +1406,8 @@ router.get("/admin/stats/overview", isAuthenticated, async (req: any, res) => {
 router.post("/admin/exchange-rates/refresh", isAuthenticated, async (req: any, res) => {
   try {
     if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
-    const { refreshExchangeRates } = await import("../exchange-rates");
-    await refreshExchangeRates();
+    const { getOrFetchRates } = await import("../exchange-rates");
+    await getOrFetchRates(true);
     res.json({ success: true, message: "Exchange rates refreshed" });
   } catch (error) {
     console.error("[admin/exchange-rates/refresh]", error);
@@ -1416,8 +1418,8 @@ router.post("/admin/exchange-rates/refresh", isAuthenticated, async (req: any, r
 router.post("/admin/benchmarks/recalculate", isAuthenticated, async (req: any, res) => {
   try {
     if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
-    const { recalculateBenchmarks } = await import("../benchmarks");
-    await recalculateBenchmarks();
+    const { calculateBenchmarks } = await import("../benchmark-calculator");
+    await calculateBenchmarks();
     res.json({ success: true, message: "Benchmarks recalculated" });
   } catch (error) {
     console.error("[admin/benchmarks/recalculate]", error);
@@ -1446,8 +1448,5 @@ router.delete("/admin/demo-sessions/cleanup", isAuthenticated, async (req: any, 
     res.status(500).json({ message: "Failed to cleanup demo sessions" });
   }
 });
-
-return httpServer;
-}
 
 export default router;
