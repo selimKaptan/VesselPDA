@@ -10,7 +10,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, Menu, LayoutDashboard, Ship, Anchor, FileText, Building2, Gavel, MessageSquare, MessageCircle, Navigation, MapPin, Star, Users, Settings as SettingsIcon, Crown, LogOut, Wrench } from "lucide-react";
+import { Moon, Sun, Menu, LayoutDashboard, Ship, Anchor, FileText, Building2, Gavel, MessageSquare, MessageCircle, Navigation, MapPin, Users, Settings as SettingsIcon, Crown, LogOut, Wrench, Handshake, Receipt, TrendingUp, Fuel, ShieldCheck, Scale, Mail, UserCheck, Package } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import RoleSelection from "@/pages/role-selection";
@@ -106,18 +106,98 @@ function MobileNavLink({ href, icon: Icon, label, onClick }: { href: string; ico
 function MobileNav({ user }: { user: any }) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
-  const role = user?.activeRole || user?.userRole;
-  const isAdmin = user?.userRole === "admin";
+  const userRole: string = user?.userRole || "shipowner";
+  const activeRole: string = user?.activeRole || userRole;
+  const isAdmin = userRole === "admin";
+  const role = isAdmin ? activeRole : userRole;
   const plan = user?.subscriptionPlan || "free";
   const initials = user
     ? `${(user.firstName || "")[0] || ""}${(user.lastName || "")[0] || ""}`.toUpperCase() || "U"
     : "U";
 
+  const ROLE_BADGE_COLORS: Record<string, string> = {
+    ship_agent:    "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    shipowner:     "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+    ship_broker:   "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+    ship_provider: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+    admin:         "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  };
+  const ROLE_LABELS: Record<string, string> = {
+    ship_agent: "Agent", shipowner: "Owner", ship_broker: "Broker",
+    ship_provider: "Provider", admin: "Admin",
+  };
   const PLAN_COLORS: Record<string, string> = {
     free: "bg-muted text-muted-foreground",
     standard: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
     unlimited: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
   };
+
+  type MobileLink = { href: string; icon: any; label: string };
+
+  const agentLinks: MobileLink[] = [
+    { href: "/",               icon: LayoutDashboard, label: "Dashboard" },
+    { href: "/voyages",        icon: Navigation,      label: "Voyages" },
+    { href: "/proformas",      icon: FileText,        label: "Proformas" },
+    { href: "/messages",       icon: MessageSquare,   label: "Messages" },
+    { href: "/tenders",        icon: Gavel,           label: "Tenders" },
+    { href: "/vessels",        icon: Ship,            label: "Vessels" },
+    { href: "/vessel-track",   icon: MapPin,          label: "Vessel Track" },
+    { href: "/nominations",    icon: UserCheck,       label: "Nominations" },
+    { href: "/final-da",       icon: Scale,           label: "Final DA" },
+    { href: "/compliance",     icon: ShieldCheck,     label: "Compliance" },
+    { href: "/email-inbox",    icon: Mail,            label: "Email Inbox" },
+    { href: "/forum",          icon: MessageSquare,   label: "Forum" },
+    { href: "/directory",      icon: Building2,       label: "Directory" },
+  ];
+  const shipownerLinks: MobileLink[] = [
+    { href: "/",                   icon: LayoutDashboard, label: "Dashboard" },
+    { href: "/vessels",            icon: Ship,            label: "My Fleet" },
+    { href: "/voyages",            icon: Navigation,      label: "Voyages" },
+    { href: "/bunker-management",  icon: Fuel,            label: "Bunker" },
+    { href: "/proformas",          icon: FileText,        label: "Proformas" },
+    { href: "/fixtures",           icon: Handshake,       label: "Fixtures" },
+    { href: "/market-data",        icon: TrendingUp,      label: "Market Data" },
+    { href: "/compliance",         icon: ShieldCheck,     label: "Compliance" },
+    { href: "/messages",           icon: MessageSquare,   label: "Messages" },
+    { href: "/email-inbox",        icon: Mail,            label: "Email Inbox" },
+    { href: "/cargo-positions",    icon: Package,         label: "Cargo" },
+    { href: "/forum",              icon: MessageSquare,   label: "Forum" },
+    { href: "/directory",          icon: Building2,       label: "Directory" },
+  ];
+  const brokerLinks: MobileLink[] = [
+    { href: "/",                  icon: LayoutDashboard, label: "Dashboard" },
+    { href: "/vessels",           icon: Ship,            label: "Fleet" },
+    { href: "/fixtures",          icon: Handshake,       label: "Fixtures" },
+    { href: "/market-data",       icon: TrendingUp,      label: "Market" },
+    { href: "/cargo-positions",   icon: Package,         label: "Cargo" },
+    { href: "/voyages",           icon: Navigation,      label: "Voyages" },
+    { href: "/proformas",         icon: FileText,        label: "Proformas" },
+    { href: "/messages",          icon: MessageSquare,   label: "Messages" },
+    { href: "/tenders",           icon: Gavel,           label: "Tenders" },
+    { href: "/email-inbox",       icon: Mail,            label: "Email Inbox" },
+    { href: "/forum",             icon: MessageSquare,   label: "Forum" },
+    { href: "/directory",         icon: Building2,       label: "Directory" },
+  ];
+  const providerLinks: MobileLink[] = [
+    { href: "/",                  icon: LayoutDashboard, label: "Dashboard" },
+    { href: "/service-requests",  icon: Wrench,          label: "Requests" },
+    { href: "/tenders",           icon: Gavel,           label: "Tenders" },
+    { href: "/invoices",          icon: Receipt,         label: "Invoices" },
+    { href: "/messages",          icon: MessageSquare,   label: "Messages" },
+    { href: "/forum",             icon: MessageSquare,   label: "Forum" },
+    { href: "/directory",         icon: Building2,       label: "Directory" },
+  ];
+
+  const linkSets: Record<string, MobileLink[]> = {
+    ship_agent: agentLinks,
+    shipowner: shipownerLinks,
+    ship_broker: brokerLinks,
+    ship_provider: providerLinks,
+  };
+
+  const navLinks = isAdmin
+    ? [...agentLinks, { href: "/admin", icon: Users, label: "Admin Panel" }]
+    : (linkSets[role] || agentLinks);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -128,7 +208,6 @@ function MobileNav({ user }: { user: any }) {
       </SheetTrigger>
       <SheetContent side="left" className="w-72 p-0">
         <div className="flex flex-col h-full">
-          {/* Header */}
           <div className="px-4 py-4 border-b flex items-center gap-3">
             <img src="/logo-v2.png" alt="VesselPDA" className="w-8 h-8 rounded-md object-contain" />
             <div>
@@ -136,45 +215,14 @@ function MobileNav({ user }: { user: any }) {
               <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Maritime Platform</div>
             </div>
           </div>
-
-          {/* Nav links */}
           <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
-            <MobileNavLink href="/" icon={LayoutDashboard} label="Dashboard" onClick={close} />
-            {(role === "shipowner" || role === "agent" || isAdmin) && (
-              <MobileNavLink href="/vessels" icon={Ship} label="My Vessels" onClick={close} />
-            )}
-            {role !== "provider" && (
-              <MobileNavLink href="/proformas" icon={FileText} label="Proformas" onClick={close} />
-            )}
-            {role !== "provider" && (
-              <MobileNavLink href="/tenders" icon={Gavel} label="Tenders" onClick={close} />
-            )}
-            {role !== "provider" && (
-              <MobileNavLink href="/vessel-track" icon={Navigation} label="Vessel Track" onClick={close} />
-            )}
-            <MobileNavLink href="/port-info" icon={MapPin} label="Port Info" onClick={close} />
-            <MobileNavLink href="/service-ports" icon={Anchor} label="Service Ports" onClick={close} />
-            <MobileNavLink href="/directory" icon={Building2} label="Directory" onClick={close} />
-            <MobileNavLink href="/forum" icon={MessageSquare} label="Forum" onClick={close} />
-            <MobileNavLink href="/team-chat" icon={MessageCircle} label="Team Chat" onClick={close} />
-            {(role === "shipowner" || role === "agent" || isAdmin) && (
-              <MobileNavLink href="/voyages" icon={Ship} label="Seferler" onClick={close} />
-            )}
-            <MobileNavLink href="/service-requests" icon={Wrench} label="Hizmet Talepleri" onClick={close} />
-            {isAdmin && <MobileNavLink href="/admin" icon={Users} label="Admin Panel" onClick={close} />}
-
-            {/* Divider */}
-            <div className="pt-1 pb-0.5 px-4">
-              <div className="h-px bg-border" />
-            </div>
-
-            {/* Account section */}
+            {navLinks.map((link) => (
+              <MobileNavLink key={link.href + link.label} href={link.href} icon={link.icon} label={link.label} onClick={close} />
+            ))}
+            <div className="pt-1 pb-0.5 px-4"><div className="h-px bg-border" /></div>
             <MobileNavLink href="/settings" icon={SettingsIcon} label="Settings" onClick={close} />
-            <MobileNavLink href="/company-profile" icon={Star} label="Company Profile" onClick={close} />
-            <MobileNavLink href="/pricing" icon={Crown} label="Pricing" onClick={close} />
+            <MobileNavLink href="/pricing"  icon={Crown}        label="Pricing"  onClick={close} />
           </nav>
-
-          {/* Footer — user info + logout */}
           <div className="border-t p-3 flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold flex-shrink-0">
               {initials}
@@ -183,12 +231,10 @@ function MobileNav({ user }: { user: any }) {
               <p className="text-sm font-semibold truncate">
                 {user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "User"}
               </p>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                {isAdmin && (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 uppercase">
-                    Admin
-                  </span>
-                )}
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase ${ROLE_BADGE_COLORS[userRole] || ROLE_BADGE_COLORS.shipowner}`}>
+                  {ROLE_LABELS[userRole] || userRole}
+                </span>
                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase ${PLAN_COLORS[plan] || PLAN_COLORS.free}`}>
                   {plan}
                 </span>

@@ -14,7 +14,7 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
 - **Backend**: Express.js with PostgreSQL (Drizzle ORM for general data, raw SQL for specific modules like audit logs, tariff management, and organization data).
 - **Authentication**: Custom email/password authentication with session-based management and `bcryptjs`.
 - **Core Features**:
-    - **User & Role Management**: Role-based access (Admin, Shipowner/Broker, Ship Agent, Service Provider).
+    - **User & Role Management**: Role-based access with 5 distinct roles: `ship_agent`, `shipowner`, `ship_broker`, `ship_provider`, `admin`. Each role has a dedicated sidebar with role-specific navigation groups and a colored role badge. Admin can switch "View As" any role. `useAuth()` exposes `role`, `userRole`, `isAdmin`, `hasPermission(module)`, `canAccess(route)` helpers. Register page has a 2-step flow (role selection cards → form). Mobile nav is also role-specific.
     - **Vessel & Port Management**: CRUD for vessels and Turkish port data, including LOCODE lookup.
     - **Proforma Generation**: Formula-based calculation engine, PDF export, quick estimates, IMO lookup, hazardous cargo calculations.
     - **Company Profiles & Directory**: Customizable profiles, searchable directory, and a Trust & Verification System.

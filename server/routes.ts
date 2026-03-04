@@ -1011,8 +1011,8 @@ export async function registerRoutes(
     try {
       const userId = req.user.claims.sub;
       const { role } = req.body;
-      if (!["shipowner", "agent", "provider", "admin"].includes(role)) {
-        return res.status(400).json({ message: "Invalid role. Choose: shipowner, agent, or provider" });
+      if (!["ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"].includes(role)) {
+        return res.status(400).json({ message: "Invalid role. Choose: ship_agent, shipowner, ship_broker, or ship_provider" });
       }
       const user = await storage.getUser(userId);
       if (user && user.roleConfirmed) {
@@ -1048,8 +1048,8 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Admin access required" });
       }
       const { activeRole } = req.body;
-      if (!["shipowner", "agent", "provider", "admin"].includes(activeRole)) {
-        return res.status(400).json({ message: "Invalid role. Choose: shipowner, agent, provider, or admin" });
+      if (!["ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"].includes(activeRole)) {
+        return res.status(400).json({ message: "Invalid role. Choose: ship_agent, shipowner, ship_broker, ship_provider, or admin" });
       }
       const updated = await storage.updateActiveRole(userId, activeRole);
       res.json(updated);
