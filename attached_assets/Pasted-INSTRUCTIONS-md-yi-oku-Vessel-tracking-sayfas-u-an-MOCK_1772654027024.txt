@@ -1,0 +1,130 @@
+INSTRUCTIONS.md'yi oku. Vessel tracking sayfası şu an MOCK_AIS_DATA kullanıyor (15 sabit gemi). AIS Stream WebSocket bağlantısı hazır ama düzgün çalışmıyor.
+
+server/ais-stream.ts dosyasını kontrol et ve düzelt:
+
+1. AIS Stream WebSocket bağlantısını güçlendir:
+
+   - Bağlantı koptuğunda otomatik reconnect ekle (5 saniye bekle, tekrar bağlan)
+   - Max 5 reconnect denemesi, sonra mock data'ya fallback
+   - Connection timeout: 10 saniye içinde bağlanmazsa mock'a düş
+   
+   let reconnectAttempts = 0;
+   const MAX_RECONNECT = 5;
+   
+   function connect() {
+     if (!process.env.AIS_STREAM_API_KEY) {
+       console.log('AIS: No API key, using mock data');
+       useMockData();
+       return;
+     }
+     
+     const ws = new WebSocket('wss://stream.aisstream.io/v0/stream');
+     
+     ws.on('open', () => {
+       console.log('AIS: Connected');
+       reconnectAttempts = 0;
+       // Subscribe mesajı gönder
+       ws.send(JSON.stringify({
+         APIKey: process.env.AIS_STREAM_API_KEY,
+         BoundingBoxes: [[[-90, -180], [90, 180]]], // Global
+         FilterMessageTypes: ["PositionReport", "ShipStaticData"]
+       }));
+     });
+     
+     ws.on('message', (data) => {
+       try {
+         const msg = JSON.parse(data.toString());
+         // Position update → cache'e kaydet
+         if (msg.MessageType === 'PositionReport') {
+           const pos = msg.Message?.PositionReport;
+           if (pos) {
+             updatePosition({
+               mmsi: msg.MetaData?.MMSI?.toString(),
+               name: msg.MetaData?.ShipName?.trim(),
+               latitude: pos.Latitude,
+               longitude: pos.Longitude,
+               speed: pos.Sog,
+               course: pos.Cog,
+               heading: pos.TrueHeading,
+               timestamp: new Date(),
+             });
+           }
+         }
+       } catch (e) {
+         console.error('AIS parse error:', e);
+       }
+     });
+     
+     ws.on('error', (err) => {
+       console.error('AIS WebSocket error:', err.message);
+     });
+     
+     ws.on('close', () => {
+       console.log('AIS: Disconnected');
+       if (reconnectAttempts < MAX_RECONNECT) {
+         reconnectAttempts++;
+         console.log(`AIS: Reconnecting (${reconnectAttempts}/${MAX_RECONNECT})...`);
+         setTimeout(connect, 5000);
+       } else {
+         console.log('AIS: Max reconnects reached, falling back to mock data');
+         useMockData();
+       }
+     });
+   }
+
+2. Mock data fallback'i iyileştir:
+   
+   function useMockData() {
+     // Mevcut MOCK_AIS_DATA'yı kullan ama pozisyonları hafif random değiştir
+     // Bu sayede haritada hareket simülasyonu olur
+     setInterval(() => {
+       MOCK_AIS_DATA.forEach(vessel => {
+         updatePosition({
+           ...vessel,
+           latitude: vessel.latitude + (Math.random() - 0.5) * 0.01,
+           longitude: vessel.longitude + (Math.random() - 0.5) * 0.01,
+           speed: vessel.speed + (Math.random() - 0.5) * 2,
+           timestamp: new Date(),
+         });
+       });
+     }, 30000); // 30 saniyede bir güncelle
+   }
+
+3. Position cache'i in-memory Map ile yönet:
+   
+   const positionCache = new Map<string, VesselPosition>();
+   const CACHE_TTL = 60 * 60 * 1000; // 1 saat
+   
+   function updatePosition(pos: VesselPosition) {
+     positionCache.set(pos.mmsi, { ...pos, timestamp: new Date() });
+   }
+   
+   // Eski pozisyonları temizle (1 saatte bir)
+   setInterval(() => {
+     const now = Date.now();
+     for (const [mmsi, pos] of positionCache) {
+       if (now - new Date(pos.timestamp).getTime() > CACHE_TTL) {
+         positionCache.delete(mmsi);
+       }
+     }
+   }, CACHE_TTL);
+
+4. API endpoint'lerini güncelle (routes.ts'de):
+   
+   GET /api/vessel-track/status → gerçek bağlantı durumunu döndür:
+   { connected: boolean, source: 'live' | 'mock', vesselCount: number, lastUpdate: Date }
+   
+   GET /api/vessel-track/positions → cache'deki tüm pozisyonları döndür
+   GET /api/vessel-track/search?q= → cache'de isim/MMSI ile ara
+
+5. Frontend vessel-track sayfasında bağlantı durumunu göster:
+   - Yeşil badge: "Live AIS Data" (gerçek bağlantı)
+   - Sarı badge: "Demo Mode - Mock Data" (mock kullanırken)
+   - Kırmızı badge: "Disconnected" (hiçbiri çalışmıyorsa)
+
+6. IMPORTANT:
+   - AIS_STREAM_API_KEY yoksa uygulama CRASH ETMEMELI, mock'a düşmeli
+   - WebSocket hatası uygulamayı durdurmaMali
+   - Mevcut vessel-track sayfasının yapısını koru
+   - Mock data'yı silme, fallback olarak kalsın
+   - Console.log ile bağlantı durumunu logla

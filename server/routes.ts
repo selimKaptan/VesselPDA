@@ -18,7 +18,7 @@ import {
 import { z } from "zod";
 import { calculateProforma, type CalculationInput } from "./proforma-calculator";
 import { lookupPilotageFee, lookupTugboatFee, lookupMooringFee, lookupBerthingFee, lookupAgencyFee, lookupMarpolFee, lookupLcbFee, lookupSanitaryDuesFee, lookupChamberFreightShareFee, lookupChamberShippingFee, lookupLightDuesFee, lookupMiscExpenses, lookupSupervisionFee, type VesselCategory } from "./tariff-lookup";
-import { startAISStream, getPositions, searchVessels, isConnected, getCacheSize } from "./ais-stream";
+import { startAISStream, getPositions, searchVessels, isConnected, getDataSource, getCacheSize } from "./ais-stream";
 import { geocodeStats } from "./geocode-ports";
 import { checkSanctions, getSanctionsStatus, loadSanctionsList } from "./sanctions";
 import { db, pool } from "./db";
@@ -3176,10 +3176,8 @@ export async function registerRoutes(
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   }
 
-  // TODO: Replace MOCK_AIS_DATA with real AIS API call when API key is available
-  // Compatible with: MarineTraffic API v2, VesselFinder, AISHub, or any MMSI/position-based AIS provider
-  // Integration point: replace the MOCK_AIS_DATA array + the search filter below
-  // Expected field format per vessel: { mmsi, name, flag, vesselType, lat, lng, heading, speed, destination, eta, status }
+  // Seeded positions used as map placeholders for fleet vessels that have no MMSI.
+  // Real AIS positions (live or mock) are served by ais-stream.ts via getPositions().
   const MOCK_AIS_DATA = [
     { mmsi: "271000001", name: "MV MARMARA STAR", flag: "🇹🇷", vesselType: "Bulk Carrier", lat: 40.9823, lng: 28.6542, heading: 45, speed: 10.2, destination: "ISTANBUL", eta: "2026-02-26T18:00:00Z", status: "underway" },
     { mmsi: "271000002", name: "MV AEGEAN PIONEER", flag: "🇹🇷", vesselType: "General Cargo", lat: 38.4337, lng: 26.7673, heading: 270, speed: 8.5, destination: "IZMIR", eta: "2026-02-26T20:00:00Z", status: "underway" },
@@ -3199,19 +3197,18 @@ export async function registerRoutes(
   ];
 
   app.get("/api/vessel-track/status", isAuthenticated, (_req, res) => {
-    const liveCount = getCacheSize();
-    const live = isConnected() || liveCount > 0;
     res.json({
       connected: isConnected(),
-      vesselCount: live ? liveCount : MOCK_AIS_DATA.length,
-      mode: live ? "live" : "demo",
+      vesselCount: getCacheSize(),
+      source: getDataSource(),
+      mode: getDataSource() === "live" ? "live" : "demo",
     });
   });
 
   app.get("/api/vessel-track/positions", isAuthenticated, async (_req: any, res: any, next: any) => {
     try {
       const livePositions = getPositions();
-      res.json(livePositions.length > 0 ? livePositions : MOCK_AIS_DATA);
+      res.json(livePositions);
     } catch (error) {
       console.error("[vessel-track/positions:GET] failed:", error);
       next(error);
@@ -3223,11 +3220,7 @@ export async function registerRoutes(
       const q = (req.query.q as string || "").toLowerCase().trim();
       if (!q) return res.json([]);
       const liveResults = searchVessels(q);
-      if (liveResults.length > 0) return res.json(liveResults);
-      const results = MOCK_AIS_DATA.filter((v: any) =>
-        v.name.toLowerCase().includes(q) || v.mmsi.includes(q)
-      );
-      res.json(results);
+      res.json(liveResults);
     } catch (error) {
       console.error("[vessel-track/search:GET] failed:", error);
       next(error);
