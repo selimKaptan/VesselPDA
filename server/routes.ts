@@ -28,6 +28,7 @@ import { getOrFetchRates, fetchTCMBRates } from "./exchange-rates";
 import { logAction, getClientIp } from "./audit";
 import { requireRole } from "./middleware/role-guard";
 import { registerProformaApprovalRoutes } from "./proforma-approval";
+import { AppError } from "./error-handler";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "logos");
 if (!fs.existsSync(uploadsDir)) {
@@ -194,7 +195,7 @@ export async function registerRoutes(
     return user?.userRole === "admin";
   }
 
-  app.get("/api/vessels", isAuthenticated, async (req: any, res) => {
+  app.get("/api/vessels", isAuthenticated, async (req: any, res: any, next: any) => {
     try {
       const userId = req.user.claims.sub;
       if (await isAdmin(req)) {
@@ -204,11 +205,12 @@ export async function registerRoutes(
       const vessels = await storage.getVesselsByUser(userId);
       res.json(vessels);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch vessels" });
+      console.error("[vessels:GET] fetch failed:", error);
+      next(error);
     }
   });
 
-  app.post("/api/vessels", isAuthenticated, async (req: any, res) => {
+  app.post("/api/vessels", isAuthenticated, async (req: any, res: any, next: any) => {
     try {
       const userId = req.user.claims.sub;
       const vesselParsed = vesselBodySchema.safeParse(req.body);
@@ -228,7 +230,8 @@ export async function registerRoutes(
       });
       res.json(vessel);
     } catch (error) {
-      res.status(500).json({ message: "Failed to create vessel" });
+      console.error("[vessels:POST] create failed:", error);
+      next(error);
     }
   });
 
@@ -265,7 +268,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/ports", async (req, res) => {
+  app.get("/api/ports", async (req: any, res: any, next: any) => {
     try {
       const q = req.query.q as string | undefined;
       const country = req.query.country as string | undefined;
@@ -280,7 +283,8 @@ export async function registerRoutes(
       const portList = await storage.getPorts(100);
       res.json(portList);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch ports" });
+      console.error("[ports:GET] fetch failed:", error);
+      next(error);
     }
   });
 
@@ -488,7 +492,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/proformas", isAuthenticated, async (req: any, res) => {
+  app.get("/api/proformas", isAuthenticated, async (req: any, res: any, next: any) => {
     try {
       const userId = req.user.claims.sub;
       if (await isAdmin(req)) {
@@ -498,7 +502,8 @@ export async function registerRoutes(
       const proformas = await storage.getProformasByUser(userId);
       res.json(proformas);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch proformas" });
+      console.error("[proformas:GET] fetch failed:", error);
+      next(error);
     }
   });
 
@@ -810,7 +815,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/proformas", isAuthenticated, async (req: any, res) => {
+  app.post("/api/proformas", isAuthenticated, async (req: any, res: any, next: any) => {
     try {
       const userId = req.user.claims.sub;
       const proformaParsed = insertProformaSchema.partial().safeParse(req.body);
@@ -862,8 +867,8 @@ export async function registerRoutes(
 
       res.json(proforma);
     } catch (error) {
-      console.error("Create proforma error:", error);
-      res.status(500).json({ message: "Failed to create proforma" });
+      console.error("[proformas:POST] create failed:", error);
+      next(error);
     }
   });
 
@@ -2209,16 +2214,21 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/contact", authLimiter, async (req, res) => {
-    const { name, email, subject, message } = req.body || {};
-    if (!name || !email || !subject || !message) {
-      return res.status(400).json({ ok: false, error: "All fields are required" });
+  app.post("/api/contact", authLimiter, async (req: any, res: any, next: any) => {
+    try {
+      const { name, email, subject, message } = req.body || {};
+      if (!name || !email || !subject || !message) {
+        return res.status(400).json({ ok: false, error: "All fields are required" });
+      }
+      if (typeof email !== "string" || !email.includes("@")) {
+        return res.status(400).json({ ok: false, error: "Invalid email address" });
+      }
+      sendContactEmail({ name: String(name), email: String(email), subject: String(subject), message: String(message) });
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error("[contact:POST] send failed:", error);
+      next(error);
     }
-    if (typeof email !== "string" || !email.includes("@")) {
-      return res.status(400).json({ ok: false, error: "Invalid email address" });
-    }
-    sendContactEmail({ name: String(name), email: String(email), subject: String(subject), message: String(message) });
-    return res.json({ ok: true });
   });
 
   app.get("/api/activity-feed", async (_req, res) => {
@@ -2306,7 +2316,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/forum/topics", async (req, res) => {
+  app.get("/api/forum/topics", async (req: any, res: any, next: any) => {
     try {
       const categoryId = req.query.categoryId ? parseInt(req.query.categoryId as string) : undefined;
       const sort = (req.query.sort as string) || "latest";
@@ -2324,8 +2334,8 @@ export async function registerRoutes(
 
       res.json(topicsWithParticipants);
     } catch (error) {
-      console.error("Forum topics error:", error);
-      res.status(500).json({ message: "Failed to fetch forum topics" });
+      console.error("[forum/topics:GET] fetch failed:", error);
+      next(error);
     }
   });
 
@@ -2344,7 +2354,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/forum/topics", isAuthenticated, async (req: any, res) => {
+  app.post("/api/forum/topics", isAuthenticated, async (req: any, res: any, next: any) => {
     try {
       const userId = req.user.claims.sub;
       const topicParsed = forumTopicBodySchema.safeParse(req.body);
@@ -2373,8 +2383,8 @@ export async function registerRoutes(
 
       res.json(topic);
     } catch (error) {
-      console.error("Create topic error:", error);
-      res.status(500).json({ message: "Failed to create topic" });
+      console.error("[forum/topics:POST] create failed:", error);
+      next(error);
     }
   });
 
@@ -2533,7 +2543,7 @@ export async function registerRoutes(
 
   // ─── TENDER ROUTES ──────────────────────────────────────────────────────────
 
-  app.get("/api/tenders", isAuthenticated, async (req: any, res) => {
+  app.get("/api/tenders", isAuthenticated, async (req: any, res: any, next: any) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -2561,8 +2571,8 @@ export async function registerRoutes(
       const myTenders = await storage.getPortTenders({ userId });
       return res.json({ role: "shipowner", tenders: myTenders });
     } catch (error) {
-      console.error("Get tenders error:", error);
-      res.status(500).json({ message: "Failed to get tenders" });
+      console.error("[tenders:GET] fetch failed:", error);
+      next(error);
     }
   });
 
@@ -3041,20 +3051,30 @@ export async function registerRoutes(
     });
   });
 
-  app.get("/api/vessel-track/positions", isAuthenticated, async (_req, res) => {
-    const livePositions = getPositions();
-    res.json(livePositions.length > 0 ? livePositions : MOCK_AIS_DATA);
+  app.get("/api/vessel-track/positions", isAuthenticated, async (_req: any, res: any, next: any) => {
+    try {
+      const livePositions = getPositions();
+      res.json(livePositions.length > 0 ? livePositions : MOCK_AIS_DATA);
+    } catch (error) {
+      console.error("[vessel-track/positions:GET] failed:", error);
+      next(error);
+    }
   });
 
-  app.get("/api/vessel-track/search", isAuthenticated, async (req, res) => {
-    const q = (req.query.q as string || "").toLowerCase().trim();
-    if (!q) return res.json([]);
-    const liveResults = searchVessels(q);
-    if (liveResults.length > 0) return res.json(liveResults);
-    const results = MOCK_AIS_DATA.filter(v =>
-      v.name.toLowerCase().includes(q) || v.mmsi.includes(q)
-    );
-    res.json(results);
+  app.get("/api/vessel-track/search", isAuthenticated, async (req: any, res: any, next: any) => {
+    try {
+      const q = (req.query.q as string || "").toLowerCase().trim();
+      if (!q) return res.json([]);
+      const liveResults = searchVessels(q);
+      if (liveResults.length > 0) return res.json(liveResults);
+      const results = MOCK_AIS_DATA.filter((v: any) =>
+        v.name.toLowerCase().includes(q) || v.mmsi.includes(q)
+      );
+      res.json(results);
+    } catch (error) {
+      console.error("[vessel-track/search:GET] failed:", error);
+      next(error);
+    }
   });
 
   app.get("/api/vessel-track/watchlist", isAuthenticated, async (req: any, res) => {
@@ -3311,18 +3331,19 @@ export async function registerRoutes(
 
   // ─── VOYAGES ──────────────────────────────────────────────────────────────────
 
-  app.get("/api/voyages", isAuthenticated, async (req: any, res) => {
+  app.get("/api/voyages", isAuthenticated, async (req: any, res: any, next: any) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const role = req.user?.activeRole || req.user?.userRole || "shipowner";
       const voyageList = await storage.getVoyagesByUser(userId, role);
       res.json(voyageList);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch voyages" });
+      console.error("[voyages:GET] fetch failed:", error);
+      next(error);
     }
   });
 
-  app.post("/api/voyages", isAuthenticated, async (req: any, res) => {
+  app.post("/api/voyages", isAuthenticated, async (req: any, res: any, next: any) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const voyageParsed = insertVoyageSchema.partial().safeParse(req.body);
@@ -3334,7 +3355,8 @@ export async function registerRoutes(
       logAction(userId, "create", "voyage", voyage.id, { portId: voyage.portId, vesselName: voyage.vesselName, status: voyage.status }, getClientIp(req));
       res.json(voyage);
     } catch (error) {
-      res.status(500).json({ message: "Failed to create voyage" });
+      console.error("[voyages:POST] create failed:", error);
+      next(error);
     }
   });
 
@@ -5305,6 +5327,33 @@ export async function registerRoutes(
       console.error("Audit log fetch error:", error);
       res.status(500).json({ message: "Failed to fetch audit logs" });
     }
+  });
+
+  // ─── GLOBAL ERROR HANDLER ────────────────────────────────────────────────────
+  app.use((err: any, req: any, res: any, _next: any) => {
+    console.error(`[ERROR] ${req.method} ${req.path}:`, err.message);
+
+    if (err instanceof AppError) {
+      return res.status(err.statusCode).json({
+        error: err.message,
+        ...(process.env.NODE_ENV !== "production" && { stack: err.stack }),
+      });
+    }
+
+    if (err.name === "ZodError") {
+      return res.status(400).json({ error: "Validation failed", details: err.errors });
+    }
+
+    if (err.code === "23505") {
+      return res.status(409).json({ error: "Duplicate entry" });
+    }
+    if (err.code === "23503") {
+      return res.status(400).json({ error: "Referenced record not found" });
+    }
+
+    res.status(500).json({
+      error: process.env.NODE_ENV === "production" ? "Internal server error" : err.message,
+    });
   });
 
   return httpServer;
