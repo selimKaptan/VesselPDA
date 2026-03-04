@@ -61,6 +61,9 @@ import BunkerManagement from "@/pages/bunker-management";
 import MaritimeDocView from "@/pages/maritime-doc-view";
 import PortBenchmarking from "@/pages/port-benchmarking";
 import EmailInbox from "@/pages/email-inbox";
+import DemoPage from "@/pages/demo";
+import { DemoProvider } from "@/contexts/demo-context";
+import { DemoBanner } from "@/components/demo-banner";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -298,20 +301,24 @@ function AuthenticatedLayout() {
 
 function PublicDirectoryPage() {
   return (
-    <Switch>
-      <Route path="/login" component={LoginPage} />
-      <Route path="/register" component={RegisterPage} />
-      <Route path="/verify-email" component={VerifyEmailPage} />
-      <Route path="/forgot-password" component={ForgotPasswordPage} />
-      <Route path="/reset-password" component={ResetPasswordPage} />
-      <Route path="/directory" component={Directory} />
-      <Route path="/directory/:id" component={DirectoryProfile} />
-      <Route path="/service-ports" component={ServicePorts} />
-      <Route path="/forum" component={Forum} />
-      <Route path="/forum/:id" component={ForumTopic} />
-      <Route path="/contact" component={Contact} />
-      <Route><Landing /></Route>
-    </Switch>
+    <>
+      <DemoBanner />
+      <Switch>
+        <Route path="/demo" component={DemoPage} />
+        <Route path="/login" component={LoginPage} />
+        <Route path="/register" component={RegisterPage} />
+        <Route path="/verify-email" component={VerifyEmailPage} />
+        <Route path="/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/reset-password" component={ResetPasswordPage} />
+        <Route path="/directory" component={Directory} />
+        <Route path="/directory/:id" component={DirectoryProfile} />
+        <Route path="/service-ports" component={ServicePorts} />
+        <Route path="/forum" component={Forum} />
+        <Route path="/forum/:id" component={ForumTopic} />
+        <Route path="/contact" component={Contact} />
+        <Route><Landing /></Route>
+      </Switch>
+    </>
   );
 }
 
@@ -345,10 +352,12 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <LanguageProvider>
-          <TooltipProvider>
-            <Toaster />
-            <AppContent />
-          </TooltipProvider>
+          <DemoProvider>
+            <TooltipProvider>
+              <Toaster />
+              <AppContent />
+            </TooltipProvider>
+          </DemoProvider>
         </LanguageProvider>
       </ThemeProvider>
     </QueryClientProvider>

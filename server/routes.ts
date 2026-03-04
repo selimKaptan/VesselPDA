@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { createDemoSession, getDemoSession, updateDemoRole, deleteDemoSession, type DemoRole } from "./demo-session";
 import { authLimiter, generalLimiter, aiLimiter, uploadLimiter, searchLimiter } from "./middleware/rate-limit";
 import { validateBody, validateQuery, validateParams, integerIdParam } from "./middleware/validate";
 import { sanitizeInput, sanitizeFilename } from "./utils/sanitize";
@@ -2329,6 +2330,42 @@ export async function registerRoutes(
     }
     sendContactEmail({ name: String(name), email: String(email), subject: String(subject), message: String(message) });
     return res.json({ ok: true });
+  });
+
+  // ── Demo Mode Routes ─────────────────────────────────────────────────────────
+  app.post("/api/demo/start", async (req, res) => {
+    const role: DemoRole = ["agent", "shipowner", "admin"].includes(req.body?.role) ? req.body.role : "agent";
+    const session = createDemoSession(role);
+    res.json({
+      token: session.token,
+      role: session.role,
+      user: { name: `Demo ${role.charAt(0).toUpperCase() + role.slice(1)}`, role },
+      expiresIn: "24h",
+    });
+  });
+
+  app.post("/api/demo/switch-role", async (req, res) => {
+    const { token, role } = req.body || {};
+    if (!token || typeof token !== "string") return res.status(400).json({ error: "token required" });
+    if (!["agent", "shipowner", "admin"].includes(role)) return res.status(400).json({ error: "invalid role" });
+    const session = updateDemoRole(token, role as DemoRole);
+    if (!session) return res.status(404).json({ error: "demo session not found or expired" });
+    res.json({ token: session.token, role: session.role });
+  });
+
+  app.post("/api/demo/reset", async (req, res) => {
+    const { token } = req.body || {};
+    if (!token) return res.status(400).json({ error: "token required" });
+    deleteDemoSession(token);
+    const session = createDemoSession("agent");
+    res.json({ token: session.token, role: session.role });
+  });
+
+  app.get("/api/demo/status", async (req, res) => {
+    const token = req.headers["x-demo-token"] as string || req.query.token as string;
+    if (!token) return res.json({ active: false });
+    const session = getDemoSession(token);
+    res.json({ active: Boolean(session), role: session?.role || null });
   });
 
   app.get("/api/activity-feed", async (_req, res) => {

@@ -1,0 +1,79 @@
+Ziyaretçilerin kayıt olmadan platformu deneyebildiği demo mod ekle.
+
+Yapılacaklar:
+
+1. server/demo-data.ts oluştur:
+   Demo kullanıcı ve verileri:
+   
+   Demo organizasyon: "Demo Shipping Co."
+   Demo kullanıcılar:
+   - demo-admin (Admin rolü)
+   - demo-agent (Agent rolü)
+   - demo-shipowner (Shipowner rolü)
+   
+   Demo veriler:
+   - 5 gemi (farklı tipler: bulk carrier, tanker, container, general cargo, tug)
+   - 3 liman (Istanbul, Mersin, Izmir)
+   - 2 aktif sefer (multi-port, farklı durumlarda)
+   - 5 proforma (draft, sent, approved)
+   - 1 Final DA (variance raporu ile)
+   - 3 tender (open, closed, awarded)
+   - 10 SOF event
+   - Checklist item'ları
+   - Birkaç doküman
+   - Compliance checklist (ISM, kısmen dolu)
+   - Bunker kayıtları
+   - Birkaç mesaj
+
+2. server/routes'a demo endpoint'leri ekle:
+   POST /api/demo/start — Demo session başlat
+   - Yeni demo session ID oluştur
+   - Demo verileri geçici olarak yükle
+   - Demo token döndür (24 saat geçerli)
+   - Response: { token, user: { name: "Demo User", role: "agent" } }
+
+   POST /api/demo/switch-role — Demo'da rol değiştir
+   - body: { role: "agent" | "shipowner" | "admin" }
+   - Farklı perspektiften görsün
+
+   POST /api/demo/reset — Demo verilerini sıfırla
+
+3. Demo session yönetimi:
+   - Demo kullanıcılar gerçek verilere ERİŞEMEZ
+   - Demo veriler diğer kullanıcıları ETKİLEMEZ
+   - Demo session 24 saat sonra otomatik silinsin
+   - Demo'da yapılan değişiklikler sadece o session'da geçerli
+
+4. client/src/pages/demo.tsx sayfası oluştur:
+   - Demo başlangıç ekranı:
+     "VesselPDA'yı 2 dakikada keşfedin — kayıt gerekmez!"
+     Rol seçimi: "Agent olarak dene" / "Armatör olarak dene" / "Admin olarak dene"
+     Her rol kartında: bu rolün göreceği özellikler listesi
+   
+   - Tıklayınca demo session başlat ve dashboard'a yönlendir
+
+5. Demo modda UI farklılıkları:
+   - Üst kısımda sabit banner: "🎯 Demo Mod — Gerçek hesap için kayıt olun" + "Kayıt Ol" butonu
+   - Banner kapatılamaz
+   - Demo'da kısıtlı işlemler:
+     - Veri oluşturabilir ama kalıcı değil
+     - Email gönderemez
+     - Dosya yükleyemez (placeholder göster)
+     - Stripe ödeme yapamaz
+
+6. Demo guided tour (opsiyonel ama çok etkili):
+   - İlk girişte adım adım rehber
+   - Step 1: "Bu dashboard'unuz — seferlerinizi ve gemilerinizi buradan görürsünüz"
+   - Step 2: "Vessels sayfasında filonuzu yönetin"
+   - Step 3: "Proforma hesaplayıcı ile anında DA hesaplayın"
+   - Step 4: "Sefer oluşturun ve ekibinizle paylaşın"
+   - Her adımda ilgili elementi highlight et ve açıklama göster
+   - "Atla" ve "Sonraki" butonları
+
+7. Landing page'deki "Watch Demo" butonunu /demo'ya bağla.
+
+8. App.tsx'e /demo route ekle.
+
+9. Demo session cron job: Her gece 02:00'da 24 saatten eski demo session'ları temizle.
+
+Demo veriler gerçekçi olmalı — sahte gemi isimleri: "MV BLUE HORIZON", "MV AEGEAN STAR", "MT BOSPHORUS", "MV ANATOLIAN PRIDE", "TUG MARMARA". Sahte liman verileri Türk limanları olsun.

@@ -4,6 +4,7 @@ import { getPositionByMmsi } from "./ais-stream";
 import { fetchTCMBRates } from "./exchange-rates";
 import { runReminderEngine } from "./reminder-engine";
 import { calculateBenchmarks } from "./benchmark-calculator";
+import { cleanExpiredDemoSessions } from "./demo-session";
 
 // ────────────────────────────────────────────────────────────────────────────
 // a) syncWatchlistPositions — Every 5 minutes
@@ -246,8 +247,12 @@ export function startCronJobs() {
   cron.schedule("0 2 * * 0", cleanOldPositions);
   cron.schedule("0 * * * *", runReminderEngine);
   cron.schedule("0 3 * * 1", calculateBenchmarks);
+  cron.schedule("0 2 * * *", () => {
+    const n = cleanExpiredDemoSessions();
+    if (n > 0) console.log(`[cron] cleanDemoSessions: removed ${n} expired demo session(s).`);
+  });
 
-  console.log("[cron] All 9 scheduled jobs registered:");
+  console.log("[cron] All 10 scheduled jobs registered:");
   console.log("[cron]   */5 * * * *  — syncWatchlistPositions");
   console.log("[cron]   0 8 * * *    — checkExpiringCertificates");
   console.log("[cron]   0 0 * * *    — autoCloseTenders");
@@ -256,4 +261,5 @@ export function startCronJobs() {
   console.log("[cron]   30 12 * * *  — refreshExchangeRates (15:30 TRT)");
   console.log("[cron]   0 2 * * 0    — cleanOldPositions");
   console.log("[cron]   0 * * * *    — runReminderEngine");
+  console.log("[cron]   0 2 * * *    — cleanDemoSessions");
 }
