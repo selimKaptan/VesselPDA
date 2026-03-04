@@ -1,6 +1,16 @@
 import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const Iyzipay = require("iyzipay");
+import { pathToFileURL } from "url";
+
+// import.meta.url is undefined in the esbuild CJS production bundle;
+// fall back to a file URL derived from cwd so createRequire always gets
+// a valid argument in both ESM (dev) and CJS (prod) contexts.
+const _metaUrl: string | undefined = (import.meta as any).url;
+const _req = createRequire(
+  typeof _metaUrl === "string"
+    ? _metaUrl
+    : pathToFileURL(process.cwd() + "/package.json").href
+);
+const Iyzipay = _req("iyzipay");
 
 const IYZICO_CONFIGURED = !!(process.env.IYZICO_API_KEY && process.env.IYZICO_SECRET_KEY);
 
