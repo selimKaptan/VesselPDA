@@ -1,0 +1,94 @@
+Frontend'de her sayfaya rol bazlı erişim kontrolü ekle. Yetkisiz kullanıcı sayfaya giremez.
+
+Yapılacaklar:
+
+1. client/src/lib/route-permissions.ts oluştur:
+
+const routePermissions: Record<string, string[]> = {
+  // Herkes
+  "/dashboard": ["ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"],
+  "/settings": ["ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"],
+  "/messages": ["ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"],
+  "/team-chat": ["ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"],
+  "/forum": ["ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"],
+  "/directory": ["ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"],
+  "/organization": ["ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"],
+  "/reminders": ["ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"],
+  "/reports": ["ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"],
+  "/exchange-rates": ["ship_agent", "shipowner", "ship_broker", "admin"],
+  "/email-inbox": ["ship_agent", "shipowner", "ship_broker", "admin"],
+
+  // Agent sayfaları
+  "/voyages": ["ship_agent", "shipowner", "ship_broker", "admin"],
+  "/proformas": ["ship_agent", "shipowner", "ship_broker", "admin"],
+  "/quick-proforma": ["ship_agent", "shipowner", "ship_broker", "admin"],
+  "/final-da": ["ship_agent", "shipowner", "admin"],
+  "/port-info": ["ship_agent", "shipowner", "ship_broker", "admin"],
+  "/service-requests": ["ship_agent", "shipowner", "ship_provider", "admin"],
+
+  // Owner + Broker sayfaları (broker commercial manager olarak gemi işletir)
+  "/vessels": ["ship_agent", "shipowner", "ship_broker", "admin"],
+  "/vessel-track": ["ship_agent", "shipowner", "ship_broker", "admin"],
+  "/vessel-certificates": ["ship_agent", "shipowner", "ship_broker", "admin"],
+  "/bunker-management": ["shipowner", "ship_broker", "admin"],
+  "/compliance": ["ship_agent", "shipowner", "ship_broker", "admin"],
+  "/fleets": ["shipowner", "ship_broker", "admin"],
+
+  // Kiralama & Piyasa (owner + broker tam erişim, agent görüntüleme)
+  "/fixtures": ["shipowner", "ship_broker", "admin"],
+  "/cargo-positions": ["shipowner", "ship_broker", "admin"],
+  "/tenders": ["ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"],
+  "/nominations": ["ship_agent", "shipowner", "ship_broker", "admin"],
+  "/market-data": ["ship_agent", "shipowner", "ship_broker", "admin"],
+
+  // Provider sayfaları
+  "/service-ports": ["ship_provider", "admin"],
+  "/invoices": ["ship_agent", "shipowner", "ship_provider", "admin"],
+
+  // Ortak ama sınırlı
+  "/sanctions-check": ["ship_agent", "shipowner", "ship_broker", "admin"],
+  "/port-benchmarking": ["ship_agent", "shipowner", "ship_broker", "admin"],
+  "/laytime": ["ship_agent", "shipowner", "ship_broker", "admin"],
+
+  // Admin
+  "/admin": ["admin"],
+};
+
+export function canAccessRoute(role: string, route: string): boolean {
+  if (role === "admin") return true;
+  const allowedRoles = routePermissions[route];
+  if (!allowedRoles) return true; // tanımsız route'lar herkese açık
+  return allowedRoles.includes(role);
+}
+
+2. client/src/components/protected-route.tsx oluştur:
+   - Route render edilmeden önce rol kontrolü yap
+   - Yetkisiz ise /unauthorized sayfasına yönlendir
+   
+   function ProtectedRoute({ children, path }) {
+     const { user } = useAuth();
+     if (!canAccessRoute(user.role, path)) {
+       return <Redirect to="/unauthorized" />;
+     }
+     return children;
+   }
+
+3. client/src/pages/unauthorized.tsx oluştur:
+   - "Bu sayfaya erişim yetkiniz yok"
+   - "Dashboard'a dön" butonu
+   - Hangi rol bu sayfayı görebilir bilgisi
+
+4. App.tsx'te TÜM route'ları ProtectedRoute ile sar:
+   <Route path="/bunker-management">
+     <ProtectedRoute path="/bunker-management">
+       <BunkerManagement />
+     </ProtectedRoute>
+   </Route>
+
+5. Sidebar'daki link'lerde de kontrol yap:
+   - canAccessRoute false dönerse menü öğesini GİZLE (disable değil, tamamen gizle)
+   - Kullanıcı erişemeyeceği sayfaları menüde görmesin
+
+6. API çağrılarında da frontend'de kontrol:
+   - useQuery hook'larında rol kontrolü
+   - Yetkisiz endpoint'e istek atma (gereksiz 403 hataları önle)

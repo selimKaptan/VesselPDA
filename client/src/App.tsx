@@ -1,4 +1,6 @@
-import { Switch, Route, Link, useLocation } from "wouter";
+import { Switch, Route, Link, useLocation, Redirect } from "wouter";
+import { guardRoute } from "@/components/protected-route";
+import UnauthorizedPage from "@/pages/unauthorized";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -257,56 +259,70 @@ function MobileNav({ user }: { user: any }) {
 function AuthenticatedRouter() {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/vessels" component={Vessels} />
-      <Route path="/ports" component={Ports} />
-      <Route path="/proformas" component={Proformas} />
-      <Route path="/proformas/new" component={ProformaNew} />
-      <Route path="/proformas/:id" component={ProformaView} />
-      <Route path="/pricing" component={Pricing} />
-      <Route path="/directory" component={Directory} />
-      <Route path="/directory/:id" component={DirectoryProfile} />
-      <Route path="/service-ports" component={ServicePorts} />
-      <Route path="/company-profile" component={CompanyProfile} />
-      <Route path="/admin" component={AdminPanel} />
-      <Route path="/tariff-management" component={TariffManagement} />
-      <Route path="/forum" component={Forum} />
-      <Route path="/forum/:id" component={ForumTopic} />
-      <Route path="/tenders" component={Tenders} />
-      <Route path="/tenders/:id" component={TenderDetail} />
-      <Route path="/contact" component={Contact} />
-      <Route path="/vessel-track" component={VesselTrack} />
-      <Route path="/port-info" component={PortInfo} />
-      <Route path="/settings" component={Settings} />
-      <Route path="/voyages" component={Voyages} />
-      <Route path="/voyages/:id" component={VoyageDetail} />
-      <Route path="/service-requests" component={ServiceRequests} />
-      <Route path="/service-requests/:id" component={ServiceRequestDetail} />
-      <Route path="/messages" component={Messages} />
-      <Route path="/messages/:id" component={MessageThread} />
-      <Route path="/nominations" component={Nominations} />
-      <Route path="/sanctions-check" component={SanctionsCheck} />
-      <Route path="/vessel-certificates" component={VesselCertificates} />
-      <Route path="/compliance" component={Compliance} />
-      <Route path="/compliance/:checklistId" component={Compliance} />
-      <Route path="/bunker-management" component={BunkerManagement} />
-      <Route path="/maritime-docs/:id" component={MaritimeDocView} />
-      <Route path="/fixtures" component={Fixtures} />
-      <Route path="/cargo-positions" component={CargoPositions} />
-      <Route path="/market-data" component={MarketData} />
-      <Route path="/invoices" component={Invoices} />
-      <Route path="/reports" component={Reports} />
-      <Route path="/organization" component={OrganizationPage} />
-      <Route path="/organization-select" component={OrganizationSelectPage} />
+      {/* Public-to-all authenticated routes */}
+      <Route path="/"                       component={Dashboard} />
+      <Route path="/dashboard"              component={Dashboard} />
+      <Route path="/pricing"                component={Pricing} />
+      <Route path="/directory"              component={Directory} />
+      <Route path="/directory/:id"          component={DirectoryProfile} />
+      <Route path="/company-profile"        component={CompanyProfile} />
+      <Route path="/forum"                  component={Forum} />
+      <Route path="/forum/:id"              component={ForumTopic} />
+      <Route path="/tenders"                component={Tenders} />
+      <Route path="/tenders/:id"            component={TenderDetail} />
+      <Route path="/contact"                component={Contact} />
+      <Route path="/settings"               component={Settings} />
+      <Route path="/messages"               component={Messages} />
+      <Route path="/messages/:id"           component={MessageThread} />
+      <Route path="/organization"           component={OrganizationPage} />
+      <Route path="/organization-select"    component={OrganizationSelectPage} />
       <Route path="/organization/join/:token" component={OrganizationJoinPage} />
       <Route path="/organization-dashboard" component={OrganizationDashboard} />
-      <Route path="/team-chat" component={TeamChat} />
-      <Route path="/final-da" component={FinalDa} />
-      <Route path="/final-da/new" component={FinalDaEdit} />
-      <Route path="/final-da/:id" component={FinalDaEdit} />
-      <Route path="/port-benchmarking" component={PortBenchmarking} />
-      <Route path="/email-inbox" component={EmailInbox} />
+      <Route path="/team-chat"              component={TeamChat} />
+      <Route path="/reports"                component={Reports} />
+      <Route path="/invoices"               component={guardRoute(Invoices, "/invoices")} />
+      <Route path="/ports"                  component={Ports} />
+      <Route path="/maritime-docs/:id"      component={MaritimeDocView} />
+
+      {/* Agent + Owner + Broker + Admin */}
+      <Route path="/vessels"                component={guardRoute(Vessels,           "/vessels")} />
+      <Route path="/voyages"                component={guardRoute(Voyages,           "/voyages")} />
+      <Route path="/voyages/:id"            component={guardRoute(VoyageDetail,      "/voyages")} />
+      <Route path="/proformas"              component={guardRoute(Proformas,         "/proformas")} />
+      <Route path="/proformas/new"          component={guardRoute(ProformaNew,       "/proformas")} />
+      <Route path="/proformas/:id"          component={guardRoute(ProformaView,      "/proformas")} />
+      <Route path="/port-info"              component={guardRoute(PortInfo,          "/port-info")} />
+      <Route path="/vessel-track"           component={guardRoute(VesselTrack,       "/vessel-track")} />
+      <Route path="/vessel-certificates"    component={guardRoute(VesselCertificates,"/vessel-certificates")} />
+      <Route path="/compliance"             component={guardRoute(Compliance,        "/compliance")} />
+      <Route path="/compliance/:checklistId" component={guardRoute(Compliance,       "/compliance")} />
+      <Route path="/nominations"            component={guardRoute(Nominations,       "/nominations")} />
+      <Route path="/sanctions-check"        component={guardRoute(SanctionsCheck,    "/sanctions-check")} />
+      <Route path="/market-data"            component={guardRoute(MarketData,        "/market-data")} />
+      <Route path="/port-benchmarking"      component={guardRoute(PortBenchmarking,  "/port-benchmarking")} />
+      <Route path="/email-inbox"            component={guardRoute(EmailInbox,        "/email-inbox")} />
+      <Route path="/service-requests"       component={guardRoute(ServiceRequests,   "/service-requests")} />
+      <Route path="/service-requests/:id"   component={guardRoute(ServiceRequestDetail, "/service-requests")} />
+
+      {/* Agent + Owner only */}
+      <Route path="/final-da"               component={guardRoute(FinalDa,           "/final-da")} />
+      <Route path="/final-da/new"           component={guardRoute(FinalDaEdit,       "/final-da")} />
+      <Route path="/final-da/:id"           component={guardRoute(FinalDaEdit,       "/final-da")} />
+
+      {/* Owner + Broker + Admin */}
+      <Route path="/bunker-management"      component={guardRoute(BunkerManagement,  "/bunker-management")} />
+      <Route path="/fixtures"               component={guardRoute(Fixtures,          "/fixtures")} />
+      <Route path="/cargo-positions"        component={guardRoute(CargoPositions,    "/cargo-positions")} />
+
+      {/* Provider + Admin */}
+      <Route path="/service-ports"          component={guardRoute(ServicePorts,      "/service-ports")} />
+
+      {/* Admin only */}
+      <Route path="/admin"                  component={guardRoute(AdminPanel,        "/admin")} />
+      <Route path="/tariff-management"      component={guardRoute(TariffManagement,  "/tariff-management")} />
+
+      {/* Utility */}
+      <Route path="/unauthorized"           component={UnauthorizedPage} />
       <Route component={NotFound} />
     </Switch>
   );

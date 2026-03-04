@@ -7,6 +7,7 @@ import {
   BookOpen, AlertTriangle, Database, RefreshCw, FileStack, Activity,
   DollarSign, PieChart, Award, Star,
 } from "lucide-react";
+import { canAccessRoute } from "@/lib/route-permissions";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -336,8 +337,9 @@ function getNavGroups(role: AppRole, isAdmin: boolean, activeRole: AppRole | und
   return agentGroups(badges);
 }
 
-function NavGroupSection({ group, isActive }: { group: NavGroup; isActive: (url: string) => boolean }) {
-  if (group.items.length === 0) return null;
+function NavGroupSection({ group, isActive, effectiveRole }: { group: NavGroup; isActive: (url: string) => boolean; effectiveRole: string }) {
+  const visibleItems = group.items.filter((item) => canAccessRoute(effectiveRole, item.url));
+  if (visibleItems.length === 0) return null;
   return (
     <SidebarGroup>
       <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-widest px-4 py-2 text-sidebar-foreground/40">
@@ -345,7 +347,7 @@ function NavGroupSection({ group, isActive }: { group: NavGroup; isActive: (url:
       </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {group.items.map((item, idx) => {
+          {visibleItems.map((item, idx) => {
             const active = isActive(item.url);
             const hasBadge = (item.badge ?? 0) > 0;
             return (
@@ -526,7 +528,7 @@ export function AppSidebar() {
 
         {/* Nav groups */}
         {navGroups.map((group) => (
-          <NavGroupSection key={group.label} group={group} isActive={isActive} />
+          <NavGroupSection key={group.label} group={group} isActive={isActive} effectiveRole={isAdmin ? "admin" : (role || "shipowner")} />
         ))}
       </SidebarContent>
 
