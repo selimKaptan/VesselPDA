@@ -1,6 +1,8 @@
 import { randomUUID } from "crypto";
 
-export type DemoRole = "agent" | "shipowner" | "admin";
+export type DemoRole = "ship_agent" | "shipowner" | "ship_broker" | "ship_provider";
+
+export const VALID_DEMO_ROLES: DemoRole[] = ["ship_agent", "shipowner", "ship_broker", "ship_provider"];
 
 export interface DemoSession {
   token: string;
@@ -12,7 +14,7 @@ export interface DemoSession {
 const DEMO_TTL_MS = 24 * 60 * 60 * 1000;
 const sessions = new Map<string, DemoSession>();
 
-export function createDemoSession(role: DemoRole = "agent"): DemoSession {
+export function createDemoSession(role: DemoRole = "ship_agent"): DemoSession {
   const token = `demo_${randomUUID().replace(/-/g, "")}`;
   const now = new Date();
   const session: DemoSession = { token, role, createdAt: now, lastAccessedAt: now };
@@ -57,4 +59,8 @@ export function cleanExpiredDemoSessions(): number {
 
 export function getDemoSessionCount(): number {
   return sessions.size;
+}
+
+export function listDemoSessions(): DemoSession[] {
+  return Array.from(sessions.values());
 }

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import { DemoRole } from "@/lib/demo-data";
 
 interface DemoContextValue {
@@ -12,7 +12,7 @@ interface DemoContextValue {
 
 const DemoContext = createContext<DemoContextValue>({
   isDemoMode: false,
-  demoRole: "agent",
+  demoRole: "ship_agent",
   demoToken: null,
   startDemo: async () => {},
   switchRole: async () => {},
@@ -24,7 +24,7 @@ const ROLE_KEY = "vpda_demo_role";
 
 export function DemoProvider({ children }: { children: ReactNode }) {
   const [demoToken, setDemoToken] = useState<string | null>(() => localStorage.getItem(STORAGE_KEY));
-  const [demoRole, setDemoRole] = useState<DemoRole>(() => (localStorage.getItem(ROLE_KEY) as DemoRole) || "agent");
+  const [demoRole, setDemoRole] = useState<DemoRole>(() => (localStorage.getItem(ROLE_KEY) as DemoRole) || "ship_agent");
 
   const isDemoMode = Boolean(demoToken);
 
@@ -68,7 +68,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(ROLE_KEY);
     setDemoToken(null);
-    setDemoRole("agent");
+    setDemoRole("ship_agent");
   }, []);
 
   return (

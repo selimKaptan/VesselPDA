@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { createDemoSession, getDemoSession, updateDemoRole, deleteDemoSession, type DemoRole } from "./demo-session";
+import { createDemoSession, getDemoSession, updateDemoRole, deleteDemoSession, type DemoRole, VALID_DEMO_ROLES } from "./demo-session";
 import { authLimiter, generalLimiter, aiLimiter, uploadLimiter, searchLimiter } from "./middleware/rate-limit";
 import { validateBody, validateQuery, validateParams, integerIdParam } from "./middleware/validate";
 import { sanitizeInput, sanitizeFilename } from "./utils/sanitize";
@@ -2334,7 +2334,7 @@ export async function registerRoutes(
 
   // ── Demo Mode Routes ─────────────────────────────────────────────────────────
   app.post("/api/demo/start", async (req, res) => {
-    const role: DemoRole = ["agent", "shipowner", "admin"].includes(req.body?.role) ? req.body.role : "agent";
+    const role: DemoRole = VALID_DEMO_ROLES.includes(req.body?.role) ? req.body.role : "ship_agent";
     const session = createDemoSession(role);
     res.json({
       token: session.token,
@@ -2347,7 +2347,7 @@ export async function registerRoutes(
   app.post("/api/demo/switch-role", async (req, res) => {
     const { token, role } = req.body || {};
     if (!token || typeof token !== "string") return res.status(400).json({ error: "token required" });
-    if (!["agent", "shipowner", "admin"].includes(role)) return res.status(400).json({ error: "invalid role" });
+    if (!VALID_DEMO_ROLES.includes(role)) return res.status(400).json({ error: "invalid role" });
     const session = updateDemoRole(token, role as DemoRole);
     if (!session) return res.status(404).json({ error: "demo session not found or expired" });
     res.json({ token: session.token, role: session.role });
@@ -2357,7 +2357,7 @@ export async function registerRoutes(
     const { token } = req.body || {};
     if (!token) return res.status(400).json({ error: "token required" });
     deleteDemoSession(token);
-    const session = createDemoSession("agent");
+    const session = createDemoSession("ship_agent");
     res.json({ token: session.token, role: session.role });
   });
 
