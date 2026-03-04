@@ -1,0 +1,346 @@
+INSTRUCTIONS.md'yi oku. Mesajlar, bildirimler ve voyage chat şu an polling ile çalışıyor. Socket.io ile real-time iletişim ekle.
+
+1. Paketleri kur: npm install socket.io socket.io-client
+
+2. Yeni dosya oluştur: server/websocket.ts
+
+   import { Server as HttpServer } from 'http';
+   import { Server, Socket } from 'socket.io';
+
+   let io: Server | null = null;
+
+   interface OnlineUser {
+     userId: string;
+     socketId: string;
+     role: string;
+   }
+
+   const onlineUsers = new Map<string, OnlineUser>();
+
+   export function initWebSocket(httpServer: HttpServer) {
+     io = new Server(httpServer, {
+       cors: {
+         origin: process.env.NODE_ENV === 'production'
+           ? ['https://vesselpda.com', /\.replit\.dev$/, /\.repl\.co$/]
+           : '*',
+         credentials: true,
+       },
+       pingTimeout: 60000,
+       pingInterval: 25000,
+     });
+
+     io.on('connection', (socket: Socket) => {
+       console.log(`Socket connected: ${socket.id}`);
+
+       // Kullanıcı authenticate olunca
+       socket.on('user:online', (data: { userId: string; role: string }) => {
+         onlineUsers.set(data.userId, {
+           userId: data.userId,
+           socketId: socket.id,
+           role: data.role,
+         });
+         // Kullanıcıyı kendi odasına sok
+         socket.join(`user:${data.userId}`);
+         console.log(`User online: ${data.userId} (${data.role})`);
+       });
+
+       // Conversation odasına katıl
+       socket.on('conversation:join', (conversationId: string) => {
+         socket.join(`conversation:${conversationId}`);
+       });
+
+       // Conversation odasından ayrıl
+       socket.on('conversation:leave', (conversationId: string) => {
+         socket.leave(`conversation:${conversationId}`);
+       });
+
+       // Voyage chat odasına katıl
+       socket.on('voyage:join', (voyageId: string) => {
+         socket.join(`voyage:${voyageId}`);
+       });
+
+       socket.on('voyage:leave', (voyageId: string) => {
+         socket.leave(`voyage:${voyageId}`);
+       });
+
+       // Typing indicator
+       socket.on('typing:start', (data: { conversationId: string; userId: string; userName: string }) => {
+         socket.to(`conversation:${data.conversationId}`).emit('typing:start', {
+           userId: data.userId,
+           userName: data.userName,
+         });
+       });
+
+       socket.on('typing:stop', (data: { conversationId: string; userId: string }) => {
+         socket.to(`conversation:${data.conversationId}`).emit('typing:stop', {
+           userId: data.userId,
+         });
+       });
+
+       // Disconnect
+       socket.on('disconnect', () => {
+         for (const [userId, user] of onlineUsers) {
+           if (user.socketId === socket.id) {
+             onlineUsers.delete(userId);
+             console.log(`User offline: ${userId}`);
+             break;
+           }
+         }
+       });
+     });
+
+     console.log('WebSocket server initialized');
+     return io;
+   }
+
+   // Diğer dosyalardan çağrılacak emit fonksiyonları
+   export function getIO(): Server | null {
+     return io;
+   }
+
+   // Belirli kullanıcıya bildirim gönder
+   export function emitToUser(userId: string, event: string, data: any) {
+     if (io) {
+       io.to(`user:${userId}`).emit(event, data);
+     }
+   }
+
+   // Conversation'a mesaj gönder
+   export function emitToConversation(conversationId: number | string, event: string, data: any) {
+     if (io) {
+       io.to(`conversation:${conversationId}`).emit(event, data);
+     }
+   }
+
+   // Voyage chat'e mesaj gönder
+   export function emitToVoyage(voyageId: number | string, event: string, data: any) {
+     if (io) {
+       io.to(`voyage:${voyageId}`).emit(event, data);
+     }
+   }
+
+   // Online kullanıcı sayısı
+   export function getOnlineCount(): number {
+     return onlineUsers.size;
+   }
+
+   export function isUserOnline(userId: string): boolean {
+     return onlineUsers.has(userId);
+   }
+
+3. server/index.ts'de WebSocket'i başlat:
+
+   import { createServer } from 'http';
+   import { initWebSocket } from './websocket';
+
+   // Mevcut express app'i bul, httpServer oluştur:
+   const httpServer = createServer(app);
+   initWebSocket(httpServer);
+
+   // Mevcut app.listen() yerine httpServer.listen() kullan:
+   // ESKİ: app.listen(PORT, ...)
+   // YENİ: httpServer.listen(PORT, ...)
+   
+   DIKKAT: app.listen satırını bul ve httpServer.listen ile değiştir. Sadece bu satırı değiştir, başka hiçbir şeye dokunma.
+
+4. server/routes.ts'de mesaj ve bildirim emit'leri ekle:
+
+   import { emitToUser, emitToConversation, emitToVoyage } from './websocket';
+
+   // POST /api/messages/:conversationId/send endpoint'inde:
+   // Mesaj kaydedildikten SONRA ekle:
+   emitToConversation(conversationId, 'message:new', {
+     id: newMessage.id,
+     conversationId,
+     senderId: userId,
+     content: newMessage.content,
+     createdAt: newMessage.createdAt,
+     messageType: newMessage.messageType,
+     fileUrl: newMessage.fileUrl,
+     fileName: newMessage.fileName,
+   });
+   // Karşı tarafa bildirim
+   const otherUserId = conversation.user1Id === userId ? conversation.user2Id : conversation.user1Id;
+   emitToUser(otherUserId, 'notification:new', {
+     type: 'message',
+     title: 'New Message',
+     message: `You have a new message`,
+     link: `/messages/${conversationId}`,
+   });
+
+   // POST /api/voyages/:id/chat endpoint'inde:
+   // Chat mesajı kaydedildikten SONRA ekle:
+   emitToVoyage(voyageId, 'voyage:chat:new', {
+     id: newChat.id,
+     voyageId,
+     senderId: userId,
+     content: newChat.content,
+     createdAt: newChat.createdAt,
+   });
+
+   // Notification oluşturulan HER YERDE (storage.createNotification çağrıldıktan sonra):
+   // Örneğin tender bid received, nomination, service request vs.
+   // Her createNotification çağrısından sonra şunu ekle:
+   emitToUser(targetUserId, 'notification:new', notification);
+
+   // Unread count güncellemesi:
+   // Her mesaj gönderiminde karşı tarafa:
+   emitToUser(otherUserId, 'notification:unread-count', { count: unreadCount });
+
+5. Frontend — yeni hook oluştur: client/src/hooks/use-socket.ts
+
+   import { useEffect, useRef, useCallback } from 'react';
+   import { io, Socket } from 'socket.io-client';
+   import { useAuth } from './use-auth';
+   import { useQueryClient } from '@tanstack/react-query';
+   import { useToast } from './use-toast';
+
+   let socket: Socket | null = null;
+
+   export function useSocket() {
+     const { user } = useAuth();
+     const queryClient = useQueryClient();
+     const { toast } = useToast();
+
+     useEffect(() => {
+       if (!user) return;
+
+       if (!socket) {
+         socket = io(window.location.origin, {
+           withCredentials: true,
+           transports: ['websocket', 'polling'],
+         });
+
+         socket.on('connect', () => {
+           console.log('Socket connected');
+           socket?.emit('user:online', {
+             userId: (user as any).id,
+             role: (user as any).userRole,
+           });
+         });
+
+         // Yeni mesaj geldiğinde
+         socket.on('message:new', (msg) => {
+           queryClient.invalidateQueries({ queryKey: ['/api/messages'] });
+           queryClient.invalidateQueries({ queryKey: [`/api/messages/${msg.conversationId}`] });
+         });
+
+         // Voyage chat
+         socket.on('voyage:chat:new', (msg) => {
+           queryClient.invalidateQueries({ queryKey: [`/api/voyages/${msg.voyageId}/chat`] });
+         });
+
+         // Bildirim geldiğinde
+         socket.on('notification:new', (notification) => {
+           queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+           queryClient.invalidateQueries({ queryKey: ['/api/messages/unread-count'] });
+           toast({
+             title: notification.title || 'New Notification',
+             description: notification.message || '',
+           });
+         });
+
+         // Unread count
+         socket.on('notification:unread-count', () => {
+           queryClient.invalidateQueries({ queryKey: ['/api/messages/unread-count'] });
+         });
+
+         socket.on('disconnect', () => {
+           console.log('Socket disconnected');
+         });
+       }
+
+       return () => {
+         // Component unmount'ta socket'i kapatma — app genelinde kalacak
+       };
+     }, [user]);
+
+     const joinConversation = useCallback((conversationId: string | number) => {
+       socket?.emit('conversation:join', String(conversationId));
+     }, []);
+
+     const leaveConversation = useCallback((conversationId: string | number) => {
+       socket?.emit('conversation:leave', String(conversationId));
+     }, []);
+
+     const joinVoyage = useCallback((voyageId: string | number) => {
+       socket?.emit('voyage:join', String(voyageId));
+     }, []);
+
+     const leaveVoyage = useCallback((voyageId: string | number) => {
+       socket?.emit('voyage:leave', String(voyageId));
+     }, []);
+
+     const emitTyping = useCallback((conversationId: string | number, userName: string) => {
+       socket?.emit('typing:start', {
+         conversationId: String(conversationId),
+         userId: (user as any)?.id,
+         userName,
+       });
+     }, [user]);
+
+     const stopTyping = useCallback((conversationId: string | number) => {
+       socket?.emit('typing:stop', {
+         conversationId: String(conversationId),
+         userId: (user as any)?.id,
+       });
+     }, [user]);
+
+     return {
+       socket,
+       joinConversation,
+       leaveConversation,
+       joinVoyage,
+       leaveVoyage,
+       emitTyping,
+       stopTyping,
+     };
+   }
+
+6. App.tsx'e socket hook'u ekle:
+
+   AppContent veya AuthenticatedLayout component'inin içine ekle:
+   
+   import { useSocket } from '@/hooks/use-socket';
+   
+   function AuthenticatedLayout() {
+     useSocket(); // Socket bağlantısını başlat
+     return (
+       <AppLayout>
+         <ErrorBoundary>
+           <AuthenticatedRouter />
+         </ErrorBoundary>
+       </AppLayout>
+     );
+   }
+
+7. Message thread sayfasında conversation'a join/leave ekle:
+   client/src/pages/message-thread.tsx'de:
+   
+   const { joinConversation, leaveConversation } = useSocket();
+   
+   useEffect(() => {
+     if (conversationId) {
+       joinConversation(conversationId);
+       return () => leaveConversation(conversationId);
+     }
+   }, [conversationId]);
+
+8. Voyage detail sayfasında da aynısı:
+   client/src/pages/voyage-detail.tsx'de:
+   
+   const { joinVoyage, leaveVoyage } = useSocket();
+   
+   useEffect(() => {
+     if (voyageId) {
+       joinVoyage(voyageId);
+       return () => leaveVoyage(voyageId);
+     }
+   }, [voyageId]);
+
+9. IMPORTANT:
+   - Socket.io BAĞLANAMAZSA uygulama CRASH ETMEMELİ
+   - Frontend'de socket yoksa normal polling devam etsin (graceful degradation)
+   - server/index.ts'de SADECE app.listen → httpServer.listen değişikliği yap
+   - Mevcut mesaj ve bildirim endpoint'lerini SILME, socket emit'leri EKLEME olarak yap
+   - WebSocket bağlantısı olmasa bile uygulama normal çalışmaya devam etmeli

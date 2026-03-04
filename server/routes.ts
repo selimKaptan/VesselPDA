@@ -32,6 +32,7 @@ import { AppError } from "./error-handler";
 import { saveBase64File } from "./file-storage";
 import { generateProformaPdf } from "./proforma-pdf";
 import { createCheckoutForm, retrieveCheckoutResult, IYZICO_CONFIGURED } from "./payment";
+import { emitToUser, emitToConversation, emitToVoyage } from "./socket";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "logos");
 if (!fs.existsSync(uploadsDir)) {
@@ -3840,6 +3841,13 @@ export async function registerRoutes(
         senderId: userId,
         content: content.trim(),
       });
+      emitToVoyage(voyageId, "voyage:chat:new", {
+        id: msg.id,
+        voyageId,
+        senderId: userId,
+        content: msg.content,
+        createdAt: msg.createdAt,
+      });
       res.status(201).json(msg);
     } catch (error) {
       res.status(500).json({ message: "Failed to send message" });
@@ -3982,6 +3990,24 @@ export async function registerRoutes(
           }
         }
       }
+      // Real-time delivery
+      emitToConversation(conversationId, "message:new", {
+        id: msg.id,
+        conversationId,
+        senderId: req.user.claims.sub,
+        content: msg.content,
+        createdAt: msg.createdAt,
+        messageType: msg.messageType,
+        fileUrl: msg.fileUrl,
+        fileName: msg.fileName,
+      });
+      emitToUser(receiverId, "notification:new", {
+        type: "message",
+        title: "New Message",
+        message: notifMessage,
+        link: `/messages/${conversationId}`,
+      });
+
       // E-posta bridge: auto-forward if enabled
       if (conv.externalEmailForward && conv.externalEmail) {
         const { sendMessageBridgeEmail } = await import("./email");

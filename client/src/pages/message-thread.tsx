@@ -19,6 +19,7 @@ import { PageMeta } from "@/components/page-meta";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useSocket } from "@/hooks/use-socket";
 
 function formatTime(dateStr: string) {
   return new Date(dateStr).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
@@ -70,6 +71,13 @@ export default function MessageThread() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const userId = (user as any)?.id || (user as any)?.claims?.sub;
+  const { joinConversation, leaveConversation } = useSocket();
+
+  useEffect(() => {
+    if (!convId) return;
+    joinConversation(convId);
+    return () => { leaveConversation(convId); };
+  }, [convId]);
 
   const { data: conv, isLoading } = useQuery<any>({
     queryKey: ["/api/messages", convId],

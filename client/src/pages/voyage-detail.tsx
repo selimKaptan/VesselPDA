@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import {
@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
 import { useAuth } from "@/hooks/use-auth";
+import { useSocket } from "@/hooks/use-socket";
 import type { Port } from "@shared/schema";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
@@ -113,7 +114,14 @@ export default function VoyageDetail() {
   const voyageId = parseInt(id || "0");
   const { user } = useAuth();
   const { toast } = useToast();
+  const { joinVoyage, leaveVoyage } = useSocket();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!voyageId) return;
+    joinVoyage(voyageId);
+    return () => { leaveVoyage(voyageId); };
+  }, [voyageId]);
 
   const [newTask, setNewTask] = useState("");
   const [chatMessage, setChatMessage] = useState("");

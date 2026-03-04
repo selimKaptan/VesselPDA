@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
+import { useSocket } from "@/hooks/use-socket";
 import { AiChat } from "@/components/ai-chat";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -100,6 +101,7 @@ function AuthenticatedRouter() {
 }
 
 function AuthenticatedLayout() {
+  useSocket();
   return (
     <AppLayout>
       <ErrorBoundary>
