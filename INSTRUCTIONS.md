@@ -23,7 +23,7 @@
 | **Routing** | Wouter | `<Switch>` / `<Route>` — NOT react-router |
 | **State** | TanStack React Query | `queryClient` in `client/src/lib/queryClient.ts` |
 | **Styling** | Tailwind CSS + shadcn/ui | Components in `client/src/components/ui/` |
-| **Backend** | Express.js + TypeScript | NOT NestJS. Single `server/routes.ts` file |
+| **Backend** | Express.js + TypeScript | NOT NestJS. Modular routes under `server/routes/` |
 | **ORM** | Drizzle ORM | Schema in `shared/schema.ts`, config in `drizzle.config.ts` |
 | **Database** | PostgreSQL | Connection via `server/db.ts` (pool + drizzle instance) |
 | **Build** | Vite | Config in `vite.config.ts` |
@@ -33,15 +33,18 @@
 | **AI Chat** | Anthropic Claude API | `server/anthropic.ts` |
 | **AIS Data** | AIS Stream WebSocket | `server/ais-stream.ts` + mock fallback |
 | **Exchange Rates** | TCMB (Turkish Central Bank) | `server/exchange-rates.ts` |
-| **Freight Data** | Trading Economics API + Yahoo Finance fallback | In `server/routes.ts` |
+| **Freight Data** | Trading Economics API + Yahoo Finance fallback | `server/routes/market.routes.ts` |
 | **i18n** | Custom implementation | `client/src/lib/i18n.tsx` |
 | **Theme** | Dark/light with ThemeProvider | `client/src/components/theme-provider.tsx` |
+| **WebSocket** | Socket.io | `server/websocket.ts` — real-time messaging & notifications |
+| **Payment** | İyzico (iyzipay) | `server/payment.ts` — sandbox/production |
+| **PDF** | PDFKit | `server/proforma-pdf.ts` — PDA & SOF & FDA PDF export |
 
 ### CRITICAL RULES
 - **NEVER** add Next.js, NestJS, Prisma, react-router, or MongoDB
 - **NEVER** replace Wouter with react-router
 - **NEVER** replace Drizzle with Prisma or TypeORM
-- **NEVER** create separate route files — all API routes go in `server/routes.ts`
+- **ALWAYS** add new routes inside `server/routes/` in the appropriate module file, then mount in `server/routes.ts`
 - **ALWAYS** use `pgTable` from `drizzle-orm/pg-core` for new tables
 - **ALWAYS** use `createInsertSchema` from `drizzle-zod` for validation
 - **ALWAYS** use shadcn/ui components from `@/components/ui/`
@@ -75,30 +78,51 @@
 │       │   └── auth-utils.ts    # Auth helper functions
 │       └── pages/               # 40+ page components
 ├── server/
-│   ├── index.ts                 # Server entry point
-│   ├── routes.ts                # ALL API routes (single file)
+│   ├── index.ts                 # Server entry + WebSocket init (httpServer)
+│   ├── routes.ts                # Route registry — registerRoutes() mounts all modules
+│   ├── routes/                  # MODULAR ROUTE FILES
+│   │   ├── shared.ts            # Shared middleware, rate limiters, helpers
+│   │   ├── auth.routes.ts       # Login, register, verify, reset, demo
+│   │   ├── vessel.routes.ts     # Vessels, certificates, crew
+│   │   ├── port.routes.ts       # Ports, port-info, service-ports
+│   │   ├── proforma.routes.ts   # Proformas, calculate, PDF export
+│   │   ├── tender.routes.ts     # Tenders, bids, nomination
+│   │   ├── voyage.routes.ts     # Voyages, checklists, documents, chat, reviews
+│   │   ├── message.routes.ts    # Conversations, messages, unread count
+│   │   ├── nomination.routes.ts # Direct nominations
+│   │   ├── commercial.routes.ts # Fixtures, laytime, cargo positions, invoices
+│   │   ├── directory.routes.ts  # Directory, reviews, endorsements
+│   │   ├── company.routes.ts    # Company profiles, logo, verification
+│   │   ├── forum.routes.ts      # Forum categories, topics, replies, likes
+│   │   ├── market.routes.ts     # Freight indices, bunker prices, exchange rates
+│   │   ├── tracking.routes.ts   # AIS vessel tracking, watchlist, fleets, sanctions
+│   │   ├── sof.routes.ts        # Statement of Facts CRUD + PDF
+│   │   ├── fda.routes.ts        # Final Disbursement Account CRUD + PDF
+│   │   ├── notification.routes.ts # Notifications, feedback, contact
+│   │   ├── service-request.routes.ts # Service requests, offers
+│   │   ├── payment.routes.ts    # İyzico checkout, callback, status
+│   │   ├── admin.routes.ts      # All admin endpoints
+│   │   ├── misc.routes.ts       # Invoices, document templates, port alerts, certificates
+│   │   └── ai.routes.ts         # AI chat
+│   ├── websocket.ts             # Socket.io server — real-time events
+│   ├── payment.ts               # İyzico payment gateway
+│   ├── proforma-pdf.ts          # PDA PDF generator (PDFKit)
 │   ├── storage.ts               # Database CRUD operations
-│   ├── db.ts                    # PostgreSQL connection (pool + drizzle)
+│   ├── db.ts                    # PostgreSQL connection
 │   ├── email.ts                 # Resend email functions
 │   ├── anthropic.ts             # AI chat handler
-│   ├── ais-stream.ts            # AIS WebSocket client
-│   ├── exchange-rates.ts        # TCMB exchange rate fetcher
+│   ├── ais-stream.ts            # AIS WebSocket + mock fallback + auto-reconnect
+│   ├── exchange-rates.ts        # TCMB exchange rates
 │   ├── proforma-calculator.ts   # PDA calculation engine
-│   ├── tariff-lookup.ts         # Port tariff database lookups
+│   ├── tariff-lookup.ts         # Port tariff lookups
 │   ├── laytime-calculator.ts    # Laytime/demurrage calculator
 │   ├── sanctions.ts             # Sanctions screening
 │   ├── audit.ts                 # Audit logging
-│   ├── middleware/role-guard.ts  # RBAC middleware
-│   ├── proforma-approval.ts    # Proforma approval workflow
-│   ├── file-storage.ts         # File upload handler
-│   ├── seed.ts                 # Database seeding
-│   ├── seed-tariffs.ts         # Tariff data seeding
-│   ├── seed-templates.ts       # Document template seeding
-│   ├── turkish-ports.json      # Turkish port data
-│   └── replit_integrations/
-│       ├── auth/                # Authentication system
-│       ├── batch/               # Batch operations
-│       └── chat/                # Chat integration
+│   ├── error-handler.ts         # AppError, NotFoundError, ValidationError classes
+│   ├── file-storage.ts          # File upload to disk storage (replaces base64)
+│   ├── middleware/
+│   │   └── role-guard.ts        # RBAC middleware
+│   └── seed.ts, seed-tariffs.ts, seed-templates.ts
 ├── shared/
 │   ├── schema.ts               # ALL Drizzle table definitions
 │   └── models/
@@ -210,6 +234,13 @@
 - `fleets` — userId, name, description, color, isActive
 - `fleet_vessels` — fleetId, vesselId
 
+**SOF (Statement of Facts)**:
+- `statement_of_facts` — voyageId, vesselId, portId, userId, vesselName, portName, berthName, cargoType, cargoQuantity, operation (loading/discharging/both), masterName, agentName, status (draft/finalized/signed), remarks
+- `sof_events` — sofId, eventType, eventName, eventDate, remarks, isDeductible, deductibleHours, sortOrder
+
+**FDA (Final Disbursement Account)**:
+- `fda_accounts` — userId, proformaId, voyageId, vesselId, portId, referenceNumber, vesselName, portName, lineItems (jsonb FdaLineItem[]), totalEstimatedUsd, totalActualUsd, totalEstimatedEur, totalActualEur, varianceUsd, variancePercent, exchangeRate, status (draft/pending_approval/approved/sent), bankDetails, approvedBy, approvedAt
+
 **Other**:
 - `vessel_positions` — mmsi, latitude, longitude, speed, course, heading, timestamp
 - `forumCategories`, `forumTopics`, `forumReplies`, `forumLikes`, `forumDislikes`
@@ -224,7 +255,7 @@
 
 ## 6. API ENDPOINT MAP
 
-All routes are in `server/routes.ts`. Auth middleware: `isAuthenticated`.
+All routes are registered via modular files in `server/routes/`. Auth middleware: `isAuthenticated`.
 
 ### Public Endpoints (no auth)
 ```
@@ -275,6 +306,8 @@ POST   /api/proformas/:id/duplicate   — Duplicate proforma
 POST   /api/proformas/:id/send-email  — Send proforma via email
 POST   /api/proformas/calculate       — Full tariff calculation
 POST   /api/proformas/quick-estimate  — Quick estimate (supports external vessels)
+GET    /api/proformas/:id/pdf         — Download proforma PDF
+GET    /api/proformas/:id/pdf/preview — Preview proforma PDF (inline)
 ```
 
 ### Tender System
@@ -387,6 +420,39 @@ GET  /api/market/freight-indices      — BDI, BCTI, BDTI (4h cache)
 GET  /api/market/bunker-prices        — Bunker fuel prices
 ```
 
+### SOF (Statement of Facts)
+```
+GET    /api/sof                       — SOF list (user's or all for admin)
+POST   /api/sof                       — Create SOF (13 default events auto-added)
+GET    /api/sof/:id                   — SOF detail + events
+PATCH  /api/sof/:id                   — Update SOF fields
+DELETE /api/sof/:id                   — Delete SOF
+POST   /api/sof/:id/finalize          — Finalize SOF (locks to read-only)
+POST   /api/sof/:id/events            — Add custom event
+PATCH  /api/sof/events/:eventId       — Update event (date, remarks, deductible flag)
+DELETE /api/sof/events/:eventId       — Delete event
+GET    /api/sof/:id/pdf               — Export SOF as PDF (PDFKit)
+```
+
+### FDA (Final Disbursement Account)
+```
+GET    /api/fda                       — FDA list (user's or all for admin)
+POST   /api/fda                       — Create FDA (from proforma or blank)
+GET    /api/fda/:id                   — FDA detail with line items
+PATCH  /api/fda/:id                   — Update FDA (actual amounts → auto-calculates variance)
+DELETE /api/fda/:id                   — Delete FDA
+POST   /api/fda/:id/approve           — Approve FDA (locks to read-only)
+GET    /api/fda/:id/pdf               — Export FDA as PDF (PDFKit)
+```
+
+### Payment
+```
+POST   /api/payment/checkout          — İyzico checkout form init
+POST   /api/payment/callback          — İyzico 3D callback handler
+GET    /api/payment/status            — Current subscription plan status
+POST   /api/subscription/upgrade      — Upgrade subscription plan
+```
+
 ### Other
 ```
 GET    /api/agent-stats/:companyProfileId — Agent performance stats
@@ -412,7 +478,6 @@ POST   /api/notifications/read-all
 POST   /api/notifications/:id/read
 POST   /api/feedback
 POST   /api/ai/chat                   — AI assistant
-POST   /api/subscription/upgrade
 PATCH  /api/user/role
 GET    /api/company-profile/me
 POST   /api/company-profile
@@ -492,56 +557,33 @@ Router: **Wouter** (`<Switch>` / `<Route>` from `"wouter"`)
 /reset-password      → Password reset form
 /directory           → Public company directory
 /directory/:id       → Public company profile
-/service-ports       → Service port map
-/forum               → Forum (read-only)
-/forum/:id           → Forum topic (read-only)
-/contact             → Contact form
-/demo                → Demo login page
 ```
 
-### Authenticated Routes (wrapped in `<AppLayout>`)
+### Authenticated Routes
 ```
 /dashboard           → Role-specific dashboard
 /vessels             → Vessel management
-/ports               → Port search
 /proformas           → Proforma list
-/proformas/new       → Create proforma
-/proformas/:id       → View proforma
-/pricing             → Subscription plans
-/directory           → Company directory (enhanced)
-/directory/:id       → Company profile (enhanced)
-/service-ports       → Service port map
-/company-profile     → Own company profile
-/admin               → Admin panel
-/tariff-management   → Tariff CRUD (admin)
-/forum               → Forum
-/forum/:id           → Forum topic
-/tenders             → Tenders (role-aware)
-/tenders/:id         → Tender detail
-/vessel-track        → AIS vessel tracking map
-/port-info           → Port information page
-/settings            → User settings
-/voyages             → Voyage list
-/voyages/:id         → Voyage detail
-/service-requests    → Service requests
-/service-requests/:id → Service request detail
-/messages            → Conversations
-/messages/:id        → Message thread
+/proformas/:id       → Proforma detail + send + FDA creation
+/tenders             → Tender board
+/tenders/:id         → Tender detail + bidding
+/voyages             → Voyage management
+/voyages/:id         → Voyage detail (checklist, docs, chat, reviews)
+/service-requests    → Service marketplace
+/messages            → Messaging hub
 /nominations         → Direct nominations
-/sanctions-check     → Sanctions screening
-/vessel-certificates → Certificate management
-/fixtures            → Fixtures & chartering
-/cargo-positions     → Cargo/vessel position board
-/market-data         → Freight indices + bunker prices
-/invoices            → Invoice management
-/pda-review          → PDA review page
-```
-
-### Auth Flow in App.tsx
-```tsx
-// Unauthenticated → PublicDirectoryPage (landing, login, register, etc.)
-// Authenticated but !roleConfirmed → RoleSelection
-// Authenticated + roleConfirmed → AuthenticatedLayout + AiChat widget
+/fixtures            → Fixture management
+/cargo-positions     → Cargo & Position Board
+/vessel-track        → AIS vessel tracking map
+/forum               → Community forum
+/company-profile     → My company profile
+/market              → Market data (indices, bunker)
+/sof                 → Statement of Facts list
+/sof/:id             → SOF detail (timeline event view)
+/fda                 → Final Disbursement Account list
+/fda/:id             → FDA detail (estimated vs actual comparison view)
+/admin               → Admin panel (admin only)
+/settings            → Account settings
 ```
 
 ---
@@ -587,6 +629,36 @@ Composite score from: completed voyages, success rate, average rating (agent rev
 3. Verified badge shown in directory
 ```
 
+### 8.6 PDA to FDA Flow
+```
+1. Agent/shipowner creates proforma (PDA) for estimated port costs
+2. After voyage completion → "Create FDA from PDA" button on proforma detail
+3. Proforma estimated line items are auto-imported into the FDA
+4. User enters actual costs (actual amounts) for each line item
+5. System auto-calculates variance: actual − estimated and as %
+6. Positive variance = over budget (shown in red), negative = savings (shown in green)
+7. FDA is approved → locked read-only → PDF exported → sent to shipowner
+```
+
+### 8.7 SOF Flow
+```
+1. Agent creates SOF when vessel arrives at port (linked to voyage or standalone)
+2. 13 standard port call events are auto-added (vessel arrived, NOR tendered, all fast, etc.)
+3. Agent updates event date/times in real-time as operations progress
+4. Custom events can be added (rain delay, breakdown, shift change, etc.)
+5. Events that don't count toward laytime are flagged as "deductible"
+6. SOF is finalized (locked read-only) → PDF exported → distributed to all parties
+```
+
+### 8.8 WebSocket Real-time Events
+```
+message:new          — New direct message (emitted to all conversation participants)
+voyage:chat:new      — New message in voyage chat
+notification:new     — In-app notification (tender bid, nomination, service offer)
+typing:start         — User started typing in conversation
+typing:stop          — User stopped typing
+```
+
 ---
 
 ## 9. ENVIRONMENT VARIABLES
@@ -613,6 +685,14 @@ TRADING_ECONOMICS_API_KEY=...
 
 # Exchange Rates
 # (TCMB is free, no key needed)
+
+# Payment (İyzico)
+IYZICO_API_KEY=sandbox-...
+IYZICO_SECRET_KEY=sandbox-...
+IYZICO_BASE_URL=https://sandbox-api.iyzipay.com
+
+# App
+APP_URL=https://vesselpda.com
 ```
 
 ---
@@ -708,9 +788,14 @@ async createNewItem(data: InsertNewTable): Promise<NewTable> { ... }
 
 ### Step 3: API Routes
 ```typescript
-// In server/routes.ts — add endpoints
-app.get("/api/new-items", isAuthenticated, async (req: any, res) => { ... });
-app.post("/api/new-items", isAuthenticated, async (req: any, res) => { ... });
+// Add endpoints to the appropriate module file in server/routes/
+// For example, vessel-related routes go in server/routes/vessel.routes.ts
+router.get("/api/new-items", isAuthenticated, async (req: any, res) => { ... });
+router.post("/api/new-items", isAuthenticated, async (req: any, res) => { ... });
+
+// If creating a new module, mount it in server/routes.ts registerRoutes():
+import newRouter from "./routes/new.routes";
+app.use("/api/new-items", newRouter);
 ```
 
 ### Step 4: Frontend Page
@@ -736,7 +821,9 @@ const { data, isLoading } = useQuery({
 
 ### Step 7: Run Migration
 ```bash
-npx drizzle-kit push
+# NEVER use npm run db:push --force
+# Use psql $DATABASE_URL with CREATE TABLE IF NOT EXISTS for new tables
+psql $DATABASE_URL -c "CREATE TABLE IF NOT EXISTS new_table (...)"
 ```
 
 ---
@@ -766,7 +853,7 @@ const mutation = useMutation({
 
 ### Auth Check Pattern (Backend)
 ```typescript
-app.get("/api/resource", isAuthenticated, async (req: any, res) => {
+router.get("/api/resource", isAuthenticated, async (req: any, res) => {
   const userId = req.user.claims.sub;
   const user = await storage.getUser(userId);
   // Admin sees all, others see own
@@ -778,7 +865,13 @@ app.get("/api/resource", isAuthenticated, async (req: any, res) => {
 ```
 
 ### File Storage Pattern
-Files are stored as base64 in PostgreSQL (documents, logos, certificates). For larger files, `server/file-storage.ts` writes to `uploads/` directory.
+New uploads are saved to disk via `server/file-storage.ts` (`uploads/{category}/` directory). Old base64 records in the DB remain untouched (backward compatible). Static files are served via `/uploads/*`.
+
+```typescript
+// Save a file to disk instead of storing base64 in DB
+import { saveBase64File } from "../file-storage";
+const fileUrl = saveBase64File(base64Data, "certificates"); // → /uploads/certificates/uuid.pdf
+```
 
 ### Notification Pattern
 ```typescript
@@ -795,7 +888,7 @@ await storage.createNotification({
 
 ## 14. WHAT NOT TO DO
 
-1. ❌ Don't create new route files — ALL routes go in `server/routes.ts`
+1. ❌ Don't add endpoints directly in `server/routes.ts` — add to the appropriate module file in `server/routes/`
 2. ❌ Don't use Prisma — we use Drizzle ORM
 3. ❌ Don't use react-router — we use Wouter
 4. ❌ Don't add Next.js features (getServerSideProps, app router, etc.)
@@ -807,38 +900,54 @@ await storage.createNotification({
 10. ❌ Don't create separate CSS files — use Tailwind classes
 11. ❌ Don't use `fetch()` with hardcoded URLs — always use relative paths `/api/...`
 12. ❌ Don't create REST endpoints that don't follow existing patterns
+13. ❌ Don't skip try-catch + `next(error)` — always forward errors to the global error handler
+14. ❌ Don't skip Zod validation — use `insertSchema.safeParse()` on every POST/PATCH body
+15. ❌ Don't store uploaded files as base64 in the DB — use `file-storage.ts` to save to disk
 
 ---
 
 ## 15. DEVELOPMENT PRIORITIES
 
-### Phase 1 — Current (MVP Enhancement)
-- ✅ Proforma calculator with tariff database
-- ✅ Tender system (create → bid → nominate)
-- ✅ Voyage management with documents
-- ✅ Company directory with verification
-- ✅ Forum community
-- ✅ Direct messaging + email bridge
-- ✅ Vessel tracking (AIS + mock)
-- ✅ Admin panel with full CRUD
-- 🔄 Real AIS API integration (replace mock data)
-- 🔄 Payment integration (Stripe/İyzico)
-- 🔄 Mobile-first responsive improvements
+### Phase 1 — Completed ✅
+- SQL injection fix (parameterized queries) ✅
+- Rate limiting (express-rate-limit) ✅
+- Input validation (Zod middleware) ✅
+- CORS configuration ✅
+- Error handling (AppError + global handler) ✅
+- N+1 query optimization + pagination ✅
+- File storage migration (base64 → disk) ✅
+- PDF export (proforma, SOF, FDA via PDFKit) ✅
+- Payment integration (İyzico sandbox) ✅
+- AIS API with auto-reconnect + mock fallback ✅
+- WebSocket real-time (Socket.io) ✅
+- SOF module (Statement of Facts) ✅
+- FDA module (Final Disbursement Account) ✅
+- Modular route architecture (22 route files) ✅
+- Proforma calculator with tariff database ✅
+- Tender system (create → bid → nominate) ✅
+- Voyage management with documents ✅
+- Company directory with verification ✅
+- Forum community ✅
+- Direct messaging + email bridge ✅
+- Vessel tracking (AIS + mock) ✅
+- Admin panel with full CRUD ✅
 
-### Phase 2 — Operations
-- SOF (Statement of Facts) generator
-- Disbursement Account (DA) management
-- Port congestion tracking
-- Automated tariff updates from official sources
+### Phase 2 — Next
+- Redis cache layer
+- Mobile responsive improvements
 - Multi-port proforma comparison
-- Voyage timeline with milestones
+- Dashboard charts (Recharts)
+- Mapbox map integration improvements
+- Test infrastructure (Vitest + Supertest)
+- İyzico production activation
 
-### Phase 3 — Commercial
+### Phase 3 — Future
+- Port congestion tracking
 - Advanced fixture management with CP terms
 - Freight calculator with route optimization
-- Market intelligence dashboard
-- API for third-party integrations
-- Multi-language support (TR, EN, ES, ZH)
+- API documentation (Swagger/OpenAPI)
+- Multi-language support (TR, EN)
+- Automated tariff updates from official sources
 
 ---
 
@@ -873,7 +982,8 @@ await storage.createNotification({
 | Trading Economics | Freight indices (BDI, BCTI, BDTI) | Key required |
 | Resend | Transactional emails | Key required |
 | Anthropic | AI chat assistant | Key required |
+| İyzico | Payment processing | Sandbox + Production |
 
 ---
 
-*Last updated: March 2026 — Based on actual codebase analysis (566+ commits)*
+*Last updated: March 2026 — Based on actual codebase analysis (580+ commits, 14 major improvements)*

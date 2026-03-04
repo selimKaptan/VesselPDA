@@ -1,0 +1,186 @@
+INSTRUCTIONS.md dosyasını güncelle. Bugün yapılan 14 büyük değişikliği yansıtsın. Aşağıdaki güncellemeleri mevcut INSTRUCTIONS.md'ye uygula:
+
+1. TECH STACK tablosuna ekle:
+   | WebSocket | Socket.io | server/websocket.ts — real-time messaging & notifications |
+   | Payment | İyzico (iyzipay) | server/payment.ts — sandbox/production |
+   | PDF | PDFKit | server/proforma-pdf.ts — PDA & SOF & FDA PDF export |
+
+2. PROJECT STRUCTURE güncelle. server/ klasörü artık şöyle:
+
+   server/
+   ├── index.ts                 # Server entry + WebSocket init (httpServer)
+   ├── routes.ts                # Route registry — registerRoutes() mounts all modules
+   ├── routes/                  # MODÜLER ROUTE DOSYALARI
+   │   ├── auth.routes.ts       # Login, register, verify, reset, demo
+   │   ├── vessel.routes.ts     # Vessels, certificates, crew
+   │   ├── port.routes.ts       # Ports, port-info, service-ports
+   │   ├── proforma.routes.ts   # Proformas, calculate, PDF export
+   │   ├── tender.routes.ts     # Tenders, bids, nomination
+   │   ├── voyage.routes.ts     # Voyages, checklists, documents, chat, reviews
+   │   ├── message.routes.ts    # Conversations, messages, unread count
+   │   ├── nomination.routes.ts # Direct nominations
+   │   ├── commercial.routes.ts # Fixtures, laytime, cargo positions, invoices
+   │   ├── directory.routes.ts  # Directory, reviews, endorsements
+   │   ├── company.routes.ts    # Company profiles, logo, verification
+   │   ├── forum.routes.ts      # Forum categories, topics, replies, likes
+   │   ├── market.routes.ts     # Freight indices, bunker prices, exchange rates
+   │   ├── tracking.routes.ts   # AIS vessel tracking, watchlist, fleets, sanctions
+   │   ├── sof.routes.ts        # Statement of Facts CRUD + PDF
+   │   ├── fda.routes.ts        # Final Disbursement Account CRUD + PDF
+   │   ├── notification.routes.ts # Notifications, feedback, contact
+   │   ├── service-request.routes.ts # Service requests, offers
+   │   ├── payment.routes.ts    # İyzico checkout, callback, status
+   │   ├── admin.routes.ts      # All admin endpoints
+   │   └── ai.routes.ts         # AI chat
+   ├── websocket.ts             # Socket.io server — real-time events
+   ├── payment.ts               # İyzico payment gateway
+   ├── proforma-pdf.ts          # PDA PDF generator (PDFKit)
+   ├── storage.ts               # Database CRUD operations
+   ├── db.ts                    # PostgreSQL connection
+   ├── email.ts                 # Resend email functions
+   ├── anthropic.ts             # AI chat handler
+   ├── ais-stream.ts            # AIS WebSocket + mock fallback + auto-reconnect
+   ├── exchange-rates.ts        # TCMB exchange rates
+   ├── proforma-calculator.ts   # PDA calculation engine
+   ├── tariff-lookup.ts         # Port tariff lookups
+   ├── laytime-calculator.ts    # Laytime/demurrage calculator
+   ├── sanctions.ts             # Sanctions screening
+   ├── audit.ts                 # Audit logging
+   ├── error-handler.ts         # AppError, NotFoundError, ValidationError classes
+   ├── file-storage.ts          # File upload to disk storage (replaces base64)
+   ├── middleware/
+   │   └── role-guard.ts        # RBAC middleware
+   └── seed.ts, seed-tariffs.ts, seed-templates.ts
+
+3. DATABASE SCHEMA bölümüne ekle:
+
+   SOF (Statement of Facts):
+   - statement_of_facts — voyageId, vesselId, portId, userId, vesselName, portName, berthName, cargoType, cargoQuantity, operation (loading/discharging/both), masterName, agentName, status (draft/finalized/signed), remarks
+   - sof_events — sofId, eventType, eventName, eventDate, remarks, isDeductible, deductibleHours, sortOrder
+   
+   FDA (Final Disbursement Account):
+   - final_disbursements — userId, proformaId, voyageId, vesselId, portId, referenceNumber, vesselName, portName, lineItems (jsonb FdaLineItem[]), totalEstimatedUsd, totalActualUsd, totalEstimatedEur, totalActualEur, varianceUsd, variancePercent, exchangeRate, status (draft/pending_approval/approved/sent), bankDetails, approvedBy, approvedAt
+
+4. API ENDPOINT MAP bölümüne ekle:
+
+   SOF endpoints:
+   GET /api/sof — SOF listesi
+   POST /api/sof — Create SOF (13 default event otomatik)
+   GET /api/sof/:id — SOF detail + events
+   PATCH /api/sof/:id — Update SOF
+   DELETE /api/sof/:id — Delete SOF
+   POST /api/sof/:id/finalize — Finalize SOF
+   POST /api/sof/:id/events — Add custom event
+   PATCH /api/sof/events/:eventId — Update event
+   DELETE /api/sof/events/:eventId — Delete event
+   GET /api/sof/:id/pdf — Export SOF as PDF
+
+   FDA endpoints:
+   GET /api/fda — FDA listesi
+   POST /api/fda — Create FDA (from proforma or blank)
+   GET /api/fda/:id — FDA detail
+   PATCH /api/fda/:id — Update FDA (actual amounts, auto-calculates variance)
+   DELETE /api/fda/:id — Delete FDA
+   POST /api/fda/:id/approve — Approve FDA
+   GET /api/fda/:id/pdf — Export FDA as PDF
+
+   Payment endpoints:
+   POST /api/payment/checkout — İyzico checkout
+   POST /api/payment/callback — İyzico callback
+   GET /api/payment/status — Plan durumu
+
+   PDF Export endpoints:
+   GET /api/proformas/:id/pdf — Download proforma PDF
+   GET /api/proformas/:id/pdf/preview — Preview proforma PDF
+
+5. FRONTEND ROUTING bölümüne ekle:
+   /sof — Statement of Facts listesi
+   /sof/:id — SOF detail (timeline view)
+   /fda — Final Disbursement listesi
+   /fda/:id — FDA detail (karşılaştırma view)
+
+6. BUSINESS LOGIC bölümüne ekle:
+
+   PDA to FDA Flow:
+   1. Agent/shipowner proforma (PDA) oluşturur
+   2. Voyage tamamlandıktan sonra Create FDA from PDA butonu ile FDA oluşturulur
+   3. Proformadaki tahmini line itemlar FDAya kopyalanır
+   4. Kullanıcı gerçek masrafları (actual amounts) girer
+   5. Sistem otomatik variance hesaplar (actual - estimated, %)
+   6. Pozitif variance = bütçe aşımı (kırmızı), negatif = tasarruf (yeşil)
+   7. FDA onaylanır, PDF export, shipownera gönderilir
+
+   SOF Flow:
+   1. Gemi limana ulaştığında SOF oluşturulur (voyagea bağlı veya standalone)
+   2. 13 standart olay otomatik eklenir (vessel arrived, vessel sailed)
+   3. Agent olayların tarih/saatlerini gerçek zamanlı günceller
+   4. Custom eventler eklenebilir (yağmur, arıza, shift)
+   5. Deductible olaylar işaretlenir (laytime hesabı için)
+   6. SOF finalize edilir, PDF export, taraflara dağıtılır
+
+   WebSocket Real-time Events:
+   - message:new — Yeni mesaj geldiğinde conversationdaki herkese
+   - voyage:chat:new — Voyage chatte yeni mesaj
+   - notification:new — Bildirim (tender bid, nomination, service offer)
+   - typing:start / typing:stop — Yazıyor göstergesi
+
+7. ENVIRONMENT VARIABLES bölümüne ekle:
+   IYZICO_API_KEY=sandbox-...
+   IYZICO_SECRET_KEY=sandbox-...
+   IYZICO_BASE_URL=https://sandbox-api.iyzipay.com
+   APP_URL=https://vesselpda.com
+
+8. ADDING NEW FEATURES bölümündeki Step 3 API Routes güncelle:
+   Artık server/routes.ts yerine ilgili modül dosyasına ekle:
+   Örnek: server/routes/vessel.routes.ts
+   Yeni modül oluşturuyorsan server/routes.ts registerRoutes içine mount et.
+
+9. WHAT NOT TO DO bölümünü güncelle:
+   ESKİ kural: Dont create new route files, ALL routes go in server/routes.ts
+   YENİ kural: DO create new route files in server/routes/ and mount in server/routes.ts
+   
+   Ekle:
+   - Dont add endpoints doğrudan server/routes.ts'e, ilgili modül dosyasına ekle
+   - Dont skip try-catch + next(error), global error handler'a yönlendir
+   - Dont skip Zod validation, her POST/PATCH'te insertSchema.safeParse() kullan
+   - Dont store files as base64 in DB, use file-storage.ts to save to disk
+
+10. DEVELOPMENT PRIORITIES bölümünü güncelle:
+
+    Phase 1 Tamamlandı:
+    - SQL Injection fix (parameterized queries) ✅
+    - Rate limiting (express-rate-limit) ✅
+    - Input validation (Zod middleware) ✅
+    - CORS configuration ✅
+    - Error handling (AppError + global handler) ✅
+    - N+1 query optimization + pagination ✅
+    - File storage migration (base64 to disk) ✅
+    - PDF export (proforma, SOF, FDA) ✅
+    - Payment integration (İyzico sandbox) ✅
+    - AIS API with auto-reconnect + mock fallback ✅
+    - WebSocket real-time (Socket.io) ✅
+    - SOF module ✅
+    - FDA module ✅
+    - Modular route architecture (20+ files) ✅
+
+    Phase 2 Sıradaki:
+    - Redis cache layer
+    - Mobile responsive improvements
+    - Multi-port proforma comparison
+    - Dashboard charts (Recharts)
+    - Mapbox map integration
+    - Test infrastructure (Vitest + Supertest)
+    - İyzico production activation
+
+    Phase 3 Gelecek:
+    - Port congestion tracking
+    - Advanced fixture management with CP terms
+    - Freight calculator with route optimization
+    - API documentation (Swagger/OpenAPI)
+    - Multi-language support (TR, EN)
+    - Automated tariff updates
+
+11. Son satırı güncelle:
+    Last updated: March 2026 — Based on actual codebase analysis (580+ commits, 14 major improvements)
+
+TÜM BU DEĞİŞİKLİKLERİ mevcut INSTRUCTIONS.md dosyasına uygula. Mevcut içeriği koru, sadece güncelle ve ekle.
