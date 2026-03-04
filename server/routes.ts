@@ -1128,6 +1128,17 @@ export async function registerRoutes(
   app.get("/api/admin/users", isAuthenticated, async (req: any, res) => {
     try {
       if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+      const page = req.query.page ? parseInt(req.query.page as string) : null;
+      if (page && !isNaN(page) && page > 0) {
+        const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+        const offset = (page - 1) * limit;
+        const [dataRes, countRes] = await Promise.all([
+          pool.query(`SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2`, [limit, offset]),
+          pool.query(`SELECT COUNT(*) as total FROM users`),
+        ]);
+        const total = parseInt(countRes.rows[0].total) || 0;
+        return res.json({ data: dataRes.rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+      }
       const allUsers = await storage.getAllUsers();
       res.json(allUsers);
     } catch (error) {
@@ -1239,72 +1250,96 @@ export async function registerRoutes(
   app.get("/api/admin/stats", isAuthenticated, async (req: any, res) => {
     try {
       if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
-      const allUsers = await storage.getAllUsers();
-      const allVessels = await storage.getAllVessels();
-      const allProformas = await storage.getAllProformas();
-      const allProfiles = await storage.getAllCompanyProfiles();
-      const allTenders = await storage.getPortTenders({});
-      const allBids: any[] = [];
-      for (const tender of allTenders) {
-        const bids = await storage.getTenderBids(tender.id);
-        allBids.push(...bids);
-      }
 
-      // Tenders by port (top 10)
-      const portTenderCount: Record<string, number> = {};
-      for (const t of allTenders) {
-        const pn = (t as any).portName || `Port #${t.portId}`;
-        portTenderCount[pn] = (portTenderCount[pn] || 0) + 1;
-      }
-      const tendersByPort = Object.entries(portTenderCount)
-        .sort((a, b) => b[1] - a[1]).slice(0, 10)
-        .map(([port, count]) => ({ port, count }));
+      const [userStatsRes, contentStatsRes, tendersByPortRes, bidsRes, monthlyRes] = await Promise.all([
+        pool.query(`
+          SELECT
+            COUNT(*) as total_users,
+            COUNT(*) FILTER (WHERE user_role = 'agent') as agents,
+            COUNT(*) FILTER (WHERE user_role = 'shipowner') as shipowners,
+            COUNT(*) FILTER (WHERE user_role = 'provider') as providers,
+            COUNT(*) FILTER (WHERE user_role = 'admin') as admins,
+            COUNT(*) FILTER (WHERE subscription_plan = 'free') as plan_free,
+            COUNT(*) FILTER (WHERE subscription_plan = 'standard') as plan_standard,
+            COUNT(*) FILTER (WHERE subscription_plan = 'unlimited') as plan_unlimited,
+            COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') as weekly_users
+          FROM users
+        `),
+        pool.query(`
+          SELECT
+            (SELECT COUNT(*) FROM vessels) as total_vessels,
+            (SELECT COUNT(*) FROM proformas) as total_proformas,
+            (SELECT COUNT(*) FROM company_profiles) as total_company_profiles,
+            (SELECT COUNT(*) FROM port_tenders) as total_tenders,
+            (SELECT COUNT(*) FROM port_tenders WHERE status = 'open') as open_tenders
+        `),
+        pool.query(`
+          SELECT COALESCE(p.name, 'Port #' || pt.port_id::text) as port, COUNT(*) as count
+          FROM port_tenders pt
+          LEFT JOIN ports p ON pt.port_id = p.id
+          GROUP BY pt.port_id, p.name
+          ORDER BY count DESC
+          LIMIT 10
+        `),
+        pool.query(`
+          SELECT
+            COUNT(*) as total_bids,
+            COUNT(*) FILTER (WHERE status = 'selected') as selected_bids
+          FROM tender_bids
+        `),
+        pool.query(`
+          SELECT TO_CHAR(date_trunc('month', created_at), 'Mon YY') as month, COUNT(*) as count
+          FROM proformas
+          WHERE created_at >= date_trunc('month', NOW() - INTERVAL '5 months')
+          GROUP BY date_trunc('month', created_at)
+          ORDER BY date_trunc('month', created_at)
+        `),
+      ]);
 
-      // Bid conversion
-      const selectedBids = allBids.filter(b => b.status === "selected").length;
-      const bidConversionRate = allBids.length > 0 ? Math.round((selectedBids / allBids.length) * 100) : 0;
+      const us = userStatsRes.rows[0];
+      const cs = contentStatsRes.rows[0];
+      const br = bidsRes.rows[0];
 
-      // Monthly proformas (last 6 months)
+      const totalBids = parseInt(br.total_bids) || 0;
+      const selectedBids = parseInt(br.selected_bids) || 0;
+      const bidConversionRate = totalBids > 0 ? Math.round((selectedBids / totalBids) * 100) : 0;
+
+      const tendersByPort = tendersByPortRes.rows.map((r: any) => ({ port: r.port, count: parseInt(r.count) }));
+
+      const monthlyMap = new Map(monthlyRes.rows.map((r: any) => [r.month, parseInt(r.count)]));
       const now = new Date();
       const monthlyProformas = Array.from({ length: 6 }, (_, i) => {
         const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
         const label = d.toLocaleString("en-US", { month: "short", year: "2-digit" });
-        const count = allProformas.filter(p => {
-          const pd = new Date((p as any).createdAt || 0);
-          return pd.getFullYear() === d.getFullYear() && pd.getMonth() === d.getMonth();
-        }).length;
-        return { month: label, count };
+        return { month: label, count: monthlyMap.get(label) || 0 };
       });
 
-      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const weeklyUsers = allUsers.filter(u => u.createdAt && new Date(u.createdAt) > oneWeekAgo).length;
-      const openTendersCount = allTenders.filter(t => t.status === "open").length;
-
       res.json({
-        totalUsers: allUsers.length,
-        weeklyUsers,
-        totalVessels: allVessels.length,
-        totalProformas: allProformas.length,
-        totalCompanyProfiles: allProfiles.length,
-        totalTenders: allTenders.length,
-        openTendersCount,
-        totalBids: allBids.length,
+        totalUsers: parseInt(us.total_users) || 0,
+        weeklyUsers: parseInt(us.weekly_users) || 0,
+        totalVessels: parseInt(cs.total_vessels) || 0,
+        totalProformas: parseInt(cs.total_proformas) || 0,
+        totalCompanyProfiles: parseInt(cs.total_company_profiles) || 0,
+        totalTenders: parseInt(cs.total_tenders) || 0,
+        openTendersCount: parseInt(cs.open_tenders) || 0,
+        totalBids,
         bidConversionRate,
         tendersByPort,
         monthlyProformas,
         usersByRole: {
-          shipowner: allUsers.filter(u => u.userRole === "shipowner").length,
-          agent: allUsers.filter(u => u.userRole === "agent").length,
-          provider: allUsers.filter(u => u.userRole === "provider").length,
-          admin: allUsers.filter(u => u.userRole === "admin").length,
+          shipowner: parseInt(us.shipowners) || 0,
+          agent: parseInt(us.agents) || 0,
+          provider: parseInt(us.providers) || 0,
+          admin: parseInt(us.admins) || 0,
         },
         usersByPlan: {
-          free: allUsers.filter(u => u.subscriptionPlan === "free").length,
-          standard: allUsers.filter(u => u.subscriptionPlan === "standard").length,
-          unlimited: allUsers.filter(u => u.subscriptionPlan === "unlimited").length,
+          free: parseInt(us.plan_free) || 0,
+          standard: parseInt(us.plan_standard) || 0,
+          unlimited: parseInt(us.plan_unlimited) || 0,
         },
       });
     } catch (error) {
+      console.error("[admin/stats]", error);
       res.status(500).json({ message: "Failed to fetch admin stats" });
     }
   });
@@ -1313,54 +1348,54 @@ export async function registerRoutes(
   app.get("/api/admin/stats/enhanced", isAuthenticated, async (req: any, res) => {
     try {
       if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
-      const allUsers = await storage.getAllUsers();
-      const pendingProfiles = await storage.getPendingCompanyProfiles();
-      const today = new Date(); today.setHours(0, 0, 0, 0);
 
-      // Active voyages (in_progress or scheduled)
-      const voyagesRows = await db.execute(drizzleSql`SELECT id, status FROM voyages`);
-      const voyages: any[] = (voyagesRows as any).rows ?? (voyagesRows as any);
-      const activeVoyages = voyages.filter((v: any) => v.status === "in_progress" || v.status === "scheduled").length;
+      const statsRes = await pool.query(`
+        SELECT
+          (SELECT COUNT(*) FROM users) as total_users,
+          (SELECT COUNT(*) FROM users WHERE user_role = 'shipowner') as shipowners,
+          (SELECT COUNT(*) FROM users WHERE user_role = 'agent') as agents,
+          (SELECT COUNT(*) FROM users WHERE user_role = 'provider') as providers,
+          (SELECT COUNT(*) FROM users WHERE user_role = 'broker') as brokers,
+          (SELECT COUNT(*) FROM users WHERE user_role = 'admin') as admins,
+          (SELECT COUNT(*) FROM users WHERE subscription_plan = 'free') as plan_free,
+          (SELECT COUNT(*) FROM users WHERE subscription_plan = 'standard') as plan_standard,
+          (SELECT COUNT(*) FROM users WHERE subscription_plan = 'unlimited') as plan_unlimited,
+          (SELECT COUNT(*) FROM voyages WHERE status IN ('in_progress', 'scheduled')) as active_voyages,
+          (SELECT COUNT(*) FROM voyages) as total_voyages,
+          (SELECT COUNT(*) FROM proformas WHERE created_at >= CURRENT_DATE) as today_proformas,
+          (SELECT COUNT(*) FROM voyages WHERE created_at >= CURRENT_DATE) as today_voyages,
+          (SELECT COUNT(*) FROM service_requests WHERE created_at >= CURRENT_DATE) as today_sr,
+          (SELECT COUNT(*) FROM company_profiles WHERE verification_status = 'pending') as pending_verifications,
+          (SELECT COUNT(*) FROM company_profiles WHERE is_approved = false AND (verification_status IS NULL OR verification_status != 'pending')) as pending_approvals
+      `);
 
-      // Today's transactions (proformas + voyages + service requests created today)
-      const proformaRows = await db.execute(drizzleSql`SELECT id FROM proformas WHERE created_at >= ${today.toISOString()}`);
-      const todayProformas = ((proformaRows as any).rows ?? (proformaRows as any)).length;
-      const voyageTodayRows = await db.execute(drizzleSql`SELECT id FROM voyages WHERE created_at >= ${today.toISOString()}`);
-      const todayVoyages = ((voyageTodayRows as any).rows ?? (voyageTodayRows as any)).length;
-      const srRows = await db.execute(drizzleSql`SELECT id FROM service_requests WHERE created_at >= ${today.toISOString()}`);
-      const todaySR = ((srRows as any).rows ?? (srRows as any)).length;
-      const todayTransactions = todayProformas + todayVoyages + todaySR;
-
-      // Pending verifications
-      const pendingVerifRows = await db.execute(drizzleSql`SELECT id FROM company_profiles WHERE verification_status = 'pending'`);
-      const pendingVerifications = ((pendingVerifRows as any).rows ?? (pendingVerifRows as any)).length;
-
-      // System health
-      const dbOk = true;
-      const aisOk = !!process.env.AIS_STREAM_API_KEY;
-      const teOk = !!process.env.TRADING_ECONOMICS_API_KEY;
-      const resendOk = !!process.env.RESEND_API_KEY;
+      const s = statsRes.rows[0];
 
       res.json({
-        totalUsers: allUsers.length,
+        totalUsers: parseInt(s.total_users) || 0,
         usersByRole: {
-          shipowner: allUsers.filter((u: any) => u.userRole === "shipowner").length,
-          agent: allUsers.filter((u: any) => u.userRole === "agent").length,
-          provider: allUsers.filter((u: any) => u.userRole === "provider").length,
-          broker: allUsers.filter((u: any) => u.userRole === "broker").length,
-          admin: allUsers.filter((u: any) => u.userRole === "admin").length,
+          shipowner: parseInt(s.shipowners) || 0,
+          agent: parseInt(s.agents) || 0,
+          provider: parseInt(s.providers) || 0,
+          broker: parseInt(s.brokers) || 0,
+          admin: parseInt(s.admins) || 0,
         },
         usersByPlan: {
-          free: allUsers.filter((u: any) => u.subscriptionPlan === "free").length,
-          standard: allUsers.filter((u: any) => u.subscriptionPlan === "standard").length,
-          unlimited: allUsers.filter((u: any) => u.subscriptionPlan === "unlimited").length,
+          free: parseInt(s.plan_free) || 0,
+          standard: parseInt(s.plan_standard) || 0,
+          unlimited: parseInt(s.plan_unlimited) || 0,
         },
-        activeVoyages,
-        todayTransactions,
-        pendingApprovals: pendingProfiles.length,
-        pendingVerifications,
-        totalVoyages: voyages.length,
-        systemHealth: { dbOk, aisOk, teOk, resendOk },
+        activeVoyages: parseInt(s.active_voyages) || 0,
+        todayTransactions: (parseInt(s.today_proformas) || 0) + (parseInt(s.today_voyages) || 0) + (parseInt(s.today_sr) || 0),
+        pendingApprovals: parseInt(s.pending_approvals) || 0,
+        pendingVerifications: parseInt(s.pending_verifications) || 0,
+        totalVoyages: parseInt(s.total_voyages) || 0,
+        systemHealth: {
+          dbOk: true,
+          aisOk: !!process.env.AIS_STREAM_API_KEY,
+          teOk: !!process.env.TRADING_ECONOMICS_API_KEY,
+          resendOk: !!process.env.RESEND_API_KEY,
+        },
       });
     } catch (error) {
       console.error("[admin/stats/enhanced]", error);
@@ -1591,20 +1626,32 @@ export async function registerRoutes(
   app.get("/api/admin/voyages", isAuthenticated, async (req: any, res) => {
     try {
       if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
-      const rows = await db.execute(drizzleSql`
-        SELECT v.id, v.status, v.created_at, v.eta, v.etd,
-          u.first_name, u.last_name, u.email, u.user_role,
-          ves.name as vessel_name, ves.imo_number,
-          p.name as port_name
-        FROM voyages v
-        LEFT JOIN users u ON v.user_id = u.id
-        LEFT JOIN vessels ves ON v.vessel_id = ves.id
-        LEFT JOIN ports p ON v.port_id = p.id
-        ORDER BY v.created_at DESC
-        LIMIT 100
-      `);
-      const list: any[] = (rows as any).rows ?? (rows as any);
-      res.json(list);
+      const page = req.query.page ? parseInt(req.query.page as string) : null;
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
+      const offset = page && page > 0 ? (page - 1) * limit : 0;
+      const effectiveLimit = page && page > 0 ? limit : 100;
+
+      const [dataRes, countRes] = await Promise.all([
+        pool.query(`
+          SELECT v.id, v.status, v.created_at, v.eta, v.etd,
+            u.first_name, u.last_name, u.email, u.user_role,
+            ves.name as vessel_name, ves.imo_number,
+            p.name as port_name
+          FROM voyages v
+          LEFT JOIN users u ON v.user_id = u.id
+          LEFT JOIN vessels ves ON v.vessel_id = ves.id
+          LEFT JOIN ports p ON v.port_id = p.id
+          ORDER BY v.created_at DESC
+          LIMIT $1 OFFSET $2
+        `, [effectiveLimit, offset]),
+        page && page > 0 ? pool.query(`SELECT COUNT(*) as total FROM voyages`) : Promise.resolve(null),
+      ]);
+
+      if (page && page > 0 && countRes) {
+        const total = parseInt(countRes.rows[0].total) || 0;
+        return res.json({ data: dataRes.rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+      }
+      res.json(dataRes.rows);
     } catch (error) {
       console.error("[admin/voyages]", error);
       res.status(500).json({ message: "Failed to fetch voyages" });
@@ -2176,80 +2223,74 @@ export async function registerRoutes(
 
   app.get("/api/activity-feed", async (_req, res) => {
     try {
-      const activities: { type: string; message: string; timestamp: string; icon: string }[] = [];
+      const { rows } = await pool.query(`
+        (
+          SELECT 'proforma' as type,
+            'Proforma generated for ' || COALESCE(v.name, 'a vessel') || ' at ' || COALESCE(p.name, 'port') as message,
+            'filetext' as icon,
+            pr.created_at
+          FROM proformas pr
+          LEFT JOIN vessels v ON pr.vessel_id = v.id
+          LEFT JOIN ports p ON pr.port_id = p.id
+          WHERE pr.created_at IS NOT NULL
+          ORDER BY pr.created_at DESC LIMIT 8
+        )
+        UNION ALL
+        (
+          SELECT 'vessel' as type,
+            v.name || ' (' || COALESCE(v.flag, '?') || ') registered to the fleet' as message,
+            'ship' as icon,
+            v.created_at
+          FROM vessels v
+          WHERE v.created_at IS NOT NULL
+          ORDER BY v.created_at DESC LIMIT 6
+        )
+        UNION ALL
+        (
+          SELECT 'company' as type,
+            cp.company_name || ' joined as ' ||
+              CASE WHEN cp.company_type = 'agent' THEN 'Ship Agent' ELSE 'Service Provider' END as message,
+            'building' as icon,
+            cp.created_at
+          FROM company_profiles cp
+          WHERE cp.created_at IS NOT NULL
+          ORDER BY cp.created_at DESC LIMIT 6
+        )
+        UNION ALL
+        (
+          SELECT 'user' as type,
+            COALESCE(u.first_name, 'A maritime professional') || ' joined VesselPDA as ' ||
+              CASE WHEN u.user_role = 'agent' THEN 'Ship Agent'
+                   WHEN u.user_role = 'provider' THEN 'Service Provider'
+                   ELSE 'Shipowner' END as message,
+            'user' as icon,
+            u.created_at
+          FROM users u
+          WHERE u.created_at IS NOT NULL AND u.user_role != 'admin'
+          ORDER BY u.created_at DESC LIMIT 4
+        )
+        UNION ALL
+        (
+          SELECT 'forum' as type,
+            '"' || ft.title || '" posted in the forum' as message,
+            'message-square' as icon,
+            ft.created_at
+          FROM forum_topics ft
+          WHERE ft.created_at IS NOT NULL
+          ORDER BY ft.created_at DESC LIMIT 6
+        )
+        ORDER BY created_at DESC
+        LIMIT 20
+      `);
 
-      const allVessels = await storage.getAllVessels();
-      const vesselMap = new Map(allVessels.map(v => [v.id, v]));
-      const allPorts = await storage.getPorts();
-      const portMap = new Map(allPorts.map(p => [p.id, p]));
+      const activities = rows.map((r: any) => ({
+        type: r.type,
+        message: r.message,
+        timestamp: r.created_at ? new Date(r.created_at).toISOString() : new Date().toISOString(),
+        icon: r.icon,
+      }));
 
-      const allProformas = await storage.getAllProformas();
-      for (const p of allProformas.slice(0, 8)) {
-        const vessel = p.vesselId ? vesselMap.get(p.vesselId) : null;
-        const port = p.portId ? portMap.get(p.portId) : null;
-        const vesselName = vessel?.name || "a vessel";
-        const portName = port?.name || "port";
-        activities.push({
-          type: "proforma",
-          message: `Proforma generated for ${vesselName} at ${portName}`,
-          timestamp: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(),
-          icon: "filetext",
-        });
-      }
-
-      const sortedVessels = allVessels
-        .filter(v => v.createdAt)
-        .sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
-      for (const v of sortedVessels.slice(0, 6)) {
-        activities.push({
-          type: "vessel",
-          message: `${v.name} (${v.flag}) registered to the fleet`,
-          timestamp: v.createdAt ? new Date(v.createdAt).toISOString() : new Date().toISOString(),
-          icon: "ship",
-        });
-      }
-
-      const allProfiles = await storage.getAllCompanyProfiles();
-      const sortedProfiles = allProfiles
-        .filter(p => p.createdAt)
-        .sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
-      for (const p of sortedProfiles.slice(0, 6)) {
-        const typeLabel = p.companyType === "agent" ? "Ship Agent" : "Service Provider";
-        activities.push({
-          type: "company",
-          message: `${p.companyName} joined as ${typeLabel}`,
-          timestamp: p.createdAt ? new Date(p.createdAt).toISOString() : new Date().toISOString(),
-          icon: "building",
-        });
-      }
-
-      const allUsers = await storage.getAllUsers();
-      const sortedUsers = allUsers
-        .filter(u => u.createdAt && u.userRole !== "admin")
-        .sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
-      for (const u of sortedUsers.slice(0, 4)) {
-        const roleLabel = u.userRole === "agent" ? "Ship Agent" : u.userRole === "provider" ? "Service Provider" : "Shipowner";
-        const name = u.firstName || "A maritime professional";
-        activities.push({
-          type: "user",
-          message: `${name} joined VesselPDA as ${roleLabel}`,
-          timestamp: u.createdAt ? new Date(u.createdAt).toISOString() : new Date().toISOString(),
-          icon: "user",
-        });
-      }
-
-      const recentTopics = await storage.getForumTopics({ sort: "latest", limit: 6 });
-      for (const t of recentTopics) {
-        activities.push({
-          type: "forum",
-          message: `"${t.title}" posted in the forum`,
-          timestamp: t.createdAt ? new Date(t.createdAt).toISOString() : new Date().toISOString(),
-          icon: "message-square",
-        });
-      }
-
-      activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      res.json(activities.slice(0, 20));
+      res.json(activities);
     } catch (error) {
       console.error("Activity feed error:", error);
       res.status(500).json({ message: "Failed to fetch activity feed" });
@@ -4078,8 +4119,21 @@ export async function registerRoutes(
   app.get("/api/fixtures", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const isAdmin = req.user.userRole === "admin" || req.user.activeRole === "admin";
-      const result = isAdmin ? await storage.getAllFixtures() : await storage.getFixtures(userId);
+      const isAdminUser = req.user.userRole === "admin" || req.user.activeRole === "admin";
+      const page = req.query.page ? parseInt(req.query.page as string) : null;
+      if (page && !isNaN(page) && page > 0) {
+        const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+        const offset = (page - 1) * limit;
+        const whereClause = isAdminUser ? "" : "WHERE user_id = $3";
+        const params: any[] = isAdminUser ? [limit, offset] : [limit, offset, userId];
+        const [dataRes, countRes] = await Promise.all([
+          pool.query(`SELECT * FROM fixtures ${whereClause} ORDER BY created_at DESC LIMIT $1 OFFSET $2`, params),
+          pool.query(`SELECT COUNT(*) as total FROM fixtures${isAdminUser ? "" : " WHERE user_id = $1"}`, isAdminUser ? [] : [userId]),
+        ]);
+        const total = parseInt(countRes.rows[0].total) || 0;
+        return res.json({ data: dataRes.rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+      }
+      const result = isAdminUser ? await storage.getAllFixtures() : await storage.getFixtures(userId);
       res.json(result);
     } catch {
       res.status(500).json({ message: "Failed to fetch fixtures" });
@@ -4280,6 +4334,17 @@ export async function registerRoutes(
 
   app.get("/api/cargo-positions", isAuthenticated, async (req: any, res) => {
     try {
+      const page = req.query.page ? parseInt(req.query.page as string) : null;
+      if (page && !isNaN(page) && page > 0) {
+        const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+        const offset = (page - 1) * limit;
+        const [dataRes, countRes] = await Promise.all([
+          pool.query(`SELECT * FROM cargo_positions ORDER BY created_at DESC LIMIT $1 OFFSET $2`, [limit, offset]),
+          pool.query(`SELECT COUNT(*) as total FROM cargo_positions`),
+        ]);
+        const total = parseInt(countRes.rows[0].total) || 0;
+        return res.json({ data: dataRes.rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+      }
       const positions = await storage.getCargoPositions();
       res.json(positions);
     } catch {

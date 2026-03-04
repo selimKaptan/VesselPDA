@@ -1,0 +1,79 @@
+INSTRUCTIONS.md'yi oku. Admin stats ve activity feed endpoint'lerinde ciddi performans sorunu var. Her çağrıda tüm tablolar taranıyor (N+1 query problemi).
+
+Şu değişiklikleri yap:
+
+1. GET /api/admin/stats ENDPOINT'İNİ OPTİMİZE ET:
+   
+   Şu anki sorun: getAllUsers(), getAllVessels(), getAllProformas() gibi fonksiyonlar TÜM kayıtları çekiyor, sonra JavaScript'te .length ile sayıyor.
+   
+   Çözüm — SQL aggregate query kullan:
+   
+   const [userStats] = await pool.query(`
+     SELECT 
+       COUNT(*) as total_users,
+       COUNT(*) FILTER (WHERE user_role = 'agent') as agents,
+       COUNT(*) FILTER (WHERE user_role = 'shipowner') as shipowners,
+       COUNT(*) FILTER (WHERE user_role = 'broker') as brokers,
+       COUNT(*) FILTER (WHERE user_role = 'provider') as providers,
+       COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days') as new_this_month
+     FROM users WHERE is_suspended = false
+   `);
+   
+   const [contentStats] = await pool.query(`
+     SELECT
+       (SELECT COUNT(*) FROM vessels) as total_vessels,
+       (SELECT COUNT(*) FROM proformas) as total_proformas,
+       (SELECT COUNT(*) FROM port_tenders) as total_tenders,
+       (SELECT COUNT(*) FROM port_tenders WHERE status = 'open') as open_tenders,
+       (SELECT COUNT(*) FROM voyages) as total_voyages,
+       (SELECT COUNT(*) FROM voyages WHERE status = 'in_progress') as active_voyages,
+       (SELECT COUNT(*) FROM company_profiles WHERE is_approved = true) as verified_companies
+   `);
+
+2. GET /api/admin/stats/enhanced AYNI ŞEKİLDE OPTİMİZE ET:
+   Aynı pattern — aggregate query, tek seferde tüm istatistikleri çek.
+
+3. GET /api/activity-feed ENDPOINT'İNİ OPTİMİZE ET:
+   
+   Şu anki sorun: getAllVessels() + getAllProformas() + getAllCompanyProfiles() + getAllUsers() + getForumTopics() çağırıp JavaScript'te birleştiriyor.
+   
+   Çözüm — UNION ALL ile tek sorgu:
+   
+   const { rows: activities } = await pool.query(`
+     (SELECT 'vessel' as type, name as title, created_at, user_id FROM vessels ORDER BY created_at DESC LIMIT 5)
+     UNION ALL
+     (SELECT 'proforma' as type, reference_number as title, created_at, user_id FROM proformas ORDER BY created_at DESC LIMIT 5)
+     UNION ALL
+     (SELECT 'company' as type, company_name as title, created_at, user_id FROM company_profiles ORDER BY created_at DESC LIMIT 5)
+     UNION ALL
+     (SELECT 'topic' as type, title, created_at, user_id FROM forum_topics ORDER BY created_at DESC LIMIT 5)
+     ORDER BY created_at DESC
+     LIMIT 20
+   `);
+
+4. LIST ENDPOINT'LERE PAGİNATİON EKLE:
+   
+   Şu endpoint'lere ?page=1&limit=20 desteği ekle:
+   - GET /api/admin/users
+   - GET /api/admin/voyages
+   - GET /api/admin/audit-logs (zaten olabilir, kontrol et)
+   - GET /api/tenders
+   - GET /api/voyages
+   - GET /api/fixtures
+   - GET /api/cargo-positions
+   
+   Pattern:
+   const page = parseInt(req.query.page as string) || 1;
+   const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+   const offset = (page - 1) * limit;
+   
+   // Drizzle ile:
+   const items = await db.select().from(table).limit(limit).offset(offset).orderBy(desc(table.createdAt));
+   const [{ count }] = await db.select({ count: sql`count(*)` }).from(table);
+   
+   res.json({ data: items, pagination: { page, limit, total: Number(count), totalPages: Math.ceil(Number(count) / limit) } });
+
+5. IMPORTANT: 
+   - Frontend'de pagination kullanan sayfalar varsa onları bozma
+   - Eğer frontend paginated response beklemiyorsa, eski format'ı da destekle (backward compatibility)
+   - Mevcut çalışan fonksiyonelliği koruyarak optimize et
