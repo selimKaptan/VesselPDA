@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { registerRoutes } from "./routes";
@@ -14,6 +15,18 @@ import { initSocket } from "./socket";
 const app = express();
 const httpServer = createServer(app);
 initSocket(httpServer);
+
+const corsOptions: cors.CorsOptions = {
+  origin: process.env.NODE_ENV === "production"
+    ? ["https://vesselpda.com", "https://www.vesselpda.com", /\.replit\.dev$/, /\.repl\.co$/]
+    : true,
+  credentials: true,
+  methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  maxAge: 86400,
+};
+
+app.use(cors(corsOptions));
 
 // CHANGE 1: Health endpoint BEFORE helmet so it's never blocked
 app.get("/api/health", (_req, res) => res.status(200).json({ status: "ok" }));
