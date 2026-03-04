@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import path from "path";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -97,6 +98,9 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+// Serve uploaded files (certificates, crew docs, bid PDFs, voyage documents)
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 async function seedTestAdmin() {
   const TEST_ADMIN_EMAIL = "test_admin@vpda.test";

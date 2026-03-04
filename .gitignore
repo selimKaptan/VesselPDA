@@ -4,3 +4,8 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+uploads/documents/
+uploads/certificates/
+uploads/crew/
+uploads/proformas/
+uploads/bids/

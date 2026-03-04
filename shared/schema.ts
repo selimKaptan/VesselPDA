@@ -265,6 +265,7 @@ export const tenderBids = pgTable("tender_bids", {
   agentUserId: varchar("agent_user_id").notNull().references(() => users.id),
   agentCompanyId: integer("agent_company_id").references(() => companyProfiles.id),
   proformaPdfBase64: text("proforma_pdf_base64"),
+  proformaPdfUrl: text("proforma_pdf_url"),
   notes: text("notes"),
   totalAmount: text("total_amount"),
   currency: text("currency").notNull().default("USD"),
@@ -897,8 +898,10 @@ export const vesselCrew = pgTable("vessel_crew", {
   seamansBookExpiry: timestamp("seamans_book_expiry"),
   passportFileBase64: text("passport_file_base64"),
   passportFileName: text("passport_file_name"),
+  passportFileUrl: text("passport_file_url"),
   seamansBookFileBase64: text("seamans_book_file_base64"),
   seamansBookFileName: text("seamans_book_file_name"),
+  seamansBookFileUrl: text("seamans_book_file_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

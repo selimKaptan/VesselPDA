@@ -42,6 +42,7 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
     - **Vessel Crew Management**: CRUD for crew members with document upload and expiry warnings.
     - **Tariff Management System**: Admin page for managing Turkish port tariffs across various categories with inline editing, bulk updates, CSV export/import, and official vessel categories. Includes global tariffs and specific calculations for supervision fees and miscellaneous expenses.
     - **DB-Connected Quick Estimate**: Instant proforma calculations linked to database tariff tables, supporting IMO search and dangerous goods surcharges.
+    - **File System Storage**: New uploads are saved to `uploads/{category}/` on disk (bids, documents, certificates, crew, proformas, logos) instead of base64 in the DB. Old base64 records in DB remain untouched (backward compatible). Static files served via `/uploads/*`.
 - **Security**: Helmet Content-Security-Policy headers are configured.
 
 ## External Dependencies

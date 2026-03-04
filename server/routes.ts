@@ -29,6 +29,7 @@ import { logAction, getClientIp } from "./audit";
 import { requireRole } from "./middleware/role-guard";
 import { registerProformaApprovalRoutes } from "./proforma-approval";
 import { AppError } from "./error-handler";
+import { saveBase64File } from "./file-storage";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "logos");
 if (!fs.existsSync(uploadsDir)) {
@@ -2781,11 +2782,23 @@ export async function registerRoutes(
         return res.status(400).json({ message: "PDF file is too large (max 5MB)" });
       }
 
+      // Save base64 PDF to filesystem; store URL in DB instead of raw base64
+      let pdfUrl: string | null = null;
+      let pdfBase64ToStore: string | null = null;
+      if (proformaPdfBase64) {
+        try {
+          pdfUrl = saveBase64File(proformaPdfBase64, "bids");
+        } catch {
+          pdfBase64ToStore = proformaPdfBase64; // fallback: store in DB if FS write fails
+        }
+      }
+
       const bid = await storage.createTenderBid({
         tenderId,
         agentUserId: userId,
         agentCompanyId: profile?.id || null,
-        proformaPdfBase64: proformaPdfBase64 || null,
+        proformaPdfBase64: pdfBase64ToStore,
+        proformaPdfUrl: pdfUrl,
         notes: notes || null,
         totalAmount: totalAmount || null,
         currency: currency || "USD",
@@ -3613,12 +3626,24 @@ export async function registerRoutes(
       const voyageId = parseInt(req.params.id);
       const { name, docType, fileBase64, fileUrl, fileName, fileSize, notes } = req.body;
       if (!name || (!fileBase64 && !fileUrl)) return res.status(400).json({ message: "name and file required" });
+
+      // Save base64 to filesystem; keep old base64-in-DB records untouched
+      let resolvedUrl = fileUrl || null;
+      let base64ToStore: string | null = null;
+      if (fileBase64 && !fileUrl) {
+        try {
+          resolvedUrl = saveBase64File(fileBase64, "documents");
+        } catch {
+          base64ToStore = fileBase64; // fallback if FS write fails
+        }
+      }
+
       const doc = await storage.createVoyageDocument({
         voyageId,
         name,
         docType: docType || "other",
-        fileBase64: fileBase64 || null,
-        fileUrl: fileUrl || null,
+        fileBase64: base64ToStore,
+        fileUrl: resolvedUrl,
         fileName: fileName || null,
         fileSize: fileSize || null,
         notes: notes || null,
@@ -4010,7 +4035,26 @@ export async function registerRoutes(
     try {
       const vesselId = parseInt(req.params.vesselId);
       const userId = req.user?.claims?.sub || req.user?.id;
-      const cert = await storage.createVesselCertificate({ ...req.body, vesselId, userId });
+      const { fileBase64, ...certData } = req.body;
+
+      // Save base64 certificate file to filesystem; old DB records stay untouched
+      let resolvedFileUrl = certData.fileUrl || null;
+      let base64ToStore: string | null = null;
+      if (fileBase64 && !certData.fileUrl) {
+        try {
+          resolvedFileUrl = saveBase64File(fileBase64, "certificates");
+        } catch {
+          base64ToStore = fileBase64;
+        }
+      }
+
+      const cert = await storage.createVesselCertificate({
+        ...certData,
+        vesselId,
+        userId,
+        fileBase64: base64ToStore,
+        fileUrl: resolvedFileUrl,
+      });
       res.status(201).json(cert);
     } catch {
       res.status(500).json({ message: "Failed to create certificate" });
@@ -4065,7 +4109,38 @@ export async function registerRoutes(
     try {
       const vesselId = parseInt(req.params.vesselId);
       const userId = req.user?.claims?.sub || req.user?.id;
-      const member = await storage.createVesselCrewMember({ ...req.body, vesselId, userId });
+      const { passportFileBase64, seamansBookFileBase64, ...crewData } = req.body;
+
+      // Save passport and seaman book files to filesystem
+      let passportFileUrl: string | null = null;
+      let passportBase64ToStore: string | null = null;
+      if (passportFileBase64) {
+        try {
+          passportFileUrl = saveBase64File(passportFileBase64, "crew");
+        } catch {
+          passportBase64ToStore = passportFileBase64;
+        }
+      }
+
+      let seamansBookFileUrl: string | null = null;
+      let seamansBase64ToStore: string | null = null;
+      if (seamansBookFileBase64) {
+        try {
+          seamansBookFileUrl = saveBase64File(seamansBookFileBase64, "crew");
+        } catch {
+          seamansBase64ToStore = seamansBookFileBase64;
+        }
+      }
+
+      const member = await storage.createVesselCrewMember({
+        ...crewData,
+        vesselId,
+        userId,
+        passportFileBase64: passportBase64ToStore,
+        passportFileUrl,
+        seamansBookFileBase64: seamansBase64ToStore,
+        seamansBookFileUrl,
+      });
       res.status(201).json(member);
     } catch {
       res.status(500).json({ message: "Failed to create crew member" });

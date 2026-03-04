@@ -1,0 +1,98 @@
+INSTRUCTIONS.md'yi oku. Proforma PDF'ler, sertifikalar, crew belgeleri base64 olarak PostgreSQL'de saklanıyor. Bu veritabanını şişiriyor ve API response'larını yavaşlatıyor.
+
+Şu değişiklikleri yap:
+
+1. server/file-storage.ts dosyasını güncelle veya oluştur:
+
+   import fs from 'fs';
+   import path from 'path';
+   import crypto from 'crypto';
+
+   const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
+   
+   // Alt klasörler
+   const DIRS = {
+     documents: path.join(UPLOAD_DIR, 'documents'),
+     certificates: path.join(UPLOAD_DIR, 'certificates'),
+     crew: path.join(UPLOAD_DIR, 'crew'),
+     proformas: path.join(UPLOAD_DIR, 'proformas'),
+     logos: path.join(UPLOAD_DIR, 'logos'),
+     bids: path.join(UPLOAD_DIR, 'bids'),
+   };
+
+   // Klasörleri oluştur
+   Object.values(DIRS).forEach(dir => {
+     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+   });
+
+   export function saveBase64File(base64Data: string, category: keyof typeof DIRS, originalName?: string): string {
+     // data:application/pdf;base64,xxxx formatını parse et
+     const matches = base64Data.match(/^data:(.+);base64,(.+)$/);
+     const buffer = Buffer.from(matches ? matches[2] : base64Data, 'base64');
+     const ext = matches ? matches[1].split('/')[1] : 'bin';
+     const fileName = `${crypto.randomUUID()}.${ext}`;
+     const filePath = path.join(DIRS[category], fileName);
+     fs.writeFileSync(filePath, buffer);
+     return `/uploads/${category}/${fileName}`;
+   }
+
+   export function getFileAsBase64(filePath: string): string | null {
+     const fullPath = path.join(process.cwd(), filePath);
+     if (!fs.existsSync(fullPath)) return null;
+     const buffer = fs.readFileSync(fullPath);
+     const ext = path.extname(filePath).slice(1);
+     const mimeTypes: Record<string, string> = {
+       pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg',
+       jpeg: 'image/jpeg', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+     };
+     const mime = mimeTypes[ext] || 'application/octet-stream';
+     return `data:${mime};base64,${buffer.toString('base64')}`;
+   }
+
+   export function deleteFile(filePath: string): boolean {
+     const fullPath = path.join(process.cwd(), filePath);
+     if (fs.existsSync(fullPath)) { fs.unlinkSync(fullPath); return true; }
+     return false;
+   }
+
+2. Statik dosya servisini server/index.ts'e ekle (zaten varsa kontrol et):
+   import express from 'express';
+   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
+3. YENİ KAYITLAR İÇİN — şu endpoint'leri güncelle:
+
+   POST /api/tenders/:id/bids → bid'deki proformaPdfBase64 yerine:
+   - saveBase64File(proformaPdfBase64, 'bids') çağır
+   - DB'ye URL kaydet (proformaPdfUrl alanı)
+   - Response'da URL döndür
+
+   POST /api/voyages/:id/documents → fileBase64 yerine:
+   - saveBase64File(fileBase64, 'documents') çağır  
+   - DB'ye URL kaydet
+   
+   POST /api/vessels/:vesselId/certificates → dosya varsa:
+   - saveBase64File ile kaydet
+   
+   POST /api/vessels/:vesselId/crew → passport/seaman dosyaları:
+   - saveBase64File ile kaydet
+
+4. GERİYE UYUMLULUK (ÇOK ÖNEMLİ):
+   - GET endpoint'lerinde: eğer DB'de eski base64 data varsa olduğu gibi döndür
+   - Eğer DB'de URL varsa (yeni format) URL döndür
+   - Frontend'in her iki formatı da handle edebilmesi için:
+     response'a hem fileUrl hem de gerekirse base64 alanı ekle
+   - ESKİ VERİLERİ BOZMA — sadece yeni kayıtlar file system'e gitsin
+   
+5. .gitignore'a ekle (zaten yoksa):
+   uploads/documents/
+   uploads/certificates/
+   uploads/crew/
+   uploads/proformas/
+   uploads/bids/
+   # uploads/logos/ zaten var olabilir
+
+6. IMPORTANT:
+   - Bu bir migration DEĞİL — eski base64 veriler DB'de kalacak
+   - Sadece YENİ kayıtlar file system'e yazılacak
+   - Mevcut frontend'i BOZMA
+   - Logo upload zaten multer ile çalışıyorsa dokunma
