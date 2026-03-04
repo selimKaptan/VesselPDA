@@ -7458,6 +7458,29 @@ export async function registerRoutes(
     } catch { res.status(500).json({ message: "Failed" }); }
   });
 
+  app.get("/sitemap.xml", (_req, res) => {
+    const base = "https://vesselpda.com";
+    const pages = [
+      { url: "/", priority: "1.0", changefreq: "weekly" },
+      { url: "/register", priority: "0.9", changefreq: "monthly" },
+      { url: "/login", priority: "0.8", changefreq: "monthly" },
+      { url: "/directory", priority: "0.8", changefreq: "daily" },
+      { url: "/forum", priority: "0.7", changefreq: "daily" },
+      { url: "/port-info", priority: "0.7", changefreq: "weekly" },
+      { url: "/market-data", priority: "0.6", changefreq: "daily" },
+    ];
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${pages.map(p => `  <url>
+    <loc>${base}${p.url}</loc>
+    <changefreq>${p.changefreq}</changefreq>
+    <priority>${p.priority}</priority>
+  </url>`).join("\n")}
+</urlset>`;
+    res.set("Content-Type", "application/xml");
+    res.send(xml);
+  });
+
   app.delete("/api/push/subscribe", isAuthenticated, async (req, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
