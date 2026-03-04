@@ -44,6 +44,7 @@ import MessageThread from "@/pages/message-thread";
 import Nominations from "@/pages/nominations";
 import SanctionsCheck from "@/pages/sanctions-check";
 import VesselCertificates from "@/pages/vessel-certificates";
+import Compliance from "@/pages/compliance";
 import Fixtures from "@/pages/fixtures";
 import CargoPositions from "@/pages/cargo-positions";
 import MarketData from "@/pages/market-data";
@@ -238,6 +239,8 @@ function AuthenticatedRouter() {
       <Route path="/nominations" component={Nominations} />
       <Route path="/sanctions-check" component={SanctionsCheck} />
       <Route path="/vessel-certificates" component={VesselCertificates} />
+      <Route path="/compliance" component={Compliance} />
+      <Route path="/compliance/:checklistId" component={Compliance} />
       <Route path="/bunker-management" component={BunkerManagement} />
       <Route path="/maritime-docs/:id" component={MaritimeDocView} />
       <Route path="/fixtures" component={Fixtures} />

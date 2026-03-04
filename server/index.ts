@@ -264,6 +264,10 @@ app.use((req, res, next) => {
         migrateEmailInbound().catch((err: Error) => console.error("Email inbound migration error:", err));
       });
 
+      import("./migrate-compliance").then(({ migrateCompliance }) => {
+        migrateCompliance().catch((err: Error) => console.error("Compliance migration error:", err));
+      });
+
       import("./startup-checks").then(({ runStartupChecks }) => {
         setTimeout(() => {
           runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));

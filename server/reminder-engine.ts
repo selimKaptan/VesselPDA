@@ -233,6 +233,64 @@ async function checkVesselApproaching() {
   }
 }
 
+// ── g) Compliance audit due / overdue ────────────────────────────────────────
+async function checkComplianceAudits() {
+  const { rows } = await pool.query(
+    `SELECT cl.id, cl.user_id, cl.organization_id, cl.standard_code, cl.standard_name, cl.next_audit_date, v.name AS vessel_name
+     FROM compliance_checklists cl
+     LEFT JOIN vessels v ON v.id = cl.vessel_id
+     WHERE cl.next_audit_date IS NOT NULL
+       AND cl.next_audit_date < NOW() + INTERVAL '30 days'`
+  ).catch(() => ({ rows: [] }));
+
+  for (const cl of rows) {
+    const days = Math.ceil((new Date(cl.next_audit_date).getTime() - Date.now()) / 86400000);
+    const isOverdue = days < 0;
+    await upsertReminder({
+      userId: cl.user_id,
+      organizationId: cl.organization_id,
+      category: "compliance_audit",
+      entityType: "compliance_checklist",
+      entityId: cl.id,
+      title: isOverdue ? `Overdue Audit: ${cl.standard_code}` : `Audit Due in ${days} day${days !== 1 ? "s" : ""}: ${cl.standard_code}`,
+      message: `${cl.standard_name}${cl.vessel_name ? ` · ${cl.vessel_name}` : ""} — audit ${isOverdue ? `was due ${Math.abs(days)}d ago` : `due ${formatDt(cl.next_audit_date)}`}. Schedule a verification.`,
+      priority: isOverdue ? "urgent" : days <= 7 ? "high" : "normal",
+      dueDate: new Date(cl.next_audit_date),
+    });
+  }
+}
+
+// ── h) Corrective action due / overdue ───────────────────────────────────────
+async function checkCorrectiveActions() {
+  const { rows } = await pool.query(
+    `SELECT ci.id, ci.checklist_id, ci.section_title, ci.corrective_action_due_date, ci.finding_type,
+            cl.user_id, cl.organization_id, cl.standard_code
+     FROM compliance_items ci
+     JOIN compliance_checklists cl ON cl.id = ci.checklist_id
+     WHERE ci.corrective_action_due_date IS NOT NULL
+       AND ci.corrective_action_status IN ('open','in_progress')
+       AND ci.corrective_action_due_date < NOW() + INTERVAL '14 days'`
+  ).catch(() => ({ rows: [] }));
+
+  for (const item of rows) {
+    const days = Math.ceil((new Date(item.corrective_action_due_date).getTime() - Date.now()) / 86400000);
+    const isOverdue = days < 0;
+    await upsertReminder({
+      userId: item.user_id,
+      organizationId: item.organization_id,
+      category: "corrective_action",
+      entityType: "compliance_checklist",
+      entityId: item.checklist_id,
+      title: isOverdue ? `Overdue CA: ${item.standard_code} — ${item.section_title}` : `CA Due in ${days}d: ${item.section_title}`,
+      message: `${item.finding_type?.replace(/_/g, " ")} in ${item.standard_code} checklist. Corrective action ${isOverdue ? `was due ${Math.abs(days)}d ago` : `due ${formatDt(item.corrective_action_due_date)}`}.`,
+      priority: isOverdue || item.finding_type === "major_non_conformity" ? "urgent" : "high",
+      dueDate: new Date(item.corrective_action_due_date),
+    });
+  }
+}
+
+function formatDt(d: string) { return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }); }
+
 // ── Main entry point ─────────────────────────────────────────────────────────
 export async function runReminderEngine() {
   console.log("[reminders] Running engine...");
@@ -251,6 +309,8 @@ export async function runReminderEngine() {
       ["nomination_pending", checkNominationPending],
       ["sof_incomplete",     checkSofIncomplete],
       ["vessel_approaching", checkVesselApproaching],
+      ["compliance_audit",   checkComplianceAudits],
+      ["corrective_action",  checkCorrectiveActions],
     ];
 
     let ran = 0;

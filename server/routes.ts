@@ -7467,5 +7467,236 @@ export async function registerRoutes(
     } catch { res.status(500).json({ message: "Failed" }); }
   });
 
+  // ── Compliance Management ──────────────────────────────────────────────────
+
+  app.get("/api/compliance/checklists", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { vesselId, standard } = req.query;
+      let q = `SELECT cl.*, v.name AS vessel_name FROM compliance_checklists cl
+               LEFT JOIN vessels v ON v.id = cl.vessel_id
+               WHERE cl.user_id = $1`;
+      const params: any[] = [userId];
+      if (vesselId) { params.push(vesselId); q += ` AND cl.vessel_id = $${params.length}`; }
+      if (standard) { params.push(standard); q += ` AND cl.standard_code = $${params.length}`; }
+      q += ` ORDER BY cl.created_at DESC`;
+      const { rows } = await pool.query(q, params);
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/compliance/checklists", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { vesselId, organizationId, standardCode, version, notes, nextAuditDate } = req.body;
+      const { getStandardTemplate, STANDARD_NAMES } = await import("./migrate-compliance");
+      const items = await getStandardTemplate(standardCode);
+      const standardName = STANDARD_NAMES[standardCode] || standardCode;
+      const { rows: [cl] } = await pool.query(
+        `INSERT INTO compliance_checklists (vessel_id, organization_id, user_id, standard_code, standard_name, version, total_items, notes, next_audit_date)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+        [vesselId || null, organizationId || null, userId, standardCode, standardName, version || null, items.length, notes || null, nextAuditDate || null]
+      );
+      if (items.length > 0) {
+        for (const item of items) {
+          await pool.query(
+            `INSERT INTO compliance_items (checklist_id, section_number, section_title, requirement)
+             VALUES ($1, $2, $3, $4)`,
+            [cl.id, item.sn, item.title, item.req]
+          );
+        }
+      }
+      res.json(cl);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/compliance/checklists/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { rows: [cl] } = await pool.query(
+        `SELECT cl.*, v.name AS vessel_name FROM compliance_checklists cl
+         LEFT JOIN vessels v ON v.id = cl.vessel_id
+         WHERE cl.id = $1 AND cl.user_id = $2`,
+        [req.params.id, userId]
+      );
+      if (!cl) return res.status(404).json({ message: "Not found" });
+      const { rows: items } = await pool.query(
+        `SELECT * FROM compliance_items WHERE checklist_id = $1 ORDER BY section_number, id`,
+        [cl.id]
+      );
+      res.json({ ...cl, items });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/compliance/checklists/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { status, notes, nextAuditDate, lastAuditDate, auditorName } = req.body;
+      const { rows: [cl] } = await pool.query(
+        `UPDATE compliance_checklists SET status = COALESCE($3, status), notes = COALESCE($4, notes),
+         next_audit_date = COALESCE($5, next_audit_date), last_audit_date = COALESCE($6, last_audit_date),
+         auditor_name = COALESCE($7, auditor_name)
+         WHERE id = $1 AND user_id = $2 RETURNING *`,
+        [req.params.id, userId, status || null, notes || null, nextAuditDate || null, lastAuditDate || null, auditorName || null]
+      );
+      res.json(cl);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/compliance/checklists/:id/items", isAuthenticated, async (req, res) => {
+    try {
+      const { rows } = await pool.query(
+        `SELECT * FROM compliance_items WHERE checklist_id = $1 ORDER BY section_number, id`,
+        [req.params.id]
+      );
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/compliance/items/:itemId", isAuthenticated, async (req, res) => {
+    try {
+      const { isCompliant, evidence, evidenceFileUrl, responsiblePerson, dueDate, findingType,
+              correctiveAction, correctiveActionDueDate, correctiveActionStatus, notes } = req.body;
+      const { rows: [item] } = await pool.query(
+        `UPDATE compliance_items SET
+           is_compliant = COALESCE($2, is_compliant),
+           evidence = COALESCE($3, evidence),
+           evidence_file_url = COALESCE($4, evidence_file_url),
+           responsible_person = COALESCE($5, responsible_person),
+           due_date = COALESCE($6, due_date),
+           finding_type = COALESCE($7, finding_type),
+           corrective_action = COALESCE($8, corrective_action),
+           corrective_action_due_date = COALESCE($9, corrective_action_due_date),
+           corrective_action_status = COALESCE($10, corrective_action_status),
+           notes = COALESCE($11, notes),
+           completed_date = CASE WHEN $2 = TRUE AND completed_date IS NULL THEN NOW() WHEN $2 = FALSE THEN NULL ELSE completed_date END,
+           updated_at = NOW()
+         WHERE id = $1 RETURNING *`,
+        [req.params.itemId, isCompliant ?? null, evidence ?? null, evidenceFileUrl ?? null,
+         responsiblePerson ?? null, dueDate ?? null, findingType ?? null,
+         correctiveAction ?? null, correctiveActionDueDate ?? null, correctiveActionStatus ?? null, notes ?? null]
+      );
+      if (!item) return res.status(404).json({ message: "Not found" });
+      const { rows: [stats] } = await pool.query(
+        `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE is_compliant) AS completed
+         FROM compliance_items WHERE checklist_id = $1`,
+        [item.checklist_id]
+      );
+      const total = parseInt(stats.total);
+      const completed = parseInt(stats.completed);
+      const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+      const status = pct === 100 ? "compliant" : pct === 0 ? "not_started" : "in_progress";
+      await pool.query(
+        `UPDATE compliance_checklists SET completed_items = $2, compliance_percentage = $3, status = $4, total_items = $5
+         WHERE id = $1`,
+        [item.checklist_id, completed, pct, status, total]
+      );
+      res.json(item);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/compliance/checklists/:id/audits", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { auditType, auditorName, auditorOrganization, auditDate, findings, overallResult, reportFileUrl, nextAuditDate, notes } = req.body;
+      const { rows: [audit] } = await pool.query(
+        `INSERT INTO compliance_audits (checklist_id, audit_type, auditor_name, auditor_organization, audit_date, findings, overall_result, report_file_url, next_audit_date, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        [req.params.id, auditType, auditorName, auditorOrganization || null,
+         auditDate, JSON.stringify(findings || []), overallResult || null,
+         reportFileUrl || null, nextAuditDate || null, notes || null]
+      );
+      await pool.query(
+        `UPDATE compliance_checklists SET last_audit_date = $2, auditor_name = $3,
+         next_audit_date = COALESCE($4, next_audit_date)
+         WHERE id = $1`,
+        [req.params.id, auditDate, auditorName, nextAuditDate || null]
+      );
+      res.json(audit);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/compliance/checklists/:id/audits", isAuthenticated, async (req, res) => {
+    try {
+      const { rows } = await pool.query(
+        `SELECT * FROM compliance_audits WHERE checklist_id = $1 ORDER BY audit_date DESC`,
+        [req.params.id]
+      );
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/compliance/dashboard", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { rows: checklists } = await pool.query(
+        `SELECT cl.*, v.name AS vessel_name FROM compliance_checklists cl
+         LEFT JOIN vessels v ON v.id = cl.vessel_id
+         WHERE cl.user_id = $1 ORDER BY cl.standard_code, cl.created_at DESC`,
+        [userId]
+      );
+      const { rows: openFindings } = await pool.query(
+        `SELECT ci.* FROM compliance_items ci
+         JOIN compliance_checklists cl ON cl.id = ci.checklist_id
+         WHERE cl.user_id = $1 AND ci.finding_type IN ('non_conformity','major_non_conformity')
+           AND ci.corrective_action_status IN ('open','in_progress')`,
+        [userId]
+      );
+      const { rows: upcomingAudits } = await pool.query(
+        `SELECT cl.*, v.name AS vessel_name FROM compliance_checklists cl
+         LEFT JOIN vessels v ON v.id = cl.vessel_id
+         WHERE cl.user_id = $1 AND cl.next_audit_date IS NOT NULL
+           AND cl.next_audit_date > NOW() AND cl.next_audit_date < NOW() + INTERVAL '90 days'
+         ORDER BY cl.next_audit_date`,
+        [userId]
+      );
+      const byStandard: Record<string, any> = {};
+      for (const cl of checklists) {
+        if (!byStandard[cl.standard_code] || (cl.compliance_percentage ?? 0) > (byStandard[cl.standard_code].compliance_percentage ?? 0)) {
+          byStandard[cl.standard_code] = cl;
+        }
+      }
+      res.json({ checklists, byStandard, openFindings, upcomingAudits });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/compliance/vessels/:vesselId/status", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { rows } = await pool.query(
+        `SELECT cl.*, v.name AS vessel_name FROM compliance_checklists cl
+         LEFT JOIN vessels v ON v.id = cl.vessel_id
+         WHERE cl.user_id = $1 AND cl.vessel_id = $2 ORDER BY cl.standard_code`,
+        [userId, req.params.vesselId]
+      );
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/compliance/expiring", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { rows } = await pool.query(
+        `SELECT cl.*, v.name AS vessel_name,
+           EXTRACT(DAY FROM cl.next_audit_date - NOW()) AS days_until_audit
+         FROM compliance_checklists cl
+         LEFT JOIN vessels v ON v.id = cl.vessel_id
+         WHERE cl.user_id = $1 AND cl.next_audit_date IS NOT NULL
+           AND cl.next_audit_date < NOW() + INTERVAL '90 days'
+         ORDER BY cl.next_audit_date`,
+        [userId]
+      );
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/compliance/checklists/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      await pool.query(`DELETE FROM compliance_checklists WHERE id = $1 AND user_id = $2`, [req.params.id, userId]);
+      res.json({ success: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   return httpServer;
 }

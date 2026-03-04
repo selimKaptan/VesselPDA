@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Ship, FileText, Gavel, Bell, Plus, ArrowRight, Crown, Zap, Navigation, Users, Building2, Activity, AlertCircle, Package, DollarSign, Anchor } from "lucide-react";
+import { Ship, FileText, Gavel, Bell, Plus, ArrowRight, Crown, Zap, Navigation, Users, Building2, Activity, AlertCircle, Package, DollarSign, Anchor, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -104,6 +104,15 @@ export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, p
     queryKey: ["/api/certificates/expiring"],
   });
 
+  const { data: complianceDash } = useQuery<any>({
+    queryKey: ["/api/compliance/dashboard"],
+    queryFn: () => fetch("/api/compliance/dashboard", { credentials: "include" }).then(r => r.json()),
+    staleTime: 60000,
+  });
+  const openFindings: any[] = Array.isArray(complianceDash?.openFindings) ? complianceDash.openFindings : [];
+  const upcomingComplianceAudits: any[] = Array.isArray(complianceDash?.upcomingAudits) ? complianceDash.upcomingAudits : [];
+  const nextAudit = upcomingComplianceAudits[0];
+
   const openTenders = tenders.filter((t) => t.status === "open");
   const recentProformas = proformas?.slice(0, 5) || [];
   const recentVessels = vessels?.slice(0, 5) || [];
@@ -159,6 +168,27 @@ export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, p
         <StatCard label="Open Tenders" value={openTenders.length} icon={Gavel} color="38 92% 50%" href="/tenders" testId="stat-tenders" />
         <StatCard label="Active Fixtures" value={activeFixtures.length} loading={fixturesLoading} icon={Package} color="142 71% 30%" href="/fixtures" testId="stat-fixtures" />
       </div>
+
+      {/* Compliance widget — only shown when there's something actionable */}
+      {(openFindings.length > 0 || nextAudit) && (
+        <Link href="/compliance">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-lg border bg-blue-50 dark:bg-blue-950/30 border-blue-200/70 dark:border-blue-800/50 cursor-pointer hover:opacity-90 transition-opacity" data-testid="banner-compliance">
+            <ShieldCheck className="w-4 h-4 text-blue-600 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                {openFindings.length > 0 && `${openFindings.length} open finding${openFindings.length !== 1 ? "s" : ""}`}
+                {openFindings.length > 0 && nextAudit && " · "}
+                {nextAudit && (() => {
+                  const days = Math.ceil((new Date(nextAudit.next_audit_date).getTime() - Date.now()) / 86400000);
+                  return `${nextAudit.standard_code} audit in ${days} day${days !== 1 ? "s" : ""}`;
+                })()}
+              </p>
+              <p className="text-xs text-muted-foreground">Click to manage compliance checklists</p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-muted-foreground/60 flex-shrink-0" />
+          </div>
+        </Link>
+      )}
 
       {/* Fleet Status Cards */}
       {!voyagesLoading && (

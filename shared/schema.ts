@@ -1468,3 +1468,68 @@ export const portCostBenchmarks = pgTable("port_cost_benchmarks", {
 
 export type PortCostBenchmark = typeof portCostBenchmarks.$inferSelect;
 export type InsertPortCostBenchmark = typeof portCostBenchmarks.$inferInsert;
+
+// ── Compliance Management ─────────────────────────────────────────────────────
+
+export const complianceChecklists = pgTable("compliance_checklists", {
+  id: serial("id").primaryKey(),
+  vesselId: integer("vessel_id").references(() => vessels.id, { onDelete: "set null" }),
+  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  standardCode: text("standard_code").notNull(),
+  standardName: text("standard_name").notNull(),
+  version: text("version"),
+  totalItems: integer("total_items").notNull().default(0),
+  completedItems: integer("completed_items").notNull().default(0),
+  compliancePercentage: real("compliance_percentage").default(0),
+  status: text("status").notNull().default("in_progress"),
+  lastAuditDate: timestamp("last_audit_date"),
+  nextAuditDate: timestamp("next_audit_date"),
+  auditorName: text("auditor_name"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ComplianceChecklist = typeof complianceChecklists.$inferSelect;
+export type InsertComplianceChecklist = typeof complianceChecklists.$inferInsert;
+
+export const complianceItems = pgTable("compliance_items", {
+  id: serial("id").primaryKey(),
+  checklistId: integer("checklist_id").notNull().references(() => complianceChecklists.id, { onDelete: "cascade" }),
+  sectionNumber: text("section_number"),
+  sectionTitle: text("section_title").notNull(),
+  requirement: text("requirement").notNull(),
+  isCompliant: boolean("is_compliant").default(false),
+  evidence: text("evidence"),
+  evidenceFileUrl: text("evidence_file_url"),
+  responsiblePerson: text("responsible_person"),
+  dueDate: timestamp("due_date"),
+  completedDate: timestamp("completed_date"),
+  findingType: text("finding_type"),
+  correctiveAction: text("corrective_action"),
+  correctiveActionDueDate: timestamp("corrective_action_due_date"),
+  correctiveActionStatus: text("corrective_action_status").default("open"),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type ComplianceItem = typeof complianceItems.$inferSelect;
+export type InsertComplianceItem = typeof complianceItems.$inferInsert;
+
+export const complianceAudits = pgTable("compliance_audits", {
+  id: serial("id").primaryKey(),
+  checklistId: integer("checklist_id").notNull().references(() => complianceChecklists.id, { onDelete: "cascade" }),
+  auditType: text("audit_type").notNull(),
+  auditorName: text("auditor_name").notNull(),
+  auditorOrganization: text("auditor_organization"),
+  auditDate: timestamp("audit_date").notNull(),
+  findings: jsonb("findings").default([]),
+  overallResult: text("overall_result"),
+  reportFileUrl: text("report_file_url"),
+  nextAuditDate: timestamp("next_audit_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ComplianceAudit = typeof complianceAudits.$inferSelect;
+export type InsertComplianceAudit = typeof complianceAudits.$inferInsert;
