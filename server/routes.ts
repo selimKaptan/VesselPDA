@@ -85,10 +85,16 @@ export async function registerRoutes(
           lastName: demoLastName,
           passwordHash,
           userRole: role,
-          subscriptionPlan: "standard",
-          emailVerified: true,
           roleConfirmed: true,
+          verificationToken: "",
+          verificationTokenExpiry: new Date(),
         });
+        await authStorage.markEmailVerified(user.id);
+        await pool.query(
+          "UPDATE users SET subscription_plan = 'standard' WHERE id = $1",
+          [user.id]
+        );
+        user = (await authStorage.getUserByEmail(demoEmail))!;
       }
       req.session.userId = user.id;
       await new Promise<void>((resolve, reject) => req.session.save((err: any) => err ? reject(err) : resolve()));
