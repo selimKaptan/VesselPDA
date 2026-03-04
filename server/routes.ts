@@ -8,6 +8,14 @@ import { sendNominationEmail, sendNominationResponseEmail, sendContactEmail, sen
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated, registerAuthRoutes, authStorage } from "./replit_integrations/auth";
 import type { ProformaLineItem } from "@shared/schema";
+import {
+  insertVesselSchema, insertProformaSchema, insertCompanyProfileSchema,
+  insertAgentReviewSchema, insertForumTopicSchema, insertForumReplySchema,
+  insertPortTenderSchema, insertTenderBidSchema, insertFeedbackSchema,
+  insertVoyageSchema, insertServiceRequestSchema, insertDirectNominationSchema,
+  insertFixtureSchema, insertCargoPositionSchema, insertInvoiceSchema,
+} from "@shared/schema";
+import { z } from "zod";
 import { calculateProforma, type CalculationInput } from "./proforma-calculator";
 import { lookupPilotageFee, lookupTugboatFee, lookupMooringFee, lookupBerthingFee, lookupAgencyFee, lookupMarpolFee, lookupLcbFee, lookupSanitaryDuesFee, lookupChamberFreightShareFee, lookupChamberShippingFee, lookupLightDuesFee, lookupMiscExpenses, lookupSupervisionFee, type VesselCategory } from "./tariff-lookup";
 import { startAISStream, getPositions, searchVessels, isConnected, getCacheSize } from "./ais-stream";
@@ -76,6 +84,22 @@ const calculateLimiter = rateLimit({
   message: { error: "Too many calculations, please slow down" },
   standardHeaders: true,
   legacyHeaders: false,
+});
+
+const vesselBodySchema = insertVesselSchema.partial().extend({
+  name: z.string().trim().max(200).optional(),
+});
+const forumTopicBodySchema = insertForumTopicSchema.partial().extend({
+  title: z.string().trim().max(200),
+  content: z.string().trim().max(5000),
+});
+const forumReplyBodySchema = insertForumReplySchema.partial().extend({
+  content: z.string().trim().max(5000),
+});
+const companyProfileBodySchema = insertCompanyProfileSchema.partial().extend({
+  companyName: z.string().trim().max(200).optional(),
+  description: z.string().trim().max(5000).optional(),
+  email: z.string().email().optional().nullable(),
 });
 
 export async function registerRoutes(
@@ -187,6 +211,8 @@ export async function registerRoutes(
   app.post("/api/vessels", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const vesselParsed = vesselBodySchema.safeParse(req.body);
+      if (!vesselParsed.success) return res.status(400).json({ error: "Invalid input", details: vesselParsed.error.errors });
       const { name, flag, vesselType, grt, nrt } = req.body;
       if (!name || !flag || !vesselType || !grt || !nrt) {
         return res.status(400).json({ message: "name, flag, vesselType, grt, and nrt are required" });
@@ -209,6 +235,8 @@ export async function registerRoutes(
   app.patch("/api/vessels/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const vesselPatchParsed = vesselBodySchema.safeParse(req.body);
+      if (!vesselPatchParsed.success) return res.status(400).json({ error: "Invalid input", details: vesselPatchParsed.error.errors });
       const id = parseInt(req.params.id);
       const admin = await isAdmin(req);
       const vessel = admin
@@ -785,6 +813,8 @@ export async function registerRoutes(
   app.post("/api/proformas", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const proformaParsed = insertProformaSchema.partial().safeParse(req.body);
+      if (!proformaParsed.success) return res.status(400).json({ error: "Invalid input", details: proformaParsed.error.errors });
 
       const user = await storage.getUser(userId);
       if (user) {
@@ -988,6 +1018,8 @@ export async function registerRoutes(
   app.post("/api/company-profile", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const companyParsed = companyProfileBodySchema.safeParse(req.body);
+      if (!companyParsed.success) return res.status(400).json({ error: "Invalid input", details: companyParsed.error.errors });
       const user = await storage.getUser(userId);
       if (!user || !["agent", "provider", "admin"].includes(user.userRole)) {
         return res.status(403).json({ message: "Only agents and providers can create company profiles" });
@@ -2059,6 +2091,8 @@ export async function registerRoutes(
   app.post("/api/reviews", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const reviewParsed = insertAgentReviewSchema.partial().safeParse(req.body);
+      if (!reviewParsed.success) return res.status(400).json({ error: "Invalid input", details: reviewParsed.error.errors });
       const user = await storage.getUser(userId);
       if (!user) return res.status(401).json({ message: "Unauthorized" });
 
@@ -2272,6 +2306,8 @@ export async function registerRoutes(
   app.post("/api/forum/topics", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const topicParsed = forumTopicBodySchema.safeParse(req.body);
+      if (!topicParsed.success) return res.status(400).json({ error: "Invalid input", details: topicParsed.error.errors });
       const { title, content, categoryId, isAnonymous } = req.body;
 
       if (!title || !content || !categoryId) {
@@ -2323,6 +2359,8 @@ export async function registerRoutes(
   app.post("/api/forum/topics/:id/replies", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const replyParsed = forumReplyBodySchema.safeParse(req.body);
+      if (!replyParsed.success) return res.status(400).json({ error: "Invalid input", details: replyParsed.error.errors });
       const topicId = parseInt(req.params.id);
       const { content } = req.body;
 
@@ -2490,6 +2528,8 @@ export async function registerRoutes(
   app.post("/api/tenders", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const tenderParsed = insertPortTenderSchema.partial().safeParse(req.body);
+      if (!tenderParsed.success) return res.status(400).json({ error: "Invalid input", details: tenderParsed.error.errors });
       const user = await storage.getUser(userId);
       if (!user) return res.status(401).json({ message: "Unauthorized" });
 
@@ -2665,6 +2705,8 @@ export async function registerRoutes(
   app.post("/api/tenders/:id/bids", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const bidParsed = insertTenderBidSchema.partial().safeParse(req.body);
+      if (!bidParsed.success) return res.status(400).json({ error: "Invalid input", details: bidParsed.error.errors });
       const user = await storage.getUser(userId);
       if (!user) return res.status(401).json({ message: "Unauthorized" });
 
@@ -3203,6 +3245,8 @@ export async function registerRoutes(
   app.post("/api/feedback", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const feedbackParsed = insertFeedbackSchema.partial().safeParse(req.body);
+      if (!feedbackParsed.success) return res.status(400).json({ error: "Invalid input", details: feedbackParsed.error.errors });
       const { category, message, pageUrl } = req.body;
       if (!category || !message?.trim()) {
         return res.status(400).json({ message: "Category and message are required" });
@@ -3240,6 +3284,8 @@ export async function registerRoutes(
   app.post("/api/voyages", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
+      const voyageParsed = insertVoyageSchema.partial().safeParse(req.body);
+      if (!voyageParsed.success) return res.status(400).json({ error: "Invalid input", details: voyageParsed.error.errors });
       const data = { ...req.body, userId };
       if (data.eta) data.eta = new Date(data.eta);
       if (data.etd) data.etd = new Date(data.etd);
@@ -3265,6 +3311,8 @@ export async function registerRoutes(
   app.patch("/api/voyages/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
+      const voyagePatchParsed = insertVoyageSchema.partial().safeParse(req.body);
+      if (!voyagePatchParsed.success) return res.status(400).json({ error: "Invalid input", details: voyagePatchParsed.error.errors });
       const id = parseInt(req.params.id);
       const existing = await storage.getVoyageById(id);
       if (!existing) return res.status(404).json({ message: "Voyage not found" });
@@ -3390,6 +3438,8 @@ export async function registerRoutes(
   app.post("/api/service-requests", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
+      const srParsed = insertServiceRequestSchema.partial().safeParse(req.body);
+      if (!srParsed.success) return res.status(400).json({ error: "Invalid input", details: srParsed.error.errors });
       const data = { ...req.body, requesterId: userId };
       if (data.preferredDate) data.preferredDate = new Date(data.preferredDate);
       const request = await storage.createServiceRequest(data);
@@ -3774,6 +3824,8 @@ export async function registerRoutes(
 
   app.post("/api/nominations", isAuthenticated, async (req: any, res) => {
     try {
+      const nomParsed = insertDirectNominationSchema.partial().safeParse(req.body);
+      if (!nomParsed.success) return res.status(400).json({ error: "Invalid input", details: nomParsed.error.errors });
       const { agentUserId, agentCompanyId, portId, vesselName, vesselId, purposeOfCall, eta, etd, notes } = req.body;
       if (!agentUserId || !portId || !vesselName || !purposeOfCall) {
         return res.status(400).json({ message: "agentUserId, portId, vesselName, purposeOfCall zorunludur" });
@@ -4037,6 +4089,8 @@ export async function registerRoutes(
   app.post("/api/fixtures", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const fixtureParsed = insertFixtureSchema.partial().safeParse(req.body);
+      if (!fixtureParsed.success) return res.status(400).json({ error: "Invalid input", details: fixtureParsed.error.errors });
       const fixture = await storage.createFixture({ ...req.body, userId });
       res.status(201).json(fixture);
     } catch {
@@ -4245,6 +4299,8 @@ export async function registerRoutes(
   app.post("/api/cargo-positions", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
+      const cargoParsed = insertCargoPositionSchema.partial().safeParse(req.body);
+      if (!cargoParsed.success) return res.status(400).json({ error: "Invalid input", details: cargoParsed.error.errors });
       const pos = await storage.createCargoPosition({ ...req.body, userId });
       res.status(201).json(pos);
 
@@ -4630,6 +4686,8 @@ export async function registerRoutes(
   app.post("/api/invoices", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
+      const invoiceParsed = insertInvoiceSchema.partial().safeParse(req.body);
+      if (!invoiceParsed.success) return res.status(400).json({ error: "Invalid input", details: invoiceParsed.error.errors });
       const { title, amount, currency, dueDate, notes, invoiceType, voyageId, proformaId, linkedProformaId } = req.body;
       if (!title || !amount) return res.status(400).json({ message: "title and amount required" });
 

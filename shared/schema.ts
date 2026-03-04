@@ -1034,3 +1034,11 @@ export const auditLogs = pgTable("audit_logs", {
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ createdAt: true });
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
+
+export const insertCompanyProfileSchema = createInsertSchema(companyProfiles).omit({
+  createdAt: true, updatedAt: true,
+  isFeatured: true, featuredUntil: true,
+  isActive: true, isApproved: true,
+  verificationStatus: true, verificationRequestedAt: true,
+  verificationApprovedAt: true, verificationNote: true,
+});

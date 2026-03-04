@@ -1,0 +1,46 @@
+INSTRUCTIONS.md'yi oku. Birçok POST/PATCH endpoint'te Zod validation eksik, req.body doğrudan kullanılıyor.
+
+Şu değişiklikleri yap:
+
+1. server/routes.ts'de şu endpoint'lere Zod validation ekle:
+
+   Her POST/PATCH handler'ın başına şu pattern'i uygula:
+   
+   const parsed = insertSchemaAdı.safeParse(req.body);
+   if (!parsed.success) {
+     return res.status(400).json({ error: "Invalid input", details: parsed.error.errors });
+   }
+   // parsed.data kullan, req.body değil
+
+2. Öncelikli endpoint'ler (en çok kullanılanlar):
+
+   - POST /api/vessels → insertVesselSchema
+   - PATCH /api/vessels/:id → insertVesselSchema.partial()
+   - POST /api/proformas → insertProformaSchema
+   - POST /api/tenders → insertPortTenderSchema  
+   - POST /api/tenders/:id/bids → insertTenderBidSchema
+   - POST /api/voyages → insertVoyageSchema
+   - PATCH /api/voyages/:id → insertVoyageSchema.partial()
+   - POST /api/service-requests → insertServiceRequestSchema
+   - POST /api/forum/topics → insertForumTopicSchema
+   - POST /api/forum/topics/:id/replies → insertForumReplySchema
+   - POST /api/reviews → insertAgentReviewSchema
+   - POST /api/nominations → insertDirectNominationSchema
+   - POST /api/fixtures → insertFixtureSchema
+   - POST /api/cargo-positions → insertCargoPositionSchema
+   - POST /api/invoices → insertInvoiceSchema
+   - POST /api/feedback → insertFeedbackSchema
+   - POST /api/company-profile → insertCompanyProfileSchema
+
+3. Schema'lar zaten shared/schema.ts'de createInsertSchema ile tanımlı. 
+   Eğer tanımlı değilse, eksik schema'ları shared/schema.ts'e ekle:
+   export const insertXyzSchema = createInsertSchema(xyzTable).omit({ id: true, createdAt: true });
+
+4. Ek güvenlik: string alanlarını trim() ve maxLength ile sınırla:
+   - title/name alanları: max 200 karakter
+   - description/content alanları: max 5000 karakter  
+   - email: z.string().email()
+
+5. IMPORTANT: Mevcut çalışan fonksiyonelliği bozmadan yap. Eğer bir endpoint'e validation eklemek karmaşıksa (örneğin proformas/calculate gibi complex json body), o endpoint'i atla ve sadece basit CRUD endpoint'lerine odaklan.
+
+Hiçbir mevcut route'u silme, sadece handler'ların başına validation ekle.
