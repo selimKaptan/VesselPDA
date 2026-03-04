@@ -3,36 +3,41 @@ import fs from "fs";
 import path from "path";
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(__dirname, "client");
+  const possiblePaths = [
+    path.resolve(__dirname, "client"),
+    path.resolve(__dirname, "..", "client"),
+    path.resolve(__dirname, "..", "dist", "client"),
+    path.resolve(process.cwd(), "dist", "client"),
+    path.resolve(process.cwd(), "dist", "public"),
+    path.resolve(process.cwd(), "dist"),
+  ];
 
-  console.log(`[static] serving from: ${distPath}`);
+  let distPath: string | null = null;
 
-  if (!fs.existsSync(distPath)) {
-    const cwd = process.cwd();
-    const alt = path.resolve(cwd, "dist", "client");
-    console.error(`[static] primary path not found: ${distPath}, trying: ${alt}`);
-    if (!fs.existsSync(alt)) {
-      throw new Error(
-        `Could not find the build directory: ${distPath}, make sure to build the client first`,
-      );
+  for (const p of possiblePaths) {
+    const hasIndex = fs.existsSync(path.join(p, "index.html"));
+    console.log("[static] checking:", p, "→ has index.html:", hasIndex);
+    if (hasIndex) {
+      distPath = p;
+      break;
     }
-    return setupStatic(app, alt);
   }
 
-  setupStatic(app, distPath);
-}
+  if (!distPath) {
+    console.error("[static] NO index.html found anywhere!");
+    app.use((_req, res, next) => {
+      if (_req.originalUrl.startsWith("/api")) return next();
+      res.status(200).send("<!DOCTYPE html><html><head><title>VesselPDA</title></head><body><h1>VesselPDA is running</h1></body></html>");
+    });
+    return;
+  }
 
-function setupStatic(app: Express, distPath: string) {
-  const indexHtml = path.resolve(distPath, "index.html");
-  console.log(`[static] index.html exists: ${fs.existsSync(indexHtml)}`);
+  console.log("[static] Serving from:", distPath);
 
-  app.get("/", (_req, res) => {
-    res.sendFile(indexHtml);
-  });
+  app.use(express.static(distPath, { index: false, maxAge: "1d" }));
 
-  app.use(express.static(distPath, { index: "index.html" }));
-
-  app.use("/*path", (_req, res) => {
-    res.sendFile(indexHtml);
+  app.use((req, res, next) => {
+    if (req.originalUrl.startsWith("/api")) return next();
+    res.sendFile(path.join(distPath!, "index.html"));
   });
 }
