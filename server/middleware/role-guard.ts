@@ -8,7 +8,7 @@ export function requireRole(...roles: string[]) {
       if (!userId) {
         return res.status(403).json({ error: "Access denied" });
       }
-      const user = await storage.getUserById(userId);
+      const user = await storage.getUser(String(userId));
       if (!user || !roles.includes((user as any).userRole)) {
         return res.status(403).json({ error: "Insufficient permissions" });
       }

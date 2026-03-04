@@ -5,6 +5,7 @@ import { useTheme } from "@/components/theme-provider";
 import { useLanguage } from "@/lib/i18n";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { getModulesForRole, getActiveModule, type Module } from "@/lib/role-navigation";
 import { NotificationBell } from "@/components/notification-bell";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
@@ -74,14 +75,22 @@ function UserMenu({ user }: { user: any }) {
   const plan = user?.subscriptionPlan || "free";
   const initials = `${(user?.firstName || "")[0] || ""}${(user?.lastName || "")[0] || ""}`.toUpperCase() || "U";
   const name = user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "User";
+  const { toast } = useToast();
 
   const switchRoleMutation = useMutation({
     mutationFn: async (newRole: string) => {
       const res = await apiRequest("PATCH", "/api/admin/active-role", { activeRole: newRole });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || `Failed (${res.status})`);
+      }
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Role switch failed", description: err.message, variant: "destructive" });
     },
   });
 
@@ -117,19 +126,23 @@ function UserMenu({ user }: { user: any }) {
             <div className="px-2 py-1">
               <p className="text-[9px] text-muted-foreground uppercase tracking-wider font-bold mb-1">View as role</p>
               {ADMIN_ROLE_OPTIONS.map((opt) => (
-                <button
+                <DropdownMenuItem
                   key={opt.value}
-                  onClick={() => switchRoleMutation.mutate(opt.value)}
+                  onSelect={() => switchRoleMutation.mutate(opt.value)}
+                  disabled={switchRoleMutation.isPending}
                   data-testid={`menu-role-${opt.value}`}
-                  className={`w-full flex items-center justify-between px-2 py-1 rounded text-xs transition-colors ${
+                  className={`flex items-center justify-between px-2 py-1 rounded text-xs cursor-pointer ${
                     activeRole === opt.value
-                      ? "bg-primary/10 text-primary font-medium"
-                      : "hover:bg-muted text-foreground"
+                      ? "bg-primary/10 text-primary font-medium focus:bg-primary/10 focus:text-primary"
+                      : "text-foreground"
                   }`}
                 >
                   {opt.label}
-                  {activeRole === opt.value && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
-                </button>
+                  {activeRole === opt.value && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />}
+                  {switchRoleMutation.isPending && switchRoleMutation.variables === opt.value && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                  )}
+                </DropdownMenuItem>
               ))}
             </div>
           </>

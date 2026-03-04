@@ -7,6 +7,7 @@ import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { PageMeta } from "@/components/page-meta";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { Vessel, Proforma, CompanyProfile } from "@shared/schema";
 import { ShipownerDashboard } from "@/components/dashboards/shipowner-dashboard";
 import { AgentDashboard } from "@/components/dashboards/agent-dashboard";
@@ -46,16 +47,25 @@ export default function Dashboard() {
   const isAdmin = userRole === "admin";
   const effectiveRole = isAdmin ? activeRole : userRole;
 
+  const { toast } = useToast();
+
   const switchRoleMutation = useMutation({
     mutationFn: async (newRole: string) => {
       const res = await apiRequest("PATCH", "/api/admin/active-role", { activeRole: newRole });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || `Failed (${res.status})`);
+      }
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/vessels"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/proformas"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      queryClient.refetchQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.refetchQueries({ queryKey: ["/api/vessels"] });
+      queryClient.refetchQueries({ queryKey: ["/api/proformas"] });
+      queryClient.refetchQueries({ queryKey: ["/api/admin/stats"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Role switch failed", description: err.message, variant: "destructive" });
     },
   });
 
