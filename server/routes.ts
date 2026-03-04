@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import rateLimit from "express-rate-limit";
 import path from "path";
 import fs from "fs";
 import multer from "multer";
@@ -53,11 +54,40 @@ const fileUpload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { error: "Too many requests, please try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: "Too many login attempts, please try again after 15 minutes" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const calculateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { error: "Too many calculations, please slow down" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   await setupAuth(app);
+
+  app.use("/api/auth/login", authLimiter);
+  app.use("/api/auth/register", authLimiter);
+  app.use("/api/", apiLimiter);
+
   registerAuthRoutes(app);
   registerProformaApprovalRoutes(app);
   startAISStream();
@@ -67,7 +97,7 @@ export async function registerRoutes(
   app.use("/api/service-offers", isAuthenticated, requireRole("provider", "admin"));
 
   // ─── DEMO LOGIN ───────────────────────────────────────────────────────────────
-  app.post("/api/demo/login", async (req: any, res) => {
+  app.post("/api/demo/login", authLimiter, async (req: any, res) => {
     try {
       const { role } = req.body;
       const validRoles = ["agent", "shipowner", "broker", "provider"];
@@ -461,7 +491,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/proformas/calculate", isAuthenticated, async (req: any, res) => {
+  app.post("/api/proformas/calculate", isAuthenticated, calculateLimiter, async (req: any, res) => {
     try {
       const {
         vesselId, portId, berthStayDays = 5, cargoQuantity,
@@ -573,7 +603,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/proformas/quick-estimate", isAuthenticated, async (req: any, res) => {
+  app.post("/api/proformas/quick-estimate", isAuthenticated, calculateLimiter, async (req: any, res) => {
     try {
       const {
         vesselId, portId,
@@ -2098,7 +2128,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/contact", async (req, res) => {
+  app.post("/api/contact", authLimiter, async (req, res) => {
     const { name, email, subject, message } = req.body || {};
     if (!name || !email || !subject || !message) {
       return res.status(400).json({ ok: false, error: "All fields are required" });
@@ -4722,7 +4752,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/ai/chat", isAuthenticated, async (req: any, res) => {
+  app.post("/api/ai/chat", isAuthenticated, calculateLimiter, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { messages } = req.body;
