@@ -1,0 +1,212 @@
+INSTRUCTIONS.md'yi oku. client/src/pages/proforma-new.tsx sayfasını 4 adımlı wizard olarak tamamen yeniden tasarla.
+
+ÖNCELİKLE: Mevcut proforma-new.tsx dosyasını proforma-new-backup.tsx olarak kopyala. Sonra proforma-new.tsx'i sıfırdan yaz.
+
+ÖNEMLİ: Mevcut API endpoint'lerini kullan. Backend'de HİÇBİR değişiklik yapma. Şu endpoint'ler zaten çalışıyor:
+- GET /api/vessels (kullanıcının gemileri)
+- GET /api/vessels/lookup?imo=XXXXXXX (IMO ile gemi arama)
+- GET /api/ports (liman arama)
+- GET /api/exchange-rates (TCMB kurları)
+- POST /api/proformas/calculate (tariff hesaplama)
+- POST /api/proformas (proforma kaydet)
+
+GENEL YAPISI:
+
+Üstte 4 adımlı progress bar:
+Step 1: Vessel (gemi ikonu)
+Step 2: Port & Operation (liman ikonu)
+Step 3: Calculation (hesap makinesi ikonu)  
+Step 4: Review & Save (dosya ikonu)
+
+Her adımda alt kısımda: "Back" butonu (sol) ve "Next" butonu (sağ)
+Son adımda: "Save Draft" ve "Save & Send Email" butonları
+
+State management:
+const [step, setStep] = useState(1);
+const [formData, setFormData] = useState({ ... tüm form verileri });
+
+Progress bar component:
+- 4 yuvarlak numara, aralarında çizgi
+- Aktif adım: sky-500 renk, bold
+- Tamamlanan adımlar: green-500, checkmark
+- Gelecek adımlar: slate-600, soluk
+- Her adımın altında kısa label
+
+=== STEP 1: VESSEL (Gemi Seçimi) ===
+
+Üstte 3 tab butonu (Tabs component ile):
+
+TAB A: "My Vessels" (varsayılan)
+- Kullanıcının kayıtlı gemilerini dropdown ile göster
+- GET /api/vessels ile çek
+- Gemi seçilince otomatik doldur: name, flag, grt, nrt, dwt, loa, beam, imo
+- Seçilen geminin bilgilerini aşağıda kart olarak göster
+- İsTurkishFlag otomatik algıla (flag === 'Turkey' veya 'Turkish')
+
+TAB B: "IMO Lookup"
+- IMO numarası input alanı
+- "Search" butonu → GET /api/vessels/lookup?imo=XXXXXXX
+- Sonuç gelince gemi bilgilerini otomatik doldur
+- Bulunamazsa hata mesajı göster
+
+TAB C: "Manual Entry"
+- Tüm alanları elle doldur:
+  - Vessel Name, IMO Number, Flag (dropdown — Turkey, Panama, Liberia, Marshall Islands, Malta, vs.)
+  - GRT, NRT, DWT, LOA, Beam (numeric inputlar)
+  - Vessel Type (Bulk Carrier, Tanker, Container, General Cargo, vs.)
+
+Seçim/giriş yapıldıktan sonra altta gemi bilgi kartı:
+- Ship emoji + Vessel Name (büyük, bold)
+- 2 sütunlu grid: Flag | IMO | GRT | NRT | DWT | LOA
+- Türk bayraklı ise yeşil badge: "Turkish Flag"
+- Yabancı bayrak ise mavi badge: "Foreign Flag"
+
+Next butonu: vessel bilgileri doldurulmadan disabled
+
+=== STEP 2: PORT & OPERATION ===
+
+Sol sütun — Liman bilgileri:
+- Port arama (Select with search — GET /api/ports?search=xxx)
+- Terminal / Berth Name (text input, opsiyonel)
+- Berth Type: Quay / Buoy / Anchorage (radio buttons veya select)
+
+Sağ sütun — Operasyon bilgileri:
+- Purpose of Call: Loading / Discharging / Transit / Bunkering / Repair / Other (select)
+- Est. Berth Stay: numeric input (gün)
+- Anchorage Days: numeric input (varsayılan 0)
+
+Alt kısım — Cargo bilgileri (Purpose Loading veya Discharging ise göster):
+- Cargo Category: Grain, Bulk, Liquid, Container, General, Project, Dangerous (select with icons)
+- Cargo Description: text input (opsiyonel)
+- Cargo Quantity: numeric input + Unit select (MT / CBM / TEU)
+- Dangerous Cargo (IMDG) toggle: açıksa uyarı banner göster "+30% surcharge"
+- Previous Port: text input
+- Next Port: text input
+
+Alt kısım — Tariff Parameters:
+- Customs Type: Import / Export / Transit (select)
+- DTO (Chamber of Shipping): Turkish / Foreign (select — flag'a göre otomatik seçilsin)
+- Wharfage/Berth Type: Turkish / Foreign (select — flag'a göre otomatik)
+- Lighthouse: Turkish / Foreign (select — flag'a göre otomatik)
+- VTS: Turkish / Foreign (select — flag'a göre otomatik)
+
+Exchange Rates (otomatik çekilsin — GET /api/exchange-rates):
+- USD/TRY ve EUR/TRY göster
+- "Use Current Rate" butonu ile güncel kur çek
+- Manuel düzenleme de mümkün olsun
+
+Next butonu: port seçilmeden disabled
+
+=== STEP 3: CALCULATION ===
+
+Üstte "Calculate Proforma" butonu (büyük, primary renk):
+- Tıklanınca POST /api/proformas/calculate çağır
+- Request body: formData'dan vessel, port, operation, cargo bilgilerini gönder
+- Loading spinner göster
+
+Hesaplama sonucu gelince:
+
+Üstte özet kartları (3'lü grid):
+- Total USD: büyük rakam, yeşil
+- Total EUR: büyük rakam, mavi  
+- Exchange Rate: USD/TRY kuru
+
+Ana tablo — Line Items:
+- Her satır: Description | Amount USD | Amount EUR | Tariff Source
+- Tariff Source badge: "Database" (yeşil) veya "Estimate" (sarı)
+- Her satırın sağında edit ikonu — tıklanınca inline edit modu
+- Satır amount'u değiştirilince toplam otomatik güncelle
+- "Add Custom Line Item" butonu — yeni satır ekle (description + amount)
+- "Remove" butonu — satır sil (varsayılan kalemlerde gizli, custom'da görünür)
+
+Alt kısımda:
+- Subtotal satırı (bold)
+- Agency Fee satırı (eğer varsa)
+- TOTAL satırı (büyük, bold, border-top)
+
+Eğer hesaplama henüz yapılmadıysa:
+- Boş state: "Click Calculate to generate proforma" mesajı
+- Gemi ve liman bilgilerinin özeti gösterilsin (kullanıcı doğru bilgi girdiğinden emin olsun)
+
+=== STEP 4: REVIEW & SAVE ===
+
+Sol taraf — Proforma önizleme (PDF benzeri görünüm):
+- Beyaz arka plan üzerinde düzenli layout
+- Üstte: "PROFORMA DISBURSEMENT ACCOUNT" başlığı
+- Vessel bilgileri tablosu
+- Port bilgileri tablosu
+- Line items tablosu (hesaplanan tüm kalemler)
+- Toplam USD ve EUR
+- Exchange rate
+
+Sağ taraf — Final bilgiler:
+- Reference Number (otomatik üretilsin veya manuel)
+- Status: Draft / Final (radio)
+- Notes: textarea
+- Bank Details: collapsible section
+  - Bank Name, Account Name, IBAN, SWIFT, Currency
+  - Eğer company profile'da bank details varsa otomatik doldur
+
+Alt kısım butonlar:
+- "Save as Draft" (secondary buton) → POST /api/proformas ile status: 'draft' kaydet
+- "Save & Preview PDF" (primary buton) → kaydet + /api/proformas/:id/pdf/preview aç
+- "Save & Send Email" (accent buton) → kaydet + email gönder dialog aç
+
+Kayıt başarılı olunca: toast göster + /proformas/:id sayfasına yönlendir
+
+=== TASARIM KURALLARI ===
+
+1. Maritime tema: koyu arka plan, Card component'ler içinde form alanları
+2. Her step kendi Card'ı içinde — temiz, boşluklu
+3. Form alanları Label + Input pattern'i, shadcn/ui component'leri
+4. Numeric inputlar için input type="number" kullan
+5. Select component'leri shadcn/ui Select kullan
+6. Loading state'leri için Skeleton component
+7. Validation hataları kırmızı border + hata mesajı
+8. Responsive: mobile'da tek sütun, desktop'ta 2 sütun grid
+9. Progress bar her ekran genişliğinde çalışsın
+
+=== MEVCUT BACKEND API UYUMU ===
+
+POST /api/proformas/calculate body:
+{
+  vesselId: number | null,
+  portId: number,
+  vesselName: string,
+  flag: string,
+  grt: number,
+  nrt: number,
+  dwt: number,
+  loa: number,
+  stayDuration: number,
+  cargoType: string,
+  cargoQuantity: number,
+  operationType: string,
+  berthType: string,
+  customsType: string,
+  dtoType: string,
+  wharfageType: string,
+  lighthouseType: string,
+  vtsType: string,
+  anchorageDays: number,
+  isDangerous: boolean,
+  exchangeRateUsd: number,
+  exchangeRateEur: number,
+}
+
+POST /api/proformas body:
+{
+  vesselId: number | null,
+  portId: number,
+  referenceNumber: string,
+  lineItems: array,
+  totalUsd: number,
+  totalEur: number,
+  exchangeRate: number,
+  status: string,
+  notes: string,
+  bankDetails: object,
+}
+
+HİÇBİR BACKEND DEĞİŞİKLİĞİ YAPMA. Sadece frontend sayfasını yeniden yaz.
+Mevcut proforma-new.tsx'i proforma-new-backup.tsx olarak yedekle.
