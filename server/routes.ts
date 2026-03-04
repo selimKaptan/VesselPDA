@@ -1611,13 +1611,13 @@ export async function registerRoutes(
       `;
       const allBadIds = `SELECT id FROM (${badPortIds} UNION ${dupPortIds}) sub`;
 
-      const r1 = await db.execute(drizzleSql.raw(`DELETE FROM tariff_rates WHERE category_id IN (SELECT tc.id FROM tariff_categories tc WHERE tc.port_id IN (${allBadIds}))`));
-      const r2 = await db.execute(drizzleSql.raw(`DELETE FROM tariff_categories WHERE port_id IN (${allBadIds})`));
-      const r3 = await db.execute(drizzleSql.raw(`DELETE FROM ports WHERE id IN (${badPortIds})`));
-      const r4 = await db.execute(drizzleSql.raw(`DELETE FROM ports WHERE id IN (${dupPortIds})`));
+      const r1 = await pool.query(`DELETE FROM tariff_rates WHERE category_id IN (SELECT tc.id FROM tariff_categories tc WHERE tc.port_id IN (${allBadIds}))`);
+      const r2 = await pool.query(`DELETE FROM tariff_categories WHERE port_id IN (${allBadIds})`);
+      const r3 = await pool.query(`DELETE FROM ports WHERE id IN (${badPortIds})`);
+      const r4 = await pool.query(`DELETE FROM ports WHERE id IN (${dupPortIds})`);
 
-      const countResult = await db.execute(drizzleSql.raw(`SELECT COUNT(*) AS remaining FROM ports WHERE country = 'Turkey'`));
-      const remaining = (countResult.rows[0] as any)?.remaining ?? "?";
+      const countResult = await pool.query(`SELECT COUNT(*) AS remaining FROM ports WHERE country = 'Turkey'`);
+      const remaining = countResult.rows[0]?.remaining ?? "?";
 
       res.json({
         message: "Cleanup complete",
@@ -1691,8 +1691,9 @@ export async function registerRoutes(
         }
       }
 
-      const voyageReviewsResult = await db.execute(
-        drizzleSql.raw(`SELECT AVG(rating)::numeric(4,1) AS avg_rating, COUNT(*) AS cnt FROM voyage_reviews WHERE reviewee_user_id = '${userId}'`)
+      const voyageReviewsResult = await pool.query(
+        `SELECT AVG(rating)::numeric(4,1) AS avg_rating, COUNT(*) AS cnt FROM voyage_reviews WHERE reviewee_user_id = $1`,
+        [userId]
       );
       const vr = voyageReviewsResult.rows[0] as any;
       const voyageAvgRating = vr?.avg_rating ? parseFloat(vr.avg_rating) : 0;
@@ -4848,7 +4849,8 @@ export async function registerRoutes(
       delete body.id;
       body.updated_at = new Date().toISOString();
 
-      const keys = Object.keys(body).filter(k => body[k] !== undefined);
+      const SAFE_COL = /^[a-z_][a-z0-9_]*$/i;
+      const keys = Object.keys(body).filter(k => body[k] !== undefined && SAFE_COL.test(k));
       const cols = keys.map(k => `"${k}"`).join(", ");
       const vals = keys.map((_, i) => `$${i + 1}`).join(", ");
       const values = keys.map(k => (body[k] === "" ? null : body[k]));
@@ -4873,7 +4875,8 @@ export async function registerRoutes(
       delete body.id;
       body.updated_at = new Date().toISOString();
 
-      const keys = Object.keys(body).filter(k => body[k] !== undefined);
+      const SAFE_COL = /^[a-z_][a-z0-9_]*$/i;
+      const keys = Object.keys(body).filter(k => body[k] !== undefined && SAFE_COL.test(k));
       const sets = keys.map((k, i) => `"${k}" = $${i + 1}`).join(", ");
       const values: any[] = keys.map(k => (body[k] === "" ? null : body[k]));
       values.push(parseInt(req.params.id));
@@ -4934,12 +4937,13 @@ export async function registerRoutes(
       if (!Array.isArray(ids) || ids.length === 0 || typeof percent !== "number") {
         return res.status(400).json({ message: "ids[] and percent required" });
       }
+      const safeIds = ids.map(Number).filter(n => Number.isInteger(n) && n > 0);
+      if (safeIds.length === 0) return res.status(400).json({ message: "No valid ids provided" });
       const feeFields = ALLOWED_TARIFF_TABLES[tbl].feeFields;
       const multiplier = 1 + percent / 100;
       const sets = feeFields.map(f => `"${f}" = ROUND(COALESCE("${f}", 0) * ${multiplier}, 2)`).join(", ");
-      const idList = ids.map(Number).join(",");
-      await pool.query(`UPDATE ${tbl} SET ${sets}, updated_at = NOW() WHERE id IN (${idList})`);
-      res.json({ success: true, affected: ids.length });
+      await pool.query(`UPDATE ${tbl} SET ${sets}, updated_at = NOW() WHERE id = ANY($1::int[])`, [safeIds]);
+      res.json({ success: true, affected: safeIds.length });
     } catch (err) {
       console.error("Bulk increase error:", err);
       res.status(500).json({ message: "Failed to apply bulk increase" });
@@ -4958,16 +4962,21 @@ export async function registerRoutes(
       if (!Array.isArray(ids) || ids.length === 0 || typeof targetYear !== "number") {
         return res.status(400).json({ message: "ids[] and targetYear required" });
       }
+      const safeTargetYear = Math.trunc(targetYear);
+      if (isNaN(safeTargetYear) || safeTargetYear < 2000 || safeTargetYear > 2100) {
+        return res.status(400).json({ message: "Invalid targetYear — must be between 2000 and 2100" });
+      }
+      const safeIds = ids.map(Number).filter(n => Number.isInteger(n) && n > 0);
+      if (safeIds.length === 0) return res.status(400).json({ message: "No valid ids provided" });
 
       const colResult = await pool.query(
         `SELECT column_name FROM information_schema.columns WHERE table_name = $1 AND column_name NOT IN ('id','updated_at') ORDER BY ordinal_position`,
         [tbl]
       );
       const cols = colResult.rows.map((r: any) => r.column_name);
-      const colStr = cols.map((c: string) => c === "valid_year" ? `${parseInt(String(targetYear))}` : `"${c}"`).join(", ");
-      const idList = ids.map(Number).join(",");
-      await pool.query(`INSERT INTO ${tbl} (${cols.map((c: string) => `"${c}"`).join(", ")}) SELECT ${colStr} FROM ${tbl} WHERE id IN (${idList})`);
-      res.json({ success: true, copied: ids.length });
+      const colStr = cols.map((c: string) => c === "valid_year" ? `${safeTargetYear}` : `"${c}"`).join(", ");
+      await pool.query(`INSERT INTO ${tbl} (${cols.map((c: string) => `"${c}"`).join(", ")}) SELECT ${colStr} FROM ${tbl} WHERE id = ANY($1::int[])`, [safeIds]);
+      res.json({ success: true, copied: safeIds.length });
     } catch (err) {
       console.error("Bulk copy year error:", err);
       res.status(500).json({ message: "Failed to copy tariffs to year" });
