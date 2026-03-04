@@ -37,8 +37,8 @@ router.patch("/active-role", isAuthenticated, async (req: any, res) => {
       return res.status(403).json({ message: "Admin access required" });
     }
     const { activeRole } = req.body;
-    if (!["shipowner", "agent", "provider", "admin"].includes(activeRole)) {
-      return res.status(400).json({ message: "Invalid role. Choose: shipowner, agent, provider, or admin" });
+    if (!["shipowner", "agent", "provider", "broker", "admin"].includes(activeRole)) {
+      return res.status(400).json({ message: "Invalid role. Choose: shipowner, agent, broker, provider, or admin" });
     }
     const updated = await storage.updateActiveRole(userId, activeRole);
     res.json(updated);

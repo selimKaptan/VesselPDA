@@ -1,0 +1,89 @@
+INSTRUCTIONS.md'yi oku. Admin olarak giriş yapıldığında activeRole değiştirme çalışmıyor. Admin farklı roller arasında geçiş yapabilmeli.
+
+Şu sorunları kontrol et ve düzelt:
+
+1. PATCH /api/admin/active-role endpoint'ini kontrol et:
+   - Bu endpoint admin kullanıcının activeRole alanını güncellemeli
+   - Request body: { activeRole: "admin" | "shipowner" | "agent" | "broker" | "provider" }
+   - Sadece admin rolündeki kullanıcılar erişebilmeli
+   - DB'de users tablosundaki active_role alanını güncellemeli
+
+   Doğru hali:
+   router.patch("/active-role", isAuthenticated, async (req, res, next) => {
+     try {
+       const userId = req.user.claims.sub;
+       const user = await storage.getUser(userId);
+       if (user?.userRole !== 'admin') return res.status(403).json({ error: "Admin only" });
+       
+       const { activeRole } = req.body;
+       const validRoles = ['admin', 'shipowner', 'agent', 'broker', 'provider'];
+       if (!validRoles.includes(activeRole)) return res.status(400).json({ error: "Invalid role" });
+       
+       const updated = await storage.updateUser(userId, { activeRole });
+       res.json(updated);
+     } catch (error) { next(error); }
+   });
+
+2. Frontend'de role switch UI kontrol et:
+   
+   Admin dashboard veya settings sayfasında role switch dropdown/select olmalı:
+   
+   - Mevcut activeRole'u göster
+   - Dropdown ile diğer rollere geçiş yap
+   - Seçim yapılınca PATCH /api/admin/active-role çağır
+   - Başarılı olunca sayfayı yenile (window.location.reload() veya queryClient.invalidateQueries)
+   
+   Eğer UI yoksa, admin dashboard'un üstüne ekle:
+   
+   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+   
+   <div className="flex items-center gap-2 mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+     <span className="text-sm text-amber-400">Admin View As:</span>
+     <Select value={user.activeRole || 'admin'} onValueChange={async (role) => {
+       await fetch('/api/admin/active-role', {
+         method: 'PATCH',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ activeRole: role }),
+       });
+       window.location.reload();
+     }}>
+       <SelectTrigger className="w-40">
+         <SelectValue />
+       </SelectTrigger>
+       <SelectContent>
+         <SelectItem value="admin">Admin</SelectItem>
+         <SelectItem value="shipowner">Shipowner</SelectItem>
+         <SelectItem value="agent">Ship Agent</SelectItem>
+         <SelectItem value="broker">Broker</SelectItem>
+         <SelectItem value="provider">Provider</SelectItem>
+       </SelectContent>
+     </Select>
+   </div>
+
+3. Dashboard component'inin role kontrolünü düzelt:
+   
+   client/src/pages/dashboard.tsx'de activeRole'a göre doğru dashboard gösterilmeli:
+   
+   const role = user.activeRole || user.userRole;
+   
+   switch(role) {
+     case 'admin': return <AdminDashboard />;
+     case 'shipowner': return <ShipownerDashboard />;
+     case 'agent': return <AgentDashboard />;
+     case 'broker': return <BrokerDashboard />; // yoksa ShipownerDashboard kullan
+     case 'provider': return <ProviderDashboard />;
+     default: return <AgentDashboard />;
+   }
+
+4. Sidebar navigasyonu da activeRole'a göre güncellenmeli:
+   
+   app-sidebar.tsx'de menü items role'a göre filtreleniyorsa:
+   const role = user.activeRole || user.userRole;
+   
+   Admin her şeyi görmeli, diğer roller sadece kendi menülerini.
+
+5. IMPORTANT:
+   - Admin her zaman tüm verilere erişebilmeli (backend'de userRole === 'admin' kontrolü kalmalı)
+   - activeRole sadece UI görünümünü değiştirir — hangi dashboard, hangi menü
+   - Backend'de veri filtreleme hala userRole === 'admin' ise tüm veriyi göster şeklinde kalmalı
+   - Mevcut çalışan hiçbir şeyi bozma

@@ -44,6 +44,7 @@ const PLAN_BADGE: Record<string, string> = {
 };
 
 const ADMIN_ROLE_OPTIONS = [
+  { value: "admin",     label: "Admin View" },
   { value: "agent",     label: "Ship Agent" },
   { value: "shipowner", label: "Shipowner" },
   { value: "broker",    label: "Ship Broker" },
