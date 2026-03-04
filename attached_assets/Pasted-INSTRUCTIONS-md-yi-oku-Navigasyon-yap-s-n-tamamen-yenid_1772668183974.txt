@@ -1,0 +1,252 @@
+INSTRUCTIONS.md'yi oku. Navigasyon yapısını tamamen yeniden tasarla — Option B: Icon Rail + Expandable Panel.
+
+ÖNCELİKLE YEDEKLE:
+- client/src/components/app-sidebar.tsx → app-sidebar-backup.tsx
+- client/src/components/layout/app-layout.tsx → app-layout-backup.tsx
+
+YENİ NAVIGASYON YAPISI: Sol tarafta ince ikon çubuğu (rail) + yanında genişleyen sidebar panel + minimal üst bar.
+
+=== ÜST BAR (Top Bar) — Minimal ===
+
+client/src/components/layout/top-bar.tsx oluştur:
+
+- Yükseklik: h-12
+- Sol: Logo (⚓ VesselPDA)
+- Orta: Global arama barı (rounded, bg-slate-800/50, placeholder: "Search vessels, ports, proformas...")
+  Arama şimdilik sadece UI olsun, fonksiyonel değil
+- Sağ: EN|TR dil, 🌙 tema toggle, 🔔 bildirim (kırmızı dot badge), kullanıcı avatar + isim
+- Admin ise ismin yanında küçük amber "Admin" badge
+- Arka plan: bg-[#080c18] border-b border-slate-700/50
+
+=== İKON RAIL (Sol Dar Çubuk) — w-16 ===
+
+client/src/components/layout/icon-rail.tsx oluştur:
+
+Dikey ikon listesi, her biri w-11 h-11 rounded-xl:
+- Aktif: bg-sky-500/15 text-sky-400
+- Hover: bg-slate-800 text-white  
+- Normal: text-slate-500
+
+İkon sırası (üstten alta):
+1. 📊 Dashb. (Dashboard)
+2. ⚓ Opera. (Operations)
+3. 💼 Comm. (Commercial)
+4. 🚢 Fleet
+5. 💰 Finan. (Finance)
+6. 💬 Chat (Communication)
+7. 🔧 Tools
+
+Alt kısımda (flex-1 ile aşağı itilmiş):
+8. 👑 Admin (sadece admin rolünde görünsün, amber renk)
+9. ⚙️ Set. (Settings)
+
+Her ikonun altında max 5 karakter kısaltma (text-[8px])
+Tıklayınca: activeCategory state değişsin, panel içeriği güncelle
+Hover'da: tooltip ile tam isim göster
+
+=== SIDEBAR PANEL (Genişleyen Panel) — w-48 ===
+
+client/src/components/layout/sidebar-panel.tsx oluştur:
+
+- Üstte: kategori ikonu + ismi (text-xs uppercase tracking-wider)
+- Altında: o kategorinin sayfaları listesi
+
+Her sayfa butonu:
+- İkon + label + opsiyonel badge/NEW etiketi
+- Aktif: bg-sky-500/10 text-sky-400 border-r-2 border-sky-400
+- Hover: bg-slate-800/30 text-white
+- Normal: text-slate-400
+- Badge: sky-500/20 text-sky-400 rounded-full (rakam)
+- NEW: emerald-500/20 text-emerald-400 rounded (yeni özellikler)
+- Uyarı badge: amber-500/20 text-amber-400 (örn: expiring certificates)
+
+KATEGORİ İÇERİKLERİ:
+
+📊 Dashboard:
+  - Dashboard (📊)
+
+⚓ Operations:
+  - Voyages (🗺️)
+  - Proformas - PDA (📋) [badge: proforma count]
+  - Quick Proforma (⚡)
+  - Statement of Facts (📝) [NEW badge]
+  - Service Requests (🔔)
+  - Nominations (🤝)
+  - PDA Review (✅)
+
+💼 Commercial:
+  - Tenders (📢) [badge: open tender count]
+  - Fixtures (📎)
+  - Cargo Positions (📦)
+  - Market Data (📈)
+  - Directory (🏢)
+
+🚢 Fleet:
+  - Vessels (🚢)
+  - Certificates (📜) [badge: "!" if expiring]
+  - Vessel Tracking (📡)
+
+💰 Finance:
+  - Final Disbursement (🧾) [NEW badge]
+  - Invoices (💳)
+  - Pricing & Plans (💎)
+  - Bunker Prices (⛽)
+
+💬 Communication:
+  - Messages (✉️) [badge: unread count]
+  - Forum (💬)
+  - Notifications (🔔)
+
+🔧 Tools:
+  - Port Info (🏭)
+  - Sanctions Check (🛡️)
+  - Company Profile (🏢)
+  - AI Assistant (🤖)
+
+👑 Admin (amber tema, sadece admin görür):
+  - Admin Panel (⚡)
+  - Tariff Management (📊)
+  - User Management (👥)
+  - Cache Stats (💾)
+
+⚙️ Settings:
+  - Settings (⚙️)
+
+=== ANA LAYOUT ===
+
+client/src/components/layout/app-layout.tsx yeniden yaz:
+
+import { useState } from 'react';
+import { TopBar } from './top-bar';
+import { IconRail } from './icon-rail';
+import { SidebarPanel } from './sidebar-panel';
+import { useMobile } from '@/hooks/use-mobile';
+
+export function AppLayout({ children }) {
+  const [activeCategory, setActiveCategory] = useState('operations');
+  const isMobile = useMobile();
+
+  if (isMobile) {
+    // Mobile: hamburger menü → Sheet ile full sidebar
+    // Bottom nav: Dashboard, Operations, Messages, Fleet, More
+    return (
+      <div className="min-h-screen bg-[#0B1120]">
+        <MobileTopBar onMenuClick={() => setSidebarOpen(true)} />
+        <main className="pt-14 px-3 pb-20">{children}</main>
+        <MobileBottomNav />
+        <Sheet ...> full sidebar </Sheet>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0B1120] flex flex-col">
+      <TopBar />
+      <div className="flex flex-1">
+        <IconRail activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
+        <SidebarPanel activeCategory={activeCategory} />
+        <main className="flex-1 p-6 overflow-y-auto">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-2 text-xs text-slate-500 mb-4">
+            <span>{getCategoryLabel(activeCategory)}</span>
+            <span>/</span>
+            <span className="text-white">{getCurrentPageLabel()}</span>
+          </div>
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+=== BREADCRUMB ===
+
+Her sayfanın üstünde: Operations / Proformas (PDA) gibi breadcrumb
+- Kategori adı (tıklanabilir, slate renk)
+- / ayracı
+- Sayfa adı (beyaz, aktif)
+- Wouter'dan location çekerek otomatik belirle
+
+=== BADGE VERİLERİ ===
+
+Sidebar badge'leri gerçek veriden gelsin:
+- Messages badge: GET /api/messages/unread-count → unread sayısı
+- Tenders badge: aktif tender sayısı (veya bağlam)
+- Certificates badge: GET /api/certificates/expiring?days=30 → "!" uyarısı
+- Nominations badge: GET /api/nominations/pending-count
+
+Bu verileri useQuery ile çek, sidebar'da göster.
+Veri yoksa veya 0 ise badge gösterme.
+
+=== ROUTE MAPPING ===
+
+Her sidebar item'ı doğru Wouter route'a bağla:
+- Dashboard → /dashboard
+- Voyages → /voyages
+- Proformas → /proformas
+- Quick Proforma → /proformas/new (quick mode)
+- Statement of Facts → /sof
+- Service Requests → /service-requests
+- Nominations → /nominations
+- PDA Review → /pda-review
+- Tenders → /tenders
+- Fixtures → /fixtures
+- Cargo Positions → /cargo-positions
+- Market Data → /market-data
+- Directory → /directory
+- Vessels → /vessels
+- Certificates → /vessel-certificates
+- Vessel Tracking → /vessel-track
+- Final Disbursement → /fda
+- Invoices → /invoices
+- Pricing → /pricing
+- Bunker Prices → /market-data (bunker tab)
+- Messages → /messages
+- Forum → /forum
+- Notifications → (bildirim paneli veya ayrı sayfa)
+- Port Info → /port-info
+- Sanctions Check → /sanctions-check
+- Company Profile → /company-profile
+- AI Assistant → (AiChat widget'ını aç)
+- Admin Panel → /admin
+- Tariff Management → /tariff-management
+- Settings → /settings
+
+URL'e göre aktif kategori ve sayfa otomatik belirlensin:
+Örnek: URL /proformas ise → activeCategory='operations', activePage='proformas'
+Örnek: URL /fixtures ise → activeCategory='commercial', activePage='fixtures'
+
+=== ROL BAZLI GÖRÜNÜRLÜK ===
+
+Mevcut kullanıcı rolüne göre bazı menüleri gizle:
+- Admin: HER ŞEYİ görsün
+- Shipowner: Operations, Commercial, Fleet, Finance, Communication, Tools
+- Agent: Operations, Commercial, Finance, Communication, Tools  
+- Broker: Commercial, Operations, Communication, Tools
+- Provider: Operations (Service Requests), Communication, Tools
+
+Admin menüsü (👑) sadece userRole === 'admin' ise görünsün.
+
+=== RENK TEMASI ===
+
+- Rail arka plan: bg-[#080c18]
+- Panel arka plan: bg-[#0a0e1a]
+- Main content: bg-[#0B1120]
+- Border'lar: border-slate-700/30 veya border-slate-700/50
+- Aktif: sky-500
+- Admin: amber-500
+- NEW badge: emerald-500
+- Uyarı badge: amber-500
+
+=== IMPORTANT ===
+
+1. Mevcut app-sidebar.tsx ve app-layout.tsx'i yedekle, sonra yeniden yaz
+2. Tüm route'lar AYNI kalsın — sadece navigasyon UI değişiyor
+3. AiChat widget'ı hala sağ altta kalsın (App.tsx'de)
+4. NotificationBell component'ini top-bar'a taşı
+5. Tema toggle'ı top-bar'a taşı
+6. Dil seçici (EN/TR) top-bar'a taşı
+7. Mobile'da icon rail gizlensin, hamburger menü + bottom nav kullanılsın
+8. Sidebar tıklamasında sayfa değişsin (Wouter Link veya useLocation)
+9. Page transition smooth olsun
+10. Mevcut HİÇBİR sayfayı veya backend'i değiştirme
