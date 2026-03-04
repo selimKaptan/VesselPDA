@@ -98,15 +98,35 @@ router.post("/calculate", isAuthenticated, calculateLimiter, async (req: any, re
       vtsCategory = "turkish", wharfageCategory = "foreign",
       usdTryRate = 43.86, eurTryRate = 51.73,
       cargoType: cargoTypeRaw = "",
+      externalGrt, externalNrt, externalFlag, externalVesselName,
     } = req.body;
     const userId = req.user.claims.sub;
 
-    if (!vesselId || !portId) {
-      return res.status(400).json({ message: "vesselId and portId are required" });
+    const isExternalVessel = !vesselId && externalGrt;
+
+    if (!isExternalVessel && !vesselId) {
+      return res.status(400).json({ message: "vesselId (or manual vessel data) and portId are required" });
+    }
+    if (!portId) {
+      return res.status(400).json({ message: "portId is required" });
     }
 
-    const vessel = await storage.getVessel(Number(vesselId), userId);
-    if (!vessel) return res.status(404).json({ message: "Vessel not found" });
+    let vessel: any;
+    if (isExternalVessel) {
+      vessel = {
+        name: externalVesselName || "Unknown Vessel",
+        flag: externalFlag || "Unknown",
+        grt: Number(externalGrt) || 2000,
+        nrt: Number(externalNrt) || 1000,
+      };
+    } else {
+      vessel = await storage.getVessel(Number(vesselId), userId);
+      if (!vessel) {
+        const allVessels = await storage.getAllVessels();
+        vessel = (allVessels as any[]).find((v: any) => v.id === Number(vesselId)) || null;
+      }
+      if (!vessel) return res.status(404).json({ message: "Vessel not found" });
+    }
 
     const port = await storage.getPort(Number(portId));
     if (!port) return res.status(404).json({ message: "Port not found" });

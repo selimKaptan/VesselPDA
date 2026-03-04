@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { FileText, Ship, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Package, AlertTriangle, Crown, ChevronsUpDown, Check, MapPin, RefreshCw, Zap, Waves } from "lucide-react";
+import { FileText, Ship, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Package, AlertTriangle, ChevronsUpDown, Check, MapPin, RefreshCw, Zap, Waves, PenLine, List } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +42,13 @@ const CARGO_TYPE_OPTIONS = [
   { value: "ammonia",    label: "🧪 Ammonia",                                unit: "MT",    isDangerous: true,  examples: "Anhydrous ammonia, aqueous ammonia" },
 ];
 
+const COMMON_FLAGS = [
+  "Turkey", "Panama", "Marshall Islands", "Bahamas", "Liberia",
+  "Malta", "Cyprus", "Antigua & Barbuda", "Greece", "Norway",
+  "United Kingdom", "Singapore", "Hong Kong", "Italy", "Germany",
+  "Denmark", "Netherlands", "Portugal", "Croatia", "Tuvalu",
+];
+
 const isTurkishFlag = (flag: string): boolean => {
   const f = (flag || "").toLowerCase().trim();
   return f === "turkey" || f === "turkish" || f === "türk" || f === "türkiye" || f === "tr" || f === "turk";
@@ -51,11 +58,24 @@ export default function ProformaNew() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
+  // Vessel mode: "fleet" = pick from fleet, "manual" = type in manually
+  const [vesselMode, setVesselMode] = useState<"fleet" | "manual">("fleet");
+
+  // Fleet mode state
   const [selectedVessel, setSelectedVessel] = useState<string>("");
+
+  // Manual mode state
+  const [manualVesselName, setManualVesselName] = useState<string>("");
+  const [manualFlag, setManualFlag] = useState<string>("Panama");
+  const [manualGrt, setManualGrt] = useState<string>("");
+  const [manualNrt, setManualNrt] = useState<string>("");
+
+  // Port state
   const [selectedPort, setSelectedPort] = useState<string>("");
   const [portOpen, setPortOpen] = useState(false);
   const [portSearch, setPortSearch] = useState("");
 
+  // Trip parameters
   const [berthStayDays, setBerthStayDays] = useState<number>(4);
   const [anchorageDays, setAnchorageDays] = useState<number>(0);
   const [purposeOfCall, setPurposeOfCall] = useState<string>("Discharging");
@@ -65,26 +85,31 @@ export default function ProformaNew() {
   const [cargoUnit, setCargoUnit] = useState<string>("MT");
   const [isDangerousCargo, setIsDangerousCargo] = useState<boolean>(false);
 
-  const [customsType, setCustomsType] = useState<string>("import");
-  const [flagCategory, setFlagCategory] = useState<string>("turkish");
-  const [dtoCategory, setDtoCategory] = useState<string>("turkish");
-  const [lighthouseCategory, setLighthouseCategory] = useState<string>("turkish");
-  const [vtsCategory, setVtsCategory] = useState<string>("turkish");
+  // Tariff categories (auto-derived from flag, not shown to user)
+  const [flagCategory, setFlagCategory] = useState<string>("foreign");
+  const [dtoCategory, setDtoCategory] = useState<string>("foreign");
+  const [lighthouseCategory, setLighthouseCategory] = useState<string>("foreign");
+  const [vtsCategory, setVtsCategory] = useState<string>("foreign");
   const [wharfageCategory, setWharfageCategory] = useState<string>("foreign");
 
+  // Exchange rates
   const [usdTryRate, setUsdTryRate] = useState<number>(43.86);
   const [eurTryRate, setEurTryRate] = useState<number>(51.73);
   const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
+
+  // Advanced / save fields
   const [toCompany, setToCompany] = useState<string>("");
   const [toCountry, setToCountry] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
+  // Results
   const [calculatedItems, setCalculatedItems] = useState<ProformaLineItem[] | null>(null);
   const [totalUsd, setTotalUsd] = useState<number>(0);
   const [totalEur, setTotalEur] = useState<number>(0);
   const [eurUsdParity, setEurUsdParity] = useState<number>(1.178);
 
+  // Quick estimate
   const [quickEstimate, setQuickEstimate] = useState<{
     lineItems: ProformaLineItem[];
     totalUsd: number;
@@ -97,48 +122,87 @@ export default function ProformaNew() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
-  const { data: ports, isLoading: portsLoading } = useQuery<Port[]>({ queryKey: ["/api/ports"] });
+
+  // Port search — server-side, debounced
+  const [portSearchQuery, setPortSearchQuery] = useState("");
+  const portDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [selectedPortObj, setSelectedPortObj] = useState<Port | null>(null);
+
+  useEffect(() => {
+    if (portDebounceRef.current) clearTimeout(portDebounceRef.current);
+    portDebounceRef.current = setTimeout(() => setPortSearchQuery(portSearch), 300);
+    return () => { if (portDebounceRef.current) clearTimeout(portDebounceRef.current); };
+  }, [portSearch]);
+
+  const { data: portSearchResults, isLoading: portsSearchLoading } = useQuery<Port[]>({
+    queryKey: ["/api/ports", { q: portSearchQuery }],
+    queryFn: async () => {
+      const res = await fetch(`/api/ports?q=${encodeURIComponent(portSearchQuery)}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: portSearchQuery.trim().length >= 2,
+    staleTime: 60_000,
+  });
+
+  // Derive flag categories from a flag string
+  const applyFlagCategories = (flag: string) => {
+    const turkish = isTurkishFlag(flag);
+    setFlagCategory(turkish ? "turkish" : "foreign");
+    setDtoCategory(turkish ? "turkish" : "foreign");
+    setLighthouseCategory(turkish ? "turkish" : "foreign");
+    setVtsCategory(turkish ? "turkish" : "foreign");
+    setWharfageCategory(turkish ? "cabotage" : "foreign");
+  };
 
   const handleVesselChange = (vesselId: string) => {
     setSelectedVessel(vesselId);
     const vessel = vessels?.find(v => v.id.toString() === vesselId);
-    if (vessel) {
-      const turkish = isTurkishFlag(vessel.flag);
-      setFlagCategory(turkish ? "turkish" : "foreign");
-      setDtoCategory(turkish ? "turkish" : "foreign");
-      setLighthouseCategory(turkish ? "turkish" : "foreign");
-      setVtsCategory(turkish ? "turkish" : "foreign");
-      setWharfageCategory(turkish ? "cabotage" : "foreign");
-    }
+    if (vessel) applyFlagCategories(vessel.flag || "");
   };
 
-  const filteredPorts = ports?.filter(p => {
-    if (!portSearch) return true;
-    const q = portSearch.toLowerCase();
-    return (p.name || "").toLowerCase().includes(q) || (p.code || "").toLowerCase().includes(q);
-  }) ?? [];
+  const handleManualFlagChange = (flag: string) => {
+    setManualFlag(flag);
+    applyFlagCategories(flag);
+  };
 
+  // Whether vessel data is ready for calculation
+  const vesselReady = vesselMode === "fleet"
+    ? !!selectedVessel
+    : !!(manualGrt && parseFloat(manualGrt) > 0);
+
+  const filteredPorts = portSearchResults ?? [];
+
+  // Build payload for quick-estimate
+  const buildEstimatePayload = () => {
+    const base = {
+      portId: parseInt(selectedPort),
+      berthStayDays,
+      cargoQuantity: cargoQuantity ? parseFloat(cargoQuantity) : 5000,
+      cargoType: cargoType || cargoCategory,
+      isDangerousCargo,
+      purposeOfCall,
+    };
+    if (vesselMode === "manual") {
+      return { ...base, externalVesselName: manualVesselName || "Manual Vessel", externalFlag: manualFlag, externalGrt: parseFloat(manualGrt) || 2000, externalNrt: parseFloat(manualNrt) || 1000 };
+    }
+    return { ...base, vesselId: parseInt(selectedVessel) };
+  };
+
+  // Auto quick-estimate on inputs change
   useEffect(() => {
-    if (!selectedVessel || !selectedPort) { setQuickEstimate(null); return; }
+    if (!vesselReady || !selectedPort) { setQuickEstimate(null); return; }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setQuickEstimateLoading(true);
       try {
-        const res = await apiRequest("POST", "/api/proformas/quick-estimate", {
-          vesselId: parseInt(selectedVessel),
-          portId: parseInt(selectedPort),
-          berthStayDays,
-          cargoQuantity: cargoQuantity ? parseFloat(cargoQuantity) : 5000,
-          cargoType: cargoType || cargoCategory,
-          isDangerousCargo,
-          customsType,
-        });
+        const res = await apiRequest("POST", "/api/proformas/quick-estimate", buildEstimatePayload());
         if (res.ok) { const data = await res.json(); setQuickEstimate(data); }
       } catch (_) {}
       setQuickEstimateLoading(false);
     }, 900);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [selectedVessel, selectedPort, berthStayDays, cargoQuantity, cargoType, cargoCategory, isDangerousCargo, customsType]);
+  }, [vesselMode, selectedVessel, manualVesselName, manualFlag, manualGrt, manualNrt, selectedPort, berthStayDays, cargoQuantity, cargoType, cargoCategory, isDangerousCargo, purposeOfCall]);
 
   const calculateMutation = useMutation({
     mutationFn: async (params: Record<string, unknown>) => {
@@ -204,12 +268,12 @@ export default function ProformaNew() {
   useEffect(() => { liveRatesMutation.mutate(); }, []);
 
   const triggerCalculation = useCallback(() => {
-    if (!selectedVessel || !selectedPort) {
-      toast({ title: "Please select a vessel and port first", variant: "destructive" });
+    if (!vesselReady || !selectedPort) {
+      toast({ title: "Please provide vessel details and select a port", variant: "destructive" });
       return;
     }
-    calculateMutation.mutate({
-      vesselId: parseInt(selectedVessel),
+
+    const base = {
       portId: parseInt(selectedPort),
       berthStayDays,
       anchorageDays,
@@ -217,7 +281,6 @@ export default function ProformaNew() {
       cargoType: cargoType || cargoCategory,
       purposeOfCall,
       isDangerousCargo,
-      customsType,
       flagCategory,
       dtoCategory,
       lighthouseCategory,
@@ -225,13 +288,25 @@ export default function ProformaNew() {
       wharfageCategory,
       usdTryRate,
       eurTryRate,
-    });
-  }, [selectedVessel, selectedPort, berthStayDays, anchorageDays, cargoQuantity, cargoType, cargoCategory, purposeOfCall, isDangerousCargo, customsType, flagCategory, dtoCategory, lighthouseCategory, vtsCategory, wharfageCategory, usdTryRate, eurTryRate]);
+    };
+
+    if (vesselMode === "manual") {
+      calculateMutation.mutate({
+        ...base,
+        externalVesselName: manualVesselName || "Manual Vessel",
+        externalFlag: manualFlag,
+        externalGrt: parseFloat(manualGrt) || 2000,
+        externalNrt: parseFloat(manualNrt) || 1000,
+      });
+    } else {
+      calculateMutation.mutate({ ...base, vesselId: parseInt(selectedVessel) });
+    }
+  }, [vesselMode, selectedVessel, manualVesselName, manualFlag, manualGrt, manualNrt, selectedPort, berthStayDays, anchorageDays, cargoQuantity, cargoType, cargoCategory, purposeOfCall, isDangerousCargo, flagCategory, dtoCategory, lighthouseCategory, vtsCategory, wharfageCategory, usdTryRate, eurTryRate]);
 
   const handleSave = () => {
-    if (!calculatedItems || !selectedVessel || !selectedPort) return;
+    if (!calculatedItems || !selectedPort) return;
     createMutation.mutate({
-      vesselId: parseInt(selectedVessel),
+      vesselId: vesselMode === "fleet" ? parseInt(selectedVessel) : null,
       portId: parseInt(selectedPort),
       toCompany: toCompany || null,
       toCountry: toCountry || null,
@@ -250,8 +325,15 @@ export default function ProformaNew() {
   };
 
   const selectedVesselData = vessels?.find((v) => v.id.toString() === selectedVessel);
-  const selectedPortData = ports?.find((p) => p.id.toString() === selectedPort);
+  const selectedPortData = selectedPortObj;
   const selectedCargoOption = CARGO_TYPE_OPTIONS.find(o => o.value === cargoCategory);
+
+  // Effective vessel display name for the results panel
+  const effectiveVesselName = vesselMode === "manual"
+    ? (manualVesselName || "Manual Vessel")
+    : (selectedVesselData?.name || "");
+
+  const effectiveFlag = vesselMode === "manual" ? manualFlag : (selectedVesselData?.flag || "");
 
   return (
     <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
@@ -276,63 +358,162 @@ export default function ProformaNew() {
 
           {/* SECTION 1: Vessel & Port */}
           <Card className="overflow-hidden">
-            <div className="flex items-center gap-2.5 px-6 py-4 border-b bg-[hsl(var(--maritime-primary)/0.04)]">
-              <div className="w-8 h-8 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center">
-                <Ship className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+            <div className="flex items-center justify-between px-6 py-4 border-b bg-[hsl(var(--maritime-primary)/0.04)]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center">
+                  <Ship className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                </div>
+                <h2 className="font-serif font-semibold text-base">Vessel & Port</h2>
               </div>
-              <h2 className="font-serif font-semibold text-base">Vessel & Port</h2>
+
+              {/* Mode toggle */}
+              <div className="flex items-center gap-1 p-1 rounded-lg bg-muted border">
+                <button
+                  onClick={() => setVesselMode("fleet")}
+                  data-testid="tab-vessel-fleet"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    vesselMode === "fleet"
+                      ? "bg-background text-foreground shadow-sm border"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <List className="w-3.5 h-3.5" />
+                  From Fleet
+                </button>
+                <button
+                  onClick={() => setVesselMode("manual")}
+                  data-testid="tab-vessel-manual"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    vesselMode === "manual"
+                      ? "bg-background text-foreground shadow-sm border"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <PenLine className="w-3.5 h-3.5" />
+                  Manual Entry
+                </button>
+              </div>
             </div>
 
             <div className="p-6 space-y-4">
-              {/* Vessel selector */}
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Vessel <span className="text-red-500">*</span></Label>
-                {vesselsLoading ? <Skeleton className="h-10" /> : vessels && vessels.length > 0 ? (
-                  <Select value={selectedVessel} onValueChange={handleVesselChange}>
-                    <SelectTrigger className="h-10" data-testid="select-vessel">
-                      <SelectValue placeholder="Select vessel" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {vessels.map((v) => (
-                        <SelectItem key={v.id} value={v.id.toString()} data-testid={`option-vessel-${v.id}`}>
-                          {v.name} <span className="text-muted-foreground ml-1">({v.flag})</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <div className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/30">
-                    No vessels yet.{" "}
-                    <Link href="/vessels" className="text-[hsl(var(--maritime-primary))] underline font-medium">Add a vessel first</Link>
-                  </div>
-                )}
-              </div>
 
-              {/* Vessel info strip */}
-              {selectedVesselData && (
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground px-3 py-2.5 rounded-lg bg-muted/40 border" data-testid="text-vessel-summary">
-                  <span><strong className="text-foreground">Flag:</strong> {selectedVesselData.flag}</span>
-                  <span className="text-muted-foreground/40">·</span>
-                  <span><strong className="text-foreground">Type:</strong> {selectedVesselData.vesselType}</span>
-                  <span className="text-muted-foreground/40">·</span>
-                  <span><strong className="text-foreground">GRT:</strong> {selectedVesselData.grt?.toLocaleString()}</span>
-                  {selectedVesselData.nrt && <><span className="text-muted-foreground/40">·</span><span><strong className="text-foreground">NRT:</strong> {selectedVesselData.nrt?.toLocaleString()}</span></>}
-                  {selectedVesselData.dwt && <><span className="text-muted-foreground/40">·</span><span><strong className="text-foreground">DWT:</strong> {selectedVesselData.dwt?.toLocaleString()}</span></>}
-                  <Badge variant={isTurkishFlag(selectedVesselData.flag) ? "default" : "secondary"} className="text-[10px] ml-auto shrink-0" data-testid="badge-flag-category">
-                    {isTurkishFlag(selectedVesselData.flag) ? "🇹🇷 Turkish Flag" : "🏳️ Foreign Flag"}
-                  </Badge>
+              {/* ─── Fleet mode: vessel dropdown ─── */}
+              {vesselMode === "fleet" && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Vessel <span className="text-red-500">*</span></Label>
+                  {vesselsLoading ? <Skeleton className="h-10" /> : vessels && vessels.length > 0 ? (
+                    <Select value={selectedVessel} onValueChange={handleVesselChange}>
+                      <SelectTrigger className="h-10" data-testid="select-vessel">
+                        <SelectValue placeholder="Select vessel from your fleet" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {vessels.map((v) => (
+                          <SelectItem key={v.id} value={v.id.toString()} data-testid={`option-vessel-${v.id}`}>
+                            {v.name} <span className="text-muted-foreground ml-1">({v.flag})</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/30">
+                      No vessels in your fleet yet.{" "}
+                      <Link href="/vessels" className="text-[hsl(var(--maritime-primary))] underline font-medium">Add a vessel</Link>
+                      {" "}or switch to{" "}
+                      <button onClick={() => setVesselMode("manual")} className="text-[hsl(var(--maritime-primary))] underline font-medium">Manual Entry</button>.
+                    </div>
+                  )}
+
+                  {selectedVesselData && (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground px-3 py-2.5 rounded-lg bg-muted/40 border" data-testid="text-vessel-summary">
+                      <span><strong className="text-foreground">Flag:</strong> {selectedVesselData.flag}</span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span><strong className="text-foreground">Type:</strong> {selectedVesselData.vesselType}</span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span><strong className="text-foreground">GRT:</strong> {selectedVesselData.grt?.toLocaleString()}</span>
+                      {selectedVesselData.nrt && <><span className="text-muted-foreground/40">·</span><span><strong className="text-foreground">NRT:</strong> {selectedVesselData.nrt?.toLocaleString()}</span></>}
+                      {selectedVesselData.dwt && <><span className="text-muted-foreground/40">·</span><span><strong className="text-foreground">DWT:</strong> {selectedVesselData.dwt?.toLocaleString()}</span></>}
+                      <Badge variant={isTurkishFlag(selectedVesselData.flag) ? "default" : "secondary"} className="text-[10px] ml-auto shrink-0" data-testid="badge-flag-category">
+                        {isTurkishFlag(selectedVesselData.flag) ? "🇹🇷 Turkish Flag" : "🏳️ Foreign Flag"}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ─── Manual mode: vessel fields ─── */}
+              {vesselMode === "manual" && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+                    <PenLine className="w-3.5 h-3.5 shrink-0" />
+                    Enter vessel details manually — tariff categories are auto-determined from the flag.
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-sm font-medium">Vessel Name</Label>
+                      <Input
+                        value={manualVesselName}
+                        onChange={(e) => setManualVesselName(e.target.value)}
+                        placeholder="e.g. MV OCEAN STAR"
+                        className="h-10"
+                        data-testid="input-manual-vessel-name"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-sm font-medium">Flag <span className="text-red-500">*</span></Label>
+                      <Select value={manualFlag} onValueChange={handleManualFlagChange}>
+                        <SelectTrigger className="h-10" data-testid="select-manual-flag">
+                          <SelectValue placeholder="Select flag state" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-64">
+                          {COMMON_FLAGS.map(f => (
+                            <SelectItem key={f} value={f}>{f}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-sm font-medium">GRT — Gross Tonnage <span className="text-red-500">*</span></Label>
+                      <Input
+                        type="number"
+                        value={manualGrt}
+                        onChange={(e) => setManualGrt(e.target.value)}
+                        placeholder="e.g. 28 500"
+                        className="h-10 font-mono"
+                        min={0}
+                        data-testid="input-manual-grt"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-sm font-medium">NRT — Net Tonnage</Label>
+                      <Input
+                        type="number"
+                        value={manualNrt}
+                        onChange={(e) => setManualNrt(e.target.value)}
+                        placeholder="e.g. 14 200"
+                        className="h-10 font-mono"
+                        min={0}
+                        data-testid="input-manual-nrt"
+                      />
+                      <p className="text-[10px] text-muted-foreground">Leave blank to auto-estimate (≈ 50% of GRT)</p>
+                    </div>
+                  </div>
+                  {/* Flag badge */}
+                  <div className="flex items-center gap-2">
+                    <Badge variant={isTurkishFlag(manualFlag) ? "default" : "secondary"} className="text-xs" data-testid="badge-manual-flag-category">
+                      {isTurkishFlag(manualFlag) ? "🇹🇷 Turkish Flag — Turkish tariffs applied" : "🏳️ Foreign Flag — International tariffs applied"}
+                    </Badge>
+                  </div>
                 </div>
               )}
 
               <Separator />
 
-              {/* Port / Terminal selector — searchable, all ports */}
+              {/* Port / Terminal selector */}
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" />
                   Port / Terminal <span className="text-red-500">*</span>
                 </Label>
-                {portsLoading ? <Skeleton className="h-10" /> : (
                   <Popover open={portOpen} onOpenChange={(open) => { setPortOpen(open); if (!open) setPortSearch(""); }}>
                     <PopoverTrigger asChild>
                       <Button
@@ -342,8 +523,8 @@ export default function ProformaNew() {
                         className="w-full h-10 justify-between font-normal"
                         data-testid="select-port-terminal"
                       >
-                        {selectedPort
-                          ? (() => { const p = ports?.find(p => p.id.toString() === selectedPort); return p ? p.name : "Select terminal"; })()
+                        {selectedPortObj
+                          ? selectedPortObj.name
                           : <span className="text-muted-foreground">Search and select port / terminal...</span>}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
@@ -351,48 +532,56 @@ export default function ProformaNew() {
                     <PopoverContent className="w-full max-w-xl p-0" align="start">
                       <Command shouldFilter={false}>
                         <CommandInput
-                          placeholder="Search by port name or LOCODE..."
+                          placeholder="Type port name or LOCODE (min 2 chars)..."
                           value={portSearch}
                           onValueChange={setPortSearch}
                           data-testid="input-search-port"
                         />
                         <CommandList>
-                          <CommandEmpty>No port found.</CommandEmpty>
-                          <CommandGroup className="max-h-[280px] overflow-y-auto">
-                            {filteredPorts.slice(0, 80).map((p) => (
-                              <CommandItem
-                                key={p.id}
-                                value={p.id.toString()}
-                                onSelect={() => { setSelectedPort(p.id.toString()); setPortOpen(false); setPortSearch(""); }}
-                                data-testid={`option-port-${p.id}`}
-                              >
-                                <Check className={`mr-2 h-4 w-4 shrink-0 ${selectedPort === p.id.toString() ? "opacity-100" : "opacity-0"}`} />
-                                <span className="flex-1">{p.name}</span>
-                                {p.code && <span className="ml-2 text-xs text-muted-foreground font-mono">{p.code}</span>}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
+                          {portSearch.trim().length < 2 ? (
+                            <div className="py-6 text-center text-sm text-muted-foreground">
+                              Type at least 2 characters to search ports...
+                            </div>
+                          ) : portsSearchLoading ? (
+                            <div className="py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                              <Loader2 className="w-4 h-4 animate-spin" /> Searching ports...
+                            </div>
+                          ) : filteredPorts.length === 0 ? (
+                            <CommandEmpty>No port found. Try a different name or LOCODE.</CommandEmpty>
+                          ) : (
+                            <CommandGroup className="max-h-[280px] overflow-y-auto">
+                              {filteredPorts.slice(0, 80).map((p) => (
+                                <CommandItem
+                                  key={p.id}
+                                  value={p.id.toString()}
+                                  onSelect={() => { setSelectedPort(p.id.toString()); setSelectedPortObj(p); setPortOpen(false); setPortSearch(""); }}
+                                  data-testid={`option-port-${p.id}`}
+                                >
+                                  <Check className={`mr-2 h-4 w-4 shrink-0 ${selectedPort === p.id.toString() ? "opacity-100" : "opacity-0"}`} />
+                                  <span className="flex-1">{p.name}</span>
+                                  {p.code && <span className="ml-2 text-xs text-muted-foreground font-mono">{p.code}</span>}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          )}
                         </CommandList>
                       </Command>
                     </PopoverContent>
                   </Popover>
+                {selectedPortData && (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground px-3 py-2 rounded-lg bg-muted/30 border border-dashed" data-testid="text-port-summary">
+                    <MapPin className="w-3 h-3 text-[hsl(var(--maritime-primary))]" />
+                    <span className="font-medium text-foreground">{selectedPortData.name}</span>
+                    {selectedPortData.code && (
+                      <span className="font-mono text-muted-foreground px-1.5 py-0.5 bg-muted rounded text-[10px]">{selectedPortData.code}</span>
+                    )}
+                  </div>
                 )}
               </div>
 
-              {/* Port info strip */}
-              {selectedPortData && (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground px-3 py-2.5 rounded-lg bg-muted/30 border border-dashed" data-testid="text-port-summary">
-                  <MapPin className="w-3 h-3 text-[hsl(var(--maritime-primary))]" />
-                  <span className="font-medium text-foreground">{selectedPortData.name}</span>
-                  {selectedPortData.code && (
-                    <span className="font-mono text-muted-foreground px-1.5 py-0.5 bg-muted rounded text-[10px]">{selectedPortData.code}</span>
-                  )}
-                </div>
-              )}
-
               <Separator />
 
-              {/* Call parameters row */}
+              {/* Call parameters */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="sm:col-span-2 space-y-1.5">
                   <Label className="text-sm font-medium">Purpose of Call</Label>
@@ -416,7 +605,7 @@ export default function ProformaNew() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium flex items-center gap-1">
-                    <Anchor className="w-3 h-3" /> Anchorage Days
+                    <Anchor className="w-3 h-3" /> Anchorage (Days)
                   </Label>
                   <Input
                     type="number"
@@ -431,7 +620,7 @@ export default function ProformaNew() {
 
               <Separator />
 
-              {/* Cargo section */}
+              {/* Cargo */}
               <div className="space-y-3">
                 <div className="grid grid-cols-3 gap-3">
                   <div className="col-span-2 space-y-1.5">
@@ -463,10 +652,7 @@ export default function ProformaNew() {
                     onValueChange={(v) => {
                       setCargoCategory(v);
                       const opt = CARGO_TYPE_OPTIONS.find(o => o.value === v);
-                      if (opt) {
-                        setCargoUnit(opt.unit);
-                        setIsDangerousCargo(opt.isDangerous);
-                      }
+                      if (opt) { setCargoUnit(opt.unit); setIsDangerousCargo(opt.isDangerous); }
                     }}
                   >
                     <SelectTrigger className="h-10" data-testid="select-cargo-category"><SelectValue /></SelectTrigger>
@@ -486,7 +672,7 @@ export default function ProformaNew() {
                   <Input
                     value={cargoType}
                     onChange={(e) => setCargoType(e.target.value)}
-                    placeholder={selectedCargoOption?.examples ? `e.g. ${selectedCargoOption.examples.split(",")[0]}` : "Add specific cargo name..."}
+                    placeholder={selectedCargoOption?.examples ? `e.g. ${selectedCargoOption.examples.split(",")[0].trim()}` : "Add specific cargo name..."}
                     className="h-10"
                     data-testid="input-cargo-description"
                   />
@@ -517,7 +703,7 @@ export default function ProformaNew() {
             </div>
           </Card>
 
-          {/* SECTION 2: Exchange Rates — compact card */}
+          {/* SECTION 2: Exchange Rates */}
           <Card className="overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b bg-[hsl(var(--maritime-primary)/0.04)]">
               <div className="flex items-center gap-2.5">
@@ -581,14 +767,14 @@ export default function ProformaNew() {
           <Button
             className="w-full gap-2 h-12 text-base font-semibold shadow-sm"
             onClick={triggerCalculation}
-            disabled={calculateMutation.isPending || !selectedVessel || !selectedPort}
+            disabled={calculateMutation.isPending || !vesselReady || !selectedPort}
             data-testid="button-calculate"
           >
             {calculateMutation.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Calculator className="w-5 h-5" />}
             {calculateMutation.isPending ? "Calculating..." : "Calculate Proforma"}
           </Button>
 
-          {/* Advanced details toggle */}
+          {/* Advanced toggle */}
           <button
             type="button"
             onClick={() => setShowAdvanced(!showAdvanced)}
@@ -620,11 +806,11 @@ export default function ProformaNew() {
           )}
         </div>
 
-        {/* ── RIGHT COLUMN: Results Panel ── */}
+        {/* ── RIGHT COLUMN: Results ── */}
         <div className="space-y-4">
 
-          {/* Quick Cost Preview */}
-          {(selectedVessel && selectedPort) && !calculatedItems && (
+          {/* Quick cost preview */}
+          {vesselReady && selectedPort && !calculatedItems && (
             <Card className="overflow-hidden border-blue-200 dark:border-blue-800" data-testid="panel-quick-estimate">
               <div className="flex items-center gap-2 px-4 py-3 bg-blue-50/80 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900">
                 <Zap className="w-4 h-4 text-blue-600 dark:text-blue-400" />
@@ -670,7 +856,7 @@ export default function ProformaNew() {
             </Card>
           )}
 
-          {/* Sticky results / awaiting card */}
+          {/* Sticky results / awaiting */}
           <div className="sticky top-6 space-y-4">
             {!calculatedItems ? (
               <Card className="p-8 flex flex-col items-center justify-center text-center space-y-3 border-dashed" data-testid="panel-awaiting-calculation">
@@ -689,11 +875,10 @@ export default function ProformaNew() {
                   <h2 className="font-serif font-semibold text-sm">Proforma Disbursement Account</h2>
                 </div>
 
-                {/* Vessel & port badges */}
                 <div className="flex flex-wrap gap-1.5 px-4 pt-3">
-                  {selectedVesselData && (
+                  {effectiveVesselName && (
                     <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[hsl(var(--maritime-primary)/0.08)] text-[hsl(var(--maritime-primary))] text-xs">
-                      <Ship className="w-2.5 h-2.5" /> {selectedVesselData.name}
+                      <Ship className="w-2.5 h-2.5" /> {effectiveVesselName}
                     </span>
                   )}
                   {selectedPortData && (
@@ -706,7 +891,6 @@ export default function ProformaNew() {
                   </span>
                 </div>
 
-                {/* Line items table */}
                 <div className="mx-4 mt-3 border rounded-md overflow-hidden">
                   {(() => {
                     const palette = ["border-blue-400","border-indigo-500","border-violet-500","border-sky-500","border-teal-500","border-cyan-500","border-blue-600","border-indigo-600","border-purple-500","border-blue-400"];
