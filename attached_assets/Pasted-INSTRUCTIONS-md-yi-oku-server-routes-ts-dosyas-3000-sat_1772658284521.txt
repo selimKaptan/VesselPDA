@@ -1,0 +1,248 @@
+INSTRUCTIONS.md'yi oku. server/routes.ts dosyası ~3000+ satır ve bakımı çok zor. Modüllere böl.
+
+ÖNEMLİ: Bu bir refactor. Hiçbir fonksiyonellik değişmeyecek, sadece dosya organizasyonu düzelecek.
+
+1. Yeni klasör oluştur: server/routes/
+
+2. Her modül şu pattern'i takip etsin:
+
+   // server/routes/vessel.routes.ts
+   import { Router } from 'express';
+   import { db } from '../db';
+   import { storage } from '../storage';
+   import { isAuthenticated } from '../middleware/auth'; // veya mevcut auth middleware yolu
+   
+   const router = Router();
+   
+   // Tüm vessel endpoint'leri buraya taşı
+   router.get("/", isAuthenticated, async (req: any, res: any, next: any) => { ... });
+   router.post("/", isAuthenticated, async (req: any, res: any, next: any) => { ... });
+   // vs.
+   
+   export default router;
+
+3. Şu modülleri oluştur ve ilgili endpoint'leri taşı:
+
+   server/routes/auth.routes.ts:
+   - POST /api/demo/login
+   - PATCH /api/user/role
+   - Tüm login/register/verify/reset endpoint'leri
+
+   server/routes/vessel.routes.ts:
+   - GET/POST/PATCH/DELETE /api/vessels
+   - GET /api/vessels/lookup
+   - Certificates CRUD
+   - Crew CRUD
+
+   server/routes/port.routes.ts:
+   - GET /api/ports
+   - GET /api/ports/:id
+   - GET /api/port-info/:locode
+   - GET /api/service-ports
+
+   server/routes/proforma.routes.ts:
+   - GET/POST/DELETE /api/proformas
+   - POST /api/proformas/calculate
+   - POST /api/proformas/quick-estimate
+   - POST /api/proformas/:id/duplicate
+   - POST /api/proformas/:id/send-email
+   - GET /api/proformas/:id/pdf
+   - GET /api/proformas/:id/pdf/preview
+
+   server/routes/tender.routes.ts:
+   - GET/POST/DELETE /api/tenders
+   - Bids CRUD
+   - POST /api/tenders/:id/nominate
+   - GET /api/tenders/:id/voyage
+
+   server/routes/voyage.routes.ts:
+   - GET/POST/PATCH /api/voyages
+   - Checklist CRUD
+   - Documents CRUD
+   - Chat endpoints
+   - Reviews
+   - Appointments
+
+   server/routes/message.routes.ts:
+   - GET /api/messages
+   - POST /api/messages/start
+   - GET/POST /api/messages/:conversationId
+   - Unread count
+
+   server/routes/nomination.routes.ts:
+   - GET/POST /api/nominations
+   - PATCH /api/nominations/:id/respond
+   - Pending count
+
+   server/routes/commercial.routes.ts:
+   - Fixtures CRUD
+   - Laytime CRUD
+   - Cargo positions CRUD
+   - Invoices CRUD
+
+   server/routes/directory.routes.ts:
+   - GET /api/directory
+   - Reviews, endorsements
+   - Trust score, agent stats
+
+   server/routes/company.routes.ts:
+   - Company profile CRUD
+   - Logo upload/delete
+   - Verification
+
+   server/routes/forum.routes.ts:
+   - Categories, topics, replies
+   - Likes, dislikes
+
+   server/routes/market.routes.ts:
+   - Freight indices
+   - Bunker prices
+   - Exchange rates
+
+   server/routes/tracking.routes.ts:
+   - Vessel track endpoints
+   - Watchlist
+   - Fleet management
+   - Sanctions check
+
+   server/routes/sof.routes.ts:
+   - SOF CRUD
+   - SOF events
+   - SOF PDF
+
+   server/routes/fda.routes.ts:
+   - FDA CRUD
+   - FDA approve
+   - FDA PDF
+
+   server/routes/notification.routes.ts:
+   - Notifications
+   - Feedback
+   - Contact form
+
+   server/routes/service-request.routes.ts:
+   - Service requests CRUD
+   - Offers
+
+   server/routes/payment.routes.ts:
+   - Payment checkout
+   - Payment callback
+   - Payment status
+
+   server/routes/admin.routes.ts:
+   - TÜM /api/admin/* endpoint'leri
+   - Stats, users, companies, tariffs
+   - Audit logs, announcements
+   - Port alerts, bunker prices admin
+
+   server/routes/ai.routes.ts:
+   - POST /api/ai/chat
+
+4. Ana routes.ts dosyasını index haline getir:
+
+   // server/routes.ts (yeni hali — sadece import ve mount)
+   import { Express } from 'express';
+   import authRoutes from './routes/auth.routes';
+   import vesselRoutes from './routes/vessel.routes';
+   import portRoutes from './routes/port.routes';
+   import proformaRoutes from './routes/proforma.routes';
+   import tenderRoutes from './routes/tender.routes';
+   import voyageRoutes from './routes/voyage.routes';
+   import messageRoutes from './routes/message.routes';
+   import nominationRoutes from './routes/nomination.routes';
+   import commercialRoutes from './routes/commercial.routes';
+   import directoryRoutes from './routes/directory.routes';
+   import companyRoutes from './routes/company.routes';
+   import forumRoutes from './routes/forum.routes';
+   import marketRoutes from './routes/market.routes';
+   import trackingRoutes from './routes/tracking.routes';
+   import sofRoutes from './routes/sof.routes';
+   import fdaRoutes from './routes/fda.routes';
+   import notificationRoutes from './routes/notification.routes';
+   import serviceRequestRoutes from './routes/service-request.routes';
+   import paymentRoutes from './routes/payment.routes';
+   import adminRoutes from './routes/admin.routes';
+   import aiRoutes from './routes/ai.routes';
+
+   export function registerRoutes(app: Express) {
+     app.use('/api/auth', authRoutes);
+     app.use('/api/vessels', vesselRoutes);
+     app.use('/api/ports', portRoutes);
+     app.use('/api/proformas', proformaRoutes);
+     app.use('/api/tenders', tenderRoutes);
+     app.use('/api/voyages', voyageRoutes);
+     app.use('/api/messages', messageRoutes);
+     app.use('/api/nominations', nominationRoutes);
+     app.use('/api/fixtures', commercialRoutes); 
+     app.use('/api/directory', directoryRoutes);
+     app.use('/api/company-profile', companyRoutes);
+     app.use('/api/forum', forumRoutes);
+     app.use('/api/market', marketRoutes);
+     app.use('/api/vessel-track', trackingRoutes);
+     app.use('/api/sof', sofRoutes);
+     app.use('/api/fda', fdaRoutes);
+     app.use('/api/notifications', notificationRoutes);
+     app.use('/api/service-requests', serviceRequestRoutes);
+     app.use('/api/payment', paymentRoutes);
+     app.use('/api/admin', adminRoutes);
+     app.use('/api/ai', aiRoutes);
+     
+     // Bazı endpoint'ler prefix'e uymayan mixed path'ler kullanıyor.
+     // Bunları doğrudan app'e mount et:
+     // Örnek: GET /api/exchange-rates, POST /api/contact, GET /api/stats,
+     // GET /api/activity-feed, POST /api/feedback, POST /api/files/upload,
+     // GET /api/document-templates, POST /api/subscription/upgrade,
+     // GET /api/reviews/:id, POST /api/reviews, GET /api/endorsements/:id,
+     // POST /api/endorsements, GET /api/sanctions/check,
+     // GET /api/certificates/expiring, GET /api/agent-stats/:id,
+     // GET /api/trust-score/:id, GET /api/fleets, POST /api/demo/login
+     // Bu "misc" endpoint'leri ya uygun modüle taşı ya da ayrı bir misc.routes.ts oluştur
+   }
+
+5. server/index.ts'i güncelle:
+   
+   // ESKİ: import { registerRoutes } from './routes';  (veya inline route tanımları)
+   // YENİ: aynı import, ama artık registerRoutes fonksiyonu modülleri mount ediyor
+   
+   registerRoutes(app) çağrısının mevcut yerini koru, sadece routes.ts içeriği değişiyor.
+
+6. TAŞIMA KURALLARI — ÇOK ÖNEMLİ:
+
+   a) Her route modülünde gerekli import'ları ekle:
+      - db, storage, eq, desc, sql vb. Drizzle imports
+      - İlgili schema tabloları ve types
+      - isAuthenticated, requireRole middleware
+      - emitToUser, emitToConversation vb. WebSocket helpers
+      - logAction (audit) 
+      - İlgili email fonksiyonları
+      - Rate limiter'lar (authLimiter, calculateLimiter vb.)
+
+   b) Route path'leri GÜNCELLE:
+      Örnek: Eğer vessel.routes.ts app.use('/api/vessels', vesselRoutes) ile mount ediliyorsa,
+      içerideki route'lar:
+      ESKİ: app.get("/api/vessels", ...)
+      YENİ: router.get("/", ...)
+      
+      ESKİ: app.get("/api/vessels/:id", ...)  
+      YENİ: router.get("/:id", ...)
+      
+      ESKİ: app.get("/api/vessels/:vesselId/certificates", ...)
+      YENİ: router.get("/:vesselId/certificates", ...)
+
+   c) Bazı endpoint'ler birden fazla resource'a dokunuyor (örn: tender nominate → voyage + conversation oluşturur). Bunları primary resource'un modülünde tut.
+
+   d) Shared helpers (rate limiters, multer config vb.) ayrı dosyaya çıkar:
+      server/routes/middleware.ts veya server/middleware/ klasörü
+
+7. TEST: Tüm bu değişiklikten sonra uygulama AYNI ŞEKİLDE çalışmalı.
+   Frontend'de HİÇBİR değişiklik yapma — tüm API path'leri aynı kalacak.
+   
+   Eğer bir endpoint çalışmıyorsa, muhtemelen route path düzeltmesi gerekiyordur.
+
+8. IMPORTANT:
+   - Bu SADECE bir refactor — yeni özellik ekleme
+   - Tüm API path'leri birebir aynı kalmalı
+   - Frontend'e DOKUNMA
+   - Eğer çok karmaşık geliyorsa, en azından admin.routes.ts ve commercial.routes.ts'i ayır — bunlar en büyük parçalar
+   - Her dosyayı kaydettikten sonra uygulama çalışıyor mu kontrol et
+   - Crash olursa hemen geri al
