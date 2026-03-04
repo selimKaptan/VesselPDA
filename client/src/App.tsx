@@ -48,6 +48,8 @@ import Invoices from "@/pages/invoices";
 import PdaReview from "@/pages/pda-review";
 import Sof from "@/pages/sof";
 import SofDetail from "@/pages/sof-detail";
+import Fda from "@/pages/fda";
+import FdaDetail from "@/pages/fda-detail";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -99,6 +101,8 @@ function AuthenticatedRouter() {
       <Route path="/pda-review" component={PdaReview} />
       <Route path="/sof" component={Sof} />
       <Route path="/sof/:id" component={SofDetail} />
+      <Route path="/fda" component={Fda} />
+      <Route path="/fda/:id" component={FdaDetail} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -1,4 +1,4 @@
-import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, MessageCircle, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, Handshake, Package, TrendingUp, Wallet, ClipboardList } from "lucide-react";
+import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, MessageCircle, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, Handshake, Package, TrendingUp, Wallet, ClipboardList, Calculator } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -101,6 +101,7 @@ export function AppSidebar() {
   if (effectiveRole === "shipowner" || isAgent || effectiveRole === "admin") {
     toolsNav.push({ title: "Voyages", url: "/voyages", icon: Ship });
     toolsNav.push({ title: "Statement of Facts", url: "/sof", icon: ClipboardList });
+    toolsNav.push({ title: "Final Disbursement", url: "/fda", icon: Calculator });
   }
   if (!isAgent) {
     toolsNav.push({ title: "Service Requests", url: "/service-requests", icon: Wrench });

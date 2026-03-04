@@ -1,0 +1,383 @@
+INSTRUCTIONS.md'yi oku. FDA (Final Disbursement Account) modülü ekle. FDA, proformadaki tahmini masrafları gerçek masraflarla karşılaştıran belgedir. Maritime'da her port call sonrası hazırlanır.
+
+1. shared/schema.ts'e yeni tablo ekle:
+
+   // FDA - Final Disbursement Account
+   export const finalDisbursements = pgTable("final_disbursements", {
+     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+     userId: varchar("user_id").notNull().references(() => users.id),
+     proformaId: integer("proforma_id").references(() => proformas.id),
+     voyageId: integer("voyage_id").references(() => voyages.id),
+     vesselId: integer("vessel_id").references(() => vessels.id),
+     portId: integer("port_id").references(() => ports.id),
+     referenceNumber: varchar("reference_number", { length: 50 }),
+     vesselName: varchar("vessel_name", { length: 200 }),
+     portName: varchar("port_name", { length: 200 }),
+     lineItems: jsonb("line_items").$type<FdaLineItem[]>().default([]),
+     totalEstimatedUsd: real("total_estimated_usd").default(0),
+     totalActualUsd: real("total_actual_usd").default(0),
+     totalEstimatedEur: real("total_estimated_eur").default(0),
+     totalActualEur: real("total_actual_eur").default(0),
+     varianceUsd: real("variance_usd").default(0),
+     variancePercent: real("variance_percent").default(0),
+     exchangeRate: real("exchange_rate"),
+     status: varchar("status", { length: 20 }).default("draft"), // draft, pending_approval, approved, sent
+     notes: text("notes"),
+     bankDetails: jsonb("bank_details"),
+     approvedBy: varchar("approved_by"),
+     approvedAt: timestamp("approved_at"),
+     createdAt: timestamp("created_at").defaultNow(),
+     updatedAt: timestamp("updated_at").defaultNow(),
+   });
+
+   // FDA Line Item type
+   export interface FdaLineItem {
+     id: string;
+     description: string;
+     category: string;
+     estimatedUsd: number;
+     estimatedEur: number;
+     actualUsd: number;
+     actualEur: number;
+     varianceUsd: number;
+     variancePercent: number;
+     receiptUrl?: string;
+     remarks?: string;
+   }
+
+   // Relations
+   export const fdaRelations = relations(finalDisbursements, ({ one }) => ({
+     user: one(users, { fields: [finalDisbursements.userId], references: [users.id] }),
+     proforma: one(proformas, { fields: [finalDisbursements.proformaId], references: [proformas.id] }),
+     voyage: one(voyages, { fields: [finalDisbursements.voyageId], references: [voyages.id] }),
+     vessel: one(vessels, { fields: [finalDisbursements.vesselId], references: [vessels.id] }),
+     port: one(ports, { fields: [finalDisbursements.portId], references: [ports.id] }),
+   }));
+
+   // Zod
+   export const insertFdaSchema = createInsertSchema(finalDisbursements).omit({ id: true, createdAt: true, updatedAt: true });
+   export type InsertFda = z.infer<typeof insertFdaSchema>;
+   export type Fda = typeof finalDisbursements.$inferSelect;
+
+2. server/routes.ts'e FDA endpoint'leri ekle:
+
+   // FDA List
+   app.get("/api/fda", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const userId = req.user.claims.sub;
+       const user = await storage.getUser(userId);
+       let fdas;
+       if (user?.userRole === 'admin') {
+         fdas = await db.select().from(finalDisbursements).orderBy(desc(finalDisbursements.createdAt));
+       } else {
+         fdas = await db.select().from(finalDisbursements).where(eq(finalDisbursements.userId, userId)).orderBy(desc(finalDisbursements.createdAt));
+       }
+       res.json(fdas);
+     } catch (error) { next(error); }
+   });
+
+   // Create FDA from Proforma
+   app.post("/api/fda", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const userId = req.user.claims.sub;
+       const { proformaId } = req.body;
+       
+       let lineItems: FdaLineItem[] = [];
+       let totalEstimatedUsd = 0;
+       let totalEstimatedEur = 0;
+       let vesselName = req.body.vesselName;
+       let portName = req.body.portName;
+       let vesselId = req.body.vesselId;
+       let portId = req.body.portId;
+       let voyageId = req.body.voyageId;
+       let exchangeRate = req.body.exchangeRate;
+       let bankDetails = req.body.bankDetails;
+
+       // Proforma varsa, line item'ları kopyala
+       if (proformaId) {
+         const proforma = await storage.getProforma(proformaId);
+         if (proforma) {
+           const proformaItems = proforma.lineItems || [];
+           lineItems = proformaItems.map((item: any, index: number) => ({
+             id: `fda_${index + 1}`,
+             description: item.description || item.name || '',
+             category: item.category || 'General',
+             estimatedUsd: item.amountUsd || 0,
+             estimatedEur: item.amountEur || 0,
+             actualUsd: 0,
+             actualEur: 0,
+             varianceUsd: -(item.amountUsd || 0),
+             variancePercent: -100,
+             remarks: '',
+           }));
+           totalEstimatedUsd = Number(proforma.totalUsd) || 0;
+           totalEstimatedEur = Number(proforma.totalEur) || 0;
+           vesselId = vesselId || proforma.vesselId;
+           portId = portId || proforma.portId;
+           exchangeRate = exchangeRate || proforma.exchangeRate;
+           bankDetails = bankDetails || proforma.bankDetails;
+           
+           // Vessel ve port isimlerini çek
+           if (proforma.vesselId) {
+             const vessel = await storage.getVessel(proforma.vesselId);
+             if (vessel) vesselName = vessel.name;
+           }
+           if (proforma.portId) {
+             const port = await storage.getPort(proforma.portId);
+             if (port) portName = port.name;
+           }
+         }
+       }
+
+       // Reference number oluştur
+       const count = await db.select({ count: sql`count(*)` }).from(finalDisbursements);
+       const refNumber = `FDA-${new Date().getFullYear()}-${String(Number(count[0].count) + 1).padStart(4, '0')}`;
+
+       const [fda] = await db.insert(finalDisbursements).values({
+         userId,
+         proformaId: proformaId || null,
+         voyageId: voyageId || null,
+         vesselId: vesselId || null,
+         portId: portId || null,
+         referenceNumber: refNumber,
+         vesselName: vesselName || '',
+         portName: portName || '',
+         lineItems,
+         totalEstimatedUsd,
+         totalActualUsd: 0,
+         totalEstimatedEur,
+         totalActualEur: 0,
+         varianceUsd: -totalEstimatedUsd,
+         variancePercent: totalEstimatedUsd ? -100 : 0,
+         exchangeRate,
+         bankDetails,
+         status: 'draft',
+       }).returning();
+
+       res.json(fda);
+     } catch (error) { next(error); }
+   });
+
+   // Get FDA detail
+   app.get("/api/fda/:id", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const fdaId = parseInt(req.params.id);
+       const [fda] = await db.select().from(finalDisbursements).where(eq(finalDisbursements.id, fdaId));
+       if (!fda) return res.status(404).json({ error: "FDA not found" });
+       res.json(fda);
+     } catch (error) { next(error); }
+   });
+
+   // Update FDA (line items with actual amounts)
+   app.patch("/api/fda/:id", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const fdaId = parseInt(req.params.id);
+       const updates = req.body;
+       
+       // Eğer lineItems güncelleniyorsa, totalleri ve variance'ı hesapla
+       if (updates.lineItems) {
+         let totalActualUsd = 0;
+         let totalActualEur = 0;
+         let totalEstimatedUsd = 0;
+         let totalEstimatedEur = 0;
+         
+         updates.lineItems = updates.lineItems.map((item: any) => {
+           const varianceUsd = (item.actualUsd || 0) - (item.estimatedUsd || 0);
+           const variancePercent = item.estimatedUsd ? ((varianceUsd / item.estimatedUsd) * 100) : 0;
+           totalActualUsd += item.actualUsd || 0;
+           totalActualEur += item.actualEur || 0;
+           totalEstimatedUsd += item.estimatedUsd || 0;
+           totalEstimatedEur += item.estimatedEur || 0;
+           return { ...item, varianceUsd, variancePercent: Math.round(variancePercent * 100) / 100 };
+         });
+         
+         updates.totalActualUsd = totalActualUsd;
+         updates.totalActualEur = totalActualEur;
+         updates.totalEstimatedUsd = totalEstimatedUsd;
+         updates.totalEstimatedEur = totalEstimatedEur;
+         updates.varianceUsd = totalActualUsd - totalEstimatedUsd;
+         updates.variancePercent = totalEstimatedUsd ? Math.round(((totalActualUsd - totalEstimatedUsd) / totalEstimatedUsd) * 10000) / 100 : 0;
+       }
+       
+       updates.updatedAt = new Date();
+       const [updated] = await db.update(finalDisbursements).set(updates).where(eq(finalDisbursements.id, fdaId)).returning();
+       res.json(updated);
+     } catch (error) { next(error); }
+   });
+
+   // Delete FDA
+   app.delete("/api/fda/:id", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const fdaId = parseInt(req.params.id);
+       await db.delete(finalDisbursements).where(eq(finalDisbursements.id, fdaId));
+       res.json({ success: true });
+     } catch (error) { next(error); }
+   });
+
+   // Approve FDA
+   app.post("/api/fda/:id/approve", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const fdaId = parseInt(req.params.id);
+       const userId = req.user.claims.sub;
+       const user = await storage.getUser(userId);
+       const [updated] = await db.update(finalDisbursements).set({
+         status: 'approved',
+         approvedBy: user?.firstName ? `${user.firstName} ${user.lastName}` : userId,
+         approvedAt: new Date(),
+         updatedAt: new Date(),
+       }).where(eq(finalDisbursements.id, fdaId)).returning();
+       res.json(updated);
+     } catch (error) { next(error); }
+   });
+
+   // FDA PDF Export
+   app.get("/api/fda/:id/pdf", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const fdaId = parseInt(req.params.id);
+       const [fda] = await db.select().from(finalDisbursements).where(eq(finalDisbursements.id, fdaId));
+       if (!fda) return res.status(404).json({ error: "FDA not found" });
+
+       const PDFDocument = require('pdfkit');
+       const doc = new PDFDocument({ size: 'A4', margin: 50 });
+       const chunks: Buffer[] = [];
+       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+       
+       await new Promise<void>((resolve) => {
+         doc.on('end', resolve);
+         
+         doc.fontSize(16).font('Helvetica-Bold').text('FINAL DISBURSEMENT ACCOUNT', { align: 'center' });
+         doc.moveDown(0.5);
+         doc.fontSize(10).font('Helvetica');
+         doc.text(`Reference: ${fda.referenceNumber}`, 50);
+         doc.text(`Date: ${new Date(fda.createdAt!).toLocaleDateString('en-GB')}`);
+         doc.text(`Vessel: ${fda.vesselName || 'N/A'}`);
+         doc.text(`Port: ${fda.portName || 'N/A'}`);
+         doc.text(`Status: ${fda.status?.toUpperCase()}`);
+         doc.moveDown(1);
+
+         // Tablo header
+         doc.font('Helvetica-Bold').fontSize(8);
+         const y = doc.y;
+         doc.text('DESCRIPTION', 50, y, { width: 170 });
+         doc.text('EST. USD', 225, y, { width: 65, align: 'right' });
+         doc.text('ACT. USD', 295, y, { width: 65, align: 'right' });
+         doc.text('VARIANCE', 365, y, { width: 65, align: 'right' });
+         doc.text('VAR %', 435, y, { width: 55, align: 'right' });
+         doc.text('REMARKS', 495, y, { width: 50 });
+         doc.moveTo(50, doc.y + 3).lineTo(545, doc.y + 3).stroke();
+         doc.moveDown(0.5);
+
+         doc.font('Helvetica').fontSize(7);
+         const items = (fda.lineItems as FdaLineItem[]) || [];
+         for (const item of items) {
+           if (doc.y > 700) doc.addPage();
+           const iy = doc.y;
+           doc.text(item.description, 50, iy, { width: 170 });
+           doc.text(item.estimatedUsd?.toFixed(2) || '-', 225, iy, { width: 65, align: 'right' });
+           doc.text(item.actualUsd?.toFixed(2) || '-', 295, iy, { width: 65, align: 'right' });
+           const varColor = (item.varianceUsd || 0) > 0 ? 'red' : 'green';
+           doc.fillColor(varColor).text(item.varianceUsd?.toFixed(2) || '-', 365, iy, { width: 65, align: 'right' });
+           doc.text(`${item.variancePercent?.toFixed(1) || '0'}%`, 435, iy, { width: 55, align: 'right' });
+           doc.fillColor('black').text(item.remarks || '', 495, iy, { width: 50 });
+           doc.moveDown(0.3);
+         }
+
+         // Totals
+         doc.moveDown(0.5);
+         doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+         doc.moveDown(0.5);
+         doc.font('Helvetica-Bold').fontSize(9);
+         const ty = doc.y;
+         doc.text('TOTAL', 50, ty);
+         doc.text(`$ ${fda.totalEstimatedUsd?.toFixed(2) || '0'}`, 225, ty, { width: 65, align: 'right' });
+         doc.text(`$ ${fda.totalActualUsd?.toFixed(2) || '0'}`, 295, ty, { width: 65, align: 'right' });
+         const totalVar = (fda.varianceUsd || 0);
+         doc.fillColor(totalVar > 0 ? 'red' : 'green')
+           .text(`$ ${totalVar.toFixed(2)}`, 365, ty, { width: 65, align: 'right' });
+         doc.text(`${fda.variancePercent?.toFixed(1) || '0'}%`, 435, ty, { width: 55, align: 'right' });
+         doc.fillColor('black');
+         
+         doc.moveDown(2);
+         if (fda.approvedBy) {
+           doc.fontSize(8).text(`Approved by: ${fda.approvedBy} on ${fda.approvedAt ? new Date(fda.approvedAt).toLocaleDateString('en-GB') : ''}`);
+         }
+         doc.fontSize(7).text(`Generated by VesselPDA — ${new Date().toISOString().split('T')[0]}`, 50, 770, { align: 'center' });
+         
+         doc.end();
+       });
+       
+       const pdfBuffer = Buffer.concat(chunks);
+       res.setHeader('Content-Type', 'application/pdf');
+       res.setHeader('Content-Disposition', `attachment; filename="FDA-${fda.referenceNumber || fdaId}.pdf"`);
+       res.send(pdfBuffer);
+     } catch (error) { next(error); }
+   });
+
+3. Frontend — client/src/pages/fda.tsx (Liste sayfası):
+
+   FDA listesi:
+   - "Create New FDA" butonu — iki seçenek:
+     a) "From Proforma" — mevcut proforma seçerek FDA oluştur (tahmini değerler otomatik dolar)
+     b) "Blank FDA" — boş FDA oluştur
+   - Tablo: ref no, vessel, port, estimated total, actual total, variance %, status, tarih
+   - Variance sütunu: yeşil (düşük), kırmızı (yüksek), gri (henüz girilmemiş)
+   - Status badge: draft, pending_approval, approved, sent
+
+4. Frontend — client/src/pages/fda-detail.tsx (Detay sayfası):
+
+   İki sütunlu karşılaştırma görünümü:
+   - Üstte vessel/port bilgi kartı ve variance summary (büyük rakamlar)
+   - Variance summary kartı:
+     * Total Estimated: $XX,XXX
+     * Total Actual: $XX,XXX  
+     * Variance: +$X,XXX (+X.X%) — yeşil/kırmızı renk
+   
+   - Ana tablo: her satır bir line item
+     * Description (read-only from proforma)
+     * Estimated USD (read-only from proforma)
+     * Actual USD (editable input — kullanıcı gerçek tutarı girer)
+     * Variance USD (otomatik hesaplanır)
+     * Variance % (otomatik hesaplanır, renk kodlu)
+     * Remarks (editable text input)
+   
+   - Her satırdaki Actual USD değiştiğinde otomatik kaydet (debounce ile)
+   - Alt tarafta: Notes text area
+   - Butonlar: "Save", "Approve", "Export PDF", "Send via Email"
+   - Approved FDA'da actual alanları read-only olur
+
+5. client/src/App.tsx'e route ekle:
+
+   import Fda from "@/pages/fda";
+   import FdaDetail from "@/pages/fda-detail";
+   
+   <Route path="/fda" component={Fda} />
+   <Route path="/fda/:id" component={FdaDetail} />
+
+6. Sidebar navigasyona ekle — Operations grubuna:
+   { icon: Calculator, label: "Final Disbursement", href: "/fda" }
+
+7. Proforma sayfasına "Create FDA" butonu ekle:
+   client/src/pages/proforma-view.tsx'de:
+   
+   <Button onClick={async () => {
+     const res = await fetch('/api/fda', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({ proformaId: proforma.id }),
+     });
+     const fda = await res.json();
+     window.location.href = `/fda/${fda.id}`;
+   }}>
+     <ArrowRight className="w-4 h-4 mr-2" /> Create FDA from PDA
+   </Button>
+
+8. npx drizzle-kit push ile tabloyu oluştur.
+
+9. IMPORTANT:
+   - Proforma'dan FDA oluşturulduğunda tüm line item'lar kopyalanır
+   - Actual alanları başta 0, kullanıcı gerçek masrafları girer
+   - Variance otomatik hesaplanır (actual - estimated)
+   - Pozitif variance = bütçe aşımı (kırmızı), negatif = tasarruf (yeşil)
+   - PDF'te variance renkleri gösterilir
+   - Mevcut hiçbir sayfayı veya endpoint'i bozma
+   - FdaLineItem interface'ini schema.ts'de tanımla

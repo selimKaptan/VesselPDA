@@ -1100,3 +1100,58 @@ export type InsertSof = z.infer<typeof insertSofSchema>;
 export type InsertSofLineItem = z.infer<typeof insertSofLineItemSchema>;
 export type Sof = typeof statementOfFacts.$inferSelect;
 export type SofLineItem = typeof sofLineItems.$inferSelect;
+
+// ─── FDA - FINAL DISBURSEMENT ACCOUNT ─────────────────────────────────────────
+
+export interface FdaLineItem {
+  id: string;
+  description: string;
+  category: string;
+  estimatedUsd: number;
+  estimatedEur: number;
+  actualUsd: number;
+  actualEur: number;
+  varianceUsd: number;
+  variancePercent: number;
+  receiptUrl?: string;
+  remarks?: string;
+}
+
+export const fdaAccounts = pgTable("fda_accounts", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  proformaId: integer("proforma_id").references(() => proformas.id),
+  voyageId: integer("voyage_id").references(() => voyages.id),
+  vesselId: integer("vessel_id").references(() => vessels.id),
+  portId: integer("port_id").references(() => ports.id),
+  referenceNumber: varchar("reference_number", { length: 50 }),
+  vesselName: varchar("vessel_name", { length: 200 }),
+  portName: varchar("port_name", { length: 200 }),
+  lineItems: jsonb("line_items").default([]),
+  totalEstimatedUsd: real("total_estimated_usd").default(0),
+  totalActualUsd: real("total_actual_usd").default(0),
+  totalEstimatedEur: real("total_estimated_eur").default(0),
+  totalActualEur: real("total_actual_eur").default(0),
+  varianceUsd: real("variance_usd").default(0),
+  variancePercent: real("variance_percent").default(0),
+  exchangeRate: real("exchange_rate"),
+  status: varchar("status", { length: 20 }).default("draft"),
+  notes: text("notes"),
+  bankDetails: jsonb("bank_details"),
+  approvedBy: varchar("approved_by"),
+  approvedAt: timestamp("approved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const fdaRelations = relations(fdaAccounts, ({ one }) => ({
+  user: one(users, { fields: [fdaAccounts.userId], references: [users.id] }),
+  proforma: one(proformas, { fields: [fdaAccounts.proformaId], references: [proformas.id] }),
+  voyage: one(voyages, { fields: [fdaAccounts.voyageId], references: [voyages.id] }),
+  vessel: one(vessels, { fields: [fdaAccounts.vesselId], references: [vessels.id] }),
+  port: one(ports, { fields: [fdaAccounts.portId], references: [ports.id] }),
+}));
+
+export const insertFdaSchema = createInsertSchema(fdaAccounts).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertFda = z.infer<typeof insertFdaSchema>;
+export type Fda = typeof fdaAccounts.$inferSelect;

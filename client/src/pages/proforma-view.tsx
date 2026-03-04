@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Download, Printer, Ship, Globe, FileText, Calendar, Package, Loader2, Mail, Send, RefreshCw, CheckCircle2, XCircle, Clock, AlertTriangle, ChevronRight } from "lucide-react";
+import { ArrowLeft, Download, Printer, Ship, Globe, FileText, Calendar, Package, Loader2, Mail, Send, RefreshCw, CheckCircle2, XCircle, Clock, AlertTriangle, ChevronRight, ArrowRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Link, useParams } from "wouter";
+import { Link, useParams, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -57,6 +57,7 @@ export default function ProformaView() {
   const [reviewAction, setReviewAction] = useState<"approve" | "reject" | "request_revision">("approve");
   const [reviewNote, setReviewNote] = useState("");
   const params = useParams<{ id: string }>();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { user } = useAuth();
   const userRole = (user as any)?.userRole;
@@ -132,6 +133,18 @@ export default function ProformaView() {
     onError: () => {
       toast({ title: "Failed to send", description: "Please try again.", variant: "destructive" });
     },
+  });
+
+  const createFdaMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/fda", { proformaId: params.id });
+      return res.json();
+    },
+    onSuccess: (fda: any) => {
+      toast({ title: "FDA created", description: "Redirecting to Final Disbursement Account…" });
+      setLocation(`/fda/${fda.id}`);
+    },
+    onError: () => toast({ title: "Error", description: "Failed to create FDA.", variant: "destructive" }),
   });
 
   if (isLoading) {
@@ -215,6 +228,19 @@ export default function ProformaView() {
               data-testid="button-review-pda"
             >
               <ChevronRight className="w-4 h-4" /> Review PDA
+            </Button>
+          )}
+          {(isAgent || isShipownerOrAdmin) && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 border-maritime-primary/40 text-maritime-primary hover:bg-maritime-primary/5"
+              onClick={() => createFdaMutation.mutate()}
+              disabled={createFdaMutation.isPending}
+              data-testid="button-create-fda"
+            >
+              {createFdaMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+              <span className="hidden sm:inline">Create FDA</span>
             </Button>
           )}
           <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()} data-testid="button-print">

@@ -15,6 +15,8 @@ import {
   insertVoyageSchema, insertServiceRequestSchema, insertDirectNominationSchema,
   insertFixtureSchema, insertCargoPositionSchema, insertInvoiceSchema,
   statementOfFacts, sofLineItems, insertSofSchema,
+  fdaAccounts,
+  type FdaLineItem,
 } from "@shared/schema";
 import { z } from "zod";
 import { calculateProforma, type CalculationInput } from "./proforma-calculator";
@@ -5595,6 +5597,229 @@ export async function registerRoutes(
     });
   });
 
+
+
+  // ─── FDA — FINAL DISBURSEMENT ACCOUNT ────────────────────────────────────────
+
+  app.get("/api/fda", isAuthenticated, async (req: any, res: any, next: any) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      let fdas;
+      if (user?.userRole === "admin") {
+        fdas = await db.select().from(fdaAccounts).orderBy(desc(fdaAccounts.createdAt));
+      } else {
+        fdas = await db.select().from(fdaAccounts).where(eq(fdaAccounts.userId, userId)).orderBy(desc(fdaAccounts.createdAt));
+      }
+      res.json(fdas);
+    } catch (error) { next(error); }
+  });
+
+  app.post("/api/fda", isAuthenticated, async (req: any, res: any, next: any) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { proformaId } = req.body;
+      let lineItems: FdaLineItem[] = [];
+      let totalEstimatedUsd = 0;
+      let totalEstimatedEur = 0;
+      let vesselName = req.body.vesselName || "";
+      let portName = req.body.portName || "";
+      let vesselId = req.body.vesselId || null;
+      let portId = req.body.portId || null;
+      let voyageId = req.body.voyageId || null;
+      let exchangeRate = req.body.exchangeRate || null;
+      let bankDetails = req.body.bankDetails || null;
+
+      if (proformaId) {
+        const proforma = await storage.getProformaById(parseInt(proformaId));
+        if (proforma) {
+          const proformaItems: any[] = (proforma as any).lineItems || [];
+          lineItems = proformaItems.map((item: any, index: number) => ({
+            id: `fda_${index + 1}`,
+            description: item.description || item.name || "",
+            category: item.category || "General",
+            estimatedUsd: item.amountUsd || 0,
+            estimatedEur: item.amountEur || 0,
+            actualUsd: 0,
+            actualEur: 0,
+            varianceUsd: -(item.amountUsd || 0),
+            variancePercent: -100,
+            remarks: "",
+          }));
+          totalEstimatedUsd = Number((proforma as any).totalUsd) || 0;
+          totalEstimatedEur = Number((proforma as any).totalEur) || 0;
+          vesselId = vesselId || (proforma as any).vesselId;
+          portId = portId || (proforma as any).portId;
+          exchangeRate = exchangeRate || (proforma as any).exchangeRate;
+          bankDetails = bankDetails || (proforma as any).bankDetails;
+          if ((proforma as any).vessel) vesselName = (proforma as any).vessel.name || vesselName;
+          if ((proforma as any).port) portName = (proforma as any).port.name || portName;
+        }
+      }
+
+      const countRows = await db.select({ cnt: drizzleSql`count(*)` }).from(fdaAccounts);
+      const refNumber = `FDA-${new Date().getFullYear()}-${String(Number(countRows[0].cnt) + 1).padStart(4, "0")}`;
+
+      const [fda] = await db.insert(fdaAccounts).values({
+        userId,
+        proformaId: proformaId ? parseInt(proformaId) : null,
+        voyageId,
+        vesselId,
+        portId,
+        referenceNumber: refNumber,
+        vesselName,
+        portName,
+        lineItems,
+        totalEstimatedUsd,
+        totalActualUsd: 0,
+        totalEstimatedEur,
+        totalActualEur: 0,
+        varianceUsd: -totalEstimatedUsd,
+        variancePercent: totalEstimatedUsd ? -100 : 0,
+        exchangeRate,
+        bankDetails,
+        status: "draft",
+      }).returning();
+      res.json(fda);
+    } catch (error) { next(error); }
+  });
+
+  app.get("/api/fda/:id", isAuthenticated, async (req: any, res: any, next: any) => {
+    try {
+      const fdaId = parseInt(req.params.id);
+      const [fda] = await db.select().from(fdaAccounts).where(eq(fdaAccounts.id, fdaId));
+      if (!fda) return res.status(404).json({ error: "FDA not found" });
+      res.json(fda);
+    } catch (error) { next(error); }
+  });
+
+  app.patch("/api/fda/:id", isAuthenticated, async (req: any, res: any, next: any) => {
+    try {
+      const fdaId = parseInt(req.params.id);
+      const updates: any = { ...req.body };
+      if (updates.lineItems) {
+        let totalActualUsd = 0, totalActualEur = 0, totalEstimatedUsd = 0, totalEstimatedEur = 0;
+        updates.lineItems = updates.lineItems.map((item: any) => {
+          const varianceUsd = (item.actualUsd || 0) - (item.estimatedUsd || 0);
+          const variancePercent = item.estimatedUsd ? (varianceUsd / item.estimatedUsd) * 100 : 0;
+          totalActualUsd += item.actualUsd || 0;
+          totalActualEur += item.actualEur || 0;
+          totalEstimatedUsd += item.estimatedUsd || 0;
+          totalEstimatedEur += item.estimatedEur || 0;
+          return { ...item, varianceUsd, variancePercent: Math.round(variancePercent * 100) / 100 };
+        });
+        updates.totalActualUsd = totalActualUsd;
+        updates.totalActualEur = totalActualEur;
+        updates.totalEstimatedUsd = totalEstimatedUsd;
+        updates.totalEstimatedEur = totalEstimatedEur;
+        updates.varianceUsd = totalActualUsd - totalEstimatedUsd;
+        updates.variancePercent = totalEstimatedUsd ? Math.round(((totalActualUsd - totalEstimatedUsd) / totalEstimatedUsd) * 10000) / 100 : 0;
+      }
+      updates.updatedAt = new Date();
+      const [updated] = await db.update(fdaAccounts).set(updates).where(eq(fdaAccounts.id, fdaId)).returning();
+      res.json(updated);
+    } catch (error) { next(error); }
+  });
+
+  app.delete("/api/fda/:id", isAuthenticated, async (req: any, res: any, next: any) => {
+    try {
+      const fdaId = parseInt(req.params.id);
+      await db.delete(fdaAccounts).where(eq(fdaAccounts.id, fdaId));
+      res.json({ success: true });
+    } catch (error) { next(error); }
+  });
+
+  app.post("/api/fda/:id/approve", isAuthenticated, async (req: any, res: any, next: any) => {
+    try {
+      const fdaId = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const approverName = user?.firstName ? `${user.firstName} ${(user as any).lastName || ""}`.trim() : userId;
+      const [updated] = await db.update(fdaAccounts).set({
+        status: "approved",
+        approvedBy: approverName,
+        approvedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(eq(fdaAccounts.id, fdaId)).returning();
+      res.json(updated);
+    } catch (error) { next(error); }
+  });
+
+  app.get("/api/fda/:id/pdf", isAuthenticated, async (req: any, res: any, next: any) => {
+    try {
+      const fdaId = parseInt(req.params.id);
+      const [fda] = await db.select().from(fdaAccounts).where(eq(fdaAccounts.id, fdaId));
+      if (!fda) return res.status(404).json({ error: "FDA not found" });
+
+      const PDFDocumentModule = await import("pdfkit");
+      const PDFDocument = (PDFDocumentModule as any).default || PDFDocumentModule;
+      const doc = new PDFDocument({ size: "A4", margin: 50 });
+      const chunks: Buffer[] = [];
+      doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+
+      await new Promise<void>((resolve) => {
+        doc.on("end", resolve);
+        doc.fontSize(16).font("Helvetica-Bold").text("FINAL DISBURSEMENT ACCOUNT", { align: "center" });
+        doc.moveDown(0.5);
+        doc.fontSize(10).font("Helvetica");
+        doc.text(`Reference: ${fda.referenceNumber}`);
+        doc.text(`Date: ${fda.createdAt ? new Date(fda.createdAt).toLocaleDateString("en-GB") : new Date().toLocaleDateString("en-GB")}`);
+        doc.text(`Vessel: ${fda.vesselName || "N/A"}`);
+        doc.text(`Port: ${fda.portName || "N/A"}`);
+        doc.text(`Status: ${(fda.status || "draft").toUpperCase()}`);
+        doc.moveDown(1);
+
+        doc.font("Helvetica-Bold").fontSize(8);
+        const y = doc.y;
+        doc.text("DESCRIPTION", 50, y, { width: 170 });
+        doc.text("EST. USD", 225, y, { width: 65, align: "right" });
+        doc.text("ACT. USD", 295, y, { width: 65, align: "right" });
+        doc.text("VARIANCE", 365, y, { width: 65, align: "right" });
+        doc.text("VAR %", 435, y, { width: 55, align: "right" });
+        doc.text("REMARKS", 495, y, { width: 50 });
+        doc.moveTo(50, doc.y + 3).lineTo(545, doc.y + 3).stroke();
+        doc.moveDown(0.5);
+
+        doc.font("Helvetica").fontSize(7);
+        const items = (fda.lineItems as FdaLineItem[]) || [];
+        for (const item of items) {
+          if (doc.y > 700) doc.addPage();
+          const iy = doc.y;
+          doc.text(item.description, 50, iy, { width: 170 });
+          doc.text((item.estimatedUsd || 0).toFixed(2), 225, iy, { width: 65, align: "right" });
+          doc.text((item.actualUsd || 0).toFixed(2), 295, iy, { width: 65, align: "right" });
+          const varColor = (item.varianceUsd || 0) > 0 ? "#dc2626" : "#16a34a";
+          doc.fillColor(varColor).text((item.varianceUsd || 0).toFixed(2), 365, iy, { width: 65, align: "right" });
+          doc.fillColor("#000").text(`${(item.variancePercent || 0).toFixed(1)}%`, 435, iy, { width: 55, align: "right" });
+          doc.text(item.remarks || "", 495, iy, { width: 50 });
+          doc.moveDown(0.3);
+        }
+
+        doc.moveDown(0.5).moveTo(50, doc.y).lineTo(545, doc.y).stroke().moveDown(0.5);
+        doc.font("Helvetica-Bold").fontSize(9);
+        const ty = doc.y;
+        doc.text("TOTAL", 50, ty);
+        doc.text(`$${(fda.totalEstimatedUsd || 0).toFixed(2)}`, 225, ty, { width: 65, align: "right" });
+        doc.text(`$${(fda.totalActualUsd || 0).toFixed(2)}`, 295, ty, { width: 65, align: "right" });
+        const totalVar = fda.varianceUsd || 0;
+        doc.fillColor(totalVar > 0 ? "#dc2626" : "#16a34a").text(`$${totalVar.toFixed(2)}`, 365, ty, { width: 65, align: "right" });
+        doc.text(`${(fda.variancePercent || 0).toFixed(1)}%`, 435, ty, { width: 55, align: "right" });
+        doc.fillColor("#000");
+
+        doc.moveDown(2);
+        if (fda.approvedBy) {
+          doc.fontSize(8).text(`Approved by: ${fda.approvedBy}${fda.approvedAt ? " on " + new Date(fda.approvedAt).toLocaleDateString("en-GB") : ""}`);
+        }
+        doc.fontSize(7).fillColor("#666").text(`Generated by VesselPDA — ${new Date().toISOString().split("T")[0]}`, 50, 770, { align: "center" });
+        doc.end();
+      });
+
+      const pdfBuffer = Buffer.concat(chunks);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="FDA-${fda.referenceNumber || fdaId}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (error) { next(error); }
+  });
 
   // ─── SOF — STATEMENT OF FACTS ────────────────────────────────────────────────
 

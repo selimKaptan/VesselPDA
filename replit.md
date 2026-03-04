@@ -44,6 +44,7 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
     - **DB-Connected Quick Estimate**: Instant proforma calculations linked to database tariff tables, supporting IMO search and dangerous goods surcharges.
     - **File System Storage**: New uploads are saved to `uploads/{category}/` on disk (bids, documents, certificates, crew, proformas, logos) instead of base64 in the DB. Old base64 records in DB remain untouched (backward compatible). Static files served via `/uploads/*`.
     - **Statement of Facts (SOF) Module**: Full CRUD for SOF documents linked to voyages/vessels/ports. Auto-generates 13 standard port call events on creation, supports custom events with date/time, remarks, and deductible-from-laytime flagging. Finalize locks the SOF read-only. PDF export via PDFKit. Tables: `statement_of_facts`, `sof_line_items`.
+    - **Final Disbursement Account (FDA) Module**: CRUD for FDA records comparing proforma estimated costs against actual port costs. Supports creating from a PDA/Proforma (auto-imports line items) or blank. Inline editing of actual amounts with auto-calculated variance (color-coded red/green). Approve workflow locks FDA read-only. PDF export via PDFKit. "Create FDA" button on proforma detail page. Tables: `fda_accounts`. Routes: `/fda`, `/fda/:id`.
 - **Security**: Helmet Content-Security-Policy headers are configured.
 
 ## External Dependencies
