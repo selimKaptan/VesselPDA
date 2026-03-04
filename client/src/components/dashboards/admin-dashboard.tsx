@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProformaTrendChart, TenderTrendChart, VoyageTrendChart, StatusDistributionChart } from "./dashboard-charts";
 
 function StatCard({ label, value, loading, icon: Icon, color, href, testId }: {
   label: string; value: React.ReactNode; loading?: boolean;
@@ -47,6 +48,7 @@ export function AdminDashboard({ adminStats }: { adminStats: any }) {
   const { data: activityFeed, isLoading: activityLoading } = useQuery<any[]>({
     queryKey: ["/api/activity-feed"],
   });
+  const { data: dashData } = useQuery<any>({ queryKey: ["/api/stats/dashboard"] });
 
   const quickActions = [
     { href: "/admin", icon: Shield, label: "Admin Panel", desc: "Manage users, plans & suspensions", color: "0 84% 35%", testId: "qa-admin" },
@@ -67,6 +69,19 @@ export function AdminDashboard({ adminStats }: { adminStats: any }) {
         <StatCard label="Total Vessels" value={adminStats?.totalVessels} icon={Ship} color="var(--maritime-secondary)" href="/admin" testId="stat-admin-vessels" />
         <StatCard label="Total Voyages" value={adminStats?.totalVoyages ?? adminStats?.activeVoyages ?? "—"} icon={Navigation} color="var(--maritime-accent)" href="/admin" testId="stat-admin-voyages" />
         <StatCard label="System Status" value={aisConnected ? "Online" : "Offline"} icon={CheckCircle2} color="142 71% 35%" href="/admin" testId="stat-system-status" />
+      </div>
+
+      {/* Trend Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <ProformaTrendChart />
+        <TenderTrendChart />
+        <VoyageTrendChart />
+      </div>
+
+      {/* Status Distribution */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <StatusDistributionChart title="Tender Status Distribution" data={dashData?.tenderDistribution || []} testId="chart-tender-dist" />
+        <StatusDistributionChart title="Voyage Status Distribution" data={dashData?.voyageDistribution || []} testId="chart-voyage-dist" />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">

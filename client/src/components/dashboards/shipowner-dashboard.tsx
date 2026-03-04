@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Vessel, Proforma } from "@shared/schema";
+import { ProformaTrendChart, TenderTrendChart, VoyageTrendChart, StatusDistributionChart } from "./dashboard-charts";
 
 function StatCard({ label, value, loading, icon: Icon, color, href, testId }: {
   label: string; value: React.ReactNode; loading?: boolean;
@@ -76,6 +77,13 @@ export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, p
         <StatCard label="Active Voyages" value={voyagesLoading ? "…" : activeVoyages} loading={voyagesLoading} icon={Navigation} color="var(--maritime-secondary)" href="/voyages" testId="stat-active-voyages" />
         <StatCard label="Pending Approvals" value={pendingApprovals} icon={FileText} color="38 92% 50%" href="/proformas" testId="stat-pending-approvals" />
         <StatCard label="Notifications" value={unread} icon={Bell} color="var(--maritime-accent)" href="/messages" testId="stat-notifications" />
+      </div>
+
+      {/* Trend Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <ProformaTrendChart />
+        <TenderTrendChart />
+        <VoyageTrendChart />
       </div>
 
       {/* Subscription + Plan Usage */}

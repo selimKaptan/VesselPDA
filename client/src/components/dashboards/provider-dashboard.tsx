@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Building2, ArrowRight, Star, Phone, Mail, Globe, MapPin, Activity, MessageSquare, Crown, ShieldCheck, AlertTriangle, Clock, XCircle, Wrench, FileText, Anchor } from "lucide-react";
+import { StatusDistributionChart } from "./dashboard-charts";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +44,7 @@ export function ProviderDashboard({ user, myProfile }: { user: any; myProfile?: 
 
   const { data: serviceRequests, isLoading: srLoading } = useQuery<any[]>({ queryKey: ["/api/service-requests"] });
   const { data: invoices, isLoading: invLoading } = useQuery<any[]>({ queryKey: ["/api/invoices"] });
+  const { data: dashData } = useQuery<any>({ queryKey: ["/api/stats/dashboard"] });
 
   const incomingRequests = (serviceRequests || []).filter((r: any) => r.status === "open" || r.status === "pending").length;
   const activeServices = (serviceRequests || []).filter((r: any) => r.status === "in_progress").length;
@@ -128,6 +130,12 @@ export function ProviderDashboard({ user, myProfile }: { user: any; myProfile?: 
         <StatCard label="Active Services" value={srLoading ? "…" : activeServices} loading={srLoading} icon={Activity} color="142 71% 35%" href="/service-requests" testId="stat-active-services" />
         <StatCard label="Pending Invoices" value={invLoading ? "…" : pendingInvoices} loading={invLoading} icon={FileText} color="38 92% 40%" href="/invoices" testId="stat-pending-invoices" />
         <StatCard label="Service Ports" value={servicePorts} icon={Anchor} color="var(--maritime-secondary)" href="/company-profile" testId="stat-service-ports" />
+      </div>
+
+      {/* Status Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <StatusDistributionChart title="Service Request Status" data={dashData?.voyageDistribution || []} testId="chart-sr-dist" />
+        <StatusDistributionChart title="Tender Distribution" data={dashData?.tenderDistribution || []} testId="chart-tender-dist" />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">

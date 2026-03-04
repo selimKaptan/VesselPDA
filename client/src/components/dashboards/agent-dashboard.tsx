@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Anchor, Gavel, Star, TrendingUp, ArrowRight, Building2, Navigation, MapPin, FileText, MessageSquare, ShieldCheck, AlertTriangle, Clock, XCircle, Ship, Plus, Zap } from "lucide-react";
+import { BidWinRateChart, ProformaTrendChart, VoyageTrendChart } from "./dashboard-charts";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +46,7 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
 
   const { data: voyages, isLoading: voyagesLoading } = useQuery<any[]>({ queryKey: ["/api/voyages"] });
   const { data: proformas, isLoading: proformasLoading } = useQuery<any[]>({ queryKey: ["/api/proformas"] });
+  const { data: dashData } = useQuery<any>({ queryKey: ["/api/stats/dashboard"] });
 
   const activeVoyages = (voyages || []).filter((v: any) => ["in_progress", "scheduled"].includes(v.status)).length;
   const pendingPDAs = (proformas || []).filter((p: any) => ["pending", "draft"].includes(p.status)).length;
@@ -121,6 +123,13 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
         <StatCard label="Pending PDAs" value={proformasLoading ? "…" : pendingPDAs} loading={proformasLoading} icon={FileText} color="220 13% 46%" href="/proformas" testId="stat-pending-pdas" />
         <StatCard label="Approved Proformas" value={proformasLoading ? "…" : approvedProformas} loading={proformasLoading} icon={Anchor} color="142 71% 35%" href="/proformas" testId="stat-approved-proformas" />
         <StatCard label="Messages" value={unreadMessages > 0 ? unreadMessages : "0"} icon={MessageSquare} color="38 92% 40%" href="/messages" testId="stat-messages" />
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <ProformaTrendChart />
+        <VoyageTrendChart />
+        <BidWinRateChart total={Number(dashData?.stats?.my_bids ?? allBids.length)} won={Number(dashData?.stats?.won_bids ?? selectedBids.length)} />
       </div>
 
       {/* Main grid */}

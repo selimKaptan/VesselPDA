@@ -404,6 +404,104 @@ router.get("/api/stats", async (_req, res) => {
 });
 
 
+router.get("/api/stats/trends", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const user = await storage.getUser(userId);
+    const months = Math.min(Math.max(parseInt(req.query.months as string) || 6, 1), 24);
+    const isAdmin = user?.userRole === 'admin';
+    const interval = `${months} months`;
+
+    const [proformaRes, tenderRes, voyageRes] = await Promise.all([
+      isAdmin
+        ? pool.query(`SELECT TO_CHAR(created_at, 'YYYY-MM') as month, COUNT(*) as count, COALESCE(SUM(total_usd::numeric), 0) as total_usd FROM proformas WHERE created_at > NOW() - INTERVAL '${interval}' GROUP BY 1 ORDER BY 1`)
+        : pool.query(`SELECT TO_CHAR(created_at, 'YYYY-MM') as month, COUNT(*) as count, COALESCE(SUM(total_usd::numeric), 0) as total_usd FROM proformas WHERE created_at > NOW() - INTERVAL '${interval}' AND user_id = $1 GROUP BY 1 ORDER BY 1`, [userId]),
+      isAdmin
+        ? pool.query(`SELECT TO_CHAR(created_at, 'YYYY-MM') as month, COUNT(*) as count, COUNT(*) FILTER (WHERE status = 'nominated') as completed FROM port_tenders WHERE created_at > NOW() - INTERVAL '${interval}' GROUP BY 1 ORDER BY 1`)
+        : pool.query(`SELECT TO_CHAR(created_at, 'YYYY-MM') as month, COUNT(*) as count, COUNT(*) FILTER (WHERE status = 'nominated') as completed FROM port_tenders WHERE created_at > NOW() - INTERVAL '${interval}' AND user_id = $1 GROUP BY 1 ORDER BY 1`, [userId]),
+      isAdmin
+        ? pool.query(`SELECT TO_CHAR(created_at, 'YYYY-MM') as month, COUNT(*) as count, COUNT(*) FILTER (WHERE status = 'completed') as completed FROM voyages WHERE created_at > NOW() - INTERVAL '${interval}' GROUP BY 1 ORDER BY 1`)
+        : pool.query(`SELECT TO_CHAR(created_at, 'YYYY-MM') as month, COUNT(*) as count, COUNT(*) FILTER (WHERE status = 'completed') as completed FROM voyages WHERE created_at > NOW() - INTERVAL '${interval}' AND (user_id = $1 OR agent_user_id = $1) GROUP BY 1 ORDER BY 1`, [userId]),
+    ]);
+
+    res.json({ proformaTrend: proformaRes.rows, tenderTrend: tenderRes.rows, voyageTrend: voyageRes.rows });
+  } catch (error) {
+    console.error("Stats trends error:", error);
+    res.status(500).json({ message: "Failed to fetch trend data" });
+  }
+});
+
+
+router.get("/api/stats/dashboard", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const user = await storage.getUser(userId);
+    const role = user?.userRole;
+
+    let stats: any = {};
+
+    if (role === 'admin') {
+      const { rows } = await pool.query(`
+        SELECT
+          (SELECT COUNT(*) FROM users WHERE is_suspended = false)::int as total_users,
+          (SELECT COUNT(*) FROM users WHERE created_at > NOW() - INTERVAL '30 days')::int as new_users_month,
+          (SELECT COUNT(*) FROM proformas)::int as total_proformas,
+          (SELECT COUNT(*) FROM proformas WHERE created_at > NOW() - INTERVAL '30 days')::int as proformas_month,
+          (SELECT COUNT(*) FROM port_tenders WHERE status = 'open')::int as open_tenders,
+          (SELECT COUNT(*) FROM voyages WHERE status = 'in_progress')::int as active_voyages,
+          (SELECT COUNT(*) FROM company_profiles WHERE is_approved = true)::int as verified_companies,
+          (SELECT COALESCE(SUM(total_usd::numeric), 0) FROM proformas WHERE created_at > NOW() - INTERVAL '30 days') as revenue_month
+      `);
+      stats = rows[0];
+    } else if (role === 'shipowner' || role === 'broker') {
+      const { rows } = await pool.query(`
+        SELECT
+          (SELECT COUNT(*) FROM vessels WHERE user_id = $1)::int as my_vessels,
+          (SELECT COUNT(*) FROM port_tenders WHERE user_id = $1 AND status = 'open')::int as my_open_tenders,
+          (SELECT COUNT(*) FROM port_tenders WHERE user_id = $1 AND status = 'nominated')::int as my_completed_tenders,
+          (SELECT COUNT(*) FROM voyages WHERE user_id = $1 AND status = 'in_progress')::int as my_active_voyages,
+          (SELECT COUNT(*) FROM proformas WHERE user_id = $1)::int as my_proformas,
+          (SELECT COALESCE(SUM(total_usd::numeric), 0) FROM proformas WHERE user_id = $1) as my_total_spend
+      `, [userId]);
+      stats = rows[0];
+    } else if (role === 'agent') {
+      const { rows } = await pool.query(`
+        SELECT
+          (SELECT COUNT(*) FROM tender_bids WHERE agent_user_id = $1)::int as my_bids,
+          (SELECT COUNT(*) FROM tender_bids WHERE agent_user_id = $1 AND status = 'selected')::int as won_bids,
+          (SELECT COUNT(*) FROM voyages WHERE agent_user_id = $1 AND status = 'in_progress')::int as active_voyages,
+          (SELECT COUNT(*) FROM voyages WHERE agent_user_id = $1 AND status = 'completed')::int as completed_voyages,
+          (SELECT COUNT(*) FROM direct_nominations WHERE agent_user_id = $1 AND status = 'pending')::int as pending_nominations,
+          (SELECT COALESCE(AVG(ar.rating), 0) FROM agent_reviews ar JOIN company_profiles cp ON ar.company_profile_id = cp.id WHERE cp.user_id = $1) as avg_rating
+      `, [userId]);
+      stats = rows[0];
+    } else if (role === 'provider') {
+      const { rows } = await pool.query(`
+        SELECT
+          (SELECT COUNT(*) FROM service_offers WHERE provider_user_id = $1)::int as my_offers,
+          (SELECT COUNT(*) FROM service_offers WHERE provider_user_id = $1 AND status = 'selected')::int as won_offers,
+          (SELECT COUNT(*) FROM service_requests WHERE status = 'open')::int as open_requests
+      `, [userId]);
+      stats = rows[0];
+    }
+
+    const [tenderDist, voyageDist] = await Promise.all([
+      role === 'admin'
+        ? pool.query(`SELECT status, COUNT(*) as count FROM port_tenders GROUP BY status`)
+        : pool.query(`SELECT status, COUNT(*) as count FROM port_tenders WHERE user_id = $1 GROUP BY status`, [userId]),
+      role === 'admin'
+        ? pool.query(`SELECT status, COUNT(*) as count FROM voyages GROUP BY status`)
+        : pool.query(`SELECT status, COUNT(*) as count FROM voyages WHERE user_id = $1 OR agent_user_id = $1 GROUP BY status`, [userId]),
+    ]);
+
+    res.json({ stats, tenderDistribution: tenderDist.rows, voyageDistribution: voyageDist.rows });
+  } catch (error) {
+    console.error("Stats dashboard error:", error);
+    res.status(500).json({ message: "Failed to fetch dashboard stats" });
+  }
+});
+
+
 router.get("/api/activity-feed", async (_req, res) => {
   try {
     const { rows } = await pool.query(`
