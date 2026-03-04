@@ -173,6 +173,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Health check — must respond immediately before any heavy work
+app.get("/api/health", (_req, res) => res.status(200).json({ status: "ok", timestamp: Date.now() }));
+
 (async () => {
   await registerRoutes(httpServer, app);
 
@@ -198,7 +201,10 @@ app.use((req, res, next) => {
     } catch (e) {
       console.error("[static] CRITICAL: Failed to setup static file serving:", e);
       app.use("/*path", (_req, res) => {
-        res.status(503).send("<html><body><h1>Service Unavailable</h1><p>Static files not found. Build may be incomplete.</p></body></html>");
+        if (_req.path.startsWith("/api")) {
+          return res.status(404).json({ message: "API endpoint not found" });
+        }
+        res.status(200).send("<!DOCTYPE html><html><head><title>VesselPDA</title><meta http-equiv='refresh' content='5'></head><body><h1>VesselPDA is starting up...</h1><p>Please wait...</p></body></html>");
       });
     }
   } else {
@@ -305,7 +311,7 @@ app.use((req, res, next) => {
       import("./sanctions").then(({ loadSanctionsList }) => {
         setTimeout(() => {
           loadSanctionsList().catch((err: Error) => console.error("Sanctions load error:", err));
-        }, 5000);
+        }, 45000);
       });
 
       import("./geocode-ports").then(({ geocodeMissingPorts }) => {
