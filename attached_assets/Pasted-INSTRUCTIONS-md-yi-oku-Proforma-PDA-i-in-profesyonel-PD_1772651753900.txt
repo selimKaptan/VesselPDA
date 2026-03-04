@@ -1,0 +1,236 @@
+INSTRUCTIONS.md'yi oku. Proforma/PDA için profesyonel PDF export özelliği ekle.
+
+1. pdfkit paketini kur: npm install pdfkit @types/pdfkit
+
+2. Yeni dosya oluştur: server/proforma-pdf.ts
+
+   Bu dosya bir proforma objesini alıp profesyonel PDF oluşturacak:
+
+   import PDFDocument from 'pdfkit';
+   
+   interface ProformaPdfOptions {
+     proforma: any;
+     companyProfile?: any;
+     port?: any;
+     vessel?: any;
+   }
+
+   export function generateProformaPdf(options: ProformaPdfOptions): Promise<Buffer> {
+     return new Promise((resolve, reject) => {
+       const { proforma, companyProfile, port, vessel } = options;
+       const doc = new PDFDocument({ size: 'A4', margin: 50 });
+       const chunks: Buffer[] = [];
+       
+       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+       doc.on('end', () => resolve(Buffer.concat(chunks)));
+       doc.on('error', reject);
+
+       // === HEADER ===
+       // Şirket logosu (eğer companyProfile.logoUrl varsa ve file ise)
+       doc.fontSize(18).font('Helvetica-Bold').text('PROFORMA DISBURSEMENT ACCOUNT', { align: 'center' });
+       doc.moveDown(0.5);
+       
+       // Şirket bilgileri (sağ üst)
+       if (companyProfile) {
+         doc.fontSize(9).font('Helvetica')
+           .text(companyProfile.companyName || '', { align: 'right' })
+           .text(companyProfile.address || '', { align: 'right' })
+           .text(`Tel: ${companyProfile.phone || ''}`, { align: 'right' })
+           .text(`Email: ${companyProfile.email || ''}`, { align: 'right' });
+       }
+       doc.moveDown(1);
+
+       // === REFERANS & TARİH ===
+       doc.fontSize(10).font('Helvetica-Bold');
+       const refY = doc.y;
+       doc.text(`Reference: ${proforma.referenceNumber || 'N/A'}`, 50, refY);
+       doc.text(`Date: ${new Date(proforma.createdAt).toLocaleDateString('en-GB')}`, 350, refY);
+       doc.moveDown(0.5);
+
+       // === GEMİ & LİMAN BİLGİLERİ ===
+       const infoStartY = doc.y;
+       doc.fontSize(9).font('Helvetica');
+       
+       // Sol sütun - Gemi
+       doc.font('Helvetica-Bold').text('VESSEL DETAILS', 50, infoStartY);
+       doc.font('Helvetica');
+       doc.text(`Name: ${vessel?.name || proforma.vesselName || 'N/A'}`, 50, doc.y + 2);
+       doc.text(`Flag: ${vessel?.flag || 'N/A'}`);
+       doc.text(`GRT: ${vessel?.grt || 'N/A'}`);
+       doc.text(`NRT: ${vessel?.nrt || 'N/A'}`);
+       doc.text(`DWT: ${vessel?.dwt || 'N/A'}`);
+       doc.text(`LOA: ${vessel?.loa || 'N/A'} m`);
+       doc.text(`IMO: ${vessel?.imoNumber || 'N/A'}`);
+       
+       // Sağ sütun - Liman
+       doc.font('Helvetica-Bold').text('PORT DETAILS', 300, infoStartY);
+       doc.font('Helvetica');
+       doc.text(`Port: ${port?.name || 'N/A'}`, 300, doc.y + 2);
+       doc.text(`Country: ${port?.country || 'Turkey'}`, 300);
+       doc.text(`Code: ${port?.code || 'N/A'}`, 300);
+       
+       doc.moveDown(2);
+
+       // === HORIZONTAL LINE ===
+       doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+       doc.moveDown(0.5);
+
+       // === LINE ITEMS TABLOSU ===
+       doc.fontSize(10).font('Helvetica-Bold');
+       const tableTop = doc.y;
+       doc.text('DESCRIPTION', 50, tableTop);
+       doc.text('USD', 370, tableTop, { width: 80, align: 'right' });
+       doc.text('EUR', 460, tableTop, { width: 80, align: 'right' });
+       
+       doc.moveTo(50, doc.y + 3).lineTo(545, doc.y + 3).stroke();
+       doc.moveDown(0.5);
+       
+       doc.fontSize(9).font('Helvetica');
+       const lineItems = proforma.lineItems || [];
+       
+       for (const item of lineItems) {
+         if (doc.y > 700) {
+           doc.addPage();
+         }
+         const itemY = doc.y;
+         doc.text(item.description || item.name || '', 50, itemY, { width: 300 });
+         doc.text(item.amountUsd ? item.amountUsd.toFixed(2) : '-', 370, itemY, { width: 80, align: 'right' });
+         doc.text(item.amountEur ? item.amountEur.toFixed(2) : '-', 460, itemY, { width: 80, align: 'right' });
+         doc.moveDown(0.3);
+       }
+
+       // === TOPLAM ===
+       doc.moveDown(0.5);
+       doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+       doc.moveDown(0.5);
+       doc.fontSize(11).font('Helvetica-Bold');
+       const totalY = doc.y;
+       doc.text('TOTAL', 50, totalY);
+       doc.text(proforma.totalUsd ? `$ ${Number(proforma.totalUsd).toFixed(2)}` : '-', 350, totalY, { width: 100, align: 'right' });
+       doc.text(proforma.totalEur ? `€ ${Number(proforma.totalEur).toFixed(2)}` : '-', 450, totalY, { width: 90, align: 'right' });
+
+       // === EXCHANGE RATE ===
+       doc.moveDown(1);
+       doc.fontSize(8).font('Helvetica')
+         .text(`Exchange Rate: 1 USD = ${proforma.exchangeRate || 'N/A'} TRY`, 50);
+
+       // === BANKA BİLGİLERİ ===
+       if (proforma.bankDetails) {
+         doc.moveDown(1.5);
+         doc.fontSize(10).font('Helvetica-Bold').text('BANK DETAILS');
+         doc.fontSize(9).font('Helvetica');
+         const bank = typeof proforma.bankDetails === 'string' ? JSON.parse(proforma.bankDetails) : proforma.bankDetails;
+         if (bank.bankName) doc.text(`Bank: ${bank.bankName}`);
+         if (bank.accountName) doc.text(`Account Name: ${bank.accountName}`);
+         if (bank.iban) doc.text(`IBAN: ${bank.iban}`);
+         if (bank.swift) doc.text(`SWIFT: ${bank.swift}`);
+         if (bank.currency) doc.text(`Currency: ${bank.currency}`);
+       }
+
+       // === FOOTER ===
+       doc.fontSize(7).font('Helvetica')
+         .text('This is a proforma disbursement account and actual costs may vary.', 50, 770, { align: 'center' })
+         .text(`Generated by VesselPDA — ${new Date().toISOString().split('T')[0]}`, { align: 'center' });
+
+       doc.end();
+     });
+   }
+
+3. server/routes.ts'e yeni endpoint ekle:
+
+   import { generateProformaPdf } from './proforma-pdf';
+
+   // PDF Download
+   app.get("/api/proformas/:id/pdf", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const proformaId = parseInt(req.params.id);
+       const userId = req.user.claims.sub;
+       
+       const proforma = await storage.getProforma(proformaId);
+       if (!proforma) return res.status(404).json({ error: "Proforma not found" });
+       if (proforma.userId !== userId && !(await storage.getUser(userId))?.userRole?.includes('admin')) {
+         return res.status(403).json({ error: "Forbidden" });
+       }
+
+       // İlişkili verileri çek
+       const [vessel, port, user] = await Promise.all([
+         proforma.vesselId ? storage.getVessel(proforma.vesselId) : null,
+         proforma.portId ? storage.getPort(proforma.portId) : null,
+         storage.getUser(userId),
+       ]);
+       
+       let companyProfile = null;
+       if (user) {
+         companyProfile = await storage.getCompanyProfileByUserId(user.id);
+       }
+
+       const pdfBuffer = await generateProformaPdf({
+         proforma,
+         companyProfile,
+         port,
+         vessel,
+       });
+
+       res.setHeader('Content-Type', 'application/pdf');
+       res.setHeader('Content-Disposition', `attachment; filename="PDA-${proforma.referenceNumber || proformaId}.pdf"`);
+       res.setHeader('Content-Length', pdfBuffer.length);
+       res.send(pdfBuffer);
+     } catch (error) {
+       next(error);
+     }
+   });
+
+   // PDF Preview (inline görüntüleme)
+   app.get("/api/proformas/:id/pdf/preview", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       // Aynı logic, sadece Content-Disposition: inline
+       const proformaId = parseInt(req.params.id);
+       const userId = req.user.claims.sub;
+       
+       const proforma = await storage.getProforma(proformaId);
+       if (!proforma) return res.status(404).json({ error: "Proforma not found" });
+       
+       const [vessel, port, user] = await Promise.all([
+         proforma.vesselId ? storage.getVessel(proforma.vesselId) : null,
+         proforma.portId ? storage.getPort(proforma.portId) : null,
+         storage.getUser(userId),
+       ]);
+       
+       let companyProfile = null;
+       if (user) companyProfile = await storage.getCompanyProfileByUserId(user.id);
+
+       const pdfBuffer = await generateProformaPdf({ proforma, companyProfile, port, vessel });
+
+       res.setHeader('Content-Type', 'application/pdf');
+       res.setHeader('Content-Disposition', `inline; filename="PDA-${proforma.referenceNumber || proformaId}.pdf"`);
+       res.send(pdfBuffer);
+     } catch (error) {
+       next(error);
+     }
+   });
+
+4. Frontend'e PDF butonları ekle — client/src/pages/proforma-view.tsx:
+   
+   Proforma detail sayfasına iki buton ekle:
+   
+   <Button onClick={() => window.open(`/api/proformas/${id}/pdf/preview`, '_blank')}>
+     <Eye className="w-4 h-4 mr-2" /> Preview PDF
+   </Button>
+   
+   <Button onClick={() => {
+     const link = document.createElement('a');
+     link.href = `/api/proformas/${id}/pdf`;
+     link.download = `PDA-${proforma.referenceNumber}.pdf`;
+     link.click();
+   }}>
+     <Download className="w-4 h-4 mr-2" /> Download PDF
+   </Button>
+
+   Ayrıca client/src/pages/proformas.tsx liste sayfasına da her satıra küçük PDF ikonu ekle.
+
+5. IMPORTANT:
+   - pdfkit kendi font'larını kullanır, ekstra font yükleme yapma
+   - A4 boyut, 50px margin standart
+   - lineItems JSON yapısı mevcut proforma'lardaki ile uyumlu olmalı
+   - Mevcut send-email endpoint'i varsa, PDF'i email'e attachment olarak da eklenebilir hale getir
+   - Hiçbir mevcut fonksiyonelliği bozma

@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign, Zap, Loader2, Calculator, Ship, Anchor, Globe, Package, AlertTriangle, X, Send, RefreshCw, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign, Zap, Loader2, Calculator, Ship, Anchor, Globe, Package, AlertTriangle, X, Send, RefreshCw, Clock, CheckCircle2, XCircle, Download } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -486,6 +486,20 @@ export default function Proformas() {
                           <Eye className="w-4 h-4" />
                         </Button>
                       </Link>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        title="Download PDF"
+                        data-testid={`button-download-pdf-${pda.id}`}
+                        onClick={() => {
+                          const link = document.createElement("a");
+                          link.href = `/api/proformas/${pda.id}/pdf`;
+                          link.download = `PDA-${pda.referenceNumber || pda.id}.pdf`;
+                          link.click();
+                        }}
+                      >
+                        <Download className="w-4 h-4" />
+                      </Button>
                       <Button
                         size="icon"
                         variant="ghost"

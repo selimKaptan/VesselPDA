@@ -30,6 +30,7 @@ import { requireRole } from "./middleware/role-guard";
 import { registerProformaApprovalRoutes } from "./proforma-approval";
 import { AppError } from "./error-handler";
 import { saveBase64File } from "./file-storage";
+import { generateProformaPdf } from "./proforma-pdf";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "logos");
 if (!fs.existsSync(uploadsDir)) {
@@ -524,6 +525,46 @@ export async function registerRoutes(
       res.status(500).json({ message: "Failed to fetch proforma" });
     }
   });
+
+  // ─── PROFORMA PDF DOWNLOAD & PREVIEW ─────────────────────────────────────────
+  async function buildProformaPdfResponse(req: any, res: any, next: any, inline: boolean) {
+    try {
+      const proformaId = parseInt(req.params.id);
+      const userId = req.user.claims.sub;
+
+      const proforma = await (await isAdmin(req)
+        ? storage.getProformaById(proformaId)
+        : storage.getProforma(proformaId, userId));
+      if (!proforma) return res.status(404).json({ error: "Proforma not found" });
+
+      const companyProfile = await storage.getCompanyProfileByUser(proforma.userId || userId);
+
+      const pdfBuffer = await generateProformaPdf({
+        proforma,
+        companyProfile: companyProfile ?? null,
+        port: proforma.port ?? null,
+        vessel: proforma.vessel ?? null,
+      });
+
+      const disposition = inline ? "inline" : "attachment";
+      const filename = `PDA-${proforma.referenceNumber || proformaId}.pdf`;
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `${disposition}; filename="${filename}"`);
+      res.setHeader("Content-Length", pdfBuffer.length);
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error("[proformas/pdf] generation failed:", error);
+      next(error);
+    }
+  }
+
+  app.get("/api/proformas/:id/pdf", isAuthenticated, (req: any, res: any, next: any) =>
+    buildProformaPdfResponse(req, res, next, false)
+  );
+
+  app.get("/api/proformas/:id/pdf/preview", isAuthenticated, (req: any, res: any, next: any) =>
+    buildProformaPdfResponse(req, res, next, true)
+  );
 
   app.post("/api/proformas/calculate", isAuthenticated, calculateLimiter, async (req: any, res) => {
     try {
