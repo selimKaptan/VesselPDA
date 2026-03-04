@@ -1,5 +1,3 @@
-import path from "path";
-import fsNode from "fs";
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import { registerRoutes } from "./routes";
@@ -12,13 +10,20 @@ import { sql } from "drizzle-orm";
 import { startCronJobs } from "./cron-jobs";
 import { initSocket } from "./socket";
 import { config } from "./config";
+import path from "path";
+import fsModule from "fs";
 
 const app = express();
 const httpServer = createServer(app);
 initSocket(httpServer);
 
 app.get("/api/health", (_req, res) => res.status(200).json({ status: "ok" }));
-app.get("/", (_req, res) => { const p = require("path").resolve(__dirname, "client", "index.html"); if (require("fs").existsSync(p)) return res.sendFile(p); res.status(200).send("<html><body><h1>VesselPDA</h1></body></html>"); });
+app.get("/", (_req, res) => {
+  const tryPaths = [path.resolve(__dirname, "public", "index.html"), path.resolve(process.cwd(), "dist", "public", "index.html")];
+  for (const p of tryPaths) { if (fsModule.existsSync(p)) return res.sendFile(p); }
+  res.status(200).send("<html><body><h1>VesselPDA</h1></body></html>");
+});
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -170,8 +175,12 @@ app.use((req, res, next) => {
   next();
 });
 
+
 const port = config.PORT;
-httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => { console.log("Server is ready and listening on port " + port); });
+httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
+  console.log("Server is ready and listening on port " + port);
+});
+
 (async () => {
   await registerRoutes(httpServer, app);
 

@@ -1,7 +1,6 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
-import path from "path";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -33,27 +32,6 @@ const allowlist = [
   "zod-validation-error",
 ];
 
-// esbuild plugin: replace server/vite.ts with a no-op stub in production.
-// server/vite.ts imports vite.config.ts which uses import.meta.dirname —
-// that becomes undefined in the CJS bundle and crashes. Since setupVite()
-// is only called in development, we stub the entire module out.
-const stubVitePlugin = {
-  name: "stub-server-vite",
-  setup(build: any) {
-    const serverVitePath = path.resolve("server/vite.ts");
-    build.onResolve({ filter: /\/vite$/ }, (args: any) => {
-      const resolved = path.resolve(args.resolveDir, args.path + ".ts");
-      if (resolved === serverVitePath) {
-        return { path: resolved, namespace: "stub-vite" };
-      }
-    });
-    build.onLoad({ filter: /.*/, namespace: "stub-vite" }, () => ({
-      contents: "export async function setupVite() {}",
-      loader: "js",
-    }));
-  },
-};
-
 async function buildAll() {
   await rm("dist", { recursive: true, force: true });
 
@@ -79,7 +57,6 @@ async function buildAll() {
     },
     minify: true,
     external: externals,
-    plugins: [stubVitePlugin],
     logLevel: "info",
   });
 }
