@@ -1,16 +1,12 @@
-import { Switch, Route, Link, useLocation } from "wouter";
+import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AiChat } from "@/components/ai-chat";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppLayout } from "@/components/layout/app-layout";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import { Moon, Sun, Menu, LayoutDashboard, Ship, Anchor, FileText, Building2, Gavel, MessageSquare, Navigation, MapPin, Star, Users, Settings as SettingsIcon, Crown, LogOut, Wrench } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import RoleSelection from "@/pages/role-selection";
@@ -54,142 +50,8 @@ import RegisterPage from "@/pages/register";
 import VerifyEmailPage from "@/pages/verify-email";
 import ForgotPasswordPage from "@/pages/forgot-password";
 import ResetPasswordPage from "@/pages/reset-password";
-import { NotificationBell } from "@/components/notification-bell";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { ThemeProvider, useTheme } from "@/components/theme-provider";
-import { useState } from "react";
-
-function DarkModeToggle() {
-  const { theme, toggleTheme } = useTheme();
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={toggleTheme}
-      data-testid="button-dark-mode-toggle"
-      aria-label="Toggle dark mode"
-    >
-      {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-    </Button>
-  );
-}
-
-function MobileNavLink({ href, icon: Icon, label, onClick }: { href: string; icon: any; label: string; onClick: () => void }) {
-  const [location] = useLocation();
-  const active = location === href;
-  return (
-    <Link href={href} onClick={onClick}>
-      <div className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${active ? "bg-primary/10 text-primary" : "hover:bg-muted text-foreground"}`}>
-        <Icon className="w-5 h-5 flex-shrink-0" />
-        <span>{label}</span>
-      </div>
-    </Link>
-  );
-}
-
-function MobileNav({ user }: { user: any }) {
-  const [open, setOpen] = useState(false);
-  const close = () => setOpen(false);
-  const role = user?.activeRole || user?.userRole;
-  const isAdmin = user?.userRole === "admin";
-  const plan = user?.subscriptionPlan || "free";
-  const initials = user
-    ? `${(user.firstName || "")[0] || ""}${(user.lastName || "")[0] || ""}`.toUpperCase() || "U"
-    : "U";
-
-  const PLAN_COLORS: Record<string, string> = {
-    free: "bg-muted text-muted-foreground",
-    standard: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-    unlimited: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-  };
-
-  return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="md:hidden" data-testid="button-mobile-nav" aria-label="Open navigation">
-          <Menu className="w-5 h-5" />
-        </Button>
-      </SheetTrigger>
-      <SheetContent side="left" className="w-72 p-0">
-        <div className="flex flex-col h-full">
-          {/* Header */}
-          <div className="px-4 py-4 border-b flex items-center gap-3">
-            <img src="/logo-v2.png" alt="VesselPDA" className="w-8 h-8 rounded-md object-contain" />
-            <div>
-              <div className="font-serif font-bold text-sm">VesselPDA</div>
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Maritime Platform</div>
-            </div>
-          </div>
-
-          {/* Nav links */}
-          <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
-            <MobileNavLink href="/" icon={LayoutDashboard} label="Dashboard" onClick={close} />
-            {(role === "shipowner" || role === "agent" || isAdmin) && (
-              <MobileNavLink href="/vessels" icon={Ship} label="My Vessels" onClick={close} />
-            )}
-            {role !== "provider" && (
-              <MobileNavLink href="/proformas" icon={FileText} label="Proformas" onClick={close} />
-            )}
-            {role !== "provider" && (
-              <MobileNavLink href="/tenders" icon={Gavel} label="Tenders" onClick={close} />
-            )}
-            {role !== "provider" && (
-              <MobileNavLink href="/vessel-track" icon={Navigation} label="Vessel Track" onClick={close} />
-            )}
-            <MobileNavLink href="/port-info" icon={MapPin} label="Port Info" onClick={close} />
-            <MobileNavLink href="/service-ports" icon={Anchor} label="Service Ports" onClick={close} />
-            <MobileNavLink href="/directory" icon={Building2} label="Directory" onClick={close} />
-            <MobileNavLink href="/forum" icon={MessageSquare} label="Forum" onClick={close} />
-            {(role === "shipowner" || role === "agent" || isAdmin) && (
-              <MobileNavLink href="/voyages" icon={Ship} label="Seferler" onClick={close} />
-            )}
-            <MobileNavLink href="/service-requests" icon={Wrench} label="Hizmet Talepleri" onClick={close} />
-            {isAdmin && <MobileNavLink href="/admin" icon={Users} label="Admin Panel" onClick={close} />}
-
-            {/* Divider */}
-            <div className="pt-1 pb-0.5 px-4">
-              <div className="h-px bg-border" />
-            </div>
-
-            {/* Account section */}
-            <MobileNavLink href="/settings" icon={SettingsIcon} label="Settings" onClick={close} />
-            <MobileNavLink href="/company-profile" icon={Star} label="Company Profile" onClick={close} />
-            <MobileNavLink href="/pricing" icon={Crown} label="Pricing" onClick={close} />
-          </nav>
-
-          {/* Footer — user info + logout */}
-          <div className="border-t p-3 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold flex-shrink-0">
-              {initials}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate">
-                {user?.firstName ? `${user.firstName} ${user.lastName || ""}`.trim() : "User"}
-              </p>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                {isAdmin && (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 uppercase">
-                    Admin
-                  </span>
-                )}
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase ${PLAN_COLORS[plan] || PLAN_COLORS.free}`}>
-                  {plan}
-                </span>
-              </div>
-            </div>
-            <a
-              href="/api/logout"
-              className="w-8 h-8 rounded-md flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors group flex-shrink-0"
-              title="Sign out"
-            >
-              <LogOut className="w-4 h-4 text-muted-foreground group-hover:text-red-500 transition-colors" />
-            </a>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
-}
+import { ThemeProvider } from "@/components/theme-provider";
 
 function AuthenticatedRouter() {
   return (
@@ -235,35 +97,12 @@ function AuthenticatedRouter() {
 }
 
 function AuthenticatedLayout() {
-  const { user } = useAuth();
-  const style = {
-    "--sidebar-width": "16rem",
-    "--sidebar-width-icon": "3rem",
-  };
-
   return (
-    <SidebarProvider defaultOpen={false} style={style as React.CSSProperties}>
-      <div className="flex h-screen w-full">
-        <AppSidebar />
-        <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center justify-between gap-2 px-3 border-b h-14 flex-shrink-0 bg-background">
-            <div className="flex items-center gap-1">
-              <MobileNav user={user} />
-            </div>
-            <div className="flex items-center gap-1">
-              <DarkModeToggle />
-              <NotificationBell />
-            </div>
-          </header>
-          <main className="flex-1 overflow-auto">
-            <ErrorBoundary>
-              <AuthenticatedRouter />
-            </ErrorBoundary>
-          </main>
-        </div>
-      </div>
-      <AiChat />
-    </SidebarProvider>
+    <AppLayout>
+      <ErrorBoundary>
+        <AuthenticatedRouter />
+      </ErrorBoundary>
+    </AppLayout>
   );
 }
 
@@ -308,7 +147,12 @@ function AppContent() {
     return <RoleSelection />;
   }
 
-  return <AuthenticatedLayout />;
+  return (
+    <>
+      <AuthenticatedLayout />
+      <AiChat />
+    </>
+  );
 }
 
 function App() {

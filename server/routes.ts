@@ -17,6 +17,7 @@ import { sql as drizzleSql } from "drizzle-orm";
 import { handleAiChat } from "./anthropic";
 import { getOrFetchRates, fetchTCMBRates } from "./exchange-rates";
 import { logAction, getClientIp } from "./audit";
+import { requireRole } from "./middleware/role-guard";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "logos");
 if (!fs.existsSync(uploadsDir)) {
@@ -58,6 +59,10 @@ export async function registerRoutes(
   await setupAuth(app);
   registerAuthRoutes(app);
   startAISStream();
+
+  app.use("/api/admin", isAuthenticated, requireRole("admin"));
+  app.use("/api/fixtures", isAuthenticated, requireRole("shipowner", "broker", "admin"));
+  app.use("/api/service-offers", isAuthenticated, requireRole("provider", "admin"));
 
   authStorage.markExistingUsersVerified().catch((err) =>
     console.error("[auth] Failed to mark existing users verified:", err)

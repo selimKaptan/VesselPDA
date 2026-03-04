@@ -1,0 +1,98 @@
+5 ROL SİSTEMİ + KAYIT + NAVİGASYON — Tüm değişiklikleri tek seferde yap.
+
+BÖLÜM A — 5 ROL SİSTEMİ:
+
+1. shared/schema.ts'te users tablosunda role alanı yoksa ekle:
+   role: text("role").notNull().default("ship_agent")
+   Geçerli değerler: "ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"
+
+2. server/middleware/ klasöründe role-guard.ts oluştur:
+   - requireRole(...roles: string[]) middleware fonksiyonu
+   - req.user.role kontrol eder, yoksa 403 döner
+   - Export et
+
+3. Kritik route'lara requireRole ekle:
+   - /api/admin/* → requireRole("admin")
+   - /api/bunker/* → requireRole("shipowner", "ship_broker", "admin")
+   - /api/fixtures/* → requireRole("shipowner", "ship_broker", "admin")
+   - /api/service-offers/* → requireRole("ship_provider", "admin")
+   - Diğer route'lar isAuthenticated ile korunsun
+
+BÖLÜM B — REGISTER SAYFASI ROL SEÇİMİ:
+
+1. client/src/pages/register.tsx dosyasını güncelle:
+   - İlk adım: 4 rol kartı göster (admin YOK):
+     * Ship Agent — "Liman operasyonları ve PDA yönetimi"
+     * Shipowner — "Filo yönetimi ve sefer takibi"  
+     * Ship Broker — "Kiralama ve fixture yönetimi"
+     * Ship Provider — "Servis ve tedarik yönetimi"
+   - Her kart: ikon + başlık + kısa açıklama + seç butonu
+   - Kart seçilince 2. adım: kayıt formu (username, email, password, fullName, companyName)
+   - Form submit'te seçilen rol ile birlikte /api/register'a gönder
+   - Başarılıysa /dashboard'a yönlendir
+
+2. server/routes/auth.ts'te /api/register endpoint'ini güncelle:
+   - Body'den role alanını al
+   - Geçerli rol kontrolü yap (admin hariç)
+   - User oluştururken role'ü kaydet
+
+BÖLÜM C — NAVİGASYON: TOP TABS + SIDE PANEL
+
+Mevcut sidebar navigasyonu kaldır. Yerine şu sistemi kur:
+
+1. client/src/components/layout/app-layout.tsx oluştur (veya güncelle):
+   Yapı:
+   - Üst bar: Logo (sol) + Modül sekmeleri (orta) + User menu (sağ)
+   - Sol panel: Aktif modülün alt sayfaları (dar, 200px)
+   - Ana içerik: Sağda geniş alan
+
+2. Modül sekmeleri ROL BAZLI:
+
+   Ship Agent:
+   - Operations: Voyages, Proformas, Quick Proforma, Final DA, SOF, Nominations, Laytime
+   - Finance: Invoices, Bunker Prices
+   - Communication: Messages, Team Chat, Email Inbox, Forum
+   - Tools: Vessel Track, Port Info, Sanctions Check, Reports, Documents, Reminders
+   - Settings: Profile, Organization
+
+   Shipowner:
+   - Fleet: Vessels, Vessel Track, Bunker Management, Compliance, Certificates
+   - Operations: Voyages, Proformas, Final DA, SOF, Laytime
+   - Commercial: Fixtures, Cargo Positions, Tenders, Market Data
+   - Finance: Invoices, Reports, Port Benchmarking
+   - Communication: Messages, Team Chat, Forum
+   - Settings: Profile, Organization
+
+   Ship Broker:
+   - Commercial: Fixtures, Cargo Positions, Tenders, Market Data, Nominations
+   - Operations: Voyages, Proformas, Quick Proforma
+   - Fleet: Vessels, Vessel Track
+   - Finance: Invoices, Reports, Port Benchmarking
+   - Communication: Messages, Team Chat, Forum
+   - Tools: Sanctions Check, Port Info, Documents
+   - Settings: Profile, Organization
+
+   Ship Provider:
+   - Services: Service Requests, Service Ports, My Services
+   - Commercial: Tenders, Directory
+   - Finance: Invoices, Reports
+   - Communication: Messages, Forum
+   - Settings: Profile, Organization
+
+   Admin:
+   - TÜM sekmeler + Admin Panel
+
+3. Üst sekmeye tıklayınca sol panelde o modülün alt sayfaları gösterilsin.
+   Alt sayfaya tıklayınca ana içerik değişsin.
+   Aktif sekme ve aktif alt sayfa vurgulanmış olsun.
+
+4. client/src/lib/role-navigation.ts oluştur:
+   - Her rol için modül ve alt sayfa tanımları
+   - getModulesForRole(role) fonksiyonu
+   - canAccessRoute(role, path) fonksiyonu
+
+5. App.tsx'te tüm route'ları güncelle:
+   - ProtectedRoute component'i oluştur (login kontrolü + rol kontrolü)
+   - Yetkisiz erişimde /dashboard'a yönlendir
+
+Bu değişiklikleri yap, test et, çalıştığından emin ol. Yeni özellik EKLEME — sadece bu 3 bölümü implement et.
