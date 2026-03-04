@@ -416,7 +416,7 @@ export default function ForumTopic() {
                       data-testid="button-like-topic-detail"
                     >
                       <ThumbsUp className="w-4 h-4" />
-                      <span>Beğen</span>
+                      <span>Like</span>
                       <span className="text-xs opacity-80">· {topicLike?.count ?? 0}</span>
                     </button>
                     <button
@@ -429,7 +429,7 @@ export default function ForumTopic() {
                       data-testid="button-dislike-topic-detail"
                     >
                       <ThumbsDown className="w-4 h-4" />
-                      <span>Beğenme</span>
+                      <span>Dislike</span>
                       <span className="text-xs opacity-80">· {topicDislike?.count ?? 0}</span>
                     </button>
                     {!user && (
@@ -479,7 +479,7 @@ export default function ForumTopic() {
                               data-testid={`button-like-reply-${reply.id}`}
                             >
                               <ThumbsUp className="w-3 h-3" />
-                              <span>Beğen</span>
+                              <span>Like</span>
                               <span className="opacity-70">· {replyLike.count}</span>
                             </button>
                             <button
@@ -492,7 +492,7 @@ export default function ForumTopic() {
                               data-testid={`button-dislike-reply-${reply.id}`}
                             >
                               <ThumbsDown className="w-3 h-3" />
-                              <span>Beğenme</span>
+                              <span>Dislike</span>
                               <span className="opacity-70">· {(replyDislikes[reply.id] ?? { count: reply.dislikeCount ?? 0 }).count}</span>
                             </button>
                           </div>

@@ -11,11 +11,11 @@ import { PageMeta } from "@/components/page-meta";
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Az önce";
-  if (mins < 60) return `${mins}dk`;
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}sa`;
-  return new Date(dateStr).toLocaleDateString("tr-TR");
+  if (hrs < 24) return `${hrs}h`;
+  return new Date(dateStr).toLocaleDateString("en-GB");
 }
 
 export default function Messages() {
@@ -31,22 +31,22 @@ export default function Messages() {
   );
 
   function getLastMessagePreview(conv: any) {
-    if (conv.lastMessageType === "image") return "🖼 Resim paylaşıldı";
-    if (conv.lastMessageType === "file") return `📎 ${conv.lastMessageFileName || "Dosya paylaşıldı"}`;
-    return conv.lastMessage || "Henüz mesaj yok";
+    if (conv.lastMessageType === "image") return "🖼 Image shared";
+    if (conv.lastMessageType === "file") return `📎 ${conv.lastMessageFileName || "File shared"}`;
+    return conv.lastMessage || "No messages yet";
   }
 
   return (
     <div className="px-3 py-5 max-w-2xl mx-auto space-y-5">
-      <PageMeta title="Mesajlar | VesselPDA" description="Doğrudan mesajlaşma gelen kutusu" />
+      <PageMeta title="Messages | VesselPDA" description="Direct messaging inbox" />
 
       <div className="flex items-center gap-3">
         <div className="w-9 h-9 rounded-xl bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center">
           <MessageCircle className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
         </div>
         <div>
-          <h1 className="font-serif text-xl font-bold">Mesajlar</h1>
-          <p className="text-xs text-muted-foreground">Doğrudan konuşmalarınız</p>
+          <h1 className="font-serif text-xl font-bold">Messages</h1>
+          <p className="text-xs text-muted-foreground">Your direct conversations</p>
         </div>
       </div>
 
@@ -55,7 +55,7 @@ export default function Messages() {
         <Input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Kişi veya mesaj ara..."
+          placeholder="Search people or messages..."
           className="pl-9"
           data-testid="input-message-search"
         />
@@ -69,10 +69,10 @@ export default function Messages() {
         <Card className="p-10 text-center">
           <MessageCircle className="w-10 h-10 mx-auto mb-3 opacity-20" />
           <p className="font-medium text-sm">
-            {search ? "Aramayla eşleşen konuşma bulunamadı" : "Henüz mesaj yok"}
+            {search ? "No conversations match your search" : "No messages yet"}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {search ? "" : "Kullanıcı profilleri veya sefer sayfalarından mesaj gönderebilirsiniz."}
+            {search ? "" : "You can send messages from user profiles or voyage pages."}
           </p>
         </Card>
       ) : (

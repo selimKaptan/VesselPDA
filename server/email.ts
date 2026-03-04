@@ -502,29 +502,29 @@ export async function sendNominationResponseEmail(data: NominationResponseEmailD
   const statusColor = accepted ? "#16a34a" : "#dc2626";
   const statusBg = accepted ? "#f0fdf4" : "#fef2f2";
   const statusBorder = accepted ? "#bbf7d0" : "#fecaca";
-  const statusLabel = accepted ? "Kabul Edildi ✓" : "Reddedildi ✗";
+  const statusLabel = accepted ? "Accepted ✓" : "Declined ✗";
   const statusMessage = accepted
-    ? `<strong>${data.agentCompanyName}</strong> nominasyonunuzu kabul etti. Acente, <strong>${data.portName}</strong> limanındaki operasyonlarınız için artık hazır.`
-    : `<strong>${data.agentCompanyName}</strong> bu sefer nominasyonunuzu kabul edemedi. Lütfen dizin sayfasından farklı bir acente ile iletişime geçin.`;
+    ? `<strong>${data.agentCompanyName}</strong> has accepted your nomination. The agent is now ready to handle your operations at <strong>${data.portName}</strong>.`
+    : `<strong>${data.agentCompanyName}</strong> was unable to accept your nomination this time. Please contact a different agent from the directory.`;
 
   const detailRows = [
-    `<tr><td style="color:#64748b;padding:4px 12px 4px 0;font-size:14px">Liman</td><td style="font-weight:600;font-size:14px">${data.portName}</td></tr>`,
-    data.vesselName ? `<tr><td style="color:#64748b;padding:4px 12px 4px 0;font-size:14px">Gemi</td><td style="font-weight:600;font-size:14px">${data.vesselName}</td></tr>` : "",
+    `<tr><td style="color:#64748b;padding:4px 12px 4px 0;font-size:14px">Port</td><td style="font-weight:600;font-size:14px">${data.portName}</td></tr>`,
+    data.vesselName ? `<tr><td style="color:#64748b;padding:4px 12px 4px 0;font-size:14px">Vessel</td><td style="font-weight:600;font-size:14px">${data.vesselName}</td></tr>` : "",
     data.eta ? `<tr><td style="color:#64748b;padding:4px 12px 4px 0;font-size:14px">ETA</td><td style="font-weight:600;font-size:14px">${data.eta}</td></tr>` : "",
   ].filter(Boolean).join("");
 
   const noteSection = data.notes
     ? `<div style="margin-top:16px;background:#f8fafc;border-left:3px solid #003D7A;padding:12px 16px;border-radius:0 6px 6px 0">
-        <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Notlar</p>
+        <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Notes</p>
         <p style="margin:0;color:#1e293b;font-size:14px">${data.notes}</p>
        </div>`
     : "";
 
   const html = emailWrapper(`
-    <tr>${emailHeader("Nominasyon Yanıtı")}</tr>
+    <tr>${emailHeader("Nomination Response")}</tr>
     <tr><td style="padding:32px">
-      <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#0f172a">Merhaba, ${data.nominatorName}</p>
-      <p style="margin:0 0 24px;color:#64748b;font-size:14px">Nominasyonunuz yanıtlandı.</p>
+      <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#0f172a">Hello, ${data.nominatorName}</p>
+      <p style="margin:0 0 24px;color:#64748b;font-size:14px">Your nomination has been responded to.</p>
 
       <div style="background:${statusBg};border:1px solid ${statusBorder};border-radius:8px;padding:14px 18px;margin-bottom:20px">
         <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:${statusColor}">${statusLabel}</p>
@@ -532,14 +532,14 @@ export async function sendNominationResponseEmail(data: NominationResponseEmailD
       </div>
 
       <div style="background:#f8fafc;border-radius:8px;padding:16px 20px;margin-bottom:16px">
-        <p style="margin:0 0 10px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Sefer Detayları</p>
+        <p style="margin:0 0 10px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Voyage Details</p>
         <table style="width:100%;border-collapse:collapse">${detailRows}</table>
       </div>
 
       ${noteSection}
 
       <div style="margin-top:28px;padding-top:20px;border-top:1px solid #e2e8f0">
-        <p style="margin:0;color:#94a3b8;font-size:12px">Bu e-posta VesselPDA platformu üzerinden otomatik olarak gönderilmiştir.</p>
+        <p style="margin:0;color:#94a3b8;font-size:12px">This email was sent automatically via the VesselPDA platform.</p>
       </div>
     </td></tr>
     <tr>${emailFooter()}</tr>
@@ -587,7 +587,7 @@ export async function sendVerificationEmail(
           <tr>
             <td style="background:linear-gradient(135deg,#003D7A,#0077BE);padding:28px 32px">
               <p style="margin:0;color:#fff;font-size:20px;font-weight:700">⚓ VesselPDA</p>
-              <p style="margin:6px 0 0;color:rgba(255,255,255,.8);font-size:14px">Email Verification / Email Doğrulama</p>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,.8);font-size:14px">Email Verification</p>
             </td>
           </tr>
           <tr>
@@ -596,21 +596,17 @@ export async function sendVerificationEmail(
               <p style="margin:0 0 8px;color:#475569;font-size:15px;line-height:1.6">
                 Thank you for joining VesselPDA. Please verify your email address to activate your account.
               </p>
-              <p style="margin:0 0 24px;color:#475569;font-size:14px;line-height:1.6">
-                Hesabınızı etkinleştirmek için lütfen e-posta adresinizi doğrulayın.
-              </p>
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="background:#003D7A;border-radius:8px;padding:0">
                     <a href="${verifyUrl}" style="display:inline-block;padding:14px 28px;color:#fff;font-size:15px;font-weight:700;text-decoration:none;border-radius:8px">
-                      ✓ Verify Email / Emaili Doğrula
+                      ✓ Verify Email
                     </a>
                   </td>
                 </tr>
               </table>
               <p style="margin:24px 0 0;color:#94a3b8;font-size:12px;line-height:1.6">
-                This link expires in 24 hours. If you didn't create an account, please ignore this email.<br>
-                Bu link 24 saat içinde geçerliliğini yitirir. Hesap oluşturmadıysanız bu emaili görmezden gelin.
+                This link expires in 24 hours. If you didn't create an account, please ignore this email.
               </p>
               <div style="margin-top:16px;padding:12px 16px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0">
                 <p style="margin:0;color:#64748b;font-size:11px;word-break:break-all">Or copy: ${verifyUrl}</p>
@@ -633,7 +629,7 @@ export async function sendVerificationEmail(
     const { data, error } = await resend.emails.send({
       from: `VesselPDA <${creds.fromEmail}>`,
       to: [to],
-      subject: "VesselPDA — Email Adresinizi Doğrulayın / Verify Your Email",
+      subject: "VesselPDA — Verify Your Email",
       html,
     });
 
@@ -676,28 +672,26 @@ export async function sendPasswordResetEmail(
           <tr>
             <td style="background:linear-gradient(135deg,#003D7A,#0077BE);padding:28px 32px">
               <p style="margin:0;color:#fff;font-size:20px;font-weight:700">⚓ VesselPDA</p>
-              <p style="margin:6px 0 0;color:rgba(255,255,255,.8);font-size:14px">Password Reset / Şifre Sıfırlama</p>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,.8);font-size:14px">Password Reset</p>
             </td>
           </tr>
           <tr>
             <td style="padding:32px">
               <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#0f172a">Hello, ${firstName}</p>
               <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.6">
-                We received a request to reset your VesselPDA password. Click the button below to set a new password.<br><br>
-                VesselPDA şifrenizi sıfırlamak için bir istek aldık. Yeni şifre belirlemek için aşağıdaki butona tıklayın.
+                We received a request to reset your VesselPDA password. Click the button below to set a new password.
               </p>
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="background:#003D7A;border-radius:8px;padding:0">
                     <a href="${resetUrl}" style="display:inline-block;padding:14px 28px;color:#fff;font-size:15px;font-weight:700;text-decoration:none;border-radius:8px">
-                      Reset Password / Şifreyi Sıfırla
+                      Reset Password
                     </a>
                   </td>
                 </tr>
               </table>
               <p style="margin:24px 0 0;color:#94a3b8;font-size:12px;line-height:1.6">
-                This link expires in 1 hour. If you didn't request a password reset, please ignore this email — your account is safe.<br>
-                Bu link 1 saat içinde geçerliliğini yitirir. Şifre sıfırlama isteği siz yapmadıysanız bu emaili görmezden gelin.
+                This link expires in 1 hour. If you didn't request a password reset, please ignore this email — your account is safe.
               </p>
               <div style="margin-top:16px;padding:12px 16px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0">
                 <p style="margin:0;color:#64748b;font-size:11px;word-break:break-all">Or copy: ${resetUrl}</p>
@@ -720,7 +714,7 @@ export async function sendPasswordResetEmail(
     const { error } = await resend.emails.send({
       from: `VesselPDA <${creds.fromEmail}>`,
       to: [to],
-      subject: "VesselPDA — Şifre Sıfırlama / Password Reset",
+      subject: "VesselPDA — Password Reset",
       html,
     });
 
@@ -917,24 +911,24 @@ export async function sendMessageBridgeEmail(
     : "";
 
   const html = emailWrapper(`
-    <tr>${emailHeader("Yeni Mesaj — VesselPDA")}</tr>
+    <tr>${emailHeader("New Message — VesselPDA")}</tr>
     <tr><td style="padding:32px">
-      <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#0f172a">Merhaba ${toName || ""},</p>
+      <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#0f172a">Hello ${toName || ""},</p>
       <p style="margin:0 0 20px;color:#334155;font-size:15px;line-height:1.7">
-        <strong>${senderName}</strong> size VesselPDA üzerinden bir mesaj gönderdi:
+        <strong>${senderName}</strong> sent you a message via VesselPDA:
       </p>
       <div style="background:#f0f6ff;border-left:4px solid #003D7A;border-radius:0 8px 8px 0;padding:16px 20px;margin-bottom:16px">
         <p style="margin:0;color:#1e293b;font-size:15px;line-height:1.7;white-space:pre-wrap">${content}</p>
       </div>
       ${fileSection}
       <div style="margin-top:24px">
-        <p style="margin:0 0 12px;color:#64748b;font-size:13px">Bu konuşmayı platform üzerinden takip etmek için:</p>
+        <p style="margin:0 0 12px;color:#64748b;font-size:13px">To follow this conversation on the platform:</p>
         <table cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background:#003D7A">
-          <a href="https://vesselpda.com/register" style="display:inline-block;padding:12px 24px;color:#fff;font-size:14px;font-weight:600;text-decoration:none">VesselPDA'ya Katıl →</a>
+          <a href="https://vesselpda.com/register" style="display:inline-block;padding:12px 24px;color:#fff;font-size:14px;font-weight:600;text-decoration:none">Join VesselPDA →</a>
         </td></tr></table>
       </div>
       <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0">
-        <p style="margin:0;color:#94a3b8;font-size:12px">Bu e-posta, VesselPDA üzerindeki bir kullanıcının e-posta köprüsü özelliği aracılığıyla iletilmiştir.</p>
+        <p style="margin:0;color:#94a3b8;font-size:12px">This email was forwarded via the VesselPDA email bridge feature.</p>
       </div>
     </td></tr>
     <tr>${emailFooter()}</tr>
@@ -944,7 +938,7 @@ export async function sendMessageBridgeEmail(
     const { error } = await resend.emails.send({
       from: `VesselPDA <${creds.fromEmail}>`,
       to: [to],
-      subject: `[VesselPDA] ${senderName} size mesaj gönderdi`,
+      subject: `[VesselPDA] ${senderName} sent you a message`,
       html,
     });
     if (error) { console.error("[email] sendMessageBridgeEmail error:", error); return false; }

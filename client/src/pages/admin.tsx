@@ -391,7 +391,7 @@ export default function AdminPanel() {
           <Card className="p-4" data-testid="stat-users">
             <div className="flex items-start justify-between">
               <div className="space-y-1 min-w-0">
-                <p className="text-xs text-muted-foreground">Kullanıcılar</p>
+                <p className="text-xs text-muted-foreground">Users</p>
                 <p className="text-2xl font-bold font-serif">{enhancedStats.totalUsers}</p>
                 <div className="flex gap-1 flex-wrap">
                   <Badge className="text-[9px] px-1 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0">🚢 {enhancedStats.usersByRole?.shipowner || 0}</Badge>
@@ -415,9 +415,9 @@ export default function AdminPanel() {
           <Card className="p-4" data-testid="stat-today-txns">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Bugünkü İşlemler</p>
+                <p className="text-xs text-muted-foreground">Today's Transactions</p>
                 <p className="text-2xl font-bold font-serif text-blue-600">{enhancedStats.todayTransactions}</p>
-                <p className="text-[10px] text-muted-foreground">Proforma + Sefer + Talep</p>
+                <p className="text-[10px] text-muted-foreground">Proforma + Voyage + Request</p>
               </div>
               <Activity className="w-5 h-5 text-blue-500 flex-shrink-0" />
             </div>
@@ -425,11 +425,11 @@ export default function AdminPanel() {
           <Card className="p-4" data-testid="stat-pending">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Bekleyen Onaylar</p>
+                <p className="text-xs text-muted-foreground">Pending Approvals</p>
                 <p className={`text-2xl font-bold font-serif ${(enhancedStats.pendingApprovals + enhancedStats.pendingVerifications) > 0 ? "text-amber-600" : ""}`}>
                   {enhancedStats.pendingApprovals + enhancedStats.pendingVerifications}
                 </p>
-                <p className="text-[10px] text-muted-foreground">{enhancedStats.pendingApprovals} onay · {enhancedStats.pendingVerifications} doğrulama</p>
+                <p className="text-[10px] text-muted-foreground">{enhancedStats.pendingApprovals} approval · {enhancedStats.pendingVerifications} verification</p>
               </div>
               <Clock className="w-5 h-5 text-amber-500 flex-shrink-0" />
             </div>
@@ -437,7 +437,7 @@ export default function AdminPanel() {
           <Card className="p-4" data-testid="stat-vessels">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Gemiler</p>
+                <p className="text-xs text-muted-foreground">Vessels</p>
                 <p className="text-2xl font-bold font-serif">{stats?.totalVessels || 0}</p>
               </div>
               <Ship className="w-5 h-5 text-[hsl(var(--maritime-secondary))] flex-shrink-0" />
@@ -446,7 +446,7 @@ export default function AdminPanel() {
           <Card className="p-4" data-testid="stat-proformas">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Proformalar</p>
+                <p className="text-xs text-muted-foreground">Proformas</p>
                 <p className="text-2xl font-bold font-serif">{stats?.totalProformas || 0}</p>
               </div>
               <FileText className="w-5 h-5 text-[hsl(var(--maritime-accent))] flex-shrink-0" />
@@ -455,7 +455,7 @@ export default function AdminPanel() {
           <Card className="p-4" data-testid="stat-profiles">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Şirket Profilleri</p>
+                <p className="text-xs text-muted-foreground">Company Profiles</p>
                 <p className="text-2xl font-bold font-serif">{stats?.totalCompanyProfiles || 0}</p>
               </div>
               <Building2 className="w-5 h-5 text-amber-500 flex-shrink-0" />
@@ -464,7 +464,7 @@ export default function AdminPanel() {
           <Card className="p-4" data-testid="stat-system-health">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Sistem Sağlığı</p>
+                <p className="text-xs text-muted-foreground">System Health</p>
                 <p className="text-2xl font-bold font-serif text-emerald-600">
                   {[enhancedStats.systemHealth?.dbOk, enhancedStats.systemHealth?.aisOk, enhancedStats.systemHealth?.teOk, enhancedStats.systemHealth?.resendOk].filter(Boolean).length}/4
                 </p>
@@ -485,8 +485,8 @@ export default function AdminPanel() {
         <Card className="lg:col-span-2 p-4" data-testid="activity-feed">
           <div className="flex items-center gap-2 mb-3">
             <Activity className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-            <h3 className="font-semibold text-sm">Son Aktiviteler</h3>
-            <Badge variant="outline" className="text-[9px] ml-auto">Canlı</Badge>
+            <h3 className="font-semibold text-sm">Recent Activity</h3>
+            <Badge variant="outline" className="text-[9px] ml-auto">Live</Badge>
           </div>
           {activityLoading ? (
             <div className="space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-8" />)}</div>
@@ -516,7 +516,7 @@ export default function AdminPanel() {
         <Card className="p-4" data-testid="plan-distribution">
           <div className="flex items-center gap-2 mb-3">
             <TrendingUp className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-            <h3 className="font-semibold text-sm">Plan Dağılımı</h3>
+            <h3 className="font-semibold text-sm">Plan Distribution</h3>
           </div>
           {enhancedStats && (
             <div className="space-y-2">
@@ -600,7 +600,7 @@ export default function AdminPanel() {
               />
             </div>
             <Button size="sm" onClick={() => setCreateUserDialog(true)} data-testid="button-create-user">
-              <UserPlus className="w-4 h-4 mr-1.5" /> Yeni Kullanıcı
+              <UserPlus className="w-4 h-4 mr-1.5" /> New User
             </Button>
           </div>
           {usersLoading ? (
@@ -611,12 +611,12 @@ export default function AdminPanel() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left">
-                      <th className="p-3 font-medium">İsim</th>
+                      <th className="p-3 font-medium">Name</th>
                       <th className="p-3 font-medium hidden md:table-cell">Email</th>
                       <th className="p-3 font-medium">Rol</th>
                       <th className="p-3 font-medium">Plan</th>
                       <th className="p-3 font-medium hidden sm:table-cell">Proforma</th>
-                      <th className="p-3 font-medium text-right">İşlemler</th>
+                      <th className="p-3 font-medium text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -844,17 +844,17 @@ export default function AdminPanel() {
                           <td className="p-3">
                             {vs === "verified" && (
                               <Badge className="text-[10px] gap-1 bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300">
-                                <ShieldCheck className="w-2.5 h-2.5" /> Doğrulandı
+                                <ShieldCheck className="w-2.5 h-2.5" /> Verified
                               </Badge>
                             )}
                             {vs === "pending" && (
                               <Badge className="text-[10px] gap-1 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300">
-                                <Clock className="w-2.5 h-2.5" /> Bekliyor
+                                <Clock className="w-2.5 h-2.5" /> Pending
                               </Badge>
                             )}
                             {vs === "rejected" && (
                               <Badge className="text-[10px] gap-1 bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300">
-                                <XCircle className="w-2.5 h-2.5" /> Reddedildi
+                                <XCircle className="w-2.5 h-2.5" /> Rejected
                               </Badge>
                             )}
                             {vs === "unverified" && <span className="text-muted-foreground text-xs">—</span>}
@@ -1120,7 +1120,7 @@ export default function AdminPanel() {
           ) : !pendingVerifications || pendingVerifications.length === 0 ? (
             <Card className="p-8 text-center border-dashed">
               <ShieldCheck className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">Bekleyen doğrulama talebi yok</p>
+              <p className="text-sm text-muted-foreground">No pending verification requests</p>
             </Card>
           ) : (
             <div className="space-y-4">
@@ -1138,21 +1138,21 @@ export default function AdminPanel() {
                         )}
                         {ofacResults[p.id]?.checked && !ofacResults[p.id]?.clear && (
                           <Badge className="text-[10px] gap-1 bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300">
-                            <ShieldX className="w-2.5 h-2.5" /> OFAC: Eşleşme!
+                            <ShieldX className="w-2.5 h-2.5" /> OFAC: Match!
                           </Badge>
                         )}
                       </div>
                       <div className="text-sm text-muted-foreground space-y-0.5">
-                        <p><span className="font-medium text-foreground">Vergi No:</span> {p.taxNumber || "—"}</p>
-                        <p><span className="font-medium text-foreground">MTO Kayıt:</span> {p.mtoRegistrationNumber || "—"}</p>
+                        <p><span className="font-medium text-foreground">Tax No:</span> {p.taxNumber || "—"}</p>
+                        <p><span className="font-medium text-foreground">MTO Reg:</span> {p.mtoRegistrationNumber || "—"}</p>
                         <p><span className="font-medium text-foreground">P&I Club:</span> {p.pandiClubName || "—"}</p>
                         {p.verificationRequestedAt && (
-                          <p><span className="font-medium text-foreground">Talep tarihi:</span> {new Date(p.verificationRequestedAt).toLocaleDateString("tr-TR")}</p>
+                          <p><span className="font-medium text-foreground">Requested:</span> {new Date(p.verificationRequestedAt).toLocaleDateString("en-GB")}</p>
                         )}
                       </div>
                       {ofacResults[p.id]?.checked && !ofacResults[p.id]?.clear && (
                         <div className="mt-2 p-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-md text-xs space-y-1">
-                          <p className="font-semibold text-red-700 dark:text-red-400">⚠ OFAC SDN Listesinde Eşleşme:</p>
+                          <p className="font-semibold text-red-700 dark:text-red-400">⚠ OFAC SDN List Match:</p>
                           {ofacResults[p.id].matches.map((m: any, i: number) => (
                             <p key={i} className="text-red-600 dark:text-red-500">
                               <span className="font-medium">{m.name}</span>
@@ -1223,11 +1223,11 @@ export default function AdminPanel() {
         <TabsContent value="bunker" className="space-y-4" data-testid="tab-content-bunker">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Bunker Yakıt Fiyatları</h2>
-              <p className="text-sm text-muted-foreground">Liman bazlı yakıt fiyatlarını yönetin (USD/MT)</p>
+              <h2 className="text-lg font-semibold">Bunker Fuel Prices</h2>
+              <p className="text-sm text-muted-foreground">Manage port-based fuel prices (USD/MT)</p>
             </div>
             <Button size="sm" onClick={() => { setEditBunker(null); setBunkerForm({ portName: "", portCode: "", region: "TR", ifo380: "", vlsfo: "", mgo: "" }); setBunkerDialog(true); }} data-testid="button-add-bunker">
-              <Plus className="w-4 h-4 mr-1" /> Fiyat Ekle
+              <Plus className="w-4 h-4 mr-1" /> Add Price
             </Button>
           </div>
 
@@ -1236,12 +1236,12 @@ export default function AdminPanel() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40">
-                    <th className="text-left p-3 font-medium text-muted-foreground">Liman</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Bölge</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Port</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Region</th>
                     <th className="text-right p-3 font-medium text-muted-foreground">IFO 380</th>
                     <th className="text-right p-3 font-medium text-muted-foreground">VLSFO</th>
                     <th className="text-right p-3 font-medium text-muted-foreground">MGO</th>
-                    <th className="text-right p-3 font-medium text-muted-foreground">Güncelleme</th>
+                    <th className="text-right p-3 font-medium text-muted-foreground">Updated</th>
                     <th className="p-3 w-20" />
                   </tr>
                 </thead>
@@ -1253,7 +1253,7 @@ export default function AdminPanel() {
                       </tr>
                     ))
                   ) : bunkerPricesList.length === 0 ? (
-                    <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">Kayıt bulunamadı</td></tr>
+                    <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">No records found</td></tr>
                   ) : (
                     bunkerPricesList.map((row: any) => (
                       <tr key={row.id} className="border-b hover:bg-muted/30 transition-colors">
@@ -1289,11 +1289,11 @@ export default function AdminPanel() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                <h3 className="font-semibold text-sm">Liman Uyarıları</h3>
+                <h3 className="font-semibold text-sm">Port Alerts</h3>
                 <span className="text-xs text-muted-foreground">({portAlerts.length})</span>
               </div>
               <Button size="sm" onClick={() => { setEditAlert(null); setAlertForm({ portName: "", alertType: "weather", severity: "info", title: "", message: "", startsAt: "", endsAt: "", isActive: true }); setAlertDialog(true); }} data-testid="button-new-alert">
-                <Plus className="w-4 h-4 mr-1.5" /> Yeni Uyarı
+                <Plus className="w-4 h-4 mr-1.5" /> New Alert
               </Button>
             </div>
             {portAlertsLoading ? (
@@ -1307,11 +1307,11 @@ export default function AdminPanel() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b text-xs text-muted-foreground">
-                    <th className="text-left py-2 font-medium">Liman</th>
-                    <th className="text-left py-2 font-medium">Tip</th>
-                    <th className="text-left py-2 font-medium">Önem</th>
-                    <th className="text-left py-2 font-medium">Başlık</th>
-                    <th className="text-left py-2 font-medium">Durum</th>
+                    <th className="text-left py-2 font-medium">Port</th>
+                    <th className="text-left py-2 font-medium">Type</th>
+                    <th className="text-left py-2 font-medium">Severity</th>
+                    <th className="text-left py-2 font-medium">Title</th>
+                    <th className="text-left py-2 font-medium">Status</th>
                     <th className="py-2" />
                   </tr></thead>
                   <tbody>
@@ -1365,11 +1365,11 @@ export default function AdminPanel() {
                     <table className="w-full text-sm">
                       <thead><tr className="border-b text-left bg-muted/30">
                         <th className="p-3 font-medium">ID</th>
-                        <th className="p-3 font-medium">Gemi</th>
-                        <th className="p-3 font-medium">Liman</th>
-                        <th className="p-3 font-medium">Kullanıcı</th>
-                        <th className="p-3 font-medium">Durum</th>
-                        <th className="p-3 font-medium">Tarih</th>
+                        <th className="p-3 font-medium">Vessel</th>
+                        <th className="p-3 font-medium">Port</th>
+                        <th className="p-3 font-medium">User</th>
+                        <th className="p-3 font-medium">Status</th>
+                        <th className="p-3 font-medium">Date</th>
                       </tr></thead>
                       <tbody>
                         {adminVoyages.filter((v: any) => {
@@ -1384,7 +1384,7 @@ export default function AdminPanel() {
                             <td className="p-3">
                               <Badge className={`text-[10px] ${v.status === "in_progress" ? "bg-emerald-100 text-emerald-700" : v.status === "completed" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>{v.status}</Badge>
                             </td>
-                            <td className="p-3 text-xs text-muted-foreground">{v.created_at ? new Date(v.created_at).toLocaleDateString("tr-TR") : "—"}</td>
+                            <td className="p-3 text-xs text-muted-foreground">{v.created_at ? new Date(v.created_at).toLocaleDateString("en-GB") : "—"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1406,12 +1406,12 @@ export default function AdminPanel() {
                     <table className="w-full text-sm">
                       <thead><tr className="border-b text-left bg-muted/30">
                         <th className="p-3 font-medium">ID</th>
-                        <th className="p-3 font-medium">Hizmet Türü</th>
-                        <th className="p-3 font-medium">Liman</th>
-                        <th className="p-3 font-medium">Talep Eden</th>
-                        <th className="p-3 font-medium">Bütçe</th>
-                        <th className="p-3 font-medium">Durum</th>
-                        <th className="p-3 font-medium">Tarih</th>
+                        <th className="p-3 font-medium">Service Type</th>
+                        <th className="p-3 font-medium">Port</th>
+                        <th className="p-3 font-medium">Requested By</th>
+                        <th className="p-3 font-medium">Budget</th>
+                        <th className="p-3 font-medium">Status</th>
+                        <th className="p-3 font-medium">Date</th>
                       </tr></thead>
                       <tbody>
                         {adminSR.filter((s: any) => {
@@ -1483,7 +1483,7 @@ export default function AdminPanel() {
             <Card className="p-5" data-testid="card-announce-history">
               <div className="flex items-center gap-2 mb-4">
                 <Clock className="w-4 h-4 text-muted-foreground" />
-                <h3 className="font-semibold">Gönderim Geçmişi</h3>
+                <h3 className="font-semibold">Send History</h3>
               </div>
               {announceHistory.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
@@ -1577,7 +1577,7 @@ export default function AdminPanel() {
           <Card className="p-5" data-testid="chart-user-growth">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              <h3 className="font-semibold">Kullanıcı Büyüme Grafiği (Son 6 Ay)</h3>
+              <h3 className="font-semibold">User Growth Chart (Last 6 Months)</h3>
             </div>
             {userGrowthLoading ? <Skeleton className="h-48" /> : (
               <ResponsiveContainer width="100%" height={220}>
@@ -1951,7 +1951,7 @@ export default function AdminPanel() {
                 )}
               </div>
               <div>
-                <h4 className="text-sm font-semibold mb-2">Rolü Değiştir</h4>
+                <h4 className="text-sm font-semibold mb-2">Change Role</h4>
                 <div className="flex gap-2">
                   <Select
                     defaultValue={allUsers?.find((u: any) => u.id === userDetailId)?.userRole}

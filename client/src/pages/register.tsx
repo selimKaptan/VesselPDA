@@ -118,30 +118,30 @@ export default function Register() {
                 <Mail className="w-8 h-8 text-green-600" />
               </div>
             </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">E-postanızı kontrol edin!</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Check your email!</h2>
             <p className="text-gray-600 text-sm mb-1">
-              Aşağıdaki adrese doğrulama bağlantısı gönderdik:
+              We sent a verification link to:
             </p>
             <p className="text-blue-700 font-semibold text-sm mb-4">{registered}</p>
             <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4 text-left">
-              <p className="text-amber-800 text-xs font-semibold mb-1">E-posta gelmedi mi?</p>
+              <p className="text-amber-800 text-xs font-semibold mb-1">Didn't receive the email?</p>
               <ul className="text-amber-700 text-xs space-y-1 list-disc list-inside">
-                <li>Spam / Gereksiz klasörünüzü kontrol edin</li>
-                <li>Hotmail / Outlook kullanıcıları "Önemsiz" klasörüne bakın</li>
-                <li>Birkaç dakika bekleyin, bazen gecikebilir</li>
+                <li>Check your spam / junk folder</li>
+                <li>Hotmail / Outlook users: check the "Junk" folder</li>
+                <li>Wait a few minutes — delivery can sometimes be delayed</li>
               </ul>
             </div>
             <p className="text-gray-500 text-xs mb-6">
-              Bağlantıya tıklayarak hesabınızı aktif edin. Bağlantı 24 saat geçerlidir.
+              Click the link to activate your account. The link is valid for 24 hours.
             </p>
             <Link href="/verify-email">
               <Button variant="outline" className="w-full mb-2">
-                Doğrulama E-postasını Tekrar Gönder
+                Resend Verification Email
               </Button>
             </Link>
             <Link href="/login">
               <Button variant="ghost" className="w-full text-sm">
-                Giriş Sayfasına Dön
+                Back to Login
               </Button>
             </Link>
           </CardContent>
@@ -199,7 +199,7 @@ export default function Register() {
                       <FormItem>
                         <FormLabel>Last Name</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="Yılmaz" data-testid="input-last-name" />
+                          <Input {...field} placeholder="Smith" data-testid="input-last-name" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

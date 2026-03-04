@@ -30,8 +30,8 @@ async function checkCertificateExpiry() {
     await db.insert(notifications).values({
       userId: cert.userId,
       type: "cert_expiry",
-      title: "Sertifika Bitiş Uyarısı",
-      message: `${cert.name} — ${daysLeft} gün içinde sona eriyor`,
+      title: "Certificate Expiry Warning",
+      message: `${cert.name} — expires in ${daysLeft} days`,
       link: "/vessel-certificates",
     });
   }
@@ -54,8 +54,8 @@ async function checkOverdueInvoices() {
     await db.insert(notifications).values({
       userId: inv.createdByUserId,
       type: "invoice_overdue",
-      title: "Gecikmiş Fatura",
-      message: `${inv.title} — ödeme vadesi geçti`,
+      title: "Overdue Invoice",
+      message: `${inv.title} — payment is overdue`,
       link: "/invoices",
     });
   }

@@ -35,12 +35,12 @@ export default function SanctionsCheck() {
       const res = await fetch(`/api/sanctions/check?name=${encodeURIComponent(name)}`, {
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Sunucu hatası, lütfen tekrar deneyin.");
+      if (!res.ok) throw new Error("Server error, please try again.");
       const data: SanctionsResult = await res.json();
       setResult(data);
       setSearched(true);
     } catch (e: any) {
-      setError(e.message || "Sorgu sırasında bir hata oluştu.");
+      setError(e.message || "An error occurred during the query.");
     } finally {
       setLoading(false);
     }
@@ -52,7 +52,7 @@ export default function SanctionsCheck() {
 
   return (
     <>
-      <PageMeta title="OFAC Yaptırım Sorgulama | VesselPDA" description="ABD Hazine Bakanlığı OFAC SDN listesinde şirket ve kişi sorgulama" />
+      <PageMeta title="OFAC Sanctions Check | VesselPDA" description="Check companies and individuals against the US Treasury OFAC SDN sanctions list" />
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
 
         {/* Header */}
@@ -62,8 +62,8 @@ export default function SanctionsCheck() {
               <ShieldAlert className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h1 className="font-serif font-bold text-xl text-foreground">OFAC Yaptırım Listesi Sorgulama</h1>
-              <p className="text-sm text-muted-foreground">ABD Hazine Bakanlığı SDN (Specially Designated Nationals) listesi</p>
+              <h1 className="font-serif font-bold text-xl text-foreground">OFAC Sanctions List Check</h1>
+              <p className="text-sm text-muted-foreground">US Treasury SDN (Specially Designated Nationals) list</p>
             </div>
           </div>
         </div>
@@ -72,24 +72,24 @@ export default function SanctionsCheck() {
         <div className="flex items-start gap-3 p-3.5 rounded-lg bg-blue-50/80 dark:bg-blue-950/25 border border-blue-200/60 dark:border-blue-800/40">
           <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-            Bu araç, şirket ve kişi isimlerini ABD Hazine Bakanlığı OFAC SDN yaptırım listesiyle karşılaştırır.
-            Ticaret ortağı veya iş birliği yapacağınız tarafları sorgulamak için kullanabilirsiniz.
-            Liste düzenli olarak güncellenmektedir.
+            This tool cross-references company and individual names against the US Treasury OFAC SDN sanctions list.
+            Use it to screen trade partners or counterparties before doing business.
+            The list is updated regularly.
           </p>
         </div>
 
         {/* Search box */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Sorgulanacak Ad</CardTitle>
-            <CardDescription>Şirket adı veya kişi adı girin</CardDescription>
+            <CardTitle className="text-sm font-semibold">Name to Check</CardTitle>
+            <CardDescription>Enter a company or individual name</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="örn. Barbaro Shipping Co."
+                  placeholder="e.g. Barbaro Shipping Co."
                   value={query}
                   onChange={e => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
@@ -109,12 +109,12 @@ export default function SanctionsCheck() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                     </svg>
-                    Sorgulanıyor...
+                    Checking...
                   </>
                 ) : (
                   <>
                     <Search className="w-4 h-4" />
-                    Sorgula
+                    Check
                   </>
                 )}
               </Button>
@@ -148,9 +148,9 @@ export default function SanctionsCheck() {
                   <ShieldCheck className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <div>
-                  <p className="font-semibold text-emerald-800 dark:text-emerald-300">Listede Kayıt Bulunamadı</p>
+                  <p className="font-semibold text-emerald-800 dark:text-emerald-300">No Records Found on List</p>
                   <p className="text-sm text-emerald-700/80 dark:text-emerald-400/80 mt-0.5">
-                    <span className="font-medium">"{result.query}"</span> için OFAC SDN listesinde herhangi bir eşleşme tespit edilmedi.
+                    No matches detected in the OFAC SDN list for <span className="font-medium">"{result.query}"</span>.
                   </p>
                 </div>
               </div>
@@ -164,9 +164,9 @@ export default function SanctionsCheck() {
             <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800">
               <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
               <div>
-                <p className="font-semibold text-red-800 dark:text-red-300">Yaptırım Listesinde Eşleşme Bulundu!</p>
+                <p className="font-semibold text-red-800 dark:text-red-300">Match Found on Sanctions List!</p>
                 <p className="text-sm text-red-600 dark:text-red-400 mt-0.5">
-                  <span className="font-medium">"{result.query}"</span> sorgusu için {result.matches.length} kayıt bulundu.
+                  {result.matches.length} record(s) found for query <span className="font-medium">"{result.query}"</span>.
                 </p>
               </div>
             </div>
@@ -208,7 +208,7 @@ export default function SanctionsCheck() {
         {!loading && !searched && !error && (
           <div className="text-center py-10 text-muted-foreground">
             <ShieldAlert className="w-12 h-12 mx-auto mb-3 opacity-15" />
-            <p className="text-sm">Sorgulamak istediğiniz şirket veya kişi adını girin ve "Sorgula"ya tıklayın.</p>
+            <p className="text-sm">Enter the company or individual name you want to check and click "Check".</p>
           </div>
         )}
       </div>

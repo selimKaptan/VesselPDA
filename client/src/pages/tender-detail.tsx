@@ -553,7 +553,7 @@ export default function TenderDetailPage() {
                     onClick={() => navigate(`/voyages/${autoVoyageId}`)}
                     data-testid="button-view-voyage"
                   >
-                    <Anchor className="w-3.5 h-3.5" /> Seferi Görüntüle
+                    <Anchor className="w-3.5 h-3.5" /> View Voyage
                   </Button>
                 )}
                 {autoConversationId && (
@@ -563,7 +563,7 @@ export default function TenderDetailPage() {
                     onClick={() => navigate(`/messages/${autoConversationId}`)}
                     data-testid="button-open-chat"
                   >
-                    <MessageCircle className="w-3.5 h-3.5" /> Sohbet Aç
+                    <MessageCircle className="w-3.5 h-3.5" /> Open Chat
                   </Button>
                 )}
               </div>
@@ -588,7 +588,7 @@ export default function TenderDetailPage() {
                     onClick={() => navigate(`/voyages/${tenderVoyage.voyageId}`)}
                     data-testid="button-view-voyage-nominated"
                   >
-                    <Anchor className="w-3.5 h-3.5" /> Seferi Görüntüle
+                    <Anchor className="w-3.5 h-3.5" /> View Voyage
                   </Button>
                 )}
                 {tenderVoyage?.conversationId && (
@@ -598,7 +598,7 @@ export default function TenderDetailPage() {
                     onClick={() => navigate(`/messages/${tenderVoyage.conversationId}`)}
                     data-testid="button-open-chat-nominated"
                   >
-                    <MessageCircle className="w-3.5 h-3.5" /> Sohbet Aç
+                    <MessageCircle className="w-3.5 h-3.5" /> Open Chat
                   </Button>
                 )}
                 {isOwner && effectiveRole === "shipowner" && (() => {
@@ -727,10 +727,10 @@ export default function TenderDetailPage() {
                     <Trophy className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-emerald-800 dark:text-emerald-300 text-sm">
-                        Tebrikler! Resmi Olarak Aday Gösterildiniz 🎉
+                        Congratulations! You Have Been Officially Nominated 🎉
                       </p>
                       <p className="text-sm text-emerald-700 dark:text-emerald-400 mt-0.5 mb-3">
-                        <strong>{tender.portName}</strong>{tender.vesselName ? ` — ${tender.vesselName}` : ""} için nominasyon onaylandı. Armatör sizi resmi acente olarak atadı.
+                        Nomination confirmed for <strong>{tender.portName}</strong>{tender.vesselName ? ` — ${tender.vesselName}` : ""}. The shipowner has appointed you as the official agent.
                       </p>
                       <div className="flex items-center gap-2 flex-wrap">
                         {tenderVoyage?.voyageId && (
@@ -741,7 +741,7 @@ export default function TenderDetailPage() {
                             onClick={() => navigate(`/voyages/${tenderVoyage.voyageId}`)}
                             data-testid="button-agent-view-voyage"
                           >
-                            <Anchor className="w-3.5 h-3.5" /> Seferi Görüntüle
+                            <Anchor className="w-3.5 h-3.5" /> View Voyage
                           </Button>
                         )}
                         {tenderVoyage?.conversationId && (
@@ -751,7 +751,7 @@ export default function TenderDetailPage() {
                             onClick={() => navigate(`/messages/${tenderVoyage.conversationId}`)}
                             data-testid="button-agent-open-chat"
                           >
-                            <MessageCircle className="w-3.5 h-3.5" /> Armatörle Sohbet
+                            <MessageCircle className="w-3.5 h-3.5" /> Chat with Shipowner
                           </Button>
                         )}
                       </div>

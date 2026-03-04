@@ -12,18 +12,18 @@ import { useAuth } from "@/hooks/use-auth";
 import { PageMeta } from "@/components/page-meta";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
-  pending:  { label: "Bekliyor",      color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",   icon: Clock },
-  accepted: { label: "Kabul Edildi",  color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",  icon: CheckCircle2 },
-  declined: { label: "Reddedildi",    color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",          icon: XCircle },
+  pending:  { label: "Pending",   color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",   icon: Clock },
+  accepted: { label: "Accepted",  color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",  icon: CheckCircle2 },
+  declined: { label: "Declined",  color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",          icon: XCircle },
 };
 
 const PURPOSE_LABELS: Record<string, string> = {
-  loading:       "Yükleme",
-  unloading:     "Boşaltma",
-  bunkering:     "Yakıt İkmali",
-  crew_change:   "Mürettebat Değişimi",
+  loading:       "Loading",
+  unloading:     "Unloading",
+  bunkering:     "Bunkering",
+  crew_change:   "Crew Change",
   transit:       "Transit",
-  other:         "Diğer",
+  other:         "Other",
 };
 
 function NominationCard({ nom, role, onRespond }: { nom: any; role: "sent" | "received"; onRespond?: (id: number, status: string) => void }) {
@@ -71,17 +71,17 @@ function NominationCard({ nom, role, onRespond }: { nom: any; role: "sent" | "re
         {nom.eta && (
           <span className="flex items-center gap-1.5">
             <Calendar className="w-3 h-3 flex-shrink-0" />
-            ETA: {new Date(nom.eta).toLocaleDateString("tr-TR")}
+            ETA: {new Date(nom.eta).toLocaleDateString("en-GB")}
           </span>
         )}
         {nom.etd && (
           <span className="flex items-center gap-1.5">
             <Calendar className="w-3 h-3 flex-shrink-0" />
-            ETD: {new Date(nom.etd).toLocaleDateString("tr-TR")}
+            ETD: {new Date(nom.etd).toLocaleDateString("en-GB")}
           </span>
         )}
         <span className="col-span-2 text-[11px]">
-          {new Date(nom.createdAt).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" })}
+          {new Date(nom.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
         </span>
       </div>
 
@@ -97,7 +97,7 @@ function NominationCard({ nom, role, onRespond }: { nom: any; role: "sent" | "re
             onClick={() => onRespond(nom.id, "accepted")}
             data-testid={`button-accept-nomination-${nom.id}`}
           >
-            <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Kabul Et
+            <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Accept
           </Button>
           <Button
             size="sm"
@@ -106,7 +106,7 @@ function NominationCard({ nom, role, onRespond }: { nom: any; role: "sent" | "re
             onClick={() => onRespond(nom.id, "declined")}
             data-testid={`button-decline-nomination-${nom.id}`}
           >
-            <XCircle className="w-3.5 h-3.5 mr-1" /> Reddet
+            <XCircle className="w-3.5 h-3.5 mr-1" /> Decline
           </Button>
         </div>
       )}
@@ -120,7 +120,7 @@ function NominationCard({ nom, role, onRespond }: { nom: any; role: "sent" | "re
             onClick={() => navigate(`/voyages?nominationId=${nom.id}&portId=${nom.portId}&vesselName=${encodeURIComponent(nom.vesselName)}&purposeOfCall=${encodeURIComponent(nom.purposeOfCall)}&agentUserId=${nom.nominatorUserId}`)}
             data-testid={`button-create-voyage-${nom.id}`}
           >
-            <Ship className="w-3.5 h-3.5" /> Bu nominasyondan sefer oluştur
+            <Ship className="w-3.5 h-3.5" /> Create Voyage from Nomination
           </Button>
         </div>
       )}
@@ -150,10 +150,10 @@ export default function Nominations() {
       queryClient.invalidateQueries({ queryKey: ["/api/nominations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/nominations/pending-count"] });
       toast({
-        title: vars.status === "accepted" ? "Nominasyon kabul edildi" : "Nominasyon reddedildi",
+        title: vars.status === "accepted" ? "Nomination accepted" : "Nomination declined",
       });
     },
-    onError: () => toast({ title: "İşlem başarısız", variant: "destructive" }),
+    onError: () => toast({ title: "Operation failed", variant: "destructive" }),
   });
 
   const sent: any[] = data?.sent || [];
@@ -164,7 +164,7 @@ export default function Nominations() {
 
   return (
     <div className="px-3 py-5 max-w-5xl mx-auto space-y-5">
-      <PageMeta title="Nominasyonlar | VesselPDA" description="Doğrudan acente nominasyon sistemi" />
+      <PageMeta title="Nominations | VesselPDA" description="Direct agent nomination system" />
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
@@ -172,14 +172,14 @@ export default function Nominations() {
             <UserCheck className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
           </div>
           <div>
-            <h1 className="font-serif text-xl font-bold">Nominasyonlar</h1>
-            <p className="text-xs text-muted-foreground">Doğrudan acente nominasyon sistemi</p>
+            <h1 className="font-serif text-xl font-bold">Nominations</h1>
+            <p className="text-xs text-muted-foreground">Direct agent nomination system</p>
           </div>
         </div>
         {(effectiveRole === "shipowner" || effectiveRole === "admin") && (
           <Link href="/directory">
             <Button size="sm" className="gap-1.5 bg-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-secondary))]" data-testid="button-find-agent">
-              <Plus className="w-4 h-4" /> Acente Bul & Nomine Et
+              <Plus className="w-4 h-4" /> Find & Nominate Agent
             </Button>
           </Link>
         )}
@@ -193,11 +193,11 @@ export default function Nominations() {
         <Tabs defaultValue={defaultTab} className="w-full">
           <TabsList className="w-full">
             <TabsTrigger value="sent" className="flex-1" data-testid="tab-sent">
-              Gönderdiklerim
+              Sent
               {sent.length > 0 && <span className="ml-1.5 text-xs opacity-70">({sent.length})</span>}
             </TabsTrigger>
             <TabsTrigger value="received" className="flex-1" data-testid="tab-received">
-              Gelenler
+              Received
               {pendingReceived > 0 && (
                 <span className="ml-1.5 px-1.5 py-0.5 bg-amber-500 text-white text-[10px] rounded-full font-bold">
                   {pendingReceived}
@@ -210,13 +210,13 @@ export default function Nominations() {
             {sent.length === 0 ? (
               <Card className="p-10 text-center">
                 <UserCheck className="w-10 h-10 mx-auto mb-3 opacity-20" />
-                <p className="font-medium text-sm">Henüz nominasyon göndermediniz</p>
+                <p className="font-medium text-sm">No nominations sent yet</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Dizin sayfasından bir acente profili görüntüleyerek "Nomine Et" butonunu kullanın.
+                  Visit an agent profile from the directory and use the "Nominate" button.
                 </p>
                 <Link href="/directory">
                   <Button variant="outline" size="sm" className="mt-4 gap-1.5">
-                    <ChevronRight className="w-4 h-4" /> Dizine Git
+                    <ChevronRight className="w-4 h-4" /> Go to Directory
                   </Button>
                 </Link>
               </Card>
@@ -231,9 +231,9 @@ export default function Nominations() {
             {received.length === 0 ? (
               <Card className="p-10 text-center">
                 <UserCheck className="w-10 h-10 mx-auto mb-3 opacity-20" />
-                <p className="font-medium text-sm">Henüz nominasyon almadınız</p>
+                <p className="font-medium text-sm">No nominations received yet</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Armatörler profil sayfanız üzerinden sizi nomine edebilir.
+                  Shipowners can nominate you directly from your profile page.
                 </p>
               </Card>
             ) : (

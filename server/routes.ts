@@ -1272,7 +1272,7 @@ export async function registerRoutes(
       `);
       const proformas: any[] = (pRows as any).rows ?? (pRows as any);
       for (const p of proformas) {
-        activities.push({ type: "proforma", icon: "FileText", label: `Proforma oluşturuldu: ${p.reference_number || "#" + p.id}`, user: `${p.first_name || ""} ${p.last_name || ""}`.trim() || p.email, createdAt: p.created_at });
+        activities.push({ type: "proforma", icon: "FileText", label: `Proforma created: ${p.reference_number || "#" + p.id}`, user: `${p.first_name || ""} ${p.last_name || ""}`.trim() || p.email, createdAt: p.created_at });
       }
 
       // Recent voyages
@@ -1283,7 +1283,7 @@ export async function registerRoutes(
       `);
       const vList: any[] = (vRows as any).rows ?? (vRows as any);
       for (const v of vList) {
-        activities.push({ type: "voyage", icon: "Ship", label: `Sefer oluşturuldu (#${v.id})`, user: `${v.first_name || ""} ${v.last_name || ""}`.trim() || v.email, createdAt: v.created_at });
+        activities.push({ type: "voyage", icon: "Ship", label: `Voyage created (#${v.id})`, user: `${v.first_name || ""} ${v.last_name || ""}`.trim() || v.email, createdAt: v.created_at });
       }
 
       // Recent service requests
@@ -1303,7 +1303,7 @@ export async function registerRoutes(
       `);
       const uList: any[] = (uRows as any).rows ?? (uRows as any);
       for (const u of uList) {
-        activities.push({ type: "user_register", icon: "UserPlus", label: `Yeni kayıt: ${u.user_role}`, user: `${u.first_name || ""} ${u.last_name || ""}`.trim() || u.email, createdAt: u.created_at });
+        activities.push({ type: "user_register", icon: "UserPlus", label: `New registration: ${u.user_role}`, user: `${u.first_name || ""} ${u.last_name || ""}`.trim() || u.email, createdAt: u.created_at });
       }
 
       // Sort by date desc and take top 20
@@ -1383,7 +1383,7 @@ export async function registerRoutes(
     try {
       if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
       const adminId = req.user?.claims?.sub || req.user?.id;
-      if (req.params.id === adminId) return res.status(400).json({ message: "Kendi hesabınızı silemezsiniz" });
+      if (req.params.id === adminId) return res.status(400).json({ message: "You cannot delete your own account" });
       await db.execute(drizzleSql`DELETE FROM users WHERE id = ${req.params.id}`);
       res.json({ success: true });
     } catch (error) {
@@ -1397,7 +1397,7 @@ export async function registerRoutes(
       if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
       const { email, password, firstName, lastName, userRole, subscriptionPlan } = req.body;
       if (!email || !password || !firstName || !lastName || !userRole) {
-        return res.status(400).json({ message: "Tüm alanlar zorunludur" });
+        return res.status(400).json({ message: "All fields are required" });
       }
       const bcrypt = await import("bcryptjs");
       const passwordHash = await bcrypt.hash(password, 10);
@@ -1409,8 +1409,8 @@ export async function registerRoutes(
       res.json({ success: true, id });
     } catch (error: any) {
       console.error("[admin/create-user]", error);
-      if (error?.code === "23505") return res.status(400).json({ message: "Bu e-posta zaten kayıtlı" });
-      res.status(500).json({ message: "Kullanıcı oluşturulamadı" });
+      if (error?.code === "23505") return res.status(400).json({ message: "This email is already registered" });
+      res.status(500).json({ message: "Failed to create user" });
     }
   });
 
@@ -1418,7 +1418,7 @@ export async function registerRoutes(
     try {
       if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
       const { userRole } = req.body;
-      if (!["shipowner", "agent", "provider", "broker"].includes(userRole)) return res.status(400).json({ message: "Geçersiz rol" });
+      if (!["shipowner", "agent", "provider", "broker"].includes(userRole)) return res.status(400).json({ message: "Invalid role" });
       await db.execute(drizzleSql`UPDATE users SET user_role = ${userRole}, active_role = ${userRole} WHERE id = ${req.params.id}`);
       const allUsers = await storage.getAllUsers();
       const updated = allUsers.find((u: any) => u.id === req.params.id);
@@ -1458,7 +1458,7 @@ export async function registerRoutes(
     try {
       if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
       const { title, message, targetRole } = req.body;
-      if (!title || !message) return res.status(400).json({ message: "Başlık ve mesaj zorunludur" });
+      if (!title || !message) return res.status(400).json({ message: "Title and message are required" });
 
       const allUsers = await storage.getAllUsers();
       const targets = targetRole && targetRole !== "all"
@@ -1473,7 +1473,7 @@ export async function registerRoutes(
       res.json({ success: true, sent });
     } catch (error) {
       console.error("[admin/announce]", error);
-      res.status(500).json({ message: "Duyuru gönderilemedi" });
+      res.status(500).json({ message: "Failed to send announcement" });
     }
   });
 
@@ -2730,8 +2730,8 @@ export async function registerRoutes(
       await storage.createNotification({
         userId: selectedBid.agentUserId,
         type: "nomination",
-        title: "Tebrikler! Nominasyon Onaylandı",
-        message: `${portNameForNotif}${tender.vesselName ? ` — ${tender.vesselName}` : ""} için nominasyon resmi olarak onaylandı.`,
+        title: "Nomination Confirmed",
+        message: `Your nomination for ${portNameForNotif}${tender.vesselName ? ` — ${tender.vesselName}` : ""} has been officially confirmed.`,
         link: `/tenders/${tenderId}`,
       });
 
@@ -2768,8 +2768,8 @@ export async function registerRoutes(
         await storage.createNotification({
           userId: selectedBid.agentUserId,
           type: "message",
-          title: "Sohbet Açıldı",
-          message: `Nominasyon seferi için armatörle yeni bir sohbet oluşturuldu.`,
+          title: "Conversation Started",
+          message: "A new conversation has been created with the shipowner for the nominated voyage.",
           link: `/messages/${conversation.id}`,
         });
       } catch (voyageErr) {
@@ -3211,24 +3211,24 @@ export async function registerRoutes(
       const updated = await storage.updateVoyage(id, updateData);
 
       if (etaChanged && existing.agentUserId && existing.agentUserId !== userId) {
-        const oldEtaFmt = existing.eta ? new Date(existing.eta).toLocaleDateString("tr-TR") : "belirtilmemiş";
-        const newEtaFmt = updateData.eta ? new Date(updateData.eta).toLocaleDateString("tr-TR") : "iptal edildi";
+        const oldEtaFmt = existing.eta ? new Date(existing.eta).toLocaleDateString("en-GB") : "not set";
+        const newEtaFmt = updateData.eta ? new Date(updateData.eta).toLocaleDateString("en-GB") : "cancelled";
         await storage.createNotification({
           userId: existing.agentUserId,
           type: "eta_change",
-          title: "ETA Güncellendi",
-          message: `Sefer #${id} ETA değişti: ${oldEtaFmt} → ${newEtaFmt}`,
+          title: "ETA Updated",
+          message: `Voyage #${id} ETA changed: ${oldEtaFmt} → ${newEtaFmt}`,
           link: `/voyages/${id}`,
         });
       }
       if (etaChanged && existing.userId && existing.userId !== userId) {
-        const oldEtaFmt = existing.eta ? new Date(existing.eta).toLocaleDateString("tr-TR") : "belirtilmemiş";
-        const newEtaFmt = updateData.eta ? new Date(updateData.eta).toLocaleDateString("tr-TR") : "iptal edildi";
+        const oldEtaFmt = existing.eta ? new Date(existing.eta).toLocaleDateString("en-GB") : "not set";
+        const newEtaFmt = updateData.eta ? new Date(updateData.eta).toLocaleDateString("en-GB") : "cancelled";
         await storage.createNotification({
           userId: existing.userId,
           type: "eta_change",
-          title: "ETA Güncellendi",
-          message: `Sefer #${id} ETA değişti: ${oldEtaFmt} → ${newEtaFmt}`,
+          title: "ETA Updated",
+          message: `Voyage #${id} ETA changed: ${oldEtaFmt} → ${newEtaFmt}`,
           link: `/voyages/${id}`,
         });
       }
@@ -3382,8 +3382,8 @@ export async function registerRoutes(
       await storage.createNotification({
         userId: offer.providerUserId,
         type: "service_offer_selected",
-        title: "Teklifiniz Seçildi",
-        message: "Hizmet teklifiniz kabul edildi",
+        title: "Your Offer Was Accepted",
+        message: "Your service offer has been accepted.",
         link: `/service-requests/${requestId}`,
       });
       res.json(offer);
@@ -3563,7 +3563,7 @@ export async function registerRoutes(
       await storage.createNotification({
         userId: targetUserId,
         type: "message",
-        title: "Yeni Mesaj",
+        title: "New Message",
         message: message.length > 60 ? message.slice(0, 60) + "..." : message,
         link: `/messages/${conv.id}`,
       });
@@ -3604,12 +3604,12 @@ export async function registerRoutes(
       });
       const receiverId = conv.user1Id === req.user.claims.sub ? conv.user2Id : conv.user1Id;
       const notifMessage = fileUrl
-        ? `📎 ${fileName || "Dosya paylaşıldı"}`
+        ? `📎 ${fileName || "File shared"}`
         : (content.length > 60 ? content.slice(0, 60) + "..." : content);
       await storage.createNotification({
         userId: receiverId,
         type: "message",
-        title: "Yeni Mesaj",
+        title: "New Message",
         message: notifMessage,
         link: `/messages/${conversationId}`,
       });
@@ -3621,7 +3621,7 @@ export async function registerRoutes(
             await storage.createNotification({
               userId: mentionedId,
               type: "mention",
-              title: "Sizi etiketledi",
+              title: "You Were Mentioned",
               message: `${[senderUser?.firstName, senderUser?.lastName].filter(Boolean).join(" ") || "A user"} mentioned you in a message`,
               link: `/messages/${conversationId}`,
             });
@@ -3718,8 +3718,8 @@ export async function registerRoutes(
       await storage.createNotification({
         userId: agentUserId,
         type: "nomination",
-        title: "Yeni Nominasyon",
-        message: `${req.user.name || "Bir armatör"} sizi ${vesselName} gemisi için nomine etti`,
+        title: "New Nomination",
+        message: `You have been nominated for vessel ${vesselName}`,
         link: "/nominations",
       });
 
@@ -3770,12 +3770,12 @@ export async function registerRoutes(
       if (nom.status !== "pending") return res.status(409).json({ message: "Already responded" });
       const updated = await storage.updateNominationStatus(id, status);
       // Notify nominator (in-app)
-      const statusLabel = status === "accepted" ? "kabul etti" : "reddetti";
+      const statusLabel = status === "accepted" ? "accepted" : "declined";
       await storage.createNotification({
         userId: nom.nominatorUserId,
         type: "nomination_response",
-        title: "Nominasyon Yanıtlandı",
-        message: `${nom.agentName || nom.agentCompanyName || "Acente"} nominasyonunuzu ${statusLabel}`,
+        title: "Nomination Response",
+        message: `${nom.agentName || nom.agentCompanyName || "The agent"} ${statusLabel} your nomination`,
         link: "/nominations",
       });
 
@@ -3785,7 +3785,7 @@ export async function registerRoutes(
         sendNominationResponseEmail({
           nominatorEmail: nominatorUser.email,
           nominatorName: [nominatorUser.firstName, nominatorUser.lastName].filter(Boolean).join(" ") || "Dear User",
-          agentCompanyName: nom.agentCompanyName || nom.agentName || "Acente",
+          agentCompanyName: nom.agentCompanyName || nom.agentName || "Agent",
           status: status as "accepted" | "declined",
           portName: nom.portName || `Port #${nom.portId}`,
           vesselName: nom.vesselName,
@@ -4178,8 +4178,8 @@ export async function registerRoutes(
           await storage.createNotification({
             userId: vessel.userId,
             type: "cargo_match",
-            title: "Yeni Kargo İlanı",
-            message: `${pos.cargoType || "Kargo"} ilanı: ${pos.loadingPort} → ${pos.dischargePort}`,
+            title: "New Cargo Listing",
+            message: `${pos.cargoType || "Cargo"} listing: ${pos.loadingPort} → ${pos.dischargePort}`,
             link: "/cargo-positions",
           });
         }
@@ -4216,9 +4216,9 @@ export async function registerRoutes(
   const FREIGHT_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
 
   const FREIGHT_META: Record<string, { name: string; description: string }> = {
-    BDI:  { name: "Baltic Dry Index",          description: "Kuru Dökme Yük" },
-    BCTI: { name: "Baltic Clean Tanker Index", description: "Temiz Tanker" },
-    BDTI: { name: "Baltic Dirty Tanker Index", description: "Kirli Tanker" },
+    BDI:  { name: "Baltic Dry Index",          description: "Dry Bulk" },
+    BCTI: { name: "Baltic Clean Tanker Index", description: "Clean Tanker" },
+    BDTI: { name: "Baltic Dirty Tanker Index", description: "Dirty Tanker" },
   };
 
   const FREIGHT_FALLBACK = [
@@ -4482,10 +4482,10 @@ export async function registerRoutes(
       const fileBase64 = Buffer.from(content).toString("base64");
       const doc = await storage.createVoyageDocument({
         voyageId,
-        name: `${template.name} - ${voyage.vesselName || "Gemi"}`,
+        name: `${template.name} - ${voyage.vesselName || "Vessel"}`,
         docType: template.category.toLowerCase(),
         fileBase64: `data:text/html;base64,${fileBase64}`,
-        notes: "Şablondan otomatik oluşturuldu",
+        notes: "Automatically created from template",
         uploadedByUserId: userId,
         version: 1,
         templateId: template.id,
@@ -4690,23 +4690,23 @@ export async function registerRoutes(
       res.json(result);
     } catch (err: any) {
       console.error("AI chat error:", err);
-      res.status(500).json({ message: "AI servisine bağlanılamadı" });
+      res.status(500).json({ message: "Failed to connect to AI service" });
     }
   });
 
   // ─── TARIFF MANAGEMENT (Admin only) ────────────────────────────────────────
 
   const ALLOWED_TARIFF_TABLES: Record<string, { label: string; feeFields: string[] }> = {
-    pilotage_tariffs: { label: "Kılavuzluk Ücretleri", feeFields: ["base_fee", "per_1000_grt"] },
-    external_pilotage_tariffs: { label: "Liman Dışı Kılavuzluk", feeFields: ["grt_up_to_1000", "per_additional_1000_grt"] },
-    berthing_tariffs: { label: "Barınma Ücretleri", feeFields: ["intl_foreign_flag", "intl_turkish_flag", "cabotage_turkish"] },
-    agency_fees: { label: "Acentelik Ücretleri", feeFields: ["fee"] },
-    marpol_tariffs: { label: "MARPOL Atık Ücretleri", feeFields: ["fixed_fee", "weekday_ek1_rate", "weekday_ek4_rate", "weekday_ek5_rate"] },
-    port_authority_fees: { label: "Liman Resmi Ücretleri", feeFields: ["amount"] },
-    lcb_tariffs: { label: "LCB Tarifeleri", feeFields: ["amount"] },
-    tonnage_tariffs: { label: "Tonaj Tarifeleri", feeFields: ["ithalat", "ihracat"] },
-    other_services: { label: "Diğer Hizmetler", feeFields: ["fee"] },
-    cargo_handling_tariffs: { label: "Yükleme/Boşaltma", feeFields: ["rate"] },
+    pilotage_tariffs: { label: "Pilotage Fees", feeFields: ["base_fee", "per_1000_grt"] },
+    external_pilotage_tariffs: { label: "External Pilotage", feeFields: ["grt_up_to_1000", "per_additional_1000_grt"] },
+    berthing_tariffs: { label: "Berthing Fees", feeFields: ["intl_foreign_flag", "intl_turkish_flag", "cabotage_turkish"] },
+    agency_fees: { label: "Agency Fees", feeFields: ["fee"] },
+    marpol_tariffs: { label: "MARPOL Waste Fees", feeFields: ["fixed_fee", "weekday_ek1_rate", "weekday_ek4_rate", "weekday_ek5_rate"] },
+    port_authority_fees: { label: "Port Authority Fees", feeFields: ["amount"] },
+    lcb_tariffs: { label: "LCB Tariffs", feeFields: ["amount"] },
+    tonnage_tariffs: { label: "Tonnage Tariffs", feeFields: ["ithalat", "ihracat"] },
+    other_services: { label: "Other Services", feeFields: ["fee"] },
+    cargo_handling_tariffs: { label: "Loading / Discharging", feeFields: ["rate"] },
     light_dues: { label: "Light Dues", feeFields: ["rate_up_to_800", "rate_above_800"] },
     chamber_of_shipping_fees: { label: "Chamber of Shipping Fee", feeFields: ["fee"] },
     chamber_freight_share: { label: "Chamber of Shipping Share on Freight", feeFields: ["fee"] },

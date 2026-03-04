@@ -25,20 +25,20 @@ import { useAuth } from "@/hooks/use-auth";
 import type { Port, Vessel } from "@shared/schema";
 
 const SERVICE_TYPE_CONFIG: Record<string, { label: string; icon: any; color: string; bg: string }> = {
-  fuel:         { label: "Yakıt / Bunker", icon: Fuel,         color: "text-orange-500", bg: "bg-orange-100 dark:bg-orange-900/20" },
-  repair:       { label: "Teknik Tamir",   icon: Wrench,       color: "text-red-500",    bg: "bg-red-100 dark:bg-red-900/20" },
-  provisioning: { label: "Provizyonlama",  icon: ShoppingCart, color: "text-green-500",  bg: "bg-green-100 dark:bg-green-900/20" },
-  crew_change:  { label: "Mürettebat",     icon: UsersIcon,    color: "text-blue-500",   bg: "bg-blue-100 dark:bg-blue-900/20" },
-  cleaning:     { label: "Temizlik",       icon: Sparkles,     color: "text-purple-500", bg: "bg-purple-100 dark:bg-purple-900/20" },
-  other:        { label: "Diğer",          icon: HelpCircle,   color: "text-gray-500",   bg: "bg-gray-100 dark:bg-gray-800" },
+  fuel:         { label: "Fuel / Bunker",  icon: Fuel,         color: "text-orange-500", bg: "bg-orange-100 dark:bg-orange-900/20" },
+  repair:       { label: "Repair",         icon: Wrench,       color: "text-red-500",    bg: "bg-red-100 dark:bg-red-900/20" },
+  provisioning: { label: "Provisioning",   icon: ShoppingCart, color: "text-green-500",  bg: "bg-green-100 dark:bg-green-900/20" },
+  crew_change:  { label: "Crew Change",    icon: UsersIcon,    color: "text-blue-500",   bg: "bg-blue-100 dark:bg-blue-900/20" },
+  cleaning:     { label: "Cleaning",       icon: Sparkles,     color: "text-purple-500", bg: "bg-purple-100 dark:bg-purple-900/20" },
+  other:        { label: "Other",          icon: HelpCircle,   color: "text-gray-500",   bg: "bg-gray-100 dark:bg-gray-800" },
 };
 
 const REQ_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  open:            { label: "Açık",             color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
-  offers_received: { label: "Teklif Geldi",     color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
-  selected:        { label: "Teklif Seçildi",   color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
-  completed:       { label: "Tamamlandı",        color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" },
-  cancelled:       { label: "İptal",             color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" },
+  open:            { label: "Open",            color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+  offers_received: { label: "Offers Received", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+  selected:        { label: "Offer Selected",  color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  completed:       { label: "Completed",       color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" },
+  cancelled:       { label: "Cancelled",       color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" },
 };
 
 function PortSearch({ value, onChange }: { value: string; onChange: (portId: number, portName: string) => void }) {
@@ -66,7 +66,7 @@ function PortSearch({ value, onChange }: { value: string; onChange: (portId: num
           data-testid="port-search-trigger"
         >
           <span className={value ? "text-foreground" : "text-muted-foreground"}>
-            {value || "Liman ara..."}
+            {value || "Search port..."}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -74,23 +74,23 @@ function PortSearch({ value, onChange }: { value: string; onChange: (portId: num
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Liman adı veya kod girin..."
+            placeholder="Enter port name or code..."
             value={query}
             onValueChange={setQuery}
           />
           <CommandList>
             {query.length < 2 && (
               <CommandEmpty className="py-4 text-center text-sm text-muted-foreground">
-                Aramak için en az 2 karakter girin
+                Enter at least 2 characters to search
               </CommandEmpty>
             )}
             {query.length >= 2 && isFetching && (
               <CommandEmpty className="py-4 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
-                <Loader2 className="w-3 h-3 animate-spin" /> Aranıyor...
+                <Loader2 className="w-3 h-3 animate-spin" /> Searching...
               </CommandEmpty>
             )}
             {query.length >= 2 && !isFetching && ports.length === 0 && (
-              <CommandEmpty>Liman bulunamadı</CommandEmpty>
+              <CommandEmpty>No ports found</CommandEmpty>
             )}
             {ports.length > 0 && (
               <CommandGroup>
@@ -138,7 +138,7 @@ function VesselSelect({ value, onChange }: { value: string; onChange: (name: str
         <Input
           value={value}
           onChange={e => onChange(e.target.value)}
-          placeholder="Gemi adını girin..."
+          placeholder="Enter vessel name..."
           data-testid="input-vessel-manual"
           autoFocus
         />
@@ -148,7 +148,7 @@ function VesselSelect({ value, onChange }: { value: string; onChange: (name: str
             className="text-xs text-[hsl(var(--maritime-primary))] hover:underline flex items-center gap-1"
             onClick={() => { setMode("fleet"); onChange(""); }}
           >
-            <Ship className="w-3 h-3" /> Filomdan seç
+            <Ship className="w-3 h-3" /> Select from fleet
           </button>
         )}
       </div>
@@ -160,14 +160,14 @@ function VesselSelect({ value, onChange }: { value: string; onChange: (name: str
       <div className="space-y-1.5">
         <div className="border border-dashed rounded-lg px-3 py-2.5 text-sm text-muted-foreground flex items-center gap-2">
           <Ship className="w-4 h-4 flex-shrink-0" />
-          <span>Filonuzda gemi yok</span>
+          <span>No vessels in your fleet</span>
         </div>
         <button
           type="button"
           className="text-xs text-[hsl(var(--maritime-primary))] hover:underline flex items-center gap-1"
           onClick={() => setMode("manual")}
         >
-          <PenLine className="w-3 h-3" /> Manuel giriş
+          <PenLine className="w-3 h-3" /> Manual entry
         </button>
       </div>
     );
@@ -177,7 +177,7 @@ function VesselSelect({ value, onChange }: { value: string; onChange: (name: str
     <div className="space-y-1.5">
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger data-testid="select-vessel-fleet">
-          <SelectValue placeholder="Filo gemisi seç..." />
+          <SelectValue placeholder="Select fleet vessel..." />
         </SelectTrigger>
         <SelectContent>
           {vessels.map((v) => (
@@ -196,7 +196,7 @@ function VesselSelect({ value, onChange }: { value: string; onChange: (name: str
         className="text-xs text-muted-foreground hover:text-foreground hover:underline flex items-center gap-1"
         onClick={() => { setMode("manual"); onChange(""); }}
       >
-        <PenLine className="w-3 h-3" /> Filo dışı gemi (manuel giriş)
+        <PenLine className="w-3 h-3" /> Non-fleet vessel (manual entry)
       </button>
     </div>
   );
@@ -226,20 +226,20 @@ function ServiceRequestCard({ req, showOffer, onOfferClick }: { req: any; showOf
 
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
         {req.portName && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{req.portName}</span>}
-        {req.preferredDate && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(req.preferredDate).toLocaleDateString("tr-TR")}</span>}
+        {req.preferredDate && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(req.preferredDate).toLocaleDateString("en-GB")}</span>}
         {req.quantity && <span>{req.quantity} {req.unit}</span>}
       </div>
 
       {showOffer && (req.status === "open" || req.status === "offers_received") && (
         <Button size="sm" className="w-full gap-2 h-8" onClick={() => onOfferClick?.(req.id)} data-testid={`button-make-offer-${req.id}`}>
-          <Send className="w-3.5 h-3.5" /> Teklif Ver
+          <Send className="w-3.5 h-3.5" /> Submit Offer
         </Button>
       )}
 
       {!showOffer && (
         <Link href={`/service-requests/${req.id}`}>
           <Button size="sm" variant="outline" className="w-full gap-2 h-8">
-            Detaylar <ChevronRight className="w-3.5 h-3.5" />
+            Details <ChevronRight className="w-3.5 h-3.5" />
           </Button>
         </Link>
       )}
@@ -250,7 +250,7 @@ function ServiceRequestCard({ req, showOffer, onOfferClick }: { req: any; showOf
 function OfferCard({ offer }: { offer: any }) {
   const s = offer.status === "selected" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
     : offer.status === "rejected" ? "bg-red-100 text-red-600" : "bg-muted text-muted-foreground";
-  const label = offer.status === "selected" ? "Seçildi" : offer.status === "rejected" ? "Reddedildi" : "Bekliyor";
+  const label = offer.status === "selected" ? "Selected" : offer.status === "rejected" ? "Declined" : "Pending";
   return (
     <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40 text-sm" data-testid={`offer-card-${offer.id}`}>
       <div>
@@ -303,11 +303,11 @@ export default function ServiceRequests() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/service-requests"] });
-      toast({ title: "Hizmet talebi oluşturuldu" });
+      toast({ title: "Service request created" });
       setShowCreate(false);
       setCreateForm({ portId: 0, portName: "", vesselName: "", grt: "", serviceType: "other", description: "", quantity: "", unit: "", preferredDate: "" });
     },
-    onError: () => toast({ title: "Hata", variant: "destructive" }),
+    onError: () => toast({ title: "Error", variant: "destructive" }),
   });
 
   const offerMutation = useMutation({
@@ -322,11 +322,11 @@ export default function ServiceRequests() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/service-requests"] });
-      toast({ title: "Teklifiniz gönderildi" });
+      toast({ title: "Offer submitted" });
       setOfferDialogId(null);
       setOfferForm({ price: "", currency: "USD", notes: "", estimatedDuration: "" });
     },
-    onError: () => toast({ title: "Teklif gönderilemedi", variant: "destructive" }),
+    onError: () => toast({ title: "Failed to submit offer", variant: "destructive" }),
   });
 
   const selectOfferMutation = useMutation({
@@ -336,24 +336,24 @@ export default function ServiceRequests() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/service-requests"] });
-      toast({ title: "Teklif seçildi" });
+      toast({ title: "Offer selected" });
     },
   });
 
   return (
     <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
-      <PageMeta title="Hizmet Talepleri | VesselPDA" description="Denizcilik hizmet talepleri ve teklifler" />
+      <PageMeta title="Service Requests | VesselPDA" description="Maritime service requests and offers" />
 
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="font-serif text-2xl font-bold tracking-tight">Hizmet Talepleri</h1>
+          <h1 className="font-serif text-2xl font-bold tracking-tight">Service Requests</h1>
           <p className="text-muted-foreground text-sm">
-            {isProvider ? "Servis bölgenizdeki açık talepler ve teklifleriniz" : "Hizmet taleplerini yönetin"}
+            {isProvider ? "Open requests in your service area and your submitted offers" : "Manage your service requests"}
           </p>
         </div>
         {!isProvider && (
           <Button onClick={() => setShowCreate(true)} className="gap-2" data-testid="button-create-service-req">
-            <Plus className="w-4 h-4" /> Yeni Talep
+            <Plus className="w-4 h-4" /> New Request
           </Button>
         )}
       </div>
@@ -365,15 +365,15 @@ export default function ServiceRequests() {
       ) : isProvider ? (
         <Tabs defaultValue="open">
           <TabsList>
-            <TabsTrigger value="open">Açık Talepler ({requests.length})</TabsTrigger>
-            <TabsTrigger value="myoffers">Tekliflerim ({myOffers.length})</TabsTrigger>
+            <TabsTrigger value="open">Open Requests ({requests.length})</TabsTrigger>
+            <TabsTrigger value="myoffers">My Offers ({myOffers.length})</TabsTrigger>
           </TabsList>
           <TabsContent value="open" className="mt-4">
             {requests.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
                 <Wrench className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                <p className="font-medium">Servis bölgenizde açık talep yok</p>
-                <p className="text-sm mt-1">Servis portlarınızı profil sayfanızdan güncelleyebilirsiniz.</p>
+                <p className="font-medium">No open requests in your service area</p>
+                <p className="text-sm mt-1">You can update your service ports from your profile page.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -387,7 +387,7 @@ export default function ServiceRequests() {
             {myOffers.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
                 <Send className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                <p className="font-medium">Henüz teklif vermediniz</p>
+                <p className="font-medium">No offers submitted yet</p>
               </div>
             ) : (
               myOffers.map(o => <OfferCard key={o.id} offer={o} />)
@@ -399,10 +399,10 @@ export default function ServiceRequests() {
           {requests.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <Wrench className="w-12 h-12 mx-auto mb-4 opacity-30" />
-              <p className="font-medium">Henüz hizmet talebi yok</p>
-              <p className="text-sm mt-1">Yakıt, tamir, provizyonlama gibi hizmetler için talep oluşturun.</p>
+              <p className="font-medium">No service requests yet</p>
+              <p className="text-sm mt-1">Create requests for services like fuel, repair, provisioning, and more.</p>
               <Button className="mt-4 gap-2" onClick={() => setShowCreate(true)}>
-                <Plus className="w-4 h-4" /> Talep Oluştur
+                <Plus className="w-4 h-4" /> Create Request
               </Button>
             </div>
           ) : (
@@ -431,7 +431,7 @@ export default function ServiceRequests() {
                     </div>
                     <Link href={`/service-requests/${req.id}`}>
                       <Button size="sm" variant="outline" className="w-full h-8 gap-1 text-xs">
-                        Teklifleri Gör <ChevronRight className="w-3 h-3" />
+                        View Offers <ChevronRight className="w-3 h-3" />
                       </Button>
                     </Link>
                   </Card>
@@ -446,11 +446,11 @@ export default function ServiceRequests() {
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-serif">Yeni Hizmet Talebi</DialogTitle>
+            <DialogTitle className="font-serif">New Service Request</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>Hizmet Türü *</Label>
+              <Label>Service Type *</Label>
               <Select value={createForm.serviceType} onValueChange={v => setCreateForm(f => ({ ...f, serviceType: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -461,39 +461,39 @@ export default function ServiceRequests() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Liman *</Label>
+              <Label>Port *</Label>
               <PortSearch value={createForm.portName} onChange={(id, name) => setCreateForm(f => ({ ...f, portId: id, portName: name }))} />
             </div>
             <div className="space-y-1.5">
-              <Label>Gemi *</Label>
+              <Label>Vessel *</Label>
               <VesselSelect
                 value={createForm.vesselName}
                 onChange={(name) => setCreateForm(f => ({ ...f, vesselName: name }))}
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Açıklama *</Label>
-              <Textarea value={createForm.description} onChange={e => setCreateForm(f => ({ ...f, description: e.target.value }))} placeholder="Hizmet detaylarını açıklayın..." rows={3} />
+              <Label>Description *</Label>
+              <Textarea value={createForm.description} onChange={e => setCreateForm(f => ({ ...f, description: e.target.value }))} placeholder="Describe the service requirements..." rows={3} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Miktar</Label>
+                <Label>Quantity</Label>
                 <Input type="number" value={createForm.quantity} onChange={e => setCreateForm(f => ({ ...f, quantity: e.target.value }))} placeholder="0" />
               </div>
               <div className="space-y-1.5">
-                <Label>Birim</Label>
-                <Input value={createForm.unit} onChange={e => setCreateForm(f => ({ ...f, unit: e.target.value }))} placeholder="MT, LT, adet..." />
+                <Label>Unit</Label>
+                <Input value={createForm.unit} onChange={e => setCreateForm(f => ({ ...f, unit: e.target.value }))} placeholder="MT, LT, pcs..." />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Tercih Edilen Tarih</Label>
+              <Label>Preferred Date</Label>
               <Input type="datetime-local" value={createForm.preferredDate} onChange={e => setCreateForm(f => ({ ...f, preferredDate: e.target.value }))} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreate(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
             <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending || !createForm.portId || !createForm.vesselName || !createForm.description}>
-              {createMutation.isPending ? "Oluşturuluyor..." : "Oluştur"}
+              {createMutation.isPending ? "Creating..." : "Create"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -503,16 +503,16 @@ export default function ServiceRequests() {
       <Dialog open={!!offerDialogId} onOpenChange={open => { if (!open) setOfferDialogId(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-serif">Teklif Ver</DialogTitle>
+            <DialogTitle className="font-serif">Submit Offer</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Fiyat *</Label>
+                <Label>Price *</Label>
                 <Input type="number" value={offerForm.price} onChange={e => setOfferForm(f => ({ ...f, price: e.target.value }))} placeholder="0" data-testid="input-offer-price" />
               </div>
               <div className="space-y-1.5">
-                <Label>Para Birimi</Label>
+                <Label>Currency</Label>
                 <Select value={offerForm.currency} onValueChange={v => setOfferForm(f => ({ ...f, currency: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -524,18 +524,18 @@ export default function ServiceRequests() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Tahmini Süre</Label>
-              <Input value={offerForm.estimatedDuration} onChange={e => setOfferForm(f => ({ ...f, estimatedDuration: e.target.value }))} placeholder="Örn: 2-3 gün" />
+              <Label>Estimated Duration</Label>
+              <Input value={offerForm.estimatedDuration} onChange={e => setOfferForm(f => ({ ...f, estimatedDuration: e.target.value }))} placeholder="E.g. 2-3 days" />
             </div>
             <div className="space-y-1.5">
-              <Label>Notlar</Label>
-              <Textarea value={offerForm.notes} onChange={e => setOfferForm(f => ({ ...f, notes: e.target.value }))} placeholder="Ek bilgi..." rows={3} />
+              <Label>Notes</Label>
+              <Textarea value={offerForm.notes} onChange={e => setOfferForm(f => ({ ...f, notes: e.target.value }))} placeholder="Additional information..." rows={3} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOfferDialogId(null)}>İptal</Button>
+            <Button variant="outline" onClick={() => setOfferDialogId(null)}>Cancel</Button>
             <Button onClick={() => offerMutation.mutate()} disabled={offerMutation.isPending || !offerForm.price} data-testid="button-submit-offer">
-              {offerMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Teklif Gönder"}
+              {offerMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Submit Offer"}
             </Button>
           </DialogFooter>
         </DialogContent>

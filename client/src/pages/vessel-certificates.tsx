@@ -20,7 +20,7 @@ const CERT_TYPES: Record<string, string> = {
   loadline: "Load Line",
   marpol: "MARPOL",
   solas: "SOLAS",
-  other: "Diğer",
+  other: "Other",
 };
 
 const CERT_TYPE_COLORS: Record<string, string> = {
@@ -34,17 +34,17 @@ const CERT_TYPE_COLORS: Record<string, string> = {
 
 function statusBadge(status: string, expiresAt: string | null) {
   if (status === "expired" || (expiresAt && new Date(expiresAt) < new Date())) {
-    return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 gap-1"><AlertTriangle className="w-3 h-3" />Süresi Dolmuş</Badge>;
+    return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 gap-1"><AlertTriangle className="w-3 h-3" />Expired</Badge>;
   }
   if (status === "expiring_soon") {
-    return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 gap-1"><Clock className="w-3 h-3" />Yakında Bitiyor</Badge>;
+    return <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 gap-1"><Clock className="w-3 h-3" />Expiring Soon</Badge>;
   }
-  return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 gap-1"><CheckCircle2 className="w-3 h-3" />Geçerli</Badge>;
+  return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 gap-1"><CheckCircle2 className="w-3 h-3" />Valid</Badge>;
 }
 
 function formatDate(dt: string | null) {
   if (!dt) return "—";
-  return new Date(dt).toLocaleDateString("tr-TR");
+  return new Date(dt).toLocaleDateString("en-GB");
 }
 
 const defaultForm = {
@@ -132,10 +132,10 @@ export default function VesselCertificates() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/certificates/all"] });
       queryClient.invalidateQueries({ queryKey: ["/api/certificates/expiring"] });
-      toast({ title: editCert?.id ? "Sertifika güncellendi" : "Sertifika eklendi" });
+      toast({ title: editCert?.id ? "Certificate updated" : "Certificate added" });
       setDialogOpen(false);
     },
-    onError: () => toast({ title: "Hata", description: "İşlem başarısız", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Operation failed", variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
@@ -145,7 +145,7 @@ export default function VesselCertificates() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/certificates/all"] });
       queryClient.invalidateQueries({ queryKey: ["/api/certificates/expiring"] });
-      toast({ title: "Sertifika silindi" });
+      toast({ title: "Certificate deleted" });
       setDeleteTarget(null);
     },
   });
@@ -156,13 +156,13 @@ export default function VesselCertificates() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
-      <PageMeta title="Gemi Sertifikaları | VesselPDA" description="Gemi sertifika takip ve yönetimi" />
+      <PageMeta title="Vessel Certificates | VesselPDA" description="Vessel certificate tracking and management" />
 
       <div className="flex items-center gap-3">
         <BadgeCheck className="w-7 h-7 text-primary" />
         <div>
-          <h1 className="text-2xl font-bold text-foreground font-serif">Gemi Sertifikaları</h1>
-          <p className="text-sm text-muted-foreground">Tüm sertifikaları takip edin ve yaklaşan bitiş tarihlerini izleyin</p>
+          <h1 className="text-2xl font-bold text-foreground font-serif">Vessel Certificates</h1>
+          <p className="text-sm text-muted-foreground">Track all certificates and monitor upcoming expiry dates</p>
         </div>
       </div>
 
@@ -170,9 +170,9 @@ export default function VesselCertificates() {
         <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
           <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
           <div>
-            <p className="font-medium text-amber-800 dark:text-amber-200">Yakında biten sertifikalar var!</p>
+            <p className="font-medium text-amber-800 dark:text-amber-200">Certificates expiring soon!</p>
             <p className="text-sm text-amber-700 dark:text-amber-300">
-              {expiring.length} sertifikanın geçerlilik süresi 30 gün içinde dolacak. Lütfen ilgili merciler ile iletişime geçin.
+              {expiring.length} certificate(s) will expire within 30 days. Please contact the relevant authorities.
             </p>
           </div>
         </div>
@@ -181,7 +181,7 @@ export default function VesselCertificates() {
       {vessels.length === 0 ? (
         <Card className="p-12 text-center">
           <ShieldCheck className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground">Henüz gemi eklenmemiş. Önce gemi ekleyin.</p>
+          <p className="text-muted-foreground">No vessels added yet. Please add a vessel first.</p>
         </Card>
       ) : (
         <div className="space-y-6">
@@ -196,12 +196,12 @@ export default function VesselCertificates() {
                     <span className="text-xs text-muted-foreground">{vessel.imoNumber ? `IMO: ${vessel.imoNumber}` : ""}</span>
                   </div>
                   <Button size="sm" variant="outline" onClick={() => openAdd(vessel.id)} data-testid={`button-add-cert-${vessel.id}`}>
-                    <Plus className="w-4 h-4 mr-1" />Sertifika Ekle
+                    <Plus className="w-4 h-4 mr-1" />Add Certificate
                   </Button>
                 </div>
 
                 {certs.length === 0 ? (
-                  <div className="px-5 py-6 text-center text-sm text-muted-foreground">Bu gemiye henüz sertifika eklenmemiş</div>
+                  <div className="px-5 py-6 text-center text-sm text-muted-foreground">No certificates added for this vessel yet</div>
                 ) : (
                   <div className="divide-y">
                     {certs.map((cert: any) => (
@@ -216,9 +216,9 @@ export default function VesselCertificates() {
                           </div>
                           <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
                             {cert.certificateNumber && <span>No: {cert.certificateNumber}</span>}
-                            {cert.issuingAuthority && <span>Kurum: {cert.issuingAuthority}</span>}
-                            {cert.issuedAt && <span>Veriliş: {formatDate(cert.issuedAt)}</span>}
-                            {cert.expiresAt && <span>Bitiş: {formatDate(cert.expiresAt)}</span>}
+                            {cert.issuingAuthority && <span>Authority: {cert.issuingAuthority}</span>}
+                            {cert.issuedAt && <span>Issued: {formatDate(cert.issuedAt)}</span>}
+                            {cert.expiresAt && <span>Expires: {formatDate(cert.expiresAt)}</span>}
                           </div>
                           {cert.notes && <p className="text-xs text-muted-foreground italic">{cert.notes}</p>}
                         </div>
@@ -243,16 +243,16 @@ export default function VesselCertificates() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editCert?.id ? "Sertifika Düzenle" : "Yeni Sertifika Ekle"}</DialogTitle>
+            <DialogTitle>{editCert?.id ? "Edit Certificate" : "Add New Certificate"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <Label>Sertifika Adı *</Label>
-                <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="örn. ISM Safety Management Certificate" data-testid="input-cert-name" />
+                <Label>Certificate Name *</Label>
+                <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. ISM Safety Management Certificate" data-testid="input-cert-name" />
               </div>
               <div>
-                <Label>Tür</Label>
+                <Label>Type</Label>
                 <Select value={form.certType} onValueChange={v => setForm(f => ({ ...f, certType: v }))}>
                   <SelectTrigger data-testid="select-cert-type">
                     <SelectValue />
@@ -265,31 +265,31 @@ export default function VesselCertificates() {
                 </Select>
               </div>
               <div>
-                <Label>Sertifika No</Label>
-                <Input value={form.certificateNumber} onChange={e => setForm(f => ({ ...f, certificateNumber: e.target.value }))} placeholder="opsiyonel" data-testid="input-cert-number" />
+                <Label>Certificate No.</Label>
+                <Input value={form.certificateNumber} onChange={e => setForm(f => ({ ...f, certificateNumber: e.target.value }))} placeholder="optional" data-testid="input-cert-number" />
               </div>
               <div>
-                <Label>Veriliş Tarihi</Label>
+                <Label>Issue Date</Label>
                 <Input type="date" value={form.issuedAt} onChange={e => setForm(f => ({ ...f, issuedAt: e.target.value }))} data-testid="input-cert-issued" />
               </div>
               <div>
-                <Label>Bitiş Tarihi</Label>
+                <Label>Expiry Date</Label>
                 <Input type="date" value={form.expiresAt} onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))} data-testid="input-cert-expires" />
               </div>
               <div className="col-span-2">
-                <Label>Veren Kurum</Label>
-                <Input value={form.issuingAuthority} onChange={e => setForm(f => ({ ...f, issuingAuthority: e.target.value }))} placeholder="örn. Türk Loydu, DNV, Lloyd's Register..." data-testid="input-cert-authority" />
+                <Label>Issuing Authority</Label>
+                <Input value={form.issuingAuthority} onChange={e => setForm(f => ({ ...f, issuingAuthority: e.target.value }))} placeholder="e.g. Turkish Lloyd, DNV, Lloyd's Register..." data-testid="input-cert-authority" />
               </div>
               <div className="col-span-2">
-                <Label>Notlar</Label>
-                <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="opsiyonel" data-testid="textarea-cert-notes" />
+                <Label>Notes</Label>
+                <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="optional" data-testid="textarea-cert-notes" />
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button onClick={() => saveMutation.mutate()} disabled={!form.name || saveMutation.isPending} data-testid="button-save-cert">
-              {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Kaydet"}
+              {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -298,13 +298,13 @@ export default function VesselCertificates() {
       <AlertDialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Sertifikayı Sil</AlertDialogTitle>
-            <AlertDialogDescription>Bu sertifika kalıcı olarak silinecek. Devam edilsin mi?</AlertDialogDescription>
+            <AlertDialogTitle>Delete Certificate</AlertDialogTitle>
+            <AlertDialogDescription>This certificate will be permanently deleted. Do you want to continue?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Vazgeç</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget)} data-testid="button-confirm-delete-cert">
-              Sil
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

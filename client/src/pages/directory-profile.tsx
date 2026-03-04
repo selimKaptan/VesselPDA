@@ -192,7 +192,7 @@ export default function DirectoryProfilePage() {
       message: endorseMessage || undefined,
     }),
     onSuccess: () => {
-      toast({ title: "Tavsiye gönderildi", description: "Teşekkürler!" });
+      toast({ title: "Endorsement submitted", description: "Thank you!" });
       setShowEndorseDialog(false);
       setEndorseRelationship("");
       setEndorseMessage("");
@@ -200,14 +200,14 @@ export default function DirectoryProfilePage() {
     },
     onError: async (err: any) => {
       const d = await err?.response?.json?.().catch(() => ({}));
-      toast({ title: "Hata", description: d?.message || "Tavsiye gönderilemedi", variant: "destructive" });
+      toast({ title: "Error", description: d?.message || "Could not submit endorsement", variant: "destructive" });
     },
   });
 
   const deleteEndorseMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/endorsements/${id}`),
     onSuccess: () => {
-      toast({ title: "Tavsiye kaldırıldı" });
+      toast({ title: "Endorsement removed" });
       queryClient.invalidateQueries({ queryKey: ["/api/endorsements", profileId] });
     },
   });
@@ -227,14 +227,14 @@ export default function DirectoryProfilePage() {
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/messages/start", {
         targetUserId: profile!.userId,
-        message: `Merhaba, ${profile!.companyName} profilinizi inceledim ve sizinle iletişime geçmek istedim.`,
+        message: `Hello, I viewed ${profile!.companyName}'s profile and would like to get in touch.`,
       });
       return res.json();
     },
     onSuccess: (data) => {
       navigate(`/messages/${data.conversationId}`);
     },
-    onError: () => toast({ title: "Mesaj gönderilemedi", variant: "destructive" }),
+    onError: () => toast({ title: "Could not send message", variant: "destructive" }),
   });
 
   const canNominate = user && profile?.companyType === "agent" && profile?.userId !== currentUserId
@@ -265,13 +265,13 @@ export default function DirectoryProfilePage() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Nominasyon gönderildi", description: `${profile!.companyName} acentesi bilgilendirildi.` });
+      toast({ title: "Nomination sent", description: `${profile!.companyName} has been notified.` });
       setShowNominateDialog(false);
       setNomForm({ portId: 0, portName: "", vesselName: "", purposeOfCall: "other", eta: "", etd: "", notes: "" });
       setPortQuery("");
       navigate("/nominations");
     },
-    onError: () => toast({ title: "Nominasyon gönderilemedi", variant: "destructive" }),
+    onError: () => toast({ title: "Could not send nomination", variant: "destructive" }),
   });
 
   const handleSubmitReview = () => {
@@ -337,12 +337,12 @@ export default function DirectoryProfilePage() {
               {profile.isFeatured && <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200">Featured</Badge>}
               {(profile as any).verificationStatus === "verified" && (
                 <Badge className="text-xs bg-blue-50 text-blue-700 border-blue-200 gap-1" data-testid="badge-verified">
-                  <ShieldCheck className="w-3 h-3" /> Doğrulanmış Şirket
+                  <ShieldCheck className="w-3 h-3" /> Verified Company
                 </Badge>
               )}
               {(profile as any).verificationStatus === "pending" && (
                 <Badge className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200 gap-1">
-                  <Info className="w-3 h-3" /> Doğrulama Bekliyor
+                  <Info className="w-3 h-3" /> Verification Pending
                 </Badge>
               )}
             </div>
@@ -392,7 +392,7 @@ export default function DirectoryProfilePage() {
                     data-testid="button-send-message"
                   >
                     {messageMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5" />}
-                    Mesaj Gönder
+                    Send Message
                   </Button>
                 )}
                 {canNominate && (
@@ -403,7 +403,7 @@ export default function DirectoryProfilePage() {
                     data-testid="button-nominate-agent"
                   >
                     <UserCheck className="w-3.5 h-3.5" />
-                    Nomine Et
+                    Nominate
                   </Button>
                 )}
               </div>
@@ -554,29 +554,29 @@ export default function DirectoryProfilePage() {
       {trustScore && (trustScore.totalVoyages > 0 || trustScore.reviewCount > 0 || trustScore.bidWinRate !== null) && (
         <Card className="p-5" data-testid="card-trust-score">
           <h3 className="text-sm font-semibold mb-3 flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-blue-600" /> İşlem Geçmişi & Güven Skoru
+            <ShieldCheck className="w-3.5 h-3.5 text-blue-600" /> Transaction History & Trust Score
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="text-center p-3 bg-muted/40 rounded-lg">
               <p className="text-2xl font-bold text-[hsl(var(--maritime-primary))]">{trustScore.completedVoyages}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Tamamlanan Sefer</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Completed Voyages</p>
             </div>
             {trustScore.successRate !== null && (
               <div className="text-center p-3 bg-muted/40 rounded-lg">
                 <p className="text-2xl font-bold text-green-600">%{trustScore.successRate}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Başarı Oranı</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Success Rate</p>
               </div>
             )}
             {trustScore.avgRating > 0 && (
               <div className="text-center p-3 bg-muted/40 rounded-lg">
                 <p className="text-2xl font-bold text-amber-500">{trustScore.avgRating}★</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Ort. Puan ({trustScore.reviewCount} değerlendirme)</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Avg. Rating ({trustScore.reviewCount} reviews)</p>
               </div>
             )}
             {trustScore.bidWinRate !== null && (
               <div className="text-center p-3 bg-muted/40 rounded-lg">
                 <p className="text-2xl font-bold">%{trustScore.bidWinRate}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Teklif Başarısı</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Bid Win Rate</p>
               </div>
             )}
           </div>
@@ -588,7 +588,7 @@ export default function DirectoryProfilePage() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold text-base flex items-center gap-2">
             <ThumbsUp className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-            Referanslar
+            Endorsements
             {endorsements.length > 0 && (
               <span className="text-sm font-normal text-muted-foreground">({endorsements.length})</span>
             )}
@@ -603,7 +603,7 @@ export default function DirectoryProfilePage() {
                 disabled={deleteEndorseMutation.isPending}
                 data-testid="button-remove-endorsement"
               >
-                Referansımı Kaldır
+                Remove My Endorsement
               </Button>
             ) : (
               <Button
@@ -613,7 +613,7 @@ export default function DirectoryProfilePage() {
                 onClick={() => setShowEndorseDialog(true)}
                 data-testid="button-add-endorsement"
               >
-                <ThumbsUp className="w-3.5 h-3.5" /> Referans Yaz
+                <ThumbsUp className="w-3.5 h-3.5" /> Write Endorsement
               </Button>
             )
           )}
@@ -622,9 +622,9 @@ export default function DirectoryProfilePage() {
         {endorsements.length === 0 ? (
           <Card className="p-8 text-center border-dashed">
             <Quote className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">Henüz referans yazılmamış</p>
+            <p className="text-sm text-muted-foreground">No endorsements yet</p>
             {user && profile?.userId !== currentUserId && !myEndorsement && (
-              <p className="text-xs text-muted-foreground mt-1">Bu şirketi tavsiye edebilirsiniz</p>
+              <p className="text-xs text-muted-foreground mt-1">You can endorse this company</p>
             )}
           </Card>
         ) : (
@@ -638,12 +638,12 @@ export default function DirectoryProfilePage() {
                     </div>
                     <div>
                       <p className="text-sm font-medium">
-                        {e.fromFirstName ? `${e.fromFirstName}${e.fromLastName ? ` ${e.fromLastName}` : ""}` : "Kullanıcı"}
+                        {e.fromFirstName ? `${e.fromFirstName}${e.fromLastName ? ` ${e.fromLastName}` : ""}` : "User"}
                       </p>
                       <p className="text-xs text-muted-foreground">{e.relationship}</p>
                     </div>
                   </div>
-                  <span className="text-xs text-muted-foreground">{new Date(e.createdAt).toLocaleDateString("tr-TR")}</span>
+                  <span className="text-xs text-muted-foreground">{new Date(e.createdAt).toLocaleDateString("en-GB")}</span>
                 </div>
                 {e.message && (
                   <p className="text-sm text-muted-foreground mt-2 pl-10 leading-relaxed italic">"{e.message}"</p>
@@ -660,30 +660,30 @@ export default function DirectoryProfilePage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ThumbsUp className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              {profile?.companyName} için Referans Yaz
+              Write Endorsement for {profile?.companyName}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>İlişki Türü <span className="text-red-500">*</span></Label>
+              <Label>Relationship Type <span className="text-red-500">*</span></Label>
               <Select value={endorseRelationship} onValueChange={setEndorseRelationship}>
                 <SelectTrigger data-testid="select-endorsement-relationship">
-                  <SelectValue placeholder="İlişki türünü seçin..." />
+                  <SelectValue placeholder="Select relationship type..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Birlikte çalıştık">Birlikte çalıştık</SelectItem>
-                  <SelectItem value="Tavsiye ederim">Tavsiye ederim</SelectItem>
-                  <SelectItem value="Güvenilir iş ortağı">Güvenilir iş ortağı</SelectItem>
-                  <SelectItem value="Tedarikçimiz">Tedarikçimiz</SelectItem>
-                  <SelectItem value="Müşterimiz">Müşterimiz</SelectItem>
-                  <SelectItem value="Sektör tanıdığı">Sektör tanıdığı</SelectItem>
+                  <SelectItem value="We worked together">We worked together</SelectItem>
+                  <SelectItem value="I recommend them">I recommend them</SelectItem>
+                  <SelectItem value="Trusted business partner">Trusted business partner</SelectItem>
+                  <SelectItem value="Our supplier">Our supplier</SelectItem>
+                  <SelectItem value="Our client">Our client</SelectItem>
+                  <SelectItem value="Industry contact">Industry contact</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Mesaj (opsiyonel)</Label>
+              <Label>Message (optional)</Label>
               <Textarea
-                placeholder="Bu şirketi neden tavsiye ediyorsunuz?"
+                placeholder="Why do you endorse this company?"
                 rows={3}
                 value={endorseMessage}
                 onChange={e => setEndorseMessage(e.target.value)}
@@ -692,7 +692,7 @@ export default function DirectoryProfilePage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEndorseDialog(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setShowEndorseDialog(false)}>Cancel</Button>
             <Button
               onClick={() => endorseMutation.mutate()}
               disabled={endorseMutation.isPending || !endorseRelationship}
@@ -700,7 +700,7 @@ export default function DirectoryProfilePage() {
               data-testid="button-confirm-endorsement"
             >
               {endorseMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ThumbsUp className="w-4 h-4 mr-2" />}
-              Referansı Gönder
+              Submit Endorsement
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -712,19 +712,19 @@ export default function DirectoryProfilePage() {
           <DialogHeader>
             <DialogTitle className="font-serif flex items-center gap-2">
               <UserCheck className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
-              {profile?.companyName}'i Nomine Et
+              Nominate {profile?.companyName}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             {/* Port Search */}
             <div className="space-y-1.5">
-              <Label>Liman *</Label>
+              <Label>Port *</Label>
               <div className="relative">
                 <Input
                   value={portQuery}
                   onChange={e => { setPortQuery(e.target.value); setPortSearchOpen(true); }}
                   onFocus={() => setPortSearchOpen(true)}
-                  placeholder="Liman ara... (en az 2 harf)"
+                  placeholder="Search port... (at least 2 characters)"
                   data-testid="input-nom-port"
                 />
                 {nomForm.portId > 0 && (
@@ -754,29 +754,29 @@ export default function DirectoryProfilePage() {
 
             {/* Vessel Name */}
             <div className="space-y-1.5">
-              <Label>Gemi Adı *</Label>
+              <Label>Vessel Name *</Label>
               <Input
                 value={nomForm.vesselName}
                 onChange={e => setNomForm(f => ({ ...f, vesselName: e.target.value }))}
-                placeholder="Gemi adı girin"
+                placeholder="Enter vessel name"
                 data-testid="input-nom-vessel"
               />
             </div>
 
             {/* Purpose */}
             <div className="space-y-1.5">
-              <Label>Seferin Amacı *</Label>
+              <Label>Purpose of Call *</Label>
               <Select value={nomForm.purposeOfCall} onValueChange={v => setNomForm(f => ({ ...f, purposeOfCall: v }))}>
                 <SelectTrigger data-testid="select-nom-purpose">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="loading">Yükleme</SelectItem>
-                  <SelectItem value="unloading">Boşaltma</SelectItem>
-                  <SelectItem value="bunkering">Yakıt İkmali</SelectItem>
-                  <SelectItem value="crew_change">Mürettebat Değişimi</SelectItem>
+                  <SelectItem value="loading">Loading</SelectItem>
+                  <SelectItem value="unloading">Unloading</SelectItem>
+                  <SelectItem value="bunkering">Bunkering</SelectItem>
+                  <SelectItem value="crew_change">Crew Change</SelectItem>
                   <SelectItem value="transit">Transit</SelectItem>
-                  <SelectItem value="other">Diğer</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -805,18 +805,18 @@ export default function DirectoryProfilePage() {
 
             {/* Notes */}
             <div className="space-y-1.5">
-              <Label>Notlar</Label>
+              <Label>Notes</Label>
               <Textarea
                 value={nomForm.notes}
                 onChange={e => setNomForm(f => ({ ...f, notes: e.target.value }))}
-                placeholder="Acente için ek bilgi veya talepler..."
+                placeholder="Additional information or requests for the agent..."
                 rows={2}
                 data-testid="textarea-nom-notes"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNominateDialog(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setShowNominateDialog(false)}>Cancel</Button>
             <Button
               onClick={() => nominateMutation.mutate()}
               disabled={nominateMutation.isPending || !nomForm.portId || !nomForm.vesselName.trim() || !nomForm.eta}
@@ -824,7 +824,7 @@ export default function DirectoryProfilePage() {
               data-testid="button-confirm-nominate"
             >
               {nominateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <UserCheck className="w-4 h-4 mr-2" />}
-              Nominasyonu Gönder
+              Send Nomination
             </Button>
           </DialogFooter>
         </DialogContent>

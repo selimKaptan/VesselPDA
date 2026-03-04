@@ -124,7 +124,7 @@ export default function MessageThread() {
       queryClient.invalidateQueries({ queryKey: ["/api/messages", convId] });
       queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
     },
-    onError: () => toast({ title: "Mesaj gönderilemedi", variant: "destructive" }),
+    onError: () => toast({ title: "Message could not be sent", variant: "destructive" }),
   });
 
   const saveEmailBridge = async () => {
@@ -136,10 +136,10 @@ export default function MessageThread() {
         forward: externalEmailForward,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/messages", convId] });
-      toast({ title: "E-posta köprüsü güncellendi" });
+      toast({ title: "Email bridge updated" });
       setEmailDialogOpen(false);
     } catch {
-      toast({ title: "Kaydedilemedi", variant: "destructive" });
+      toast({ title: "Could not save", variant: "destructive" });
     } finally {
       setSavingEmail(false);
     }
@@ -154,7 +154,7 @@ export default function MessageThread() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 8 * 1024 * 1024) {
-      toast({ title: "Dosya çok büyük", description: "Maksimum dosya boyutu 8MB'dır.", variant: "destructive" });
+      toast({ title: "File too large", description: "Maximum file size is 8MB.", variant: "destructive" });
       return;
     }
     const reader = new FileReader();
@@ -179,7 +179,7 @@ export default function MessageThread() {
 
   function insertMention() {
     if (!conv?.otherUser) return;
-    const otherName = conv.otherUser.name || conv.otherUser.email || "Kullanıcı";
+    const otherName = conv.otherUser.name || conv.otherUser.email || "User";
     const withoutAt = content.endsWith("@") ? content.slice(0, -1) : content;
     setContent(`${withoutAt}@${otherName.replace(/\s+/g, "")} `);
     if (!mentions.includes(conv.otherUser.id)) {
@@ -204,8 +204,8 @@ export default function MessageThread() {
   if (!conv || conv.message === "Conversation not found") {
     return (
       <div className="p-6 text-center text-muted-foreground">
-        <p>Konuşma bulunamadı.</p>
-        <Link href="/messages"><Button variant="outline" className="mt-4">Geri Dön</Button></Link>
+        <p>Conversation not found.</p>
+        <Link href="/messages"><Button variant="outline" className="mt-4">Go Back</Button></Link>
       </div>
     );
   }
@@ -216,7 +216,7 @@ export default function MessageThread() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] max-w-2xl mx-auto">
-      <PageMeta title={`${otherUser?.name || "Mesaj"} | VesselPDA`} description="Mesaj konuşması" />
+      <PageMeta title={`${otherUser?.name || "Message"} | VesselPDA`} description="Direct message conversation" />
 
       {/* Header */}
       <div className="flex items-center gap-3 p-4 border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10">
@@ -229,25 +229,25 @@ export default function MessageThread() {
           {(otherUser?.name || "?")[0].toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm truncate">{otherUser?.name || otherUser?.email || "Kullanıcı"}</p>
+          <p className="font-semibold text-sm truncate">{otherUser?.name || otherUser?.email || "User"}</p>
           <div className="flex items-center gap-2 flex-wrap">
             {conv.voyageId && (
               <Link href={`/voyages/${conv.voyageId}`}>
                 <span className="text-xs text-[hsl(var(--maritime-primary))] hover:underline flex items-center gap-1">
-                  <Ship className="w-3 h-3" /> Sefer #{conv.voyageId}
+                  <Ship className="w-3 h-3" /> Voyage #{conv.voyageId}
                 </span>
               </Link>
             )}
             {conv.serviceRequestId && (
               <Link href={`/service-requests/${conv.serviceRequestId}`}>
                 <span className="text-xs text-[hsl(var(--maritime-primary))] hover:underline flex items-center gap-1">
-                  <Wrench className="w-3 h-3" /> Hizmet Talebi #{conv.serviceRequestId}
+                  <Wrench className="w-3 h-3" /> Service Request #{conv.serviceRequestId}
                 </span>
               </Link>
             )}
             {bridgeActive && (
               <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-amber-400 text-amber-600 bg-amber-50 dark:bg-amber-950/20">
-                ✉ Bridge Aktif
+                ✉ Bridge Active
               </Badge>
             )}
           </div>
@@ -255,7 +255,7 @@ export default function MessageThread() {
         <button
           onClick={() => setEmailDialogOpen(true)}
           className="text-muted-foreground hover:text-[hsl(var(--maritime-primary))] transition-colors p-1.5 rounded-lg hover:bg-[hsl(var(--maritime-primary)/0.08)]"
-          title="E-posta Köprüsü"
+          title="Email Bridge"
           data-testid="button-email-bridge"
         >
           <Mail className="w-4 h-4" />
@@ -267,7 +267,7 @@ export default function MessageThread() {
         {msgs.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <MessageCircle className="w-10 h-10 mx-auto mb-3 opacity-20" />
-            <p className="text-sm">Konuşmayı başlatın</p>
+            <p className="text-sm">Start the conversation</p>
           </div>
         )}
         {msgs.map((msg: any, idx: number) => {
@@ -293,7 +293,7 @@ export default function MessageThread() {
                   {isImage && msg.fileUrl ? (
                     <div className={`rounded-2xl overflow-hidden ${isMine ? "rounded-br-sm" : "rounded-bl-sm"}`}>
                       <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer">
-                        <img src={msg.fileUrl} alt={msg.fileName || "Resim"} className="max-h-48 w-auto object-cover cursor-pointer hover:opacity-90 transition-opacity" />
+                        <img src={msg.fileUrl} alt={msg.fileName || "Image"} className="max-h-48 w-auto object-cover cursor-pointer hover:opacity-90 transition-opacity" />
                       </a>
                       <div className={`px-3 pb-2 pt-1 ${isMine ? "bg-[hsl(var(--maritime-primary))]" : "bg-muted"}`}>
                         <p className={`text-[10px] text-right ${isMine ? "text-white/60" : "text-muted-foreground"}`}>
@@ -337,11 +337,11 @@ export default function MessageThread() {
                         {isMine && (
                           <span
                             className={`text-[10px] flex items-center gap-0.5 ${msg.readAt ? "text-white/80" : "text-white/40"}`}
-                            title={msg.readAt ? `Okundu · ${formatTime(msg.readAt)}` : "Gönderildi"}
+                            title={msg.readAt ? `Read · ${formatTime(msg.readAt)}` : "Sent"}
                             data-testid={`message-read-receipt-${msg.id}`}
                           >
                             {msg.readAt ? (
-                              <><CheckCheck className="w-3 h-3" /> <span className="text-[9px]">Okundu · {formatTime(msg.readAt)}</span></>
+                              <><CheckCheck className="w-3 h-3" /> <span className="text-[9px]">Read · {formatTime(msg.readAt)}</span></>
                             ) : (
                               <Check className="w-3 h-3" />
                             )}
@@ -389,8 +389,8 @@ export default function MessageThread() {
               <div className="w-6 h-6 rounded-full bg-[hsl(var(--maritime-primary)/0.2)] flex items-center justify-center text-xs font-bold text-[hsl(var(--maritime-primary))]">
                 {(otherUser.name || "?")[0].toUpperCase()}
               </div>
-              <span className="text-sm font-medium text-[hsl(var(--maritime-primary))]">@{(otherUser.name || otherUser.email || "Kullanıcı").replace(/\s+/g, "")}</span>
-              <span className="text-xs text-muted-foreground ml-auto">Etiketle</span>
+              <span className="text-sm font-medium text-[hsl(var(--maritime-primary))]">@{(otherUser.name || otherUser.email || "User").replace(/\s+/g, "")}</span>
+              <span className="text-xs text-muted-foreground ml-auto">Mention</span>
             </button>
           </div>
         )}
@@ -407,7 +407,7 @@ export default function MessageThread() {
           <button
             onClick={() => fileInputRef.current?.click()}
             className="text-muted-foreground hover:text-[hsl(var(--maritime-primary))] transition-colors p-2 rounded-xl hover:bg-[hsl(var(--maritime-primary)/0.08)] flex-shrink-0"
-            title="Dosya ekle"
+            title="Attach file"
             data-testid="button-attach-file"
           >
             <Paperclip className="w-4 h-4" />
@@ -417,7 +417,7 @@ export default function MessageThread() {
             ref={inputRef}
             value={content}
             onChange={handleInputChange}
-            placeholder={pendingFile ? "Dosyaya not ekleyin (isteğe bağlı)..." : "Mesaj yazın... (@mention için @ yazın)"}
+            placeholder={pendingFile ? "Add a note to the file (optional)..." : "Type a message... (type @ to mention)"}
             onKeyDown={e => {
               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
               if (e.key === "Escape") setShowMentionPicker(false);
@@ -443,29 +443,29 @@ export default function MessageThread() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Mail className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              Harici E-posta Yönlendirme
+              External Email Forwarding
             </DialogTitle>
             <DialogDescription>
-              Platformda olmayan kişiye mesajları otomatik e-posta olarak ilet.
+              Automatically forward messages to someone who is not on the platform.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label htmlFor="ext-email" className="text-sm">E-posta Adresi</Label>
+              <Label htmlFor="ext-email" className="text-sm">Email Address</Label>
               <Input
                 id="ext-email"
                 type="email"
-                placeholder="ornek@sirket.com"
+                placeholder="example@company.com"
                 value={externalEmail}
                 onChange={e => setExternalEmail(e.target.value)}
                 data-testid="input-external-email"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="ext-name" className="text-sm">Ad / Şirket Adı</Label>
+              <Label htmlFor="ext-name" className="text-sm">Name / Company</Label>
               <Input
                 id="ext-name"
-                placeholder="Kaptan Ahmet / Barbaros Shipping"
+                placeholder="Captain Smith / Barbaros Shipping"
                 value={externalEmailName}
                 onChange={e => setExternalEmailName(e.target.value)}
                 data-testid="input-external-name"
@@ -473,8 +473,8 @@ export default function MessageThread() {
             </div>
             <div className="flex items-center justify-between rounded-xl border p-3">
               <div>
-                <p className="text-sm font-medium">Otomatik Yönlendirme</p>
-                <p className="text-xs text-muted-foreground">Yeni mesajları bu adrese ilet</p>
+                <p className="text-sm font-medium">Auto Forward</p>
+                <p className="text-xs text-muted-foreground">Forward new messages to this address</p>
               </div>
               <Switch
                 checked={externalEmailForward}
@@ -484,14 +484,14 @@ export default function MessageThread() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>Cancel</Button>
             <Button
               onClick={saveEmailBridge}
               disabled={savingEmail}
               className="bg-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-secondary))]"
             >
               {savingEmail ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Kaydet
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>

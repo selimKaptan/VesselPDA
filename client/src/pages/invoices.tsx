@@ -14,19 +14,18 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
 import { formatDistanceToNow, isPast, isWithinInterval, addDays } from "date-fns";
-import { tr } from "date-fns/locale";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
-  pending:   { label: "Bekliyor",       color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",    icon: Clock },
-  paid:      { label: "Ödendi",         color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",    icon: CheckCircle2 },
-  overdue:   { label: "Vadesi Geçmiş", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",            icon: AlertTriangle },
-  cancelled: { label: "İptal",          color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",          icon: XCircle },
+  pending:   { label: "Pending",   color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",  icon: Clock },
+  paid:      { label: "Paid",      color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",  icon: CheckCircle2 },
+  overdue:   { label: "Overdue",   color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",         icon: AlertTriangle },
+  cancelled: { label: "Cancelled", color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",        icon: XCircle },
 };
 
 const TYPE_LABELS: Record<string, string> = {
   proforma_da: "Proforma DA",
   final_da:    "Final DA",
-  invoice:     "Fatura",
+  invoice:     "Invoice",
 };
 
 const CURRENCY_FLAGS: Record<string, string> = {
@@ -45,14 +44,14 @@ function dueDateColor(dueDateStr: string | null, status: string) {
 }
 
 function dueDateLabel(dueDateStr: string | null, status: string) {
-  if (!dueDateStr) return "Vade tarihi yok";
-  if (status === "paid") return "Ödendi";
-  if (status === "cancelled") return "İptal";
+  if (!dueDateStr) return "No due date";
+  if (status === "paid") return "Paid";
+  if (status === "cancelled") return "Cancelled";
   const due = new Date(dueDateStr);
   if (isPast(due)) {
-    return `${formatDistanceToNow(due, { locale: tr })} geçmiş`;
+    return `${formatDistanceToNow(due)} overdue`;
   }
-  return `${formatDistanceToNow(due, { locale: tr, addSuffix: false })} kaldı`;
+  return `${formatDistanceToNow(due)} remaining`;
 }
 
 export default function Invoices() {
@@ -88,9 +87,9 @@ export default function Invoices() {
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       setShowNew(false);
       setForm({ title: "", invoiceType: "invoice", amount: "", currency: "USD", dueDate: "", notes: "", voyageId: "" });
-      toast({ title: "Fatura oluşturuldu" });
+      toast({ title: "Invoice created" });
     },
-    onError: () => toast({ title: "Hata", description: "Fatura oluşturulamadı", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Could not create invoice", variant: "destructive" }),
   });
 
   const payMutation = useMutation({
@@ -100,7 +99,7 @@ export default function Invoices() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
-      toast({ title: "Ödeme kaydedildi" });
+      toast({ title: "Payment recorded" });
     },
   });
 
@@ -111,7 +110,7 @@ export default function Invoices() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
-      toast({ title: "Fatura iptal edildi" });
+      toast({ title: "Invoice cancelled" });
     },
   });
 
@@ -130,16 +129,16 @@ export default function Invoices() {
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6" data-testid="page-invoices">
-      <PageMeta title="Finansal Akış | VesselPDA" />
+      <PageMeta title="Financial Flow | VesselPDA" />
 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-serif font-bold text-foreground">Finansal Akış</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Fatura ve ödeme takibi</p>
+          <h1 className="text-2xl font-serif font-bold text-foreground">Financial Flow</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Invoice and payment tracking</p>
         </div>
         <Button onClick={() => setShowNew(true)} data-testid="button-new-invoice" className="gap-2">
-          <Plus className="w-4 h-4" /> Yeni Fatura
+          <Plus className="w-4 h-4" /> New Invoice
         </Button>
       </div>
 
@@ -150,8 +149,8 @@ export default function Invoices() {
             <Clock className="w-5 h-5 text-amber-600" />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Bekleyen</p>
-            <p className="text-lg font-bold">{pending.length} fatura</p>
+            <p className="text-xs text-muted-foreground">Pending</p>
+            <p className="text-lg font-bold">{pending.length} invoice(s)</p>
             {sumUsd(pending) > 0 && <p className="text-xs text-muted-foreground">${sumUsd(pending).toLocaleString()} USD</p>}
           </div>
         </Card>
@@ -160,8 +159,8 @@ export default function Invoices() {
             <CheckCircle2 className="w-5 h-5 text-green-600" />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Ödenen</p>
-            <p className="text-lg font-bold">{paid.length} fatura</p>
+            <p className="text-xs text-muted-foreground">Paid</p>
+            <p className="text-lg font-bold">{paid.length} invoice(s)</p>
             {sumUsd(paid) > 0 && <p className="text-xs text-muted-foreground">${sumUsd(paid).toLocaleString()} USD</p>}
           </div>
         </Card>
@@ -170,8 +169,8 @@ export default function Invoices() {
             <AlertTriangle className="w-5 h-5 text-red-600" />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Vadesi Geçmiş</p>
-            <p className="text-lg font-bold">{overdue.length} fatura</p>
+            <p className="text-xs text-muted-foreground">Overdue</p>
+            <p className="text-lg font-bold">{overdue.length} invoice(s)</p>
             {sumUsd(overdue) > 0 && <p className="text-xs text-muted-foreground">${sumUsd(overdue).toLocaleString()} USD</p>}
           </div>
         </Card>
@@ -191,7 +190,7 @@ export default function Invoices() {
               }`}
               data-testid={`filter-status-${s}`}
             >
-              {s === "all" ? "Tümü" : STATUS_CONFIG[s]?.label || s}
+              {s === "all" ? "All" : STATUS_CONFIG[s]?.label || s}
             </button>
           ))}
         </div>
@@ -207,12 +206,12 @@ export default function Invoices() {
               }`}
               data-testid={`filter-currency-${c}`}
             >
-              {c === "all" ? "Tüm Para" : `${CURRENCY_FLAGS[c]} ${c}`}
+              {c === "all" ? "All Currencies" : `${CURRENCY_FLAGS[c]} ${c}`}
             </button>
           ))}
         </div>
         <Input
-          placeholder="Fatura ara..."
+          placeholder="Search invoices..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="max-w-xs h-8 text-sm"
@@ -228,8 +227,8 @@ export default function Invoices() {
       ) : filtered.length === 0 ? (
         <Card className="p-10 text-center text-muted-foreground">
           <DollarSign className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="font-medium">Fatura bulunamadı</p>
-          <p className="text-xs mt-1">Yeni fatura oluşturmak için "Yeni Fatura" butonunu kullanın</p>
+          <p className="font-medium">No invoices found</p>
+          <p className="text-xs mt-1">Use the "New Invoice" button to create one</p>
         </Card>
       ) : (
         <div className="space-y-3">
@@ -255,11 +254,11 @@ export default function Invoices() {
                     </div>
                     <div className="flex items-center gap-3 mt-1 flex-wrap">
                       <span className="text-base font-bold">
-                        {CURRENCY_FLAGS[inv.currency]} {inv.currency} {Number(inv.amount).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                        {CURRENCY_FLAGS[inv.currency]} {inv.currency} {Number(inv.amount).toLocaleString("en-GB", { minimumFractionDigits: 2 })}
                       </span>
                       {inv.dueDate && (
                         <span className={`text-xs ${dueDateColor(inv.dueDate, inv.status)}`}>
-                          Vade: {dueDateLabel(inv.dueDate, inv.status)}
+                          Due: {dueDateLabel(inv.dueDate, inv.status)}
                         </span>
                       )}
                     </div>
@@ -276,7 +275,7 @@ export default function Invoices() {
                       disabled={payMutation.isPending}
                       data-testid={`button-mark-paid-${inv.id}`}
                     >
-                      <CheckCircle2 className="w-3 h-3" /> Ödendi
+                      <CheckCircle2 className="w-3 h-3" /> Mark Paid
                     </Button>
                   )}
                   {inv.status !== "cancelled" && inv.status !== "paid" && (
@@ -288,7 +287,7 @@ export default function Invoices() {
                       disabled={cancelMutation.isPending}
                       data-testid={`button-cancel-invoice-${inv.id}`}
                     >
-                      İptal
+                      Cancel
                     </Button>
                   )}
                 </div>
@@ -302,34 +301,34 @@ export default function Invoices() {
       <Dialog open={showNew} onOpenChange={setShowNew}>
         <DialogContent className="max-w-lg" data-testid="dialog-new-invoice">
           <DialogHeader>
-            <DialogTitle className="font-serif">Yeni Fatura</DialogTitle>
+            <DialogTitle className="font-serif">New Invoice</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>Başlık *</Label>
+              <Label>Title *</Label>
               <Input
                 value={form.title}
                 onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                placeholder="Fatura başlığı"
+                placeholder="Invoice title"
                 data-testid="input-invoice-title"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Tür</Label>
+                <Label>Type</Label>
                 <Select value={form.invoiceType} onValueChange={v => setForm(f => ({ ...f, invoiceType: v }))}>
                   <SelectTrigger data-testid="select-invoice-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="invoice">Fatura</SelectItem>
+                    <SelectItem value="invoice">Invoice</SelectItem>
                     <SelectItem value="proforma_da">Proforma DA</SelectItem>
                     <SelectItem value="final_da">Final DA</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Para Birimi</Label>
+                <Label>Currency</Label>
                 <Select value={form.currency} onValueChange={v => setForm(f => ({ ...f, currency: v }))}>
                   <SelectTrigger data-testid="select-invoice-currency">
                     <SelectValue />
@@ -343,7 +342,7 @@ export default function Invoices() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Tutar *</Label>
+              <Label>Amount *</Label>
               <Input
                 type="number"
                 value={form.amount}
@@ -353,7 +352,7 @@ export default function Invoices() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Vade Tarihi</Label>
+              <Label>Due Date</Label>
               <Input
                 type="date"
                 value={form.dueDate}
@@ -362,13 +361,13 @@ export default function Invoices() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Bağlı Sefer</Label>
+              <Label>Linked Voyage</Label>
               <Select value={form.voyageId} onValueChange={v => setForm(f => ({ ...f, voyageId: v }))}>
                 <SelectTrigger data-testid="select-invoice-voyage">
-                  <SelectValue placeholder="Sefer seçin (opsiyonel)" />
+                  <SelectValue placeholder="Select voyage (optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Sefer yok</SelectItem>
+                  <SelectItem value="none">No voyage</SelectItem>
                   {Array.isArray(voyages) && voyages.map((v: any) => (
                     <SelectItem key={v.id} value={String(v.id)}>
                       {v.vesselName} — {v.portName || v.portId}
@@ -378,18 +377,18 @@ export default function Invoices() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Notlar</Label>
+              <Label>Notes</Label>
               <Textarea
                 value={form.notes}
                 onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                placeholder="Ek bilgiler..."
+                placeholder="Additional information..."
                 rows={3}
                 data-testid="input-invoice-notes"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNew(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setShowNew(false)}>Cancel</Button>
             <Button
               onClick={() => createMutation.mutate({
                 title: form.title,
@@ -403,7 +402,7 @@ export default function Invoices() {
               disabled={createMutation.isPending || !form.title.trim() || !form.amount}
               data-testid="button-submit-invoice"
             >
-              {createMutation.isPending ? "Oluşturuluyor..." : "Fatura Oluştur"}
+              {createMutation.isPending ? "Creating..." : "Create Invoice"}
             </Button>
           </DialogFooter>
         </DialogContent>

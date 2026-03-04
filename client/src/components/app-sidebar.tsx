@@ -99,31 +99,31 @@ export function AppSidebar() {
     toolsNav.push({ title: t("nav.tenders"), url: "/tenders", icon: Gavel, badge: tenderCount });
   }
   if (effectiveRole === "shipowner" || isAgent || effectiveRole === "admin") {
-    toolsNav.push({ title: "Seferler", url: "/voyages", icon: Ship });
+    toolsNav.push({ title: "Voyages", url: "/voyages", icon: Ship });
   }
   if (!isAgent) {
-    toolsNav.push({ title: "Hizmet Talepleri", url: "/service-requests", icon: Wrench });
+    toolsNav.push({ title: "Service Requests", url: "/service-requests", icon: Wrench });
   }
   if (effectiveRole === "shipowner" || isAgent || effectiveRole === "admin") {
-    toolsNav.push({ title: "Nominasyonlar", url: "/nominations", icon: UserCheck, badge: pendingNominations });
+    toolsNav.push({ title: "Nominations", url: "/nominations", icon: UserCheck, badge: pendingNominations });
   }
   if (!isAgent) {
-    toolsNav.push({ title: "Mesajlar", url: "/messages", icon: MessageCircle, badge: unreadMessages });
+    toolsNav.push({ title: "Messages", url: "/messages", icon: MessageCircle, badge: unreadMessages });
   }
   if (isAgent || effectiveRole === "shipowner") {
-    toolsNav.push({ title: "OFAC Sorgula", url: "/sanctions-check", icon: ShieldAlert });
+    toolsNav.push({ title: "Sanctions Check", url: "/sanctions-check", icon: ShieldAlert });
   }
   if (effectiveRole === "shipowner" || effectiveRole === "broker" || isAdminUser) {
-    toolsNav.push({ title: "Fixtureler", url: "/fixtures", icon: Handshake });
+    toolsNav.push({ title: "Fixtures", url: "/fixtures", icon: Handshake });
   }
   if (effectiveRole === "shipowner" || effectiveRole === "broker" || effectiveRole === "provider" || isAdminUser) {
-    toolsNav.push({ title: "Piyasa Verileri", url: "/market-data", icon: TrendingUp });
+    toolsNav.push({ title: "Market Data", url: "/market-data", icon: TrendingUp });
   }
   if (isAgent || effectiveRole === "shipowner" || isAdminUser) {
-    toolsNav.push({ title: "Finansal Akış", url: "/invoices", icon: Wallet });
+    toolsNav.push({ title: "Invoices", url: "/invoices", icon: Wallet });
   }
   if (!isAgent) {
-    toolsNav.push({ title: "Kargo/Pozisyon", url: "/cargo-positions", icon: Package });
+    toolsNav.push({ title: "Cargo / Positions", url: "/cargo-positions", icon: Package });
   }
   toolsNav.push({ title: t("nav.portInfo"), url: "/port-info", icon: Anchor });
   if (!isAgent) {
@@ -132,7 +132,7 @@ export function AppSidebar() {
 
   const adminNav = isAdminUser ? [
     { title: t("nav.admin"), url: "/admin", icon: Shield },
-    { title: "Tarife Yönetimi", url: "/tariff-management", icon: Wallet },
+    { title: "Tariff Management", url: "/tariff-management", icon: Wallet },
   ] : [];
 
   const roleLabel = isAdminUser

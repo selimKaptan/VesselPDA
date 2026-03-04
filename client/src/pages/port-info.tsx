@@ -151,9 +151,9 @@ function PortDetailPanel({
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Liman Konumu</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Port Location</p>
                   <a href={`https://www.google.com/maps?q=${lat},${lng}`} target="_blank" rel="noopener noreferrer" className="ml-auto text-[10px] text-[hsl(var(--maritime-accent))] hover:underline flex items-center gap-1" data-testid="link-open-map">
-                    Haritada Aç <ExternalLink className="w-2.5 h-2.5" />
+                    Open in Maps <ExternalLink className="w-2.5 h-2.5" />
                   </a>
                 </div>
                 <div ref={portMapContainerRef} className="rounded-lg overflow-hidden border border-border h-48" data-testid="map-port-location" />
@@ -165,7 +165,7 @@ function PortDetailPanel({
               <Card className="p-3 border-dashed">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                  <p className="text-xs">Koordinat bilgisi mevcut değil — hava durumu gösterilemiyor.</p>
+                  <p className="text-xs">No coordinates available — weather cannot be displayed.</p>
                 </div>
               </Card>
             )}
@@ -176,10 +176,10 @@ function PortDetailPanel({
                 <div className="px-4 py-3 border-b flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Users className="w-3.5 h-3.5 text-[hsl(var(--maritime-accent))]" />
-                    <h3 className="font-semibold text-sm">Acenteler</h3>
+                    <h3 className="font-semibold text-sm">Agents</h3>
                     <Badge variant="secondary" className="text-[10px]">{portInfoData.agents.length}</Badge>
                   </div>
-                  <Link href="/directory"><Button variant="ghost" size="sm" className="text-[10px] h-7 gap-1" data-testid="link-view-all-agents">Tümünü Gör <ExternalLink className="w-2.5 h-2.5" /></Button></Link>
+                  <Link href="/directory"><Button variant="ghost" size="sm" className="text-[10px] h-7 gap-1" data-testid="link-view-all-agents">View All <ExternalLink className="w-2.5 h-2.5" /></Button></Link>
                 </div>
                 <CardContent className="p-3">
                   <div className="space-y-2">
@@ -212,10 +212,10 @@ function PortDetailPanel({
                 <div className="px-4 py-3 border-b flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <FileText className="w-3.5 h-3.5 text-[hsl(var(--maritime-accent))]" />
-                    <h3 className="font-semibold text-sm">Aktif Tenderlar</h3>
+                    <h3 className="font-semibold text-sm">Active Tenders</h3>
                     <Badge variant="secondary" className="text-[10px]">{portInfoData.openTenders.length}</Badge>
                   </div>
-                  <Link href="/tenders"><Button variant="ghost" size="sm" className="text-[10px] h-7 gap-1" data-testid="link-view-all-tenders">Tümünü Gör <ExternalLink className="w-2.5 h-2.5" /></Button></Link>
+                  <Link href="/tenders"><Button variant="ghost" size="sm" className="text-[10px] h-7 gap-1" data-testid="link-view-all-tenders">View All <ExternalLink className="w-2.5 h-2.5" /></Button></Link>
                 </div>
                 <CardContent className="p-3">
                   <div className="space-y-1.5">
@@ -229,7 +229,7 @@ function PortDetailPanel({
                             {tender.grt && <span className="text-[10px] text-muted-foreground">· {tender.grt} GRT</span>}
                           </div>
                         </div>
-                        <Badge className="bg-green-100 text-green-700 border-0 text-[10px]">Açık</Badge>
+                        <Badge className="bg-green-100 text-green-700 border-0 text-[10px]">Open</Badge>
                       </div>
                     ))}
                   </div>
@@ -240,14 +240,14 @@ function PortDetailPanel({
             {portInfoData.agents?.length === 0 && portInfoData.openTenders?.length === 0 && (
               <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-muted/30 border border-dashed">
                 <Info className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                <p className="text-xs text-muted-foreground">Bu liman için kayıtlı acente veya aktif tender bulunamadı.</p>
+                <p className="text-xs text-muted-foreground">No registered agents or active tenders found for this port.</p>
               </div>
             )}
           </>
         ) : (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Anchor className="w-8 h-8 text-muted-foreground/30 mb-2" />
-            <p className="text-sm text-muted-foreground">Liman bilgisi bulunamadı.</p>
+            <p className="text-sm text-muted-foreground">Port information not found.</p>
           </div>
         )}
       </div>
@@ -368,7 +368,7 @@ export default function PortInfo() {
 
   return (
     <div style={{ height: "calc(100vh - 56px)" }} className="flex overflow-hidden">
-      <PageMeta title="Liman Bilgileri | VesselPDA" description="Türk limanlarını arayın — hava durumu, deniz koşulları ve yanaşma güvenliği analizi." />
+      <PageMeta title="Port Information | VesselPDA" description="Search Turkish ports — weather, sea conditions and berthing safety analysis." />
 
       {/* LEFT — Port Table */}
       <div className={`${showDetail ? "hidden md:flex" : "flex"} w-full md:w-[52%] lg:w-[48%] flex-col border-r bg-background overflow-hidden flex-shrink-0`}>
@@ -380,9 +380,9 @@ export default function PortInfo() {
               <Anchor className="w-4 h-4 text-[hsl(var(--maritime-accent))]" />
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="font-serif font-bold text-base tracking-tight" data-testid="text-port-info-title">Liman Bilgileri</h1>
+              <h1 className="font-serif font-bold text-base tracking-tight" data-testid="text-port-info-title">Port Information</h1>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
-                {isSearching ? `Arama sonuçları · ${filteredPorts.length} liman` : `Türkiye · ${turkishPorts.length} liman · Dünya için arama yapın`}
+                {isSearching ? `Search results · ${filteredPorts.length} ports` : `Turkey · ${turkishPorts.length} ports · Search worldwide`}
               </p>
             </div>
             {selectedPort && (
@@ -396,7 +396,7 @@ export default function PortInfo() {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
               <Input
                 data-testid="input-port-search"
-                placeholder="Türkiye veya dünya limanı arayın (ör: Rotterdam, NLRTM)..."
+                placeholder="Search Turkish or world ports (e.g. Rotterdam, NLRTM)..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="pl-8 pr-8 h-8 text-sm"
@@ -412,9 +412,9 @@ export default function PortInfo() {
           {/* Column headers */}
           <div className="grid grid-cols-[auto_1fr_auto_auto] gap-0 border-t bg-muted/40 px-4 py-2">
             <div className="w-6" />
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Port Adı</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Port Name</p>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground w-24 text-center">LOCODE</p>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground w-10 text-center">Konum</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground w-10 text-center">Coords</p>
           </div>
         </div>
 
@@ -436,12 +436,12 @@ export default function PortInfo() {
               <Anchor className="w-10 h-10 text-muted-foreground/20 mb-3" />
               {isSearching ? (
                 <>
-                  <p className="text-sm font-medium text-muted-foreground">"{searchQuery}" ile eşleşen liman bulunamadı.</p>
-                  <p className="text-xs text-muted-foreground/70 mt-1">Farklı bir isim veya LOCODE deneyin.</p>
+                  <p className="text-sm font-medium text-muted-foreground">No ports found matching "{searchQuery}".</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">Try a different name or LOCODE.</p>
                 </>
               ) : (
                 <>
-                  <p className="text-sm font-medium text-muted-foreground">Türk limanları yükleniyor...</p>
+                  <p className="text-sm font-medium text-muted-foreground">Loading Turkish ports...</p>
                 </>
               )}
             </div>
@@ -485,7 +485,7 @@ export default function PortInfo() {
                   </div>
                   <div className="w-10 flex justify-center">
                     {hasPortCoords ? (
-                      <span className="text-emerald-500" title="Koordinat mevcut">
+                      <span className="text-emerald-500" title="Coordinates available">
                         <MapPin className="w-3 h-3" />
                       </span>
                     ) : (
@@ -501,11 +501,11 @@ export default function PortInfo() {
         {/* Footer */}
         <div className="flex-shrink-0 border-t px-4 py-2 bg-muted/20 flex items-center justify-between">
           <p className="text-[10px] text-muted-foreground">
-            {isSearching ? `${filteredPorts.length} sonuç · dünya araması` : `${turkishPorts.length} Türk limanı · dünya için arama yapın`}
+            {isSearching ? `${filteredPorts.length} results · world search` : `${turkishPorts.length} Turkish ports · search worldwide`}
           </p>
           <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1"><MapPin className="w-2.5 h-2.5 text-emerald-500" /> Koordinatlı</span>
-            <span className="flex items-center gap-1"><span className="text-muted-foreground/40">—</span> Koordinatsız</span>
+            <span className="flex items-center gap-1"><MapPin className="w-2.5 h-2.5 text-emerald-500" /> With coords</span>
+            <span className="flex items-center gap-1"><span className="text-muted-foreground/40">—</span> No coords</span>
           </div>
         </div>
       </div>
@@ -517,15 +517,15 @@ export default function PortInfo() {
             <div className="w-20 h-20 rounded-2xl bg-[hsl(var(--maritime-primary)/0.08)] flex items-center justify-center mb-5">
               <Anchor className="w-10 h-10 text-[hsl(var(--maritime-primary)/0.4)]" />
             </div>
-            <h3 className="font-serif text-lg font-semibold text-muted-foreground mb-2">Liman Seçin</h3>
+            <h3 className="font-serif text-lg font-semibold text-muted-foreground mb-2">Select a Port</h3>
             <p className="text-sm text-muted-foreground/70 max-w-xs leading-relaxed">
-              Soldan bir liman seçin — hava durumu, deniz koşulları, harita konumu ve acente bilgilerini görün.
+              Select a port from the left — view weather, sea conditions, map location and agent information.
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-2 text-[10px] text-muted-foreground/60">
-              <span className="px-2 py-1 rounded-full border border-dashed">🌊 Dalga yüksekliği</span>
-              <span className="px-2 py-1 rounded-full border border-dashed">💨 Rüzgar hızı</span>
-              <span className="px-2 py-1 rounded-full border border-dashed">🗺️ Harita</span>
-              <span className="px-2 py-1 rounded-full border border-dashed">🚢 Acenteler</span>
+              <span className="px-2 py-1 rounded-full border border-dashed">🌊 Wave height</span>
+              <span className="px-2 py-1 rounded-full border border-dashed">💨 Wind speed</span>
+              <span className="px-2 py-1 rounded-full border border-dashed">🗺️ Map</span>
+              <span className="px-2 py-1 rounded-full border border-dashed">🚢 Agents</span>
             </div>
           </div>
         ) : (

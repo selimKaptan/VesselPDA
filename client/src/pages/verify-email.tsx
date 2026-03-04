@@ -47,14 +47,14 @@ export default function VerifyEmail() {
       if (res.ok) {
         setResendSent(true);
         toast({
-          title: "Doğrulama e-postası gönderildi",
-          description: "Gelen kutunuzu ve spam/gereksiz klasörünüzü kontrol edin.",
+          title: "Verification email sent",
+          description: "Please check your inbox and spam/junk folder.",
         });
       } else {
-        toast({ title: "Gönderilemedi", variant: "destructive" });
+        toast({ title: "Could not send email", variant: "destructive" });
       }
     } catch {
-      toast({ title: "Gönderilemedi", variant: "destructive" });
+      toast({ title: "Could not send email", variant: "destructive" });
     } finally {
       setResending(false);
     }
@@ -72,8 +72,8 @@ export default function VerifyEmail() {
               <div className="flex justify-center mb-4">
                 <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">E-posta doğrulanıyor...</h2>
-              <p className="text-gray-500 text-sm">Lütfen bekleyin.</p>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Verifying your email...</h2>
+              <p className="text-gray-500 text-sm">Please wait.</p>
             </>
           )}
 
@@ -84,13 +84,13 @@ export default function VerifyEmail() {
                   <CheckCircle className="w-9 h-9 text-green-600" />
                 </div>
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">E-posta Doğrulandı!</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">Email Verified!</h2>
               <p className="text-gray-600 text-sm mb-6">
-                Hesabınız aktif edildi. Artık VesselPDA'ya giriş yapabilirsiniz.
+                Your account has been activated. You can now sign in to VesselPDA.
               </p>
               <Link href="/login">
                 <Button className="w-full font-semibold" style={{ background: "#003D7A" }}>
-                  Giriş Yap
+                  Sign In
                 </Button>
               </Link>
             </>
@@ -104,28 +104,28 @@ export default function VerifyEmail() {
                 </div>
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">
-                {status === "notoken" ? "Doğrulama Bağlantısı Gerekli" : "Bağlantı Geçersiz veya Süresi Dolmuş"}
+                {status === "notoken" ? "Verification Link Required" : "Link Invalid or Expired"}
               </h2>
               <p className="text-gray-600 text-sm mb-4">
                 {status === "notoken"
-                  ? "Doğrulama e-postasındaki bağlantıya tıklayarak buraya gelmelisiniz. E-postanızı alamadıysanız aşağıdan yeniden gönderebilirsiniz."
-                  : "Bu doğrulama bağlantısı geçersiz veya daha önce kullanılmış. Aşağıdan yeni bir bağlantı talep edin."}
+                  ? "You should arrive here by clicking the link in your verification email. If you did not receive it, you can resend it below."
+                  : "This verification link is invalid or has already been used. Request a new one below."}
               </p>
               {resendSent ? (
                 <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 mb-4 text-left">
-                  <p className="text-green-800 text-sm font-semibold mb-1">E-posta gönderildi!</p>
+                  <p className="text-green-800 text-sm font-semibold mb-1">Email sent!</p>
                   <ul className="text-green-700 text-xs space-y-1 list-disc list-inside">
-                    <li>Gelen kutunuzu kontrol edin</li>
-                    <li>Spam / Gereksiz klasörünüze de bakın</li>
-                    <li>Hotmail / Outlook: "Önemsiz" klasörünü kontrol edin</li>
-                    <li>Birkaç dakika bekleyin, bazen gecikebilir</li>
+                    <li>Check your inbox</li>
+                    <li>Also check your Spam / Junk folder</li>
+                    <li>Hotmail / Outlook: check the "Junk" folder</li>
+                    <li>It may take a few minutes to arrive</li>
                   </ul>
                 </div>
               ) : (
                 <div className="space-y-3">
                   <Input
                     type="email"
-                    placeholder="E-posta adresiniz"
+                    placeholder="Your email address"
                     value={resendEmail}
                     onChange={(e) => setResendEmail(e.target.value)}
                     data-testid="input-resend-email"
@@ -137,13 +137,13 @@ export default function VerifyEmail() {
                     disabled={resending || !resendEmail}
                     data-testid="button-resend"
                   >
-                    {resending ? "Gönderiliyor..." : "Doğrulama E-postasını Tekrar Gönder"}
+                    {resending ? "Sending..." : "Resend Verification Email"}
                   </Button>
                 </div>
               )}
               <Link href="/login">
                 <Button variant="ghost" className="w-full text-sm mt-2">
-                  Giriş Sayfasına Dön
+                  Back to Sign In
                 </Button>
               </Link>
             </>

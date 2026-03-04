@@ -20,7 +20,7 @@ const UNIT_OPTIONS = ["MT", "CBM", "TEU", "Units", "BBL", "Lot"];
 
 function formatDate(dt: string | null) {
   if (!dt) return null;
-  return new Date(dt).toLocaleDateString("tr-TR");
+  return new Date(dt).toLocaleDateString("en-GB");
 }
 
 const defaultForm = {
@@ -88,11 +88,11 @@ export default function CargoPositions() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/cargo-positions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/cargo-positions/mine"] });
-      toast({ title: "İlan yayınlandı" });
+      toast({ title: "Listing published" });
       setDialogOpen(false);
       setForm({ ...defaultForm });
     },
-    onError: () => toast({ title: "Hata", description: "İlan yayınlanamadı", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Could not publish listing", variant: "destructive" }),
   });
 
   const closeMutation = useMutation({
@@ -100,7 +100,7 @@ export default function CargoPositions() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/cargo-positions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/cargo-positions/mine"] });
-      toast({ title: "İlan kapatıldı" });
+      toast({ title: "Listing closed" });
     },
   });
 
@@ -109,7 +109,7 @@ export default function CargoPositions() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/cargo-positions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/cargo-positions/mine"] });
-      toast({ title: "İlan silindi" });
+      toast({ title: "Listing deleted" });
       setDeleteTarget(null);
     },
   });
@@ -128,18 +128,18 @@ export default function CargoPositions() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
-      <PageMeta title="Kargo & Pozisyon İlanları | VesselPDA" description="Kargo ve gemi pozisyon ilan panosu" />
+      <PageMeta title="Cargo & Position Board | VesselPDA" description="Cargo and vessel position listings board" />
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Package className="w-7 h-7 text-primary" />
           <div>
-            <h1 className="text-2xl font-bold text-foreground font-serif">Kargo & Pozisyon Panosu</h1>
-            <p className="text-sm text-muted-foreground">Kargo veya gemi arayın, pozisyon ilanı verin</p>
+            <h1 className="text-2xl font-bold text-foreground font-serif">Cargo & Position Board</h1>
+            <p className="text-sm text-muted-foreground">Find cargo or vessels, post position listings</p>
           </div>
         </div>
         <Button onClick={() => { setForm({ ...defaultForm }); setDialogOpen(true); }} data-testid="button-new-position">
-          <Plus className="w-4 h-4 mr-1" />İlan Ver
+          <Plus className="w-4 h-4 mr-1" />Post Listing
         </Button>
       </div>
 
@@ -152,7 +152,7 @@ export default function CargoPositions() {
             return (
               <span key={idx.code} className="flex items-center gap-1.5">
                 <span className="font-bold">{idx.code}:</span>
-                <span>{idx.value.toLocaleString("tr-TR")}</span>
+                <span>{idx.value.toLocaleString("en-GB")}</span>
                 {neutral ? <Minus className="w-3 h-3 opacity-60" /> : positive ? <TrendingUp className="w-3 h-3 text-emerald-300" /> : <TrendingDown className="w-3 h-3 text-red-300" />}
                 <span className={positive ? "text-emerald-300" : neutral ? "opacity-70" : "text-red-300"}>
                   {positive ? "+" : ""}{idx.changePct.toFixed(1)}%
@@ -162,7 +162,7 @@ export default function CargoPositions() {
             );
           })}
           <Link href="/market-data" className="underline underline-offset-2 opacity-80 hover:opacity-100 ml-1">
-            Piyasa detayları →
+            Market details →
           </Link>
         </div>
       )}
@@ -176,17 +176,17 @@ export default function CargoPositions() {
             onClick={() => setFilter(f)}
             data-testid={`filter-${f}`}
           >
-            {f === "all" ? "Tümü" : f === "cargo" ? "Kargo İlanı" : "Gemi İlanı"}
+            {f === "all" ? "All" : f === "cargo" ? "Cargo Listing" : "Vessel Listing"}
           </Button>
         ))}
-        <span className="text-sm text-muted-foreground ml-2">{filtered.length} ilan</span>
+        <span className="text-sm text-muted-foreground ml-2">{filtered.length} listing(s)</span>
       </div>
 
       {filtered.length === 0 ? (
         <Card className="p-12 text-center">
           <Package className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground">Bu kategoride aktif ilan bulunamadı</p>
-          <Button className="mt-4" onClick={() => setDialogOpen(true)}>İlk İlanı Ver</Button>
+          <p className="text-muted-foreground">No active listings found in this category</p>
+          <Button className="mt-4" onClick={() => setDialogOpen(true)}>Post First Listing</Button>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -200,15 +200,15 @@ export default function CargoPositions() {
                       <Badge className={pos.positionType === "cargo"
                         ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
                         : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"}>
-                        {pos.positionType === "cargo" ? "Kargo İlanı" : "Gemi İlanı"}
+                        {pos.positionType === "cargo" ? "Cargo Listing" : "Vessel Listing"}
                       </Badge>
-                      {isMine && <Badge variant="outline" className="text-xs">Benim</Badge>}
+                      {isMine && <Badge variant="outline" className="text-xs">Mine</Badge>}
                     </div>
                     <h3 className="font-semibold text-sm leading-snug">{pos.title}</h3>
                   </div>
                   {isMine && (
                     <div className="flex items-center gap-1 shrink-0">
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => closeMutation.mutate(pos.id)} title="İlanı Kapat" data-testid={`button-close-pos-${pos.id}`}>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => closeMutation.mutate(pos.id)} title="Close Listing" data-testid={`button-close-pos-${pos.id}`}>
                         <X className="w-3.5 h-3.5" />
                       </Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(pos.id)} data-testid={`button-delete-pos-${pos.id}`}>
@@ -225,12 +225,12 @@ export default function CargoPositions() {
                 </div>
 
                 <div className="space-y-1 text-xs text-muted-foreground">
-                  {pos.cargoType && <div>Kargo: <span className="text-foreground">{pos.cargoType}{pos.quantity ? ` — ${pos.quantity} ${pos.quantityUnit || ""}` : ""}</span></div>}
-                  {pos.vesselType && <div>Gemi Tipi: <span className="text-foreground">{pos.vesselType}</span></div>}
+                  {pos.cargoType && <div>Cargo: <span className="text-foreground">{pos.cargoType}{pos.quantity ? ` — ${pos.quantity} ${pos.quantityUnit || ""}` : ""}</span></div>}
+                  {pos.vesselType && <div>Vessel Type: <span className="text-foreground">{pos.vesselType}</span></div>}
                   {(pos.laycanFrom || pos.laycanTo) && (
                     <div>Laycan: <span className="text-foreground">{formatDate(pos.laycanFrom)}{pos.laycanTo ? ` – ${formatDate(pos.laycanTo)}` : ""}</span></div>
                   )}
-                  {pos.expiresAt && <div>Geçerlilik: <span className="text-foreground">{formatDate(pos.expiresAt)}</span></div>}
+                  {pos.expiresAt && <div>Expires: <span className="text-foreground">{formatDate(pos.expiresAt)}</span></div>}
                 </div>
 
                 {pos.description && <p className="text-xs text-muted-foreground line-clamp-2">{pos.description}</p>}
@@ -260,11 +260,11 @@ export default function CargoPositions() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Yeni Pozisyon İlanı</DialogTitle>
+            <DialogTitle>New Position Listing</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div>
-              <Label>İlan Tipi</Label>
+              <Label>Listing Type</Label>
               <div className="flex gap-2 mt-1">
                 <Button
                   size="sm"
@@ -272,7 +272,7 @@ export default function CargoPositions() {
                   onClick={() => setForm(f => ({ ...f, positionType: "cargo" }))}
                   data-testid="toggle-cargo"
                 >
-                  Kargo İlanı
+                  Cargo Listing
                 </Button>
                 <Button
                   size="sm"
@@ -280,36 +280,36 @@ export default function CargoPositions() {
                   onClick={() => setForm(f => ({ ...f, positionType: "vessel" }))}
                   data-testid="toggle-vessel"
                 >
-                  Gemi İlanı
+                  Vessel Listing
                 </Button>
               </div>
             </div>
             <div>
-              <Label>Başlık *</Label>
-              <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="örn. 3000 MT Buğday arıyor, İzmir - Hamburg" data-testid="input-position-title" />
+              <Label>Title *</Label>
+              <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. 3000 MT Wheat seeking, Izmir - Hamburg" data-testid="input-position-title" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Yükleme Limanı *</Label>
-                <Input value={form.loadingPort} onChange={e => setForm(f => ({ ...f, loadingPort: e.target.value }))} placeholder="örn. İzmir" data-testid="input-pos-loading-port" />
+                <Label>Loading Port *</Label>
+                <Input value={form.loadingPort} onChange={e => setForm(f => ({ ...f, loadingPort: e.target.value }))} placeholder="e.g. Izmir" data-testid="input-pos-loading-port" />
               </div>
               <div>
-                <Label>Tahliye Limanı *</Label>
-                <Input value={form.dischargePort} onChange={e => setForm(f => ({ ...f, dischargePort: e.target.value }))} placeholder="örn. Hamburg" data-testid="input-pos-discharge-port" />
+                <Label>Discharge Port *</Label>
+                <Input value={form.dischargePort} onChange={e => setForm(f => ({ ...f, dischargePort: e.target.value }))} placeholder="e.g. Hamburg" data-testid="input-pos-discharge-port" />
               </div>
               {form.positionType === "cargo" && (
                 <>
                   <div>
-                    <Label>Kargo Tipi</Label>
-                    <Input value={form.cargoType} onChange={e => setForm(f => ({ ...f, cargoType: e.target.value }))} placeholder="örn. Buğday, Mısır..." data-testid="input-pos-cargo-type" />
+                    <Label>Cargo Type</Label>
+                    <Input value={form.cargoType} onChange={e => setForm(f => ({ ...f, cargoType: e.target.value }))} placeholder="e.g. Wheat, Corn..." data-testid="input-pos-cargo-type" />
                   </div>
                   <div className="flex gap-2">
                     <div className="flex-1">
-                      <Label>Miktar</Label>
+                      <Label>Quantity</Label>
                       <Input type="number" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} placeholder="0" data-testid="input-pos-qty" />
                     </div>
                     <div className="w-24">
-                      <Label>Birim</Label>
+                      <Label>Unit</Label>
                       <Select value={form.quantityUnit} onValueChange={v => setForm(f => ({ ...f, quantityUnit: v }))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>{UNIT_OPTIONS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
@@ -320,40 +320,40 @@ export default function CargoPositions() {
               )}
               {form.positionType === "vessel" && (
                 <div>
-                  <Label>Gemi Tipi</Label>
-                  <Input value={form.vesselType} onChange={e => setForm(f => ({ ...f, vesselType: e.target.value }))} placeholder="örn. Bulk Carrier, Tanker..." data-testid="input-vessel-type" />
+                  <Label>Vessel Type</Label>
+                  <Input value={form.vesselType} onChange={e => setForm(f => ({ ...f, vesselType: e.target.value }))} placeholder="e.g. Bulk Carrier, Tanker..." data-testid="input-vessel-type" />
                 </div>
               )}
               <div>
-                <Label>Laycan Başlangıç</Label>
+                <Label>Laycan From</Label>
                 <Input type="date" value={form.laycanFrom} onChange={e => setForm(f => ({ ...f, laycanFrom: e.target.value }))} data-testid="input-pos-laycan-from" />
               </div>
               <div>
-                <Label>Laycan Bitiş</Label>
+                <Label>Laycan To</Label>
                 <Input type="date" value={form.laycanTo} onChange={e => setForm(f => ({ ...f, laycanTo: e.target.value }))} data-testid="input-pos-laycan-to" />
               </div>
               <div>
-                <Label>İletişim Adı</Label>
-                <Input value={form.contactName} onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))} placeholder="opsiyonel" data-testid="input-contact-name" />
+                <Label>Contact Name</Label>
+                <Input value={form.contactName} onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))} placeholder="optional" data-testid="input-contact-name" />
               </div>
               <div>
-                <Label>İletişim E-posta</Label>
-                <Input type="email" value={form.contactEmail} onChange={e => setForm(f => ({ ...f, contactEmail: e.target.value }))} placeholder="opsiyonel" data-testid="input-contact-email" />
+                <Label>Contact Email</Label>
+                <Input type="email" value={form.contactEmail} onChange={e => setForm(f => ({ ...f, contactEmail: e.target.value }))} placeholder="optional" data-testid="input-contact-email" />
               </div>
               <div>
-                <Label>İlan Geçerlilik Tarihi</Label>
+                <Label>Listing Expiry Date</Label>
                 <Input type="date" value={form.expiresAt} onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))} data-testid="input-pos-expires" />
               </div>
             </div>
             <div>
-              <Label>Açıklama</Label>
-              <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} placeholder="Ek bilgiler, özel koşullar vb. (opsiyonel)" data-testid="textarea-pos-description" />
+              <Label>Description</Label>
+              <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} placeholder="Additional information, special conditions, etc. (optional)" data-testid="textarea-pos-description" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button onClick={() => createMutation.mutate()} disabled={!form.title || !form.loadingPort || !form.dischargePort || createMutation.isPending} data-testid="button-save-position">
-              {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Yayınla"}
+              {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Publish"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -362,13 +362,13 @@ export default function CargoPositions() {
       <AlertDialog open={deleteTarget !== null} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>İlanı Sil</AlertDialogTitle>
-            <AlertDialogDescription>Bu ilan kalıcı olarak silinecek.</AlertDialogDescription>
+            <AlertDialogTitle>Delete Listing</AlertDialogTitle>
+            <AlertDialogDescription>This listing will be permanently deleted.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Vazgeç</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => deleteTarget !== null && deleteMutation.mutate(deleteTarget)} data-testid="button-confirm-delete-pos">
-              Sil
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

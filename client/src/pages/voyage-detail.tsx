@@ -27,27 +27,27 @@ import { useAuth } from "@/hooks/use-auth";
 import type { Port } from "@shared/schema";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
-  planned:   { label: "Planlandı",    color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",    icon: Clock },
-  active:    { label: "Aktif",        color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", icon: PlayCircle },
-  completed: { label: "Tamamlandı",   color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",        icon: CheckCircle2 },
-  cancelled: { label: "İptal Edildi", color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",         icon: XCircle },
+  planned:   { label: "Planned",   color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",    icon: Clock },
+  active:    { label: "Active",    color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", icon: PlayCircle },
+  completed: { label: "Completed", color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",        icon: CheckCircle2 },
+  cancelled: { label: "Cancelled", color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",         icon: XCircle },
 };
 
 const SERVICE_TYPE_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
-  fuel:         { label: "Yakıt / Bunker", icon: Fuel,          color: "text-orange-500" },
-  repair:       { label: "Teknik Tamir",   icon: Wrench,        color: "text-red-500" },
-  provisioning: { label: "Provizyonlama",  icon: ShoppingCart,  color: "text-green-500" },
-  crew_change:  { label: "Mürettebat",     icon: UsersIcon,     color: "text-blue-500" },
-  cleaning:     { label: "Temizlik",       icon: Sparkles,      color: "text-purple-500" },
-  other:        { label: "Diğer",          icon: HelpCircle,    color: "text-gray-500" },
+  fuel:         { label: "Fuel / Bunker", icon: Fuel,          color: "text-orange-500" },
+  repair:       { label: "Technical Repair", icon: Wrench,     color: "text-red-500" },
+  provisioning: { label: "Provisioning",  icon: ShoppingCart,  color: "text-green-500" },
+  crew_change:  { label: "Crew Change",   icon: UsersIcon,     color: "text-blue-500" },
+  cleaning:     { label: "Cleaning",      icon: Sparkles,      color: "text-purple-500" },
+  other:        { label: "Other",         icon: HelpCircle,    color: "text-gray-500" },
 };
 
 const DOC_TYPE_CONFIG: Record<string, string> = {
-  manifest:       "Manifesto",
-  bill_of_lading: "Konşimento",
-  certificate:    "Sertifika",
-  port_clearance: "Liman İzni",
-  other:          "Diğer",
+  manifest:       "Manifest",
+  bill_of_lading: "Bill of Lading",
+  certificate:    "Certificate",
+  port_clearance: "Port Clearance",
+  other:          "Other",
 };
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -71,7 +71,7 @@ function PortSearch({ value, onChange }: { value: string; onChange: (portId: num
   });
   return (
     <div className="relative">
-      <Input value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }} placeholder="Liman ara..." onFocus={() => setOpen(true)} />
+      <Input value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }} placeholder="Search port..." onFocus={() => setOpen(true)} />
       {open && ports && ports.length > 0 && (
         <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
           {ports.map(p => (
@@ -216,8 +216,8 @@ export default function VoyageDetail() {
       const res = await apiRequest("PATCH", `/api/voyages/${voyageId}/status`, { status });
       return res.json();
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId] }); toast({ title: "Durum güncellendi" }); },
-    onError: () => toast({ title: "Hata", variant: "destructive" }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId] }); toast({ title: "Status updated" }); },
+    onError: () => toast({ title: "Error", variant: "destructive" }),
   });
 
   const addTaskMutation = useMutation({
@@ -226,7 +226,7 @@ export default function VoyageDetail() {
       return res.json();
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId] }); setNewTask(""); },
-    onError: () => toast({ title: "Görev eklenemedi", variant: "destructive" }),
+    onError: () => toast({ title: "Could not add task", variant: "destructive" }),
   });
 
   const toggleTaskMutation = useMutation({
@@ -256,7 +256,7 @@ export default function VoyageDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "appointments"] });
       setApptForm({ appointmentType: "pilot", scheduledAt: "", notes: "" });
       setShowApptForm(false);
-      toast({ title: "Randevu eklendi" });
+      toast({ title: "Appointment added" });
     },
   });
 
@@ -273,7 +273,7 @@ export default function VoyageDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "appointments"] });
-      toast({ title: "Randevu silindi" });
+      toast({ title: "Appointment deleted" });
     },
   });
 
@@ -281,7 +281,7 @@ export default function VoyageDetail() {
     mutationFn: async () => {
       const payload: any = {
         portId: serviceForm.portId || voyage?.portId,
-        vesselName: serviceForm.vesselName || voyage?.vesselName || "Belirtilmedi",
+        vesselName: serviceForm.vesselName || voyage?.vesselName || "Unspecified",
         serviceType: serviceForm.serviceType,
         description: serviceForm.description,
         voyageId: voyageId,
@@ -295,11 +295,11 @@ export default function VoyageDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId] });
       queryClient.invalidateQueries({ queryKey: ["/api/service-requests"] });
-      toast({ title: "Hizmet talebi oluşturuldu" });
+      toast({ title: "Service request created" });
       setShowServiceDialog(false);
       setServiceForm({ portId: 0, portName: "", vesselName: "", serviceType: "other", description: "", quantity: "", unit: "", preferredDate: "" });
     },
-    onError: () => toast({ title: "Hata", variant: "destructive" }),
+    onError: () => toast({ title: "Error", variant: "destructive" }),
   });
 
   const uploadDocMutation = useMutation({
@@ -334,9 +334,9 @@ export default function VoyageDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "documents"] });
-      toast({ title: "Doküman silindi" });
+      toast({ title: "Document deleted" });
     },
-    onError: () => toast({ title: "Silme hatası", variant: "destructive" }),
+    onError: () => toast({ title: "Delete error", variant: "destructive" }),
   });
 
   const fromTemplateMutation = useMutation({
@@ -347,9 +347,9 @@ export default function VoyageDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "documents"] });
       setShowTemplateDialog(false);
-      toast({ title: "Şablondan oluşturuldu", description: "Doküman otomatik dolduruldu" });
+      toast({ title: "Created from template", description: "Document was auto-filled" });
     },
-    onError: () => toast({ title: "Hata", description: "Şablon uygulanamadı", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Template could not be applied", variant: "destructive" }),
   });
 
   const signDocMutation = useMutation({
@@ -362,9 +362,9 @@ export default function VoyageDetail() {
       setShowSignDialog(false);
       setSignatureText("");
       setSignDocId(null);
-      toast({ title: "Doküman imzalandı" });
+      toast({ title: "Document signed" });
     },
-    onError: () => toast({ title: "İmzalama hatası", variant: "destructive" }),
+    onError: () => toast({ title: "Signing error", variant: "destructive" }),
   });
 
   const createReviewMutation = useMutation({
@@ -378,11 +378,11 @@ export default function VoyageDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "reviews"] });
-      toast({ title: "Değerlendirme kaydedildi" });
+      toast({ title: "Review saved" });
       setShowReviewDialog(false);
       setReviewForm({ rating: 0, comment: "" });
     },
-    onError: () => toast({ title: "Değerlendirme hatası", variant: "destructive" }),
+    onError: () => toast({ title: "Review error", variant: "destructive" }),
   });
 
   const sendChatMutation = useMutation({
@@ -394,7 +394,7 @@ export default function VoyageDetail() {
       setChatMessage("");
       refetchChat();
     },
-    onError: () => toast({ title: "Mesaj gönderilemedi", variant: "destructive" }),
+    onError: () => toast({ title: "Message could not be sent", variant: "destructive" }),
   });
 
   function handleChatKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -477,8 +477,8 @@ export default function VoyageDetail() {
   if (!voyage) {
     return (
       <div className="p-6 text-center text-muted-foreground">
-        <p>Sefer bulunamadı.</p>
-        <Link href="/voyages"><Button variant="outline" className="mt-4">Geri Dön</Button></Link>
+        <p>Voyage not found.</p>
+        <Link href="/voyages"><Button variant="outline" className="mt-4">Go Back</Button></Link>
       </div>
     );
   }
@@ -493,12 +493,12 @@ export default function VoyageDetail() {
 
   return (
     <div className="px-3 py-5 space-y-6 max-w-6xl mx-auto">
-      <PageMeta title={`Sefer — ${voyage.vesselName || "Detay"} | VesselPDA`} description="Sefer detayı ve operasyon dosyası" />
+      <PageMeta title={`Voyage — ${voyage.vesselName || "Detail"} | VesselPDA`} description="Voyage detail and operation file" />
 
       {/* Back */}
       <Link href="/voyages">
         <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Seferler
+          <ArrowLeft className="w-4 h-4" /> Voyages
         </button>
       </Link>
 
@@ -510,7 +510,7 @@ export default function VoyageDetail() {
               <Ship className="w-6 h-6 text-[hsl(var(--maritime-primary))]" />
             </div>
             <div>
-              <h1 className="font-serif text-xl font-bold">{voyage.vesselName || "Gemi Belirtilmedi"}</h1>
+              <h1 className="font-serif text-xl font-bold">{voyage.vesselName || "Vessel Not Specified"}</h1>
               <p className="text-sm text-muted-foreground">{voyage.purposeOfCall}</p>
             </div>
           </div>
@@ -520,19 +520,19 @@ export default function VoyageDetail() {
             </span>
             {canReview && (
               <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => setShowReviewDialog(true)} data-testid="button-review">
-                <Star className="w-3.5 h-3.5" /> Değerlendir
+                <Star className="w-3.5 h-3.5" /> Rate
               </Button>
             )}
             {reviewData?.myReview && (
               <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" /> Değerlendirdiniz
+                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" /> Rated
               </span>
             )}
             {isOwner && transitions.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1">
-                    Durumu Değiştir <ChevronDown className="w-3.5 h-3.5" />
+                    Change Status <ChevronDown className="w-3.5 h-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -557,24 +557,24 @@ export default function VoyageDetail() {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-5 pt-4 border-t text-sm">
           <div>
-            <p className="text-xs text-muted-foreground mb-0.5">Liman</p>
+            <p className="text-xs text-muted-foreground mb-0.5">Port</p>
             <p className="font-medium flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-muted-foreground" />{voyage.portName || `Port #${voyage.portId}`}</p>
           </div>
           {voyage.eta && (
             <div>
               <p className="text-xs text-muted-foreground mb-0.5">ETA</p>
-              <p className="font-medium flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-muted-foreground" />{new Date(voyage.eta).toLocaleDateString("tr-TR")}</p>
+              <p className="font-medium flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-muted-foreground" />{new Date(voyage.eta).toLocaleDateString("en-GB")}</p>
             </div>
           )}
           {voyage.etd && (
             <div>
               <p className="text-xs text-muted-foreground mb-0.5">ETD</p>
-              <p className="font-medium flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-muted-foreground" />{new Date(voyage.etd).toLocaleDateString("tr-TR")}</p>
+              <p className="font-medium flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-muted-foreground" />{new Date(voyage.etd).toLocaleDateString("en-GB")}</p>
             </div>
           )}
           {voyage.notes && (
             <div className="col-span-full">
-              <p className="text-xs text-muted-foreground mb-0.5">Notlar</p>
+              <p className="text-xs text-muted-foreground mb-0.5">Notes</p>
               <p className="text-sm">{voyage.notes}</p>
             </div>
           )}
@@ -584,9 +584,9 @@ export default function VoyageDetail() {
       {/* Tab Bar */}
       <div className="flex gap-1 bg-muted/40 p-1 rounded-xl">
         {([
-          { key: "operation", label: "Operasyon",  icon: ClipboardList },
-          { key: "documents", label: "Dokümanlar", icon: FolderOpen },
-          { key: "comms",     label: "İletişim",   icon: MessageCircle },
+          { key: "operation", label: "Operation",  icon: ClipboardList },
+          { key: "documents", label: "Documents",  icon: FolderOpen },
+          { key: "comms",     label: "Messages",   icon: MessageCircle },
         ] as const).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -617,10 +617,10 @@ export default function VoyageDetail() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <ClipboardList className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                  <h2 className="font-semibold text-sm">Görev Listesi</h2>
+                  <h2 className="font-semibold text-sm">Task List</h2>
                 </div>
                 {checklist.length > 0 && (
-                  <span className="text-xs text-muted-foreground">{completed}/{checklist.length} tamamlandı</span>
+                  <span className="text-xs text-muted-foreground">{completed}/{checklist.length} completed</span>
                 )}
               </div>
 
@@ -635,7 +635,7 @@ export default function VoyageDetail() {
 
               <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
                 {checklist.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-4">Henüz görev yok. Aşağıdan ekleyin.</p>
+                  <p className="text-xs text-muted-foreground text-center py-4">No tasks yet. Add one below.</p>
                 )}
                 {checklist.map((item: any) => (
                   <div key={item.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors ${item.isCompleted ? "bg-green-50 dark:bg-green-950/20" : "bg-muted/30"}`} data-testid={`checklist-item-${item.id}`}>
@@ -653,7 +653,7 @@ export default function VoyageDetail() {
               </div>
 
               <div className="flex gap-2">
-                <Input value={newTask} onChange={e => setNewTask(e.target.value)} placeholder="Yeni görev..." onKeyDown={e => { if (e.key === "Enter" && newTask.trim()) addTaskMutation.mutate(); }} className="text-sm h-8" data-testid="input-new-task" />
+                <Input value={newTask} onChange={e => setNewTask(e.target.value)} placeholder="New task..." onKeyDown={e => { if (e.key === "Enter" && newTask.trim()) addTaskMutation.mutate(); }} className="text-sm h-8" data-testid="input-new-task" />
                 <Button size="sm" className="h-8 px-3" onClick={() => { if (newTask.trim()) addTaskMutation.mutate(); }} disabled={addTaskMutation.isPending || !newTask.trim()} data-testid="button-add-task">
                   {addTaskMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                 </Button>
@@ -665,15 +665,15 @@ export default function VoyageDetail() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Wrench className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                  <h2 className="font-semibold text-sm">Hizmet Talepleri</h2>
+                  <h2 className="font-semibold text-sm">Service Requests</h2>
                 </div>
                 <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowServiceDialog(true)} data-testid="button-add-service-request">
-                  <Plus className="w-3 h-3" /> Talep Oluştur
+                  <Plus className="w-3 h-3" /> Create Request
                 </Button>
               </div>
               <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                 {serviceReqs.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-4">Bu sefere ait hizmet talebi yok.</p>
+                  <p className="text-xs text-muted-foreground text-center py-4">No service requests for this voyage.</p>
                 )}
                 {serviceReqs.map((req: any) => {
                   const cfg = SERVICE_TYPE_CONFIG[req.serviceType] || SERVICE_TYPE_CONFIG.other;
@@ -699,12 +699,12 @@ export default function VoyageDetail() {
           <div className="space-y-2">
             <div className="flex items-center gap-2 px-1">
               <Anchor className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              <h2 className="font-semibold text-sm">Liman Koşulları</h2>
+              <h2 className="font-semibold text-sm">Port Conditions</h2>
               {portData?.name && <span className="ml-auto text-xs text-muted-foreground">{portData.name}</span>}
             </div>
             {!voyage?.portId ? (
               <Card className="p-4 flex items-center gap-2 text-muted-foreground text-sm">
-                <Cloud className="w-4 h-4 opacity-40" /><span>Liman bilgisi bulunamadı.</span>
+                <Cloud className="w-4 h-4 opacity-40" /><span>Port information not found.</span>
               </Card>
             ) : !portData ? (
               <Card className="p-4"><div className="grid grid-cols-2 gap-2">{[1,2,3,4].map(i => <div key={i} className="h-16 rounded-lg bg-muted/40 animate-pulse" />)}</div></Card>
@@ -715,7 +715,7 @@ export default function VoyageDetail() {
               </div>
             ) : (
               <Card className="p-4 flex items-center gap-2 text-muted-foreground text-sm">
-                <Cloud className="w-4 h-4 opacity-40" /><span>Bu liman için koordinat bilgisi bulunamadı, hava durumu gösterilemiyor.</span>
+                <Cloud className="w-4 h-4 opacity-40" /><span>No coordinates found for this port — weather cannot be displayed.</span>
               </Card>
             )}
           </div>
@@ -726,11 +726,11 @@ export default function VoyageDetail() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CalendarClock className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                  <h2 className="font-semibold text-sm">Port Call Randevuları</h2>
+                  <h2 className="font-semibold text-sm">Port Call Appointments</h2>
                   {appointments.length > 0 && <span className="text-xs text-muted-foreground">({appointments.length})</span>}
                 </div>
                 <Button size="sm" variant="outline" onClick={() => setShowApptForm(v => !v)} data-testid="button-add-appointment">
-                  <Plus className="w-3.5 h-3.5 mr-1" />Randevu Ekle
+                  <Plus className="w-3.5 h-3.5 mr-1" />Add Appointment
                 </Button>
               </div>
 
@@ -741,11 +741,11 @@ export default function VoyageDetail() {
                       <SelectTrigger className="h-8 text-xs" data-testid="select-appt-type"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="pilot">Pilot</SelectItem>
-                        <SelectItem value="tugboat">Römorkör</SelectItem>
-                        <SelectItem value="health">Sağlık</SelectItem>
-                        <SelectItem value="customs">Gümrük</SelectItem>
-                        <SelectItem value="immigration">Göçmenlik</SelectItem>
-                        <SelectItem value="other">Diğer</SelectItem>
+                        <SelectItem value="tugboat">Tugboat</SelectItem>
+                        <SelectItem value="health">Health</SelectItem>
+                        <SelectItem value="customs">Customs</SelectItem>
+                        <SelectItem value="immigration">Immigration</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -753,7 +753,7 @@ export default function VoyageDetail() {
                     <Input type="datetime-local" className="h-8 text-xs" value={apptForm.scheduledAt} onChange={e => setApptForm(f => ({ ...f, scheduledAt: e.target.value }))} data-testid="input-appt-scheduled" />
                   </div>
                   <div className="flex gap-1">
-                    <Input className="h-8 text-xs flex-1" placeholder="Not (opsiyonel)" value={apptForm.notes} onChange={e => setApptForm(f => ({ ...f, notes: e.target.value }))} data-testid="input-appt-notes" />
+                    <Input className="h-8 text-xs flex-1" placeholder="Notes (optional)" value={apptForm.notes} onChange={e => setApptForm(f => ({ ...f, notes: e.target.value }))} data-testid="input-appt-notes" />
                     <Button size="sm" className="h-8 px-2" onClick={() => createApptMutation.mutate()} disabled={createApptMutation.isPending} data-testid="button-save-appointment">
                       {createApptMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
                     </Button>
@@ -762,24 +762,24 @@ export default function VoyageDetail() {
               )}
 
               {appointments.length === 0 && !showApptForm && (
-                <p className="text-xs text-muted-foreground text-center py-3">Henüz randevu eklenmemiş</p>
+                <p className="text-xs text-muted-foreground text-center py-3">No appointments added yet</p>
               )}
 
               <div className="space-y-2">
                 {appointments.map((appt: any) => {
                   const typeLabels: Record<string, { label: string; color: string }> = {
                     pilot: { label: "Pilot", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
-                    tugboat: { label: "Römorkör", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" },
-                    health: { label: "Sağlık", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" },
-                    customs: { label: "Gümrük", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" },
-                    immigration: { label: "Göçmenlik", color: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300" },
-                    other: { label: "Diğer", color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" },
+                    tugboat: { label: "Tugboat", color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" },
+                    health: { label: "Health", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" },
+                    customs: { label: "Customs", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" },
+                    immigration: { label: "Immigration", color: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300" },
+                    other: { label: "Other", color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" },
                   };
                   const statusLabels: Record<string, { label: string; color: string }> = {
-                    pending: { label: "Bekliyor", color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" },
-                    confirmed: { label: "Onaylandı", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
-                    completed: { label: "Tamamlandı", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" },
-                    cancelled: { label: "İptal", color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" },
+                    pending: { label: "Pending", color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" },
+                    confirmed: { label: "Confirmed", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
+                    completed: { label: "Completed", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" },
+                    cancelled: { label: "Cancelled", color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" },
                   };
                   const typeCfg = typeLabels[appt.appointmentType] || typeLabels.other;
                   const stCfg = statusLabels[appt.status] || statusLabels.pending;
@@ -787,7 +787,7 @@ export default function VoyageDetail() {
                     <div key={appt.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30" data-testid={`appt-row-${appt.id}`}>
                       <Badge className={`text-xs shrink-0 ${typeCfg.color}`}>{typeCfg.label}</Badge>
                       <span className="text-xs text-muted-foreground shrink-0">
-                        {appt.scheduledAt ? new Date(appt.scheduledAt).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" }) : "Tarih belirsiz"}
+                        {appt.scheduledAt ? new Date(appt.scheduledAt).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" }) : "Date not set"}
                       </span>
                       {appt.notes && <span className="text-xs text-muted-foreground truncate flex-1">{appt.notes}</span>}
                       <div className="ml-auto flex items-center gap-1.5 shrink-0">
@@ -822,7 +822,7 @@ export default function VoyageDetail() {
             <Card className="p-5 space-y-4">
               <div className="flex items-center gap-2">
                 <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                <h2 className="font-semibold text-sm">Değerlendirmeler</h2>
+                <h2 className="font-semibold text-sm">Reviews</h2>
               </div>
               <div className="space-y-3">
                 {reviews.map((r: any) => (
@@ -832,8 +832,8 @@ export default function VoyageDetail() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{r.reviewerName || "Kullanıcı"}</span>
-                        <span className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString("tr-TR")}</span>
+                        <span className="text-sm font-medium">{r.reviewerName || "User"}</span>
+                        <span className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString("en-GB")}</span>
                       </div>
                       <div className="flex gap-0.5 mt-1">
                         {[1,2,3,4,5].map(i => <Star key={i} className={`w-3.5 h-3.5 ${i <= r.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />)}
@@ -862,22 +862,22 @@ export default function VoyageDetail() {
             <div className="absolute inset-0 rounded-xl flex items-center justify-center bg-[hsl(var(--maritime-primary)/0.08)] border-2 border-dashed border-[hsl(var(--maritime-primary))] z-10 pointer-events-none">
               <div className="text-center">
                 <Upload className="w-8 h-8 mx-auto mb-2 text-[hsl(var(--maritime-primary))]" />
-                <p className="text-sm font-semibold text-[hsl(var(--maritime-primary))]">Dosyayı buraya bırakın</p>
+                <p className="text-sm font-semibold text-[hsl(var(--maritime-primary))]">Drop file here</p>
               </div>
             </div>
           )}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <FolderOpen className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              <h2 className="font-semibold text-sm">Dokümanlar</h2>
+              <h2 className="font-semibold text-sm">Documents</h2>
               {Array.isArray(docs) && docs.length > 0 && <span className="text-xs text-muted-foreground">({docs.length})</span>}
             </div>
             <div className="flex items-center gap-1.5">
               <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowTemplateDialog(true)} data-testid="button-from-template">
-                <LayoutTemplate className="w-3 h-3" /> Şablondan
+                <LayoutTemplate className="w-3 h-3" /> From Template
               </Button>
               <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowDocDialog(true)} data-testid="button-upload-doc">
-                <Upload className="w-3 h-3" /> Yükle
+                <Upload className="w-3 h-3" /> Upload
               </Button>
             </div>
           </div>
@@ -885,12 +885,12 @@ export default function VoyageDetail() {
           {/* Filtre butonları */}
           <div className="flex gap-2 flex-wrap">
             {[
-              { key: "all",           label: "Tümü" },
-              { key: "manifest",      label: "Manifesto" },
-              { key: "bill_of_lading",label: "Konşimento" },
-              { key: "certificate",   label: "Sertifika" },
-              { key: "port_clearance",label: "Liman İzni" },
-              { key: "other",         label: "Diğer" },
+              { key: "all",           label: "All" },
+              { key: "manifest",      label: "Manifest" },
+              { key: "bill_of_lading",label: "Bill of Lading" },
+              { key: "certificate",   label: "Certificate" },
+              { key: "port_clearance",label: "Port Clearance" },
+              { key: "other",         label: "Other" },
             ].map(f => (
               <button
                 key={f.key}
@@ -912,8 +912,8 @@ export default function VoyageDetail() {
             return filtered.length === 0 ? (
               <div className="text-center py-10 text-muted-foreground">
                 <Upload className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                <p className="text-sm font-medium">Henüz doküman yok</p>
-                <p className="text-xs mt-1">Dosyaları buraya sürükleyip bırakın veya "Yükle" butonunu kullanın</p>
+                <p className="text-sm font-medium">No documents yet</p>
+                <p className="text-xs mt-1">Drag &amp; drop files here or use the "Upload" button</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -927,7 +927,7 @@ export default function VoyageDetail() {
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium flex-shrink-0" data-testid={`badge-doc-version-${doc.id}`}>v{doc.version}</span>
                         )}
                         {doc.templateId && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 font-medium flex-shrink-0">📋 Otomatik</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 font-medium flex-shrink-0">📋 Auto</span>
                         )}
                         {doc.signedAt ? (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-medium flex items-center gap-0.5 flex-shrink-0" data-testid={`badge-signed-${doc.id}`}>
@@ -939,11 +939,11 @@ export default function VoyageDetail() {
                             className="text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground hover:text-foreground hover:border-primary transition-colors flex items-center gap-0.5 flex-shrink-0"
                             data-testid={`button-sign-doc-${doc.id}`}
                           >
-                            <Pen className="w-3 h-3" /> İmzala
+                            <Pen className="w-3 h-3" /> Sign
                           </button>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">{DOC_TYPE_CONFIG[doc.docType] || "Diğer"} · {doc.uploaderName} · {new Date(doc.createdAt).toLocaleDateString("tr-TR")}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{DOC_TYPE_CONFIG[doc.docType] || "Other"} · {doc.uploaderName} · {new Date(doc.createdAt).toLocaleDateString("en-GB")}</p>
                     </div>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => downloadDoc(doc)} className="p-1 hover:text-primary transition-colors" data-testid={`button-download-doc-${doc.id}`}><Download className="w-4 h-4" /></button>
@@ -968,11 +968,11 @@ export default function VoyageDetail() {
             <div className="px-5 py-3.5 border-b flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-2">
                 <MessageCircle className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                <h2 className="font-semibold text-sm">Ekip Chat</h2>
+                <h2 className="font-semibold text-sm">Team Chat</h2>
               </div>
               {chatMessages.length > 0 && (
                 <span className="text-xs bg-[hsl(var(--maritime-primary)/0.1)] text-[hsl(var(--maritime-primary))] px-2 py-0.5 rounded-full font-semibold">
-                  {chatMessages.length} mesaj
+                  {chatMessages.length} messages
                 </span>
               )}
             </div>
@@ -980,7 +980,7 @@ export default function VoyageDetail() {
             {/* Participants strip */}
             {participants.length > 0 && (
               <div className="px-5 py-2 border-b flex items-center gap-2 flex-shrink-0 bg-muted/20">
-                <span className="text-xs text-muted-foreground">Katılımcılar:</span>
+                <span className="text-xs text-muted-foreground">Participants:</span>
                 {participants.map(([sid, name]: [string, string]) => (
                   <div key={sid} title={name} className="w-6 h-6 rounded-full bg-[hsl(var(--maritime-primary))] text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">
                     {(name || "?")[0].toUpperCase()}
@@ -994,14 +994,14 @@ export default function VoyageDetail() {
               {chatMessages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                   <MessageCircle className="w-10 h-10 mb-2 opacity-20" />
-                  <p className="text-sm font-medium">Henüz mesaj yok</p>
-                  <p className="text-xs mt-1">İlk mesajı siz gönderin</p>
+                  <p className="text-sm font-medium">No messages yet</p>
+                  <p className="text-xs mt-1">Be the first to send a message</p>
                 </div>
               ) : (
                 chatMessages.map((msg: any) => {
                   const isMine = msg.senderId === userId;
-                  const time = new Date(msg.createdAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
-                  const date = new Date(msg.createdAt).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit" });
+                  const time = new Date(msg.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+                  const date = new Date(msg.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit" });
                   const initial = (msg.senderName || "?")[0].toUpperCase();
                   return (
                     <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`} data-testid={`chat-msg-${msg.id}`}>
@@ -1038,7 +1038,7 @@ export default function VoyageDetail() {
                     value={chatMessage}
                     onChange={e => setChatMessage(e.target.value)}
                     onKeyDown={handleChatKeyDown}
-                    placeholder="Mesaj yazın..."
+                    placeholder="Type a message..."
                     className="text-sm h-9"
                     data-testid="input-chat-message"
                   />
@@ -1049,11 +1049,11 @@ export default function VoyageDetail() {
                     disabled={!chatMessage.trim() || sendChatMutation.isPending}
                     data-testid="button-send-chat"
                   >
-                    {sendChatMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Gönder"}
+                    {sendChatMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send"}
                   </Button>
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground text-center py-1">Bu seferin katılımcısı değilsiniz.</p>
+                <p className="text-xs text-muted-foreground text-center py-1">You are not a participant in this voyage.</p>
               )}
             </div>
           </Card>
@@ -1064,11 +1064,11 @@ export default function VoyageDetail() {
       <Dialog open={showServiceDialog} onOpenChange={setShowServiceDialog}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="font-serif">Hizmet Talebi Oluştur</DialogTitle>
+            <DialogTitle className="font-serif">Create Service Request</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>Hizmet Türü *</Label>
+              <Label>Service Type *</Label>
               <Select value={serviceForm.serviceType} onValueChange={v => setServiceForm(f => ({ ...f, serviceType: v }))}>
                 <SelectTrigger data-testid="select-service-type">
                   <SelectValue />
@@ -1081,32 +1081,32 @@ export default function VoyageDetail() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Gemi Adı *</Label>
-              <Input value={serviceForm.vesselName || voyage?.vesselName || ""} onChange={e => setServiceForm(f => ({ ...f, vesselName: e.target.value }))} placeholder="Gemi adı" />
+              <Label>Vessel Name *</Label>
+              <Input value={serviceForm.vesselName || voyage?.vesselName || ""} onChange={e => setServiceForm(f => ({ ...f, vesselName: e.target.value }))} placeholder="Vessel name" />
             </div>
             <div className="space-y-1.5">
-              <Label>Açıklama *</Label>
-              <Textarea value={serviceForm.description} onChange={e => setServiceForm(f => ({ ...f, description: e.target.value }))} placeholder="Hizmet detaylarını girin..." rows={3} />
+              <Label>Description *</Label>
+              <Textarea value={serviceForm.description} onChange={e => setServiceForm(f => ({ ...f, description: e.target.value }))} placeholder="Enter service details..." rows={3} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Miktar</Label>
+                <Label>Quantity</Label>
                 <Input type="number" value={serviceForm.quantity} onChange={e => setServiceForm(f => ({ ...f, quantity: e.target.value }))} placeholder="0" />
               </div>
               <div className="space-y-1.5">
-                <Label>Birim</Label>
-                <Input value={serviceForm.unit} onChange={e => setServiceForm(f => ({ ...f, unit: e.target.value }))} placeholder="MT, LT, adet..." />
+                <Label>Unit</Label>
+                <Input value={serviceForm.unit} onChange={e => setServiceForm(f => ({ ...f, unit: e.target.value }))} placeholder="MT, LT, pcs..." />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>Tercih Edilen Tarih</Label>
+              <Label>Preferred Date</Label>
               <Input type="datetime-local" value={serviceForm.preferredDate} onChange={e => setServiceForm(f => ({ ...f, preferredDate: e.target.value }))} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowServiceDialog(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setShowServiceDialog(false)}>Cancel</Button>
             <Button onClick={() => createServiceMutation.mutate()} disabled={createServiceMutation.isPending || !serviceForm.description.trim()} data-testid="button-save-service-request">
-              {createServiceMutation.isPending ? "Oluşturuluyor..." : "Talep Oluştur"}
+              {createServiceMutation.isPending ? "Creating..." : "Create Request"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1116,11 +1116,11 @@ export default function VoyageDetail() {
       <Dialog open={showDocDialog} onOpenChange={setShowDocDialog}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="font-serif">Doküman Yükle</DialogTitle>
+            <DialogTitle className="font-serif">Upload Document</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>Dosya Seç *</Label>
+              <Label>Select File *</Label>
               <div
                 className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-150 ${
                   isDragOverDropzone
@@ -1172,11 +1172,11 @@ export default function VoyageDetail() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Doküman Adı *</Label>
-              <Input value={docForm.name} onChange={e => setDocForm(f => ({ ...f, name: e.target.value }))} placeholder="Doküman adı" data-testid="input-doc-name" />
+              <Label>Document Name *</Label>
+              <Input value={docForm.name} onChange={e => setDocForm(f => ({ ...f, name: e.target.value }))} placeholder="Document name" data-testid="input-doc-name" />
             </div>
             <div className="space-y-1.5">
-              <Label>Doküman Türü</Label>
+              <Label>Document Type</Label>
               <Select value={docForm.docType} onValueChange={v => setDocForm(f => ({ ...f, docType: v }))}>
                 <SelectTrigger data-testid="select-doc-type">
                   <SelectValue />
@@ -1189,18 +1189,18 @@ export default function VoyageDetail() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Notlar</Label>
-              <Input value={docForm.notes} onChange={e => setDocForm(f => ({ ...f, notes: e.target.value }))} placeholder="Opsiyonel notlar" data-testid="input-doc-notes" />
+              <Label>Notes</Label>
+              <Input value={docForm.notes} onChange={e => setDocForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional notes" data-testid="input-doc-notes" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDocDialog(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setShowDocDialog(false)}>Cancel</Button>
             <Button
               onClick={() => uploadDocMutation.mutate()}
               disabled={uploadDocMutation.isPending || docUploading || (!docForm.fileBase64 && !docForm.fileUrl) || !docForm.name.trim()}
               data-testid="button-save-doc"
             >
-              {uploadDocMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Yükle"}
+              {uploadDocMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Upload"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1210,11 +1210,11 @@ export default function VoyageDetail() {
       <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
         <DialogContent className="max-w-lg" data-testid="dialog-template-picker">
           <DialogHeader>
-            <DialogTitle className="font-serif">Şablondan Doküman Oluştur</DialogTitle>
+            <DialogTitle className="font-serif">Create Document from Template</DialogTitle>
           </DialogHeader>
           <div className="py-2">
             {docTemplates.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">Şablon bulunamadı</p>
+              <p className="text-sm text-muted-foreground text-center py-6">No templates found</p>
             ) : (
               <div className="grid grid-cols-1 gap-2">
                 {docTemplates.map((tmpl: any) => (
@@ -1239,7 +1239,7 @@ export default function VoyageDetail() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowTemplateDialog(false)}>Kapat</Button>
+            <Button variant="outline" onClick={() => setShowTemplateDialog(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1248,31 +1248,31 @@ export default function VoyageDetail() {
       <Dialog open={showSignDialog} onOpenChange={v => { setShowSignDialog(v); if (!v) { setSignDocId(null); setSignatureText(""); } }}>
         <DialogContent className="max-w-sm" data-testid="dialog-sign-doc">
           <DialogHeader>
-            <DialogTitle className="font-serif">Dokümanı İmzala</DialogTitle>
+            <DialogTitle className="font-serif">Sign Document</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>Ad / Unvan *</Label>
+              <Label>Name / Title *</Label>
               <Input
                 value={signatureText}
                 onChange={e => setSignatureText(e.target.value)}
-                placeholder="Adınız ve unvanınız"
+                placeholder="Your name and title"
                 data-testid="input-signature-text"
               />
             </div>
             <div className="space-y-1.5">
-              <Label>İmzalanma Tarihi</Label>
-              <Input value={new Date().toLocaleDateString("tr-TR")} disabled className="bg-muted" />
+              <Label>Signature Date</Label>
+              <Input value={new Date().toLocaleDateString("en-GB")} disabled className="bg-muted" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowSignDialog(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setShowSignDialog(false)}>Cancel</Button>
             <Button
               onClick={() => { if (signDocId && signatureText.trim()) signDocMutation.mutate({ docId: signDocId, sigText: signatureText.trim() }); }}
               disabled={signDocMutation.isPending || !signatureText.trim()}
               data-testid="button-confirm-sign"
             >
-              {signDocMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "İmzala"}
+              {signDocMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Sign"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1282,33 +1282,33 @@ export default function VoyageDetail() {
       <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-serif">Sefer Değerlendirmesi</DialogTitle>
+            <DialogTitle className="font-serif">Voyage Review</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <p className="text-sm text-muted-foreground">Bu seferdeki deneyiminizi değerlendirin.</p>
+            <p className="text-sm text-muted-foreground">Rate your experience on this voyage.</p>
             <div className="space-y-1.5">
-              <Label>Puan *</Label>
+              <Label>Rating *</Label>
               <StarRatingInput value={reviewForm.rating} onChange={v => setReviewForm(f => ({ ...f, rating: v }))} />
             </div>
             <div className="space-y-1.5">
-              <Label>Yorum</Label>
+              <Label>Comment</Label>
               <Textarea
                 value={reviewForm.comment}
                 onChange={e => setReviewForm(f => ({ ...f, comment: e.target.value }))}
-                placeholder="Deneyiminizi anlatın..."
+                placeholder="Describe your experience..."
                 rows={3}
                 data-testid="textarea-review-comment"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowReviewDialog(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setShowReviewDialog(false)}>Cancel</Button>
             <Button
               onClick={() => createReviewMutation.mutate()}
               disabled={createReviewMutation.isPending || reviewForm.rating === 0}
               data-testid="button-save-review"
             >
-              {createReviewMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Değerlendir"}
+              {createReviewMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Submit Review"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1319,22 +1319,22 @@ export default function VoyageDetail() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {pendingStatus === "completed" ? "Sefer Tamamlandı mı?" : "Sefer İptal Edilsin mi?"}
+              {pendingStatus === "completed" ? "Mark Voyage as Completed?" : "Cancel This Voyage?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {pendingStatus === "completed"
-                ? "Bu sefer tamamlandı olarak işaretlenecek. Bu işlem geri alınamaz ve sefer durumu artık değiştirilemez."
-                : "Bu sefer iptal edildi olarak işaretlenecek. Bu işlem geri alınamaz."}
+                ? "This voyage will be marked as completed. This action cannot be undone and the status can no longer be changed."
+                : "This voyage will be marked as cancelled. This action cannot be undone."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setPendingStatus(null)} data-testid="button-cancel-status">Vazgeç</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setPendingStatus(null)} data-testid="button-cancel-status">Go Back</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => { if (pendingStatus) { statusMutation.mutate(pendingStatus); setPendingStatus(null); } }}
               className={pendingStatus === "completed" ? "bg-gray-700 hover:bg-gray-800" : "bg-red-600 hover:bg-red-700"}
               data-testid="button-confirm-status"
             >
-              {pendingStatus === "completed" ? "Evet, Tamamla" : "Evet, İptal Et"}
+              {pendingStatus === "completed" ? "Yes, Complete" : "Yes, Cancel"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -480,7 +480,7 @@ function CompanyCard({ profile, getPortName, isFeatured }: { profile: CompanyPro
                 <h3 className="font-semibold text-base" data-testid={`text-company-name-${profile.id}`}>{profile.companyName}</h3>
                 {(profile as any).verificationStatus === "verified" && (
                   <Badge className="text-xs bg-blue-50 text-blue-700 border-blue-200 gap-1 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800" data-testid={`badge-verified-${profile.id}`}>
-                    <ShieldCheck className="w-3 h-3" /> Doğrulanmış
+                    <ShieldCheck className="w-3 h-3" /> Verified
                   </Badge>
                 )}
               </div>

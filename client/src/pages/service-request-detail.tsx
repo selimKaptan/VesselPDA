@@ -11,20 +11,20 @@ import { PageMeta } from "@/components/page-meta";
 import { useAuth } from "@/hooks/use-auth";
 
 const SERVICE_TYPE_CONFIG: Record<string, { label: string; icon: any; color: string; bg: string }> = {
-  fuel:         { label: "Yakıt / Bunker", icon: Fuel,         color: "text-orange-500", bg: "bg-orange-100 dark:bg-orange-900/20" },
-  repair:       { label: "Teknik Tamir",   icon: Wrench,       color: "text-red-500",    bg: "bg-red-100 dark:bg-red-900/20" },
-  provisioning: { label: "Provizyonlama",  icon: ShoppingCart, color: "text-green-500",  bg: "bg-green-100 dark:bg-green-900/20" },
-  crew_change:  { label: "Mürettebat",     icon: UsersIcon,    color: "text-blue-500",   bg: "bg-blue-100 dark:bg-blue-900/20" },
-  cleaning:     { label: "Temizlik",       icon: Sparkles,     color: "text-purple-500", bg: "bg-purple-100 dark:bg-purple-900/20" },
-  other:        { label: "Diğer",          icon: HelpCircle,   color: "text-gray-500",   bg: "bg-gray-100 dark:bg-gray-800" },
+  fuel:         { label: "Fuel / Bunker",  icon: Fuel,         color: "text-orange-500", bg: "bg-orange-100 dark:bg-orange-900/20" },
+  repair:       { label: "Repair",         icon: Wrench,       color: "text-red-500",    bg: "bg-red-100 dark:bg-red-900/20" },
+  provisioning: { label: "Provisioning",   icon: ShoppingCart, color: "text-green-500",  bg: "bg-green-100 dark:bg-green-900/20" },
+  crew_change:  { label: "Crew Change",    icon: UsersIcon,    color: "text-blue-500",   bg: "bg-blue-100 dark:bg-blue-900/20" },
+  cleaning:     { label: "Cleaning",       icon: Sparkles,     color: "text-purple-500", bg: "bg-purple-100 dark:bg-purple-900/20" },
+  other:        { label: "Other",          icon: HelpCircle,   color: "text-gray-500",   bg: "bg-gray-100 dark:bg-gray-800" },
 };
 
 const REQ_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  open:            { label: "Açık",           color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
-  offers_received: { label: "Teklif Geldi",   color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
-  selected:        { label: "Teklif Seçildi", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
-  completed:       { label: "Tamamlandı",     color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" },
-  cancelled:       { label: "İptal",          color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" },
+  open:            { label: "Open",            color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+  offers_received: { label: "Offers Received", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+  selected:        { label: "Offer Selected",  color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  completed:       { label: "Completed",       color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" },
+  cancelled:       { label: "Cancelled",       color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" },
 };
 
 export default function ServiceRequestDetail() {
@@ -52,9 +52,9 @@ export default function ServiceRequestDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/service-requests", reqId] });
       queryClient.invalidateQueries({ queryKey: ["/api/service-requests"] });
-      toast({ title: "Teklif seçildi" });
+      toast({ title: "Offer selected" });
     },
-    onError: () => toast({ title: "Hata", variant: "destructive" }),
+    onError: () => toast({ title: "Error", variant: "destructive" }),
   });
 
   const completeMutation = useMutation({
@@ -64,7 +64,7 @@ export default function ServiceRequestDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/service-requests", reqId] });
-      toast({ title: "Talep tamamlandı olarak işaretlendi" });
+      toast({ title: "Request marked as completed" });
     },
   });
 
@@ -81,8 +81,8 @@ export default function ServiceRequestDetail() {
   if (!request) {
     return (
       <div className="p-6 text-center text-muted-foreground">
-        <p>Talep bulunamadı.</p>
-        <Link href="/service-requests"><Button variant="outline" className="mt-4">Geri Dön</Button></Link>
+        <p>Request not found.</p>
+        <Link href="/service-requests"><Button variant="outline" className="mt-4">Back</Button></Link>
       </div>
     );
   }
@@ -94,11 +94,11 @@ export default function ServiceRequestDetail() {
 
   return (
     <div className="px-3 py-5 space-y-6 max-w-2xl mx-auto">
-      <PageMeta title="Hizmet Talebi Detayı | VesselPDA" description="Hizmet talebi detayı ve teklifler" />
+      <PageMeta title="Service Request Detail | VesselPDA" description="Service request details and offers" />
 
       <Link href="/service-requests">
         <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Hizmet Talepleri
+          <ArrowLeft className="w-4 h-4" /> Service Requests
         </button>
       </Link>
 
@@ -121,14 +121,14 @@ export default function ServiceRequestDetail() {
           <p className="text-sm">{request.description}</p>
           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
             {request.portName && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{request.portName}</span>}
-            {request.preferredDate && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{new Date(request.preferredDate).toLocaleDateString("tr-TR")}</span>}
+            {request.preferredDate && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{new Date(request.preferredDate).toLocaleDateString("en-GB")}</span>}
             {request.quantity && <span>{request.quantity} {request.unit}</span>}
           </div>
         </div>
 
         {isRequester && request.status === "selected" && (
           <Button size="sm" variant="outline" className="mt-4 gap-2" onClick={() => completeMutation.mutate()} disabled={completeMutation.isPending}>
-            <CheckCircle2 className="w-4 h-4" /> Tamamlandı Olarak İşaretle
+            <CheckCircle2 className="w-4 h-4" /> Mark as Completed
           </Button>
         )}
       </Card>
@@ -136,12 +136,12 @@ export default function ServiceRequestDetail() {
       {/* Offers */}
       <div className="space-y-3">
         <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
-          Teklifler ({offers.length})
+          Offers ({offers.length})
         </h2>
 
         {offers.length === 0 ? (
           <Card className="p-8 text-center text-muted-foreground">
-            <p className="text-sm">Henüz teklif gelmedi.</p>
+            <p className="text-sm">No offers received yet.</p>
           </Card>
         ) : (
           <div className="space-y-3">
@@ -156,14 +156,14 @@ export default function ServiceRequestDetail() {
                         <p className="font-semibold text-sm">{offer.providerName}</p>
                         {isSelected && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                            <CheckCircle2 className="w-2.5 h-2.5" /> Seçildi
+                            <CheckCircle2 className="w-2.5 h-2.5" /> Selected
                           </span>
                         )}
                         {isRejected && (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">Reddedildi</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">Declined</span>
                         )}
                       </div>
-                      {offer.estimatedDuration && <p className="text-xs text-muted-foreground mb-1">Süre: {offer.estimatedDuration}</p>}
+                      {offer.estimatedDuration && <p className="text-xs text-muted-foreground mb-1">Duration: {offer.estimatedDuration}</p>}
                       {offer.notes && <p className="text-xs text-muted-foreground">{offer.notes}</p>}
                     </div>
                     <div className="text-right flex-shrink-0">
@@ -176,7 +176,7 @@ export default function ServiceRequestDetail() {
                           disabled={selectMutation.isPending}
                           data-testid={`button-select-offer-${offer.id}`}
                         >
-                          Bu Teklifi Seç
+                          Select This Offer
                         </Button>
                       )}
                     </div>

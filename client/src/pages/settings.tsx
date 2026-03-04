@@ -14,19 +14,19 @@ import { CheckCircle, CheckCircle2, AlertCircle, User, Lock, Mail, Shield, Build
 import type { CompanyProfile } from "@shared/schema";
 
 const AGENT_COMPLETION_FIELDS = [
-  { key: "logoUrl", label: "Şirket Logosu", hint: "Güven oluşturmak için logo yükleyin", isArray: false },
-  { key: "description", label: "Şirket Açıklaması", hint: "Hizmetlerinizi ve uzmanlığınızı açıklayın", isArray: false },
-  { key: "serviceTypes", label: "Hizmet Türleri", hint: "Sunduğunuz hizmetleri listeleyin", isArray: true },
-  { key: "servedPorts", label: "Hizmet Verilen Limanlar", hint: "Faaliyet gösterdiğiniz limanları ekleyin", isArray: true },
-  { key: "phone", label: "Telefon Numarası", hint: "İletişim telefonu ekleyin", isArray: false },
+  { key: "logoUrl", label: "Company Logo", hint: "Upload a logo to build trust", isArray: false },
+  { key: "description", label: "Company Description", hint: "Describe your services and expertise", isArray: false },
+  { key: "serviceTypes", label: "Service Types", hint: "List the services you offer", isArray: true },
+  { key: "servedPorts", label: "Served Ports", hint: "Add the ports you operate in", isArray: true },
+  { key: "phone", label: "Phone Number", hint: "Add a contact phone number", isArray: false },
 ];
 
 const PROVIDER_COMPLETION_FIELDS = [
-  { key: "logoUrl", label: "Şirket Logosu", hint: "Güven oluşturmak için logo yükleyin", isArray: false },
-  { key: "description", label: "Şirket Açıklaması", hint: "Hizmetlerinizi ve uzmanlığınızı açıklayın", isArray: false },
-  { key: "serviceTypes", label: "Hizmet Türleri", hint: "Sunduğunuz hizmetleri listeleyin", isArray: true },
-  { key: "phone", label: "Telefon Numarası", hint: "İletişim telefonu ekleyin", isArray: false },
-  { key: "email", label: "İletişim E-postası", hint: "İletişim e-postası ekleyin", isArray: false },
+  { key: "logoUrl", label: "Company Logo", hint: "Upload a logo to build trust", isArray: false },
+  { key: "description", label: "Company Description", hint: "Describe your services and expertise", isArray: false },
+  { key: "serviceTypes", label: "Service Types", hint: "List the services you offer", isArray: true },
+  { key: "phone", label: "Phone Number", hint: "Add a contact phone number", isArray: false },
+  { key: "email", label: "Contact Email", hint: "Add a contact email address", isArray: false },
 ];
 
 export default function Settings() {
@@ -148,13 +148,13 @@ export default function Settings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/company-profile/me"] });
-      toast({ title: "Doğrulama talebi gönderildi", description: "Admin incelemesi bekleniyor." });
+      toast({ title: "Verification request submitted", description: "Awaiting admin review." });
       setTaxNumber("");
       setMtoRegNum("");
       setPandiClub("");
     },
     onError: (err: any) => {
-      toast({ title: "Hata", description: err.message, variant: "destructive" });
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
@@ -184,12 +184,12 @@ export default function Settings() {
               <div>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Building2 className="w-4 h-4 text-muted-foreground" />
-                  Profil Tamamlama
+                  Profile Completion
                 </CardTitle>
                 <CardDescription className="mt-0.5">
                   {completionPct === 100
-                    ? "Profiliniz tamamlandı! Dizinde tam görünürlüğe sahipsiniz."
-                    : `${doneCount} / ${completionItems.length} alan tamamlandı`}
+                    ? "Your profile is complete! You have full visibility in the directory."
+                    : `${doneCount} / ${completionItems.length} fields completed`}
                 </CardDescription>
               </div>
               <span className={`text-2xl font-bold font-serif flex-shrink-0 ${
@@ -233,7 +233,7 @@ export default function Settings() {
                   {!item.done && (
                     <Link href="/company-profile">
                       <Button variant="outline" size="sm" className="text-xs h-7 px-3 flex-shrink-0">
-                        Ekle
+                        Add
                       </Button>
                     </Link>
                   )}
@@ -247,7 +247,7 @@ export default function Settings() {
                 data-testid="button-go-to-company-profile"
               >
                 <Building2 className="w-4 h-4" />
-                {completionPct === 100 ? "Profili Düzenle" : "Profili Tamamla"}
+                {completionPct === 100 ? "Edit Profile" : "Complete Profile"}
               </Button>
             </Link>
           </CardContent>
@@ -260,10 +260,10 @@ export default function Settings() {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <ShieldCheck className="w-4 h-4 text-blue-600" />
-              Şirket Doğrulaması
+              Company Verification
             </CardTitle>
             <CardDescription>
-              Şirketinizi doğrulayarak güven rozeti kazanın ve dizinde öne çıkın.
+              Get a trust badge and stand out in the directory by verifying your company.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -272,35 +272,35 @@ export default function Settings() {
               <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-800/40">
                 <ShieldCheck className="w-5 h-5 text-blue-600 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Şirketiniz Doğrulandı</p>
-                  <p className="text-xs text-blue-600 dark:text-blue-400">Profilinizde "Doğrulanmış Şirket" rozeti görüntüleniyor.</p>
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Company Verified</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400">A "Verified Company" badge is displayed on your profile.</p>
                 </div>
               </div>
             ) : (myProfile as any).verificationStatus === "pending" ? (
               <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40">
                 <Clock className="w-5 h-5 text-amber-600 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">İnceleme Bekliyor</p>
-                  <p className="text-xs text-amber-600 dark:text-amber-400">Doğrulama talebiniz admin incelemesinde. En kısa sürede yanıtlanacak.</p>
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Under Review</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400">Your verification request is being reviewed by an admin. You will be notified shortly.</p>
                 </div>
               </div>
             ) : (myProfile as any).verificationStatus === "rejected" ? (
               <div className="flex flex-col gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200/60 dark:border-red-800/40">
                 <div className="flex items-center gap-2">
                   <XCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-                  <p className="text-sm font-medium text-red-800 dark:text-red-300">Doğrulama Reddedildi</p>
+                  <p className="text-sm font-medium text-red-800 dark:text-red-300">Verification Rejected</p>
                 </div>
                 {(myProfile as any).verificationNote && (
                   <p className="text-xs text-red-600 dark:text-red-400 ml-7">{(myProfile as any).verificationNote}</p>
                 )}
-                <p className="text-xs text-muted-foreground ml-7">Bilgilerinizi güncelleyerek tekrar başvurabilirsiniz.</p>
+                <p className="text-xs text-muted-foreground ml-7">You can update your information and reapply.</p>
               </div>
             ) : (
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/40 border border-dashed">
                 <ShieldCheck className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium">Henüz doğrulanmamış</p>
-                  <p className="text-xs text-muted-foreground">Vergi numaranızı ve kayıt bilgilerinizi ekleyerek doğrulama talep edin.</p>
+                  <p className="text-sm font-medium">Not yet verified</p>
+                  <p className="text-xs text-muted-foreground">Add your tax number and registration details to request verification.</p>
                 </div>
               </div>
             )}
@@ -309,32 +309,32 @@ export default function Settings() {
             {["unverified", "rejected"].includes((myProfile as any).verificationStatus || "unverified") && (
               <div className="space-y-3 pt-1">
                 <div className="space-y-1.5">
-                  <Label htmlFor="taxNumber">Vergi Numarası <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="taxNumber">Tax Number <span className="text-red-500">*</span></Label>
                   <Input
                     id="taxNumber"
                     value={taxNumber}
                     onChange={e => setTaxNumber(e.target.value)}
-                    placeholder="10 haneli vergi numaranız"
+                    placeholder="Your 10-digit tax number"
                     data-testid="input-tax-number"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="mtoRegNum">MTO Kayıt No <span className="text-xs font-normal text-muted-foreground">(opsiyonel)</span></Label>
+                  <Label htmlFor="mtoRegNum">MTO Reg. No <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
                   <Input
                     id="mtoRegNum"
                     value={mtoRegNum}
                     onChange={e => setMtoRegNum(e.target.value)}
-                    placeholder="MTO üyelik/kayıt numarası"
+                    placeholder="MTO membership/registration number"
                     data-testid="input-mto-reg"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="pandiClub">P&I Club <span className="text-xs font-normal text-muted-foreground">(opsiyonel)</span></Label>
+                  <Label htmlFor="pandiClub">P&I Club <span className="text-xs font-normal text-muted-foreground">(optional)</span></Label>
                   <Input
                     id="pandiClub"
                     value={pandiClub}
                     onChange={e => setPandiClub(e.target.value)}
-                    placeholder="Üye olduğunuz P&I Kulübü"
+                    placeholder="Your P&I Club membership"
                     data-testid="input-pandi-club"
                   />
                 </div>
@@ -349,7 +349,7 @@ export default function Settings() {
                   ) : (
                     <ShieldCheck className="w-4 h-4" />
                   )}
-                  Doğrulama Talebi Gönder
+                  Submit Verification Request
                 </Button>
               </div>
             )}

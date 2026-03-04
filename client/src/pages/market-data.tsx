@@ -59,11 +59,11 @@ const defaultBunkerForm = {
 };
 
 const REGION_LABELS: Record<string, string> = {
-  TR: "Türkiye",
-  EU: "Avrupa",
-  ASIA: "Asya",
-  ME: "Orta Doğu",
-  US: "Amerika",
+  TR: "Turkey",
+  EU: "Europe",
+  ASIA: "Asia",
+  ME: "Middle East",
+  US: "Americas",
 };
 
 function FreightIndexCard({ index, loading }: { index?: FreightIndex; loading: boolean }) {
@@ -102,12 +102,12 @@ function FreightIndexCard({ index, loading }: { index?: FreightIndex; loading: b
         </div>
 
         <p className="text-4xl font-bold text-foreground tabular-nums">
-          {index.value.toLocaleString("tr-TR")}
+          {index.value.toLocaleString("en-GB")}
         </p>
 
         <div className="flex items-center gap-2 mt-2">
           <span className={`text-sm font-semibold ${neutral ? "text-muted-foreground" : positive ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-            {positive ? "+" : ""}{index.change.toLocaleString("tr-TR")}
+            {positive ? "+" : ""}{index.change.toLocaleString("en-GB")}
           </span>
           <Badge
             variant="outline"
@@ -118,7 +118,7 @@ function FreightIndexCard({ index, loading }: { index?: FreightIndex; loading: b
         </div>
 
         <p className="text-xs text-muted-foreground mt-3">
-          Önceki kapanış: {index.previousClose.toLocaleString("tr-TR")}
+          Previous close: {index.previousClose.toLocaleString("en-GB")}
         </p>
       </CardContent>
     </Card>
@@ -155,12 +155,12 @@ export default function MarketData() {
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/market/bunker-prices"] });
-      toast({ title: "Bunker fiyatı eklendi" });
+      toast({ title: "Bunker price added" });
       setBunkerDialog(false);
       setBunkerForm({ ...defaultBunkerForm });
       setEditBunker(null);
     },
-    onError: () => toast({ title: "Hata", description: "Fiyat eklenemedi", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Could not add price", variant: "destructive" }),
   });
 
   const editBunkerMutation = useMutation({
@@ -174,19 +174,19 @@ export default function MarketData() {
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/market/bunker-prices"] });
-      toast({ title: "Bunker fiyatı güncellendi" });
+      toast({ title: "Bunker price updated" });
       setBunkerDialog(false);
       setBunkerForm({ ...defaultBunkerForm });
       setEditBunker(null);
     },
-    onError: () => toast({ title: "Hata", description: "Güncellenemedi", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Could not update", variant: "destructive" }),
   });
 
   const deleteBunkerMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/admin/bunker-prices/${id}`, undefined),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/market/bunker-prices"] });
-      toast({ title: "Silindi" });
+      toast({ title: "Deleted" });
       setDeleteTarget(null);
     },
   });
@@ -216,27 +216,27 @@ export default function MarketData() {
   });
 
   const lastUpdated = freightData?.lastUpdated
-    ? new Date(freightData.lastUpdated).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
+    ? new Date(freightData.lastUpdated).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
     : null;
 
   return (
     <div className="p-4 md:p-6 space-y-8 max-w-7xl mx-auto">
-      <PageMeta title="Piyasa Verileri | VesselPDA" />
+      <PageMeta title="Market Data | VesselPDA" />
 
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <TrendingUp className="w-6 h-6 text-primary" />
-            Piyasa Verileri
+            Market Data
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Güncel navlun endeksleri ve liman bazlı bunker fiyatları
+            Live freight indices and port-based bunker prices
           </p>
         </div>
         {lastUpdated && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <RefreshCw className="w-3.5 h-3.5" />
-            Son güncelleme: {lastUpdated}
+            Last updated: {lastUpdated}
           </div>
         )}
       </div>
@@ -244,44 +244,43 @@ export default function MarketData() {
       {freightData?.source === "Trading Economics" && (
         <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-sm">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
-          Canlı endeks verisi aktif — Trading Economics
+          Live index data active — Trading Economics
         </div>
       )}
       {freightData?.source === "Yahoo Finance" && (
         <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-sm">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
-          Canlı endeks verisi aktif — Yahoo Finance
+          Live index data active — Yahoo Finance
         </div>
       )}
       {freightData?.source === "Fallback" && (
         <div className="space-y-2">
           <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-sm">
             <Info className="w-4 h-4 shrink-0" />
-            <span>Anlık endeks verisi alınamıyor. Referans değerler gösteriliyor.</span>
+            <span>Live index data unavailable. Reference values are shown.</span>
           </div>
           {freightData.hasApiKey ? (
             <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
               <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               <span>
-                Trading Economics API anahtarı tanımlı, ancak{" "}
-                <strong>ücretsiz plan</strong> Baltic Exchange endekslerini (BDI, BCTI, BDTI) kapsamıyor.{" "}
-                Canlı veri için{" "}
+                Trading Economics API key is configured, but the{" "}
+                <strong>free plan</strong> does not cover Baltic Exchange indices (BDI, BCTI, BDTI).{" "}
+                For live data, upgrade to the{" "}
                 <a
                   href="https://tradingeconomics.com/api/markets"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline font-medium hover:opacity-80 inline-flex items-center gap-0.5"
                 >
-                  Markets planına <ExternalLink className="w-3 h-3" />
-                </a>{" "}
-                geçmeniz gerekiyor.
+                  Markets plan <ExternalLink className="w-3 h-3" />
+                </a>.
               </span>
             </div>
           ) : (
             <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-muted/60 border border-border text-xs text-muted-foreground">
               <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               <span>
-                Gerçek zamanlı BDI/BCTI/BDTI verisi için{" "}
+                For real-time BDI/BCTI/BDTI data, obtain a{" "}
                 <a
                   href="https://tradingeconomics.com/api/markets"
                   target="_blank"
@@ -290,9 +289,9 @@ export default function MarketData() {
                 >
                   Trading Economics Markets API <ExternalLink className="w-3 h-3" />
                 </a>{" "}
-                anahtarı alın ve{" "}
+                key and add it as{" "}
                 <code className="bg-muted px-1 py-0.5 rounded text-[11px]">TRADING_ECONOMICS_API_KEY</code>{" "}
-                olarak ortam değişkenine ekleyin.
+                environment variable.
               </span>
             </div>
           )}
@@ -301,7 +300,7 @@ export default function MarketData() {
 
       {/* Freight Index Cards */}
       <section>
-        <h2 className="text-base font-semibold text-foreground mb-3">Navlun Endeksleri</h2>
+        <h2 className="text-base font-semibold text-foreground mb-3">Freight Indices</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {freightLoading ? (
             [0, 1, 2].map(i => <FreightIndexCard key={i} loading={true} />)
@@ -312,7 +311,7 @@ export default function MarketData() {
           )}
         </div>
         <p className="text-xs text-muted-foreground mt-2">
-          Kaynak: {freightData?.source ?? "—"} · Veriler günlük kapanışa göredir, yatırım tavsiyesi değildir.
+          Source: {freightData?.source ?? "—"} · Data reflects daily closing values. Not investment advice.
         </p>
       </section>
 
@@ -320,7 +319,7 @@ export default function MarketData() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold text-foreground">Bunker Yakıt Fiyatları</h2>
+            <h2 className="text-base font-semibold text-foreground">Bunker Fuel Prices</h2>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -329,17 +328,17 @@ export default function MarketData() {
                   </button>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs text-xs space-y-1 p-3">
-                  <p><strong>IFO 380</strong> — High Sulfur Fuel Oil (HSFO), geleneksel ağır yakıt</p>
-                  <p><strong>VLSFO</strong> — Very Low Sulfur Fuel Oil, IMO 2020 uyumlu &lt;0.5% kükürt</p>
-                  <p><strong>MGO</strong> — Marine Gas Oil, distilat yakıt, ECA bölgeleri için</p>
-                  <p className="text-muted-foreground pt-1">Fiyatlar USD/MT cinsinden yaklaşık değerlerdir.</p>
+                  <p><strong>IFO 380</strong> — High Sulfur Fuel Oil (HSFO), conventional heavy fuel</p>
+                  <p><strong>VLSFO</strong> — Very Low Sulfur Fuel Oil, IMO 2020 compliant &lt;0.5% sulphur</p>
+                  <p><strong>MGO</strong> — Marine Gas Oil, distillate fuel for ECA zones</p>
+                  <p className="text-muted-foreground pt-1">Prices are approximate values in USD/MT.</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>
           {isAdmin && (
             <Button size="sm" onClick={openAdd} data-testid="button-add-bunker" className="gap-1.5">
-              <Plus className="w-4 h-4" /> Fiyat Ekle
+              <Plus className="w-4 h-4" /> Add Price
             </Button>
           )}
         </div>
@@ -349,14 +348,14 @@ export default function MarketData() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/40">
-                  <th className="text-left p-3 font-medium text-muted-foreground">Liman</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground hidden sm:table-cell">Bölge</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Port</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground hidden sm:table-cell">Region</th>
                   <th className="text-right p-3 font-medium text-muted-foreground">
                     <span className="flex items-center justify-end gap-1">IFO 380</span>
                   </th>
                   <th className="text-right p-3 font-medium text-muted-foreground">VLSFO</th>
                   <th className="text-right p-3 font-medium text-muted-foreground">MGO</th>
-                  <th className="text-right p-3 font-medium text-muted-foreground hidden md:table-cell">Güncelleme</th>
+                  <th className="text-right p-3 font-medium text-muted-foreground hidden md:table-cell">Updated</th>
                   {isAdmin && <th className="p-3 w-16" />}
                 </tr>
               </thead>
@@ -375,7 +374,7 @@ export default function MarketData() {
                 ) : sortedBunker.length === 0 ? (
                   <tr>
                     <td colSpan={isAdmin ? 7 : 6} className="p-6 text-center text-muted-foreground">
-                      Bunker fiyatı bulunamadı
+                      No bunker prices found
                     </td>
                   </tr>
                 ) : (
@@ -396,16 +395,16 @@ export default function MarketData() {
                         </Badge>
                       </td>
                       <td className="p-3 text-right tabular-nums text-foreground">
-                        {row.ifo380 != null ? `$${row.ifo380.toLocaleString("tr-TR")}` : "—"}
+                        {row.ifo380 != null ? `$${row.ifo380.toLocaleString("en-GB")}` : "—"}
                       </td>
                       <td className="p-3 text-right tabular-nums text-foreground">
-                        {row.vlsfo != null ? `$${row.vlsfo.toLocaleString("tr-TR")}` : "—"}
+                        {row.vlsfo != null ? `$${row.vlsfo.toLocaleString("en-GB")}` : "—"}
                       </td>
                       <td className="p-3 text-right tabular-nums text-foreground">
-                        {row.mgo != null ? `$${row.mgo.toLocaleString("tr-TR")}` : "—"}
+                        {row.mgo != null ? `$${row.mgo.toLocaleString("en-GB")}` : "—"}
                       </td>
                       <td className="p-3 text-right text-xs text-muted-foreground hidden md:table-cell">
-                        {new Date(row.updatedAt).toLocaleDateString("tr-TR")}
+                        {new Date(row.updatedAt).toLocaleDateString("en-GB")}
                       </td>
                       {isAdmin && (
                         <td className="p-3 text-right">
@@ -426,14 +425,14 @@ export default function MarketData() {
             </table>
           </div>
           <p className="text-xs text-muted-foreground p-3 border-t">
-            Fiyatlar USD/MT cinsinden yaklaşık piyasa değerleridir. Son güncelleme tarihleri limanlar arası farklılık gösterebilir.
+            Prices are approximate market values in USD/MT. Update dates may vary by port.
           </p>
         </Card>
       </section>
 
       {/* Quick Links */}
       <section>
-        <h2 className="text-base font-semibold text-foreground mb-3">Hızlı Erişim</h2>
+        <h2 className="text-base font-semibold text-foreground mb-3">Quick Access</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Link href="/cargo-positions" data-testid="link-quick-cargo">
             <Card className="hover:shadow-md transition-shadow cursor-pointer hover:border-primary/40 group">
@@ -442,8 +441,8 @@ export default function MarketData() {
                   <Package className="w-5 h-5 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-sm text-foreground">Kargo & Pozisyon Panosu</p>
-                  <p className="text-xs text-muted-foreground">Aktif kargo ve gemi ilanları</p>
+                  <p className="font-medium text-sm text-foreground">Cargo & Position Board</p>
+                  <p className="text-xs text-muted-foreground">Active cargo and vessel listings</p>
                 </div>
                 <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
               </CardContent>
@@ -457,8 +456,8 @@ export default function MarketData() {
                   <Ship className="w-5 h-5 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-sm text-foreground">Fixture Yönetimi</p>
-                  <p className="text-xs text-muted-foreground">Charter müzakereleri ve recap</p>
+                  <p className="font-medium text-sm text-foreground">Fixture Management</p>
+                  <p className="text-xs text-muted-foreground">Charter negotiations and recap</p>
                 </div>
                 <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
               </CardContent>
@@ -472,8 +471,8 @@ export default function MarketData() {
                   <Anchor className="w-5 h-5 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-medium text-sm text-foreground">Port Bilgisi</p>
-                  <p className="text-xs text-muted-foreground">Türk limanları ve tarifeler</p>
+                  <p className="font-medium text-sm text-foreground">Port Information</p>
+                  <p className="text-xs text-muted-foreground">Turkish ports and tariffs</p>
                 </div>
                 <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
               </CardContent>
@@ -486,16 +485,16 @@ export default function MarketData() {
       <Dialog open={bunkerDialog} onOpenChange={v => { setBunkerDialog(v); if (!v) { setBunkerForm({ ...defaultBunkerForm }); setEditBunker(null); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{editBunker ? "Fiyatı Güncelle" : "Yeni Bunker Fiyatı"}</DialogTitle>
+            <DialogTitle>{editBunker ? "Update Price" : "New Bunker Price"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
-                <Label>Liman Adı *</Label>
+                <Label>Port Name *</Label>
                 <Input
                   value={bunkerForm.portName}
                   onChange={e => setBunkerForm(f => ({ ...f, portName: e.target.value }))}
-                  placeholder="Örn. İstanbul"
+                  placeholder="e.g. Istanbul"
                   data-testid="input-bunker-port-name"
                 />
               </div>
@@ -509,7 +508,7 @@ export default function MarketData() {
                 />
               </div>
               <div>
-                <Label>Bölge</Label>
+                <Label>Region</Label>
                 <Select value={bunkerForm.region} onValueChange={v => setBunkerForm(f => ({ ...f, region: v }))}>
                   <SelectTrigger data-testid="select-bunker-region">
                     <SelectValue />
@@ -554,14 +553,14 @@ export default function MarketData() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBunkerDialog(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setBunkerDialog(false)}>Cancel</Button>
             <Button
               onClick={() => editBunker ? editBunkerMutation.mutate(editBunker.id) : addBunkerMutation.mutate()}
               disabled={!bunkerForm.portName || addBunkerMutation.isPending || editBunkerMutation.isPending}
               data-testid="button-save-bunker"
             >
               {(addBunkerMutation.isPending || editBunkerMutation.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {editBunker ? "Güncelle" : "Ekle"}
+              {editBunker ? "Update" : "Add"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -571,17 +570,17 @@ export default function MarketData() {
       <AlertDialog open={deleteTarget !== null} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Fiyatı Sil</AlertDialogTitle>
-            <AlertDialogDescription>Bu bunker fiyat kaydı silinecek. Emin misiniz?</AlertDialogDescription>
+            <AlertDialogTitle>Delete Price</AlertDialogTitle>
+            <AlertDialogDescription>This bunker price record will be deleted. Are you sure?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteTarget && deleteBunkerMutation.mutate(deleteTarget)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="button-confirm-delete-bunker"
             >
-              Sil
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
