@@ -1,0 +1,204 @@
+VesselPDA'nın rol sistemini tamamen yeniden yapılandır. Şu an 3 rol var ve admin kayıt sayfasında seçilebiliyor — bunu değiştir.
+
+YENİ ROL SİSTEMİ: 5 rol olacak: ship_agent, shipowner, ship_broker, ship_provider ve admin.
+Admin rolü kayıt sayfasında GÖRÜNMEYECEK — sadece veritabanından manuel atanabilir.
+
+Yapılacaklar:
+
+1. shared/schema.ts — users tablosundaki role alanını güncelle:
+   role enum değerleri: "ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"
+   
+   Eski roller varsa migration ile eşle:
+   - "agent" → "ship_agent"
+   - "owner" → "shipowner"
+   - "broker" → "ship_broker"
+   - "provider" → "ship_provider"
+   - "admin" → "admin" (aynen kalır)
+   
+   Eğer mevcut role enum farklı isimler kullanıyorsa (örneğin "ship-agent", "ship_owner" vs.) onları da yeni isimlere eşle.
+
+2. server/middleware/role-guard.ts oluştur:
+
+   requireRole(...roles: string[]) middleware fonksiyonu:
+   - req.user.role kontrol eder
+   - İzin verilen rollerden biriyse next() çağır
+   - Değilse 403 döndür: { message: "Bu işlem için yetkiniz yok" }
+   - Admin rolü HER ZAMAN geçer (admin tüm endpoint'lere erişebilir)
+   
+   export function requireRole(...roles: string[]) {
+     return (req, res, next) => {
+       if (!req.user) return res.status(401).json({ message: "Giriş yapmalısınız" });
+       if (req.user.role === "admin") return next();
+       if (roles.includes(req.user.role)) return next();
+       return res.status(403).json({ message: "Bu işlem için yetkiniz yok" });
+     };
+   }
+
+3. server/routes/ — HER endpoint'e uygun rol kısıtlaması ekle:
+
+   SHIP AGENT erişebilir:
+   - /api/vessels (kendi veya org gemileri)
+   - /api/voyages (tüm CRUD)
+   - /api/voyages/:id/port-calls (tüm CRUD)
+   - /api/voyages/:id/sof (tüm CRUD)
+   - /api/voyages/:id/expenses (tüm CRUD)
+   - /api/voyages/:id/maritime-docs (tüm CRUD)
+   - /api/voyages/:id/documents (tüm CRUD)
+   - /api/voyages/:id/checklists (tüm CRUD)
+   - /api/proformas (tüm CRUD)
+   - /api/proformas/quick-calculate (Quick Proforma)
+   - /api/final-da (tüm CRUD)
+   - /api/invoices (tüm CRUD)
+   - /api/tenders (görüntüleme + bid verme)
+   - /api/tenders/:id/bids (teklif oluşturma)
+   - /api/nominations (görüntüleme + yanıtlama)
+   - /api/service-requests (oluşturma + yönetim)
+   - /api/exchange-rates, /api/benchmarks, /api/port-info, /api/vessel-track, /api/vessel-positions, /api/port-alerts, /api/directory (görüntüleme)
+   - /api/messages, /api/forum, /api/reminders, /api/sanctions, /api/compliance, /api/email/inbox, /api/market/* (tüm)
+
+   SHIPOWNER erişebilir:
+   - /api/vessels (tüm CRUD + certificates + crew)
+   - /api/fleets (tüm CRUD)
+   - /api/vessel-positions, /api/vessel-track (tüm)
+   - /api/bunker (tüm CRUD)
+   - /api/compliance (tüm CRUD)
+   - /api/voyages (tüm CRUD + collaborator davet)
+   - /api/voyages/:id/port-calls (tüm CRUD)
+   - /api/voyages/:id/sof (görüntüleme)
+   - /api/voyages/:id/expenses (tüm CRUD)
+   - /api/voyages/:id/documents (tüm CRUD)
+   - /api/laytime (tüm CRUD)
+   - /api/proformas (görüntüleme + onaylama)
+   - /api/proformas/quick-calculate (Quick Proforma)
+   - /api/final-da (görüntüleme)
+   - /api/invoices (görüntüleme + ödeme)
+   - /api/fixtures (tüm CRUD)
+   - /api/cargo-positions (tüm CRUD)
+   - /api/tenders (tüm CRUD)
+   - /api/nominations (tüm CRUD)
+   - /api/market/* (tüm)
+   - /api/benchmarks, /api/exchange-rates, /api/directory, /api/port-info (görüntüleme)
+   - /api/sanctions, /api/messages, /api/forum, /api/reminders, /api/email/inbox (tüm)
+   - /api/service-requests (oluşturma)
+
+   SHIP BROKER erişebilir (commercial manager olarak gemi de işletir):
+   - /api/fixtures (tüm CRUD)
+   - /api/cargo-positions (tüm CRUD)
+   - /api/tenders (tüm CRUD)
+   - /api/nominations (tüm CRUD)
+   - /api/market/* (tüm)
+   - /api/laytime (tüm CRUD)
+   - /api/vessels (tüm CRUD)
+   - /api/fleets (tüm CRUD)
+   - /api/vessel-positions, /api/vessel-track (tüm)
+   - /api/bunker (tüm CRUD)
+   - /api/vessels/:id/certificates (tüm CRUD)
+   - /api/vessels/:id/crew (tüm CRUD)
+   - /api/compliance (tüm CRUD)
+   - /api/voyages (tüm CRUD)
+   - /api/voyages/:id/port-calls, sof, expenses, maritime-docs, documents (tüm CRUD)
+   - /api/proformas (görüntüleme + oluşturma)
+   - /api/proformas/quick-calculate (Quick Proforma)
+   - /api/final-da (görüntüleme)
+   - /api/invoices (tüm CRUD)
+   - /api/directory, /api/benchmarks, /api/exchange-rates, /api/port-info (görüntüleme)
+   - /api/messages, /api/forum, /api/sanctions, /api/reminders, /api/email/inbox (tüm)
+   - /api/service-requests (oluşturma + yönetim)
+
+   SHIP PROVIDER erişebilir:
+   - /api/service-requests (görüntüleme + teklif verme)
+   - /api/service-offers (tüm CRUD)
+   - /api/invoices (oluşturma + yönetim)
+   - /api/directory (kendi profil yönetimi)
+   - /api/service-ports (tüm CRUD)
+   - /api/tenders (görüntüleme + bid verme)
+   - /api/messages, /api/forum (tüm)
+   - /api/port-alerts (görüntüleme)
+   - /api/reminders (tüm)
+
+   ADMIN erişebilir:
+   - HER ŞEY
+   - /api/admin/* (sadece admin)
+
+   Kullanım örneği her route dosyasında:
+   import { requireRole } from "../middleware/role-guard";
+   
+   router.get("/api/proformas", isAuthenticated, requireRole("ship_agent", "shipowner", "ship_broker"), ...)
+   router.get("/api/fixtures", isAuthenticated, requireRole("ship_broker", "shipowner"), ...)
+   router.get("/api/bunker", isAuthenticated, requireRole("shipowner", "ship_broker"), ...)
+   router.post("/api/admin/users", isAuthenticated, requireRole("admin"), ...)
+
+4. Kayıt (register) sayfasını TAMAMEN yeniden yaz:
+
+   Admin seçeneği OLMAYACAK. Sadece 4 rol kartı göster.
+   
+   Tasarım: 4 kart yan yana (mobilde alt alta), kart seçilince mavi border, seçildikten sonra "Devam" butonu aktif olsun.
+
+   Ship Agent kartı:
+   Icon: Anchor (lucide-react)
+   Başlık: "Ship Agent"
+   Alt başlık: "Port operations & vessel agency services"
+   Özellik listesi:
+   - DA calculations & proforma
+   - SOF records & documents
+   - Voyage coordination
+   - Tender bidding
+
+   Shipowner kartı:
+   Icon: Ship (lucide-react)
+   Başlık: "Shipowner"
+   Alt başlık: "Fleet management & commercial operations"
+   Özellik listesi:
+   - Fleet tracking & AIS
+   - Bunker management
+   - Fixtures & chartering
+   - Crew & compliance
+
+   Ship Broker kartı:
+   Icon: Handshake (lucide-react)
+   Başlık: "Ship Broker"
+   Alt başlık: "Chartering, freight & commercial management"
+   Özellik listesi:
+   - Fleet & vessel management
+   - Fixtures & cargo positions
+   - Market intelligence
+   - Bunker & compliance
+
+   Ship Provider kartı:
+   Icon: Wrench (lucide-react)
+   Başlık: "Ship Provider"
+   Alt başlık: "Maritime services & supply"
+   Özellik listesi:
+   - Service request management
+   - Quotations & bidding
+   - Invoicing
+   - Port services
+
+   Akış:
+   Step 1: Rol seçimi (4 kart)
+   Step 2: Kayıt formu (isim, email, şifre, şirket adı, telefon)
+   Step 3: Kayıt tamamlandı → dashboard'a yönlendir
+
+5. Login sonrası yönlendirme rol bazlı:
+   - ship_agent → /dashboard
+   - shipowner → /dashboard
+   - ship_broker → /dashboard
+   - ship_provider → /dashboard
+   - admin → /admin
+
+6. Admin güvenliği:
+   - Register sayfasında admin rolü YOK, seçilemez
+   - Admin rolü sadece veritabanından manuel atanabilir: UPDATE users SET role = 'admin' WHERE email = 'xxx@xxx.com'
+   - Veya mevcut admin /api/admin/users/:id/role endpoint'i ile atayabilir
+   - /api/admin/* endpoint'leri sadece role="admin" olan kullanıcıya açık
+   - Admin olmayan biri /admin sayfasına gitmeye çalışırsa /dashboard'a yönlendir
+
+7. Mevcut kullanıcıları kontrol et:
+   - Eğer veritabanında eski rol isimleri varsa (agent, owner, broker, provider) bunları yeni isimlere güncelle
+   - Migration script: 
+     UPDATE users SET role = 'ship_agent' WHERE role = 'agent';
+     UPDATE users SET role = 'shipowner' WHERE role = 'owner';
+     UPDATE users SET role = 'ship_broker' WHERE role = 'broker';
+     UPDATE users SET role = 'ship_provider' WHERE role = 'provider';
+   - Eğer schema'da enum kullanılıyorsa enum değerlerini güncelle
+   - Eğer default role varsa "ship_agent" olarak ayarla

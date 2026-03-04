@@ -12,7 +12,6 @@ import {
   ChevronLeft, Download, Upload, Eye, X,
   Layers,
 } from "lucide-react";
-import { useSidebar } from "@/components/ui/sidebar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -714,7 +713,6 @@ function fmtDate(dt: string | null) {
 }
 
 export default function Vessels() {
-  const { state: sidebarState } = useSidebar();
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [showForm, setShowForm] = useState(false);
   const [editingVessel, setEditingVessel] = useState<Vessel | null>(null);
@@ -1342,12 +1340,9 @@ export default function Vessels() {
           const cfg = getCfg(v.fleetStatus);
           const flag = FLAG_EMOJI[v.flag || ""] || "🏳️";
           const progress = getProgress(voy);
-          const sidebarLeft = sidebarState === "expanded" ? "16rem" : "3rem";
-
           return (
             <div
-              className="fixed bottom-0 right-0 bg-background z-40 flex flex-col overflow-hidden border-l shadow-2xl"
-              style={{ top: "3.5rem", left: sidebarLeft }}
+              className="fixed bottom-0 right-0 bg-background z-40 flex flex-col overflow-hidden border-l shadow-2xl top-[92px] left-0 md:left-[200px]"
             >
               <div className="px-6 pt-5 pb-4 border-b flex-shrink-0">
                 <div className="flex items-start justify-between gap-3 mb-3">

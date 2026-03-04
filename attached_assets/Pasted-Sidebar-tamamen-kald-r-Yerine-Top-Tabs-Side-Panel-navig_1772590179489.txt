@@ -1,0 +1,192 @@
+Sidebar'ı tamamen kaldır. Yerine "Top Tabs + Side Panel" navigasyon sistemi kur. Üstte modül sekmeleri, solda alt menü paneli.
+
+GENEL MİMARİ:
+┌─────────────────────────────────────────────────────┐
+│ LOGO  │  🔍 Search ⌘K  │  🔔 4  │ AY Agent │ ⚙️   │  ← Top Bar (sabit)
+├────────┬──────┬──────┬──────┬──────┬────────────────┤
+│Dashboard│Operasyon│Ticari│Kiralama│İletişim│          │  ← Module Tabs (rol bazlı)
+├────────┴───┬──────────────────────────────────────────┤
+│ Sub Menu   │                                          │
+│ ─────────  │                                          │
+│ Voyages    │          İÇERİK ALANI                    │  ← Side Panel + Content
+│ SOF        │                                          │
+│ Vessel Trk │                                          │
+│ Port Info  │                                          │
+│ Certificates│                                         │
+└────────────┴──────────────────────────────────────────┘
+
+TASARIM PRENSİPLERİ:
+- Top Bar: Her zaman görünür, logo + arama + bildirimler + profil
+- Module Tabs: Rol bazlı ana modüller, yatay sekmeler
+- Side Panel: Aktif modülün alt menüleri (200px genişlik)
+- İçerik Alanı: Kalan tüm alan
+- Dashboard sekmesi her zaman ilk sırada ve grup dışı
+- Aktif sekme: mavi alt çizgi + beyaz text
+- Aktif alt menü öğesi: sol kenarda mavi çizgi + mavi text + hafif mavi arka plan
+
+1. client/src/components/app-layout.tsx dosyasını tamamen yeniden yaz:
+
+TOP BAR (sabit, her zaman görünür):
+- Sol: VesselPDA logosu (tıklayınca dashboard)
+- Organizasyon adı (varsa, logonun yanında küçük text)
+- Orta: Global arama çubuğu (⌘K kısayolu, 300px genişlik, rounded, placeholder: "Search vessels, voyages, proformas...")
+- Sağ: 
+  - Bildirim zili + okunmamış sayı badge (kırmızı)
+  - Kullanıcı avatarı + isim + rol badge
+    ship_agent → mavi "Agent"
+    shipowner → yeşil "Owner"
+    ship_broker → turuncu "Broker"
+    ship_provider → mor "Provider"
+    admin → kırmızı "Admin"
+  - Tıklayınca dropdown: Settings, Organization, Logout
+- Yükseklik: 52px
+- Arka plan: #0F172A (koyu), alt kenarda ince border
+
+MODULE TABS (top bar altında):
+- Yatay sekme listesi
+- Her sekme: ikon + isim
+- Aktif sekme: text-white, border-bottom 2px mavi, bg-blue-500/5
+- Pasif sekme: text-slate-400, hover:text-slate-200
+- Sekmede badge: okunmamış mesaj sayısı, yeni tender sayısı vs.
+- Yükseklik: 40px
+- Arka plan: #0F172A/80 (yarı saydam), alt kenarda ince border
+- Overflow: yatay scroll (mobilde kaydırılabilir)
+
+SIDE PANEL (sol taraf, aktif modülün alt menüleri):
+- Genişlik: 200px
+- Arka plan: #0F172A/50 (çok hafif)
+- Sağ kenarda ince border
+- Üstte modül başlığı (küçük, gri, uppercase)
+- Alt menü öğeleri: ikon + isim + opsiyonel badge
+- Aktif öğe: sol kenarda 3px mavi border + text-blue-400 + bg-blue-500/10
+- Hover: bg-slate-800/30
+- Dashboard sekmesi tıklanınca side panel GIZLE (dashboard tam genişlik)
+- Scroll: panel içeriği taşarsa kendi scroll'u
+
+2. ROL BAZLI MODULE TABS:
+
+SHIP AGENT sekmeleri:
+- 📊 Dashboard (side panel yok, tam genişlik)
+- ⚓ Operasyonlar
+  Alt menü: Voyages, SOF Records, Vessel Track, Port Info, Certificates, Compliance
+- 💰 Ticari
+  Alt menü: Proforma DA, Quick Proforma, Final DA, Invoices, Exchange Rates, Port Benchmarking, Market Data
+- 📢 Tender & Teklif (badge: yeni tender sayısı)
+  Alt menü: Tenders, Nominations, Service Requests
+- 💬 İletişim (badge: toplam okunmamış)
+  Alt menü: Messages, Team Chat, Email Inbox, Forum, Directory
+- 📊 Araçlar
+  Alt menü: Reports, Sanctions Check, Reminders
+
+SHIPOWNER sekmeleri:
+- 📊 Dashboard
+- 🚢 Filo Yönetimi
+  Alt menü: My Fleet, Fleet Tracking, Bunker Management, Crew Management, Certificates, Compliance
+- 🚢 Seferler
+  Alt menü: Voyages, SOF Records, Voyage Expenses, Laytime/Demurrage
+- 📋 Kiralama & Piyasa
+  Alt menü: Fixtures, Cargo Positions, Tenders, Nominations, Market Data
+- 💰 Ticari
+  Alt menü: Proformas, Quick Proforma, Final DA, Invoices, Port Benchmarking, Exchange Rates
+- 💬 İletişim (badge)
+  Alt menü: Messages, Team Chat, Email Inbox, Forum, Directory
+- 📊 Araçlar
+  Alt menü: Reports, Service Requests, Sanctions Check, Reminders
+
+SHIP BROKER sekmeleri:
+- 📊 Dashboard
+- 📋 Kiralama (ana iş)
+  Alt menü: Fixtures, Cargo Positions, Tenders, Nominations, Laytime
+- 🚢 Filo & Gemi
+  Alt menü: Vessels, Fleet Tracking, Bunker Management, Crew Management, Certificates, Compliance
+- 🚢 Seferler
+  Alt menü: Voyages, SOF Records, Voyage Expenses
+- 💰 Ticari
+  Alt menü: Proformas, Quick Proforma, Final DA, Invoices
+- 📈 Piyasa
+  Alt menü: Market Data, Port Benchmarking, Exchange Rates, Sanctions Check
+- 💬 İletişim (badge)
+  Alt menü: Messages, Team Chat, Email Inbox, Forum, Directory
+- 📊 Araçlar
+  Alt menü: Reports, Service Requests, Reminders
+
+SHIP PROVIDER sekmeleri:
+- 📊 Dashboard
+- 🔧 Hizmetler (ana iş)
+  Alt menü: Service Requests (badge: yeni), My Offers, Tenders, My Services, Service Ports
+- 💰 Finans
+  Alt menü: Invoices, Exchange Rates
+- 💬 İletişim (badge)
+  Alt menü: Messages, Team Chat, Forum, Directory
+- 📊 Araçlar
+  Alt menü: Reports, Reminders
+
+ADMIN sekmeleri:
+- 📊 Admin Dashboard
+- 👥 Yönetim
+  Alt menü: Users, Organizations, System Stats, Audit Logs, Cache Management
+- 💰 Tarifeler
+  Alt menü: Port Tariffs, Custom Sections, Tariff Summary
+- 📢 İçerik
+  Alt menü: Port Alerts, Document Templates, Forum Management
+- ⚙️ Sistem
+  Alt menü: System Settings, Exchange Rates, Benchmarks, Reminder Rules
+- (Admin ayrıca diğer tüm rollerin sayfalarına erişebilir, "Tüm Sayfalar" sekmesi ile)
+
+3. MOBİL TASARIM (< 768px):
+
+Top Bar kalır ama:
+- Arama çubuğu gizlenir (sadece 🔍 ikonu, tıklayınca fullscreen arama)
+- Kullanıcı adı gizlenir (sadece avatar)
+
+Module Tabs → Bottom Navigation Bar'a dönüşür:
+- Ekranın altında sabit 5 ikon
+- Agent: 📊 Home, ⚓ Ops, 💰 Finance, 💬 Chat, ☰ More
+- Owner: 📊 Home, 🚢 Fleet, 🚢 Voyages, 💬 Chat, ☰ More
+- Broker: 📊 Home, 📋 Charter, 🚢 Fleet, 💬 Chat, ☰ More
+- Provider: 📊 Home, 🔧 Services, 💬 Chat, 🧾 Finance, ☰ More
+- "More" tıklanınca kalan sekmeler bottom sheet olarak açılır
+
+Side Panel:
+- Mobilde gizli, hamburger menü ile overlay olarak açılır
+- Veya modül sekmesine tıklayınca alt menü dropdown olarak açılır (top bar altında)
+
+4. İLERİ ÖZELLİKLER:
+
+Breadcrumb:
+- Side panel altında veya içerik alanı üstünde
+- "Voyages / VY-2024-156 / SOF"
+- Her parça tıklanabilir
+
+Quick Actions butonu:
+- Top bar'da veya floating action button
+- Tıklayınca: + Yeni Sefer, + Yeni Proforma, ⚡ Quick DA, + SOF Kaydı
+- Rol bazlı eylemler
+
+Tab hafızası:
+- Aktif sekme ve alt menü öğesi localStorage'da sakla
+- Sayfa yenilenince aynı yerde kal
+- URL'de de yansısın: /voyages, /proformas vs.
+
+5. GÖRSEL TASARIM:
+
+Renk Paleti:
+- Arka plan: #0B1120 (ana), #0F172A (paneller)
+- Accent: #3B82F6 (mavi)
+- Text: #F8FAFC (beyaz), #94A3B8 (gri), #64748B (koyu gri)
+- Border: #1E293B
+- Hover: #1E293B/50
+- Active: #3B82F6/10
+
+Font: Inter veya sistem fontu, 13-14px base
+
+Spacing: Kompakt ama rahat — 8px padding, 4px gap
+
+Animasyonlar:
+- Sekme değişiminde side panel içeriği fade-in (150ms)
+- Hover geçişleri smooth (150ms)
+- Badge pulse animasyonu (yeni bildirim gelince)
+
+Tailwind CSS + Framer Motion kullan. shadcn/ui Tabs component base olarak kullanılabilir.
+Mevcut app-sidebar.tsx dosyasını sil, yerine app-layout.tsx oluştur.
+App.tsx'te layout wrapper'ı güncelle.

@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useSidebar } from "@/components/ui/sidebar";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -30,12 +29,11 @@ export default function Proformas() {
   const [vesselFilter, setVesselFilter] = useState("all");
   const { toast } = useToast();
   const { user } = useAuth();
-  const { open: sidebarOpen } = useSidebar();
 
   const userRole = (user as any)?.userRole;
   const activeRole = (user as any)?.activeRole;
   const effectiveRole = userRole === "admin" ? (activeRole || "shipowner") : userRole;
-  const isAgent = effectiveRole === "agent";
+  const isAgent = effectiveRole === "ship_agent" || effectiveRole === "agent";
 
   const [showQuickDialog, setShowQuickDialog] = useState(false);
   const [quickVesselId, setQuickVesselId] = useState<string>("");
@@ -651,13 +649,11 @@ export default function Proformas() {
       {showQuickDialog && (
         <>
           <div
-            className="fixed right-0 z-40 bg-black/60"
-            style={{ left: sidebarOpen ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)', top: 0, bottom: 0 }}
+            className="fixed z-40 bg-black/60 top-[92px] left-0 bottom-0 right-0 md:left-[200px]"
             onClick={() => setShowQuickDialog(false)}
           />
           <div
-            className="fixed right-0 z-50 flex flex-col bg-background border-l shadow-2xl overflow-hidden"
-            style={{ left: sidebarOpen ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)', top: 0, bottom: 0 }}
+            className="fixed z-50 flex flex-col bg-background border-l shadow-2xl overflow-hidden top-[92px] left-0 bottom-0 right-0 md:left-[200px]"
             data-testid="dialog-quick-proforma"
           >
             <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b bg-background">

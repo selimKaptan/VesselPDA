@@ -74,7 +74,8 @@ export function AgentDashboard({ user, tenders: tendersProp, myBidsData: myBidsD
     queryFn: () => fetch("/api/company-profile/me", { credentials: "include" }).then(r => r.ok ? r.json() : null),
   });
 
-  const tenders = tendersProp ?? tendersInternal;
+  const tendersRaw = tendersProp ?? tendersInternal;
+  const tenders = Array.isArray(tendersRaw) ? tendersRaw : [];
   const myBidsData = myBidsDataProp ?? myBidsInternal;
   const myProfile = myProfileProp ?? myProfileInternal;
   const notificationsData = notificationsDataProp;
