@@ -93,7 +93,7 @@ export default function Messages() {
                     </span>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       {conv.externalEmailForward && (
-                        <Mail className="w-3 h-3 text-amber-500" title="E-posta bridge aktif" />
+                        <Mail className="w-3 h-3 text-amber-500" aria-label="Email bridge active" />
                       )}
                       <span className="text-xs text-muted-foreground">
                         {conv.lastMessageTime ? timeAgo(conv.lastMessageTime) : ""}

@@ -371,7 +371,7 @@ export default function MessageThread() {
             <span className="text-xs text-[hsl(var(--maritime-primary))] font-medium flex-1 truncate">{pendingFile.name}</span>
             <span className="text-[10px] text-muted-foreground">{formatBytes(pendingFile.size)}</span>
             {pendingFile.size > 5 * 1024 * 1024 && (
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" title="Büyük dosya" />
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" aria-label="Large file" />
             )}
             <button onClick={() => setPendingFile(null)} className="text-muted-foreground hover:text-destructive transition-colors">
               <X className="w-3.5 h-3.5" />

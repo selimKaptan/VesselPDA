@@ -680,10 +680,12 @@ export default function VesselTrack() {
     function safeRemove() {
       try {
         historyPopupRef.current?.remove();
-        if (map.getLayer(LINE_LAYER)) map.removeLayer(LINE_LAYER);
-        if (map.getLayer(PTS_LAYER)) map.removeLayer(PTS_LAYER);
-        if (map.getSource(LINE_SRC)) map.removeSource(LINE_SRC);
-        if (map.getSource(PTS_SRC)) map.removeSource(PTS_SRC);
+        const m = mapRef.current;
+        if (!m) return;
+        if (m.getLayer(LINE_LAYER)) m.removeLayer(LINE_LAYER);
+        if (m.getLayer(PTS_LAYER)) m.removeLayer(PTS_LAYER);
+        if (m.getSource(LINE_SRC)) m.removeSource(LINE_SRC);
+        if (m.getSource(PTS_SRC)) m.removeSource(PTS_SRC);
       } catch { /* map might be mid-removal */ }
     }
 

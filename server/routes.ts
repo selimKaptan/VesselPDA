@@ -1617,7 +1617,9 @@ export async function registerRoutes(
   app.get("/api/trust-score/:userId", async (req, res) => {
     try {
       const { userId } = req.params;
-      const allVoyages = await storage.getVoyagesByUser(userId);
+      const trustUser = await storage.getUser(userId);
+      const trustRole = trustUser?.userRole || "shipowner";
+      const allVoyages = await storage.getVoyagesByUser(userId, trustRole);
       const completedVoyages = allVoyages.filter(v => v.status === "completed").length;
       const finishedVoyages = allVoyages.filter(v => ["completed", "cancelled"].includes(v.status)).length;
       const successRate = finishedVoyages > 0 ? Math.round((completedVoyages / finishedVoyages) * 100) : null;
@@ -1857,7 +1859,7 @@ export async function registerRoutes(
       const name = req.query.name as string;
       const imo = req.query.imo as string | undefined;
       if (!name) return res.status(400).json({ message: "name is required" });
-      const result = checkSanctions(name, imo);
+      const result = checkSanctions(name);
       res.json(result);
     } catch (error) {
       res.status(500).json({ message: "Failed to check sanctions" });
@@ -3620,7 +3622,7 @@ export async function registerRoutes(
               userId: mentionedId,
               type: "mention",
               title: "Sizi etiketledi",
-              message: `${senderUser?.name || "Bir kullanıcı"} mesajda sizi etiketledi`,
+              message: `${[senderUser?.firstName, senderUser?.lastName].filter(Boolean).join(" ") || "A user"} mentioned you in a message`,
               link: `/messages/${conversationId}`,
             });
           }
@@ -3633,7 +3635,7 @@ export async function registerRoutes(
         sendMessageBridgeEmail(
           conv.externalEmail,
           conv.externalEmailName || conv.externalEmail,
-          senderUser?.name || "VesselPDA Kullanıcısı",
+          [senderUser?.firstName, senderUser?.lastName].filter(Boolean).join(" ") || "VesselPDA User",
           content || "",
           fileName || undefined
         ).catch((e: any) => console.error("[bridge] email failed:", e));
@@ -3727,12 +3729,11 @@ export async function registerRoutes(
         const enriched = await storage.getNominationById(nom.id);
         sendNominationEmail({
           agentEmail: agentUser.email,
-          agentCompanyName: enriched?.agentCompanyName || agentUser.name || agentUserId,
+          agentCompanyName: enriched?.agentCompanyName || [agentUser.firstName, agentUser.lastName].filter(Boolean).join(" ") || agentUserId,
           portName: enriched?.portName || `Port #${portId}`,
           vesselName: vesselName,
-          eta: eta ? new Date(eta).toLocaleString("tr-TR") : undefined,
           note: notes || undefined,
-          shipownerName: req.user.name || undefined,
+          shipownerName: [req.user?.firstName, req.user?.lastName].filter(Boolean).join(" ") || undefined,
         }).catch(err => console.error("[email] Nomination email failed (non-blocking):", err));
       }
 
@@ -3783,7 +3784,7 @@ export async function registerRoutes(
       if (nominatorUser?.email) {
         sendNominationResponseEmail({
           nominatorEmail: nominatorUser.email,
-          nominatorName: nominatorUser.name || "Sayın Kullanıcı",
+          nominatorName: [nominatorUser.firstName, nominatorUser.lastName].filter(Boolean).join(" ") || "Dear User",
           agentCompanyName: nom.agentCompanyName || nom.agentName || "Acente",
           status: status as "accepted" | "declined",
           portName: nom.portName || `Port #${nom.portId}`,

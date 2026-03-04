@@ -110,14 +110,14 @@ export default function Directory() {
 
   // Hierarchical port filter derived data
   const availableCountries = ports
-    ? [...new Set(ports.map(p => p.country).filter(Boolean))].sort()
+    ? Array.from(new Set(ports.map(p => p.country).filter(Boolean))).sort()
     : [];
 
   const portsInCountry = countryFilter === "all"
     ? (ports || [])
     : (ports || []).filter(p => p.country === countryFilter);
 
-  const availableCities = [...new Set(portsInCountry.map(p => getPortCityCode(p.code || "")))]
+  const availableCities = Array.from(new Set(portsInCountry.map(p => getPortCityCode(p.code || ""))))
     .filter(c => c !== "OTHER")
     .sort((a, b) => getCityName(a).localeCompare(getCityName(b)));
 

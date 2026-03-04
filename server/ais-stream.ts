@@ -141,7 +141,7 @@ function vesselTypeCodeToString(code: number): string {
 function trimCache() {
   const cutoff = new Date(Date.now() - 30 * 60 * 1000);
   let removed = 0;
-  for (const [mmsi, pos] of vesselCache.entries()) {
+  for (const [mmsi, pos] of Array.from(vesselCache.entries())) {
     if (pos.lastUpdated < cutoff) {
       vesselCache.delete(mmsi);
       removed++;

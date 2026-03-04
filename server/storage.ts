@@ -334,7 +334,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createPort(port: InsertPort): Promise<Port> {
-    const [created] = await db.insert(ports).values(port).returning();
+    const [created] = await db.insert(ports).values(port as any).returning();
     return created;
   }
 
@@ -347,7 +347,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTariffCategory(cat: InsertTariffCategory): Promise<TariffCategory> {
-    const [created] = await db.insert(tariffCategories).values(cat).returning();
+    const [created] = await db.insert(tariffCategories).values(cat as any).returning();
     return created;
   }
 
@@ -1598,8 +1598,8 @@ export class DatabaseStorage implements IStorage {
 
   private async _enrichNominations(rows: any[]): Promise<any[]> {
     return Promise.all(rows.map(async (nom) => {
-      const [nominator] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, nom.nominatorUserId));
-      const [agent] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, nom.agentUserId));
+      const [nominator] = await db.select({ firstName: users.firstName, lastName: users.lastName, email: users.email }).from(users).where(eq(users.id, nom.nominatorUserId));
+      const [agent] = await db.select({ firstName: users.firstName, lastName: users.lastName, email: users.email }).from(users).where(eq(users.id, nom.agentUserId));
       const [port] = await db.select({ name: ports.name, code: ports.code }).from(ports).where(eq(ports.id, nom.portId));
       let agentCompanyName: string | null = null;
       if (nom.agentCompanyId) {
@@ -1608,8 +1608,8 @@ export class DatabaseStorage implements IStorage {
       }
       return {
         ...nom,
-        nominatorName: nominator?.name ?? nominator?.email ?? "Kullanıcı",
-        agentName: agent?.name ?? agent?.email ?? "Acente",
+        nominatorName: [nominator?.firstName, nominator?.lastName].filter(Boolean).join(" ") || nominator?.email || "User",
+        agentName: [agent?.firstName, agent?.lastName].filter(Boolean).join(" ") || agent?.email || "Agent",
         agentCompanyName,
         portName: port?.name ?? `Port #${nom.portId}`,
         portCode: port?.code ?? null,

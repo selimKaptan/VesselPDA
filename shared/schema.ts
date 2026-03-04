@@ -181,11 +181,11 @@ export const forumDislikes = pgTable("forum_dislikes", {
 
 export type ForumDislike = typeof forumDislikes.$inferSelect;
 
-export const insertVesselSchema = createInsertSchema(vessels).omit({ id: true, createdAt: true });
-export const insertPortSchema = createInsertSchema(ports).omit({ id: true, createdAt: true });
-export const insertTariffCategorySchema = createInsertSchema(tariffCategories).omit({ id: true });
-export const insertTariffRateSchema = createInsertSchema(tariffRates).omit({ id: true });
-export const insertProformaSchema = createInsertSchema(proformas).omit({ id: true, createdAt: true });
+export const insertVesselSchema = createInsertSchema(vessels).omit({ createdAt: true });
+export const insertPortSchema = createInsertSchema(ports).omit({ createdAt: true });
+export const insertTariffCategorySchema = createInsertSchema(tariffCategories).omit({});
+export const insertTariffRateSchema = createInsertSchema(tariffRates).omit({});
+export const insertProformaSchema = createInsertSchema(proformas).omit({ createdAt: true });
 
 export type InsertVessel = z.infer<typeof insertVesselSchema>;
 export type Vessel = typeof vessels.$inferSelect;
@@ -198,9 +198,9 @@ export type TariffRate = typeof tariffRates.$inferSelect;
 export type InsertProforma = z.infer<typeof insertProformaSchema>;
 export type Proforma = typeof proformas.$inferSelect;
 
-export const insertForumCategorySchema = createInsertSchema(forumCategories).omit({ id: true, createdAt: true });
-export const insertForumTopicSchema = createInsertSchema(forumTopics).omit({ id: true, createdAt: true, lastActivityAt: true, viewCount: true, replyCount: true, likeCount: true, isPinned: true, isLocked: true });
-export const insertForumReplySchema = createInsertSchema(forumReplies).omit({ id: true, createdAt: true, likeCount: true });
+export const insertForumCategorySchema = createInsertSchema(forumCategories).omit({ createdAt: true });
+export const insertForumTopicSchema = createInsertSchema(forumTopics).omit({ createdAt: true, lastActivityAt: true, viewCount: true, replyCount: true, likeCount: true, isPinned: true, isLocked: true });
+export const insertForumReplySchema = createInsertSchema(forumReplies).omit({ createdAt: true, likeCount: true });
 
 export type InsertForumCategory = z.infer<typeof insertForumCategorySchema>;
 export type ForumCategory = typeof forumCategories.$inferSelect;
@@ -258,8 +258,8 @@ export const tenderBidRelations = relations(tenderBids, ({ one }) => ({
   agentCompany: one(companyProfiles, { fields: [tenderBids.agentCompanyId], references: [companyProfiles.id] }),
 }));
 
-export const insertPortTenderSchema = createInsertSchema(portTenders).omit({ id: true, createdAt: true, nominatedAt: true, nominatedAgentId: true, status: true });
-export const insertTenderBidSchema = createInsertSchema(tenderBids).omit({ id: true, createdAt: true, status: true });
+export const insertPortTenderSchema = createInsertSchema(portTenders).omit({ createdAt: true, nominatedAt: true, nominatedAgentId: true, status: true });
+export const insertTenderBidSchema = createInsertSchema(tenderBids).omit({ createdAt: true, status: true });
 
 export type InsertPortTender = z.infer<typeof insertPortTenderSchema>;
 export type PortTender = typeof portTenders.$inferSelect;
@@ -286,7 +286,7 @@ export const agentReviewRelations = relations(agentReviews, ({ one }) => ({
   tender: one(portTenders, { fields: [agentReviews.tenderId], references: [portTenders.id] }),
 }));
 
-export const insertAgentReviewSchema = createInsertSchema(agentReviews).omit({ id: true, createdAt: true });
+export const insertAgentReviewSchema = createInsertSchema(agentReviews).omit({ createdAt: true });
 export type InsertAgentReview = z.infer<typeof insertAgentReviewSchema>;
 export type AgentReview = typeof agentReviews.$inferSelect;
 
@@ -308,7 +308,7 @@ export const vesselWatchlistRelations = relations(vesselWatchlist, ({ one }) => 
   user: one(users, { fields: [vesselWatchlist.userId], references: [users.id] }),
 }));
 
-export const insertVesselWatchlistSchema = createInsertSchema(vesselWatchlist).omit({ id: true, addedAt: true });
+export const insertVesselWatchlistSchema = createInsertSchema(vesselWatchlist).omit({ addedAt: true });
 export type InsertVesselWatchlist = z.infer<typeof insertVesselWatchlistSchema>;
 export type VesselWatchlistItem = typeof vesselWatchlist.$inferSelect;
 
@@ -322,7 +322,7 @@ export const feedbacks = pgTable("feedbacks", {
   pageUrl: text("page_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });
-export const insertFeedbackSchema = createInsertSchema(feedbacks).omit({ id: true, createdAt: true });
+export const insertFeedbackSchema = createInsertSchema(feedbacks).omit({ createdAt: true });
 export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
 export type Feedback = typeof feedbacks.$inferSelect;
 
@@ -341,7 +341,7 @@ export const notificationRelations = relations(notifications, ({ one }) => ({
   user: one(users, { fields: [notifications.userId], references: [users.id] }),
 }));
 
-export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true, isRead: true });
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ createdAt: true, isRead: true });
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
 
@@ -564,15 +564,15 @@ export const directNominationRelations = relations(directNominations, ({ one }) 
 
 // ─── SCHEMA EXPORTS ───────────────────────────────────────────────────────────
 
-export const insertVoyageSchema = createInsertSchema(voyages).omit({ id: true, createdAt: true });
-export const insertVoyageChecklistSchema = createInsertSchema(voyageChecklists).omit({ id: true, createdAt: true, isCompleted: true, completedAt: true });
-export const insertServiceRequestSchema = createInsertSchema(serviceRequests).omit({ id: true, createdAt: true, status: true });
-export const insertServiceOfferSchema = createInsertSchema(serviceOffers).omit({ id: true, createdAt: true, status: true });
-export const insertVoyageDocumentSchema = createInsertSchema(voyageDocuments).omit({ id: true, createdAt: true });
-export const insertVoyageReviewSchema = createInsertSchema(voyageReviews).omit({ id: true, createdAt: true });
-export const insertVoyageChatMessageSchema = createInsertSchema(voyageChatMessages).omit({ id: true, createdAt: true });
-export const insertConversationSchema = createInsertSchema(conversations).omit({ id: true, createdAt: true, lastMessageAt: true });
-export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true, isRead: true, readAt: true });
+export const insertVoyageSchema = createInsertSchema(voyages).omit({ createdAt: true });
+export const insertVoyageChecklistSchema = createInsertSchema(voyageChecklists).omit({ createdAt: true, isCompleted: true, completedAt: true });
+export const insertServiceRequestSchema = createInsertSchema(serviceRequests).omit({ createdAt: true, status: true });
+export const insertServiceOfferSchema = createInsertSchema(serviceOffers).omit({ createdAt: true, status: true });
+export const insertVoyageDocumentSchema = createInsertSchema(voyageDocuments).omit({ createdAt: true });
+export const insertVoyageReviewSchema = createInsertSchema(voyageReviews).omit({ createdAt: true });
+export const insertVoyageChatMessageSchema = createInsertSchema(voyageChatMessages).omit({ createdAt: true });
+export const insertConversationSchema = createInsertSchema(conversations).omit({ createdAt: true, lastMessageAt: true });
+export const insertMessageSchema = createInsertSchema(messages).omit({ createdAt: true, isRead: true, readAt: true });
 
 export type InsertVoyage = z.infer<typeof insertVoyageSchema>;
 export type Voyage = typeof voyages.$inferSelect;
@@ -593,7 +593,7 @@ export type ServiceRequest = typeof serviceRequests.$inferSelect;
 export type InsertServiceOffer = z.infer<typeof insertServiceOfferSchema>;
 export type ServiceOffer = typeof serviceOffers.$inferSelect;
 
-export const insertDirectNominationSchema = createInsertSchema(directNominations).omit({ id: true, createdAt: true, status: true, respondedAt: true });
+export const insertDirectNominationSchema = createInsertSchema(directNominations).omit({ createdAt: true, status: true, respondedAt: true });
 export type InsertDirectNomination = z.infer<typeof insertDirectNominationSchema>;
 export type DirectNomination = typeof directNominations.$inferSelect;
 
@@ -613,7 +613,7 @@ export const endorsementRelations = relations(endorsements, ({ one }) => ({
   toCompanyProfile: one(companyProfiles, { fields: [endorsements.toCompanyProfileId], references: [companyProfiles.id] }),
 }));
 
-export const insertEndorsementSchema = createInsertSchema(endorsements).omit({ id: true, createdAt: true });
+export const insertEndorsementSchema = createInsertSchema(endorsements).omit({ createdAt: true });
 export type InsertEndorsement = z.infer<typeof insertEndorsementSchema>;
 export type Endorsement = typeof endorsements.$inferSelect;
 
@@ -643,7 +643,7 @@ export const vesselCertificateRelations = relations(vesselCertificates, ({ one }
   vessel: one(vessels, { fields: [vesselCertificates.vesselId], references: [vessels.id] }),
 }));
 
-export const insertVesselCertificateSchema = createInsertSchema(vesselCertificates).omit({ id: true, createdAt: true, status: true });
+export const insertVesselCertificateSchema = createInsertSchema(vesselCertificates).omit({ createdAt: true, status: true });
 export type InsertVesselCertificate = z.infer<typeof insertVesselCertificateSchema>;
 export type VesselCertificate = typeof vesselCertificates.$inferSelect;
 
@@ -666,7 +666,7 @@ export const portCallAppointmentRelations = relations(portCallAppointments, ({ o
   user: one(users, { fields: [portCallAppointments.userId], references: [users.id] }),
 }));
 
-export const insertPortCallAppointmentSchema = createInsertSchema(portCallAppointments).omit({ id: true, createdAt: true });
+export const insertPortCallAppointmentSchema = createInsertSchema(portCallAppointments).omit({ createdAt: true });
 export type InsertPortCallAppointment = z.infer<typeof insertPortCallAppointmentSchema>;
 export type PortCallAppointment = typeof portCallAppointments.$inferSelect;
 
@@ -699,7 +699,7 @@ export const fixtureRelations = relations(fixtures, ({ one }) => ({
   user: one(users, { fields: [fixtures.userId], references: [users.id] }),
 }));
 
-export const insertFixtureSchema = createInsertSchema(fixtures).omit({ id: true, createdAt: true, status: true });
+export const insertFixtureSchema = createInsertSchema(fixtures).omit({ createdAt: true, status: true });
 export type InsertFixture = z.infer<typeof insertFixtureSchema>;
 export type Fixture = typeof fixtures.$inferSelect;
 
@@ -731,7 +731,7 @@ export const laytimeRelations = relations(laytimeCalculations, ({ one }) => ({
   fixture: one(fixtures, { fields: [laytimeCalculations.fixtureId], references: [fixtures.id] }),
 }));
 
-export const insertLaytimeSchema = createInsertSchema(laytimeCalculations).omit({ id: true, createdAt: true, timeUsedHours: true, demurrageAmount: true, despatchAmount: true });
+export const insertLaytimeSchema = createInsertSchema(laytimeCalculations).omit({ createdAt: true, timeUsedHours: true, demurrageAmount: true, despatchAmount: true });
 export type InsertLaytime = z.infer<typeof insertLaytimeSchema>;
 export type LaytimeCalculation = typeof laytimeCalculations.$inferSelect;
 
@@ -762,7 +762,7 @@ export const cargoPositionRelations = relations(cargoPositions, ({ one }) => ({
   user: one(users, { fields: [cargoPositions.userId], references: [users.id] }),
 }));
 
-export const insertCargoPositionSchema = createInsertSchema(cargoPositions).omit({ id: true, createdAt: true, status: true });
+export const insertCargoPositionSchema = createInsertSchema(cargoPositions).omit({ createdAt: true, status: true });
 export type InsertCargoPosition = z.infer<typeof insertCargoPositionSchema>;
 export type CargoPosition = typeof cargoPositions.$inferSelect;
 
@@ -780,7 +780,7 @@ export const bunkerPrices = pgTable("bunker_prices", {
   updatedBy: varchar("updated_by").references(() => users.id),
 });
 
-export const insertBunkerPriceSchema = createInsertSchema(bunkerPrices).omit({ id: true });
+export const insertBunkerPriceSchema = createInsertSchema(bunkerPrices).omit({});
 export type InsertBunkerPrice = z.infer<typeof insertBunkerPriceSchema>;
 export type BunkerPrice = typeof bunkerPrices.$inferSelect;
 
@@ -796,7 +796,7 @@ export const documentTemplates = pgTable("document_templates", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertDocumentTemplateSchema = createInsertSchema(documentTemplates).omit({ id: true, createdAt: true });
+export const insertDocumentTemplateSchema = createInsertSchema(documentTemplates).omit({ createdAt: true });
 export type InsertDocumentTemplate = z.infer<typeof insertDocumentTemplateSchema>;
 export type DocumentTemplate = typeof documentTemplates.$inferSelect;
 
@@ -825,7 +825,7 @@ export const invoiceRelations = relations(invoices, ({ one }) => ({
   creator: one(users, { fields: [invoices.createdByUserId], references: [users.id] }),
 }));
 
-export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true, status: true });
+export const insertInvoiceSchema = createInsertSchema(invoices).omit({ createdAt: true, status: true });
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 export type Invoice = typeof invoices.$inferSelect;
 
@@ -851,7 +851,7 @@ export const portAlertRelations = relations(portAlerts, ({ one }) => ({
   creator: one(users, { fields: [portAlerts.createdByUserId], references: [users.id] }),
 }));
 
-export const insertPortAlertSchema = createInsertSchema(portAlerts).omit({ id: true, createdAt: true });
+export const insertPortAlertSchema = createInsertSchema(portAlerts).omit({ createdAt: true });
 export type InsertPortAlert = z.infer<typeof insertPortAlertSchema>;
 export type PortAlert = typeof portAlerts.$inferSelect;
 
@@ -881,7 +881,7 @@ export const vesselCrewRelations = relations(vesselCrew, ({ one }) => ({
   user: one(users, { fields: [vesselCrew.userId], references: [users.id] }),
 }));
 
-export const insertVesselCrewSchema = createInsertSchema(vesselCrew).omit({ id: true, createdAt: true });
+export const insertVesselCrewSchema = createInsertSchema(vesselCrew).omit({ createdAt: true });
 export type InsertVesselCrew = z.infer<typeof insertVesselCrewSchema>;
 export type VesselCrew = typeof vesselCrew.$inferSelect;
 
@@ -911,7 +911,7 @@ export const vesselPositionsRelations = relations(vesselPositions, ({ one }) => 
   watchlistItem: one(vesselWatchlist, { fields: [vesselPositions.watchlistItemId], references: [vesselWatchlist.id] }),
 }));
 
-export const insertVesselPositionSchema = createInsertSchema(vesselPositions).omit({ id: true, timestamp: true });
+export const insertVesselPositionSchema = createInsertSchema(vesselPositions).omit({ timestamp: true });
 export type InsertVesselPosition = z.infer<typeof insertVesselPositionSchema>;
 export type VesselPositionRecord = typeof vesselPositions.$inferSelect;
 
@@ -935,7 +935,7 @@ export const sanctionsChecksRelations = relations(sanctionsChecks, ({ one }) => 
   user: one(users, { fields: [sanctionsChecks.userId], references: [users.id] }),
 }));
 
-export const insertSanctionsCheckSchema = createInsertSchema(sanctionsChecks).omit({ id: true, checkedAt: true });
+export const insertSanctionsCheckSchema = createInsertSchema(sanctionsChecks).omit({ checkedAt: true });
 export type InsertSanctionsCheck = z.infer<typeof insertSanctionsCheckSchema>;
 export type SanctionsCheck = typeof sanctionsChecks.$inferSelect;
 
@@ -952,7 +952,7 @@ export const exchangeRates = pgTable("exchange_rates", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const insertExchangeRateSchema = createInsertSchema(exchangeRates).omit({ id: true, updatedAt: true });
+export const insertExchangeRateSchema = createInsertSchema(exchangeRates).omit({ updatedAt: true });
 export type InsertExchangeRate = z.infer<typeof insertExchangeRateSchema>;
 export type ExchangeRate = typeof exchangeRates.$inferSelect;
 
@@ -986,7 +986,7 @@ export const fleetVesselsRelations = relations(fleetVessels, ({ one }) => ({
   vessel: one(vessels, { fields: [fleetVessels.vesselId], references: [vessels.id] }),
 }));
 
-export const insertFleetSchema = createInsertSchema(fleets).omit({ id: true, createdAt: true });
+export const insertFleetSchema = createInsertSchema(fleets).omit({ createdAt: true });
 export type InsertFleet = z.infer<typeof insertFleetSchema>;
 export type Fleet = typeof fleets.$inferSelect;
 
@@ -1005,6 +1005,6 @@ export const auditLogs = pgTable("audit_logs", {
   entityIdx: index("audit_logs_entity_idx").on(t.entityType, t.entityId),
 }));
 
-export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ createdAt: true });
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;

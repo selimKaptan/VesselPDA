@@ -1763,7 +1763,7 @@ export default function Vessels() {
                                       {expCell(member.passportExpiry, member.passportNumber)}
                                     </td>
                                     <td className="px-3 py-2.5">
-                                      {crewFileUploading?.id === member.id && crewFileUploading.field === "passport"
+                                      {crewFileUploading && crewFileUploading.id === member.id && crewFileUploading.field === "passport"
                                         ? <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
                                         : member.passportFileBase64
                                           ? <div className="flex items-center gap-0.5">
@@ -1807,7 +1807,7 @@ export default function Vessels() {
                                       {expCell(member.seamansBookExpiry, member.seamansBookNumber)}
                                     </td>
                                     <td className="px-3 py-2.5">
-                                      {crewFileUploading?.id === member.id && crewFileUploading.field === "seamansBook"
+                                      {crewFileUploading && crewFileUploading.id === member.id && crewFileUploading.field === "seamansBook"
                                         ? <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
                                         : member.seamansBookFileBase64
                                           ? <div className="flex items-center gap-0.5">
