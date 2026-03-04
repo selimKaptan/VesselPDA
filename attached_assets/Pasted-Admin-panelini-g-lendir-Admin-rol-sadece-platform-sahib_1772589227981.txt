@@ -1,0 +1,96 @@
+Admin panelini güçlendir. Admin rolü sadece platform sahibine özel — kayıt sayfasından admin olunamaz.
+
+Yapılacaklar:
+
+1. Admin güvenlik kuralları:
+   - Kayıt (register) sayfasında admin seçeneği YOK
+   - Admin rolü sadece mevcut admin tarafından atanabilir (veya doğrudan DB'den)
+   - Admin paneli route'u: /admin/* — sadece role="admin" erişebilir
+   - Admin middleware: her /api/admin/* endpoint'inde rol kontrolü
+
+2. server/routes/admin.ts'i genişlet — tüm yönetim endpoint'leri:
+
+   KULLANICI YÖNETİMİ:
+   GET /api/admin/users — Tüm kullanıcılar (filtre: role, org, status, arama)
+   GET /api/admin/users/:id — Kullanıcı detayı (tüm bilgiler + aktivite)
+   PATCH /api/admin/users/:id/role — Rol değiştir
+   PATCH /api/admin/users/:id/status — Aktif/pasif yap
+   PATCH /api/admin/users/:id/ban — Kullanıcıyı yasakla
+   DELETE /api/admin/users/:id — Kullanıcı sil
+
+   ORGANİZASYON YÖNETİMİ:
+   GET /api/admin/organizations — Tüm organizasyonlar
+   GET /api/admin/organizations/:id — Org detayı + üyeleri + aktivite
+   PATCH /api/admin/organizations/:id — Org bilgi düzenle
+   PATCH /api/admin/organizations/:id/plan — Abonelik planı değiştir
+   DELETE /api/admin/organizations/:id — Org sil
+
+   SİSTEM İSTATİSTİKLERİ:
+   GET /api/admin/stats/overview — Genel platform istatistikleri
+   GET /api/admin/stats/users — Kullanıcı istatistikleri (kayıt trendi, rol dağılımı, aktiflik)
+   GET /api/admin/stats/voyages — Sefer istatistikleri
+   GET /api/admin/stats/financial — Finansal özet (toplam proforma, fatura, gelir)
+   GET /api/admin/stats/system — Sistem durumu (DB boyutu, cache, uptime)
+
+   İÇERİK YÖNETİMİ:
+   GET/POST/PATCH/DELETE /api/admin/port-alerts — Liman uyarıları yönetimi
+   GET/POST/PATCH/DELETE /api/admin/document-templates — Doküman şablonları
+   POST /api/admin/exchange-rates/refresh — Döviz kuru güncelle
+   POST /api/admin/benchmarks/recalculate — Benchmark yeniden hesapla
+   POST /api/admin/cache-clear — Cache temizle
+
+   DEMO YÖNETİMİ:
+   GET /api/admin/demo-sessions — Aktif demo session'lar
+   DELETE /api/admin/demo-sessions/cleanup — Eski session'ları temizle
+
+3. client/src/pages/admin.tsx tamamen yeniden yaz:
+
+   Tab yapısı:
+   
+   GENEL BAKIŞ Tab:
+   - Platform metrikleri: toplam kullanıcı, org, sefer, proforma, gelir
+   - Rol dağılımı pie chart
+   - Son 30 gün kayıt grafiği (line chart)
+   - Aktif kullanıcılar (bugün giriş yapan)
+   - Sistem durumu kartları (DB, cache, AIS, email)
+
+   KULLANICILAR Tab:
+   - Kullanıcı tablosu: isim, email, rol (renkli badge), organizasyon, son giriş, durum
+   - Arama + filtre (rol, org, durum)
+   - Satıra tıkla → kullanıcı detay dialog
+   - Detayda: bilgiler + aktivite geçmişi + organizasyonları
+   - Eylemler: rol değiştir, aktif/pasif, yasakla, sil
+
+   ORGANİZASYONLAR Tab:
+   - Org tablosu: isim, tip, üye sayısı, sefer sayısı, plan, oluşturulma tarihi
+   - Detay: üye listesi, aktivite, plan bilgisi
+   - Eylemler: plan değiştir, düzenle, sil
+
+   TARİFELER Tab:
+   - Mevcut tarif yönetimi (zaten var)
+   - Tarif tabloları + toplu güncelleme + yıl kopyalama
+
+   AUDIT LOG Tab:
+   - Tüm audit logları tablosu
+   - Filtre: kullanıcı, işlem tipi, tarih aralığı
+   - CSV export
+
+   SİSTEM Tab:
+   - Cache durumu + temizle butonu
+   - Cron job durumları (son çalışma zamanı)
+   - Döviz kuru güncelle butonu
+   - Benchmark yeniden hesapla butonu
+   - Demo session temizle butonu
+   - Sistem logları
+
+4. Admin erişim güvenliği:
+   - Admin sayfalarına erişmeye çalışan non-admin → /unauthorized'a yönlendir
+   - API endpoint'lerinde çift kontrol: isAuthenticated + isAdmin
+   - Admin eylemlerinin tamamı audit log'a yazılsın
+   - Kritik eylemler (kullanıcı silme, org silme) için onay dialog'u
+
+5. Admin bildirimleri:
+   - Yeni kullanıcı kaydında admin'e bildirim
+   - Yeni organizasyon oluşturulduğunda bildirim
+   - Sistem hatalarında bildirim
+   - Günlük özet email (toplam kayıt, sefer, gelir)

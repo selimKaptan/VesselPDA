@@ -432,8 +432,11 @@ router.patch("/admin/users/:id/role", isAuthenticated, async (req: any, res) => 
   try {
     if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
     const { userRole } = req.body;
-    if (!["shipowner", "agent", "provider", "broker"].includes(userRole)) return res.status(400).json({ message: "Geçersiz rol" });
+    const validRoles = ["ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"];
+    if (!validRoles.includes(userRole)) return res.status(400).json({ message: "Geçersiz rol" });
+    const adminId = req.user?.claims?.sub || req.user?.id;
     await db.execute(drizzleSql`UPDATE users SET user_role = ${userRole}, active_role = ${userRole} WHERE id = ${req.params.id}`);
+    logAction(adminId, "update", "user", req.params.id, { action: "role_change", newRole: userRole }, "");
     const allUsers = await storage.getAllUsers();
     const updated = allUsers.find((u: any) => u.id === req.params.id);
     res.json(updated);
@@ -1208,6 +1211,239 @@ router.post("/admin/cache-clear", isAuthenticated, async (req: any, res) => {
     res.json({ success: true, message: "Cache cleared successfully" });
   } catch (error) {
     res.status(500).json({ message: "Failed to clear cache" });
+  }
+});
+
+// ─── USER DETAIL ──────────────────────────────────────────────────────────
+router.get("/admin/users/:id", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    const allUsers = await storage.getAllUsers();
+    const user = allUsers.find((u: any) => u.id === req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const { rows: orgRows } = await pool.query(
+      `SELECT o.id, o.name, o.type, om.role FROM organizations o
+       JOIN organization_members om ON om.organization_id = o.id
+       WHERE om.user_id = $1 AND om.is_active = true LIMIT 5`, [req.params.id]
+    );
+    const { rows: proformaRows } = await pool.query(
+      `SELECT COUNT(*) AS count FROM proformas WHERE user_id = $1`, [req.params.id]
+    );
+    const { rows: voyageRows } = await pool.query(
+      `SELECT COUNT(*) AS count FROM voyages WHERE user_id = $1`, [req.params.id]
+    );
+    res.json({
+      ...user,
+      organizations: orgRows,
+      proformaCount: parseInt(proformaRows[0]?.count || "0"),
+      voyageCount: parseInt(voyageRows[0]?.count || "0"),
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch user detail" });
+  }
+});
+
+// ─── USER BAN ─────────────────────────────────────────────────────────────
+router.patch("/admin/users/:id/ban", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    const { banned, reason } = req.body;
+    const adminId = req.user?.claims?.sub || req.user?.id;
+    await db.execute(drizzleSql`UPDATE users SET is_suspended = ${!!banned} WHERE id = ${req.params.id}`);
+    logAction(adminId, banned ? "ban" : "unban", "user", req.params.id, { reason }, "");
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update ban status" });
+  }
+});
+
+// ─── ORGANIZATION MANAGEMENT ──────────────────────────────────────────────
+router.get("/admin/organizations", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    const search = (req.query.search as string || "").toLowerCase();
+    const { rows } = await pool.query(`
+      SELECT o.*, 
+        COUNT(DISTINCT om.user_id) AS member_count,
+        COUNT(DISTINCT v.id) AS voyage_count,
+        u.first_name || ' ' || u.last_name AS owner_name,
+        u.email AS owner_email
+      FROM organizations o
+      LEFT JOIN organization_members om ON om.organization_id = o.id AND om.is_active = true
+      LEFT JOIN voyages v ON v.organization_id = o.id
+      LEFT JOIN users u ON u.id = o.owner_id
+      GROUP BY o.id, u.first_name, u.last_name, u.email
+      ORDER BY o.created_at DESC
+    `);
+    const filtered = search
+      ? rows.filter((r: any) => r.name?.toLowerCase().includes(search) || r.owner_email?.toLowerCase().includes(search))
+      : rows;
+    res.json(filtered);
+  } catch (error) {
+    console.error("[admin/organizations]", error);
+    res.status(500).json({ message: "Failed to fetch organizations" });
+  }
+});
+
+router.get("/admin/organizations/:id", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    const { rows: [org] } = await pool.query(`SELECT * FROM organizations WHERE id = $1`, [req.params.id]);
+    if (!org) return res.status(404).json({ message: "Organization not found" });
+    const { rows: members } = await pool.query(`
+      SELECT om.*, u.first_name, u.last_name, u.email, u.user_role
+      FROM organization_members om
+      JOIN users u ON u.id = om.user_id
+      WHERE om.organization_id = $1 AND om.is_active = true
+    `, [req.params.id]);
+    const { rows: [stats] } = await pool.query(`
+      SELECT COUNT(DISTINCT v.id) AS voyage_count, COUNT(DISTINCT p.id) AS proforma_count
+      FROM organizations o
+      LEFT JOIN voyages v ON v.organization_id = o.id
+      LEFT JOIN proformas p ON p.organization_id = o.id
+      WHERE o.id = $1
+    `, [req.params.id]);
+    res.json({ ...org, members, stats });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch organization detail" });
+  }
+});
+
+router.patch("/admin/organizations/:id", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    const { name, type, website, email, phone } = req.body;
+    await pool.query(
+      `UPDATE organizations SET name = COALESCE($1, name), type = COALESCE($2, type), website = COALESCE($3, website), email = COALESCE($4, email), phone = COALESCE($5, phone) WHERE id = $6`,
+      [name, type, website, email, phone, req.params.id]
+    );
+    const { rows: [updated] } = await pool.query(`SELECT * FROM organizations WHERE id = $1`, [req.params.id]);
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update organization" });
+  }
+});
+
+router.patch("/admin/organizations/:id/plan", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    const { plan, maxMembers } = req.body;
+    const validPlans = ["free", "standard", "unlimited"];
+    if (plan && !validPlans.includes(plan)) return res.status(400).json({ message: "Invalid plan" });
+    const adminId = req.user?.claims?.sub || req.user?.id;
+    await pool.query(
+      `UPDATE organizations SET subscription_plan = COALESCE($1, subscription_plan), max_members = COALESCE($2, max_members) WHERE id = $3`,
+      [plan, maxMembers, req.params.id]
+    );
+    logAction(adminId, "update", "organization", req.params.id, { plan, maxMembers }, "");
+    const { rows: [updated] } = await pool.query(`SELECT * FROM organizations WHERE id = $1`, [req.params.id]);
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update organization plan" });
+  }
+});
+
+router.delete("/admin/organizations/:id", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    const adminId = req.user?.claims?.sub || req.user?.id;
+    await pool.query(`UPDATE users SET active_organization_id = NULL WHERE active_organization_id = $1`, [req.params.id]);
+    await pool.query(`DELETE FROM organization_members WHERE organization_id = $1`, [req.params.id]);
+    await pool.query(`DELETE FROM organizations WHERE id = $1`, [req.params.id]);
+    logAction(adminId, "delete", "organization", req.params.id, {}, "");
+    res.json({ success: true });
+  } catch (error) {
+    console.error("[admin/delete-org]", error);
+    res.status(500).json({ message: "Failed to delete organization" });
+  }
+});
+
+// ─── OVERVIEW STATS ───────────────────────────────────────────────────────
+router.get("/admin/stats/overview", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    const [usersRes, orgsRes, voyagesRes, proformasRes, fixturesRes, tendersRes] = await Promise.all([
+      pool.query(`SELECT COUNT(*) AS count, COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') AS weekly_new, COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days') AS monthly_new FROM users`),
+      pool.query(`SELECT COUNT(*) AS count FROM organizations`),
+      pool.query(`SELECT COUNT(*) AS count, COUNT(*) FILTER (WHERE status IN ('active','in_progress','planned')) AS active FROM voyages`),
+      pool.query(`SELECT COUNT(*) AS count FROM proformas`),
+      pool.query(`SELECT COUNT(*) AS count FROM fixtures WHERE status NOT IN ('cancelled','completed')`).catch(() => ({ rows: [{ count: 0 }] })),
+      pool.query(`SELECT COUNT(*) AS count FROM port_tenders WHERE status = 'open'`),
+    ]);
+
+    const roleRes = await pool.query(`
+      SELECT user_role, COUNT(*) AS count FROM users GROUP BY user_role ORDER BY count DESC
+    `);
+
+    const growthRes = await pool.query(`
+      SELECT DATE_TRUNC('day', created_at)::date AS date, COUNT(*) AS count
+      FROM users WHERE created_at > NOW() - INTERVAL '30 days'
+      GROUP BY 1 ORDER BY 1
+    `);
+
+    res.json({
+      totalUsers: parseInt(usersRes.rows[0]?.count || "0"),
+      weeklyNewUsers: parseInt(usersRes.rows[0]?.weekly_new || "0"),
+      monthlyNewUsers: parseInt(usersRes.rows[0]?.monthly_new || "0"),
+      totalOrgs: parseInt(orgsRes.rows[0]?.count || "0"),
+      totalVoyages: parseInt(voyagesRes.rows[0]?.count || "0"),
+      activeVoyages: parseInt(voyagesRes.rows[0]?.active || "0"),
+      totalProformas: parseInt(proformasRes.rows[0]?.count || "0"),
+      activeFixtures: parseInt(fixturesRes.rows[0]?.count || "0"),
+      openTenders: parseInt(tendersRes.rows[0]?.count || "0"),
+      roleDistribution: roleRes.rows.map((r: any) => ({ role: r.user_role, count: parseInt(r.count) })),
+      userGrowth: growthRes.rows.map((r: any) => ({ date: r.date, count: parseInt(r.count) })),
+    });
+  } catch (error) {
+    console.error("[admin/stats/overview]", error);
+    res.status(500).json({ message: "Failed to fetch overview stats" });
+  }
+});
+
+// ─── SYSTEM ACTIONS ───────────────────────────────────────────────────────
+router.post("/admin/exchange-rates/refresh", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    const { refreshExchangeRates } = await import("../exchange-rates");
+    await refreshExchangeRates();
+    res.json({ success: true, message: "Exchange rates refreshed" });
+  } catch (error) {
+    console.error("[admin/exchange-rates/refresh]", error);
+    res.status(500).json({ message: "Failed to refresh exchange rates" });
+  }
+});
+
+router.post("/admin/benchmarks/recalculate", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    const { recalculateBenchmarks } = await import("../benchmarks");
+    await recalculateBenchmarks();
+    res.json({ success: true, message: "Benchmarks recalculated" });
+  } catch (error) {
+    console.error("[admin/benchmarks/recalculate]", error);
+    res.status(500).json({ message: "Failed to recalculate benchmarks" });
+  }
+});
+
+// ─── DEMO SESSIONS ────────────────────────────────────────────────────────
+router.get("/admin/demo-sessions", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    const { listDemoSessions } = await import("../demo-session");
+    res.json(listDemoSessions());
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch demo sessions" });
+  }
+});
+
+router.delete("/admin/demo-sessions/cleanup", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    const { cleanExpiredDemoSessions } = await import("../demo-session");
+    const cleaned = cleanExpiredDemoSessions();
+    res.json({ success: true, cleaned });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to cleanup demo sessions" });
   }
 });
 
