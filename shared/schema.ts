@@ -1045,3 +1045,58 @@ export const insertCompanyProfileSchema = createInsertSchema(companyProfiles).om
   verificationStatus: true, verificationRequestedAt: true,
   verificationApprovedAt: true, verificationNote: true,
 });
+
+// ─── STATEMENT OF FACTS (SOF) ─────────────────────────────────────────────────
+
+export const statementOfFacts = pgTable("statement_of_facts", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "cascade" }),
+  vesselId: integer("vessel_id").references(() => vessels.id),
+  portId: integer("port_id").references(() => ports.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  vesselName: varchar("vessel_name", { length: 200 }),
+  portName: varchar("port_name", { length: 200 }),
+  berthName: varchar("berth_name", { length: 200 }),
+  cargoType: varchar("cargo_type", { length: 200 }),
+  cargoQuantity: varchar("cargo_quantity", { length: 100 }),
+  operation: varchar("operation", { length: 50 }),
+  masterName: varchar("master_name", { length: 200 }),
+  agentName: varchar("agent_name", { length: 200 }),
+  status: varchar("status", { length: 20 }).default("draft"),
+  remarks: text("remarks"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  finalizedAt: timestamp("finalized_at"),
+});
+
+export const sofLineItems = pgTable("sof_line_items", {
+  id: serial("id").primaryKey(),
+  sofId: integer("sof_id").notNull().references(() => statementOfFacts.id, { onDelete: "cascade" }),
+  eventType: varchar("event_type", { length: 50 }).notNull(),
+  eventName: varchar("event_name", { length: 300 }).notNull(),
+  eventDate: timestamp("event_date").notNull(),
+  remarks: text("remarks"),
+  isDeductible: boolean("is_deductible").default(false),
+  deductibleHours: real("deductible_hours").default(0),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const sofRelations = relations(statementOfFacts, ({ one, many }) => ({
+  voyage: one(voyages, { fields: [statementOfFacts.voyageId], references: [voyages.id] }),
+  vessel: one(vessels, { fields: [statementOfFacts.vesselId], references: [vessels.id] }),
+  port: one(ports, { fields: [statementOfFacts.portId], references: [ports.id] }),
+  user: one(users, { fields: [statementOfFacts.userId], references: [users.id] }),
+  events: many(sofLineItems),
+}));
+
+export const sofLineItemRelations = relations(sofLineItems, ({ one }) => ({
+  sof: one(statementOfFacts, { fields: [sofLineItems.sofId], references: [statementOfFacts.id] }),
+}));
+
+export const insertSofSchema = createInsertSchema(statementOfFacts).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSofLineItemSchema = createInsertSchema(sofLineItems).omit({ id: true, createdAt: true });
+export type InsertSof = z.infer<typeof insertSofSchema>;
+export type InsertSofLineItem = z.infer<typeof insertSofLineItemSchema>;
+export type Sof = typeof statementOfFacts.$inferSelect;
+export type SofLineItem = typeof sofLineItems.$inferSelect;

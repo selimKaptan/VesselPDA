@@ -46,6 +46,8 @@ import CargoPositions from "@/pages/cargo-positions";
 import MarketData from "@/pages/market-data";
 import Invoices from "@/pages/invoices";
 import PdaReview from "@/pages/pda-review";
+import Sof from "@/pages/sof";
+import SofDetail from "@/pages/sof-detail";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -95,6 +97,8 @@ function AuthenticatedRouter() {
       <Route path="/market-data" component={MarketData} />
       <Route path="/invoices" component={Invoices} />
       <Route path="/pda-review" component={PdaReview} />
+      <Route path="/sof" component={Sof} />
+      <Route path="/sof/:id" component={SofDetail} />
       <Route component={NotFound} />
     </Switch>
   );

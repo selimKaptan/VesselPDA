@@ -1,0 +1,316 @@
+INSTRUCTIONS.md'yi oku. SOF (Statement of Facts) modülü ekle. SOF, geminin limana girişinden çıkışına kadar tüm olayların kronolojik kaydıdır. Maritime'da en önemli belgelerden biridir.
+
+1. shared/schema.ts'e yeni tablolar ekle:
+
+   // SOF - Statement of Facts
+   export const statementOfFacts = pgTable("statement_of_facts", {
+     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+     voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "cascade" }),
+     vesselId: integer("vessel_id").references(() => vessels.id),
+     portId: integer("port_id").references(() => ports.id),
+     userId: varchar("user_id").notNull().references(() => users.id),
+     vesselName: varchar("vessel_name", { length: 200 }),
+     portName: varchar("port_name", { length: 200 }),
+     berthName: varchar("berth_name", { length: 200 }),
+     cargoType: varchar("cargo_type", { length: 200 }),
+     cargoQuantity: varchar("cargo_quantity", { length: 100 }),
+     operation: varchar("operation", { length: 50 }), // loading, discharging, both
+     masterName: varchar("master_name", { length: 200 }),
+     agentName: varchar("agent_name", { length: 200 }),
+     status: varchar("status", { length: 20 }).default("draft"), // draft, finalized, signed
+     remarks: text("remarks"),
+     createdAt: timestamp("created_at").defaultNow(),
+     updatedAt: timestamp("updated_at").defaultNow(),
+     finalizedAt: timestamp("finalized_at"),
+   });
+
+   // SOF Events - Her bir olay kaydı
+   export const sofEvents = pgTable("sof_events", {
+     id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+     sofId: integer("sof_id").notNull().references(() => statementOfFacts.id, { onDelete: "cascade" }),
+     eventType: varchar("event_type", { length: 50 }).notNull(),
+     // eventType values: vessel_arrived, nor_tendered, nor_accepted, 
+     // berthing_started, all_fast, hoses_connected, loading_commenced,
+     // loading_completed, hoses_disconnected, documents_onboard,
+     // unberthing_started, pilot_onboard, vessel_sailed,
+     // rain_start, rain_stop, breakdown_start, breakdown_stop,
+     // shifting_start, shifting_end, custom
+     eventName: varchar("event_name", { length: 300 }).notNull(),
+     eventDate: timestamp("event_date").notNull(),
+     remarks: text("remarks"),
+     isDeductible: boolean("is_deductible").default(false), // Laytime'dan düşülecek mi
+     deductibleHours: real("deductible_hours").default(0),
+     sortOrder: integer("sort_order").default(0),
+     createdAt: timestamp("created_at").defaultNow(),
+   });
+
+   // Relations
+   export const sofRelations = relations(statementOfFacts, ({ one, many }) => ({
+     voyage: one(voyages, { fields: [statementOfFacts.voyageId], references: [voyages.id] }),
+     vessel: one(vessels, { fields: [statementOfFacts.vesselId], references: [vessels.id] }),
+     port: one(ports, { fields: [statementOfFacts.portId], references: [ports.id] }),
+     user: one(users, { fields: [statementOfFacts.userId], references: [users.id] }),
+     events: many(sofEvents),
+   }));
+
+   export const sofEventRelations = relations(sofEvents, ({ one }) => ({
+     sof: one(statementOfFacts, { fields: [sofEvents.sofId], references: [statementOfFacts.id] }),
+   }));
+
+   // Zod schemas
+   export const insertSofSchema = createInsertSchema(statementOfFacts).omit({ id: true, createdAt: true, updatedAt: true });
+   export const insertSofEventSchema = createInsertSchema(sofEvents).omit({ id: true, createdAt: true });
+   export type InsertSof = z.infer<typeof insertSofSchema>;
+   export type InsertSofEvent = z.infer<typeof insertSofEventSchema>;
+   export type Sof = typeof statementOfFacts.$inferSelect;
+   export type SofEvent = typeof sofEvents.$inferSelect;
+
+2. server/routes.ts'e SOF endpoint'leri ekle:
+
+   // SOF CRUD
+   app.get("/api/sof", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const userId = req.user.claims.sub;
+       const user = await storage.getUser(userId);
+       let sofs;
+       if (user?.userRole === 'admin') {
+         sofs = await db.select().from(statementOfFacts).orderBy(desc(statementOfFacts.createdAt));
+       } else {
+         sofs = await db.select().from(statementOfFacts).where(eq(statementOfFacts.userId, userId)).orderBy(desc(statementOfFacts.createdAt));
+       }
+       res.json(sofs);
+     } catch (error) { next(error); }
+   });
+
+   app.post("/api/sof", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const userId = req.user.claims.sub;
+       const parsed = insertSofSchema.safeParse({ ...req.body, userId });
+       if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.errors });
+       
+       const [sof] = await db.insert(statementOfFacts).values(parsed.data).returning();
+       
+       // Varsayılan standart olayları otomatik ekle
+       const defaultEvents = [
+         { eventType: 'vessel_arrived', eventName: 'Vessel Arrived at Port', sortOrder: 1 },
+         { eventType: 'nor_tendered', eventName: 'NOR Tendered', sortOrder: 2 },
+         { eventType: 'nor_accepted', eventName: 'NOR Accepted', sortOrder: 3 },
+         { eventType: 'berthing_started', eventName: 'Berthing Commenced', sortOrder: 4 },
+         { eventType: 'all_fast', eventName: 'All Fast', sortOrder: 5 },
+         { eventType: 'hoses_connected', eventName: 'Hoses Connected', sortOrder: 6 },
+         { eventType: 'loading_commenced', eventName: 'Loading/Discharging Commenced', sortOrder: 7 },
+         { eventType: 'loading_completed', eventName: 'Loading/Discharging Completed', sortOrder: 8 },
+         { eventType: 'hoses_disconnected', eventName: 'Hoses Disconnected', sortOrder: 9 },
+         { eventType: 'documents_onboard', eventName: 'Documents on Board', sortOrder: 10 },
+         { eventType: 'unberthing_started', eventName: 'Unberthing Commenced', sortOrder: 11 },
+         { eventType: 'pilot_onboard', eventName: 'Pilot on Board', sortOrder: 12 },
+         { eventType: 'vessel_sailed', eventName: 'Vessel Sailed', sortOrder: 13 },
+       ];
+       
+       for (const evt of defaultEvents) {
+         await db.insert(sofEvents).values({
+           sofId: sof.id,
+           eventType: evt.eventType,
+           eventName: evt.eventName,
+           eventDate: new Date(),
+           sortOrder: evt.sortOrder,
+         });
+       }
+       
+       res.json(sof);
+     } catch (error) { next(error); }
+   });
+
+   app.get("/api/sof/:id", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const sofId = parseInt(req.params.id);
+       const [sof] = await db.select().from(statementOfFacts).where(eq(statementOfFacts.id, sofId));
+       if (!sof) return res.status(404).json({ error: "SOF not found" });
+       
+       const events = await db.select().from(sofEvents)
+         .where(eq(sofEvents.sofId, sofId))
+         .orderBy(sofEvents.sortOrder);
+       
+       res.json({ ...sof, events });
+     } catch (error) { next(error); }
+   });
+
+   app.patch("/api/sof/:id", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const sofId = parseInt(req.params.id);
+       const [updated] = await db.update(statementOfFacts)
+         .set({ ...req.body, updatedAt: new Date() })
+         .where(eq(statementOfFacts.id, sofId))
+         .returning();
+       res.json(updated);
+     } catch (error) { next(error); }
+   });
+
+   app.delete("/api/sof/:id", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const sofId = parseInt(req.params.id);
+       await db.delete(statementOfFacts).where(eq(statementOfFacts.id, sofId));
+       res.json({ success: true });
+     } catch (error) { next(error); }
+   });
+
+   // SOF Finalize
+   app.post("/api/sof/:id/finalize", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const sofId = parseInt(req.params.id);
+       const [updated] = await db.update(statementOfFacts)
+         .set({ status: 'finalized', finalizedAt: new Date(), updatedAt: new Date() })
+         .where(eq(statementOfFacts.id, sofId))
+         .returning();
+       res.json(updated);
+     } catch (error) { next(error); }
+   });
+
+   // SOF Events CRUD
+   app.post("/api/sof/:id/events", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const sofId = parseInt(req.params.id);
+       const [event] = await db.insert(sofEvents).values({ ...req.body, sofId }).returning();
+       res.json(event);
+     } catch (error) { next(error); }
+   });
+
+   app.patch("/api/sof/events/:eventId", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const eventId = parseInt(req.params.eventId);
+       const [updated] = await db.update(sofEvents)
+         .set(req.body)
+         .where(eq(sofEvents.id, eventId))
+         .returning();
+       res.json(updated);
+     } catch (error) { next(error); }
+   });
+
+   app.delete("/api/sof/events/:eventId", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const eventId = parseInt(req.params.eventId);
+       await db.delete(sofEvents).where(eq(sofEvents.id, eventId));
+       res.json({ success: true });
+     } catch (error) { next(error); }
+   });
+
+   // SOF PDF Export
+   app.get("/api/sof/:id/pdf", isAuthenticated, async (req: any, res: any, next: any) => {
+     try {
+       const sofId = parseInt(req.params.id);
+       const [sof] = await db.select().from(statementOfFacts).where(eq(statementOfFacts.id, sofId));
+       if (!sof) return res.status(404).json({ error: "SOF not found" });
+       
+       const events = await db.select().from(sofEvents)
+         .where(eq(sofEvents.sofId, sofId))
+         .orderBy(sofEvents.sortOrder);
+
+       // PDF oluştur (pdfkit kullan — proforma-pdf.ts'deki gibi)
+       const PDFDocument = require('pdfkit');
+       const doc = new PDFDocument({ size: 'A4', margin: 50 });
+       const chunks: Buffer[] = [];
+       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+       
+       await new Promise<void>((resolve) => {
+         doc.on('end', resolve);
+         
+         doc.fontSize(16).font('Helvetica-Bold').text('STATEMENT OF FACTS', { align: 'center' });
+         doc.moveDown(1);
+         
+         doc.fontSize(10).font('Helvetica');
+         doc.text(`Vessel: ${sof.vesselName || 'N/A'}`);
+         doc.text(`Port: ${sof.portName || 'N/A'}`);
+         doc.text(`Berth: ${sof.berthName || 'N/A'}`);
+         doc.text(`Cargo: ${sof.cargoType || 'N/A'} — ${sof.cargoQuantity || 'N/A'}`);
+         doc.text(`Operation: ${sof.operation || 'N/A'}`);
+         doc.text(`Master: ${sof.masterName || 'N/A'}`);
+         doc.text(`Agent: ${sof.agentName || 'N/A'}`);
+         doc.moveDown(1);
+         
+         // Tablo header
+         doc.font('Helvetica-Bold').fontSize(9);
+         const tableY = doc.y;
+         doc.text('EVENT', 50, tableY, { width: 200 });
+         doc.text('DATE / TIME', 260, tableY, { width: 130 });
+         doc.text('REMARKS', 400, tableY, { width: 145 });
+         doc.moveTo(50, doc.y + 3).lineTo(545, doc.y + 3).stroke();
+         doc.moveDown(0.5);
+         
+         doc.font('Helvetica').fontSize(8);
+         for (const evt of events) {
+           if (doc.y > 720) doc.addPage();
+           const y = doc.y;
+           doc.text(evt.eventName, 50, y, { width: 200 });
+           doc.text(evt.eventDate ? new Date(evt.eventDate).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-', 260, y, { width: 130 });
+           doc.text(evt.remarks || '', 400, y, { width: 145 });
+           doc.moveDown(0.4);
+         }
+         
+         doc.moveDown(2);
+         doc.fontSize(8).text(`Status: ${sof.status?.toUpperCase()}`, 50);
+         doc.text(`Generated by VesselPDA — ${new Date().toISOString().split('T')[0]}`, { align: 'center' });
+         
+         doc.end();
+       });
+       
+       const pdfBuffer = Buffer.concat(chunks);
+       res.setHeader('Content-Type', 'application/pdf');
+       res.setHeader('Content-Disposition', `attachment; filename="SOF-${sof.vesselName || sofId}.pdf"`);
+       res.send(pdfBuffer);
+     } catch (error) { next(error); }
+   });
+
+3. Frontend sayfa oluştur: client/src/pages/sof.tsx
+
+   SOF list ve create sayfası:
+   - Üstte "Create New SOF" butonu
+   - SOF listesi tablo halinde: vessel, port, status, tarih
+   - Status badge'leri: draft (gri), finalized (yeşil), signed (mavi)
+   - Her satırda View, PDF, Delete butonları
+   - Create dialog: voyage seçimi (opsiyonel), vessel, port, berth, cargo bilgileri
+   - Eğer voyageId varsa, voyage'daki vessel ve port bilgilerini otomatik doldur
+
+4. Frontend sayfa oluştur: client/src/pages/sof-detail.tsx
+
+   SOF timeline detay sayfası:
+   - Üstte gemi ve liman bilgileri kartı
+   - Ana içerik: Timeline görünümü — dikey çizgi üzerinde olaylar
+   - Her olay için:
+     * Olay adı (bold)
+     * Tarih/saat (date-time picker ile düzenlenebilir)
+     * Remarks (inline edit)
+     * Deductible checkbox ve saat girişi
+     * Sil butonu (x ikonu)
+   - Alt tarafta "Add Custom Event" butonu
+   - Sağ üstte: "Finalize SOF" ve "Export PDF" butonları
+   - Finalize edilmiş SOF düzenlenemez (read-only mode)
+   
+   Timeline tasarımı:
+   - Sol tarafta dikey mavi çizgi
+   - Her olay bir kart olarak çizgiden dallanır
+   - Tarih/saat sol tarafta, olay detayları sağda
+   - Maritime temasına uygun koyu mavi/lacivert renkler
+
+5. client/src/App.tsx'e route ekle:
+   
+   import Sof from "@/pages/sof";
+   import SofDetail from "@/pages/sof-detail";
+   
+   <Route path="/sof" component={Sof} />
+   <Route path="/sof/:id" component={SofDetail} />
+
+6. Sidebar'a navigasyon ekle (client/src/components/app-sidebar.tsx):
+   
+   Operations menü grubuna ekle:
+   { icon: ClipboardList, label: "Statement of Facts", href: "/sof" }
+   
+   Hem agent hem shipowner görebilsin.
+
+7. npx drizzle-kit push komutu ile tabloları oluştur.
+
+8. IMPORTANT:
+   - SOF voyage'a bağlı olabilir ama zorunlu değil (standalone da oluşturulabilir)
+   - Varsayılan 13 event otomatik eklenir, kullanıcı custom event de ekleyebilir
+   - Timeline UI maritime sektöre yakışır şekilde profesyonel olmalı
+   - PDF export mevcut pdfkit altyapısını kullansın
+   - Mevcut hiçbir sayfayı veya endpoint'i bozma
