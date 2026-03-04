@@ -78,6 +78,8 @@ let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let reconnectDelay = 5000;
 let pingInterval: ReturnType<typeof setInterval> | null = null;
 let pongTimeout: ReturnType<typeof setTimeout> | null = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 3;
 
 const TURKEY_BBOX = [[[35.0, 25.0], [42.5, 45.0]]];
 
@@ -270,7 +272,12 @@ function connect(apiKey: string) {
     if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
     if (pongTimeout) { clearTimeout(pongTimeout); pongTimeout = null; }
     const reasonStr = reason?.toString() || "";
-    console.log(`AISStream: disconnected (code ${code}${reasonStr ? `, reason: ${reasonStr}` : ""}). Reconnecting in ${reconnectDelay / 1000}s...`);
+    reconnectAttempts++;
+    if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+      console.log(`AISStream: max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached — giving up. Platform continues without live AIS.`);
+      return;
+    }
+    console.log(`AISStream: disconnected (code ${code}${reasonStr ? `, reason: ${reasonStr}` : ""}). Attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}. Reconnecting in ${reconnectDelay / 1000}s...`);
     reconnectTimeout = setTimeout(() => {
       reconnectDelay = Math.min(reconnectDelay * 2, 60000);
       connect(apiKey);

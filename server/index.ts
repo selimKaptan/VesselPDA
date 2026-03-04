@@ -10,6 +10,7 @@ import { sql } from "drizzle-orm";
 import { startCronJobs } from "./cron-jobs";
 import { initSocket } from "./socket";
 import { config } from "./config";
+import { startAISStream } from "./ais-stream";
 
 const app = express();
 const httpServer = createServer(app);
@@ -218,6 +219,16 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      console.log(`Server is ready on port ${port}`);
+
+      // AISStream: start 30s after server is ready (optional — failures won't crash server)
+      setTimeout(() => {
+        try {
+          startAISStream();
+        } catch (err: any) {
+          console.log("AISStream: failed to start — platform continues without live AIS.", err?.message);
+        }
+      }, 30000);
 
       import("./seed").then(({ seedDatabase, seedForumCategories, seedPortCoordinates }) => {
         seedDatabase().catch((err: Error) => console.error("Seed error:", err));
@@ -300,7 +311,7 @@ app.use((req, res, next) => {
       import("./geocode-ports").then(({ geocodeMissingPorts }) => {
         setTimeout(() => {
           geocodeMissingPorts().catch((err: Error) => console.error("Geocode error:", err));
-        }, 15000);
+        }, 60000);
       });
 
       startCronJobs();

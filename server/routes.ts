@@ -195,8 +195,6 @@ export async function registerRoutes(
     } catch { res.status(500).json({ message: "Failed to delete message" }); }
   });
 
-  startAISStream();
-
   authStorage.markExistingUsersVerified().catch((err) =>
     console.error("[auth] Failed to mark existing users verified:", err)
   );

@@ -1,0 +1,58 @@
+Deployment "Your app failed to promote" hatası veriyor. Sebep: AISStream WebSocket bağlantısı sürekli kopup reconnect ediyor (code 1006) ve server stabil olmıyor.
+
+İki şeyi düzelt:
+
+1. AISStream bağlantısını PRODUCTION'da DEVRE DIŞI birak veya lazy başlat:
+
+AISStream WebSocket bağlantısı server başlangıcında HEMEN bağlanmamalı. Server önce HTTP isteklerini kabul edebilir duruma gelmeli, AIS bağlantısı sonra ve opsiyonel olarak başlamalı.
+
+Nerede AISStream bağlantısı başlatılıyorsa (muhtemelen server/ais.ts veya server/services/ais-stream.ts gibi bir dosyada):
+
+- Server başlarken AIS bağlantısını otomatik başlatma
+- Bunun yerine server tamamen ayağa kalktıktan 30 saniye SONRA başlat (setTimeout)
+- AIS bağlantısı BAŞARISIZ olursa server ÇÖKMEMELI — sadece log yazsın ve çalışmaya devam etsin
+- AIS bağlantısı opsiyonel olmalı — AIS olmadan da platform çalışmalı
+- Reconnect denemelerini sınırla: max 3 deneme, sonra dur. Manuel tetikleme ile yeniden denenebilir olsun.
+
+Örnek yapı:
+let aisConnected = false;
+
+function startAISStream() {
+  try {
+    // mevcut bağlantı kodu
+    aisConnected = true;
+  } catch (error) {
+    console.log("AISStream bağlantısı başarısız — platform AIS'siz çalışmaya devam ediyor");
+    aisConnected = false;
+    // HATA FIRLATMA — server çökmesin
+  }
+}
+
+// Server başladıktan 30 saniye sonra AIS'i başlat
+setTimeout(() => {
+  startAISStream();
+}, 30000);
+
+2. Server'ın sağlıklı başladığını Replit'e bildirmesi için:
+
+Express server'da port dinlemeye başladıktan HEMEN SONRA bir log yazsın:
+app.listen(port, () => {
+  console.log("Server is ready on port " + port);
+});
+
+Bu log OLMADAN Replit server'ın hazır olduğunu anlamıyor.
+
+3. Ayrıca geocoding background job'u da (917 ports) server başlangıcında değil, 60 saniye sonra başlasın:
+setTimeout(() => {
+  startBackgroundGeocoding();
+}, 60000);
+
+4. ÖZETLE: Server başlangıç sırası şöyle olmalı:
+   a) Express app oluştur
+   b) Route'ları bağla
+   c) Static dosyaları sun (production'da)
+   d) Port'u dinlemeye başla → "Server is ready" log
+   e) 30 saniye sonra: AISStream bağlantısı (opsiyonel, başarısız olabilir)
+   f) 60 saniye sonra: Background job'lar (geocoding, benchmarks vb.)
+   
+   a-d ANINDA olmalı. e-f SONRA ve HATA TOLERANSLI olmalı.
