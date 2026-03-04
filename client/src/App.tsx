@@ -50,6 +50,7 @@ import RegisterPage from "@/pages/register";
 import VerifyEmailPage from "@/pages/verify-email";
 import ForgotPasswordPage from "@/pages/forgot-password";
 import ResetPasswordPage from "@/pages/reset-password";
+import DemoPage from "@/pages/demo";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -120,6 +121,7 @@ function PublicDirectoryPage() {
       <Route path="/forum" component={Forum} />
       <Route path="/forum/:id" component={ForumTopic} />
       <Route path="/contact" component={Contact} />
+      <Route path="/demo" component={DemoPage} />
       <Route><Landing /></Route>
     </Switch>
   );

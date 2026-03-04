@@ -1,0 +1,83 @@
+ROL BAZLI DASHBOARD'LAR + DEMO MODU — Tek seferde yap. Başka hiçbir şeyi değiştirme.
+
+BÖLÜM A — ROL BAZLI DASHBOARD'LAR:
+
+Her rol login olduğunda farklı dashboard görsün. client/src/pages/dashboard.tsx dosyasını güncelle:
+
+1. User'ın role değerine göre farklı dashboard component render et:
+   - ship_agent → AgentDashboard
+   - shipowner → OwnerDashboard
+   - ship_broker → BrokerDashboard
+   - ship_provider → ProviderDashboard
+   - admin → AdminDashboard
+
+2. AgentDashboard (client/src/components/dashboards/agent-dashboard.tsx):
+   - Hoş geldin kartı: "Merhaba {username}, Ship Agent Dashboard"
+   - 4 özet kartı: Aktif Seferler, Bekleyen PDA'lar, Onaylanan Proformalar, Mesajlar
+   - Son aktiviteler listesi (son 5 sefer veya proforma)
+   - Hızlı erişim butonları: Yeni Proforma, Quick Proforma, Yeni Sefer
+   - Kartlar API'den veri çeksin, veri yoksa 0 göstersin
+
+3. OwnerDashboard (client/src/components/dashboards/owner-dashboard.tsx):
+   - Hoş geldin kartı: "Merhaba {username}, Fleet Overview"
+   - 4 özet kartı: Toplam Gemi, Aktif Seferler, Bekleyen Onaylar, Bunker Durumu
+   - Filo listesi (kısa tablo: gemi adı, durum, konum)
+   - Hızlı erişim: Filoma Git, Yeni Sefer, Bunker Yönetimi
+
+4. BrokerDashboard (client/src/components/dashboards/broker-dashboard.tsx):
+   - Hoş geldin kartı: "Merhaba {username}, Commercial Overview"
+   - 4 özet kartı: Aktif Fixture'lar, Açık Tender'lar, Cargo Pozisyonları, Piyasa Güncellemeleri
+   - Son fixture ve tender listesi
+   - Hızlı erişim: Yeni Fixture, Piyasa Verileri, Cargo Pozisyonları
+
+5. ProviderDashboard (client/src/components/dashboards/provider-dashboard.tsx):
+   - Hoş geldin kartı: "Merhaba {username}, Service Dashboard"
+   - 4 özet kartı: Gelen Talepler, Aktif Servisler, Bekleyen Faturalar, Servis Limanları
+   - Son servis talepleri listesi
+   - Hızlı erişim: Taleplerim, Faturalarım, Servis Limanlarım
+
+6. AdminDashboard (client/src/components/dashboards/admin-dashboard.tsx):
+   - Hoş geldin kartı: "Admin Panel"
+   - 4 özet kartı: Toplam Kullanıcı, Toplam Gemi, Toplam Sefer, Sistem Durumu
+   - Son kayıt olan kullanıcılar listesi
+   - Hızlı erişim: Kullanıcı Yönetimi, Sistem Ayarları
+
+Her dashboard componenti:
+- Shadcn Card component'leri kullan
+- Loading durumunda skeleton göster
+- API hata verirse graceful fallback göster
+- Veri yoksa "Henüz veri yok" mesajı göster
+- Responsive olsun (mobilde kartlar alt alta)
+
+BÖLÜM B — DEMO MODU:
+
+1. client/src/pages/demo.tsx oluştur (veya güncelle):
+   - Sayfa başlığı: "VesselPDA Demo — Platformu keşfedin"
+   - 4 rol kartı göster (admin YOK):
+     * Ship Agent — ikon: Anchor, renk: blue
+     * Shipowner — ikon: Ship, renk: green
+     * Ship Broker — ikon: Handshake, renk: purple
+     * Ship Provider — ikon: Wrench, renk: orange
+   - Her kartta: rol adı + kısa açıklama + "Bu rolü dene" butonu
+   - Kart tıklanınca: demo kullanıcı olarak o rol ile sisteme gir
+
+2. Demo giriş mekanizması:
+   - /api/demo/login endpoint'i oluştur (server/routes/demo.ts)
+   - Body: { role: "ship_agent" | "shipowner" | "ship_broker" | "ship_provider" }
+   - Endpoint: o rol için demo kullanıcı varsa onu kullan, yoksa oluştur
+   - Demo kullanıcılar: demo_agent, demo_owner, demo_broker, demo_provider
+   - Şifre: demo123 (hepsi aynı)
+   - Session oluştur, login yap
+
+3. Demo banner:
+   - Demo kullanıcı ile giriş yapılmışsa sayfanın üstünde turuncu banner göster:
+     "🎯 Demo Modu — [Rol Adı] olarak geziyorsunuz | [Rol Değiştir ▼] [Çıkış]"
+   - Rol Değiştir dropdown'u: 4 rol listesi, tıklayınca o role geç
+   - Çıkış butonu: logout yapıp /demo sayfasına dön
+   - Banner app-layout.tsx'e ekle, sadece demo kullanıcılarda göster
+
+4. App.tsx'te /demo route'unu ekle (public, login gerekmez)
+
+5. Landing page'de "Demo Dene" butonu varsa /demo'ya yönlendirsin
+
+Bu değişiklikleri yap. Başka bir şeyi değiştirme.

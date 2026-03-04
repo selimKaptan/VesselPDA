@@ -64,6 +64,41 @@ export async function registerRoutes(
   app.use("/api/fixtures", isAuthenticated, requireRole("shipowner", "broker", "admin"));
   app.use("/api/service-offers", isAuthenticated, requireRole("provider", "admin"));
 
+  // ─── DEMO LOGIN ───────────────────────────────────────────────────────────────
+  app.post("/api/demo/login", async (req: any, res) => {
+    try {
+      const { role } = req.body;
+      const validRoles = ["agent", "shipowner", "broker", "provider"];
+      if (!role || !validRoles.includes(role)) {
+        return res.status(400).json({ message: "Invalid demo role" });
+      }
+      const bcrypt = await import("bcryptjs");
+      const demoEmail = `demo.${role}@vpda.demo`;
+      const demoFirstName = role === "agent" ? "Demo Agent" : role === "shipowner" ? "Demo Owner" : role === "broker" ? "Demo Broker" : "Demo Provider";
+      const demoLastName = "";
+      let user = await authStorage.getUserByEmail(demoEmail);
+      if (!user) {
+        const passwordHash = await bcrypt.hash("demo123", 10);
+        user = await authStorage.createUser({
+          email: demoEmail,
+          firstName: demoFirstName,
+          lastName: demoLastName,
+          passwordHash,
+          userRole: role,
+          subscriptionPlan: "standard",
+          emailVerified: true,
+          roleConfirmed: true,
+        });
+      }
+      req.session.userId = user.id;
+      await new Promise<void>((resolve, reject) => req.session.save((err: any) => err ? reject(err) : resolve()));
+      return res.json({ ok: true, role });
+    } catch (err) {
+      console.error("[demo] login error:", err);
+      return res.status(500).json({ message: "Demo login failed" });
+    }
+  });
+
   authStorage.markExistingUsersVerified().catch((err) =>
     console.error("[auth] Failed to mark existing users verified:", err)
   );

@@ -177,6 +177,11 @@ export default function Landing() {
           <div className="flex items-center gap-2">
             {/* Desktop auth buttons */}
             <div className="hidden md:flex items-center gap-2">
+              <a href="/demo">
+                <Button size="sm" variant="ghost" className="gap-1.5 text-muted-foreground hover:text-foreground" data-testid="button-try-demo-nav">
+                  Try Demo
+                </Button>
+              </a>
               <a href="/login">
                 <Button size="sm" variant="outline" data-testid="button-login">Log in</Button>
               </a>
@@ -272,6 +277,11 @@ export default function Landing() {
                   <Button size="lg" className="gap-2 shadow-md shadow-[hsl(var(--maritime-primary)/0.25)] bg-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-primary)/0.9)]" data-testid="button-get-started">
                     Get Started Free
                     <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </a>
+                <a href="/demo">
+                  <Button variant="outline" size="lg" className="gap-2 border-border/80 hover:border-[hsl(var(--maritime-primary)/0.4)]" data-testid="button-try-demo-hero">
+                    Try Demo
                   </Button>
                 </a>
                 <a href="#features">

@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Ship, Anchor, Building2, Shield, Plus, LayoutDashboard } from "lucide-react";
+import { Ship, Anchor, Building2, Shield, Plus, LayoutDashboard, Handshake } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -12,10 +12,12 @@ import { ShipownerDashboard } from "@/components/dashboards/shipowner-dashboard"
 import { AgentDashboard } from "@/components/dashboards/agent-dashboard";
 import { ProviderDashboard } from "@/components/dashboards/provider-dashboard";
 import { AdminDashboard } from "@/components/dashboards/admin-dashboard";
+import { BrokerDashboard } from "@/components/dashboards/broker-dashboard";
 
 const ROLE_LABELS: Record<string, string> = {
-  shipowner: "Shipowner / Broker",
+  shipowner: "Shipowner",
   agent: "Ship Agent",
+  broker: "Ship Broker",
   provider: "Service Provider",
   admin: "Administrator",
 };
@@ -23,6 +25,7 @@ const ROLE_LABELS: Record<string, string> = {
 const ROLE_SUBTITLES: Record<string, string> = {
   shipowner: "Manage your fleet, tenders, and proformas.",
   agent: "Track tenders, submit bids, and manage your performance.",
+  broker: "Manage fixtures, cargo positions, and market intelligence.",
   provider: "Build your profile and grow your directory presence.",
   admin: "Full system access — users, vessels, proformas, and analytics.",
 };
@@ -31,6 +34,7 @@ const ADMIN_ROLES = [
   { value: "admin", label: "Admin Overview", icon: LayoutDashboard, color: "hsl(0, 84%, 35%)" },
   { value: "shipowner", label: "Shipowner", icon: Ship, color: "hsl(var(--maritime-primary))" },
   { value: "agent", label: "Agent", icon: Anchor, color: "hsl(var(--maritime-secondary))" },
+  { value: "broker", label: "Broker", icon: Handshake, color: "hsl(270, 70%, 50%)" },
   { value: "provider", label: "Provider", icon: Building2, color: "hsl(var(--maritime-accent))" },
 ];
 
@@ -176,10 +180,10 @@ export default function Dashboard() {
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            {ROLE_SUBTITLES[isAdmin ? effectiveRole : effectiveRole] || ROLE_SUBTITLES.shipowner}
+            {ROLE_SUBTITLES[effectiveRole] || ROLE_SUBTITLES.shipowner}
           </p>
         </div>
-        {effectiveRole !== "provider" && (
+        {effectiveRole !== "provider" && effectiveRole !== "broker" && (
           <Link href="/proformas/new">
             <Button size="sm" className="gap-2 shrink-0 shadow-sm bg-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-primary)/0.9)] text-white" data-testid="button-new-proforma-header">
               <Plus className="w-4 h-4" /> New Proforma
@@ -188,7 +192,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ── Admin overview mode: just AdminDashboard ── */}
+      {/* ── Admin overview mode ── */}
       {effectiveRole === "admin" && (
         <>
           <AdminDashboard adminStats={adminStats} />
@@ -216,7 +220,7 @@ export default function Dashboard() {
               <Separator className="my-2" />
               <div className="flex items-center gap-2 mb-2">
                 <Shield className="w-4 h-4 text-red-500" />
-                <span className="text-xs font-bold uppercase tracking-widest text-red-500">Admin Paneli</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-red-500">Admin Panel</span>
               </div>
               <AdminDashboard adminStats={adminStats} />
               {adminRoleSwitcher}
@@ -240,7 +244,25 @@ export default function Dashboard() {
               <Separator className="my-2" />
               <div className="flex items-center gap-2 mb-2">
                 <Shield className="w-4 h-4 text-red-500" />
-                <span className="text-xs font-bold uppercase tracking-widest text-red-500">Admin Paneli</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-red-500">Admin Panel</span>
+              </div>
+              <AdminDashboard adminStats={adminStats} />
+              {adminRoleSwitcher}
+            </>
+          )}
+        </>
+      )}
+
+      {/* ── Broker view ── */}
+      {effectiveRole === "broker" && (
+        <>
+          <BrokerDashboard user={user} />
+          {isAdmin && (
+            <>
+              <Separator className="my-2" />
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className="w-4 h-4 text-red-500" />
+                <span className="text-xs font-bold uppercase tracking-widest text-red-500">Admin Panel</span>
               </div>
               <AdminDashboard adminStats={adminStats} />
               {adminRoleSwitcher}
@@ -261,7 +283,7 @@ export default function Dashboard() {
               <Separator className="my-2" />
               <div className="flex items-center gap-2 mb-2">
                 <Shield className="w-4 h-4 text-red-500" />
-                <span className="text-xs font-bold uppercase tracking-widest text-red-500">Admin Paneli</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-red-500">Admin Panel</span>
               </div>
               <AdminDashboard adminStats={adminStats} />
               {adminRoleSwitcher}

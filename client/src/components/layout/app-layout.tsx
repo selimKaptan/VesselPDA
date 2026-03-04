@@ -32,6 +32,8 @@ import {
   LayoutDashboard,
   Languages,
   ChevronRight,
+  FlaskConical,
+  X,
 } from "lucide-react";
 
 const PLAN_BADGE: Record<string, string> = {
@@ -426,6 +428,19 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           <UserMenu user={user} />
         </div>
       </header>
+
+      {/* Demo mode banner */}
+      {(user as any)?.email?.endsWith("@vpda.demo") && (
+        <div className="flex-shrink-0 bg-amber-500 text-white text-xs font-medium flex items-center justify-between px-4 py-1.5 gap-2" data-testid="banner-demo-mode">
+          <div className="flex items-center gap-2">
+            <FlaskConical className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>
+              You are in <strong>Demo Mode</strong> as {(user as any)?.userRole} — data may be shared.
+            </span>
+          </div>
+          <a href="/register" className="underline hover:no-underline flex-shrink-0">Create a free account →</a>
+        </div>
+      )}
 
       {/* Body: side panel + main content */}
       <div className="flex flex-1 overflow-hidden">
