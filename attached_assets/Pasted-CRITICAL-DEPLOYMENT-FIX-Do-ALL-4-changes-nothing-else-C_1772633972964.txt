@@ -1,0 +1,54 @@
+CRITICAL DEPLOYMENT FIX — Do ALL 4 changes, nothing else:
+
+CHANGE 1: In server/index.ts, add this line BEFORE app.use(helmet({
+   app.get("/api/health", (_req, res) => res.status(200).json({ status: "ok" }));
+
+CHANGE 2: In server/index.ts, move httpServer.listen BEFORE the (async () => { block.
+Cut the const port and httpServer.listen call and paste them BEFORE "(async () => {".
+Move all the seed/import/cron code from listen callback into setTimeout blocks inside the async IIFE.
+
+New structure:
+
+const port = parseInt(process.env.PORT || "5000", 10);
+httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
+  console.log("Server listening on port " + port);
+});
+
+(async () => {
+  await registerRoutes(httpServer, app);
+  app.use((err, _req, res, next) => { ... }); // keep existing error handler
+  if (process.env.NODE_ENV === "production") { serveStatic(app); }
+  else { const { setupVite } = await import("./vite"); await setupVite(httpServer, app); }
+
+  setTimeout(() => {
+    import("./seed").then(({ seedDatabase, seedForumCategories, seedPortCoordinates }) => {
+      seedDatabase().catch(console.error);
+      seedForumCategories().catch(console.error);
+      seedPortCoordinates().catch(console.error);
+    });
+    seedBunkerPrices().catch(console.error);
+    seedTestAdmin().catch(console.error);
+    import("./seed-templates").then(({ seedDocumentTemplates }) => seedDocumentTemplates().catch(console.error));
+    import("./seed-tariffs").then(({ seedTariffData, ensureNewTariffTables }) => ensureNewTariffTables().then(() => seedTariffData()).catch(console.error));
+    import("./startup-checks").then(({ runStartupChecks }) => runStartupChecks().catch(console.error));
+    import("./cleanup-ports").then(({ cleanupInvalidPorts }) => cleanupInvalidPorts().catch(console.error));
+  }, 10000);
+
+  setTimeout(() => { startCronJobs(); }, 45000);
+  setTimeout(() => { import("./sanctions").then(({ loadSanctionsList }) => loadSanctionsList().catch(console.error)); }, 90000);
+  setTimeout(() => { import("./geocode-ports").then(({ geocodeMissingPorts }) => geocodeMissingPorts().catch(console.error)); }, 120000);
+})();
+
+CHANGE 3: In script/build.ts, add this plugin to the esbuild plugins array alongside stubVitePlugin:
+{
+  name: "stub-replit",
+  setup(build) {
+    build.onResolve({ filter: /@replit\// }, () => ({ path: "stub", namespace: "stub-replit" }));
+    build.onLoad({ filter: /.*/, namespace: "stub-replit" }, () => ({ contents: "exports.default = function(){}", loader: "js" }));
+  }
+}
+
+CHANGE 4: In .replit, change deploymentTarget from "autoscale" to "vm"
+
+After ALL changes, run: npm run build
+Do NOT change anything else.
