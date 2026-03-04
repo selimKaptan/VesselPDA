@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import { FileText, Ship, Globe, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Settings2, Package, AlertTriangle, Crown, ChevronsUpDown, Check, MapPin, RefreshCw, Zap } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { FileText, Ship, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Package, AlertTriangle, Crown, ChevronsUpDown, Check, MapPin, RefreshCw, Zap, Waves } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,36 +42,10 @@ const CARGO_TYPE_OPTIONS = [
   { value: "ammonia",    label: "🧪 Ammonia",                                unit: "MT",    isDangerous: true,  examples: "Anhydrous ammonia, aqueous ammonia" },
 ];
 
-const CITY_CODE_NAMES: Record<string, string> = {
-  ALA: "Alanya", ALI: "Aliağa", AMA: "Amasra", AMB: "Ambarlı (İstanbul)",
-  ANA: "Anamur", AYT: "Antalya", AYV: "Ayvalık", BDM: "Bodrum",
-  BTN: "Bartın", BXN: "Bandırma", BZC: "Bartın (Çaycuma)", CES: "Çeşme",
-  CKZ: "Çanakkale", DAT: "Datça", DIK: "Dikili", EDO: "Erdek",
-  ENE: "Enez", ERE: "Ereğli (Zonguldak)", ERK: "Erdemli", FAS: "Fasa",
-  FET: "Fethiye", FIN: "Fındıklı", FOC: "Foça", GCA: "Geyikli",
-  GCK: "Gebze (Kocaeli)", GEL: "Gelibolu", GEM: "Gemlik", GIR: "Giresun",
-  GOR: "Görele", GUL: "Güllük", HOP: "Hopa", IGN: "İğneada",
-  INE: "İnebolu", ISK: "İskenderun", IST: "İstanbul", IZM: "İzmit",
-  IZT: "İzmit (Tersaneler)", KAS: "Kaş", KMR: "Karamürsel", KRB: "Karabiga",
-  KRT: "Karataş (Adana)", KUS: "Kuşadası", MER: "Mersin", MRA: "Marmara Adası",
-  MRM: "Marmaris", MUD: "Mudanya", ORD: "Ordu", RIZ: "Rize",
-  SIC: "Sinop", SIL: "Silopi", SSX: "Samsun", SUR: "Sürmene",
-  TAS: "Taşucu", TEK: "Tekirdağ", TIR: "Tire (İzmir)", TZX: "Trabzon",
-  UNY: "Ünye", YAL: "Yalova", ZON: "Zonguldak",
-  "092": "Tuzla (Tersaneler Bölgesi)", "01M": "Ceyhan (Adana)",
-  "039": "Karasu (Sakarya)", "027": "Cide", "002": "Kefken", "003": "Seyhan",
+const isTurkishFlag = (flag: string): boolean => {
+  const f = (flag || "").toLowerCase().trim();
+  return f === "turkey" || f === "turkish" || f === "türk" || f === "türkiye" || f === "tr" || f === "turk";
 };
-
-function getPortCityCode(code: string): string {
-  if (!code) return "OTHER";
-  const withoutTr = code.startsWith("TR") ? code.substring(2) : code;
-  const dashIdx = withoutTr.indexOf("-");
-  return dashIdx !== -1 ? withoutTr.substring(0, dashIdx) : withoutTr;
-}
-
-function getCityName(cityCode: string): string {
-  return CITY_CODE_NAMES[cityCode] ?? cityCode;
-}
 
 export default function ProformaNew() {
   const [, setLocation] = useLocation();
@@ -79,7 +53,9 @@ export default function ProformaNew() {
 
   const [selectedVessel, setSelectedVessel] = useState<string>("");
   const [selectedPort, setSelectedPort] = useState<string>("");
-  const [selectedCity, setSelectedCity] = useState<string>("");
+  const [portOpen, setPortOpen] = useState(false);
+  const [portSearch, setPortSearch] = useState("");
+
   const [berthStayDays, setBerthStayDays] = useState<number>(4);
   const [anchorageDays, setAnchorageDays] = useState<number>(0);
   const [purposeOfCall, setPurposeOfCall] = useState<string>("Discharging");
@@ -88,6 +64,7 @@ export default function ProformaNew() {
   const [cargoType, setCargoType] = useState<string>("");
   const [cargoUnit, setCargoUnit] = useState<string>("MT");
   const [isDangerousCargo, setIsDangerousCargo] = useState<boolean>(false);
+
   const [customsType, setCustomsType] = useState<string>("import");
   const [flagCategory, setFlagCategory] = useState<string>("turkish");
   const [dtoCategory, setDtoCategory] = useState<string>("turkish");
@@ -95,30 +72,13 @@ export default function ProformaNew() {
   const [vtsCategory, setVtsCategory] = useState<string>("turkish");
   const [wharfageCategory, setWharfageCategory] = useState<string>("foreign");
 
-  const isTurkishFlag = (flag: string): boolean => {
-    const f = flag.toLowerCase().trim();
-    return f === "turkey" || f === "turkish" || f === "türk" || f === "türkiye" || f === "tr" || f === "turk";
-  };
-
-  const handleVesselChange = (vesselId: string) => {
-    setSelectedVessel(vesselId);
-    const vessel = vessels?.find(v => v.id.toString() === vesselId);
-    if (vessel) {
-      const turkish = isTurkishFlag(vessel.flag);
-      setFlagCategory(turkish ? "turkish" : "foreign");
-      setDtoCategory(turkish ? "turkish" : "foreign");
-      setLighthouseCategory(turkish ? "turkish" : "foreign");
-      setVtsCategory(turkish ? "turkish" : "foreign");
-      setWharfageCategory(turkish ? "cabotage" : "foreign");
-    }
-  };
   const [usdTryRate, setUsdTryRate] = useState<number>(43.86);
   const [eurTryRate, setEurTryRate] = useState<number>(51.73);
+  const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
   const [toCompany, setToCompany] = useState<string>("");
   const [toCountry, setToCountry] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [portOpen, setPortOpen] = useState(false);
 
   const [calculatedItems, setCalculatedItems] = useState<ProformaLineItem[] | null>(null);
   const [totalUsd, setTotalUsd] = useState<number>(0);
@@ -138,6 +98,25 @@ export default function ProformaNew() {
 
   const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
   const { data: ports, isLoading: portsLoading } = useQuery<Port[]>({ queryKey: ["/api/ports"] });
+
+  const handleVesselChange = (vesselId: string) => {
+    setSelectedVessel(vesselId);
+    const vessel = vessels?.find(v => v.id.toString() === vesselId);
+    if (vessel) {
+      const turkish = isTurkishFlag(vessel.flag);
+      setFlagCategory(turkish ? "turkish" : "foreign");
+      setDtoCategory(turkish ? "turkish" : "foreign");
+      setLighthouseCategory(turkish ? "turkish" : "foreign");
+      setVtsCategory(turkish ? "turkish" : "foreign");
+      setWharfageCategory(turkish ? "cabotage" : "foreign");
+    }
+  };
+
+  const filteredPorts = ports?.filter(p => {
+    if (!portSearch) return true;
+    const q = portSearch.toLowerCase();
+    return (p.name || "").toLowerCase().includes(q) || (p.code || "").toLowerCase().includes(q);
+  }) ?? [];
 
   useEffect(() => {
     if (!selectedVessel || !selectedPort) { setQuickEstimate(null); return; }
@@ -160,23 +139,6 @@ export default function ProformaNew() {
     }, 900);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [selectedVessel, selectedPort, berthStayDays, cargoQuantity, cargoType, cargoCategory, isDangerousCargo, customsType]);
-
-  const citiesWithCounts = useMemo(() => {
-    if (!ports) return [];
-    const counts: Record<string, number> = {};
-    for (const p of ports) {
-      const code = getPortCityCode(p.code || "");
-      counts[code] = (counts[code] ?? 0) + 1;
-    }
-    return Object.entries(counts)
-      .map(([code, count]) => ({ code, name: getCityName(code), count }))
-      .sort((a, b) => a.name.localeCompare(b.name, "tr"));
-  }, [ports]);
-
-  const portsForCity = useMemo(() => {
-    if (!ports || !selectedCity) return [];
-    return ports.filter((p) => getPortCityCode(p.code || "") === selectedCity);
-  }, [ports, selectedCity]);
 
   const calculateMutation = useMutation({
     mutationFn: async (params: Record<string, unknown>) => {
@@ -216,11 +178,7 @@ export default function ProformaNew() {
         return;
       }
       if (error.message?.includes("limit reached") || error.message?.includes("LIMIT_REACHED") || error.message?.includes("upgrade")) {
-        toast({
-          title: "Proforma Limit Reached",
-          description: "You've used all proformas in your plan. Upgrade to continue.",
-          variant: "destructive",
-        });
+        toast({ title: "Proforma Limit Reached", description: "You've used all proformas in your plan. Upgrade to continue.", variant: "destructive" });
         setTimeout(() => { setLocation("/pricing"); }, 1500);
         return;
       }
@@ -228,12 +186,10 @@ export default function ProformaNew() {
     },
   });
 
-  const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
-
   const liveRatesMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("GET", "/api/exchange-rates");
-      return res.json() as Promise<{ usdTry: number; eurTry: number; gbpTry?: number; eurUsd?: number; source: string; updatedAt: string | null }>;
+      return res.json() as Promise<{ usdTry: number; eurTry: number; eurUsd?: number; source: string; updatedAt: string | null }>;
     },
     onSuccess: (data) => {
       setUsdTryRate(data.usdTry);
@@ -245,9 +201,7 @@ export default function ProformaNew() {
     },
   });
 
-  useEffect(() => {
-    liveRatesMutation.mutate();
-  }, []);
+  useEffect(() => { liveRatesMutation.mutate(); }, []);
 
   const triggerCalculation = useCallback(() => {
     if (!selectedVessel || !selectedPort) {
@@ -297,12 +251,15 @@ export default function ProformaNew() {
 
   const selectedVesselData = vessels?.find((v) => v.id.toString() === selectedVessel);
   const selectedPortData = ports?.find((p) => p.id.toString() === selectedPort);
+  const selectedCargoOption = CARGO_TYPE_OPTIONS.find(o => o.value === cargoCategory);
 
   return (
     <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center gap-4">
+
+      {/* Page Header */}
+      <div className="flex items-center gap-3">
         <Link href="/proformas">
-          <Button variant="ghost" size="icon" data-testid="button-back-proformas">
+          <Button variant="ghost" size="icon" className="shrink-0" data-testid="button-back-proformas">
             <ArrowLeft className="w-4 h-4" />
           </Button>
         </Link>
@@ -313,22 +270,32 @@ export default function ProformaNew() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="p-6 space-y-5">
-            <h2 className="font-serif font-semibold text-lg flex items-center gap-2">
-              <Ship className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
-              Vessel & Port
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Vessel *</Label>
+
+        {/* ── LEFT COLUMN: Form ── */}
+        <div className="lg:col-span-2 space-y-5">
+
+          {/* SECTION 1: Vessel & Port */}
+          <Card className="overflow-hidden">
+            <div className="flex items-center gap-2.5 px-6 py-4 border-b bg-[hsl(var(--maritime-primary)/0.04)]">
+              <div className="w-8 h-8 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center">
+                <Ship className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              </div>
+              <h2 className="font-serif font-semibold text-base">Vessel & Port</h2>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Vessel selector */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Vessel <span className="text-red-500">*</span></Label>
                 {vesselsLoading ? <Skeleton className="h-10" /> : vessels && vessels.length > 0 ? (
                   <Select value={selectedVessel} onValueChange={handleVesselChange}>
-                    <SelectTrigger data-testid="select-vessel"><SelectValue placeholder="Select vessel" /></SelectTrigger>
+                    <SelectTrigger className="h-10" data-testid="select-vessel">
+                      <SelectValue placeholder="Select vessel" />
+                    </SelectTrigger>
                     <SelectContent>
                       {vessels.map((v) => (
                         <SelectItem key={v.id} value={v.id.toString()} data-testid={`option-vessel-${v.id}`}>
-                          {v.name} ({v.flag})
+                          {v.name} <span className="text-muted-foreground ml-1">({v.flag})</span>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -336,309 +303,235 @@ export default function ProformaNew() {
                 ) : (
                   <div className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/30">
                     No vessels yet.{" "}
-                    <Link href="/vessels" className="text-[hsl(var(--maritime-primary))] underline">Add a vessel first</Link>
+                    <Link href="/vessels" className="text-[hsl(var(--maritime-primary))] underline font-medium">Add a vessel first</Link>
                   </div>
                 )}
               </div>
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1.5">
+
+              {/* Vessel info strip */}
+              {selectedVesselData && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground px-3 py-2.5 rounded-lg bg-muted/40 border" data-testid="text-vessel-summary">
+                  <span><strong className="text-foreground">Flag:</strong> {selectedVesselData.flag}</span>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span><strong className="text-foreground">Type:</strong> {selectedVesselData.vesselType}</span>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span><strong className="text-foreground">GRT:</strong> {selectedVesselData.grt?.toLocaleString()}</span>
+                  {selectedVesselData.nrt && <><span className="text-muted-foreground/40">·</span><span><strong className="text-foreground">NRT:</strong> {selectedVesselData.nrt?.toLocaleString()}</span></>}
+                  {selectedVesselData.dwt && <><span className="text-muted-foreground/40">·</span><span><strong className="text-foreground">DWT:</strong> {selectedVesselData.dwt?.toLocaleString()}</span></>}
+                  <Badge variant={isTurkishFlag(selectedVesselData.flag) ? "default" : "secondary"} className="text-[10px] ml-auto shrink-0" data-testid="badge-flag-category">
+                    {isTurkishFlag(selectedVesselData.flag) ? "🇹🇷 Turkish Flag" : "🏳️ Foreign Flag"}
+                  </Badge>
+                </div>
+              )}
+
+              <Separator />
+
+              {/* Port / Terminal selector — searchable, all ports */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" />
-                  City / Region *
+                  Port / Terminal <span className="text-red-500">*</span>
                 </Label>
                 {portsLoading ? <Skeleton className="h-10" /> : (
-                  <Select
-                    value={selectedCity}
-                    onValueChange={(v) => { setSelectedCity(v); setSelectedPort(""); setPortOpen(false); }}
-                    data-testid="select-port-city"
-                  >
-                    <SelectTrigger data-testid="select-port-city-trigger">
-                      <SelectValue placeholder="Select city or region..." />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {citiesWithCounts.map((c) => (
-                        <SelectItem key={c.code} value={c.code} data-testid={`option-city-${c.code}`}>
-                          {c.name}
-                          <span className="ml-1.5 text-xs text-muted-foreground">({c.count})</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1.5">
-                Terminal / Port *
-                {selectedCity && (
-                  <span className="text-xs font-normal text-muted-foreground ml-1">
-                    — {getCityName(selectedCity)} ({portsForCity.length} terminals)
-                  </span>
-                )}
-              </Label>
-              {portsLoading ? <Skeleton className="h-10" /> : (
-                <Popover open={portOpen} onOpenChange={setPortOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={portOpen}
-                      disabled={!selectedCity}
-                      className="w-full justify-between font-normal disabled:opacity-60"
-                      data-testid="select-port-terminal"
-                    >
-                      {!selectedCity
-                        ? "Select a city / region first..."
-                        : selectedPort
+                  <Popover open={portOpen} onOpenChange={(open) => { setPortOpen(open); if (!open) setPortSearch(""); }}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={portOpen}
+                        className="w-full h-10 justify-between font-normal"
+                        data-testid="select-port-terminal"
+                      >
+                        {selectedPort
                           ? (() => { const p = ports?.find(p => p.id.toString() === selectedPort); return p ? p.name : "Select terminal"; })()
-                          : "Search and select terminal..."}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-full max-w-xl p-0" align="start">
-                    <Command>
-                      <CommandInput placeholder="Search terminals..." data-testid="input-search-port" />
-                      <CommandList>
-                        <CommandEmpty>No terminal found.</CommandEmpty>
-                        <CommandGroup className="max-h-[300px] overflow-y-auto">
-                          {portsForCity.map((p) => (
-                            <CommandItem
-                              key={p.id}
-                              value={`${p.name} ${p.code || ""}`}
-                              onSelect={() => { setSelectedPort(p.id.toString()); setPortOpen(false); }}
-                              data-testid={`option-port-${p.id}`}
-                            >
-                              <Check className={`mr-2 h-4 w-4 shrink-0 ${selectedPort === p.id.toString() ? "opacity-100" : "opacity-0"}`} />
-                              <span className="flex-1">{p.name}</span>
-                              {p.code && <span className="ml-2 text-xs text-muted-foreground font-mono">{p.code}</span>}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              )}
-            </div>
-
-            {selectedVesselData && (
-              <div className="flex flex-wrap gap-4 items-center text-xs text-muted-foreground bg-muted/30 rounded-md p-3" data-testid="text-vessel-summary">
-                <span><strong>Flag:</strong> {selectedVesselData.flag}</span>
-                <span><strong>Type:</strong> {selectedVesselData.vesselType}</span>
-                <span><strong>GRT:</strong> {selectedVesselData.grt?.toLocaleString()}</span>
-                <span><strong>NRT:</strong> {selectedVesselData.nrt?.toLocaleString()}</span>
-                {selectedVesselData.dwt && <span><strong>DWT:</strong> {selectedVesselData.dwt?.toLocaleString()}</span>}
-                <Badge variant={isTurkishFlag(selectedVesselData.flag) ? "default" : "secondary"} className="text-[10px] ml-auto" data-testid="badge-flag-category">
-                  {isTurkishFlag(selectedVesselData.flag) ? "🇹🇷 Turkish Flag" : "🏳️ Foreign Flag"} — Tariffs auto-adjusted
-                </Badge>
-              </div>
-            )}
-            {selectedPortData && (
-              <div className="flex flex-wrap gap-3 items-center text-xs text-muted-foreground bg-muted/20 rounded-md p-3 border border-dashed" data-testid="text-port-summary">
-                <MapPin className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" />
-                <span><strong>City:</strong> {getCityName(selectedCity)}</span>
-                <span className="text-muted-foreground/50">·</span>
-                <span><strong>Terminal:</strong> {selectedPortData.name}</span>
-                {selectedPortData.code && (
-                  <>
-                    <span className="text-muted-foreground/50">·</span>
-                    <span className="font-mono"><strong>Code:</strong> {selectedPortData.code}</span>
-                  </>
+                          : <span className="text-muted-foreground">Search and select port / terminal...</span>}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full max-w-xl p-0" align="start">
+                      <Command shouldFilter={false}>
+                        <CommandInput
+                          placeholder="Search by port name or LOCODE..."
+                          value={portSearch}
+                          onValueChange={setPortSearch}
+                          data-testid="input-search-port"
+                        />
+                        <CommandList>
+                          <CommandEmpty>No port found.</CommandEmpty>
+                          <CommandGroup className="max-h-[280px] overflow-y-auto">
+                            {filteredPorts.slice(0, 80).map((p) => (
+                              <CommandItem
+                                key={p.id}
+                                value={p.id.toString()}
+                                onSelect={() => { setSelectedPort(p.id.toString()); setPortOpen(false); setPortSearch(""); }}
+                                data-testid={`option-port-${p.id}`}
+                              >
+                                <Check className={`mr-2 h-4 w-4 shrink-0 ${selectedPort === p.id.toString() ? "opacity-100" : "opacity-0"}`} />
+                                <span className="flex-1">{p.name}</span>
+                                {p.code && <span className="ml-2 text-xs text-muted-foreground font-mono">{p.code}</span>}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 )}
               </div>
-            )}
 
-            <Separator />
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Purpose of Call</Label>
-                <Select value={purposeOfCall} onValueChange={setPurposeOfCall}>
-                  <SelectTrigger data-testid="select-purpose"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {purposeOptions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Est. Berth Stay (Days)</Label>
-                <Input
-                  type="number"
-                  value={berthStayDays}
-                  onChange={(e) => { const v = parseInt(e.target.value); setBerthStayDays(isNaN(v) ? 0 : v); }}
-                  min={0}
-                  max={90}
-                  data-testid="input-berth-days"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Cargo Quantity</Label>
-                <div className="flex gap-2">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={cargoQuantity}
-                    onChange={(e) => setCargoQuantity(e.target.value)}
-                    placeholder="e.g. 4000"
-                    className="flex-1"
-                    data-testid="input-cargo-qty"
-                  />
-                  <Select value={cargoUnit} onValueChange={setCargoUnit}>
-                    <SelectTrigger className="w-20" data-testid="select-cargo-unit"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {cargoUnits.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-2 sm:col-span-3">
-                <Label>Cargo Category</Label>
-                <Select
-                  value={cargoCategory}
-                  onValueChange={(v) => {
-                    setCargoCategory(v);
-                    const opt = CARGO_TYPE_OPTIONS.find(o => o.value === v);
-                    if (opt) {
-                      setCargoUnit(opt.unit);
-                      setIsDangerousCargo(opt.isDangerous);
-                    }
-                  }}
-                  data-testid="select-cargo-category"
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {CARGO_TYPE_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            {opt.label}
-                            {opt.isDangerous && <span className="text-[10px] text-orange-600 font-semibold">⚠️ IMDG</span>}
-                          </div>
-                          <div className="text-xs text-muted-foreground">{opt.examples}</div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2 sm:col-span-3">
-                <Label>Cargo Description <span className="text-xs text-muted-foreground font-normal">(optional — add specific cargo name)</span></Label>
-                <Input
-                  value={cargoType}
-                  onChange={(e) => setCargoType(e.target.value)}
-                  placeholder="e.g. HRS Coil, Sunflower Oil, ULSD 10ppm..."
-                  data-testid="input-cargo-type"
-                />
-              </div>
-            </div>
-
-            <div
-              className={`flex items-center gap-3 p-3 rounded-md border transition-colors ${isDangerousCargo ? "bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800" : "border-input bg-background"}`}
-            >
-              <AlertTriangle className={`w-4 h-4 shrink-0 ${isDangerousCargo ? "text-orange-500" : "text-muted-foreground"}`} />
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="dangerous-cargo" className={`text-sm cursor-pointer ${isDangerousCargo ? "text-orange-700 dark:text-orange-300" : ""}`}>Dangerous Cargo (IMDG)</Label>
-                  {CARGO_TYPE_OPTIONS.find(o => o.value === cargoCategory)?.isDangerous && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 font-semibold border border-orange-300 dark:border-orange-700">Auto-detected</span>
+              {/* Port info strip */}
+              {selectedPortData && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground px-3 py-2.5 rounded-lg bg-muted/30 border border-dashed" data-testid="text-port-summary">
+                  <MapPin className="w-3 h-3 text-[hsl(var(--maritime-primary))]" />
+                  <span className="font-medium text-foreground">{selectedPortData.name}</span>
+                  {selectedPortData.code && (
+                    <span className="font-mono text-muted-foreground px-1.5 py-0.5 bg-muted rounded text-[10px]">{selectedPortData.code}</span>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">+30% surcharge on Pilotage, Tugboat & Mooring</p>
+              )}
+
+              <Separator />
+
+              {/* Call parameters row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="sm:col-span-2 space-y-1.5">
+                  <Label className="text-sm font-medium">Purpose of Call</Label>
+                  <Select value={purposeOfCall} onValueChange={setPurposeOfCall}>
+                    <SelectTrigger className="h-10" data-testid="select-purpose"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {purposeOptions.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Berth Stay (Days)</Label>
+                  <Input
+                    type="number"
+                    value={berthStayDays}
+                    onChange={(e) => setBerthStayDays(parseInt(e.target.value) || 1)}
+                    min={1} max={365}
+                    className="h-10"
+                    data-testid="input-berth-stay"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium flex items-center gap-1">
+                    <Anchor className="w-3 h-3" /> Anchorage Days
+                  </Label>
+                  <Input
+                    type="number"
+                    value={anchorageDays}
+                    onChange={(e) => setAnchorageDays(parseInt(e.target.value) || 0)}
+                    min={0} max={90}
+                    className="h-10"
+                    data-testid="input-anchorage-days"
+                  />
+                </div>
               </div>
-              <Switch
-                id="dangerous-cargo"
-                checked={isDangerousCargo}
-                onCheckedChange={setIsDangerousCargo}
-                data-testid="switch-dangerous-cargo"
-              />
+
+              <Separator />
+
+              {/* Cargo section */}
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2 space-y-1.5">
+                    <Label className="text-sm font-medium">Cargo Quantity</Label>
+                    <Input
+                      type="number"
+                      value={cargoQuantity}
+                      onChange={(e) => setCargoQuantity(e.target.value)}
+                      placeholder="e.g. 5000"
+                      className="h-10"
+                      data-testid="input-cargo-quantity"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium">Unit</Label>
+                    <Select value={cargoUnit} onValueChange={setCargoUnit}>
+                      <SelectTrigger className="h-10" data-testid="select-cargo-unit"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {cargoUnits.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Cargo Category</Label>
+                  <Select
+                    value={cargoCategory}
+                    onValueChange={(v) => {
+                      setCargoCategory(v);
+                      const opt = CARGO_TYPE_OPTIONS.find(o => o.value === v);
+                      if (opt) {
+                        setCargoUnit(opt.unit);
+                        setIsDangerousCargo(opt.isDangerous);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-10" data-testid="select-cargo-category"><SelectValue /></SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {CARGO_TYPE_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {selectedCargoOption?.examples && (
+                    <p className="text-[11px] text-muted-foreground pl-0.5">{selectedCargoOption.examples}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium text-muted-foreground">
+                    Cargo Description <span className="font-normal">(optional)</span>
+                  </Label>
+                  <Input
+                    value={cargoType}
+                    onChange={(e) => setCargoType(e.target.value)}
+                    placeholder={selectedCargoOption?.examples ? `e.g. ${selectedCargoOption.examples.split(",")[0]}` : "Add specific cargo name..."}
+                    className="h-10"
+                    data-testid="input-cargo-description"
+                  />
+                </div>
+
+                {/* Dangerous cargo toggle */}
+                <div className={`flex items-center gap-3 p-3.5 rounded-lg border transition-colors ${isDangerousCargo ? "bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800" : "border-input bg-muted/20"}`}>
+                  <AlertTriangle className={`w-4 h-4 shrink-0 ${isDangerousCargo ? "text-orange-500" : "text-muted-foreground"}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="dangerous-cargo" className={`text-sm cursor-pointer ${isDangerousCargo ? "text-orange-700 dark:text-orange-300 font-medium" : ""}`}>
+                        Dangerous Cargo (IMDG)
+                      </Label>
+                      {selectedCargoOption?.isDangerous && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 font-semibold border border-orange-200 dark:border-orange-700">Auto-detected</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">+30% surcharge on Pilotage, Tugboat & Mooring</p>
+                  </div>
+                  <Switch
+                    id="dangerous-cargo"
+                    checked={isDangerousCargo}
+                    onCheckedChange={setIsDangerousCargo}
+                    data-testid="switch-dangerous-cargo"
+                  />
+                </div>
+              </div>
             </div>
           </Card>
 
-          <Card className="p-6 space-y-5">
-            <h2 className="font-serif font-semibold text-lg flex items-center gap-2">
-              <Settings2 className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
-              Tariff Parameters
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Customs Type</Label>
-                <Select value={customsType} onValueChange={setCustomsType}>
-                  <SelectTrigger data-testid="select-customs-type"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="import">Import</SelectItem>
-                    <SelectItem value="export">Export</SelectItem>
-                    <SelectItem value="transit">Transit</SelectItem>
-                    <SelectItem value="none">None</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>DTO (Chamber of Shipping)</Label>
-                <Select value={dtoCategory} onValueChange={setDtoCategory}>
-                  <SelectTrigger data-testid="select-dto"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="turkish">Turkish</SelectItem>
-                    <SelectItem value="foreign">Foreign</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Wharfage / Berth Type</Label>
-                <Select value={wharfageCategory} onValueChange={setWharfageCategory}>
-                  <SelectTrigger data-testid="select-wharfage"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="foreign">Foreign</SelectItem>
-                    <SelectItem value="turkish">Turkish</SelectItem>
-                    <SelectItem value="cabotage">Cabotage</SelectItem>
-                    <SelectItem value="izmir_tcdd">Izmir/TCDD</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Lighthouse</Label>
-                <Select value={lighthouseCategory} onValueChange={setLighthouseCategory}>
-                  <SelectTrigger data-testid="select-lighthouse"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="turkish">Turkish</SelectItem>
-                    <SelectItem value="foreign">Foreign</SelectItem>
-                    <SelectItem value="cabotage">Cabotage</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>VTS</Label>
-                <Select value={vtsCategory} onValueChange={setVtsCategory}>
-                  <SelectTrigger data-testid="select-vts"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="turkish">Turkish</SelectItem>
-                    <SelectItem value="foreign">Foreign</SelectItem>
-                    <SelectItem value="cabotage">Cabotage</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Anchorage Days</Label>
-                <Input
-                  type="number"
-                  value={anchorageDays}
-                  onChange={(e) => setAnchorageDays(parseInt(e.target.value) || 0)}
-                  min={0}
-                  max={90}
-                  data-testid="input-anchorage-days"
-                />
-              </div>
-            </div>
-
-            <Separator />
-
-            <div className="flex items-center justify-between gap-2">
-              <div className="space-y-0.5">
-                <span className="text-sm font-medium text-muted-foreground">Exchange Rates (TRY)</span>
-                {ratesUpdatedAt && (
-                  <p className="text-[10px] text-muted-foreground/70">
-                    TCMB · {new Date(ratesUpdatedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                  </p>
-                )}
+          {/* SECTION 2: Exchange Rates — compact card */}
+          <Card className="overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b bg-[hsl(var(--maritime-primary)/0.04)]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center">
+                  <Waves className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                </div>
+                <div>
+                  <h2 className="font-serif font-semibold text-base leading-tight">Exchange Rates</h2>
+                  {ratesUpdatedAt && (
+                    <p className="text-[10px] text-muted-foreground leading-tight">
+                      TCMB · {new Date(ratesUpdatedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  )}
+                </div>
               </div>
               <Button
                 type="button"
@@ -646,44 +539,47 @@ export default function ProformaNew() {
                 size="sm"
                 onClick={() => liveRatesMutation.mutate()}
                 disabled={liveRatesMutation.isPending}
-                className="gap-1.5 text-xs"
+                className="gap-1.5 text-xs h-8"
                 data-testid="button-fetch-live-rates"
               >
-                {liveRatesMutation.isPending
-                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  : <RefreshCw className="w-3.5 h-3.5" />}
+                {liveRatesMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                 {liveRatesMutation.isPending ? "Loading..." : "Use Current Rate"}
               </Button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>USD/TRY</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={usdTryRate}
-                  onChange={(e) => setUsdTryRate(parseFloat(e.target.value) || 43.86)}
-                  data-testid="input-usd-try-rate"
-                />
+            <div className="px-6 py-4 space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium text-muted-foreground">USD / TRY</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={usdTryRate}
+                    onChange={(e) => setUsdTryRate(parseFloat(e.target.value) || 43.86)}
+                    className="h-10 font-mono"
+                    data-testid="input-usd-try-rate"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium text-muted-foreground">EUR / TRY</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={eurTryRate}
+                    onChange={(e) => setEurTryRate(parseFloat(e.target.value) || 51.73)}
+                    className="h-10 font-mono"
+                    data-testid="input-eur-try-rate"
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>EUR/TRY</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={eurTryRate}
-                  onChange={(e) => setEurTryRate(parseFloat(e.target.value) || 51.73)}
-                  data-testid="input-eur-try-rate"
-                />
-              </div>
+              <p className="text-xs text-muted-foreground">
+                EUR/USD Parity: <strong className="text-foreground font-mono">{(eurTryRate / usdTryRate).toFixed(4)}</strong>
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              EUR/USD Parity: <strong>{(eurTryRate / usdTryRate).toFixed(6)}</strong>
-            </p>
           </Card>
 
+          {/* Calculate CTA */}
           <Button
-            className="w-full gap-2 h-12 text-base font-semibold"
+            className="w-full gap-2 h-12 text-base font-semibold shadow-sm"
             onClick={triggerCalculation}
             disabled={calculateMutation.isPending || !selectedVessel || !selectedPort}
             data-testid="button-calculate"
@@ -692,10 +588,11 @@ export default function ProformaNew() {
             {calculateMutation.isPending ? "Calculating..." : "Calculate Proforma"}
           </Button>
 
+          {/* Advanced details toggle */}
           <button
             type="button"
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full"
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full py-1"
             data-testid="button-toggle-advanced"
           >
             <Package className="w-4 h-4" />
@@ -706,122 +603,121 @@ export default function ProformaNew() {
           {showAdvanced && (
             <Card className="p-6 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>To (Company)</Label>
-                  <Input value={toCompany} onChange={(e) => setToCompany(e.target.value)} placeholder="Company name" data-testid="input-to-company" />
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">To (Company)</Label>
+                  <Input value={toCompany} onChange={(e) => setToCompany(e.target.value)} placeholder="Company name" className="h-10" data-testid="input-to-company" />
                 </div>
-                <div className="space-y-2">
-                  <Label>Country</Label>
-                  <Input value={toCountry} onChange={(e) => setToCountry(e.target.value)} placeholder="e.g. TURKIYE" data-testid="input-to-country" />
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium">Country</Label>
+                  <Input value={toCountry} onChange={(e) => setToCountry(e.target.value)} placeholder="e.g. TURKIYE" className="h-10" data-testid="input-to-country" />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Notes</Label>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Notes</Label>
                 <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional notes..." rows={3} data-testid="input-notes" />
               </div>
             </Card>
           )}
-
         </div>
 
-        {/* ── RIGHT COLUMN: Sticky Results Panel ── */}
-        <div className="space-y-6">
-          {/* Quick Cost Preview — shown while no full calculation yet */}
+        {/* ── RIGHT COLUMN: Results Panel ── */}
+        <div className="space-y-4">
+
+          {/* Quick Cost Preview */}
           {(selectedVessel && selectedPort) && !calculatedItems && (
-            <Card className="p-4 space-y-3 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20" data-testid="panel-quick-estimate">
-              <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-blue-600" />
+            <Card className="overflow-hidden border-blue-200 dark:border-blue-800" data-testid="panel-quick-estimate">
+              <div className="flex items-center gap-2 px-4 py-3 bg-blue-50/80 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900">
+                <Zap className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 <h3 className="font-semibold text-sm text-blue-800 dark:text-blue-300">Quick Cost Preview</h3>
                 {quickEstimateLoading && <Loader2 className="w-3 h-3 animate-spin text-blue-500 ml-auto" data-testid="spinner-estimating" />}
               </div>
-              {quickEstimateLoading && !quickEstimate ? (
-                <p className="text-xs text-center text-muted-foreground py-2">Calculating...</p>
-              ) : quickEstimate ? (
-                <>
-                  <div className="text-center py-1">
-                    <p className="text-xs text-muted-foreground mb-0.5">Estimated Total</p>
-                    <p className="text-2xl font-bold font-serif text-blue-700 dark:text-blue-300" data-testid="text-estimate-total">
-                      ~${quickEstimate.totalUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                    </p>
-                    <p className="text-sm text-muted-foreground font-mono">
-                      ~€{quickEstimate.totalEur.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                    </p>
-                  </div>
-                  <div className="text-xs text-muted-foreground border-t pt-2">
-                    <p>TCMB: 1 USD = {quickEstimate.exchangeRates.usdTry} TRY</p>
-                    <p className="italic text-[10px] mt-0.5">* Preliminary estimate — click Calculate for the full breakdown.</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full gap-2 text-xs border-blue-300 text-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/30"
-                    onClick={() => {
-                      setCalculatedItems(quickEstimate.lineItems);
-                      setTotalUsd(quickEstimate.totalUsd);
-                      setTotalEur(quickEstimate.totalEur);
-                      setEurUsdParity(quickEstimate.exchangeRates.eurUsd);
-                    }}
-                    data-testid="button-load-estimate"
-                  >
-                    <Calculator className="w-3.5 h-3.5" />
-                    Load as Proforma
-                  </Button>
-                </>
-              ) : null}
+              <div className="p-4 space-y-3">
+                {quickEstimateLoading && !quickEstimate ? (
+                  <p className="text-xs text-center text-muted-foreground py-4">Estimating...</p>
+                ) : quickEstimate ? (
+                  <>
+                    <div className="text-center py-2">
+                      <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-1">Estimated Total</p>
+                      <p className="text-3xl font-bold font-serif text-blue-700 dark:text-blue-300" data-testid="text-estimate-total">
+                        ~${quickEstimate.totalUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </p>
+                      <p className="text-sm text-muted-foreground font-mono mt-0.5">
+                        ~€{quickEstimate.totalEur.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </p>
+                    </div>
+                    <div className="text-xs text-muted-foreground border-t pt-3 space-y-0.5">
+                      <p>TCMB: 1 USD = {quickEstimate.exchangeRates.usdTry} TRY</p>
+                      <p className="italic text-[10px]">Preliminary estimate — click Calculate for full breakdown.</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full gap-2 text-xs border-blue-300 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                      onClick={() => {
+                        setCalculatedItems(quickEstimate.lineItems);
+                        setTotalUsd(quickEstimate.totalUsd);
+                        setTotalEur(quickEstimate.totalEur);
+                        setEurUsdParity(quickEstimate.exchangeRates.eurUsd);
+                      }}
+                      data-testid="button-load-estimate"
+                    >
+                      <Calculator className="w-3.5 h-3.5" />
+                      Load as Proforma
+                    </Button>
+                  </>
+                ) : null}
+              </div>
             </Card>
           )}
 
-          {/* Sticky Results Panel */}
+          {/* Sticky results / awaiting card */}
           <div className="sticky top-6 space-y-4">
             {!calculatedItems ? (
               <Card className="p-8 flex flex-col items-center justify-center text-center space-y-3 border-dashed" data-testid="panel-awaiting-calculation">
-                <div className="w-12 h-12 rounded-full bg-[hsl(var(--maritime-primary)/0.08)] flex items-center justify-center">
-                  <Calculator className="w-6 h-6 text-[hsl(var(--maritime-primary)/0.5)]" />
+                <div className="w-14 h-14 rounded-2xl bg-[hsl(var(--maritime-primary)/0.07)] flex items-center justify-center">
+                  <Calculator className="w-6 h-6 text-[hsl(var(--maritime-primary)/0.4)]" />
                 </div>
                 <div>
                   <p className="font-semibold text-sm">Awaiting Calculation</p>
-                  <p className="text-xs text-muted-foreground mt-1">Fill in vessel, port and parameters, then click Calculate Proforma</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-[200px] mx-auto leading-relaxed">Fill in vessel, port and parameters, then click Calculate Proforma</p>
                 </div>
               </Card>
             ) : (
-              <Card className="p-4 space-y-4" data-testid="card-calculation-results">
-                {/* Header */}
-                <div className="space-y-1">
-                  <h2 className="font-serif font-semibold text-base flex items-center gap-2">
-                    <Calculator className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                    Proforma Disbursement Account
-                  </h2>
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    {selectedVesselData && (
-                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[hsl(var(--maritime-primary)/0.08)] text-[hsl(var(--maritime-primary))]">
-                        <Ship className="w-2.5 h-2.5" />
-                        {selectedVesselData.name}
-                      </span>
-                    )}
-                    {selectedPortData && (
-                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[hsl(var(--maritime-primary)/0.08)] text-[hsl(var(--maritime-primary))]">
-                        <Anchor className="w-2.5 h-2.5" />
-                        {selectedPortData.name}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                      {purposeOfCall} · {berthStayDays}d{isDangerousCargo ? " · ⚠️ IMDG" : ""}
-                    </span>
-                  </div>
+              <Card className="overflow-hidden" data-testid="card-calculation-results">
+                <div className="flex items-center gap-2 px-4 py-3 border-b bg-[hsl(var(--maritime-primary)/0.04)]">
+                  <Calculator className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                  <h2 className="font-serif font-semibold text-sm">Proforma Disbursement Account</h2>
                 </div>
 
-                {/* Line items table with % column + color bars */}
-                <div className="border rounded-md overflow-hidden">
+                {/* Vessel & port badges */}
+                <div className="flex flex-wrap gap-1.5 px-4 pt-3">
+                  {selectedVesselData && (
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[hsl(var(--maritime-primary)/0.08)] text-[hsl(var(--maritime-primary))] text-xs">
+                      <Ship className="w-2.5 h-2.5" /> {selectedVesselData.name}
+                    </span>
+                  )}
+                  {selectedPortData && (
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[hsl(var(--maritime-primary)/0.08)] text-[hsl(var(--maritime-primary))] text-xs">
+                      <Anchor className="w-2.5 h-2.5" /> {selectedPortData.name}
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-xs">
+                    {purposeOfCall} · {berthStayDays}d{anchorageDays > 0 ? ` · ${anchorageDays}d anch.` : ""}{isDangerousCargo ? " · ⚠️ IMDG" : ""}
+                  </span>
+                </div>
+
+                {/* Line items table */}
+                <div className="mx-4 mt-3 border rounded-md overflow-hidden">
                   {(() => {
                     const palette = ["border-blue-400","border-indigo-500","border-violet-500","border-sky-500","border-teal-500","border-cyan-500","border-blue-600","border-indigo-600","border-purple-500","border-blue-400"];
                     return (
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="border-b bg-[hsl(var(--maritime-primary)/0.04)]">
-                            <th className="text-left px-3 py-2 font-medium uppercase tracking-wider">Description</th>
-                            <th className="text-right px-3 py-2 font-medium uppercase tracking-wider">USD</th>
-                            <th className="text-right px-3 py-2 font-medium uppercase tracking-wider hidden sm:table-cell">EUR</th>
-                            <th className="text-right px-3 py-2 font-medium uppercase tracking-wider">%</th>
+                            <th className="text-left px-3 py-2 font-medium uppercase tracking-wider text-muted-foreground">Description</th>
+                            <th className="text-right px-3 py-2 font-medium uppercase tracking-wider text-muted-foreground">USD</th>
+                            <th className="text-right px-3 py-2 font-medium uppercase tracking-wider text-muted-foreground hidden sm:table-cell">EUR</th>
+                            <th className="text-right px-3 py-2 font-medium uppercase tracking-wider text-muted-foreground">%</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -842,7 +738,7 @@ export default function ProformaNew() {
                         </tbody>
                         <tfoot>
                           <tr className="bg-[hsl(var(--maritime-primary)/0.08)] font-bold border-l-4 border-[hsl(var(--maritime-primary))]">
-                            <td className="px-3 py-2.5" colSpan={1}>Total Port Expenses</td>
+                            <td className="px-3 py-2.5">Total Port Expenses</td>
                             <td className="px-3 py-2.5 text-right font-mono text-[hsl(var(--maritime-primary))]" data-testid="text-total-usd">
                               ${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </td>
@@ -857,13 +753,11 @@ export default function ProformaNew() {
                   })()}
                 </div>
 
-                {/* Exchange rate note */}
-                <p className="text-[10px] text-muted-foreground">
-                  EUR/USD: {eurUsdParity.toFixed(6)} · $1 = €{(1 / eurUsdParity).toFixed(4)}
+                <p className="text-[10px] text-muted-foreground px-4 pt-2">
+                  EUR/USD: {eurUsdParity.toFixed(4)} · $1 = €{(1 / eurUsdParity).toFixed(4)}
                 </p>
 
-                {/* Save + Reset buttons */}
-                <div className="flex gap-2">
+                <div className="flex gap-2 px-4 pb-4 pt-2">
                   <Button
                     className="flex-1 gap-2"
                     onClick={handleSave}
