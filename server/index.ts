@@ -15,6 +15,9 @@ const app = express();
 const httpServer = createServer(app);
 initSocket(httpServer);
 
+// CHANGE 1: Health endpoint BEFORE helmet so it's never blocked
+app.get("/api/health", (_req, res) => res.status(200).json({ status: "ok" }));
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -187,6 +190,12 @@ app.use((req, res, next) => {
   next();
 });
 
+// CHANGE 2: Listen BEFORE the async IIFE so the process is ready immediately
+const port = parseInt(process.env.PORT || "5000", 10);
+httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
+  console.log("Server listening on port " + port);
+});
+
 (async () => {
   await registerRoutes(httpServer, app);
 
@@ -203,9 +212,6 @@ app.use((req, res, next) => {
     return res.status(status).json({ message });
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
   if (process.env.NODE_ENV === "production") {
     serveStatic(app);
   } else {
@@ -213,63 +219,41 @@ app.use((req, res, next) => {
     await setupVite(httpServer, app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
+  setTimeout(() => {
+    import("./seed").then(({ seedDatabase, seedForumCategories, seedPortCoordinates }) => {
+      seedDatabase().catch((err: Error) => console.error("Seed error:", err));
+      seedForumCategories().catch((err: Error) => console.error("Forum seed error:", err));
+      seedPortCoordinates().catch((err: Error) => console.error("Port coords seed error:", err));
+    });
+    seedBunkerPrices().catch((err: Error) => console.error("Bunker seed error:", err));
+    seedTestAdmin().catch((err: Error) => console.error("Test admin seed error:", err));
+    import("./seed-templates").then(({ seedDocumentTemplates }) => {
+      seedDocumentTemplates().catch((err: Error) => console.error("Template seed error:", err));
+    });
+    import("./seed-tariffs").then(({ seedTariffData, ensureNewTariffTables }) => {
+      ensureNewTariffTables()
+        .then(() => seedTariffData())
+        .catch((err: Error) => console.error("Tariff setup error:", err));
+    });
+    import("./startup-checks").then(({ runStartupChecks }) => {
+      runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));
+    });
+    import("./cleanup-ports").then(({ cleanupInvalidPorts }) => {
+      cleanupInvalidPorts().catch((err: Error) => console.error("Cleanup error:", err));
+    });
+  }, 10000);
 
-      import("./seed").then(({ seedDatabase, seedForumCategories, seedPortCoordinates }) => {
-        seedDatabase().catch((err: Error) => console.error("Seed error:", err));
-        seedForumCategories().catch((err: Error) => console.error("Forum seed error:", err));
-        seedPortCoordinates().catch((err: Error) => console.error("Port coords seed error:", err));
-      });
+  setTimeout(() => { startCronJobs(); }, 45000);
 
-      seedBunkerPrices().catch((err: Error) => console.error("Bunker seed error:", err));
+  setTimeout(() => {
+    import("./sanctions").then(({ loadSanctionsList }) => {
+      loadSanctionsList().catch((err: Error) => console.error("Sanctions load error:", err));
+    });
+  }, 90000);
 
-      seedTestAdmin().catch((err: Error) => console.error("Test admin seed error:", err));
-
-      import("./seed-templates").then(({ seedDocumentTemplates }) => {
-        seedDocumentTemplates().catch((err: Error) => console.error("Template seed error:", err));
-      });
-
-      import("./seed-tariffs").then(({ seedTariffData, ensureNewTariffTables }) => {
-        ensureNewTariffTables()
-          .then(() => seedTariffData())
-          .catch((err: Error) => console.error("Tariff setup error:", err));
-      });
-
-      import("./startup-checks").then(({ runStartupChecks }) => {
-        setTimeout(() => {
-          runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));
-        }, 10000);
-      });
-
-      import("./cleanup-ports").then(({ cleanupInvalidPorts }) => {
-        cleanupInvalidPorts().catch((err: Error) => console.error("Cleanup error:", err));
-      });
-
-      import("./sanctions").then(({ loadSanctionsList }) => {
-        setTimeout(() => {
-          loadSanctionsList().catch((err: Error) => console.error("Sanctions load error:", err));
-        }, 5000);
-      });
-
-      import("./geocode-ports").then(({ geocodeMissingPorts }) => {
-        setTimeout(() => {
-          geocodeMissingPorts().catch((err: Error) => console.error("Geocode error:", err));
-        }, 15000);
-      });
-
-      startCronJobs();
-    },
-  );
+  setTimeout(() => {
+    import("./geocode-ports").then(({ geocodeMissingPorts }) => {
+      geocodeMissingPorts().catch((err: Error) => console.error("Geocode error:", err));
+    });
+  }, 120000);
 })();

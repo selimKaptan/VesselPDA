@@ -46,6 +46,15 @@ async function buildAll() {
   ];
   const externals = allDeps.filter((dep) => !allowlist.includes(dep));
 
+  // CHANGE 3: stub-replit plugin to silence @replit/* imports during production build
+  const stubReplitPlugin = {
+    name: "stub-replit",
+    setup(build: any) {
+      build.onResolve({ filter: /@replit\// }, () => ({ path: "stub", namespace: "stub-replit" }));
+      build.onLoad({ filter: /.*/, namespace: "stub-replit" }, () => ({ contents: "exports.default = function(){}", loader: "js" }));
+    },
+  };
+
   await esbuild({
     entryPoints: ["server/index.ts"],
     platform: "node",
@@ -57,6 +66,7 @@ async function buildAll() {
     },
     minify: true,
     external: externals,
+    plugins: [stubReplitPlugin],
     logLevel: "info",
   });
 }
