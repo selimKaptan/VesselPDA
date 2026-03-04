@@ -77,10 +77,10 @@ export function NotificationBell() {
       <button
         onClick={handleOpen}
         data-testid="button-notification-bell"
-        className="relative flex items-center justify-center w-9 h-9 rounded-lg hover:bg-muted transition-colors"
+        className="relative flex items-center justify-center w-9 h-9 rounded-lg hover:bg-white/10 transition-colors no-scale"
         aria-label="Notifications"
       >
-        <Bell className="w-5 h-5 text-muted-foreground" />
+        <Bell className="w-5 h-5 text-white/60 group-hover:text-white" />
         {unreadCount > 0 && (
           <span
             data-testid="badge-unread-count"

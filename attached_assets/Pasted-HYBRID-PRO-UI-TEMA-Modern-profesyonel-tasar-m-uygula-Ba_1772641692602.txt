@@ -1,0 +1,99 @@
+HYBRID PRO UI TEMA — Modern profesyonel tasarım uygula. Başka hiçbir şeyi değiştirme.
+
+RENK PALETİ (client/src/index.css veya globals.css'te CSS variables güncelle):
+
+:root {
+  --background: 220 14% 96%;
+  --foreground: 220 20% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 20% 10%;
+  --primary: 217 91% 50%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 14% 92%;
+  --secondary-foreground: 220 20% 25%;
+  --accent: 217 91% 95%;
+  --accent-foreground: 217 91% 30%;
+  --muted: 220 14% 92%;
+  --muted-foreground: 220 10% 45%;
+  --border: 220 13% 88%;
+  --ring: 217 91% 50%;
+  --sidebar-background: 220 20% 12%;
+  --sidebar-foreground: 220 10% 85%;
+  --sidebar-accent: 217 91% 50%;
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: 220 20% 8%;
+  --foreground: 220 10% 92%;
+  --card: 220 20% 12%;
+  --card-foreground: 220 10% 92%;
+  --primary: 217 91% 55%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 20% 16%;
+  --secondary-foreground: 220 10% 85%;
+  --accent: 217 91% 15%;
+  --accent-foreground: 217 91% 70%;
+  --muted: 220 20% 16%;
+  --muted-foreground: 220 10% 55%;
+  --border: 220 20% 18%;
+  --sidebar-background: 220 25% 6%;
+  --sidebar-foreground: 220 10% 80%;
+}
+
+TASARIM İYİLEŞTİRMELERİ:
+
+1. TOP BAR:
+   - Arka plan: koyu gradient (slate-900 → slate-800)
+   - Logo: beyaz text, bold
+   - Modül sekmeleri: beyaz text, aktif sekme altında mavi çizgi (2px border-bottom primary)
+   - User menu: avatar + isim, beyaz text
+   - Yükseklik: 56px
+   - Hafif shadow: shadow-md
+
+2. SOL PANEL (Side Panel):
+   - Arka plan: sidebar-background (koyu)
+   - Menü öğeleri: sidebar-foreground rengi
+   - Aktif öğe: primary renk arka plan, beyaz text, sol kenar 3px primary border
+   - Hover: hafif aydınlatma (opacity değişimi)
+   - Genişlik: 220px
+   - İkonlar: her menü öğesinde küçük ikon (lucide-react)
+
+3. KARTLAR (Dashboard ve liste sayfaları):
+   - Border-radius: 12px (rounded-xl)
+   - Hafif shadow: shadow-sm
+   - Hover'da shadow-md geçişi (transition)
+   - İçerik padding: p-6
+   - Başlık: font-semibold, muted-foreground renk
+   - Değer: text-2xl font-bold
+
+4. BUTONLAR:
+   - Primary: mavi gradient (blue-600 → blue-500), beyaz text, rounded-lg
+   - Secondary: gri arka plan, rounded-lg
+   - Hover'da hafif scale (scale-[1.02]) ve shadow geçişi
+   - Aktif durumda scale-[0.98]
+
+5. TABLOLAR:
+   - Header: muted arka plan, font-medium
+   - Satır hover: accent arka plan
+   - Zebra striping: çift satırlar hafif farklı arka plan
+   - Border: ince border rengi
+
+6. FORM ELEMANLARI:
+   - Input: border, rounded-lg, focus'ta ring-2 primary
+   - Select: aynı stil
+   - Label: font-medium, muted-foreground
+
+7. GENEL:
+   - Tüm geçişlerde transition-all duration-200
+   - Scroll bar: ince, koyu tema ile uyumlu
+   - Loading: skeleton animasyonları pulse
+   - Badge'ler: rounded-full, küçük, renkli
+
+8. DARK/LIGHT MODE TOGGLE:
+   - Top bar'ın sağ tarafında güneş/ay ikonu
+   - Tıklayınca tema değişsin
+   - Tercih localStorage'da saklanmasın, sadece session boyunca geçerli olsun
+   - Varsayılan: light mode
+
+Bu stil değişikliklerini uygula. Fonksiyonaliteye DOKUNMA — sadece görünüm değiştir.

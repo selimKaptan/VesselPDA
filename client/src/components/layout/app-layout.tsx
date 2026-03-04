@@ -58,7 +58,7 @@ function DarkModeToggle() {
       onClick={toggleTheme}
       data-testid="button-dark-mode-toggle"
       aria-label="Toggle dark mode"
-      className="h-8 w-8"
+      className="h-8 w-8 no-scale text-white/60 hover:text-white hover:bg-white/10"
     >
       {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
     </Button>
@@ -88,17 +88,17 @@ function UserMenu({ user }: { user: any }) {
       <DropdownMenuTrigger asChild>
         <button
           data-testid="button-user-menu"
-          className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-muted transition-colors"
+          className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-white/10 transition-colors no-scale"
         >
           <Avatar className="w-7 h-7">
             <AvatarImage src={user?.profileImageUrl || undefined} />
-            <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">{initials}</AvatarFallback>
+            <AvatarFallback className="bg-primary text-white text-xs font-bold">{initials}</AvatarFallback>
           </Avatar>
           <div className="hidden md:flex flex-col items-start min-w-0">
-            <span className="text-sm font-medium leading-tight truncate max-w-[120px]">{name}</span>
+            <span className="text-sm font-medium leading-tight truncate max-w-[120px] text-white">{name}</span>
             <span className={`text-[9px] font-bold px-1 rounded uppercase ${PLAN_BADGE[plan] || PLAN_BADGE.free}`}>{plan}</span>
           </div>
-          <ChevronDown className="w-3 h-3 text-muted-foreground hidden md:block" />
+          <ChevronDown className="w-3 h-3 text-white/50 hidden md:block" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
@@ -177,7 +177,7 @@ function MobileDrawer({ user, modules, activeModule, unreadMessages, pendingNomi
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="md:hidden h-8 w-8" data-testid="button-mobile-nav" aria-label="Open navigation">
+        <Button variant="ghost" size="icon" className="md:hidden h-8 w-8 no-scale text-white/70 hover:text-white hover:bg-white/10" data-testid="button-mobile-nav" aria-label="Open navigation">
           <Menu className="w-5 h-5" />
         </Button>
       </SheetTrigger>
@@ -258,9 +258,9 @@ function SidePanel({ modules, activeModule, unreadMessages, pendingNominations }
   if (!activeModule) return null;
 
   return (
-    <aside className="w-[200px] flex-shrink-0 border-r bg-sidebar overflow-y-auto hidden md:flex flex-col">
-      <div className="px-3 pt-3 pb-1">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/40 px-2 py-1">{activeModule.label}</p>
+    <aside className="w-[220px] flex-shrink-0 bg-sidebar overflow-y-auto hidden md:flex flex-col border-r border-sidebar-border">
+      <div className="px-3 pt-4 pb-1">
+        <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-sidebar-foreground/35 px-2 py-1">{activeModule.label}</p>
       </div>
       <nav className="flex-1 px-2 pb-3 space-y-0.5">
         {activeModule.subPages.map((page) => {
@@ -271,16 +271,16 @@ function SidePanel({ modules, activeModule, unreadMessages, pendingNominations }
             <Link key={page.url} href={page.url}>
               <div
                 data-testid={`subnav-${page.label.toLowerCase().replace(/\s+/g, "-")}`}
-                className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm font-medium transition-all cursor-pointer group ${
+                className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer group ${
                   active
-                    ? "bg-sidebar-primary/12 text-sidebar-primary border-l-2 border-l-sidebar-primary pl-[calc(0.625rem-2px)]"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                    ? "bg-primary text-white border-l-[3px] border-l-sidebar-accent pl-[calc(0.625rem-3px)] shadow-sm"
+                    : "text-sidebar-foreground/60 hover:bg-white/6 hover:text-sidebar-foreground"
                 }`}
               >
-                <Icon className="w-4 h-4 flex-shrink-0" />
+                <Icon className={`w-4 h-4 flex-shrink-0 ${active ? "text-white" : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80"}`} />
                 <span className="flex-1 truncate">{page.label}</span>
                 {badge > 0 && (
-                  <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                  <span className="w-5 h-5 rounded-full bg-amber-400 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
                     {badge}
                   </span>
                 )}
@@ -342,8 +342,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden">
-      {/* Top Bar */}
-      <header className="flex-shrink-0 h-12 border-b bg-background flex items-center px-3 gap-2 z-30">
+      {/* Top Bar — dark gradient, 56px */}
+      <header className="flex-shrink-0 h-14 shadow-md bg-gradient-to-r from-slate-900 to-slate-800 flex items-center px-3 gap-2 z-30">
         {/* Left: mobile menu + logo */}
         <div className="flex items-center gap-2 flex-shrink-0">
           <MobileDrawer
@@ -355,29 +355,25 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           />
           <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <img src="/logo-v2.png" alt="VesselPDA" className="w-7 h-7 rounded-md object-contain" />
-            <span className="font-serif font-bold text-sm hidden sm:block">VesselPDA</span>
+            <span className="font-serif font-bold text-sm hidden sm:block text-white">VesselPDA</span>
           </Link>
         </div>
 
         {/* Center: Module tabs */}
-        <nav className="flex-1 flex items-center justify-center overflow-x-auto scrollbar-hide px-2">
-          <div className="flex items-center gap-0.5">
+        <nav className="flex-1 flex items-center justify-center overflow-x-auto scrollbar-hide px-2 self-stretch">
+          <div className="flex items-center gap-0.5 h-full">
             {/* Dashboard home */}
-            <Link href="/">
+            <Link href="/" className="self-stretch flex items-stretch">
               <button
                 data-testid="nav-dashboard"
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
-                  location === "/" || location === "/dashboard"
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
+                className={`topbar-tab no-scale ${location === "/" || location === "/dashboard" ? "active" : ""}`}
               >
                 <LayoutDashboard className="w-3.5 h-3.5" />
                 <span className="hidden lg:block">Dashboard</span>
               </button>
             </Link>
 
-            <div className="w-px h-4 bg-border mx-1" />
+            <div className="w-px h-4 bg-white/20 mx-1 self-center flex-shrink-0" />
 
             {modules.map((mod) => {
               const active = isModuleActive(mod);
@@ -389,15 +385,11 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                   key={mod.key}
                   data-testid={`nav-module-${mod.key}`}
                   onClick={() => handleModuleClick(mod)}
-                  className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
-                    active
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
+                  className={`topbar-tab no-scale ${active ? "active" : ""}`}
                 >
                   {mod.label}
                   {hasBadge && (
-                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-500" />
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-400" />
                   )}
                   {isAdmin && mod.key === "admin" && (
                     <Shield className="w-3 h-3 text-red-400" />
@@ -411,15 +403,15 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         {/* Right: lang toggle + dark mode + notifications + user */}
         <div className="flex items-center gap-1 flex-shrink-0">
           {/* Language toggle */}
-          <div className="hidden md:flex rounded-md border border-border text-[10px] overflow-hidden">
+          <div className="hidden md:flex rounded-md border border-white/15 text-[10px] overflow-hidden">
             <button
               onClick={() => setLang("en")}
-              className={`px-2 py-1 font-medium transition-colors ${lang === "en" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+              className={`px-2 py-1 font-medium transition-colors no-scale ${lang === "en" ? "bg-white/20 text-white" : "text-white/50 hover:text-white hover:bg-white/10"}`}
               data-testid="button-lang-en"
             >EN</button>
             <button
               onClick={() => setLang("tr")}
-              className={`px-2 py-1 font-medium transition-colors ${lang === "tr" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+              className={`px-2 py-1 font-medium transition-colors no-scale ${lang === "tr" ? "bg-white/20 text-white" : "text-white/50 hover:text-white hover:bg-white/10"}`}
               data-testid="button-lang-tr"
             >TR</button>
           </div>
