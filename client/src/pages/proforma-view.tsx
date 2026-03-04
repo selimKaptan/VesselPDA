@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Download, Printer, Ship, Globe, FileText, Calendar, Package, Loader2, Mail } from "lucide-react";
+import { ArrowLeft, Download, Printer, Ship, Globe, FileText, Calendar, Package, Loader2, Mail, Send, RefreshCw, CheckCircle2, XCircle, Clock, AlertTriangle, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Link, useParams } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
 import type { Proforma, Vessel, Port, CompanyProfile } from "@shared/schema";
 
 async function downloadProformaPDF(refNumber: string) {
@@ -52,15 +53,65 @@ export default function ProformaView() {
   const [emailTo, setEmailTo] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailMessage, setEmailMessage] = useState("");
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewAction, setReviewAction] = useState<"approve" | "reject" | "request_revision">("approve");
+  const [reviewNote, setReviewNote] = useState("");
   const params = useParams<{ id: string }>();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const userRole = (user as any)?.userRole;
+  const isAgent = userRole === "agent";
+  const isShipownerOrAdmin = userRole === "shipowner" || userRole === "admin";
 
   const { data: proforma, isLoading } = useQuery<Proforma & { vessel?: Vessel; port?: Port }>({
     queryKey: ["/api/proformas", params.id],
   });
 
+  const { data: approvalHistory } = useQuery<any[]>({
+    queryKey: ["/api/proformas", params.id, "approval-history"],
+    queryFn: async () => {
+      const res = await fetch(`/api/proformas/${params.id}/approval-history`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!params.id,
+  });
+
   const { data: myProfile } = useQuery<CompanyProfile | null>({
     queryKey: ["/api/company-profile/me"],
+  });
+
+  const sendForApprovalMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/proformas/${params.id}/send`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/proformas", params.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/proformas", params.id, "approval-history"] });
+      toast({ title: "Sent for approval", description: "Shipowner will be notified." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to send", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: async ({ action, note }: { action: string; note: string }) => {
+      const res = await apiRequest("POST", `/api/proformas/${params.id}/review`, { action, note });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/proformas", params.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/proformas", params.id, "approval-history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/proformas/pending-approval"] });
+      setReviewOpen(false);
+      setReviewNote("");
+      toast({ title: "Review submitted" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Review failed", description: err.message, variant: "destructive" });
+    },
   });
 
   const sendEmailMutation = useMutation({
@@ -106,6 +157,20 @@ export default function ProformaView() {
 
   const exchangeRate = proforma.exchangeRate || 1.1593;
   const logoSrc = myProfile?.logoUrl || "/logo-v2.png";
+  const approvalStatus = (proforma as any).approvalStatus || "draft";
+  const revisionNote = (proforma as any).revisionNote;
+  const approvalNote = (proforma as any).approvalNote;
+
+  const approvalBannerConfig: Record<string, { bg: string; text: string; icon: any; label: string }> = {
+    draft: { bg: "bg-muted/50 border-muted-foreground/20", text: "text-muted-foreground", icon: FileText, label: "Draft — Not yet submitted for approval" },
+    sent: { bg: "bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800", text: "text-blue-700 dark:text-blue-300", icon: Clock, label: "Submitted for Approval — Awaiting review" },
+    under_review: { bg: "bg-yellow-50 border-yellow-200 dark:bg-yellow-950/30 dark:border-yellow-800", text: "text-yellow-700 dark:text-yellow-300", icon: Clock, label: "Under Review by Shipowner" },
+    revision_requested: { bg: "bg-orange-50 border-orange-200 dark:bg-orange-950/30 dark:border-orange-800", text: "text-orange-700 dark:text-orange-300", icon: RefreshCw, label: "Revision Requested" },
+    approved: { bg: "bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800", text: "text-green-700 dark:text-green-300", icon: CheckCircle2, label: "Approved by Shipowner" },
+    rejected: { bg: "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800", text: "text-red-700 dark:text-red-300", icon: XCircle, label: "Rejected" },
+  };
+  const banner = approvalBannerConfig[approvalStatus] || approvalBannerConfig.draft;
+  const BannerIcon = banner.icon;
 
   const openEmailDialog = () => {
     setEmailSubject(`Proforma D/A — ${proforma.referenceNumber || `#${params.id}`}`);
@@ -129,6 +194,29 @@ export default function ProformaView() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {isAgent && (approvalStatus === "draft" || approvalStatus === "revision_requested") && (
+            <Button
+              size="sm"
+              className={`gap-2 ${approvalStatus === "revision_requested" ? "bg-orange-600 hover:bg-orange-700" : ""}`}
+              onClick={() => sendForApprovalMutation.mutate()}
+              disabled={sendForApprovalMutation.isPending}
+              data-testid="button-send-for-approval"
+            >
+              {sendForApprovalMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              <span>{approvalStatus === "revision_requested" ? "Resubmit for Approval" : "Send for Approval"}</span>
+            </Button>
+          )}
+          {isShipownerOrAdmin && (approvalStatus === "sent" || approvalStatus === "under_review") && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2"
+              onClick={() => setReviewOpen(true)}
+              data-testid="button-review-pda"
+            >
+              <ChevronRight className="w-4 h-4" /> Review PDA
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()} data-testid="button-print">
             <Printer className="w-4 h-4" /> <span className="hidden sm:inline">Print</span>
           </Button>
@@ -161,6 +249,26 @@ export default function ProformaView() {
           </Button>
         </div>
       </div>
+
+      {/* Approval Status Banner */}
+      <div className={`flex items-center gap-3 p-3 rounded-lg border ${banner.bg}`} data-testid="banner-approval-status">
+        <BannerIcon className={`w-5 h-5 ${banner.text} flex-shrink-0`} />
+        <span className={`text-sm font-medium ${banner.text}`}>{banner.label}</span>
+        {(approvalStatus === "approved" || approvalStatus === "rejected") && approvalNote && (
+          <span className={`text-xs ml-2 ${banner.text} opacity-75`}>— {approvalNote}</span>
+        )}
+      </div>
+
+      {/* Revision Note Warning */}
+      {approvalStatus === "revision_requested" && revisionNote && (
+        <div className="flex items-start gap-3 p-4 rounded-lg border bg-orange-50 border-orange-200 dark:bg-orange-950/30 dark:border-orange-800" data-testid="box-revision-note">
+          <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-orange-700 dark:text-orange-300">Revision Requested by Shipowner</p>
+            <p className="text-sm text-orange-600 dark:text-orange-400 mt-1">{revisionNote}</p>
+          </div>
+        </div>
+      )}
 
       <Card className="p-6 sm:p-8 space-y-6 sm:space-y-8 print:shadow-none print:border-none" id="proforma-document" data-testid="card-proforma-document">
         <div className="flex items-start justify-between gap-4 sm:gap-6">
@@ -297,6 +405,114 @@ export default function ProformaView() {
           This proforma disbursement account is an estimate only. Actual charges are subject to change based on vessel call conditions and applicable port tariffs.
         </div>
       </Card>
+
+      {/* Approval History Timeline */}
+      {approvalHistory && approvalHistory.length > 0 && (
+        <Card className="p-5" data-testid="card-approval-history">
+          <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-muted-foreground" /> Approval History
+          </h3>
+          <div className="space-y-3">
+            {approvalHistory.map((log: any, i: number) => {
+              const actionConfig: Record<string, { color: string; label: string; icon: any }> = {
+                sent: { color: "text-blue-600 dark:text-blue-400", label: "Sent for Approval", icon: Send },
+                approve: { color: "text-green-600 dark:text-green-400", label: "Approved", icon: CheckCircle2 },
+                reject: { color: "text-red-600 dark:text-red-400", label: "Rejected", icon: XCircle },
+                request_revision: { color: "text-orange-600 dark:text-orange-400", label: "Revision Requested", icon: RefreshCw },
+              };
+              const cfg = actionConfig[log.action] || { color: "text-muted-foreground", label: log.action, icon: Clock };
+              const LogIcon = cfg.icon;
+              return (
+                <div key={log.id || i} className="flex items-start gap-3" data-testid={`row-approval-log-${i}`}>
+                  <div className={`mt-0.5 flex-shrink-0 ${cfg.color}`}>
+                    <LogIcon className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-sm font-medium ${cfg.color}`}>{cfg.label}</span>
+                      <span className="text-xs text-muted-foreground">by {log.user_name?.trim() || "Unknown"}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {log.created_at ? new Date(log.created_at).toLocaleString("en-GB") : ""}
+                      </span>
+                    </div>
+                    {log.note && (
+                      <p className="text-xs text-muted-foreground mt-1 bg-muted/30 px-2 py-1 rounded">{log.note}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {/* Review Dialog (Shipowner / Admin) */}
+      <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-review-pda">
+          <DialogHeader>
+            <DialogTitle>Review Proforma</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Decision</Label>
+              <div className="flex gap-2">
+                <Button
+                  variant={reviewAction === "approve" ? "default" : "outline"}
+                  size="sm"
+                  className={reviewAction === "approve" ? "bg-green-600 hover:bg-green-700" : ""}
+                  onClick={() => setReviewAction("approve")}
+                  data-testid="button-action-approve"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Approve
+                </Button>
+                <Button
+                  variant={reviewAction === "request_revision" ? "default" : "outline"}
+                  size="sm"
+                  className={reviewAction === "request_revision" ? "bg-orange-600 hover:bg-orange-700" : ""}
+                  onClick={() => setReviewAction("request_revision")}
+                  data-testid="button-action-revision"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 mr-1" /> Request Revision
+                </Button>
+                <Button
+                  variant={reviewAction === "reject" ? "default" : "outline"}
+                  size="sm"
+                  className={reviewAction === "reject" ? "bg-red-600 hover:bg-red-700" : ""}
+                  onClick={() => setReviewAction("reject")}
+                  data-testid="button-action-reject"
+                >
+                  <XCircle className="w-3.5 h-3.5 mr-1" /> Reject
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="review-note">
+                {reviewAction === "request_revision" ? "Revision Instructions *" : "Note (optional)"}
+              </Label>
+              <Textarea
+                id="review-note"
+                placeholder={reviewAction === "request_revision" ? "Describe what needs to be revised..." : "Add a note for the agent..."}
+                value={reviewNote}
+                onChange={e => setReviewNote(e.target.value)}
+                rows={3}
+                data-testid="input-review-note"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => reviewMutation.mutate({ action: reviewAction, note: reviewNote })}
+              disabled={reviewMutation.isPending || (reviewAction === "request_revision" && !reviewNote.trim())}
+              className={reviewAction === "approve" ? "bg-green-600 hover:bg-green-700" : reviewAction === "reject" ? "bg-red-600 hover:bg-red-700" : "bg-orange-600 hover:bg-orange-700"}
+              data-testid="button-submit-review"
+            >
+              {reviewMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
         <DialogContent className="sm:max-w-md" data-testid="dialog-send-email">

@@ -1,0 +1,84 @@
+PDA APPROVAL FLOW — PDA onay akışı sistemi ekle. Mevcut kodu bozmadan yeni özellik ekle.
+
+BÖLÜM A — DATABASE DEĞİŞİKLİKLERİ (shared/schema.ts):
+
+1. proformas tablosuna şu alanları ekle (yoksa):
+   - approvalStatus: text("approval_status").default("draft")
+     Değerler: "draft", "sent", "under_review", "revision_requested", "approved", "rejected"
+   - sentAt: timestamp("sent_at")
+   - reviewedAt: timestamp("reviewed_at")
+   - reviewedBy: integer("reviewed_by")
+   - revisionNote: text("revision_note")
+   - approvalNote: text("approval_note")
+
+2. Yeni tablo: proforma_approval_logs
+   - id: serial primary key
+   - proformaId: integer → proformas FK
+   - userId: integer → users FK
+   - action: text (sent, reviewed, revision_requested, approved, rejected)
+   - note: text (nullable)
+   - previousStatus: text
+   - newStatus: text
+   - createdAt: timestamp default now()
+
+3. drizzle-kit push yap
+
+BÖLÜM B — BACKEND API:
+
+1. server/routes/proforma-approval.ts oluştur:
+
+   POST /api/proformas/:id/send
+   - Sadece proforma sahibi (agent) yapabilir
+   - Status: draft → sent
+   - Log kaydı oluştur
+   - Response: güncel proforma
+
+   POST /api/proformas/:id/review
+   - Sadece shipowner veya admin yapabilir
+   - Body: { action: "approve" | "reject" | "request_revision", note?: string }
+   - Status geçişleri:
+     * approve: sent/under_review → approved
+     * reject: sent/under_review → rejected
+     * request_revision: sent/under_review → revision_requested
+   - Log kaydı oluştur
+   - Response: güncel proforma
+
+   GET /api/proformas/:id/approval-history
+   - Proforma'nın onay geçmişi (log kayıtları)
+   - Her log: kullanıcı adı, aksiyon, tarih, not
+
+   GET /api/proformas/pending-approval
+   - Sadece shipowner/admin: onay bekleyen PDA'lar listesi
+   - Status: sent veya under_review olanlar
+   - Sıralama: en eski önce
+
+2. server/routes/index.ts'te yeni route'u register et
+
+BÖLÜM C — FRONTEND: AGENT TARAFI
+
+1. Proforma listesinde (proformas.tsx):
+   - Her satırda approvalStatus badge göster:
+     * draft: gri badge
+     * sent: mavi badge "Gönderildi"
+     * under_review: sarı badge "İnceleniyor"
+     * revision_requested: turuncu badge "Revizyon İstendi"
+     * approved: yeşil badge "Onaylandı"
+     * rejected: kırmızı badge "Reddedildi"
+   - Draft durumundaki PDA'larda "Onaya Gönder" butonu
+   - revision_requested durumundaki PDA'larda "Tekrar Gönder" butonu
+
+2. Proforma detay sayfasında (proforma-view.tsx):
+   - Üstte approval status banner (renkli, büyük)
+   - Revizyon notu varsa sarı uyarı kutusu: "Armatör revizyon istedi: [not]"
+   - Onay geçmişi timeline: her adım tarih + kullanıcı + not ile
+   - "Onaya Gönder" butonu (sadece draft/revision_requested durumunda)
+
+BÖLÜM D — FRONTEND: ARMATÖR TARAFI
+
+1. client/src/pages/pda-review.tsx oluştur:
+   - Başlık: "PDA Onay Bekleyenler"
+   - Onay bekleyen PDA listesi (tablo):
+     * Sefer adı, Liman, Gemi, Acente, Toplam Tutar, Gönderim Tarihi
+   - Her satırda "İncele" butonu
+
+2. PDA inceleme modal/sayfa

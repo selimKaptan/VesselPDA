@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign, Zap, Loader2, Calculator, Ship, Anchor, Globe, Package, AlertTriangle, X } from "lucide-react";
+import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign, Zap, Loader2, Calculator, Ship, Anchor, Globe, Package, AlertTriangle, X, Send, RefreshCw, Clock, CheckCircle2, XCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -165,6 +165,37 @@ export default function Proformas() {
       toast({ title: "Failed to duplicate", variant: "destructive" });
     },
   });
+
+  const sendForApprovalMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/proformas/${id}/send`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/proformas"] });
+      toast({ title: "Sent for approval", description: "The proforma has been submitted to the shipowner." });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to send", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const approvalStatusBadge = (status: string | null | undefined) => {
+    switch (status) {
+      case "sent":
+        return <Badge className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800"><Clock className="w-3 h-3 mr-1" />Sent</Badge>;
+      case "under_review":
+        return <Badge className="text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800"><Clock className="w-3 h-3 mr-1" />Under Review</Badge>;
+      case "revision_requested":
+        return <Badge className="text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-orange-200 dark:border-orange-800"><RefreshCw className="w-3 h-3 mr-1" />Revision</Badge>;
+      case "approved":
+        return <Badge className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800"><CheckCircle2 className="w-3 h-3 mr-1" />Approved</Badge>;
+      case "rejected":
+        return <Badge className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
+      default:
+        return <Badge variant="secondary" className="text-xs">Draft</Badge>;
+    }
+  };
 
   const finalDaMutation = useMutation({
     mutationFn: async (pda: Proforma) => {
@@ -402,7 +433,7 @@ export default function Proformas() {
                 <TableHead className="hidden md:table-cell">To</TableHead>
                 <TableHead className="hidden sm:table-cell">Purpose</TableHead>
                 <TableHead>Total (USD)</TableHead>
-                <TableHead className="hidden md:table-cell">Status</TableHead>
+                <TableHead className="hidden md:table-cell">Approval</TableHead>
                 <TableHead className="hidden lg:table-cell">Date</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -417,13 +448,39 @@ export default function Proformas() {
                   </TableCell>
                   <TableCell className="font-semibold">${pda.totalUsd?.toLocaleString()}</TableCell>
                   <TableCell className="hidden md:table-cell">
-                    <Badge variant={statusBadge[pda.status] || "secondary"} className="text-xs capitalize">{pda.status}</Badge>
+                    {approvalStatusBadge((pda as any).approvalStatus)}
                   </TableCell>
                   <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
-                    {pda.createdAt ? new Date(pda.createdAt).toLocaleDateString() : "-"}
+                    {pda.createdAt ? new Date(pda.createdAt).toLocaleDateString("en-GB") : "-"}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {isAgent && (pda as any).approvalStatus === "draft" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-blue-600 border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/30 gap-1 text-xs hidden sm:flex"
+                          onClick={() => sendForApprovalMutation.mutate(pda.id)}
+                          disabled={sendForApprovalMutation.isPending}
+                          title="Send for Approval"
+                          data-testid={`button-send-approval-${pda.id}`}
+                        >
+                          <Send className="w-3 h-3" /> Send
+                        </Button>
+                      )}
+                      {isAgent && (pda as any).approvalStatus === "revision_requested" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-orange-600 border-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/30 gap-1 text-xs hidden sm:flex"
+                          onClick={() => sendForApprovalMutation.mutate(pda.id)}
+                          disabled={sendForApprovalMutation.isPending}
+                          title="Resubmit for Approval"
+                          data-testid={`button-resubmit-approval-${pda.id}`}
+                        >
+                          <RefreshCw className="w-3 h-3" /> Resubmit
+                        </Button>
+                      )}
                       <Link href={`/proformas/${pda.id}`}>
                         <Button size="icon" variant="ghost" data-testid={`button-view-proforma-${pda.id}`}>
                           <Eye className="w-4 h-4" />

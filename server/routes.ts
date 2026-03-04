@@ -18,6 +18,7 @@ import { handleAiChat } from "./anthropic";
 import { getOrFetchRates, fetchTCMBRates } from "./exchange-rates";
 import { logAction, getClientIp } from "./audit";
 import { requireRole } from "./middleware/role-guard";
+import { registerProformaApprovalRoutes } from "./proforma-approval";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "logos");
 if (!fs.existsSync(uploadsDir)) {
@@ -58,6 +59,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
+  registerProformaApprovalRoutes(app);
   startAISStream();
 
   app.use("/api/admin", isAuthenticated, requireRole("admin"));

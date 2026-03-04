@@ -18,6 +18,7 @@ import {
   UserCheck,
   MapPin,
   Crown,
+  ClipboardList,
 } from "lucide-react";
 
 export interface SubPage {
@@ -102,6 +103,7 @@ export function getModulesForRole(role: string): Module[] {
             { label: "Voyages", url: "/voyages", icon: Ship },
             { label: "Proformas", url: "/proformas", icon: FileText },
             { label: "Quick Proforma", url: "/proformas/new", icon: FileText },
+            { label: "PDA Review", url: "/pda-review", icon: ClipboardList },
             { label: "Nominations", url: "/nominations", icon: UserCheck },
           ],
         },
