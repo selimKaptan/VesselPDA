@@ -1,4 +1,4 @@
-import rateLimit, { type Request } from "express-rate-limit";
+import rateLimit from "express-rate-limit";
 import { pool } from "../db";
 
 const RATE_LIMIT_RESPONSE = {

@@ -107,7 +107,7 @@ router.get("/fixtures/:id/laytime", isAuthenticated, async (req: any, res) => {
 router.post("/fixtures/:id/laytime", isAuthenticated, async (req: any, res) => {
   try {
     const fixtureId = parseInt(req.params.id);
-    const { calculateLaytime } = await import("./laytime-calculator");
+    const { calculateLaytime } = await import("../laytime-calculator");
     const {
       portCallType = "loading",
       portName,
@@ -162,7 +162,7 @@ router.post("/fixtures/:id/laytime", isAuthenticated, async (req: any, res) => {
 router.put("/laytime/:id", isAuthenticated, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { calculateLaytime } = await import("./laytime-calculator");
+    const { calculateLaytime } = await import("../laytime-calculator");
     const {
       portCallType,
       portName,

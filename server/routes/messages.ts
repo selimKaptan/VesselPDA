@@ -128,12 +128,12 @@ router.post("/messages/:conversationId/send", isAuthenticated, async (req: any, 
     }
     // E-posta bridge: auto-forward if enabled
     if (conv.externalEmailForward && conv.externalEmail) {
-      const { sendMessageBridgeEmail } = await import("./email");
       const senderUser = await storage.getUser(req.user.claims.sub);
+      const senderName = [senderUser?.firstName, senderUser?.lastName].filter(Boolean).join(" ") || "VesselPDA Kullanıcısı";
       sendMessageBridgeEmail(
         conv.externalEmail,
         conv.externalEmailName || conv.externalEmail,
-        senderUser?.name || "VesselPDA Kullanıcısı",
+        senderName,
         content || "",
         fileName || undefined
       ).catch((e: any) => console.error("[bridge] email failed:", e));

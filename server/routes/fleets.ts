@@ -123,7 +123,7 @@ router.get("/sanctions/check", isAuthenticated, async (req: any, res) => {
     const name = req.query.name as string;
     const imo = req.query.imo as string | undefined;
     if (!name) return res.status(400).json({ message: "name is required" });
-    const result = checkSanctions(name, imo);
+    const result = checkSanctions(name);
     res.json(result);
   } catch (error) {
     res.status(500).json({ message: "Failed to check sanctions" });

@@ -1,4 +1,5 @@
-import { Switch, Route, Link, useLocation, Redirect } from "wouter";
+import { Switch, Route as _Route, Link, useLocation, Redirect } from "wouter";
+const Route = _Route as any;
 import { guardRoute } from "@/components/protected-route";
 import UnauthorizedPage from "@/pages/unauthorized";
 import { queryClient } from "./lib/queryClient";

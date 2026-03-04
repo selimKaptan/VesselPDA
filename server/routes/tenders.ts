@@ -625,7 +625,7 @@ router.post("/nominations", isAuthenticated, async (req: any, res) => {
       userId: agentUserId,
       type: "nomination",
       title: "Yeni Nominasyon",
-      message: `${req.user.name || "Bir armatör"} sizi ${vesselName} gemisi için nomine etti`,
+      message: `${[req.user.firstName, req.user.lastName].filter(Boolean).join(" ") || "Bir armatör"} sizi ${vesselName} gemisi için nomine etti`,
       link: "/nominations",
     });
 
@@ -635,12 +635,11 @@ router.post("/nominations", isAuthenticated, async (req: any, res) => {
       const enriched = await storage.getNominationById(nom.id);
       sendNominationEmail({
         agentEmail: agentUser.email,
-        agentCompanyName: enriched?.agentCompanyName || agentUser.name || agentUserId,
+        agentCompanyName: enriched?.agentCompanyName || [agentUser.firstName, agentUser.lastName].filter(Boolean).join(" ") || agentUserId,
         portName: enriched?.portName || `Port #${portId}`,
         vesselName: vesselName,
-        eta: eta ? new Date(eta).toLocaleString("tr-TR") : undefined,
         note: notes || undefined,
-        shipownerName: req.user.name || undefined,
+        shipownerName: [req.user.firstName, req.user.lastName].filter(Boolean).join(" ") || undefined,
       }).catch(err => console.error("[email] Nomination email failed (non-blocking):", err));
     }
 
@@ -691,7 +690,7 @@ router.patch("/nominations/:id/respond", isAuthenticated, async (req: any, res) 
     if (nominatorUser?.email) {
       sendNominationResponseEmail({
         nominatorEmail: nominatorUser.email,
-        nominatorName: nominatorUser.name || "Sayın Kullanıcı",
+        nominatorName: [nominatorUser.firstName, nominatorUser.lastName].filter(Boolean).join(" ") || "Sayın Kullanıcı",
         agentCompanyName: nom.agentCompanyName || nom.agentName || "Acente",
         status: status as "accepted" | "declined",
         portName: nom.portName || `Port #${nom.portId}`,

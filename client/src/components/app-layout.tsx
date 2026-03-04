@@ -398,7 +398,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-background overflow-hidden">
+    <div
+      className="flex flex-col h-screen w-full bg-background overflow-hidden"
+      style={{ '--app-side-panel-width': showSidePanel ? '200px' : '0px' } as any}
+    >
       <DemoBanner />
 
       {/* ── TOP BAR ── */}

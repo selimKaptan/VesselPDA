@@ -1,0 +1,146 @@
+İlk test turunu geçtik. Şimdi daha derinlemesine ikinci tur kontrol yap. Yine hiçbir yeni özellik EKLEME — sadece hata bul ve düzelt.
+
+DERİN KONTROL LİSTESİ:
+
+1. TYPESCRIPT KONTROLÜ:
+   - Terminalde "npx tsc --noEmit" çalıştır
+   - Çıkan TÜM TypeScript hatalarını düzelt
+   - "any" tipine kaçırılmış yerler varsa düzgün tiple değiştir
+   - Kullanılmayan import'ları temizle
+   - Kullanılmayan değişkenleri temizle
+
+2. DATABASE İLİŞKİ KONTROLÜ:
+   - shared/schema.ts dosyasındaki TÜM foreign key referanslarını kontrol et
+   - Her FK'nin referans verdiği tablo gerçekten var mı?
+   - onDelete davranışları doğru mu? (cascade gereken yerlerde cascade var mı?)
+   - Nullable olması gereken alanlar nullable mı?
+   - Default değerler mantıklı mı?
+   - Index tanımları hatasız mı?
+
+3. API ENDPOINT TUTARLILIĞI:
+   Her route dosyasında şunları kontrol et:
+   - GET list endpoint'leri pagination döndürüyor mu? ({data: [], pagination: {page, limit, total, totalPages}})
+   - POST endpoint'leri oluşturulan kaydı döndürüyor mu?
+   - PATCH endpoint'leri güncellenmiş kaydı döndürüyor mu?
+   - DELETE endpoint'leri başarı mesajı döndürüyor mu?
+   - Hatalı request'lerde 400, bulunamayanlarda 404, yetkisizlerde 403 dönüyor mu?
+   - try-catch ile sarılmış mı? catch'te 500 + hata mesajı dönüyor mu?
+
+4. FRONTEND-BACKEND UYUMU:
+   Her sayfa için:
+   - useQuery'deki endpoint URL'si backend'deki route ile AYNI MI?
+   - Frontend'in beklediği response format, backend'in döndürdüğü format ile AYNI MI?
+   - Örn: frontend data.vessels bekliyor ama backend {data: [...]} döndürüyorsa düzelt
+   - Form submit'te gönderilen field isimleri, backend'in beklediği field isimleriyle AYNI MI?
+   - Tarih formatları tutarlı mı? (ISO string mi, timestamp mi?)
+
+5. NULL/UNDEFINED GÜVENLİĞİ:
+   - data?.items?.map() gibi optional chaining kullanılıyor mu?
+   - API'den boş array gelebilecek yerlerde [] fallback var mı?
+   - user.role undefined olabilecek yerlerde kontrol var mı?
+   - organizationId nullable olan yerlerde handle ediliyor mu?
+
+6. SAYFA SAYFA RENDER KONTROLÜ:
+   Her sayfayı tek tek kontrol et — render sırasında hata fırlatıyor mu?
+   
+   Kritik sayfalar:
+   - /dashboard → Agent, Owner, Broker, Provider dashboard componentleri var mı ve hatasız mı?
+   - /vessels → Liste + ekleme formu
+   - /voyages → Liste + detay + port calls
+   - /proformas → Liste + oluşturma + hesaplama
+   - /quick-proforma → Liman seçimi + hesaplama
+   - /final-da → Liste + oluşturma
+   - /invoices → Liste
+   - /fixtures → Liste
+   - /cargo-positions → Liste
+   - /tenders → Liste + bid
+   - /nominations → Liste
+   - /market-data → Grafik + veriler
+   - /bunker-management → Liste + ROB
+   - /compliance → Checklist
+   - /vessel-track → Harita
+   - /messages → Mesaj listesi + chat
+   - /team-chat → Kanal listesi + mesajlar
+   - /email-inbox → Email listesi
+   - /forum → Konu listesi
+   - /directory → Firma listesi
+   - /reports → Rapor seçimi + grafik
+   - /sanctions-check → Arama + sonuçlar
+   - /port-benchmarking → Karşılaştırma
+   - /settings → Ayar formları
+   - /organization → Org bilgileri
+   - /reminders → Hatırlatma listesi
+   - /laytime → Hesaplama
+   - /service-requests → Talep listesi
+   - /admin → Admin paneli (sadece admin rolüyle erişilebilir mi?)
+   - /demo → 4 rol kartı (admin YOK)
+   - /register → 4 rol kartı (admin YOK)
+   - /login → Form
+   - / → Landing page
+
+   Eğer bir sayfa component'i YOKSA (dosya bulunamıyorsa):
+   - Basit placeholder component oluştur
+   - Sayfa başlığı + "Bu sayfa yakında aktif olacak" mesajı göster
+   - Console'da hata vermesin
+
+7. ROL BAZLI KONTROL:
+   - Register sayfasında admin rolü görünüyor mu? GÖRÜNMEMELI
+   - requireRole middleware TÜM korumalı route'larda kullanılıyor mu?
+   - Frontend'de canAccessRoute veya rol kontrolü yapılıyor mu?
+   - Ship Provider kullanıcısı /bunker-management'a gidebilir mi? GİDEMEMELİ
+   - Ship Agent kullanıcısı /fixtures'a gidebilir mi? GİDEMEMELİ
+   - Admin tüm sayfalara erişebiliyor mu? ERİŞEBİLMELİ
+
+8. NAVIGATION KONTROLÜ:
+   - Top bar render ediliyor mu?
+   - Module tabs rol bazlı doğru sekmeleri gösteriyor mu?
+   - Side panel aktif sekmenin alt menülerini gösteriyor mu?
+   - Menü linkine tıklayınca doğru sayfaya gidiyor mu?
+   - Aktif sayfa menüde highlight ediliyor mu?
+   - Badge'ler görünüyor mu? (messages okunmamış sayı vs.)
+   - Mobilde bottom nav çalışıyor mu? (veya en azından hata vermiyor mu?)
+
+9. FORM VALIDASYONU:
+   - Zorunlu alanlar boş bırakılınca hata mesajı çıkıyor mu?
+   - Email formatı kontrolü var mı?
+   - Şifre minimum uzunluk kontrolü var mı?
+   - Sayısal alanlara text girilince hata veriyor mu?
+   - Tarih alanları doğru format kabul ediyor mu?
+
+10. EDGE CASE'LER:
+    - Hiç vessel yokken vessels sayfası ne gösteriyor? (boş state olmalı)
+    - Hiç voyage yokken voyages sayfası ne gösteriyor?
+    - Hiç proforma yokken proformas sayfası ne gösteriyor?
+    - Hiç mesaj yokken messages sayfası ne gösteriyor?
+    - Her liste sayfasında "Henüz kayıt yok" gibi empty state olmalı
+    - Pagination: toplam 0 kayıt varken pagination bozuluyor mu?
+    - Arama: sonuç yokken "Sonuç bulunamadı" gösteriyor mu?
+
+11. BROKEN LINK/REFERANS KONTROLÜ:
+    - import edilen ama VAROLMAYAN component dosyaları var mı?
+    - import edilen ama VAROLMAYAN storage fonksiyonları var mı?
+    - import edilen ama VAROLMAYAN utility fonksiyonları var mı?
+    - Eğer varsa: ya dosyayı oluştur ya da import'u kaldır
+
+12. CSS/TASARIM KONTROL:
+    - Overflow eden içerik var mı? (yatay scroll oluşuyor mu?)
+    - Mobilde kırılan layout var mı?
+    - Z-index sorunları var mı? (dropdown menü başka elementin altında kalıyor mu?)
+    - Loading spinner/skeleton her data fetch'te görünüyor mu?
+
+DÜZELTME KURALLARI (AYNI):
+- Sadece HATA düzelt, yeni özellik EKLEME
+- Eksik component varsa basit placeholder oluştur
+- TypeScript hatası varsa tipi düzelt
+- Import hatası varsa doğru import'u yaz
+- Undefined hatası varsa optional chaining ekle
+- Boş state yoksa ekle
+- Error boundary yoksa en azından try-catch ekle
+
+SONUÇ RAPORU:
+İşin bitince rapor ver:
+1. TypeScript hata sayısı: önceki → şimdiki
+2. Düzeltilen sorunlar listesi
+3. Kalan bilinen sorunlar (varsa)
+4. Her sayfa durumu: ✅ çalışıyor / ⚠️ kısmi / ❌ bozuk
+5. Genel platform sağlık skoru: %X

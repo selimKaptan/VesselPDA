@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { auditLogs } from "@shared/schema";
 
-export type AuditAction = "create" | "update" | "delete" | "approve" | "login" | "select" | "cancel" | "pay";
+export type AuditAction = "create" | "update" | "delete" | "approve" | "login" | "select" | "cancel" | "pay" | "ban" | "unban";
 
 export function logAction(
   userId: string | null | undefined,

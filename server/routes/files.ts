@@ -28,7 +28,7 @@ const router = Router();
 router.post("/files/upload", isAuthenticated, fileUpload.single("file"), async (req: any, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No file provided" });
-    const { uploadFile } = await import("./file-storage");
+    const { uploadFile } = await import("../file-storage");
     const folder = (req.query.folder as string) || "documents";
     const allowedFolders = ["documents", "certificates", "crew"];
     const safeFolder = allowedFolders.includes(folder) ? folder : "documents";
