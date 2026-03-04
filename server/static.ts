@@ -3,13 +3,13 @@ import fs from "fs";
 import path from "path";
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(__dirname, "public");
+  const distPath = path.resolve(__dirname, "client");
 
   console.log(`[static] serving from: ${distPath}`);
 
   if (!fs.existsSync(distPath)) {
     const cwd = process.cwd();
-    const alt = path.resolve(cwd, "dist", "public");
+    const alt = path.resolve(cwd, "dist", "client");
     console.error(`[static] primary path not found: ${distPath}, trying: ${alt}`);
     if (!fs.existsSync(alt)) {
       throw new Error(
