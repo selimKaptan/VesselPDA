@@ -10,7 +10,7 @@ import multer from "multer";
 import { z } from "zod";
 import { sendNominationEmail, sendNominationResponseEmail, sendContactEmail, sendBidReceivedEmail, sendBidSelectedEmail, sendNewTenderEmail, sendForumReplyEmail, sendProformaEmail } from "./email";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated, registerAuthRoutes, authStorage } from "./replit_integrations/auth";
+import { setupAuth, isAuthenticated, registerAuthRoutes, authStorage, requireRole } from "./replit_integrations/auth";
 import { insertVesselSchema } from "@shared/schema";
 import type { ProformaLineItem } from "@shared/schema";
 import { calculateProforma, type CalculationInput } from "./proforma-calculator";
@@ -151,6 +151,11 @@ export async function registerRoutes(
   app.use("/api/vessel-track/search", searchLimiter);  // vessel search
   app.use("/api/vessels/lookup", searchLimiter);       // IMO lookup
   app.use("/api", generalLimiter);             // 100 req/min — baseline for all API routes
+
+  // ── Role-based access guards (applied before route handlers) ──────────────
+  app.use("/api/admin", isAuthenticated, requireRole("admin"));
+  app.use("/api/fixtures", isAuthenticated, requireRole("shipowner", "ship_broker", "admin"));
+  app.use("/api/cargo-positions", isAuthenticated, requireRole("shipowner", "ship_broker", "admin"));
 
   registerAuthRoutes(app);
 
@@ -2098,7 +2103,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/service-ports", async (req: any, res) => {
+  app.get("/api/service-ports", isAuthenticated, async (req: any, res) => {
     const cached = cache.get("service-ports");
     if (cached) return res.json(cached);
     try {
