@@ -9,6 +9,7 @@ import { emitToUser } from "../socket";
 import { geocodeStats } from "../geocode-ports";
 import { loadSanctionsList } from "../sanctions";
 import { getOrFetchRates } from "../exchange-rates";
+import { cached, invalidateCache, invalidateCacheByPrefix, clearAllCache, getCacheStats } from "../cache";
 
 const router = Router();
 
@@ -181,93 +182,92 @@ router.get("/stats", isAuthenticated, async (req: any, res) => {
   try {
     if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
 
-    const [userStatsRes, contentStatsRes, tendersByPortRes, bidsRes, monthlyRes] = await Promise.all([
-      pool.query(`
-        SELECT
-          COUNT(*) as total_users,
-          COUNT(*) FILTER (WHERE user_role = 'agent') as agents,
-          COUNT(*) FILTER (WHERE user_role = 'shipowner') as shipowners,
-          COUNT(*) FILTER (WHERE user_role = 'provider') as providers,
-          COUNT(*) FILTER (WHERE user_role = 'admin') as admins,
-          COUNT(*) FILTER (WHERE subscription_plan = 'free') as plan_free,
-          COUNT(*) FILTER (WHERE subscription_plan = 'standard') as plan_standard,
-          COUNT(*) FILTER (WHERE subscription_plan = 'unlimited') as plan_unlimited,
-          COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') as weekly_users
-        FROM users
-      `),
-      pool.query(`
-        SELECT
-          (SELECT COUNT(*) FROM vessels) as total_vessels,
-          (SELECT COUNT(*) FROM proformas) as total_proformas,
-          (SELECT COUNT(*) FROM company_profiles) as total_company_profiles,
-          (SELECT COUNT(*) FROM port_tenders) as total_tenders,
-          (SELECT COUNT(*) FROM port_tenders WHERE status = 'open') as open_tenders
-      `),
-      pool.query(`
-        SELECT COALESCE(p.name, 'Port #' || pt.port_id::text) as port, COUNT(*) as count
-        FROM port_tenders pt
-        LEFT JOIN ports p ON pt.port_id = p.id
-        GROUP BY pt.port_id, p.name
-        ORDER BY count DESC
-        LIMIT 10
-      `),
-      pool.query(`
-        SELECT
-          COUNT(*) as total_bids,
-          COUNT(*) FILTER (WHERE status = 'selected') as selected_bids
-        FROM tender_bids
-      `),
-      pool.query(`
-        SELECT TO_CHAR(date_trunc('month', created_at), 'Mon YY') as month, COUNT(*) as count
-        FROM proformas
-        WHERE created_at >= date_trunc('month', NOW() - INTERVAL '5 months')
-        GROUP BY date_trunc('month', created_at)
-        ORDER BY date_trunc('month', created_at)
-      `),
-    ]);
+    const data = await cached('admin:stats', 'short', async () => {
+      const [userStatsRes, contentStatsRes, tendersByPortRes, bidsRes, monthlyRes] = await Promise.all([
+        pool.query(`
+          SELECT
+            COUNT(*) as total_users,
+            COUNT(*) FILTER (WHERE user_role = 'agent') as agents,
+            COUNT(*) FILTER (WHERE user_role = 'shipowner') as shipowners,
+            COUNT(*) FILTER (WHERE user_role = 'provider') as providers,
+            COUNT(*) FILTER (WHERE user_role = 'admin') as admins,
+            COUNT(*) FILTER (WHERE subscription_plan = 'free') as plan_free,
+            COUNT(*) FILTER (WHERE subscription_plan = 'standard') as plan_standard,
+            COUNT(*) FILTER (WHERE subscription_plan = 'unlimited') as plan_unlimited,
+            COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') as weekly_users
+          FROM users
+        `),
+        pool.query(`
+          SELECT
+            (SELECT COUNT(*) FROM vessels) as total_vessels,
+            (SELECT COUNT(*) FROM proformas) as total_proformas,
+            (SELECT COUNT(*) FROM company_profiles) as total_company_profiles,
+            (SELECT COUNT(*) FROM port_tenders) as total_tenders,
+            (SELECT COUNT(*) FROM port_tenders WHERE status = 'open') as open_tenders
+        `),
+        pool.query(`
+          SELECT COALESCE(p.name, 'Port #' || pt.port_id::text) as port, COUNT(*) as count
+          FROM port_tenders pt
+          LEFT JOIN ports p ON pt.port_id = p.id
+          GROUP BY pt.port_id, p.name
+          ORDER BY count DESC
+          LIMIT 10
+        `),
+        pool.query(`
+          SELECT
+            COUNT(*) as total_bids,
+            COUNT(*) FILTER (WHERE status = 'selected') as selected_bids
+          FROM tender_bids
+        `),
+        pool.query(`
+          SELECT TO_CHAR(date_trunc('month', created_at), 'Mon YY') as month, COUNT(*) as count
+          FROM proformas
+          WHERE created_at >= date_trunc('month', NOW() - INTERVAL '5 months')
+          GROUP BY date_trunc('month', created_at)
+          ORDER BY date_trunc('month', created_at)
+        `),
+      ]);
 
-    const us = userStatsRes.rows[0];
-    const cs = contentStatsRes.rows[0];
-    const br = bidsRes.rows[0];
-
-    const totalBids = parseInt(br.total_bids) || 0;
-    const selectedBids = parseInt(br.selected_bids) || 0;
-    const bidConversionRate = totalBids > 0 ? Math.round((selectedBids / totalBids) * 100) : 0;
-
-    const tendersByPort = tendersByPortRes.rows.map((r: any) => ({ port: r.port, count: parseInt(r.count) }));
-
-    const monthlyMap = new Map(monthlyRes.rows.map((r: any) => [r.month, parseInt(r.count)]));
-    const now = new Date();
-    const monthlyProformas = Array.from({ length: 6 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-      const label = d.toLocaleString("en-US", { month: "short", year: "2-digit" });
-      return { month: label, count: monthlyMap.get(label) || 0 };
+      const us = userStatsRes.rows[0];
+      const cs = contentStatsRes.rows[0];
+      const br = bidsRes.rows[0];
+      const totalBids = parseInt(br.total_bids) || 0;
+      const selectedBids = parseInt(br.selected_bids) || 0;
+      const bidConversionRate = totalBids > 0 ? Math.round((selectedBids / totalBids) * 100) : 0;
+      const tendersByPort = tendersByPortRes.rows.map((r: any) => ({ port: r.port, count: parseInt(r.count) }));
+      const monthlyMap = new Map(monthlyRes.rows.map((r: any) => [r.month, parseInt(r.count)]));
+      const now = new Date();
+      const monthlyProformas = Array.from({ length: 6 }, (_, i) => {
+        const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+        const label = d.toLocaleString("en-US", { month: "short", year: "2-digit" });
+        return { month: label, count: monthlyMap.get(label) || 0 };
+      });
+      return {
+        totalUsers: parseInt(us.total_users) || 0,
+        weeklyUsers: parseInt(us.weekly_users) || 0,
+        totalVessels: parseInt(cs.total_vessels) || 0,
+        totalProformas: parseInt(cs.total_proformas) || 0,
+        totalCompanyProfiles: parseInt(cs.total_company_profiles) || 0,
+        totalTenders: parseInt(cs.total_tenders) || 0,
+        openTendersCount: parseInt(cs.open_tenders) || 0,
+        totalBids,
+        bidConversionRate,
+        tendersByPort,
+        monthlyProformas,
+        usersByRole: {
+          shipowner: parseInt(us.shipowners) || 0,
+          agent: parseInt(us.agents) || 0,
+          provider: parseInt(us.providers) || 0,
+          admin: parseInt(us.admins) || 0,
+        },
+        usersByPlan: {
+          free: parseInt(us.plan_free) || 0,
+          standard: parseInt(us.plan_standard) || 0,
+          unlimited: parseInt(us.plan_unlimited) || 0,
+        },
+      };
     });
-
-    res.json({
-      totalUsers: parseInt(us.total_users) || 0,
-      weeklyUsers: parseInt(us.weekly_users) || 0,
-      totalVessels: parseInt(cs.total_vessels) || 0,
-      totalProformas: parseInt(cs.total_proformas) || 0,
-      totalCompanyProfiles: parseInt(cs.total_company_profiles) || 0,
-      totalTenders: parseInt(cs.total_tenders) || 0,
-      openTendersCount: parseInt(cs.open_tenders) || 0,
-      totalBids,
-      bidConversionRate,
-      tendersByPort,
-      monthlyProformas,
-      usersByRole: {
-        shipowner: parseInt(us.shipowners) || 0,
-        agent: parseInt(us.agents) || 0,
-        provider: parseInt(us.providers) || 0,
-        admin: parseInt(us.admins) || 0,
-      },
-      usersByPlan: {
-        free: parseInt(us.plan_free) || 0,
-        standard: parseInt(us.plan_standard) || 0,
-        unlimited: parseInt(us.plan_unlimited) || 0,
-      },
-    });
+    res.json(data);
   } catch (error) {
     console.error("[admin/stats]", error);
     res.status(500).json({ message: "Failed to fetch admin stats" });
@@ -719,6 +719,7 @@ router.post("/bunker-prices", isAuthenticated, async (req: any, res) => {
     const user = await storage.getUser(userId);
     if (user?.userRole !== "admin") return res.status(403).json({ message: "Admin only" });
     const price = await storage.upsertBunkerPrice({ ...req.body, updatedBy: userId });
+    invalidateCache('bunker-prices', 'long');
     res.status(201).json(price);
   } catch {
     res.status(500).json({ message: "Failed to save bunker price" });
@@ -731,8 +732,8 @@ router.patch("/bunker-prices/:id", isAuthenticated, async (req: any, res) => {
     const userId = req.user.claims.sub;
     const user = await storage.getUser(userId);
     if (user?.userRole !== "admin") return res.status(403).json({ message: "Admin only" });
-    const id = parseInt(req.params.id);
     const price = await storage.upsertBunkerPrice({ ...req.body, updatedBy: userId });
+    invalidateCache('bunker-prices', 'long');
     res.json(price);
   } catch {
     res.status(500).json({ message: "Failed to update bunker price" });
@@ -747,6 +748,7 @@ router.delete("/bunker-prices/:id", isAuthenticated, async (req: any, res) => {
     if (user?.userRole !== "admin") return res.status(403).json({ message: "Admin only" });
     const id = parseInt(req.params.id);
     await storage.deleteBunkerPrice(id);
+    invalidateCache('bunker-prices', 'long');
     res.json({ success: true });
   } catch {
     res.status(500).json({ message: "Failed to delete bunker price" });
@@ -806,32 +808,35 @@ router.get("/tariffs/summary", isAuthenticated, async (req: any, res) => {
     const userRow = await storage.getUser(userId);
     if ((userRow as any)?.userRole !== "admin") return res.status(403).json({ message: "Forbidden" });
 
-    const counts: Record<string, number> = {};
-    let totalRecords = 0;
-    let latestUpdate: Date | null = null;
-    let outdatedCount = 0;
-    const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+    const summary = await cached('tariffs:summary', 'long', async () => {
+      const counts: Record<string, number> = {};
+      let totalRecords = 0;
+      let latestUpdate: Date | null = null;
+      let outdatedCount = 0;
+      const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
 
-    for (const tbl of Object.keys(ALLOWED_TARIFF_TABLES)) {
-      const result = await pool.query(`SELECT count(*)::int as cnt, max(updated_at) as latest FROM ${tbl}`);
-      const row = result.rows[0];
-      counts[tbl] = row.cnt || 0;
-      totalRecords += row.cnt || 0;
-      if (row.latest && (!latestUpdate || new Date(row.latest) > latestUpdate)) {
-        latestUpdate = new Date(row.latest);
+      for (const tbl of Object.keys(ALLOWED_TARIFF_TABLES)) {
+        const result = await pool.query(`SELECT count(*)::int as cnt, max(updated_at) as latest FROM ${tbl}`);
+        const row = result.rows[0];
+        counts[tbl] = row.cnt || 0;
+        totalRecords += row.cnt || 0;
+        if (row.latest && (!latestUpdate || new Date(row.latest) > latestUpdate)) {
+          latestUpdate = new Date(row.latest);
+        }
+        const oldResult = await pool.query(`SELECT count(*)::int as cnt FROM ${tbl} WHERE updated_at < $1`, [oneYearAgo]);
+        outdatedCount += oldResult.rows[0].cnt || 0;
       }
-      const oldResult = await pool.query(`SELECT count(*)::int as cnt FROM ${tbl} WHERE updated_at < $1`, [oneYearAgo]);
-      outdatedCount += oldResult.rows[0].cnt || 0;
-    }
 
-    const portCount = await pool.query(`SELECT count(distinct port_id)::int as cnt FROM pilotage_tariffs WHERE port_id IS NOT NULL`);
-    res.json({
-      portCount: portCount.rows[0].cnt || 0,
-      totalRecords,
-      lastUpdated: latestUpdate,
-      outdatedCount,
-      tableCounts: counts,
+      const portCount = await pool.query(`SELECT count(distinct port_id)::int as cnt FROM pilotage_tariffs WHERE port_id IS NOT NULL`);
+      return {
+        portCount: portCount.rows[0].cnt || 0,
+        totalRecords,
+        lastUpdated: latestUpdate,
+        outdatedCount,
+        tableCounts: counts,
+      };
     });
+    res.json(summary);
   } catch (err) {
     console.error("Tariff summary error:", err);
     res.status(500).json({ message: "Failed to fetch tariff summary" });
@@ -892,6 +897,7 @@ router.post("/tariffs/:table", isAuthenticated, async (req: any, res) => {
     const values = keys.map(k => (body[k] === "" ? null : body[k]));
 
     const result = await pool.query(`INSERT INTO ${tbl} (${cols}) VALUES (${vals}) RETURNING *`, values);
+    invalidateCacheByPrefix('tariffs:', 'long');
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error("Tariff create error:", err);
@@ -919,6 +925,7 @@ router.patch("/tariffs/:table/:id", isAuthenticated, async (req: any, res) => {
     values.push(parseInt(req.params.id));
 
     const result = await pool.query(`UPDATE ${tbl} SET ${sets} WHERE id = $${values.length} RETURNING *`, values);
+    invalidateCacheByPrefix('tariffs:', 'long');
     res.json(result.rows[0]);
   } catch (err) {
     console.error("Tariff update error:", err);
@@ -940,6 +947,7 @@ router.delete("/tariffs/:table/clear", isAuthenticated, async (req: any, res) =>
     } else {
       await pool.query(`DELETE FROM ${tbl} WHERE port_id = $1`, [parseInt(portId)]);
     }
+    invalidateCacheByPrefix('tariffs:', 'long');
     res.json({ success: true });
   } catch (err) {
     console.error("Tariff clear error:", err);
@@ -957,6 +965,7 @@ router.delete("/tariffs/:table/:id", isAuthenticated, async (req: any, res) => {
     if (!ALLOWED_TARIFF_TABLES[tbl]) return res.status(400).json({ message: "Invalid table" });
 
     await pool.query(`DELETE FROM ${tbl} WHERE id = $1`, [parseInt(req.params.id)]);
+    invalidateCacheByPrefix('tariffs:', 'long');
     res.json({ success: true });
   } catch (err) {
     console.error("Tariff delete error:", err);
@@ -983,6 +992,7 @@ router.post("/tariffs/:table/bulk-increase", isAuthenticated, async (req: any, r
     const multiplier = 1 + percent / 100;
     const sets = feeFields.map(f => `"${f}" = ROUND(COALESCE("${f}", 0) * ${multiplier}, 2)`).join(", ");
     await pool.query(`UPDATE ${tbl} SET ${sets}, updated_at = NOW() WHERE id = ANY($1::int[])`, [safeIds]);
+    invalidateCacheByPrefix('tariffs:', 'long');
     res.json({ success: true, affected: safeIds.length });
   } catch (err) {
     console.error("Bulk increase error:", err);
@@ -1187,6 +1197,27 @@ router.get("/audit-logs", isAuthenticated, async (req: any, res) => {
   } catch (error) {
     console.error("Audit log fetch error:", error);
     res.status(500).json({ message: "Failed to fetch audit logs" });
+  }
+});
+
+
+router.get("/cache-stats", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    res.json(getCacheStats());
+  } catch (error) {
+    res.status(500).json({ message: "Failed to get cache stats" });
+  }
+});
+
+
+router.post("/cache-clear", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    clearAllCache();
+    res.json({ success: true, message: "All caches cleared" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to clear cache" });
   }
 });
 

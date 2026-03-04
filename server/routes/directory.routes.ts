@@ -7,6 +7,7 @@ import { sql as drizzleSql, eq, desc } from "drizzle-orm";
 import { insertAgentReviewSchema } from "@shared/schema";
 import { checkSanctions, getSanctionsStatus } from "../sanctions";
 import { logAction } from "../audit";
+import { cached, invalidateCacheByPrefix } from "../cache";
 
 const router = Router();
 
@@ -293,7 +294,7 @@ router.get("/api/directory", async (req, res) => {
 
 router.get("/api/directory/featured", async (req, res) => {
   try {
-    const profiles = await storage.getFeaturedCompanyProfiles();
+    const profiles = await cached('directory:featured', 'medium', () => storage.getFeaturedCompanyProfiles());
     res.json(profiles);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch featured profiles" });
@@ -384,16 +385,19 @@ router.post("/api/reviews", isAuthenticated, async (req: any, res) => {
 
 router.get("/api/stats", async (_req, res) => {
   try {
-    const [users, proformas, companies] = await Promise.all([
-      storage.getAllUsers(),
-      storage.getAllProformas(),
-      storage.getAllCompanyProfiles(),
-    ]);
-    res.json({
-      userCount: users.length,
-      proformaCount: proformas.length,
-      companyCount: companies.length,
+    const stats = await cached('public-stats', 'medium', async () => {
+      const [users, proformas, companies] = await Promise.all([
+        storage.getAllUsers(),
+        storage.getAllProformas(),
+        storage.getAllCompanyProfiles(),
+      ]);
+      return {
+        userCount: users.length,
+        proformaCount: proformas.length,
+        companyCount: companies.length,
+      };
     });
+    res.json(stats);
   } catch {
     res.json({ userCount: 0, proformaCount: 0, companyCount: 0 });
   }

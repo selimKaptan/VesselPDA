@@ -2,6 +2,7 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { isAdmin } from "./shared";
+import { cached, invalidateCache } from "../cache";
 import { insertInvoiceSchema } from "@shared/schema";
 import { db } from "../db";
 import { sql as drizzleSql, eq, desc } from "drizzle-orm";
@@ -27,7 +28,7 @@ router.get("/api/certificates/expiring", isAuthenticated, async (req: any, res) 
 
 router.get("/api/document-templates", isAuthenticated, async (_req, res) => {
   try {
-    const templates = await storage.getDocumentTemplates();
+    const templates = await cached('document-templates', 'daily', () => storage.getDocumentTemplates());
     res.json(templates);
   } catch {
     res.status(500).json({ message: "Failed to get templates" });

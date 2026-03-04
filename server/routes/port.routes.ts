@@ -3,6 +3,7 @@ import { storage } from "../storage";
 import { getOrFetchRates, fetchTCMBRates } from "../exchange-rates";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { isAdmin } from "./shared";
+import { cached, invalidateCache } from "../cache";
 
 const router = Router();
 
@@ -10,15 +11,16 @@ router.get("/api/ports", async (req: any, res: any, next: any) => {
   try {
     const q = req.query.q as string | undefined;
     const country = req.query.country as string | undefined;
-    if (q && q.trim().length > 0) {
-      const results = await storage.searchPorts(q.trim(), country);
-      return res.json(results);
-    }
-    if (country) {
-      const results = await storage.getPorts(undefined, country);
-      return res.json(results);
-    }
-    const portList = await storage.getPorts(100);
+    const cacheKey = `ports:list:${country || 'all'}:${q ? q.trim().toLowerCase() : ''}`;
+    const portList = await cached(cacheKey, 'daily', async () => {
+      if (q && q.trim().length > 0) {
+        return await storage.searchPorts(q.trim(), country);
+      }
+      if (country) {
+        return await storage.getPorts(undefined, country);
+      }
+      return await storage.getPorts(100);
+    });
     res.json(portList);
   } catch (error) {
     console.error("[ports:GET] fetch failed:", error);
@@ -146,7 +148,7 @@ router.get("/api/port-info/:locode", async (req, res) => {
 
 router.get("/api/exchange-rates", async (_req, res) => {
   try {
-    const rates = await getOrFetchRates();
+    const rates = await cached('exchange-rates', 'long', () => getOrFetchRates());
     res.json(rates);
   } catch (error: any) {
     console.error("Exchange rate fetch error:", error.message);
@@ -159,6 +161,7 @@ router.post("/api/exchange-rates/refresh", isAuthenticated, async (req: any, res
   try {
     if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
     const rates = await fetchTCMBRates();
+    invalidateCache('exchange-rates', 'long');
     res.json({ success: true, rates });
   } catch (error: any) {
     console.error("Exchange rate refresh error:", error.message);

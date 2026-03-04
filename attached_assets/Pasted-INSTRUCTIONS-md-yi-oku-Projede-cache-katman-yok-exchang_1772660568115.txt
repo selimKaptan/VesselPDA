@@ -1,0 +1,219 @@
+INSTRUCTIONS.md'yi oku. Projede cache katmanı yok — exchange rates, port listesi, tariff data her istekte DB'den çekiliyor. In-memory cache ekle.
+
+1. Paketi kur: npm install node-cache
+
+2. Yeni dosya oluştur: server/cache.ts
+
+   import NodeCache from 'node-cache';
+
+   // Farklı TTL'ler için ayrı cache instance'ları
+   const shortCache = new NodeCache({ stdTTL: 60, checkperiod: 120 }); // 1 dakika
+   const mediumCache = new NodeCache({ stdTTL: 300, checkperiod: 600 }); // 5 dakika
+   const longCache = new NodeCache({ stdTTL: 3600, checkperiod: 7200 }); // 1 saat
+   const dailyCache = new NodeCache({ stdTTL: 86400, checkperiod: 43200 }); // 24 saat
+
+   type CacheTier = 'short' | 'medium' | 'long' | 'daily';
+
+   function getStore(tier: CacheTier): NodeCache {
+     switch (tier) {
+       case 'short': return shortCache;
+       case 'medium': return mediumCache;
+       case 'long': return longCache;
+       case 'daily': return dailyCache;
+     }
+   }
+
+   // Cache'den al veya hesapla
+   export async function cached<T>(
+     key: string,
+     tier: CacheTier,
+     fetchFn: () => Promise<T>
+   ): Promise<T> {
+     const store = getStore(tier);
+     const existing = store.get<T>(key);
+     if (existing !== undefined) {
+       return existing;
+     }
+     const result = await fetchFn();
+     store.set(key, result);
+     return result;
+   }
+
+   // Manuel cache set
+   export function setCache(key: string, value: any, tier: CacheTier): void {
+     getStore(tier).set(key, value);
+   }
+
+   // Manuel cache get
+   export function getCache<T>(key: string, tier: CacheTier): T | undefined {
+     return getStore(tier).get<T>(key);
+   }
+
+   // Belirli key'i invalidate et
+   export function invalidateCache(key: string, tier: CacheTier): void {
+     getStore(tier).del(key);
+   }
+
+   // Pattern ile invalidate (key prefix ile eşleşenleri sil)
+   export function invalidateCacheByPrefix(prefix: string, tier: CacheTier): void {
+     const store = getStore(tier);
+     const keys = store.keys().filter(k => k.startsWith(prefix));
+     keys.forEach(k => store.del(k));
+   }
+
+   // Tüm cache'i temizle
+   export function clearAllCache(): void {
+     shortCache.flushAll();
+     mediumCache.flushAll();
+     longCache.flushAll();
+     dailyCache.flushAll();
+   }
+
+   // Cache istatistikleri (admin panel için)
+   export function getCacheStats() {
+     return {
+       short: { ...shortCache.getStats(), keys: shortCache.keys().length },
+       medium: { ...mediumCache.getStats(), keys: mediumCache.keys().length },
+       long: { ...longCache.getStats(), keys: longCache.keys().length },
+       daily: { ...dailyCache.getStats(), keys: dailyCache.keys().length },
+       totalKeys: shortCache.keys().length + mediumCache.keys().length + longCache.keys().length + dailyCache.keys().length,
+     };
+   }
+
+3. Şu endpoint'lere cache uygula:
+
+   server/routes/ içindeki ilgili modül dosyalarında cached() fonksiyonunu kullan:
+
+   import { cached, invalidateCache, invalidateCacheByPrefix } from '../cache';
+
+   a) PORT LİSTESİ — daily cache (portlar nadiren değişir):
+   
+   // port.routes.ts — GET /api/ports
+   router.get("/", async (req, res, next) => {
+     try {
+       const search = req.query.search as string;
+       const cacheKey = `ports:list:${search || 'all'}`;
+       const ports = await cached(cacheKey, 'daily', async () => {
+         // mevcut port çekme kodu
+         if (search) {
+           return await db.select().from(portsTable).where(ilike(portsTable.name, `%${search}%`));
+         }
+         return await db.select().from(portsTable);
+       });
+       res.json(ports);
+     } catch (error) { next(error); }
+   });
+
+   b) EXCHANGE RATES — long cache (1 saat):
+   
+   // market.routes.ts veya ilgili dosya — GET /api/exchange-rates
+   const rates = await cached('exchange-rates', 'long', async () => {
+     return await getOrFetchRates(); // mevcut TCMB fonksiyonu
+   });
+
+   c) FREIGHT INDICES — long cache (zaten 4 saat var ama standardize et):
+   
+   // market.routes.ts — GET /api/market/freight-indices
+   const indices = await cached('freight-indices', 'long', async () => {
+     // mevcut freight index çekme kodu
+   });
+
+   d) BUNKER PRICES — long cache:
+   
+   // market.routes.ts — GET /api/market/bunker-prices
+   const prices = await cached('bunker-prices', 'long', async () => {
+     return await db.select().from(bunkerPrices);
+   });
+
+   e) DIRECTORY (featured) — medium cache (5 dakika):
+   
+   // directory.routes.ts — GET /api/directory/featured
+   const featured = await cached('directory:featured', 'medium', async () => {
+     // mevcut featured companies kodu
+   });
+
+   f) FORUM CATEGORIES — long cache:
+   
+   // forum.routes.ts — GET /api/forum/categories
+   const categories = await cached('forum:categories', 'long', async () => {
+     return await db.select().from(forumCategories);
+   });
+
+   g) DOCUMENT TEMPLATES — daily cache:
+   
+   // ilgili route — GET /api/document-templates
+   const templates = await cached('document-templates', 'daily', async () => {
+     return await db.select().from(documentTemplates);
+   });
+
+   h) PUBLIC STATS — medium cache:
+   
+   // GET /api/stats
+   const stats = await cached('public-stats', 'medium', async () => {
+     // mevcut stats hesaplama kodu
+   });
+
+   i) ADMIN STATS — short cache (1 dakika):
+   
+   // admin.routes.ts — GET /api/admin/stats
+   const stats = await cached('admin:stats', 'short', async () => {
+     // mevcut optimize edilmiş admin stats kodu
+   });
+
+   j) TARIFF SUMMARY — long cache:
+   
+   // admin.routes.ts — GET /api/admin/tariffs/summary
+   const summary = await cached('tariffs:summary', 'long', async () => {
+     // mevcut tariff summary kodu
+   });
+
+   k) NOTIFICATION COUNT — short cache (1 dakika):
+   
+   // notification.routes.ts — GET /api/messages/unread-count
+   const cacheKey = `unread:${userId}`;
+   const count = await cached(cacheKey, 'short', async () => {
+     // mevcut unread count kodu
+   });
+
+4. CACHE INVALIDATION — veri değiştiğinde cache'i temizle:
+
+   a) Port ekle/güncelle/sil → invalidateCacheByPrefix('ports:', 'daily');
+   b) Exchange rate refresh → invalidateCache('exchange-rates', 'long');
+   c) Bunker price güncelle → invalidateCache('bunker-prices', 'long');
+   d) Forum category ekle/sil → invalidateCache('forum:categories', 'long');
+   e) Company profile güncelle → invalidateCacheByPrefix('directory:', 'medium');
+   f) Tariff güncelle → invalidateCacheByPrefix('tariffs:', 'long');
+   g) Mesaj gönder → invalidateCache(`unread:${otherUserId}`, 'short');
+   h) Admin işlem yapar → invalidateCache('admin:stats', 'short');
+   i) Template ekle/sil → invalidateCache('document-templates', 'daily');
+
+   Her POST/PATCH/DELETE handler'ında ilgili cache'i invalidate et.
+
+5. ADMIN CACHE ENDPOINT'LERİ — admin.routes.ts'e ekle:
+
+   // Cache istatistikleri
+   router.get("/cache-stats", async (req, res) => {
+     const stats = getCacheStats();
+     res.json(stats);
+   });
+
+   // Cache temizle
+   router.post("/cache-clear", async (req, res) => {
+     clearAllCache();
+     res.json({ success: true, message: "All caches cleared" });
+   });
+
+6. Admin panelde cache bilgisi göster:
+   - Total cached keys sayısı
+   - Hit/miss oranı
+   - "Clear Cache" butonu
+   
+   Admin dashboard'a küçük bir cache stats kartı ekle.
+
+7. IMPORTANT:
+   - node-cache in-memory çalışır, server restart'ta cache sıfırlanır — bu sorun değil
+   - İleride Redis'e geçiş kolay: sadece cache.ts içini değiştirmek yeterli
+   - cached() fonksiyonu async, mevcut kodu minimal değişiklikle sarmalıyor
+   - Cache key'leri tutarlı olsun: "resource:qualifier" formatı
+   - Mevcut fonksiyonelliği BOZMA — cache sadece performans iyileştirmesi
+   - Eğer cache'den veri gelirse DB'ye hiç gitmez → büyük performans kazancı

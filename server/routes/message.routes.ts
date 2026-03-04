@@ -3,12 +3,14 @@ import { storage } from "../storage";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { isAdmin } from "./shared";
 import { emitToUser, emitToConversation } from "../socket";
+import { cached, invalidateCache } from "../cache";
 
 const router = Router();
 
 router.get("/api/messages/unread-count", isAuthenticated, async (req: any, res) => {
   try {
-    const cnt = await storage.getUnreadMessageCount(req.user.claims.sub);
+    const userId = req.user.claims.sub;
+    const cnt = await cached(`unread:${userId}`, 'short', () => storage.getUnreadMessageCount(userId));
     res.json({ count: cnt });
   } catch (error) {
     res.status(500).json({ message: "Failed to get unread count" });
@@ -126,6 +128,8 @@ router.post("/api/messages/:conversationId/send", isAuthenticated, async (req: a
       message: notifMessage,
       link: `/messages/${conversationId}`,
     });
+    // Invalidate receiver's unread count cache
+    invalidateCache(`unread:${receiverId}`, 'short');
 
     // E-posta bridge: auto-forward if enabled
     if (conv.externalEmailForward && conv.externalEmail) {
@@ -150,7 +154,9 @@ router.post("/api/messages/:conversationId/send", isAuthenticated, async (req: a
 router.patch("/api/messages/:conversationId/read", isAuthenticated, async (req: any, res) => {
   try {
     const conversationId = parseInt(req.params.conversationId);
-    await storage.markConversationRead(conversationId, req.user.claims.sub);
+    const userId = req.user.claims.sub;
+    await storage.markConversationRead(conversationId, userId);
+    invalidateCache(`unread:${userId}`, 'short');
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ message: "Failed to mark as read" });

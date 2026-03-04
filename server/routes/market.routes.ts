@@ -4,6 +4,7 @@ import { isAdmin } from "./shared";
 import { storage } from "../storage";
 import { db } from "../db";
 import { sql as drizzleSql, desc } from "drizzle-orm";
+import { cached, invalidateCache } from "../cache";
 
 const router = Router();
 
@@ -189,7 +190,7 @@ router.get("/freight-indices", isAuthenticated, async (_req, res) => {
 
 router.get("/bunker-prices", isAuthenticated, async (_req, res) => {
   try {
-    const prices = await storage.getBunkerPrices();
+    const prices = await cached('bunker-prices', 'long', () => storage.getBunkerPrices());
     res.json(prices);
   } catch {
     res.status(500).json({ message: "Failed to fetch bunker prices" });

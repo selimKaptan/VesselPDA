@@ -87,6 +87,7 @@ export default function AdminPanel() {
   const { data: pendingVerifications, isLoading: verificationsLoading } = useQuery<CompanyProfile[]>({ queryKey: ["/api/admin/pending-verifications"] });
   const { data: bunkerPricesList = [], isLoading: bunkerLoading } = useQuery<any[]>({ queryKey: ["/api/market/bunker-prices"] });
   const { data: portAlerts = [], isLoading: portAlertsLoading } = useQuery<any[]>({ queryKey: ["/api/port-alerts"] });
+  const { data: cacheStats, refetch: refetchCacheStats } = useQuery<any>({ queryKey: ["/api/admin/cache-stats"], refetchInterval: 30000 });
 
   // Audit log filters
   const [auditUserId, setAuditUserId] = useState("");
@@ -171,6 +172,12 @@ export default function AdminPanel() {
   const deleteBunkerMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/admin/bunker-prices/${id}`, undefined),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/market/bunker-prices"] }); toast({ title: "Deleted" }); setDeleteBunkerTarget(null); },
+  });
+
+  const clearCacheMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/cache-clear", undefined),
+    onSuccess: () => { refetchCacheStats(); toast({ title: "Cache cleared", description: "All server-side caches have been reset." }); },
+    onError: () => toast({ title: "Error", description: "Failed to clear cache.", variant: "destructive" }),
   });
 
   const ALERT_TYPE_LABELS: Record<string, string> = { strike: "Strike", closure: "Closure", weather: "Weather", restricted: "Restricted", other: "Other" };
@@ -1683,6 +1690,49 @@ export default function AdminPanel() {
                 </div>
               ))}
             </div>
+          </Card>
+          <Card className="p-5" data-testid="card-cache-stats">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                <h3 className="font-semibold">Server Cache</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => refetchCacheStats()} data-testid="button-refresh-cache-stats" className="h-7 text-xs">Refresh</Button>
+                <Button variant="destructive" size="sm" onClick={() => clearCacheMutation.mutate()} disabled={clearCacheMutation.isPending} data-testid="button-clear-cache" className="h-7 text-xs">
+                  {clearCacheMutation.isPending && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                  Clear All
+                </Button>
+              </div>
+            </div>
+            {cacheStats ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {Object.entries(cacheStats).filter(([tier]) => tier !== 'totalKeys').map(([tier, stats]: [string, any]) => (
+                  <div key={tier} className="rounded-lg border p-3 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium capitalize">{tier} cache</span>
+                      <Badge variant="secondary" className="text-[10px]">{stats.ttl}s TTL</Badge>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded bg-muted/50 p-1.5">
+                        <p className="text-xs text-muted-foreground">Keys</p>
+                        <p className="text-sm font-semibold" data-testid={`text-cache-keys-${tier}`}>{stats.keyCount ?? stats.keys ?? 0}</p>
+                      </div>
+                      <div className="rounded bg-muted/50 p-1.5">
+                        <p className="text-xs text-muted-foreground">Hits</p>
+                        <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400" data-testid={`text-cache-hits-${tier}`}>{stats.hits}</p>
+                      </div>
+                      <div className="rounded bg-muted/50 p-1.5">
+                        <p className="text-xs text-muted-foreground">Misses</p>
+                        <p className="text-sm font-semibold text-amber-600 dark:text-amber-400" data-testid={`text-cache-misses-${tier}`}>{stats.misses}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Loading cache statistics…</p>
+            )}
           </Card>
         </TabsContent>
 

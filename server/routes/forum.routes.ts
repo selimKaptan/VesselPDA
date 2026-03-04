@@ -5,12 +5,13 @@ import { isAdmin, forumTopicBodySchema, forumReplyBodySchema } from "./shared";
 import { insertForumTopicSchema, insertForumReplySchema } from "@shared/schema";
 import { emitToUser } from "../socket";
 import { sendForumReplyEmail } from "../email";
+import { cached, invalidateCache } from "../cache";
 
 const router = Router();
 
 router.get("/categories", async (_req, res) => {
   try {
-    const categories = await storage.getForumCategories();
+    const categories = await cached('forum:categories', 'long', () => storage.getForumCategories());
     res.json(categories);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch forum categories" });
