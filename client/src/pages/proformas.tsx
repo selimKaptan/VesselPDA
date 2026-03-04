@@ -649,12 +649,12 @@ export default function Proformas() {
       {showQuickDialog && (
         <>
           <div
-            className="fixed inset-y-0 right-0 z-40 bg-black/60"
+            className="fixed top-[92px] bottom-0 right-0 z-40 bg-black/60"
             style={{ left: 'var(--app-side-panel-width, 0px)' }}
             onClick={() => setShowQuickDialog(false)}
           />
           <div
-            className="fixed inset-y-0 right-0 z-50 flex flex-col bg-background border-l shadow-2xl overflow-hidden"
+            className="fixed top-[92px] bottom-0 right-0 z-50 flex flex-col bg-background border-l shadow-2xl overflow-hidden"
             style={{ left: 'var(--app-side-panel-width, 0px)' }}
             data-testid="dialog-quick-proforma"
           >
