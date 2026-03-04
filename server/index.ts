@@ -19,14 +19,19 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "'unsafe-eval'",
+        "https://replit-cdn.com",
+        "https://static.cloudflareinsights.com",
+      ],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "blob:", "https:", "https://tiles.openseamap.org"],
       connectSrc: [
         "'self'",
-        "ws://localhost:5000",
-        "wss://localhost:5000",
-        "wss://stream.aisstream.io",
+        "ws:",
+        "wss:",
         "https://stream.aisstream.io",
         "https://evds2.tcmb.gov.tr",
         "https://api.zylalabs.com",
@@ -41,9 +46,10 @@ app.use(helmet({
         "https://ofac.treasury.gov",
         "https://query1.finance.yahoo.com",
         "https://query2.finance.yahoo.com",
+        "https://static.cloudflareinsights.com",
       ],
       workerSrc: ["'self'", "blob:"],
-      fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
+      fontSrc: ["'self'", "data:", "https://fonts.gstatic.com", "https://fonts.googleapis.com"],
       frameAncestors: ["'none'"],
       objectSrc: ["'none'"],
     },
@@ -186,7 +192,14 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (config.NODE_ENV === "production") {
-    serveStatic(app);
+    try {
+      serveStatic(app);
+    } catch (e) {
+      console.error("[static] CRITICAL: Failed to setup static file serving:", e);
+      app.use("/*path", (_req, res) => {
+        res.status(503).send("<html><body><h1>Service Unavailable</h1><p>Static files not found. Build may be incomplete.</p></body></html>");
+      });
+    }
   } else {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);

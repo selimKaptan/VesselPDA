@@ -26,6 +26,10 @@ function setupStatic(app: Express, distPath: string) {
   const indexHtml = path.resolve(distPath, "index.html");
   console.log(`[static] index.html exists: ${fs.existsSync(indexHtml)}`);
 
+  app.get("/", (_req, res) => {
+    res.sendFile(indexHtml);
+  });
+
   app.use(express.static(distPath, { index: "index.html" }));
 
   app.use("/*path", (_req, res) => {
