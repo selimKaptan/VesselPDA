@@ -1,0 +1,234 @@
+INSTRUCTIONS.md'yi oku. Platform mobilde düzgün çalışmıyor — sidebar sıkışıyor, tablolar taşıyor, formlar küçük ekranlarda bozuluyor. Mobile responsive iyileştirme yap.
+
+1. Sidebar mobile iyileştirme — client/src/components/app-sidebar.tsx veya layout/app-layout.tsx:
+
+   - Desktop'ta (lg+): sidebar her zaman açık, sol tarafta sabit
+   - Tablet'te (md): sidebar collapsed (sadece ikonlar)
+   - Mobile'da (sm): sidebar gizli, hamburger menü ile açılır (Sheet component)
+   
+   Mevcut sidebar'ı şu şekilde güncelle:
+   
+   import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+   import { Menu } from 'lucide-react';
+   import { useMobile } from '@/hooks/use-mobile';
+   
+   // Mobile'da Sheet (slide-over) sidebar
+   // Desktop'ta sabit sidebar
+   
+   function AppLayout({ children }) {
+     const isMobile = useMobile();
+     const [sidebarOpen, setSidebarOpen] = useState(false);
+     
+     if (isMobile) {
+       return (
+         <div className="min-h-screen">
+           {/* Mobile header */}
+           <header className="fixed top-0 left-0 right-0 z-50 h-14 bg-[#0B1120] border-b border-slate-700/50 flex items-center px-4">
+             <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+               <SheetTrigger asChild>
+                 <button className="p-2 text-slate-400 hover:text-white">
+                   <Menu className="w-5 h-5" />
+                 </button>
+               </SheetTrigger>
+               <SheetContent side="left" className="w-72 p-0 bg-[#0B1120] border-slate-700/50">
+                 {/* Mevcut sidebar içeriği buraya — her link tıklanınca setSidebarOpen(false) çağır */}
+                 <SidebarContent onNavigate={() => setSidebarOpen(false)} />
+               </SheetContent>
+             </Sheet>
+             <span className="ml-3 text-white font-semibold">VesselPDA</span>
+             <div className="ml-auto flex items-center gap-2">
+               {/* NotificationBell component'i */}
+             </div>
+           </header>
+           {/* Main content */}
+           <main className="pt-14 px-3 pb-20">
+             {children}
+           </main>
+           {/* Mobile bottom navigation */}
+           <MobileBottomNav />
+         </div>
+       );
+     }
+     
+     // Desktop layout — mevcut haliyle kalsın
+     return (
+       <div className="flex min-h-screen">
+         <aside className="w-64 shrink-0 hidden lg:block">
+           <SidebarContent />
+         </aside>
+         <main className="flex-1 p-6">{children}</main>
+       </div>
+     );
+   }
+
+2. Mobile bottom navigation ekle — client/src/components/layout/mobile-bottom-nav.tsx:
+
+   import { useLocation, Link } from 'wouter';
+   import { Home, Ship, FileText, MessageSquare, User } from 'lucide-react';
+
+   const NAV_ITEMS = [
+     { href: '/dashboard', icon: Home, label: 'Home' },
+     { href: '/vessels', icon: Ship, label: 'Vessels' },
+     { href: '/proformas', icon: FileText, label: 'PDA' },
+     { href: '/messages', icon: MessageSquare, label: 'Messages' },
+     { href: '/settings', icon: User, label: 'Profile' },
+   ];
+
+   export function MobileBottomNav() {
+     const [location] = useLocation();
+     return (
+       <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#0B1120] border-t border-slate-700/50 safe-area-bottom">
+         <div className="flex items-center justify-around h-16">
+           {NAV_ITEMS.map(item => {
+             const isActive = location === item.href || location.startsWith(item.href + '/');
+             return (
+               <Link key={item.href} href={item.href}>
+                 <a className={`flex flex-col items-center gap-0.5 px-3 py-1 ${isActive ? 'text-sky-400' : 'text-slate-500'}`}>
+                   <item.icon className="w-5 h-5" />
+                   <span className="text-[10px]">{item.label}</span>
+                 </a>
+               </Link>
+             );
+           })}
+         </div>
+       </nav>
+     );
+   }
+
+3. Tablo responsive — tüm sayfalardaki tablolar mobile'da yatay scroll veya kart görünüme geçsin:
+
+   Genel pattern — her liste sayfasında (proformas.tsx, tenders.tsx, voyages.tsx, fixtures.tsx, vb.):
+
+   const isMobile = useMobile();
+   
+   // Mobile'da kart görünüm
+   if (isMobile) {
+     return (
+       <div className="space-y-3">
+         {items.map(item => (
+           <Card key={item.id} className="p-4" onClick={() => navigate(`/detail/${item.id}`)}>
+             <div className="flex justify-between items-start">
+               <div>
+                 <p className="font-semibold text-white text-sm">{item.title}</p>
+                 <p className="text-xs text-slate-400 mt-1">{item.subtitle}</p>
+               </div>
+               <Badge>{item.status}</Badge>
+             </div>
+             <div className="flex gap-4 mt-3 text-xs text-slate-400">
+               <span>{item.date}</span>
+               <span>{item.amount}</span>
+             </div>
+           </Card>
+         ))}
+       </div>
+     );
+   }
+   
+   // Desktop'ta normal tablo
+   return <Table>...</Table>;
+
+   Şu sayfaları güncelle:
+   a) client/src/pages/proformas.tsx — PDA listesi
+   b) client/src/pages/tenders.tsx — Tender listesi
+   c) client/src/pages/voyages.tsx — Voyage listesi
+   d) client/src/pages/messages.tsx — Conversation listesi
+   e) client/src/pages/fixtures.tsx — Fixture listesi
+   f) client/src/pages/sof.tsx — SOF listesi
+   g) client/src/pages/fda.tsx — FDA listesi
+
+4. Form responsive — formlar mobile'da tek sütun olsun:
+
+   Mevcut grid-cols-2 veya grid-cols-3 olan form alanları:
+   ESKİ: className="grid grid-cols-2 gap-4"
+   YENİ: className="grid grid-cols-1 md:grid-cols-2 gap-4"
+   
+   ESKİ: className="grid grid-cols-3 gap-4"
+   YENİ: className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+
+   Şu sayfalarda form grid'leri güncelle:
+   - proforma-new.tsx
+   - tender oluşturma dialog
+   - voyage oluşturma dialog
+   - company-profile.tsx
+   - vessel oluşturma dialog
+   - sof oluşturma
+   - fda detay
+
+5. Dashboard responsive:
+
+   Stat kartları:
+   ESKİ: className="grid grid-cols-4 gap-4"
+   YENİ: className="grid grid-cols-2 md:grid-cols-4 gap-3"
+   
+   Grafikler:
+   ESKİ: className="grid grid-cols-3 gap-4"  
+   YENİ: className="grid grid-cols-1 lg:grid-cols-3 gap-4"
+   
+   Pie chartlar:
+   ESKİ: className="grid grid-cols-2 gap-4"
+   YENİ: className="grid grid-cols-1 md:grid-cols-2 gap-4"
+
+6. Dialog/Modal responsive:
+
+   Tüm Dialog component'lerinde:
+   ESKİ: <DialogContent className="max-w-2xl">
+   YENİ: <DialogContent className="max-w-[95vw] md:max-w-2xl max-h-[90vh] overflow-y-auto">
+   
+   Mobile'da dialog tam genişlikte açılsın ve scroll edilebilir olsun.
+
+7. Metin ve buton boyutları:
+
+   Mobile'da butonlar daha büyük (dokunma kolay):
+   - Ana aksiyon butonları: className="w-full md:w-auto" 
+   - Buton grupları: className="flex flex-col md:flex-row gap-2"
+   - Küçük ikonlu butonlar: minimum 44px touch target
+
+8. AiChat widget mobile iyileştirme:
+   - Mobile'da tam ekran açılsın (fixed inset-0)
+   - Desktop'ta mevcut haliyle sağ alt köşede
+
+9. CSS ekle — client/src/index.css veya global stil dosyasına:
+
+   /* Safe area for mobile bottom nav (iPhone notch) */
+   .safe-area-bottom {
+     padding-bottom: env(safe-area-inset-bottom, 0px);
+   }
+   
+   /* Horizontal scroll wrapper for tables that must stay as tables */
+   .table-scroll-wrapper {
+     overflow-x: auto;
+     -webkit-overflow-scrolling: touch;
+   }
+   
+   /* Hide scrollbar on mobile but keep scrolling */
+   .table-scroll-wrapper::-webkit-scrollbar {
+     display: none;
+   }
+
+10. useMobile hook kontrol et — client/src/hooks/use-mobile.tsx:
+    
+    Zaten varsa dokunma. Yoksa veya çalışmıyorsa:
+    
+    import { useState, useEffect } from 'react';
+    
+    export function useMobile(breakpoint: number = 768) {
+      const [isMobile, setIsMobile] = useState(window.innerWidth < breakpoint);
+      
+      useEffect(() => {
+        const handler = () => setIsMobile(window.innerWidth < breakpoint);
+        window.addEventListener('resize', handler);
+        return () => window.removeEventListener('resize', handler);
+      }, [breakpoint]);
+      
+      return isMobile;
+    }
+
+11. IMPORTANT:
+    - Desktop görünümü BOZMA — sadece mobile/tablet için iyileştirme
+    - Mevcut component'leri silme, responsive class'lar ekle
+    - Tailwind breakpoint'leri: sm(640px), md(768px), lg(1024px), xl(1280px)
+    - Mobile bottom nav sadece mobile'da görünsün (lg:hidden)
+    - Sheet sidebar sadece mobile'da, desktop'ta normal sidebar
+    - Her liste sayfasında mobile kart görünüm opsiyonel — en az proformas, tenders, voyages yapılsın
+    - Touch target minimum 44x44px
+    - Test: Chrome DevTools → responsive mode → iPhone 14 Pro

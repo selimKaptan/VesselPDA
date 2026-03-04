@@ -352,3 +352,18 @@
     inset: -1px;
   }
 }
+
+/* Mobile safe area for devices with home indicator (iPhone notch) */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Horizontal scroll wrapper for tables on small screens */
+.table-scroll-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-scroll-wrapper::-webkit-scrollbar {
+  display: none;
+}

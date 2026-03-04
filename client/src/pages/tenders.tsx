@@ -248,7 +248,7 @@ function CreateTenderDialog() {
           <Plus className="w-4 h-4" /> Create New Tender
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto" data-testid="dialog-create-tender">
+      <DialogContent className="max-w-[95vw] md:max-w-xl max-h-[90vh] overflow-y-auto" data-testid="dialog-create-tender">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Gavel className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
@@ -313,7 +313,7 @@ function CreateTenderDialog() {
           </div>
 
           {/* VESSEL NAME + FLAG */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5" ref={vesselRef}>
               <Label>Vessel Name <span className="text-red-500">*</span></Label>
               <div className="relative">
@@ -368,7 +368,7 @@ function CreateTenderDialog() {
           </div>
 
           {/* GRT + NRT */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>GRT <span className="text-red-500">*</span></Label>
               <Input
@@ -392,7 +392,7 @@ function CreateTenderDialog() {
           </div>
 
           {/* CARGO TYPE + CARGO QUANTITY */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Cargo Type <span className="text-red-500">*</span></Label>
               <Input

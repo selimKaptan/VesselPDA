@@ -425,7 +425,8 @@ export default function Proformas() {
           {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
         </div>
       ) : filteredProformas.length > 0 ? (
-        <Card>
+        <Card className="overflow-hidden">
+          <div className="table-scroll-wrapper">
           <Table>
             <TableHeader>
               <TableRow>
@@ -536,6 +537,7 @@ export default function Proformas() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </Card>
       ) : (
         <Card className="p-12 text-center space-y-4">

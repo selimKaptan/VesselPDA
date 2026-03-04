@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -26,6 +27,7 @@ export function AiChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -91,11 +93,19 @@ export function AiChat() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+    <div className={cn(
+      "fixed z-50 flex flex-col items-end gap-3",
+      isMobile && isOpen ? "inset-0" : "bottom-6 right-6"
+    )}>
       {isOpen && (
         <div
           data-testid="panel-ai-chat"
-          className="w-80 h-[440px] rounded-2xl shadow-2xl border border-border bg-background flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200"
+          className={cn(
+            "bg-background flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200",
+            isMobile
+              ? "w-full h-full rounded-none shadow-none border-0"
+              : "w-80 h-[440px] rounded-2xl shadow-2xl border border-border"
+          )}
         >
           <div className="flex items-center justify-between px-4 py-3 bg-[#003D7A] dark:bg-[#002855] text-white shrink-0">
             <div className="flex items-center gap-2">
@@ -189,6 +199,7 @@ export function AiChat() {
         </div>
       )}
 
+      {!(isMobile && isOpen) && (
       <button
         data-testid="button-ai-chat"
         onClick={handleOpen}
@@ -205,6 +216,7 @@ export function AiChat() {
         <Sparkles className="w-5 h-5 text-white" />
         <span className="text-sm font-medium text-white">AI Asistan</span>
       </button>
+      )}
     </div>
   );
 }

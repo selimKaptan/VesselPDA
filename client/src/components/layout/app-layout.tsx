@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { getModulesForRole, getActiveModule, type Module } from "@/lib/role-navigation";
 import { NotificationBell } from "@/components/notification-bell";
+import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -442,10 +443,11 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           unreadMessages={unreadMessages}
           pendingNominations={pendingNominations}
         />
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto pb-16 md:pb-0">
           {children}
         </main>
       </div>
+      <MobileBottomNav />
     </div>
   );
 }
