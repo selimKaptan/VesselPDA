@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageMeta } from "@/components/page-meta";
-import { PaginationControls } from "@/components/ui/pagination-controls";
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -21,20 +20,15 @@ function timeAgo(dateStr: string) {
 
 export default function Messages() {
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
 
-  const { data: convRes, isLoading } = useQuery<{ data: any[]; pagination: any }>({
-    queryKey: ["/api/messages", page, pageSize, search],
-    queryFn: () => {
-      const params = new URLSearchParams({ page: String(page), limit: String(pageSize) });
-      if (search) params.set("search", search);
-      return fetch(`/api/messages?${params}`, { credentials: "include" }).then(r => r.json());
-    },
+  const { data: conversations = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/messages"],
   });
-  const conversations = convRes?.data ?? [];
-  const pagination = convRes?.pagination;
-  const filtered = conversations;
+
+  const filtered = conversations.filter(c =>
+    c.otherUserName?.toLowerCase().includes(search.toLowerCase()) ||
+    c.lastMessage?.toLowerCase().includes(search.toLowerCase())
+  );
 
   function getLastMessagePreview(conv: any) {
     if (conv.lastMessageType === "image") return "🖼 Resim paylaşıldı";
@@ -147,13 +141,6 @@ export default function Messages() {
             </Link>
           ))}
         </div>
-      )}
-      {pagination && (
-        <PaginationControls
-          pagination={pagination}
-          onPageChange={(p) => { setPage(p); }}
-          onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
-        />
       )}
     </div>
   );

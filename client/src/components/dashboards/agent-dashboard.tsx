@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Anchor, Gavel, Star, TrendingUp, ArrowRight, Building2, Activity, Navigation, MapPin, FileText, MessageSquare, ShieldCheck, AlertTriangle, Clock, XCircle, Ship, CheckCircle2, AlertCircle } from "lucide-react";
+import { Anchor, Gavel, Star, TrendingUp, ArrowRight, Building2, Activity, Navigation, MapPin, FileText, MessageSquare, ShieldCheck, AlertTriangle, Clock, XCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import type { CompanyProfile } from "@shared/schema";
 import { VerificationRequestDialog } from "@/components/verification-request-dialog";
 
@@ -43,45 +42,10 @@ function daysSince(dateStr: string) {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function daysUntil(dateStr: string) {
-  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-}
-
-function build7DayChart(voyages: any[]) {
-  const days: { label: string; completed: number; active: number }[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().slice(0, 10);
-    const label = d.toLocaleDateString("en-GB", { weekday: "short" });
-    const dayVoyages = voyages.filter((v) => (v.createdAt || v.created_at || "").slice(0, 10) === dateStr);
-    days.push({
-      label,
-      completed: dayVoyages.filter((v) => v.status === "completed").length,
-      active: dayVoyages.filter((v) => v.status === "in_progress" || v.status === "active").length,
-    });
-  }
-  return days;
-}
-
-export function AgentDashboard({ user, tenders: tendersProp, myBidsData: myBidsDataProp, myProfile: myProfileProp, notificationsData: notificationsDataProp }: {
-  user?: any; tenders?: any[]; myBidsData?: any; myProfile?: CompanyProfile | null; notificationsData?: any;
+export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificationsData }: {
+  user: any; tenders: any[]; myBidsData: any; myProfile?: CompanyProfile | null; notificationsData: any;
 }) {
-  const { data: tendersInternal = [] } = useQuery<any[]>({ queryKey: ["/api/tenders"] });
-  const { data: myBidsInternal } = useQuery<any[]>({ queryKey: ["/api/tenders/my-bids"] });
-  const { data: myProfileInternal } = useQuery<CompanyProfile | null>({
-    queryKey: ["/api/company-profile/me"],
-    queryFn: () => fetch("/api/company-profile/me", { credentials: "include" }).then(r => r.ok ? r.json() : null),
-  });
-
-  const tendersRaw = tendersProp ?? tendersInternal;
-  const tenders = Array.isArray(tendersRaw) ? tendersRaw : [];
-  const myBidsData = myBidsDataProp ?? myBidsInternal;
-  const myProfile = myProfileProp ?? myProfileInternal;
-  const notificationsData = notificationsDataProp;
-
   const profileId = (myProfile as any)?.id;
-
   const { data: agentStats, isLoading: statsLoading } = useQuery<any>({
     queryKey: ["/api/agent-stats", profileId],
     queryFn: async () => {
@@ -93,18 +57,6 @@ export function AgentDashboard({ user, tenders: tendersProp, myBidsData: myBidsD
     enabled: !!profileId,
   });
 
-  const { data: voyages = [], isLoading: voyagesLoading } = useQuery<any[]>({
-    queryKey: ["/api/voyages"],
-  });
-
-  const { data: expiringCerts = [] } = useQuery<any[]>({
-    queryKey: ["/api/certificates/expiring"],
-  });
-
-  const { data: nominationCount } = useQuery<any>({
-    queryKey: ["/api/nominations/pending-count"],
-  });
-
   const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
 
   const openTenders = tenders.filter((t) => t.status === "open");
@@ -112,17 +64,7 @@ export function AgentDashboard({ user, tenders: tendersProp, myBidsData: myBidsD
   const pendingBids = allBids.filter((b) => b.status === "pending");
   const selectedBids = allBids.filter((b) => b.status === "selected");
   const servedPorts = ((myProfile as any)?.servedPorts as number[]) || [];
-
-  const activeVoyages = voyages.filter((v) => v.status === "in_progress" || v.status === "active" || v.status === "scheduled");
-  const upcomingETAs = activeVoyages.filter((v) => v.eta && daysUntil(v.eta) <= 7 && daysUntil(v.eta) >= 0).sort((a, b) => new Date(a.eta).getTime() - new Date(b.eta).getTime());
-  const chartData = build7DayChart(voyages);
-  const hasChartData = chartData.some((d) => d.completed > 0 || d.active > 0);
-
-  const criticalCerts = expiringCerts.filter((c) => daysUntil(c.expiryDate || c.expiry_date) <= 7);
-  const warnCerts = expiringCerts.filter((c) => { const d = daysUntil(c.expiryDate || c.expiry_date); return d > 7 && d <= 30; });
-
-  const verificationStatus = (myProfile as any)?.verificationStatus || "unverified";
-  const verificationNote = (myProfile as any)?.verificationNote;
+  const unread = notificationsData?.unreadCount ?? 0;
 
   const quickActions = [
     { href: "/tenders", icon: Gavel, label: "View Tenders", desc: "Browse open port call tenders", color: "38 92% 50%", testId: "qa-tenders" },
@@ -133,27 +75,11 @@ export function AgentDashboard({ user, tenders: tendersProp, myBidsData: myBidsD
     { href: "/forum", icon: MessageSquare, label: "Forum", desc: "Connect with the community", color: "142 71% 30%", testId: "qa-forum" },
   ];
 
-  return (
-    <div className="space-y-5">
-      {/* Expiring certificates warning band */}
-      {(criticalCerts.length > 0 || warnCerts.length > 0) && (
-        <Link href="/vessel-certificates">
-          <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer hover:opacity-90 transition-opacity ${criticalCerts.length > 0 ? "bg-red-50 dark:bg-red-950/30 border-red-200/70 dark:border-red-800/50" : "bg-amber-50 dark:bg-amber-950/30 border-amber-200/70 dark:border-amber-800/50"}`}
-            data-testid="banner-expiring-certs">
-            <AlertCircle className={`w-4 h-4 flex-shrink-0 ${criticalCerts.length > 0 ? "text-red-600" : "text-amber-600"}`} />
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-medium ${criticalCerts.length > 0 ? "text-red-800 dark:text-red-300" : "text-amber-800 dark:text-amber-300"}`}>
-                {criticalCerts.length > 0
-                  ? `${criticalCerts.length} certificate${criticalCerts.length !== 1 ? "s" : ""} expiring within 7 days`
-                  : `${warnCerts.length} certificate${warnCerts.length !== 1 ? "s" : ""} expiring within 30 days`}
-              </p>
-              <p className="text-xs text-muted-foreground">Click to view vessel certificates</p>
-            </div>
-            <ArrowRight className="w-4 h-4 text-muted-foreground/60 flex-shrink-0" />
-          </div>
-        </Link>
-      )}
+  const verificationStatus = (myProfile as any)?.verificationStatus || "unverified";
+  const verificationNote = (myProfile as any)?.verificationNote;
 
+  return (
+    <div className="space-y-6">
       {/* Verification status banner */}
       {myProfile && (
         <>
@@ -161,11 +87,11 @@ export function AgentDashboard({ user, tenders: tendersProp, myBidsData: myBidsD
             <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/50" data-testid="banner-verification-unverified">
               <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Your company is not yet verified</p>
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Send a verification request to earn a trust badge in the directory.</p>
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Şirketiniz henüz doğrulanmamış</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Doğrulama talebi göndererek dizinde güven rozeti kazanın ve öne çıkın.</p>
               </div>
               <Button size="sm" variant="outline" className="gap-1.5 text-xs h-7 border-amber-300 text-amber-700 hover:bg-amber-100 flex-shrink-0 dark:border-amber-700 dark:text-amber-300" onClick={() => setVerifyDialogOpen(true)} data-testid="button-go-verify">
-                <ShieldCheck className="w-3 h-3" /> Request Verification
+                <ShieldCheck className="w-3 h-3" /> Doğrulama Talebi
               </Button>
             </div>
           )}
@@ -173,26 +99,27 @@ export function AgentDashboard({ user, tenders: tendersProp, myBidsData: myBidsD
             <div className="flex items-center gap-3 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200/70 dark:border-blue-800/50" data-testid="banner-verification-pending">
               <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
               <p className="text-sm text-blue-800 dark:text-blue-300">
-                <span className="font-medium">Verification request under review.</span>{" "}
-                <span className="font-normal text-blue-600 dark:text-blue-400">We will get back to you shortly.</span>
+                <span className="font-medium">Doğrulama talebiniz inceleniyor.</span>{" "}
+                <span className="font-normal text-blue-600 dark:text-blue-400">En kısa sürede size dönülecek.</span>
               </p>
             </div>
           )}
           {verificationStatus === "verified" && (
             <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/40" data-testid="banner-verification-verified">
               <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-              <p className="text-sm text-emerald-700 dark:text-emerald-400 font-medium">Your company is verified — trust badge visible in directory.</p>
+              <p className="text-sm text-emerald-700 dark:text-emerald-400 font-medium">Şirketiniz doğrulanmış — dizinde güven rozeti gösteriliyor.</p>
             </div>
           )}
           {verificationStatus === "rejected" && (
             <div className="flex items-start gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200/70 dark:border-red-800/50" data-testid="banner-verification-rejected">
               <XCircle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-red-800 dark:text-red-300">Verification request was rejected</p>
+                <p className="text-sm font-medium text-red-800 dark:text-red-300">Doğrulama talebiniz reddedildi</p>
                 {verificationNote && <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">{verificationNote}</p>}
+                <p className="text-xs text-muted-foreground mt-0.5">Bilgilerinizi güncelleyerek tekrar başvurabilirsiniz.</p>
               </div>
               <Button size="sm" variant="outline" className="gap-1.5 text-xs h-7 border-red-300 text-red-700 hover:bg-red-100 flex-shrink-0 dark:border-red-700 dark:text-red-300" onClick={() => setVerifyDialogOpen(true)} data-testid="button-retry-verify">
-                <ShieldCheck className="w-3 h-3" /> Re-apply
+                <ShieldCheck className="w-3 h-3" /> Tekrar Başvur
               </Button>
             </div>
           )}
@@ -203,145 +130,18 @@ export function AgentDashboard({ user, tenders: tendersProp, myBidsData: myBidsD
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="Served Ports" value={servedPorts.length} icon={Anchor} color="var(--maritime-primary)" href="/company-profile" testId="stat-ports" />
         <StatCard label="Pending Bids" value={pendingBids.length} icon={Gavel} color="38 92% 50%" href="/tenders" testId="stat-pending-bids" />
-        <StatCard label="Nominations" value={selectedBids.length} icon={TrendingUp} color="142 71% 30%" href="/nominations" testId="stat-won-bids" />
+        <StatCard label="Won (Selected)" value={selectedBids.length} icon={TrendingUp} color="142 71% 30%" href="/tenders" testId="stat-won-bids" />
         <StatCard label="Avg. Rating" value={agentStats?.avgRating ? agentStats.avgRating.toFixed(1) : "—"} loading={statsLoading} icon={Star} color="var(--maritime-secondary)" href={profileId ? `/directory/${profileId}` : "/directory"} testId="stat-rating" />
       </div>
 
       {/* Main grid */}
-      <div className="grid lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 space-y-5">
-          {/* Today's Tasks */}
-          <Card className="p-5 space-y-3" data-testid="card-today-tasks">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif font-semibold text-base flex items-center gap-2">
-                <Clock className="w-4 h-4 text-muted-foreground/60" /> Today's Tasks
-              </h2>
-              <div className="flex items-center gap-1.5">
-                {(nominationCount?.count ?? 0) > 0 && (
-                  <Badge className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">{nominationCount.count} nomination{nominationCount.count !== 1 ? "s" : ""}</Badge>
-                )}
-                {pendingBids.length > 0 && (
-                  <Badge className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{pendingBids.length} pending bid{pendingBids.length !== 1 ? "s" : ""}</Badge>
-                )}
-              </div>
-            </div>
-            {upcomingETAs.length === 0 && pendingBids.length === 0 ? (
-              <div className="text-center py-6 text-sm text-muted-foreground">
-                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-400/60" />
-                All clear — no urgent tasks today
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {upcomingETAs.slice(0, 3).map((v) => (
-                  <Link key={v.id} href={`/voyages/${v.id}`}>
-                    <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-blue-100 bg-blue-50/40 dark:border-blue-900/40 dark:bg-blue-950/20 hover:bg-blue-50/60 transition-colors cursor-pointer" data-testid={`task-voyage-eta-${v.id}`}>
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <Ship className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{v.vesselName || `Voyage #${v.id}`}</p>
-                          <p className="text-xs text-muted-foreground">ETA in {daysUntil(v.eta)} day{daysUntil(v.eta) !== 1 ? "s" : ""}</p>
-                        </div>
-                      </div>
-                      <Badge className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 flex-shrink-0">ETA</Badge>
-                    </div>
-                  </Link>
-                ))}
-                {pendingBids.slice(0, 3).map((bid: any) => (
-                  <Link key={bid.id} href={`/tenders/${bid.tenderId}`}>
-                    <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-amber-100 bg-amber-50/40 dark:border-amber-900/40 dark:bg-amber-950/20 hover:bg-amber-50/60 transition-colors cursor-pointer" data-testid={`task-bid-${bid.id}`}>
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <Gavel className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{bid.portName || `Tender #${bid.tenderId}`}</p>
-                          <p className="text-xs text-muted-foreground">Bid awaiting decision</p>
-                        </div>
-                      </div>
-                      <Badge className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 flex-shrink-0">Pending</Badge>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {/* 7-Day Performance Chart */}
-          <Card className="p-5 space-y-3" data-testid="card-performance-chart">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif font-semibold text-base flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-muted-foreground/60" /> Last 7 Days — Voyage Activity
-              </h2>
-              <Link href="/voyages">
-                <Button variant="ghost" size="sm" className="gap-1 text-xs h-7">
-                  All Voyages <ArrowRight className="w-3 h-3" />
-                </Button>
-              </Link>
-            </div>
-            {voyagesLoading ? (
-              <Skeleton className="h-32 w-full" />
-            ) : !hasChartData ? (
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                <p>No voyage activity in the last 7 days</p>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={130}>
-                <BarChart data={chartData} barSize={18} barGap={2}>
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={24} />
-                  <Tooltip
-                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--background))" }}
-                    cursor={{ fill: "hsl(var(--muted)/0.4)" }}
-                  />
-                  <Bar dataKey="completed" name="Completed" fill="hsl(142 71% 35%)" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="active" name="Active" fill="hsl(var(--maritime-primary) / 0.7)" radius={[3, 3, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </Card>
-
-          {/* Active Voyages */}
-          <Card className="p-5 space-y-3" data-testid="card-active-voyages">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif font-semibold text-base flex items-center gap-2">
-                <Anchor className="w-4 h-4 text-muted-foreground/60" /> Active Voyages
-                {activeVoyages.length > 0 && <Badge className="text-[10px]">{activeVoyages.length}</Badge>}
-              </h2>
-              <Link href="/voyages">
-                <Button variant="ghost" size="sm" className="gap-1 text-xs h-7">All <ArrowRight className="w-3 h-3" /></Button>
-              </Link>
-            </div>
-            {voyagesLoading ? (
-              <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
-            ) : activeVoyages.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">No active voyages</p>
-            ) : (
-              <div className="space-y-1.5">
-                {activeVoyages.slice(0, 5).map((v) => (
-                  <Link key={v.id} href={`/voyages/${v.id}`}>
-                    <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer" data-testid={`row-voyage-${v.id}`}>
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-7 h-7 rounded-md bg-[hsl(var(--maritime-primary)/0.08)] flex items-center justify-center flex-shrink-0">
-                          <Ship className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{v.vesselName || `Voyage #${v.id}`}</p>
-                          {v.eta && <p className="text-xs text-muted-foreground">ETA: {new Date(v.eta).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</p>}
-                        </div>
-                      </div>
-                      <Badge className={`text-[10px] flex-shrink-0 ${v.status === "in_progress" || v.status === "active" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"}`}>
-                        {v.status?.replace("_", " ")}
-                      </Badge>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </Card>
-
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
           {/* Incoming Tenders */}
           <Card className="p-5 space-y-3" data-testid="card-incoming-tenders">
             <div className="flex items-center justify-between">
               <h2 className="font-serif font-semibold text-base flex items-center gap-2">
-                <Gavel className="w-4 h-4 text-muted-foreground/60" /> Open Tenders in My Ports
+                <Gavel className="w-4 h-4 text-muted-foreground/60" /> Tenders in My Ports
               </h2>
               <Link href="/tenders">
                 <Button variant="ghost" size="sm" className="gap-1 text-xs h-7">
@@ -349,18 +149,30 @@ export function AgentDashboard({ user, tenders: tendersProp, myBidsData: myBidsD
                 </Button>
               </Link>
             </div>
+
             {openTenders.length === 0 ? (
-              <div className="text-center py-6">
-                <p className="text-sm text-muted-foreground">No open tenders in your ports</p>
+              <div className="text-center py-8 space-y-3">
+                <div className="w-12 h-12 rounded-xl bg-muted/60 flex items-center justify-center mx-auto">
+                  <Gavel className="w-5 h-5 text-muted-foreground/40" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">No open tenders in your ports</p>
+                  <p className="text-xs text-muted-foreground/70 mt-0.5">
+                    {servedPorts.length === 0
+                      ? "Add served ports to your profile to receive tender notifications"
+                      : "New tenders will appear here when shipowners post port call requests"
+                    }
+                  </p>
+                </div>
                 {servedPorts.length === 0 && (
                   <Link href="/company-profile">
-                    <Button variant="outline" size="sm" className="gap-1.5 mt-3">Add Served Ports</Button>
+                    <Button variant="outline" size="sm" className="gap-1.5">Add Served Ports</Button>
                   </Link>
                 )}
               </div>
             ) : (
               <div className="space-y-2">
-                {openTenders.slice(0, 5).map((t) => {
+                {openTenders.slice(0, 6).map((t) => {
                   const age = t.createdAt ? daysSince(t.createdAt) : 0;
                   const isUrgent = age >= 7;
                   return (
@@ -368,21 +180,68 @@ export function AgentDashboard({ user, tenders: tendersProp, myBidsData: myBidsD
                       <div className={`flex items-center justify-between gap-3 p-3 rounded-lg border transition-colors cursor-pointer group ${isUrgent ? "border-amber-200/60 bg-amber-50/30 dark:border-amber-800/40 dark:bg-amber-950/10 hover:bg-amber-50/50" : "border-transparent hover:bg-muted/50"}`}
                         data-testid={`row-tender-${t.id}`}>
                         <div className="flex items-center gap-3 min-w-0">
-                          <Gavel className={`w-3.5 h-3.5 flex-shrink-0 ${isUrgent ? "text-amber-600" : "text-[hsl(var(--maritime-primary))]"}`} />
+                          <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${isUrgent ? "bg-amber-100 dark:bg-amber-900/30" : "bg-[hsl(var(--maritime-primary)/0.08)]"}`}>
+                            <Gavel className={`w-3.5 h-3.5 ${isUrgent ? "text-amber-600" : "text-[hsl(var(--maritime-primary))]"}`} />
+                          </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{t.portName || `Port #${t.portId}`}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium truncate">{t.portName || `Port #${t.portId}`}</p>
+                              {isUrgent && <Badge className="text-[9px] px-1 py-0 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Urgent</Badge>}
+                            </div>
                             <p className="text-xs text-muted-foreground">{t.cargoType} · {age}d ago</p>
                           </div>
                         </div>
-                        <Link href={`/tenders/${t.id}`}>
-                          <Button size="sm" className="flex-shrink-0 h-7 text-xs gap-1 bg-[hsl(var(--maritime-primary))] text-white hover:bg-[hsl(var(--maritime-primary)/0.9)]">
-                            Bid
-                          </Button>
-                        </Link>
+                        <Button size="sm" className="flex-shrink-0 h-7 text-xs gap-1 bg-[hsl(var(--maritime-primary))] text-white hover:bg-[hsl(var(--maritime-primary)/0.9)]">
+                          Bid
+                        </Button>
                       </div>
                     </Link>
                   );
                 })}
+              </div>
+            )}
+          </Card>
+
+          {/* My Bids */}
+          <Card className="p-5 space-y-3" data-testid="card-my-bids">
+            <div className="flex items-center justify-between">
+              <h2 className="font-serif font-semibold text-base flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-muted-foreground/60" /> My Bids
+              </h2>
+              <div className="flex items-center gap-1.5">
+                <Badge className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{pendingBids.length} pending</Badge>
+                <Badge className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">{selectedBids.length} won</Badge>
+              </div>
+            </div>
+
+            {allBids.length === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-sm text-muted-foreground">No bids submitted yet</p>
+                <p className="text-xs text-muted-foreground/70 mt-0.5">Browse open tenders and submit your first bid</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {allBids.slice(0, 5).map((bid: any) => (
+                  <Link key={bid.id} href={`/tenders/${bid.tenderId}`}>
+                    <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer" data-testid={`row-bid-${bid.id}`}>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-7 h-7 rounded-md bg-[hsl(var(--maritime-secondary)/0.08)] flex items-center justify-center flex-shrink-0">
+                          <Anchor className="w-3.5 h-3.5 text-[hsl(var(--maritime-secondary))]" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{bid.portName || `Tender #${bid.tenderId}`}</p>
+                          <p className="text-xs text-muted-foreground">{bid.createdAt ? new Date(bid.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : ""}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {bid.totalUsd && <span className="text-sm font-bold text-[hsl(var(--maritime-primary))]">${bid.totalUsd?.toLocaleString()}</span>}
+                        <Badge className={`text-[10px] px-1.5 py-0 ${bid.status === "selected" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : bid.status === "pending" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" : "bg-muted text-muted-foreground"}`}>
+                          {bid.status}
+                        </Badge>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
               </div>
             )}
           </Card>
@@ -431,31 +290,6 @@ export function AgentDashboard({ user, tenders: tendersProp, myBidsData: myBidsD
             )}
           </Card>
 
-          {/* Expiring Certs Summary */}
-          {expiringCerts.length > 0 && (
-            <Link href="/vessel-certificates">
-              <Card className="p-4 space-y-2 cursor-pointer hover:shadow-md transition-all border-amber-200/60 dark:border-amber-800/40" data-testid="card-expiring-certs">
-                <h2 className="font-serif font-semibold text-sm flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-500" /> Expiring Certificates
-                </h2>
-                <div className="space-y-1.5">
-                  {expiringCerts.slice(0, 4).map((cert: any, i) => {
-                    const days = daysUntil(cert.expiryDate || cert.expiry_date);
-                    return (
-                      <div key={i} className="flex items-center justify-between gap-2 text-xs">
-                        <span className="truncate text-muted-foreground">{cert.certificateType || cert.certificate_type}</span>
-                        <span className={`font-semibold flex-shrink-0 ${days <= 7 ? "text-red-600" : "text-amber-600"}`}>{days}d</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                  View all <ArrowRight className="w-2.5 h-2.5" />
-                </p>
-              </Card>
-            </Link>
-          )}
-
           {/* Quick Actions */}
           <Card className="p-5 space-y-3">
             <h2 className="font-serif font-semibold text-sm flex items-center gap-2">
@@ -479,7 +313,10 @@ export function AgentDashboard({ user, tenders: tendersProp, myBidsData: myBidsD
         </div>
       </div>
 
-      <VerificationRequestDialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen} />
+      <VerificationRequestDialog
+        open={verifyDialogOpen}
+        onOpenChange={setVerifyDialogOpen}
+      />
     </div>
   );
 }

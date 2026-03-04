@@ -1,17 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Ship, FileText, Gavel, Bell, Plus, ArrowRight, Crown, Zap, Navigation, Users, Building2, Activity, AlertCircle, Package, DollarSign, Anchor, ShieldCheck } from "lucide-react";
+import { Ship, FileText, Gavel, Bell, Plus, ArrowRight, Crown, Zap, Navigation, Users, Building2, Activity } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import type { Vessel, Proforma } from "@shared/schema";
 
-function StatCard({ label, value, loading, icon: Icon, color, href, testId, sub }: {
+function StatCard({ label, value, loading, icon: Icon, color, href, testId }: {
   label: string; value: React.ReactNode; loading?: boolean;
   icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
-  color: string; href: string; testId: string; sub?: string;
+  color: string; href: string; testId: string;
 }) {
   return (
     <Link href={href}>
@@ -23,7 +21,6 @@ function StatCard({ label, value, loading, icon: Icon, color, href, testId, sub 
           <div className="space-y-1.5">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
             {loading ? <Skeleton className="h-8 w-12" /> : <p className="text-2xl font-bold font-serif">{value}</p>}
-            {sub && <p className="text-[10px] text-muted-foreground">{sub}</p>}
           </div>
           <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
             style={{ background: `hsl(${color} / 0.12)` }}>
@@ -38,12 +35,12 @@ function StatCard({ label, value, loading, icon: Icon, color, href, testId, sub 
   );
 }
 
-function SectionCard({ title, icon: Icon, href, linkLabel, children, testId }: {
+function SectionCard({ title, icon: Icon, href, linkLabel, children }: {
   title: string; icon?: React.ComponentType<{ className?: string }>;
-  href?: string; linkLabel?: string; children: React.ReactNode; testId?: string;
+  href?: string; linkLabel?: string; children: React.ReactNode;
 }) {
   return (
-    <Card className="p-5 space-y-3" data-testid={testId}>
+    <Card className="p-5 space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="font-serif font-semibold text-base flex items-center gap-2">
           {Icon && <Icon className="w-4 h-4 text-muted-foreground/60" />} {title}
@@ -61,71 +58,35 @@ function SectionCard({ title, icon: Icon, href, linkLabel, children, testId }: {
   );
 }
 
+function EmptyState({ icon: Icon, title, desc, cta, href }: {
+  icon: React.ComponentType<{ className?: string }>; title: string; desc: string; cta: string; href: string;
+}) {
+  return (
+    <div className="text-center py-8 space-y-3">
+      <div className="w-12 h-12 rounded-xl bg-muted/60 flex items-center justify-center mx-auto">
+        <Icon className="w-5 h-5 text-muted-foreground/40" />
+      </div>
+      <div>
+        <p className="text-sm font-medium text-muted-foreground">{title}</p>
+        <p className="text-xs text-muted-foreground/70 mt-0.5">{desc}</p>
+      </div>
+      <Link href={href}>
+        <Button variant="outline" size="sm" className="gap-1.5">{cta}</Button>
+      </Link>
+    </div>
+  );
+}
+
 const FLAG_EMOJI: Record<string, string> = {
   Turkey: "🇹🇷", Panama: "🇵🇦", "Marshall Islands": "🇲🇭", Liberia: "🇱🇷", Bahamas: "🇧🇸",
   Malta: "🇲🇹", Cyprus: "🇨🇾", Greece: "🇬🇷", Singapore: "🇸🇬",
 };
 
-function buildMonthlySpending(proformas: Proforma[]) {
-  const months: { month: string; total: number }[] = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(1);
-    d.setMonth(d.getMonth() - i);
-    const monthStr = d.toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
-    const monthProformas = proformas.filter((p) => {
-      const pDate = new Date(p.createdAt || "");
-      return pDate.getFullYear() === d.getFullYear() && pDate.getMonth() === d.getMonth();
-    });
-    const total = monthProformas.reduce((sum, p) => sum + (p.totalUsd || 0), 0);
-    months.push({ month: monthStr, total: Math.round(total) });
-  }
-  return months;
-}
-
-function daysUntil(dateStr: string) {
-  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-}
-
-export function ShipownerDashboard({ user, vessels: vesselsProp, vesselsLoading: vesselsLoadingProp, proformas: proformasProp, proformasLoading: proformasLoadingProp, tenders: tendersProp, notificationsData, plan: planProp, proformaCount: proformaCountProp, proformaLimit: proformaLimitProp }: {
-  user?: any; vessels?: Vessel[]; vesselsLoading?: boolean; proformas?: Proforma[];
-  proformasLoading?: boolean; tenders?: any[]; notificationsData?: any; plan?: string;
-  proformaCount?: number; proformaLimit?: number;
+export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, proformasLoading, tenders, notificationsData, plan, proformaCount, proformaLimit }: {
+  user: any; vessels?: Vessel[]; vesselsLoading?: boolean; proformas?: Proforma[];
+  proformasLoading?: boolean; tenders: any[]; notificationsData: any; plan: string;
+  proformaCount: number; proformaLimit: number;
 }) {
-  const { data: vesselsInternal = [], isLoading: vesselsLoadingInternal } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
-  const { data: proformasInternal = [], isLoading: proformasLoadingInternal } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"] });
-  const { data: tendersInternal = [] } = useQuery<any[]>({ queryKey: ["/api/tenders"] });
-
-  const vessels = vesselsProp ?? vesselsInternal;
-  const vesselsLoading = vesselsLoadingProp ?? vesselsLoadingInternal;
-  const proformas = proformasProp ?? proformasInternal;
-  const proformasLoading = proformasLoadingProp ?? proformasLoadingInternal;
-  const tenders = tendersProp ?? tendersInternal;
-  const plan = planProp ?? (user?.subscriptionPlan || user?.plan || "free");
-  const proformaCount = proformaCountProp ?? 0;
-  const proformaLimit = proformaLimitProp ?? (plan === "unlimited" ? Infinity : plan === "standard" ? 30 : 5);
-
-  const { data: voyages = [], isLoading: voyagesLoading } = useQuery<any[]>({
-    queryKey: ["/api/voyages"],
-  });
-
-  const { data: fixtures = [], isLoading: fixturesLoading } = useQuery<any[]>({
-    queryKey: ["/api/fixtures"],
-  });
-
-  const { data: expiringCerts = [] } = useQuery<any[]>({
-    queryKey: ["/api/certificates/expiring"],
-  });
-
-  const { data: complianceDash } = useQuery<any>({
-    queryKey: ["/api/compliance/dashboard"],
-    queryFn: () => fetch("/api/compliance/dashboard", { credentials: "include" }).then(r => r.json()),
-    staleTime: 60000,
-  });
-  const openFindings: any[] = Array.isArray(complianceDash?.openFindings) ? complianceDash.openFindings : [];
-  const upcomingComplianceAudits: any[] = Array.isArray(complianceDash?.upcomingAudits) ? complianceDash.upcomingAudits : [];
-  const nextAudit = upcomingComplianceAudits[0];
-
   const openTenders = tenders.filter((t) => t.status === "open");
   const recentProformas = proformas?.slice(0, 5) || [];
   const recentVessels = vessels?.slice(0, 5) || [];
@@ -136,101 +97,25 @@ export function ShipownerDashboard({ user, vessels: vesselsProp, vesselsLoading:
   const planIcons = { free: Zap, standard: Ship, unlimited: Crown };
   const PlanIcon = planIcons[plan as keyof typeof planIcons] || Zap;
 
-  // Fleet status from voyages
-  const inPortVessels = voyages.filter((v) => v.status === "completed" || v.status === "in_port").length;
-  const underwayVessels = voyages.filter((v) => v.status === "in_progress" || v.status === "active").length;
-  const scheduledVessels = voyages.filter((v) => v.status === "scheduled").length;
-
-  // Monthly spending from proformas
-  const spendingData = buildMonthlySpending(proformas || []);
-  const totalSpending = spendingData.reduce((s, d) => s + d.total, 0);
-  const hasSpendingData = spendingData.some((d) => d.total > 0);
-
-  const activeFixtures = fixtures.filter((f) => f.status === "active" || f.status === "open" || f.status === "signed");
-  const criticalCerts = expiringCerts.filter((c) => daysUntil(c.expiryDate || c.expiry_date) <= 14);
-
   const quickActions = [
     { href: "/proformas/new", icon: FileText, label: "New Proforma", desc: "Generate a proforma D/A", color: "var(--maritime-secondary)", testId: "qa-new-proforma" },
     { href: "/tenders", icon: Gavel, label: "Post a Tender", desc: "Request port call quotes from agents", color: "38 92% 50%", testId: "qa-new-tender" },
     { href: "/vessels?new=true", icon: Ship, label: "Add Vessel", desc: "Register a new ship to your fleet", color: "var(--maritime-primary)", testId: "qa-add-vessel" },
     { href: "/directory", icon: Users, label: "Find an Agent", desc: "Browse maritime service directory", color: "var(--maritime-accent)", testId: "qa-find-agent" },
     { href: "/vessel-track", icon: Navigation, label: "Fleet Tracker", desc: "View live vessel positions on map", color: "217 91% 40%", testId: "qa-vessel-track" },
-    { href: "/fixtures", icon: Package, label: "Fixtures", desc: "Manage charter negotiations", color: "142 71% 30%", testId: "qa-fixtures" },
   ];
 
   return (
-    <div className="space-y-5">
-      {/* Expiring Certificates */}
-      {criticalCerts.length > 0 && (
-        <Link href="/vessel-certificates">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-lg border bg-red-50 dark:bg-red-950/30 border-red-200/70 dark:border-red-800/50 cursor-pointer hover:opacity-90 transition-opacity" data-testid="banner-expiring-certs">
-            <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-red-800 dark:text-red-300">{criticalCerts.length} certificate{criticalCerts.length !== 1 ? "s" : ""} expiring within 14 days</p>
-              <p className="text-xs text-muted-foreground">Click to manage vessel certificates</p>
-            </div>
-            <ArrowRight className="w-4 h-4 text-muted-foreground/60 flex-shrink-0" />
-          </div>
-        </Link>
-      )}
-
+    <div className="space-y-6">
       {/* Stat bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="My Fleet" value={vessels?.length ?? 0} loading={vesselsLoading} icon={Ship} color="var(--maritime-primary)" href="/vessels" testId="stat-fleet" />
         <StatCard label="Proformas" value={proformas?.length ?? 0} loading={proformasLoading} icon={FileText} color="var(--maritime-secondary)" href="/proformas" testId="stat-proformas" />
         <StatCard label="Open Tenders" value={openTenders.length} icon={Gavel} color="38 92% 50%" href="/tenders" testId="stat-tenders" />
-        <StatCard label="Active Fixtures" value={activeFixtures.length} loading={fixturesLoading} icon={Package} color="142 71% 30%" href="/fixtures" testId="stat-fixtures" />
+        <StatCard label="Notifications" value={unread} icon={Bell} color="var(--maritime-accent)" href="/forum" testId="stat-notifications" />
       </div>
 
-      {/* Compliance widget — only shown when there's something actionable */}
-      {(openFindings.length > 0 || nextAudit) && (
-        <Link href="/compliance">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-lg border bg-blue-50 dark:bg-blue-950/30 border-blue-200/70 dark:border-blue-800/50 cursor-pointer hover:opacity-90 transition-opacity" data-testid="banner-compliance">
-            <ShieldCheck className="w-4 h-4 text-blue-600 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
-                {openFindings.length > 0 && `${openFindings.length} open finding${openFindings.length !== 1 ? "s" : ""}`}
-                {openFindings.length > 0 && nextAudit && " · "}
-                {nextAudit && (() => {
-                  const days = Math.ceil((new Date(nextAudit.next_audit_date).getTime() - Date.now()) / 86400000);
-                  return `${nextAudit.standard_code} audit in ${days} day${days !== 1 ? "s" : ""}`;
-                })()}
-              </p>
-              <p className="text-xs text-muted-foreground">Click to manage compliance checklists</p>
-            </div>
-            <ArrowRight className="w-4 h-4 text-muted-foreground/60 flex-shrink-0" />
-          </div>
-        </Link>
-      )}
-
-      {/* Fleet Status Cards */}
-      {!voyagesLoading && (
-        <div className="grid grid-cols-3 gap-3">
-          <Link href="/voyages">
-            <Card className="p-3 text-center hover:shadow-sm transition-all cursor-pointer border-emerald-200/50 dark:border-emerald-800/30" data-testid="fleet-status-inport">
-              <p className="text-xl font-bold font-serif text-emerald-600">{inPortVessels}</p>
-              <p className="text-[11px] text-muted-foreground font-medium mt-0.5">In Port</p>
-              <div className="w-2 h-2 rounded-full bg-emerald-500 mx-auto mt-1.5" />
-            </Card>
-          </Link>
-          <Link href="/voyages">
-            <Card className="p-3 text-center hover:shadow-sm transition-all cursor-pointer border-blue-200/50 dark:border-blue-800/30" data-testid="fleet-status-underway">
-              <p className="text-xl font-bold font-serif text-blue-600">{underwayVessels}</p>
-              <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Underway</p>
-              <div className="w-2 h-2 rounded-full bg-blue-500 mx-auto mt-1.5" />
-            </Card>
-          </Link>
-          <Link href="/voyages">
-            <Card className="p-3 text-center hover:shadow-sm transition-all cursor-pointer border-slate-200/50 dark:border-slate-700/30" data-testid="fleet-status-scheduled">
-              <p className="text-xl font-bold font-serif text-slate-600 dark:text-slate-400">{scheduledVessels}</p>
-              <p className="text-[11px] text-muted-foreground font-medium mt-0.5">Scheduled</p>
-              <div className="w-2 h-2 rounded-full bg-slate-400 mx-auto mt-1.5" />
-            </Card>
-          </Link>
-        </div>
-      )}
-
-      {/* Subscription */}
+      {/* Subscription + Plan Usage */}
       <Card className="p-4 border-[hsl(var(--maritime-primary)/0.2)]" data-testid="card-subscription">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -266,61 +151,15 @@ export function ShipownerDashboard({ user, vessels: vesselsProp, vesselsLoading:
       </Card>
 
       {/* Main content grid */}
-      <div className="grid lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 space-y-5">
-          {/* Monthly Spending Chart */}
-          <Card className="p-5 space-y-3" data-testid="card-spending-chart">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif font-semibold text-base flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-muted-foreground/60" /> 6-Month Spending
-              </h2>
-              {totalSpending > 0 && (
-                <span className="text-xs text-muted-foreground">${totalSpending.toLocaleString()} total</span>
-              )}
-            </div>
-            {proformasLoading ? (
-              <Skeleton className="h-32 w-full" />
-            ) : !hasSpendingData ? (
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                <p>No proforma spending data yet</p>
-                <Link href="/proformas/new">
-                  <Button variant="outline" size="sm" className="gap-1.5 mt-3">Create First Proforma</Button>
-                </Link>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={130}>
-                <AreaChart data={spendingData}>
-                  <defs>
-                    <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--maritime-primary))" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(var(--maritime-primary))" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={40}
-                    tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
-                  <Tooltip
-                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--background))" }}
-                    formatter={(v: any) => [`$${Number(v).toLocaleString()}`, "Spending"]}
-                    cursor={{ stroke: "hsl(var(--maritime-primary)/0.3)", strokeWidth: 1 }}
-                  />
-                  <Area type="monotone" dataKey="total" name="Spending (USD)" stroke="hsl(var(--maritime-primary))" strokeWidth={2} fill="url(#spendGrad)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </Card>
-
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Left col: Fleet + Tenders */}
+        <div className="lg:col-span-2 space-y-6">
           {/* Fleet Summary */}
-          <SectionCard title="My Fleet" icon={Ship} href="/vessels" linkLabel="Manage Fleet" testId="card-fleet">
+          <SectionCard title="My Fleet" icon={Ship} href="/vessels" linkLabel="Manage Fleet">
             {vesselsLoading ? (
               <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}</div>
             ) : recentVessels.length === 0 ? (
-              <div className="text-center py-6">
-                <p className="text-sm text-muted-foreground">No vessels yet</p>
-                <Link href="/vessels?new=true">
-                  <Button variant="outline" size="sm" className="gap-1.5 mt-3">Add First Vessel</Button>
-                </Link>
-              </div>
+              <EmptyState icon={Ship} title="No vessels yet" desc="Add your first vessel to start managing your fleet" cta="Add First Vessel" href="/vessels?new=true" />
             ) : (
               <div className="space-y-1.5">
                 {recentVessels.map((v) => (
@@ -348,52 +187,43 @@ export function ShipownerDashboard({ user, vessels: vesselsProp, vesselsLoading:
             )}
           </SectionCard>
 
-          {/* Active Fixtures */}
-          <SectionCard title="Active Fixtures" icon={Package} href="/fixtures" linkLabel="All Fixtures" testId="card-fixtures">
-            {fixturesLoading ? (
-              <div className="space-y-2">{[1,2].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
-            ) : activeFixtures.length === 0 ? (
-              <div className="text-center py-4">
-                <p className="text-sm text-muted-foreground">No active fixtures</p>
-                <Link href="/fixtures">
-                  <Button variant="outline" size="sm" className="gap-1.5 mt-3">Create Fixture</Button>
-                </Link>
-              </div>
+          {/* Active Tenders */}
+          <SectionCard title="My Tenders" icon={Gavel} href="/tenders" linkLabel="All Tenders">
+            {openTenders.length === 0 ? (
+              <EmptyState icon={Gavel} title="No active tenders" desc="Post a tender to receive quotes from agents in your ports" cta="Post First Tender" href="/tenders" />
             ) : (
               <div className="space-y-1.5">
-                {activeFixtures.slice(0, 5).map((f) => (
-                  <Link key={f.id} href="/fixtures">
-                    <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer" data-testid={`row-fixture-${f.id}`}>
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-7 h-7 rounded-md bg-[hsl(var(--maritime-accent)/0.1)] flex items-center justify-center flex-shrink-0">
-                          <Package className="w-3.5 h-3.5 text-[hsl(var(--maritime-accent))]" />
+                {openTenders.slice(0, 5).map((t) => {
+                  const bidCount = t.bidCount ?? 0;
+                  return (
+                    <Link key={t.id} href={`/tenders/${t.id}`}>
+                      <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group" data-testid={`row-tender-${t.id}`}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-7 h-7 rounded-md bg-amber-50 dark:bg-amber-950/30 flex items-center justify-center flex-shrink-0">
+                            <Gavel className="w-3.5 h-3.5 text-amber-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{t.portName || `Port #${t.portId}`}</p>
+                            <p className="text-xs text-muted-foreground">{t.cargoType} · {new Date(t.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{f.vesselName || `Fixture #${f.id}`}</p>
-                          <p className="text-xs text-muted-foreground truncate">{f.cargoType || "—"}</p>
-                        </div>
+                        <Badge className={`text-[10px] flex-shrink-0 ${bidCount > 0 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+                          {bidCount} bid{bidCount !== 1 ? "s" : ""}
+                        </Badge>
                       </div>
-                      <Badge className="text-[10px] flex-shrink-0 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                        {f.status}
-                      </Badge>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </SectionCard>
 
           {/* Recent Proformas */}
-          <SectionCard title="Recent Proformas" icon={FileText} href="/proformas" linkLabel="View All" testId="card-proformas">
+          <SectionCard title="Recent Proformas" icon={FileText} href="/proformas" linkLabel="View All">
             {proformasLoading ? (
               <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}</div>
             ) : recentProformas.length === 0 ? (
-              <div className="text-center py-4">
-                <p className="text-sm text-muted-foreground">No proformas yet</p>
-                <Link href="/proformas/new">
-                  <Button variant="outline" size="sm" className="gap-1.5 mt-3">Create Proforma</Button>
-                </Link>
-              </div>
+              <EmptyState icon={FileText} title="No proformas yet" desc="Generate your first proforma disbursement account" cta="Create Proforma" href="/proformas/new" />
             ) : (
               <div className="space-y-1.5">
                 {recentProformas.map((pda) => (
@@ -420,40 +250,8 @@ export function ShipownerDashboard({ user, vessels: vesselsProp, vesselsLoading:
           </SectionCard>
         </div>
 
-        {/* Right col */}
-        <div className="space-y-5">
-          {/* Active Tenders */}
-          <SectionCard title="My Tenders" icon={Gavel} href="/tenders" linkLabel="All" testId="card-tenders">
-            {openTenders.length === 0 ? (
-              <div className="text-center py-4">
-                <p className="text-sm text-muted-foreground">No active tenders</p>
-                <Link href="/tenders">
-                  <Button variant="outline" size="sm" className="gap-1.5 mt-3">Post Tender</Button>
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {openTenders.slice(0, 4).map((t) => {
-                  const bidCount = t.bidCount ?? 0;
-                  return (
-                    <Link key={t.id} href={`/tenders/${t.id}`}>
-                      <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group" data-testid={`row-tender-${t.id}`}>
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Gavel className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                          <p className="text-sm font-medium truncate">{t.portName || `Port #${t.portId}`}</p>
-                        </div>
-                        <Badge className={`text-[10px] flex-shrink-0 ${bidCount > 0 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
-                          {bidCount} bid{bidCount !== 1 ? "s" : ""}
-                        </Badge>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </SectionCard>
-
-          {/* Quick Actions */}
+        {/* Right col: Quick Actions */}
+        <div>
           <SectionCard title="Quick Actions" icon={Activity}>
             <div className="space-y-1.5">
               {quickActions.map((action) => (

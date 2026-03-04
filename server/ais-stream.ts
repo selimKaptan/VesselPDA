@@ -1,6 +1,5 @@
 import WebSocket from "ws";
 import { pool } from "./db";
-import { config } from "./config";
 
 export interface VesselPosition {
   mmsi: string;
@@ -281,7 +280,7 @@ function connect(apiKey: string) {
 }
 
 export function startAISStream() {
-  const apiKey = config.AIS_STREAM_API_KEY;
+  const apiKey = process.env.AIS_STREAM_API_KEY;
 
   // Load watchlisted MMSIs and keep them refreshed every 5 min
   refreshWatchlist();

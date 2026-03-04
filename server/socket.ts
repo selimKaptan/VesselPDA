@@ -32,41 +32,7 @@ export function initSocket(httpServer: HttpServer): SocketServer {
       if (convId) socket.leave(`conv:${convId}`);
     });
 
-    socket.on("join_org", (orgId: number | string) => {
-      if (orgId) socket.join(`org:${orgId}`);
-    });
-
-    socket.on("leave_org", (orgId: number | string) => {
-      if (orgId) socket.leave(`org:${orgId}`);
-    });
-
-    socket.on("join_channel", (channelId: number | string) => {
-      if (channelId) socket.join(`channel:${channelId}`);
-    });
-
-    socket.on("leave_channel", (channelId: number | string) => {
-      if (channelId) socket.leave(`channel:${channelId}`);
-    });
-
-    const typingTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
-    socket.on("team_typing", (data: { channelId: number | string; userId: string; userName: string }) => {
-      const key = `${data.channelId}:${data.userId}`;
-      socket.to(`channel:${data.channelId}`).emit("team_typing", data);
-      const existing = typingTimers.get(key);
-      if (existing) clearTimeout(existing);
-      typingTimers.set(
-        key,
-        setTimeout(() => {
-          socket.to(`channel:${data.channelId}`).emit("team_typing_stop", data);
-          typingTimers.delete(key);
-        }, 3000)
-      );
-    });
-
-    socket.on("disconnect", () => {
-      typingTimers.forEach((t) => clearTimeout(t));
-      typingTimers.clear();
-    });
+    socket.on("disconnect", () => {});
   });
 
   return io;
@@ -80,11 +46,6 @@ export function emitToUser(userId: string, event: string, data: unknown): void {
 export function emitToConversation(convId: number | string, event: string, data: unknown): void {
   if (!io) return;
   io.to(`conv:${convId}`).emit(event, data);
-}
-
-export function emitToChannel(channelId: number | string, event: string, data: unknown): void {
-  if (!io) return;
-  io.to(`channel:${channelId}`).emit(event, data);
 }
 
 export function getSocketServer(): SocketServer | null {

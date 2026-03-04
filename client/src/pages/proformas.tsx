@@ -1,6 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign, Zap, Loader2, Calculator, Ship, Anchor, Globe, Package, AlertTriangle, X } from "lucide-react";
-import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useSidebar } from "@/components/ui/sidebar";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -29,11 +29,12 @@ export default function Proformas() {
   const [vesselFilter, setVesselFilter] = useState("all");
   const { toast } = useToast();
   const { user } = useAuth();
+  const { open: sidebarOpen } = useSidebar();
 
   const userRole = (user as any)?.userRole;
   const activeRole = (user as any)?.activeRole;
   const effectiveRole = userRole === "admin" ? (activeRole || "shipowner") : userRole;
-  const isAgent = effectiveRole === "ship_agent" || effectiveRole === "agent";
+  const isAgent = effectiveRole === "agent";
 
   const [showQuickDialog, setShowQuickDialog] = useState(false);
   const [quickVesselId, setQuickVesselId] = useState<string>("");
@@ -87,28 +88,8 @@ export default function Proformas() {
     { value: "ammonia",    label: "🧪 Ammonia",                                 unit: "MT",    isDangerous: true,  examples: "Anhydrous ammonia, aqueous ammonia" },
   ];
 
-  const [proformaPage, setProformaPage] = useState(1);
-  const [proformaPageSize, setProformaPageSize] = useState(20);
-
-  const { data: proformasRes, isLoading } = useQuery<{ data: Proforma[]; pagination: any }>({
-    queryKey: ["/api/proformas", proformaPage, proformaPageSize, searchTerm, statusFilter],
-    queryFn: () => {
-      const params = new URLSearchParams();
-      params.set("page", String(proformaPage));
-      params.set("limit", String(proformaPageSize));
-      if (searchTerm) params.set("search", searchTerm);
-      if (statusFilter !== "all") params.set("status", statusFilter);
-      return fetch(`/api/proformas?${params}`, { credentials: "include" }).then(r => r.json());
-    },
-  });
-  const proformas = proformasRes?.data ?? [];
-  const proformasPagination = proformasRes?.pagination;
-
-  const { data: vesselsRes } = useQuery<{ data: Vessel[]; pagination: any }>({
-    queryKey: ["/api/vessels", "all"],
-    queryFn: () => fetch("/api/vessels?limit=500", { credentials: "include" }).then(r => r.json()),
-  });
-  const vessels = vesselsRes?.data ?? [];
+  const { data: proformas, isLoading } = useQuery<Proforma[]>({ queryKey: ["/api/proformas"] });
+  const { data: vessels } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
   const { data: turkishPorts } = useQuery<Port[]>({ queryKey: ["/api/ports?country=Turkey"], enabled: showQuickDialog });
 
   const selectedVessel = vessels?.find(v => String(v.id) === quickVesselId);
@@ -187,13 +168,20 @@ export default function Proformas() {
 
   const finalDaMutation = useMutation({
     mutationFn: async (pda: Proforma) => {
-      const res = await apiRequest("POST", `/api/final-da/from-proforma/${pda.id}`, {});
+      const res = await apiRequest("POST", "/api/invoices", {
+        title: `${pda.referenceNumber} Final DA`,
+        invoiceType: "final_da",
+        amount: (pda as any).totalUsd || 0,
+        currency: "USD",
+        linkedProformaId: pda.id,
+        notes: `Auto-generated from Proforma DA ${pda.referenceNumber}.`,
+      });
       return res.json();
     },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/final-da"] });
-      toast({ title: "Final DA created", description: `${data.reference_number} — opening editor` });
-      navigate(`/final-da/${data.id}`);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      toast({ title: "Final DA created", description: "Redirecting to Financial Flow page" });
+      navigate("/invoices");
     },
     onError: () => toast({ title: "Error", description: "Failed to create Final DA", variant: "destructive" }),
   });
@@ -319,10 +307,14 @@ export default function Proformas() {
     },
   });
 
-  useEffect(() => { setProformaPage(1); }, [searchTerm, statusFilter, vesselFilter]);
-
   const filteredProformas = (proformas || []).filter((p) => {
-    return vesselFilter === "all" || String(p.vesselId) === vesselFilter;
+    const matchesSearch =
+      p.referenceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.toCompany || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.cargoType || "").toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === "all" || p.status === statusFilter;
+    const matchesVessel = vesselFilter === "all" || String(p.vesselId) === vesselFilter;
+    return matchesSearch && matchesStatus && matchesVessel;
   });
 
   const statusBadge: Record<string, "secondary" | "default" | "outline"> = {
@@ -402,7 +394,6 @@ export default function Proformas() {
           {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
         </div>
       ) : filteredProformas.length > 0 ? (
-        <>
         <Card>
           <Table>
             <TableHeader>
@@ -475,14 +466,6 @@ export default function Proformas() {
             </TableBody>
           </Table>
         </Card>
-        {proformasPagination && (
-          <PaginationControls
-            pagination={proformasPagination}
-            onPageChange={setProformaPage}
-            onPageSizeChange={(s) => { setProformaPageSize(s); setProformaPage(1); }}
-          />
-        )}
-        </>
       ) : (
         <Card className="p-12 text-center space-y-4">
           <FileText className="w-16 h-16 text-muted-foreground/20 mx-auto" />
@@ -650,12 +633,12 @@ export default function Proformas() {
         <>
           <div
             className="fixed inset-y-0 right-0 z-40 bg-black/60"
-            style={{ left: 'var(--app-side-panel-width, 0px)' }}
+            style={{ left: sidebarOpen ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)' }}
             onClick={() => setShowQuickDialog(false)}
           />
           <div
             className="fixed inset-y-0 right-0 z-50 flex flex-col bg-background border-l shadow-2xl overflow-hidden"
-            style={{ left: 'var(--app-side-panel-width, 0px)' }}
+            style={{ left: sidebarOpen ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)' }}
             data-testid="dialog-quick-proforma"
           >
             <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b bg-background">

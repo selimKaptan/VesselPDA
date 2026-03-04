@@ -290,19 +290,12 @@ export default function Voyages() {
                   <div className="space-y-1.5 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1.5">
                       <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                      {v.voyageType === "multi" && v.loadPort ? (
-                        <span className="truncate font-medium text-foreground/80">{v.loadPort}</span>
-                      ) : (
-                        <span className="truncate">{v.portName || `Port #${v.portId}`}</span>
-                      )}
-                      {v.voyageType === "multi" && (
-                        <span className="ml-auto flex-shrink-0 text-[9px] bg-[hsl(var(--maritime-primary)/0.1)] text-[hsl(var(--maritime-primary))] px-1.5 py-0.5 rounded-full font-semibold">MULTI</span>
-                      )}
+                      <span className="truncate">{v.portName || `Port #${v.portId}`}</span>
                     </div>
                     {v.eta && (
                       <div className="flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span>ETA: {new Date(v.eta).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                        <span>ETA: {new Date(v.eta).toLocaleDateString("tr-TR")}</span>
                       </div>
                     )}
                     {v.imoNumber && (

@@ -274,10 +274,9 @@ export default function Landing() {
                     <ArrowRight className="w-4 h-4" />
                   </Button>
                 </a>
-                <a href="/demo">
-                  <Button variant="outline" size="lg" className="gap-2 border-border/80 hover:border-[hsl(var(--maritime-primary)/0.4)]" data-testid="button-watch-demo">
-                    <Activity className="w-4 h-4" />
-                    Watch Demo
+                <a href="#features">
+                  <Button variant="outline" size="lg" className="gap-2 border-border/80 hover:border-[hsl(var(--maritime-primary)/0.4)]" data-testid="button-learn-more">
+                    See Features
                   </Button>
                 </a>
               </div>

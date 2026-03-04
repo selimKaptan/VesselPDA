@@ -1,17 +1,11 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { createDemoSession, getDemoSession, updateDemoRole, deleteDemoSession, type DemoRole, VALID_DEMO_ROLES } from "./demo-session";
-import { authLimiter, generalLimiter, aiLimiter, uploadLimiter, searchLimiter } from "./middleware/rate-limit";
-import { validateBody, validateQuery, validateParams, integerIdParam } from "./middleware/validate";
-import { sanitizeInput, sanitizeFilename } from "./utils/sanitize";
 import path from "path";
 import fs from "fs";
 import multer from "multer";
-import { z } from "zod";
 import { sendNominationEmail, sendNominationResponseEmail, sendContactEmail, sendBidReceivedEmail, sendBidSelectedEmail, sendNewTenderEmail, sendForumReplyEmail, sendProformaEmail } from "./email";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated, registerAuthRoutes, authStorage, requireRole } from "./replit_integrations/auth";
-import { insertVesselSchema } from "@shared/schema";
+import { setupAuth, isAuthenticated, registerAuthRoutes, authStorage } from "./replit_integrations/auth";
 import type { ProformaLineItem } from "@shared/schema";
 import { calculateProforma, type CalculationInput } from "./proforma-calculator";
 import { lookupPilotageFee, lookupTugboatFee, lookupMooringFee, lookupBerthingFee, lookupAgencyFee, lookupMarpolFee, lookupLcbFee, lookupSanitaryDuesFee, lookupChamberFreightShareFee, lookupChamberShippingFee, lookupLightDuesFee, lookupMiscExpenses, lookupSupervisionFee, type VesselCategory } from "./tariff-lookup";
@@ -23,9 +17,6 @@ import { sql as drizzleSql } from "drizzle-orm";
 import { handleAiChat } from "./anthropic";
 import { getOrFetchRates, fetchTCMBRates } from "./exchange-rates";
 import { logAction, getClientIp } from "./audit";
-import { cache } from "./cache";
-import { attachOrgContext } from "./middleware/org-context";
-import { logOrgActivity } from "./utils/orgActivity";
 
 const uploadsDir = path.join(process.cwd(), "uploads", "logos");
 if (!fs.existsSync(uploadsDir)) {
@@ -55,82 +46,9 @@ const uploadLogo = multer({
   },
 });
 
-const ALLOWED_FILE_EXTENSIONS = new Set([".pdf", ".doc", ".docx", ".xls", ".xlsx", ".png", ".jpg", ".jpeg", ".svg", ".webp"]);
-const ALLOWED_MIME_TYPES = new Set([
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "image/png", "image/jpeg", "image/jpg", "image/svg+xml", "image/webp",
-]);
-
 const fileUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (ALLOWED_FILE_EXTENSIONS.has(ext) && ALLOWED_MIME_TYPES.has(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error(`File type not allowed. Accepted: PDF, DOC, DOCX, XLS, XLSX, PNG, JPG, JPEG`));
-    }
-  },
-});
-
-// ── Request Body Validation Schemas ──────────────────────────────────────────
-
-const vesselBodySchema = (insertVesselSchema as any).omit({ userId: true }).extend({
-  name: z.string().min(1).max(200),
-  flag: z.string().min(1).max(100),
-  vesselType: z.string().min(1).max(100),
-  grt: z.coerce.number().positive(),
-  nrt: z.coerce.number().positive(),
-  dwt: z.coerce.number().positive().optional().nullable(),
-  loa: z.coerce.number().positive().optional().nullable(),
-  beam: z.coerce.number().positive().optional().nullable(),
-  draft: z.coerce.number().positive().optional().nullable(),
-  yearBuilt: z.coerce.number().int().min(1900).max(new Date().getFullYear() + 1).optional().nullable(),
-});
-
-const tenderBodySchema = z.object({
-  portId: z.coerce.number().int().positive(),
-  vesselName: z.string().min(1).max(200),
-  flag: z.string().min(1).max(100),
-  grt: z.coerce.number().positive(),
-  nrt: z.coerce.number().positive(),
-  cargoType: z.string().min(1).max(100),
-  cargoQuantity: z.string().min(1).max(50),
-  previousPort: z.string().min(1).max(200),
-  expiryHours: z.coerce.number().refine(v => [24, 48].includes(v), "Must be 24 or 48"),
-  description: z.string().max(2000).optional().nullable(),
-  cargoInfo: z.string().max(2000).optional().nullable(),
-  q88Base64: z.string().optional().nullable(),
-});
-
-const bidBodySchema = z.object({
-  totalAmount: z.coerce.number().positive().optional().nullable(),
-  currency: z.string().length(3).default("USD"),
-  notes: z.string().max(2000).optional().nullable(),
-  lineItems: z.array(z.any()).optional(),
-});
-
-const forumTopicBodySchema = z.object({
-  title: z.string().min(3, "Title must be at least 3 characters").max(300),
-  content: z.string().min(10, "Content must be at least 10 characters").max(20000),
-  categoryId: z.coerce.number().int().positive(),
-  isAnonymous: z.boolean().optional().default(false),
-});
-
-const forumReplyBodySchema = z.object({
-  content: z.string().min(1, "Reply cannot be empty").max(10000),
-});
-
-const contactBodySchema = z.object({
-  name: z.string().min(1).max(200),
-  email: z.string().email(),
-  subject: z.string().min(1).max(300),
-  message: z.string().min(1).max(5000),
+  limits: { fileSize: 20 * 1024 * 1024 },
 });
 
 export async function registerRoutes(
@@ -138,63 +56,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   await setupAuth(app);
-
-  // ── Rate Limiting ──────────────────────────────────────────────────────────
-  // MUST be applied after setupAuth() (so session/passport middleware is on
-  // the stack and req.user is populated by the time skip functions run) but
-  // BEFORE registerAuthRoutes() and all other route registrations, so that
-  // rate limiters sit in front of every route handler in the middleware stack.
-  app.use("/api/auth", authLimiter);           // 5 req/min — brute force guard
-  app.use("/api/ai", aiLimiter);               // 10 req/min — costly AI calls
-  app.use("/api/files", uploadLimiter);        // 20 req/min — file storage abuse
-  app.use("/api/search", searchLimiter);       // 30 req/min — search/enumeration guard
-  app.use("/api/vessel-track/search", searchLimiter);  // vessel search
-  app.use("/api/vessels/lookup", searchLimiter);       // IMO lookup
-  app.use("/api", generalLimiter);             // 100 req/min — baseline for all API routes
-
-  // ── Role-based access guards (applied before route handlers) ──────────────
-  app.use("/api/admin", isAuthenticated, requireRole("admin"));
-  app.use("/api/fixtures", isAuthenticated, requireRole("shipowner", "ship_broker", "admin"));
-  app.use("/api/cargo-positions", isAuthenticated, requireRole("shipowner", "ship_broker", "admin"));
-
   registerAuthRoutes(app);
-
-  // ── Organization routes ──────────────────────────────────────────────────
-  const { default: organizationRouter } = await import("./routes/organizations");
-  app.use("/api/organizations", organizationRouter);
-
-  // ── Team Chat routes ──────────────────────────────────────────────────────
-  const { default: teamChatRouter } = await import("./routes/team-chat");
-  app.use("/api/organizations", teamChatRouter);
-
-  app.patch("/api/team-messages/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const id = parseInt(req.params.id);
-      const { content } = req.body;
-      if (!content?.trim()) return res.status(400).json({ message: "content required" });
-      const { rows } = await pool.query(
-        "UPDATE team_messages SET content = $1, is_edited = TRUE WHERE id = $2 AND sender_id = $3 RETURNING *",
-        [content.trim(), id, userId]
-      );
-      if (!rows.length) return res.status(404).json({ message: "Not found or not your message" });
-      res.json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed to edit message" }); }
-  });
-
-  app.delete("/api/team-messages/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const id = parseInt(req.params.id);
-      const { rows } = await pool.query(
-        "DELETE FROM team_messages WHERE id = $1 AND sender_id = $2 RETURNING id",
-        [id, userId]
-      );
-      if (!rows.length) return res.status(404).json({ message: "Not found or not your message" });
-      res.json({ message: "Deleted" });
-    } catch { res.status(500).json({ message: "Failed to delete message" }); }
-  });
-
   startAISStream();
 
   authStorage.markExistingUsersVerified().catch((err) =>
@@ -212,11 +74,10 @@ export async function registerRoutes(
       const folder = (req.query.folder as string) || "documents";
       const allowedFolders = ["documents", "certificates", "crew"];
       const safeFolder = allowedFolders.includes(folder) ? folder : "documents";
-      const safeName = sanitizeFilename(req.file.originalname);
-      const url = uploadFile(req.file.buffer, safeName, safeFolder);
+      const url = uploadFile(req.file.buffer, req.file.originalname, safeFolder);
       res.json({
         url,
-        fileName: safeName,
+        fileName: req.file.originalname,
         fileSize: req.file.size,
       });
     } catch (e: any) {
@@ -231,61 +92,43 @@ export async function registerRoutes(
     return user?.userRole === "admin";
   }
 
-  // Helper: get a single notification preference field for a user (returns DB default if no row)
-  const NOTIF_DEFAULTS: Record<string, boolean> = {
-    email_on_new_tender: true,
-    email_on_bid_received: true,
-    email_on_nomination: true,
-    email_on_message: false,
-    email_on_forum_reply: false,
-    email_on_certificate_expiry: true,
-    email_on_voyage_update: true,
-    push_enabled: true,
-    daily_digest: false,
-  };
-  async function getNotifPref(userId: string, field: string): Promise<boolean> {
-    try {
-      const r = await pool.query(
-        `SELECT ${field} FROM notification_preferences WHERE user_id = $1`,
-        [userId]
-      );
-      if (r.rows.length === 0) return NOTIF_DEFAULTS[field] ?? true;
-      return r.rows[0][field];
-    } catch {
-      return NOTIF_DEFAULTS[field] ?? true;
-    }
-  }
-
-  app.get("/api/vessels", isAuthenticated, attachOrgContext, async (req: any, res) => {
+  app.get("/api/vessels", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       if (await isAdmin(req)) {
         const vessels = await storage.getAllVessels();
         return res.json(vessels);
       }
-      const vessels = await storage.getVesselsByUser(userId, req.organizationId);
+      const vessels = await storage.getVesselsByUser(userId);
       res.json(vessels);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch vessels" });
     }
   });
 
-  app.post("/api/vessels", isAuthenticated, attachOrgContext, validateBody(vesselBodySchema), async (req: any, res) => {
+  app.post("/api/vessels", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const vessel = await storage.createVessel({ ...req.body, userId, organizationId: req.organizationId ?? null });
-      if (req.organizationId) {
-        const { rows } = await pool.query("SELECT first_name, last_name FROM users WHERE id = $1", [userId]);
-        const name = `${rows[0]?.first_name || ""} ${rows[0]?.last_name || ""}`.trim() || "A user";
-        logOrgActivity({ organizationId: req.organizationId, userId, action: "created_vessel", entityType: "vessel", entityId: vessel.id, description: `${name} added vessel ${vessel.name}` });
+      const { name, flag, vesselType, grt, nrt } = req.body;
+      if (!name || !flag || !vesselType || !grt || !nrt) {
+        return res.status(400).json({ message: "name, flag, vesselType, grt, and nrt are required" });
       }
+      const vessel = await storage.createVessel({
+        ...req.body,
+        userId,
+        grt: Number(grt),
+        nrt: Number(nrt),
+        dwt: req.body.dwt ? Number(req.body.dwt) : null,
+        loa: req.body.loa ? Number(req.body.loa) : null,
+        beam: req.body.beam ? Number(req.body.beam) : null,
+      });
       res.json(vessel);
     } catch (error) {
       res.status(500).json({ message: "Failed to create vessel" });
     }
   });
 
-  app.patch("/api/vessels/:id", isAuthenticated, validateBody(vesselBodySchema.partial()), async (req: any, res) => {
+  app.patch("/api/vessels/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const id = parseInt(req.params.id);
@@ -316,25 +159,26 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/ports", async (req: any, res) => {
+  app.get("/api/ports", async (req, res) => {
     try {
       const q = req.query.q as string | undefined;
       const country = req.query.country as string | undefined;
       if (q && q.trim().length > 0) {
-        return res.json(await storage.searchPorts(q.trim(), country));
+        const results = await storage.searchPorts(q.trim(), country);
+        return res.json(results);
       }
-      const cacheKey = country ? `ports:country:${country}` : "ports:top100";
-      const cached = cache.get(cacheKey);
-      if (cached) return res.json(cached);
-      const results = country ? await storage.getPorts(undefined, country) : await storage.getPorts(100);
-      cache.set(cacheKey, results, 3600);
-      res.json(results);
+      if (country) {
+        const results = await storage.getPorts(undefined, country);
+        return res.json(results);
+      }
+      const portList = await storage.getPorts(100);
+      res.json(portList);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch ports" });
     }
   });
 
-  app.get("/api/ports/:id", async (req: any, res) => {
+  app.get("/api/ports/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
@@ -346,7 +190,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/port-info/:locode", async (req: any, res) => {
+  app.get("/api/port-info/:locode", async (req, res) => {
     try {
       const locode = req.params.locode.toUpperCase();
       const dbPort = await storage.getPortByCode(locode);
@@ -450,11 +294,8 @@ export async function registerRoutes(
   });
 
   app.get("/api/exchange-rates", async (_req, res) => {
-    const cached = cache.get("exchange-rates");
-    if (cached) return res.json(cached);
     try {
       const rates = await getOrFetchRates();
-      cache.set("exchange-rates", rates, 30 * 60);
       res.json(rates);
     } catch (error: any) {
       console.error("Exchange rate fetch error:", error.message);
@@ -466,7 +307,6 @@ export async function registerRoutes(
     try {
       if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
       const rates = await fetchTCMBRates();
-      cache.invalidate("exchange-rates");
       res.json({ success: true, rates });
     } catch (error: any) {
       console.error("Exchange rate refresh error:", error.message);
@@ -474,7 +314,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/vessels/lookup", isAuthenticated, async (req: any, res) => {
+  app.get("/api/vessels/lookup", isAuthenticated, async (req, res) => {
     const imo = (req.query.imo as string || "").replace(/\D/g, "");
     if (!imo || imo.length < 5) {
       return res.status(400).json({ message: "Please enter a valid IMO number (5–7 digits)" });
@@ -542,14 +382,14 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/proformas", isAuthenticated, attachOrgContext, async (req: any, res) => {
+  app.get("/api/proformas", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       if (await isAdmin(req)) {
         const allProformas = await storage.getAllProformas();
         return res.json(allProformas);
       }
-      const proformas = await storage.getProformasByUser(userId, req.organizationId);
+      const proformas = await storage.getProformasByUser(userId);
       res.json(proformas);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch proformas" });
@@ -864,7 +704,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/proformas", isAuthenticated, attachOrgContext, async (req: any, res) => {
+  app.post("/api/proformas", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
 
@@ -891,7 +731,6 @@ export async function registerRoutes(
       const exchangeRate = req.body.exchangeRate ? Number(req.body.exchangeRate) : 1.1593;
       const proforma = await storage.createProforma({
         userId,
-        organizationId: (req as any).organizationId ?? null,
         vesselId: Number(vesselId),
         portId: Number(portId),
         referenceNumber: req.body.referenceNumber || refNum,
@@ -912,11 +751,6 @@ export async function registerRoutes(
 
       await storage.incrementProformaCount(userId);
       logAction(userId, "create", "proforma", proforma.id, { referenceNumber: proforma.referenceNumber, portId: Number(portId), vesselId: Number(vesselId), totalUsd: Number(totalUsd) }, getClientIp(req));
-      if ((req as any).organizationId) {
-        const { rows: ur } = await pool.query("SELECT first_name, last_name FROM users WHERE id = $1", [userId]);
-        const uname = `${ur[0]?.first_name || ""} ${ur[0]?.last_name || ""}`.trim() || "A user";
-        logOrgActivity({ organizationId: (req as any).organizationId, userId, action: "created_proforma", entityType: "proforma", entityId: proforma.id, description: `${uname} created proforma ${proforma.referenceNumber}` });
-      }
 
       res.json(proforma);
     } catch (error) {
@@ -1016,8 +850,8 @@ export async function registerRoutes(
     try {
       const userId = req.user.claims.sub;
       const { role } = req.body;
-      if (!["ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"].includes(role)) {
-        return res.status(400).json({ message: "Invalid role. Choose: ship_agent, shipowner, ship_broker, or ship_provider" });
+      if (!["shipowner", "agent", "provider", "admin"].includes(role)) {
+        return res.status(400).json({ message: "Invalid role. Choose: shipowner, agent, or provider" });
       }
       const user = await storage.getUser(userId);
       if (user && user.roleConfirmed) {
@@ -1053,8 +887,8 @@ export async function registerRoutes(
         return res.status(403).json({ message: "Admin access required" });
       }
       const { activeRole } = req.body;
-      if (!["ship_agent", "shipowner", "ship_broker", "ship_provider", "admin"].includes(activeRole)) {
-        return res.status(400).json({ message: "Invalid role. Choose: ship_agent, shipowner, ship_broker, ship_provider, or admin" });
+      if (!["shipowner", "agent", "provider", "admin"].includes(activeRole)) {
+        return res.status(400).json({ message: "Invalid role. Choose: shipowner, agent, provider, or admin" });
       }
       const updated = await storage.updateActiveRole(userId, activeRole);
       res.json(updated);
@@ -1112,8 +946,6 @@ export async function registerRoutes(
           link: "/admin",
         });
       }
-      cache.invalidatePrefix("directory:");
-      cache.invalidate("service-ports");
       res.json(profile);
     } catch (error) {
       res.status(500).json({ message: "Failed to create company profile" });
@@ -1139,8 +971,6 @@ export async function registerRoutes(
       if (serviceTypes !== undefined) safeData.serviceTypes = serviceTypes;
       const updated = await storage.updateCompanyProfile(id, userId, safeData);
       if (!updated) return res.status(404).json({ message: "Profile not found" });
-      cache.invalidatePrefix("directory:");
-      cache.invalidate("service-ports");
       res.json(updated);
     } catch (error) {
       res.status(500).json({ message: "Failed to update company profile" });
@@ -1425,66 +1255,6 @@ export async function registerRoutes(
     } catch (error) {
       console.error("[admin/stats/enhanced]", error);
       res.status(500).json({ message: "Failed to fetch enhanced stats" });
-    }
-  });
-
-  // ─── ADMIN SYSTEM HEALTH ───────────────────────────────────────────────────
-  app.get("/api/admin/system-health", isAuthenticated, async (req: any, res) => {
-    try {
-      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
-      const [dbSizeRow, tableCountsRow] = await Promise.all([
-        pool.query(`SELECT pg_size_pretty(pg_database_size(current_database())) as size, pg_database_size(current_database()) as bytes`),
-        pool.query(`SELECT
-          (SELECT COUNT(*) FROM users) as users,
-          (SELECT COUNT(*) FROM voyages) as voyages,
-          (SELECT COUNT(*) FROM proformas) as proformas,
-          (SELECT COUNT(*) FROM port_tenders) as tenders,
-          (SELECT COUNT(*) FROM vessel_positions) as positions
-        `),
-      ]);
-      const cacheStats = cache.stats();
-      const dbSize = dbSizeRow.rows[0];
-      const tableCounts = tableCountsRow.rows[0];
-      res.json({
-        db: { size: dbSize.size, bytes: parseInt(dbSize.bytes) },
-        tables: {
-          users: parseInt(tableCounts.users),
-          voyages: parseInt(tableCounts.voyages),
-          proformas: parseInt(tableCounts.proformas),
-          tenders: parseInt(tableCounts.tenders),
-          positions: parseInt(tableCounts.positions),
-        },
-        cache: cacheStats,
-        ais: { connected: isConnected(), cacheSize: getCacheSize() },
-        apiKeys: {
-          ais: !!process.env.AIS_STREAM_API_KEY,
-          tradingEconomics: !!process.env.TRADING_ECONOMICS_API_KEY,
-          resend: !!process.env.RESEND_API_KEY,
-          mapbox: !!process.env.VITE_MAPBOX_TOKEN,
-        },
-      });
-    } catch (error) {
-      console.error("[admin/system-health]", error);
-      res.status(500).json({ message: "Failed to fetch system health" });
-    }
-  });
-
-  app.get("/api/admin/hourly-activity", isAuthenticated, async (req: any, res) => {
-    try {
-      if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
-      const rows = await pool.query(`
-        SELECT EXTRACT(HOUR FROM created_at)::int as hour, COUNT(*)::int as count
-        FROM audit_logs
-        WHERE created_at >= NOW() - INTERVAL '7 days'
-        GROUP BY hour ORDER BY hour
-      `);
-      const map: Record<number, number> = {};
-      for (const r of rows.rows) map[r.hour] = r.count;
-      const result = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: map[h] ?? 0 }));
-      res.json(result);
-    } catch (error) {
-      console.error("[admin/hourly-activity]", error);
-      res.status(500).json({ message: "Failed to fetch hourly activity" });
     }
   });
 
@@ -1815,7 +1585,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/agent-stats/:companyProfileId", async (req: any, res) => {
+  app.get("/api/agent-stats/:companyProfileId", async (req, res) => {
     try {
       const companyProfileId = parseInt(req.params.companyProfileId);
       const profile = await storage.getCompanyProfile(companyProfileId);
@@ -1844,7 +1614,7 @@ export async function registerRoutes(
 
   // ─── TRUST SCORE ──────────────────────────────────────────────────────────
 
-  app.get("/api/trust-score/:userId", async (req: any, res) => {
+  app.get("/api/trust-score/:userId", async (req, res) => {
     try {
       const { userId } = req.params;
       const allVoyages = await storage.getVoyagesByUser(userId);
@@ -1944,7 +1714,7 @@ export async function registerRoutes(
 
   // ─── ENDORSEMENTS ─────────────────────────────────────────────────────────
 
-  app.get("/api/endorsements/:companyProfileId", async (req: any, res) => {
+  app.get("/api/endorsements/:companyProfileId", async (req, res) => {
     try {
       const id = parseInt(req.params.companyProfileId);
       const list = await storage.getEndorsements(id);
@@ -2087,7 +1857,7 @@ export async function registerRoutes(
       const name = req.query.name as string;
       const imo = req.query.imo as string | undefined;
       if (!name) return res.status(400).json({ message: "name is required" });
-      const result = checkSanctions(name);
+      const result = checkSanctions(name, imo);
       res.json(result);
     } catch (error) {
       res.status(500).json({ message: "Failed to check sanctions" });
@@ -2103,9 +1873,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/service-ports", isAuthenticated, async (req: any, res) => {
-    const cached = cache.get("service-ports");
-    if (cached) return res.json(cached);
+  app.get("/api/service-ports", async (req, res) => {
     try {
       const profiles = await storage.getPublicCompanyProfiles();
       const allPorts = await storage.getPorts();
@@ -2140,24 +1908,19 @@ export async function registerRoutes(
         .filter(entry => entry.companies.length > 0)
         .sort((a, b) => b.companies.length - a.companies.length);
 
-      cache.set("service-ports", result, 30 * 60);
       res.json(result);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch service ports" });
     }
   });
 
-  app.get("/api/directory", async (req: any, res) => {
+  app.get("/api/directory", async (req, res) => {
     try {
       const companyType = req.query.type as string | undefined;
       const portId = req.query.portId ? parseInt(req.query.portId as string) : undefined;
-      const cacheKey = `directory:${companyType ?? "all"}:${portId ?? "all"}`;
-      const cached = cache.get(cacheKey);
-      if (cached) return res.json(cached);
       const profiles = await storage.getPublicCompanyProfiles({ companyType, portId });
       // Attach avgRating and reviewCount for agent profiles
       const agentProfiles = profiles.filter(p => p.companyType === "agent");
-      let result: any[];
       if (agentProfiles.length > 0) {
         const reviewsMap = new Map<number, { sum: number; count: number }>();
         await Promise.all(agentProfiles.map(async (p) => {
@@ -2167,23 +1930,22 @@ export async function registerRoutes(
             reviewsMap.set(p.id, { sum, count: reviews.length });
           }
         }));
-        result = profiles.map(p => {
+        const enriched = profiles.map(p => {
           const rating = reviewsMap.get(p.id);
           return rating
             ? { ...p, avgRating: Math.round((rating.sum / rating.count) * 10) / 10, reviewCount: rating.count }
             : { ...p, avgRating: null, reviewCount: 0 };
         });
+        res.json(enriched);
       } else {
-        result = profiles.map(p => ({ ...p, avgRating: null, reviewCount: 0 }));
+        res.json(profiles.map(p => ({ ...p, avgRating: null, reviewCount: 0 })));
       }
-      cache.set(cacheKey, result, 10 * 60);
-      res.json(result);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch directory" });
     }
   });
 
-  app.get("/api/directory/featured", async (req: any, res) => {
+  app.get("/api/directory/featured", async (req, res) => {
     try {
       const profiles = await storage.getFeaturedCompanyProfiles();
       res.json(profiles);
@@ -2192,7 +1954,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/directory/:id", async (req: any, res) => {
+  app.get("/api/directory/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const profile = await storage.getCompanyProfile(id);
@@ -2203,7 +1965,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/reviews/:companyProfileId", async (req: any, res) => {
+  app.get("/api/reviews/:companyProfileId", async (req, res) => {
     try {
       const companyProfileId = parseInt(req.params.companyProfileId);
       const reviews = await storage.getReviewsByCompany(companyProfileId);
@@ -2268,64 +2030,24 @@ export async function registerRoutes(
     }
   });
 
-  // ─── GLOBAL SEARCH ─────────────────────────────────────────────────────────
-
-  app.get("/api/search", isAuthenticated, async (req: any, res) => {
-    const q = ((req.query.q as string) || "").trim();
-    const type = (req.query.type as string) || "all";
-    if (q.length < 2) return res.json({ vessels: [], ports: [], proformas: [], voyages: [], directory: [], forum: [], tenders: [], fixtures: [] });
-
-    const userId = req.user?.claims?.sub || req.user?.id;
-    const like = `%${q}%`;
-
-    try {
-      const run = async (sql: string, params: any[]) => {
-        const r = await pool.query(sql, params);
-        return r.rows;
-      };
-
-      const want = (cat: string) => type === "all" || type === cat;
-
-      const [vessels, ports, proformas, voyages, directory, forum, tenders, fixtures] = await Promise.all([
-        want("vessels")   ? run(`SELECT id, name, imo_number AS "imoNumber", flag, vessel_type AS "vesselType" FROM vessels WHERE user_id=$1 AND (name ILIKE $2 OR imo_number ILIKE $2) ORDER BY name LIMIT 5`, [userId, like]) : [],
-        want("ports")     ? run(`SELECT id, name, country, code FROM ports WHERE name ILIKE $1 OR code ILIKE $1 ORDER BY name LIMIT 5`, [like]) : [],
-        want("proformas") ? run(`SELECT id, reference_number AS "referenceNumber", to_company AS "toCompany", status, created_at AS "createdAt" FROM proformas WHERE user_id=$1 AND (reference_number ILIKE $2 OR to_company ILIKE $2) ORDER BY created_at DESC LIMIT 5`, [userId, like]) : [],
-        want("voyages")   ? run(`SELECT id, vessel_name AS "vesselName", status, port_id AS "portId" FROM voyages WHERE (user_id=$1 OR agent_user_id=$1) AND vessel_name ILIKE $2 ORDER BY created_at DESC LIMIT 5`, [userId, like]) : [],
-        want("directory") ? run(`SELECT id, company_name AS "companyName", company_type AS "companyType", city, country FROM company_profiles WHERE is_active=true AND company_name ILIKE $1 ORDER BY company_name LIMIT 5`, [like]) : [],
-        want("forum")     ? run(`SELECT id, title, reply_count AS "replyCount" FROM forum_topics WHERE title ILIKE $1 ORDER BY last_activity_at DESC LIMIT 5`, [like]) : [],
-        want("tenders")   ? run(`SELECT id, vessel_name AS "vesselName", status, created_at AS "createdAt" FROM port_tenders WHERE vessel_name ILIKE $1 ORDER BY created_at DESC LIMIT 5`, [like]) : [],
-        want("fixtures")  ? run(`SELECT id, vessel_name AS "vesselName", cargo_type AS "cargoType", status FROM fixtures WHERE user_id=$1 AND (vessel_name ILIKE $2 OR cargo_type ILIKE $2) ORDER BY created_at DESC LIMIT 5`, [userId, like]) : [],
-      ]);
-
-      res.json({ vessels, ports, proformas, voyages, directory, forum, tenders, fixtures });
-    } catch (err) {
-      console.error("[search]", err);
-      res.status(500).json({ message: "Search failed" });
-    }
-  });
-
   app.get("/api/stats", async (_req, res) => {
-    const cached = cache.get("stats");
-    if (cached) return res.json(cached);
     try {
       const [users, proformas, companies] = await Promise.all([
         storage.getAllUsers(),
         storage.getAllProformas(),
         storage.getAllCompanyProfiles(),
       ]);
-      const data = {
+      res.json({
         userCount: users.length,
         proformaCount: proformas.length,
         companyCount: companies.length,
-      };
-      cache.set("stats", data, 5 * 60);
-      res.json(data);
+      });
     } catch {
       res.json({ userCount: 0, proformaCount: 0, companyCount: 0 });
     }
   });
 
-  app.post("/api/contact", async (req: any, res) => {
+  app.post("/api/contact", async (req, res) => {
     const { name, email, subject, message } = req.body || {};
     if (!name || !email || !subject || !message) {
       return res.status(400).json({ ok: false, error: "All fields are required" });
@@ -2335,42 +2057,6 @@ export async function registerRoutes(
     }
     sendContactEmail({ name: String(name), email: String(email), subject: String(subject), message: String(message) });
     return res.json({ ok: true });
-  });
-
-  // ── Demo Mode Routes ─────────────────────────────────────────────────────────
-  app.post("/api/demo/start", async (req: any, res) => {
-    const role: DemoRole = VALID_DEMO_ROLES.includes(req.body?.role) ? req.body.role : "ship_agent";
-    const session = createDemoSession(role);
-    res.json({
-      token: session.token,
-      role: session.role,
-      user: { name: `Demo ${role.charAt(0).toUpperCase() + role.slice(1)}`, role },
-      expiresIn: "24h",
-    });
-  });
-
-  app.post("/api/demo/switch-role", async (req: any, res) => {
-    const { token, role } = req.body || {};
-    if (!token || typeof token !== "string") return res.status(400).json({ error: "token required" });
-    if (!VALID_DEMO_ROLES.includes(role)) return res.status(400).json({ error: "invalid role" });
-    const session = updateDemoRole(token, role as DemoRole);
-    if (!session) return res.status(404).json({ error: "demo session not found or expired" });
-    res.json({ token: session.token, role: session.role });
-  });
-
-  app.post("/api/demo/reset", async (req: any, res) => {
-    const { token } = req.body || {};
-    if (!token) return res.status(400).json({ error: "token required" });
-    deleteDemoSession(token);
-    const session = createDemoSession("ship_agent");
-    res.json({ token: session.token, role: session.role });
-  });
-
-  app.get("/api/demo/status", async (req: any, res) => {
-    const token = req.headers["x-demo-token"] as string || req.query.token as string;
-    if (!token) return res.json({ active: false });
-    const session = getDemoSession(token);
-    res.json({ active: Boolean(session), role: session?.role || null });
   });
 
   app.get("/api/activity-feed", async (_req, res) => {
@@ -2456,18 +2142,15 @@ export async function registerRoutes(
   });
 
   app.get("/api/forum/categories", async (_req, res) => {
-    const cached = cache.get("forum:categories");
-    if (cached) return res.json(cached);
     try {
       const categories = await storage.getForumCategories();
-      cache.set("forum:categories", categories, 3600);
       res.json(categories);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch forum categories" });
     }
   });
 
-  app.get("/api/forum/topics", async (req: any, res) => {
+  app.get("/api/forum/topics", async (req, res) => {
     try {
       const categoryId = req.query.categoryId ? parseInt(req.query.categoryId as string) : undefined;
       const sort = (req.query.sort as string) || "latest";
@@ -2490,7 +2173,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/forum/topics/:id", async (req: any, res) => {
+  app.get("/api/forum/topics/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const topic = await storage.getForumTopic(id);
@@ -2505,15 +2188,27 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/forum/topics", isAuthenticated, validateBody(forumTopicBodySchema), async (req: any, res) => {
+  app.post("/api/forum/topics", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { title, content, categoryId, isAnonymous } = req.body;
 
+      if (!title || !content || !categoryId) {
+        return res.status(400).json({ message: "title, content, and categoryId are required" });
+      }
+
+      if (title.trim().length < 3) {
+        return res.status(400).json({ message: "Title must be at least 3 characters" });
+      }
+
+      if (content.trim().length < 10) {
+        return res.status(400).json({ message: "Content must be at least 10 characters" });
+      }
+
       const topic = await storage.createForumTopic({
         userId,
-        title: sanitizeInput(title).trim(),
-        content: sanitizeInput(content).trim(),
+        title: title.trim(),
+        content: content.trim(),
         categoryId: Number(categoryId),
         isAnonymous: isAnonymous === true,
       });
@@ -2544,11 +2239,15 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/forum/topics/:id/replies", isAuthenticated, validateBody(forumReplyBodySchema), async (req: any, res) => {
+  app.post("/api/forum/topics/:id/replies", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const topicId = parseInt(req.params.id);
       const { content } = req.body;
+
+      if (!content || content.trim().length < 1) {
+        return res.status(400).json({ message: "Content is required" });
+      }
 
       const topic = await storage.getForumTopic(topicId);
       if (!topic) return res.status(404).json({ message: "Topic not found" });
@@ -2560,7 +2259,7 @@ export async function registerRoutes(
       const reply = await storage.createForumReply({
         topicId,
         userId,
-        content: sanitizeInput(content).trim(),
+        content: content.trim(),
       });
 
       res.json(reply);
@@ -2580,18 +2279,15 @@ export async function registerRoutes(
             message: `${replierName} replied to "${topic.title}"`,
             link: `/forum/${topicId}`,
           });
-          // Send email notification to topic author (check preferences)
+          // Send email notification to topic author
           if (topicAuthor?.email) {
-            getNotifPref(topic.userId, "email_on_forum_reply").then(allowed => {
-              if (!allowed) return;
-              const preview = content.trim().slice(0, 200) + (content.trim().length > 200 ? "..." : "");
-              sendForumReplyEmail({
-                toEmail: topicAuthor.email as string,
-                topicTitle: topic.title,
-                topicId,
-                replyAuthor: replierName,
-                replyPreview: preview,
-              }).catch(() => {});
+            const preview = content.trim().slice(0, 200) + (content.trim().length > 200 ? "..." : "");
+            sendForumReplyEmail({
+              toEmail: topicAuthor.email,
+              topicTitle: topic.title,
+              topicId,
+              replyAuthor: replierName,
+              replyPreview: preview,
             }).catch(() => {});
           }
         }
@@ -2710,7 +2406,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/tenders", isAuthenticated, validateBody(tenderBodySchema), async (req: any, res) => {
+  app.post("/api/tenders", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -2722,6 +2418,17 @@ export async function registerRoutes(
       }
 
       const { portId, vesselName, description, cargoInfo, expiryHours, grt, nrt, flag, cargoType, cargoQuantity, previousPort, q88Base64 } = req.body;
+      if (!portId) return res.status(400).json({ message: "Port is required" });
+      if (!vesselName) return res.status(400).json({ message: "Vessel name is required" });
+      if (!flag) return res.status(400).json({ message: "Flag is required" });
+      if (!grt) return res.status(400).json({ message: "GRT is required" });
+      if (!nrt) return res.status(400).json({ message: "NRT is required" });
+      if (!cargoType) return res.status(400).json({ message: "Cargo type is required" });
+      if (!cargoQuantity) return res.status(400).json({ message: "Cargo quantity is required" });
+      if (!previousPort) return res.status(400).json({ message: "Previous port is required" });
+      if (![24, 48].includes(Number(expiryHours))) {
+        return res.status(400).json({ message: "Expiry must be 24 or 48 hours" });
+      }
 
       const tender = await storage.createPortTender({
         userId,
@@ -2748,20 +2455,17 @@ export async function registerRoutes(
         const port = await storage.getPort(Number(portId));
         const agentUsers = await Promise.all(agents.slice(0, 50).map((a: any) => storage.getUser(a.userId)));
         for (const agentUser of agentUsers) {
-          if (agentUser?.email && agentUser.id) {
-            getNotifPref(agentUser.id, "email_on_new_tender").then(allowed => {
-              if (!allowed) return;
-              sendNewTenderEmail({
-                agentEmail: agentUser.email as string,
-                agentName: agentUser.firstName || undefined,
-                portName: (port as any)?.name || `Port #${portId}`,
-                vesselName: vesselName || undefined,
-                cargoType: cargoType || undefined,
-                cargoQuantity: cargoQuantity || undefined,
-                expiryHours: Number(expiryHours),
-                tenderId: tender.id,
-              }).catch(e => console.warn("[email] sendNewTenderEmail failed:", e));
-            }).catch(() => {});
+          if (agentUser?.email) {
+            sendNewTenderEmail({
+              agentEmail: agentUser.email,
+              agentName: agentUser.firstName || undefined,
+              portName: (port as any)?.name || `Port #${portId}`,
+              vesselName: vesselName || undefined,
+              cargoType: cargoType || undefined,
+              cargoQuantity: cargoQuantity || undefined,
+              expiryHours: Number(expiryHours),
+              tenderId: tender.id,
+            }).catch(e => console.warn("[email] sendNewTenderEmail failed:", e));
           }
         }
       } catch (emailErr) { console.warn("[email] sendNewTenderEmail batch failed (non-critical):", emailErr); }
@@ -2922,20 +2626,17 @@ export async function registerRoutes(
         const port = await storage.getPort(tender.portId);
         const portName = (port as any)?.name || `Port #${tender.portId}`;
         const agentName = profile?.companyName || user.firstName || "An agent";
-        if (owner?.email && owner.id) {
-          const sendBid = await getNotifPref(owner.id, "email_on_bid_received");
-          if (sendBid) {
-            await sendBidReceivedEmail({
-              ownerEmail: owner.email,
-              ownerName: owner.firstName || owner.email,
-              agentName,
-              portName,
-              vesselName: tender.vesselName || undefined,
-              totalAmount: totalAmount || undefined,
-              currency: currency || "USD",
-              tenderId,
-            });
-          }
+        if (owner?.email) {
+          await sendBidReceivedEmail({
+            ownerEmail: owner.email,
+            ownerName: owner.firstName || owner.email,
+            agentName,
+            portName,
+            vesselName: tender.vesselName || undefined,
+            totalAmount: totalAmount || undefined,
+            currency: currency || "USD",
+            tenderId,
+          });
         }
         await storage.createNotification({
           userId: tender.userId,
@@ -3181,7 +2882,7 @@ export async function registerRoutes(
     res.json(livePositions.length > 0 ? livePositions : MOCK_AIS_DATA);
   });
 
-  app.get("/api/vessel-track/search", isAuthenticated, async (req: any, res) => {
+  app.get("/api/vessel-track/search", isAuthenticated, async (req, res) => {
     const q = (req.query.q as string || "").toLowerCase().trim();
     if (!q) return res.json([]);
     const liveResults = searchVessels(q);
@@ -3292,7 +2993,7 @@ export async function registerRoutes(
 
   // ── VESSEL POSITION HISTORY ────────────────────────────────────────────────
 
-  app.get("/api/vessel-positions/:mmsi/latest", isAuthenticated, async (req: any, res) => {
+  app.get("/api/vessel-positions/:mmsi/latest", isAuthenticated, async (req, res) => {
     try {
       const { mmsi } = req.params;
       const result = await pool.query(
@@ -3305,7 +3006,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/vessel-positions/:mmsi", isAuthenticated, async (req: any, res) => {
+  app.get("/api/vessel-positions/:mmsi", isAuthenticated, async (req, res) => {
     try {
       const { mmsi } = req.params;
       const days = Math.min(parseInt(req.query.days as string) || 7, 30);
@@ -3320,7 +3021,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/vessel-track/history/:mmsi", isAuthenticated, async (req: any, res) => {
+  app.get("/api/vessel-track/history/:mmsi", isAuthenticated, async (req, res) => {
     try {
       const { mmsi } = req.params;
       const days = Math.min(parseInt(req.query.days as string) || 1, 30);
@@ -3418,84 +3119,6 @@ export async function registerRoutes(
     }
   });
 
-  // ─── NOTIFICATION PREFERENCES ────────────────────────────────────────────────
-
-  app.get("/api/notification-preferences", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const r = await pool.query(
-        `SELECT * FROM notification_preferences WHERE user_id = $1`,
-        [userId]
-      );
-      if (r.rows.length === 0) {
-        res.json({ userId, ...NOTIF_DEFAULTS });
-      } else {
-        const row = r.rows[0];
-        res.json({
-          userId: row.user_id,
-          emailOnNewTender: row.email_on_new_tender,
-          emailOnBidReceived: row.email_on_bid_received,
-          emailOnNomination: row.email_on_nomination,
-          emailOnMessage: row.email_on_message,
-          emailOnForumReply: row.email_on_forum_reply,
-          emailOnCertificateExpiry: row.email_on_certificate_expiry,
-          emailOnVoyageUpdate: row.email_on_voyage_update,
-          pushEnabled: row.push_enabled,
-          dailyDigest: row.daily_digest,
-        });
-      }
-    } catch (err) {
-      console.error("Notification prefs fetch error:", err);
-      res.status(500).json({ message: "Failed to fetch preferences" });
-    }
-  });
-
-  app.put("/api/notification-preferences", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const {
-        emailOnNewTender, emailOnBidReceived, emailOnNomination,
-        emailOnMessage, emailOnForumReply, emailOnCertificateExpiry,
-        emailOnVoyageUpdate, pushEnabled, dailyDigest,
-      } = req.body;
-
-      await pool.query(`
-        INSERT INTO notification_preferences
-          (user_id, email_on_new_tender, email_on_bid_received, email_on_nomination,
-           email_on_message, email_on_forum_reply, email_on_certificate_expiry,
-           email_on_voyage_update, push_enabled, daily_digest, updated_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
-        ON CONFLICT (user_id) DO UPDATE SET
-          email_on_new_tender         = EXCLUDED.email_on_new_tender,
-          email_on_bid_received       = EXCLUDED.email_on_bid_received,
-          email_on_nomination         = EXCLUDED.email_on_nomination,
-          email_on_message            = EXCLUDED.email_on_message,
-          email_on_forum_reply        = EXCLUDED.email_on_forum_reply,
-          email_on_certificate_expiry = EXCLUDED.email_on_certificate_expiry,
-          email_on_voyage_update      = EXCLUDED.email_on_voyage_update,
-          push_enabled                = EXCLUDED.push_enabled,
-          daily_digest                = EXCLUDED.daily_digest,
-          updated_at                  = NOW()
-      `, [
-        userId,
-        emailOnNewTender  ?? true,
-        emailOnBidReceived ?? true,
-        emailOnNomination  ?? true,
-        emailOnMessage     ?? false,
-        emailOnForumReply  ?? false,
-        emailOnCertificateExpiry ?? true,
-        emailOnVoyageUpdate ?? true,
-        pushEnabled ?? true,
-        dailyDigest ?? false,
-      ]);
-
-      res.json({ success: true });
-    } catch (err) {
-      console.error("Notification prefs update error:", err);
-      res.status(500).json({ message: "Failed to update preferences" });
-    }
-  });
-
   app.post("/api/feedback", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -3522,30 +3145,25 @@ export async function registerRoutes(
 
   // ─── VOYAGES ──────────────────────────────────────────────────────────────────
 
-  app.get("/api/voyages", isAuthenticated, attachOrgContext, async (req: any, res) => {
+  app.get("/api/voyages", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const role = req.user?.activeRole || req.user?.userRole || "shipowner";
-      const voyageList = await storage.getVoyagesByUser(userId, role, req.organizationId);
+      const voyageList = await storage.getVoyagesByUser(userId, role);
       res.json(voyageList);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch voyages" });
     }
   });
 
-  app.post("/api/voyages", isAuthenticated, attachOrgContext, async (req: any, res) => {
+  app.post("/api/voyages", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
-      const data = { ...req.body, userId, organizationId: req.organizationId ?? null };
+      const data = { ...req.body, userId };
       if (data.eta) data.eta = new Date(data.eta);
       if (data.etd) data.etd = new Date(data.etd);
       const voyage = await storage.createVoyage(data);
       logAction(userId, "create", "voyage", voyage.id, { portId: voyage.portId, vesselName: voyage.vesselName, status: voyage.status }, getClientIp(req));
-      if (req.organizationId) {
-        const { rows } = await pool.query("SELECT first_name, last_name FROM users WHERE id = $1", [userId]);
-        const name = `${rows[0]?.first_name || ""} ${rows[0]?.last_name || ""}`.trim() || "A user";
-        logOrgActivity({ organizationId: req.organizationId, userId, action: "created_voyage", entityType: "voyage", entityId: voyage.id, description: `${name} created voyage for ${voyage.vesselName || "vessel"}` });
-      }
       res.json(voyage);
     } catch (error) {
       res.status(500).json({ message: "Failed to create voyage" });
@@ -3830,158 +3448,6 @@ export async function registerRoutes(
     }
   });
 
-  // ─── VOYAGE TIMELINE ────────────────────────────────────────────────────────
-
-  app.get("/api/voyages/:id/timeline", isAuthenticated, async (req: any, res) => {
-    try {
-      const voyageId = parseInt(req.params.id);
-      const voyage = await storage.getVoyageById(voyageId);
-      if (!voyage) return res.status(404).json({ message: "Voyage not found" });
-
-      const [docs, checklists] = await Promise.all([
-        storage.getVoyageDocuments(voyageId),
-        pool.query(
-          `SELECT id, title, is_completed, completed_at, created_at FROM voyage_checklists WHERE voyage_id = $1 ORDER BY created_at ASC`,
-          [voyageId]
-        ).then(r => r.rows),
-      ]);
-
-      const events: Array<{
-        id: string;
-        type: string;
-        title: string;
-        description: string;
-        timestamp: string | null;
-        status: "completed" | "active" | "pending";
-        icon: string;
-      }> = [];
-
-      // 1. Voyage created
-      events.push({
-        id: "voyage_created",
-        type: "voyage_created",
-        title: "Voyage Created",
-        description: `Port call for ${voyage.vesselName || "vessel"} was created`,
-        timestamp: voyage.createdAt ? new Date(voyage.createdAt).toISOString() : null,
-        status: "completed",
-        icon: "anchor",
-      });
-
-      // 2. ETA / NOR
-      if (voyage.eta) {
-        const etaPast = new Date(voyage.eta) <= new Date();
-        events.push({
-          id: "nor_given",
-          type: "nor",
-          title: "Notice of Readiness (NOR)",
-          description: `Expected: ${new Date(voyage.eta).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}`,
-          timestamp: new Date(voyage.eta).toISOString(),
-          status: etaPast ? "completed" : voyage.status === "planned" ? "pending" : "active",
-          icon: "radio",
-        });
-      }
-
-      // 3. Berthing (active status)
-      const berthingAt = voyage.status === "active" || voyage.status === "completed"
-        ? voyage.createdAt
-        : null;
-      if (voyage.status !== "planned") {
-        events.push({
-          id: "berthed",
-          type: "berthing",
-          title: "Vessel Berthed",
-          description: `Vessel arrived at port and berthed`,
-          timestamp: berthingAt ? new Date(berthingAt).toISOString() : null,
-          status: voyage.status === "completed" ? "completed" : "active",
-          icon: "ship",
-        });
-      }
-
-      // 4. Loading / Discharging started
-      if (voyage.status === "active" || voyage.status === "completed") {
-        const purpose = voyage.purposeOfCall || "Loading";
-        events.push({
-          id: "cargo_started",
-          type: "cargo_start",
-          title: `${purpose} Started`,
-          description: `${purpose} operations commenced`,
-          timestamp: null,
-          status: voyage.status === "completed" ? "completed" : "active",
-          icon: purpose === "Loading" ? "upload" : "download",
-        });
-      }
-
-      // 5. Completed checklist items (sorted by completedAt)
-      const completedChecks = checklists
-        .filter((c: any) => c.is_completed && c.completed_at)
-        .sort((a: any, b: any) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime());
-
-      for (const item of completedChecks) {
-        events.push({
-          id: `checklist_${item.id}`,
-          type: "checklist",
-          title: "Checklist Item Completed",
-          description: item.title,
-          timestamp: new Date(item.completed_at).toISOString(),
-          status: "completed",
-          icon: "check",
-        });
-      }
-
-      // 6. Documents uploaded (sorted by createdAt)
-      const sortedDocs = [...docs].sort(
-        (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
-      for (const doc of sortedDocs) {
-        events.push({
-          id: `doc_${doc.id}`,
-          type: "document",
-          title: "Document Uploaded",
-          description: doc.name,
-          timestamp: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
-          status: "completed",
-          icon: "file",
-        });
-      }
-
-      // 7. Voyage completed / ETD
-      if (voyage.status === "completed") {
-        events.push({
-          id: "voyage_completed",
-          type: "voyage_completed",
-          title: "Voyage Completed",
-          description: "Port call successfully completed",
-          timestamp: voyage.etd ? new Date(voyage.etd).toISOString() : null,
-          status: "completed",
-          icon: "flag",
-        });
-      } else if (voyage.etd) {
-        events.push({
-          id: "etd_planned",
-          type: "etd",
-          title: "Planned Departure (ETD)",
-          description: `Expected: ${new Date(voyage.etd).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}`,
-          timestamp: new Date(voyage.etd).toISOString(),
-          status: "pending",
-          icon: "flag",
-        });
-      }
-
-      // Sort all events chronologically (null timestamps go to end)
-      events.sort((a, b) => {
-        if (!a.timestamp && !b.timestamp) return 0;
-        if (!a.timestamp) return 1;
-        if (!b.timestamp) return -1;
-        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
-      });
-
-      res.json(events);
-    } catch (error) {
-      console.error("Timeline error:", error);
-      res.status(500).json({ message: "Failed to build timeline" });
-    }
-  });
-
   // ─── VOYAGE CHAT ────────────────────────────────────────────────────────────
 
   app.get("/api/voyages/:id/chat", isAuthenticated, async (req: any, res) => {
@@ -4154,7 +3620,7 @@ export async function registerRoutes(
               userId: mentionedId,
               type: "mention",
               title: "Sizi etiketledi",
-              message: `${[senderUser?.firstName, senderUser?.lastName].filter(Boolean).join(" ") || "Bir kullanıcı"} mesajda sizi etiketledi`,
+              message: `${senderUser?.name || "Bir kullanıcı"} mesajda sizi etiketledi`,
               link: `/messages/${conversationId}`,
             });
           }
@@ -4167,7 +3633,7 @@ export async function registerRoutes(
         sendMessageBridgeEmail(
           conv.externalEmail,
           conv.externalEmailName || conv.externalEmail,
-          [senderUser?.firstName, senderUser?.lastName].filter(Boolean).join(" ") || "VesselPDA Kullanıcısı",
+          senderUser?.name || "VesselPDA Kullanıcısı",
           content || "",
           fileName || undefined
         ).catch((e: any) => console.error("[bridge] email failed:", e));
@@ -4251,24 +3717,22 @@ export async function registerRoutes(
         userId: agentUserId,
         type: "nomination",
         title: "Yeni Nominasyon",
-        message: `Bir armatör sizi ${vesselName} gemisi için nomine etti`,
+        message: `${req.user.name || "Bir armatör"} sizi ${vesselName} gemisi için nomine etti`,
         link: "/nominations",
       });
 
       // Notify agent (email)
       const agentUser = await storage.getUser(agentUserId);
-      const shipownerUser = await storage.getUser(req.user.claims.sub);
-      const shipownerName = [shipownerUser?.firstName, shipownerUser?.lastName].filter(Boolean).join(" ") || undefined;
       if (agentUser?.email) {
         const enriched = await storage.getNominationById(nom.id);
-        const agentCompanyFull = enriched?.agentCompanyName || [agentUser.firstName, agentUser.lastName].filter(Boolean).join(" ") || agentUserId;
         sendNominationEmail({
           agentEmail: agentUser.email,
-          agentCompanyName: agentCompanyFull,
+          agentCompanyName: enriched?.agentCompanyName || agentUser.name || agentUserId,
           portName: enriched?.portName || `Port #${portId}`,
           vesselName: vesselName,
+          eta: eta ? new Date(eta).toLocaleString("tr-TR") : undefined,
           note: notes || undefined,
-          shipownerName,
+          shipownerName: req.user.name || undefined,
         }).catch(err => console.error("[email] Nomination email failed (non-blocking):", err));
       }
 
@@ -4319,7 +3783,7 @@ export async function registerRoutes(
       if (nominatorUser?.email) {
         sendNominationResponseEmail({
           nominatorEmail: nominatorUser.email,
-          nominatorName: [nominatorUser.firstName, nominatorUser.lastName].filter(Boolean).join(" ") || "Sayın Kullanıcı",
+          nominatorName: nominatorUser.name || "Sayın Kullanıcı",
           agentCompanyName: nom.agentCompanyName || nom.agentName || "Acente",
           status: status as "accepted" | "declined",
           portName: nom.portName || `Port #${nom.portId}`,
@@ -4477,869 +3941,23 @@ export async function registerRoutes(
     }
   });
 
-  // ─── VOYAGE PORT CALLS ──────────────────────────────────────────────────────
-
-  async function canAccessVoyagePc(userId: string, voyageId: number): Promise<boolean> {
-    const { rows: aRows } = await pool.query("SELECT user_role FROM users WHERE id = $1", [userId]);
-    if (aRows[0]?.user_role === "admin") return true;
-    const { rows } = await pool.query(`SELECT user_id, agent_user_id, organization_id FROM voyages WHERE id = $1`, [voyageId]);
-    if (!rows.length) return false;
-    const v = rows[0];
-    if (v.user_id === userId || v.agent_user_id === userId) return true;
-    if (v.organization_id) {
-      const { rows: om } = await pool.query("SELECT 1 FROM organization_members WHERE organization_id = $1 AND user_id = $2 AND is_active = true", [v.organization_id, userId]);
-      if (om.length > 0) return true;
-    }
-    const { rows: col } = await pool.query(
-      `SELECT 1 FROM voyage_collaborators vc WHERE vc.voyage_id = $1 AND vc.status = 'accepted'
-       AND (vc.user_id = $2 OR vc.organization_id IN (SELECT organization_id FROM organization_members WHERE user_id = $2 AND is_active = true))`,
-      [voyageId, userId]
-    );
-    return col.length > 0;
-  }
-
-  app.get("/api/voyages/:id/port-calls", isAuthenticated, async (req: any, res) => {
-    try {
-      const voyageId = parseInt(req.params.id);
-      const { rows } = await pool.query(
-        `SELECT vpc.*, p.name AS port_name, p.country AS port_country, p.code AS port_locode,
-           u.first_name AS agent_first_name, u.last_name AS agent_last_name
-         FROM voyage_port_calls vpc
-         LEFT JOIN ports p ON p.id = vpc.port_id
-         LEFT JOIN users u ON u.id = vpc.agent_user_id
-         WHERE vpc.voyage_id = $1 ORDER BY vpc.port_call_order ASC, vpc.id ASC`,
-        [voyageId]
-      );
-      res.json(rows);
-    } catch (err) {
-      console.error("GET port-calls error:", err);
-      res.status(500).json({ message: "Failed to fetch port calls" });
-    }
-  });
-
-  app.post("/api/voyages/:id/port-calls", isAuthenticated, async (req: any, res) => {
-    try {
-      const voyageId = parseInt(req.params.id);
-      const userId = req.user?.claims?.sub;
-      const canAccess = await canAccessVoyagePc(userId, voyageId);
-      if (!canAccess) return res.status(403).json({ message: "Access denied" });
-      const { portId, portCallOrder, portCallType, status, eta, etd, berthName, terminalName, cargoType, cargoQuantity, cargoUnit, agentUserId, notes, organizationId } = req.body;
-      if (!portId) return res.status(400).json({ message: "portId is required" });
-      const { rows: countRows } = await pool.query("SELECT COALESCE(MAX(port_call_order),0)+1 AS next_order FROM voyage_port_calls WHERE voyage_id = $1", [voyageId]);
-      const nextOrder = portCallOrder || countRows[0].next_order;
-      const { rows } = await pool.query(
-        `INSERT INTO voyage_port_calls (voyage_id, port_id, port_call_order, port_call_type, status, eta, etd, berth_name, terminal_name, cargo_type, cargo_quantity, cargo_unit, agent_user_id, notes, organization_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
-        [voyageId, portId, nextOrder, portCallType || "discharging", status || "planned",
-         eta ? new Date(eta) : null, etd ? new Date(etd) : null,
-         berthName || null, terminalName || null, cargoType || null,
-         cargoQuantity || null, cargoUnit || "MT", agentUserId || null, notes || null, organizationId || null]
-      );
-      const { rows: allCalls } = await pool.query(`SELECT p.name FROM voyage_port_calls vpc JOIN ports p ON p.id = vpc.port_id WHERE vpc.voyage_id = $1 ORDER BY vpc.port_call_order`, [voyageId]);
-      const loadPortSummary = allCalls.map((r: any) => r.name).join(" → ");
-      await pool.query("UPDATE voyages SET load_port = $1, voyage_type = CASE WHEN $2::int > 1 THEN 'multi' ELSE voyage_type END WHERE id = $3", [loadPortSummary, allCalls.length, voyageId]);
-      res.status(201).json(rows[0]);
-    } catch (err) {
-      console.error("POST port-call error:", err);
-      res.status(500).json({ message: "Failed to create port call" });
-    }
-  });
-
-  app.patch("/api/voyages/:id/port-calls/:portCallId", isAuthenticated, async (req: any, res) => {
-    try {
-      const voyageId = parseInt(req.params.id);
-      const portCallId = parseInt(req.params.portCallId);
-      const userId = req.user?.claims?.sub;
-      const canAccess = await canAccessVoyagePc(userId, voyageId);
-      if (!canAccess) return res.status(403).json({ message: "Access denied" });
-      const fields: string[] = [];
-      const vals: any[] = [];
-      let p = 1;
-      const allowed = ["port_call_type","status","eta","etd","ata","atd","berth_name","terminal_name","cargo_type","cargo_quantity","cargo_unit","agent_user_id","notes","port_call_order"];
-      const keyMap: Record<string, string> = { portCallType:"port_call_type", berthName:"berth_name", terminalName:"terminal_name", cargoType:"cargo_type", cargoQuantity:"cargo_quantity", cargoUnit:"cargo_unit", agentUserId:"agent_user_id", portCallOrder:"port_call_order" };
-      for (const [k, v] of Object.entries(req.body)) {
-        const col = keyMap[k] || k;
-        if (!allowed.includes(col)) continue;
-        const parsedVal = ["eta","etd","ata","atd"].includes(col) && v ? new Date(v as string) : v;
-        fields.push(`${col} = $${p++}`); vals.push(parsedVal);
-      }
-      if (!fields.length) return res.status(400).json({ message: "No valid fields" });
-      vals.push(portCallId, voyageId);
-      const { rows } = await pool.query(`UPDATE voyage_port_calls SET ${fields.join(", ")} WHERE id = $${p++} AND voyage_id = $${p} RETURNING *`, vals);
-      if (!rows.length) return res.status(404).json({ message: "Port call not found" });
-      res.json(rows[0]);
-    } catch (err) {
-      console.error("PATCH port-call error:", err);
-      res.status(500).json({ message: "Failed to update port call" });
-    }
-  });
-
-  app.patch("/api/voyages/:id/port-calls/:portCallId/status", isAuthenticated, async (req: any, res) => {
-    try {
-      const voyageId = parseInt(req.params.id);
-      const portCallId = parseInt(req.params.portCallId);
-      const { status } = req.body;
-      const VALID = ["planned","approaching","at_anchor","berthed","operations","completed","skipped"];
-      if (!VALID.includes(status)) return res.status(400).json({ message: "Invalid status" });
-      const { rows } = await pool.query("UPDATE voyage_port_calls SET status = $1 WHERE id = $2 AND voyage_id = $3 RETURNING *", [status, portCallId, voyageId]);
-      if (!rows.length) return res.status(404).json({ message: "Port call not found" });
-      if (status === "berthed" || status === "operations") {
-        await pool.query("UPDATE voyages SET current_port_call_id = $1 WHERE id = $2", [portCallId, voyageId]);
-      }
-      res.json(rows[0]);
-    } catch (err) {
-      res.status(500).json({ message: "Failed to update port call status" });
-    }
-  });
-
-  app.delete("/api/voyages/:id/port-calls/:portCallId", isAuthenticated, async (req: any, res) => {
-    try {
-      const voyageId = parseInt(req.params.id);
-      const portCallId = parseInt(req.params.portCallId);
-      const userId = req.user?.claims?.sub;
-      const canAccess = await canAccessVoyagePc(userId, voyageId);
-      if (!canAccess) return res.status(403).json({ message: "Access denied" });
-      await pool.query("DELETE FROM voyage_port_calls WHERE id = $1 AND voyage_id = $2", [portCallId, voyageId]);
-      const { rows } = await pool.query("SELECT id FROM voyage_port_calls WHERE voyage_id = $1 ORDER BY port_call_order ASC, id ASC", [voyageId]);
-      for (let i = 0; i < rows.length; i++) {
-        await pool.query("UPDATE voyage_port_calls SET port_call_order = $1 WHERE id = $2", [i + 1, rows[i].id]);
-      }
-      const { rows: allCalls } = await pool.query(`SELECT p.name FROM voyage_port_calls vpc JOIN ports p ON p.id = vpc.port_id WHERE vpc.voyage_id = $1 ORDER BY vpc.port_call_order`, [voyageId]);
-      await pool.query("UPDATE voyages SET load_port = $1 WHERE id = $2", [allCalls.map((r: any) => r.name).join(" → ") || null, voyageId]);
-      res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ message: "Failed to delete port call" });
-    }
-  });
-
-  // ─── SOF (STATEMENT OF FACTS) ────────────────────────────────────────────────
-
-  const INTERRUPTION_CODES = new Set(["RAIN_STARTED","RAIN_STOPPED","BREAKDOWN","BREAKDOWN_REPAIRED","SHIFT_START","SHIFT_END","HOLIDAY","BUNKER_START","BUNKER_END"]);
-
-  app.get("/api/voyages/:voyageId/port-calls/:portCallId/sof", isAuthenticated, async (req: any, res) => {
-    try {
-      const portCallId = parseInt(req.params.portCallId);
-      const { rows } = await pool.query(
-        `SELECT se.*, u.first_name, u.last_name
-         FROM sof_events se
-         LEFT JOIN users u ON u.id = se.recorded_by_user_id
-         WHERE se.port_call_id = $1
-         ORDER BY se.event_time ASC, se.id ASC`,
-        [portCallId]
-      );
-      res.json(rows);
-    } catch (err) {
-      console.error("GET SOF error:", err);
-      res.status(500).json({ message: "Failed to fetch SOF events" });
-    }
-  });
-
-  app.post("/api/voyages/:voyageId/port-calls/:portCallId/sof", isAuthenticated, async (req: any, res) => {
-    try {
-      const voyageId = parseInt(req.params.voyageId);
-      const portCallId = parseInt(req.params.portCallId);
-      const userId = req.user?.claims?.sub;
-      const { eventCode, eventName, eventTime, remarks, isOfficial, organizationId } = req.body;
-      if (!eventCode || !eventName || !eventTime) return res.status(400).json({ message: "eventCode, eventName, eventTime required" });
-      const { rows } = await pool.query(
-        `INSERT INTO sof_events (port_call_id, voyage_id, event_code, event_name, event_time, remarks, is_official, recorded_by_user_id, organization_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-        [portCallId, voyageId, eventCode, eventName, new Date(eventTime), remarks || null, isOfficial || false, userId, organizationId || null]
-      );
-      res.status(201).json(rows[0]);
-    } catch (err) {
-      console.error("POST SOF event error:", err);
-      res.status(500).json({ message: "Failed to add SOF event" });
-    }
-  });
-
-  app.post("/api/voyages/:voyageId/port-calls/:portCallId/sof/from-template", isAuthenticated, async (req: any, res) => {
-    try {
-      const voyageId = parseInt(req.params.voyageId);
-      const portCallId = parseInt(req.params.portCallId);
-      const userId = req.user?.claims?.sub;
-      const { templateId, baseDate } = req.body;
-      const { rows: tmpl } = await pool.query("SELECT * FROM sof_templates WHERE id = $1", [templateId]);
-      if (!tmpl.length) return res.status(404).json({ message: "Template not found" });
-      const events: any[] = tmpl[0].events;
-      const base = baseDate ? new Date(baseDate) : new Date();
-      const insertedIds: number[] = [];
-      for (const ev of events) {
-        const evTime = new Date(base.getTime() + (ev.order - 1) * 60 * 60 * 1000);
-        const { rows } = await pool.query(
-          `INSERT INTO sof_events (port_call_id, voyage_id, event_code, event_name, event_time, recorded_by_user_id)
-           VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-          [portCallId, voyageId, ev.eventCode, ev.eventName, evTime, userId]
-        );
-        insertedIds.push(rows[0].id);
-      }
-      res.status(201).json({ inserted: insertedIds.length });
-    } catch (err) {
-      res.status(500).json({ message: "Failed to apply template" });
-    }
-  });
-
-  app.patch("/api/sof-events/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const { eventCode, eventName, eventTime, remarks, isOfficial } = req.body;
-      const fields: string[] = [];
-      const vals: any[] = [];
-      let p = 1;
-      if (eventCode !== undefined) { fields.push(`event_code = $${p++}`); vals.push(eventCode); }
-      if (eventName !== undefined) { fields.push(`event_name = $${p++}`); vals.push(eventName); }
-      if (eventTime !== undefined) { fields.push(`event_time = $${p++}`); vals.push(new Date(eventTime)); }
-      if (remarks !== undefined) { fields.push(`remarks = $${p++}`); vals.push(remarks); }
-      if (isOfficial !== undefined) { fields.push(`is_official = $${p++}`); vals.push(isOfficial); }
-      if (!fields.length) return res.status(400).json({ message: "No fields to update" });
-      vals.push(id);
-      const { rows } = await pool.query(`UPDATE sof_events SET ${fields.join(",")} WHERE id = $${p} RETURNING *`, vals);
-      if (!rows.length) return res.status(404).json({ message: "SOF event not found" });
-      res.json(rows[0]);
-    } catch {
-      res.status(500).json({ message: "Failed to update SOF event" });
-    }
-  });
-
-  app.delete("/api/sof-events/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      await pool.query("DELETE FROM sof_events WHERE id = $1", [parseInt(req.params.id)]);
-      res.json({ success: true });
-    } catch {
-      res.status(500).json({ message: "Failed to delete SOF event" });
-    }
-  });
-
-  app.get("/api/sof-templates", isAuthenticated, async (req: any, res) => {
-    try {
-      const { rows } = await pool.query("SELECT * FROM sof_templates ORDER BY is_default DESC, id ASC");
-      res.json(rows);
-    } catch {
-      res.status(500).json({ message: "Failed to fetch SOF templates" });
-    }
-  });
-
-  app.post("/api/sof-templates", isAuthenticated, async (req: any, res) => {
-    try {
-      const { name, portCallType, events } = req.body;
-      if (!name || !events) return res.status(400).json({ message: "name and events required" });
-      const { rows } = await pool.query(
-        "INSERT INTO sof_templates (name, port_call_type, events, is_default) VALUES ($1,$2,$3,false) RETURNING *",
-        [name, portCallType || null, JSON.stringify(events)]
-      );
-      res.status(201).json(rows[0]);
-    } catch {
-      res.status(500).json({ message: "Failed to create SOF template" });
-    }
-  });
-
-  // ─── VOYAGE EXPENSES & BUDGETS ───────────────────────────────────────────────
-
-  const EXPENSE_CATEGORIES = [
-    "port_charges","agency_fee","pilotage","tugboat","mooring","bunker",
-    "provisions","crew","repairs","insurance","communication","misc"
-  ];
-
-  app.get("/api/voyages/:id/expenses", isAuthenticated, async (req: any, res) => {
-    try {
-      const voyageId = parseInt(req.params.id);
-      const { rows } = await pool.query(
-        `SELECT ve.*, vpc.port_call_order, p.name AS port_name
-         FROM voyage_expenses ve
-         LEFT JOIN voyage_port_calls vpc ON vpc.id = ve.port_call_id
-         LEFT JOIN ports p ON p.id = vpc.port_id
-         WHERE ve.voyage_id = $1
-         ORDER BY ve.created_at ASC`,
-        [voyageId]
-      );
-      res.json(rows);
-    } catch { res.status(500).json({ message: "Failed to fetch expenses" }); }
-  });
-
-  app.post("/api/voyages/:id/expenses", isAuthenticated, async (req: any, res) => {
-    try {
-      const voyageId = parseInt(req.params.id);
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const {
-        portCallId, category, description, budgetAmount, actualAmount,
-        currency = "USD", exchangeRate = 1, vendor, invoiceNumber,
-        invoiceDate, paymentStatus = "unpaid", notes, organizationId
-      } = req.body;
-      if (!category || !description || actualAmount == null)
-        return res.status(400).json({ message: "category, description, actualAmount required" });
-      const amountUsd = parseFloat(actualAmount) * parseFloat(exchangeRate);
-      const { rows } = await pool.query(
-        `INSERT INTO voyage_expenses
-           (voyage_id, port_call_id, user_id, organization_id, category, description,
-            budget_amount, actual_amount, currency, exchange_rate, amount_usd,
-            vendor, invoice_number, invoice_date, payment_status, notes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-         RETURNING *`,
-        [voyageId, portCallId || null, userId, organizationId || null, category, description,
-         budgetAmount || null, actualAmount, currency, exchangeRate, amountUsd,
-         vendor || null, invoiceNumber || null, invoiceDate || null, paymentStatus, notes || null]
-      );
-      res.status(201).json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed to add expense" }); }
-  });
-
-  app.patch("/api/voyages/:id/expenses/:expenseId", isAuthenticated, async (req: any, res) => {
-    try {
-      const voyageId = parseInt(req.params.id);
-      const expenseId = parseInt(req.params.expenseId);
-      const fields: string[] = [];
-      const vals: any[] = [];
-      let p = 1;
-      const allowed = ["port_call_id","category","description","budget_amount","actual_amount",
-                       "currency","exchange_rate","vendor","invoice_number","invoice_date",
-                       "payment_status","paid_at","notes"];
-      const keyMap: Record<string, string> = {
-        portCallId:"port_call_id", category:"category", description:"description",
-        budgetAmount:"budget_amount", actualAmount:"actual_amount", currency:"currency",
-        exchangeRate:"exchange_rate", vendor:"vendor", invoiceNumber:"invoice_number",
-        invoiceDate:"invoice_date", paymentStatus:"payment_status", paidAt:"paid_at", notes:"notes"
-      };
-      for (const [camel, col] of Object.entries(keyMap)) {
-        if (req.body[camel] !== undefined) { fields.push(`${col} = $${p++}`); vals.push(req.body[camel]); }
-      }
-      if (fields.length === 0) return res.status(400).json({ message: "No fields to update" });
-      if (req.body.actualAmount !== undefined && req.body.exchangeRate !== undefined) {
-        fields.push(`amount_usd = $${p++}`);
-        vals.push(parseFloat(req.body.actualAmount) * parseFloat(req.body.exchangeRate));
-      }
-      vals.push(expenseId, voyageId);
-      const { rows } = await pool.query(
-        `UPDATE voyage_expenses SET ${fields.join(", ")} WHERE id = $${p++} AND voyage_id = $${p} RETURNING *`, vals
-      );
-      if (!rows.length) return res.status(404).json({ message: "Expense not found" });
-      res.json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed to update expense" }); }
-  });
-
-  app.delete("/api/voyages/:id/expenses/:expenseId", isAuthenticated, async (req: any, res) => {
-    try {
-      const voyageId = parseInt(req.params.id);
-      const expenseId = parseInt(req.params.expenseId);
-      await pool.query("DELETE FROM voyage_expenses WHERE id = $1 AND voyage_id = $2", [expenseId, voyageId]);
-      res.json({ success: true });
-    } catch { res.status(500).json({ message: "Failed to delete expense" }); }
-  });
-
-  app.get("/api/voyages/:id/expenses/summary", isAuthenticated, async (req: any, res) => {
-    try {
-      const voyageId = parseInt(req.params.id);
-      const { rows: expenses } = await pool.query(
-        "SELECT category, amount_usd, payment_status FROM voyage_expenses WHERE voyage_id = $1", [voyageId]
-      );
-      const { rows: budgets } = await pool.query(
-        "SELECT category, budget_amount FROM voyage_budgets WHERE voyage_id = $1", [voyageId]
-      );
-      const budgetMap: Record<string, number> = {};
-      for (const b of budgets) budgetMap[b.category] = parseFloat(b.budget_amount) || 0;
-
-      const catMap: Record<string, { actual: number; paid: number }> = {};
-      for (const e of expenses) {
-        if (!catMap[e.category]) catMap[e.category] = { actual: 0, paid: 0 };
-        catMap[e.category].actual += parseFloat(e.amount_usd) || 0;
-        if (e.payment_status === "paid") catMap[e.category].paid += parseFloat(e.amount_usd) || 0;
-      }
-
-      const categories = EXPENSE_CATEGORIES.map(cat => ({
-        category: cat,
-        budget: budgetMap[cat] || 0,
-        actual: catMap[cat]?.actual || 0,
-        paid: catMap[cat]?.paid || 0,
-        variance: (catMap[cat]?.actual || 0) - (budgetMap[cat] || 0),
-      }));
-
-      const totalBudget = categories.reduce((s, c) => s + c.budget, 0);
-      const totalActual = categories.reduce((s, c) => s + c.actual, 0);
-      const totalPaid = categories.reduce((s, c) => s + c.paid, 0);
-      res.json({ categories, totalBudget, totalActual, totalPaid, totalVariance: totalActual - totalBudget });
-    } catch { res.status(500).json({ message: "Failed to get expense summary" }); }
-  });
-
-  app.get("/api/voyages/:id/budgets", isAuthenticated, async (req: any, res) => {
-    try {
-      const voyageId = parseInt(req.params.id);
-      const { rows } = await pool.query(
-        "SELECT * FROM voyage_budgets WHERE voyage_id = $1 ORDER BY category ASC", [voyageId]
-      );
-      res.json(rows);
-    } catch { res.status(500).json({ message: "Failed to fetch budgets" }); }
-  });
-
-  app.post("/api/voyages/:id/budgets", isAuthenticated, async (req: any, res) => {
-    try {
-      const voyageId = parseInt(req.params.id);
-      const { category, budgetAmount, currency = "USD", notes } = req.body;
-      if (!category || budgetAmount == null) return res.status(400).json({ message: "category and budgetAmount required" });
-      const { rows } = await pool.query(
-        `INSERT INTO voyage_budgets (voyage_id, category, budget_amount, currency, notes)
-         VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (voyage_id, category) DO UPDATE SET budget_amount = $3, currency = $4, notes = $5
-         RETURNING *`,
-        [voyageId, category, budgetAmount, currency, notes || null]
-      );
-      res.status(201).json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed to save budget" }); }
-  });
-
-  // ─── BUNKER MANAGEMENT ───────────────────────────────────────────────────────
-
-  const FUEL_TYPES = ["IFO380", "VLSFO", "MGO", "LSMGO", "LNG"];
-
-  app.get("/api/vessels/:vesselId/bunker", isAuthenticated, async (req: any, res) => {
-    try {
-      const vesselId = parseInt(req.params.vesselId);
-      const { from, to, fuelType, recordType, voyageId } = req.query;
-      const conds: string[] = ["vessel_id = $1"];
-      const vals: any[] = [vesselId];
-      let p = 2;
-      if (from) { conds.push(`record_date >= $${p++}`); vals.push(from); }
-      if (to) { conds.push(`record_date <= $${p++}`); vals.push(to); }
-      if (fuelType) { conds.push(`fuel_type = $${p++}`); vals.push(fuelType); }
-      if (recordType) { conds.push(`record_type = $${p++}`); vals.push(recordType); }
-      if (voyageId) { conds.push(`voyage_id = $${p++}`); vals.push(parseInt(voyageId as string)); }
-      const { rows } = await pool.query(
-        `SELECT * FROM bunker_records WHERE ${conds.join(" AND ")} ORDER BY record_date DESC`, vals
-      );
-      res.json(rows);
-    } catch { res.status(500).json({ message: "Failed to fetch bunker records" }); }
-  });
-
-  app.post("/api/vessels/:vesselId/bunker", isAuthenticated, async (req: any, res) => {
-    try {
-      const vesselId = parseInt(req.params.vesselId);
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { recordType, recordDate, fuelType, quantity, unit = "MT", pricePerTon,
-              totalCost, currency = "USD", supplier, deliveryNote, robBefore, robAfter,
-              portName, notes, fileUrl, voyageId, portCallId, organizationId } = req.body;
-      if (!recordType || !recordDate || !fuelType || quantity == null)
-        return res.status(400).json({ message: "recordType, recordDate, fuelType, quantity required" });
-      const computedCost = (totalCost != null) ? totalCost
-        : (pricePerTon && quantity) ? parseFloat(pricePerTon) * parseFloat(quantity) : null;
-      const { rows } = await pool.query(
-        `INSERT INTO bunker_records
-           (vessel_id, voyage_id, port_call_id, user_id, organization_id, record_type,
-            record_date, fuel_type, quantity, unit, price_per_ton, total_cost, currency,
-            supplier, delivery_note, rob_before, rob_after, port_name, notes, file_url)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
-         RETURNING *`,
-        [vesselId, voyageId || null, portCallId || null, userId, organizationId || null,
-         recordType, recordDate, fuelType, quantity, unit, pricePerTon || null, computedCost,
-         currency, supplier || null, deliveryNote || null, robBefore ?? null, robAfter ?? null,
-         portName || null, notes || null, fileUrl || null]
-      );
-      res.status(201).json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed to add bunker record" }); }
-  });
-
-  app.patch("/api/vessels/:vesselId/bunker/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const vesselId = parseInt(req.params.vesselId);
-      const id = parseInt(req.params.id);
-      const keyMap: Record<string, string> = {
-        recordType:"record_type", recordDate:"record_date", fuelType:"fuel_type",
-        quantity:"quantity", unit:"unit", pricePerTon:"price_per_ton", totalCost:"total_cost",
-        currency:"currency", supplier:"supplier", deliveryNote:"delivery_note",
-        robBefore:"rob_before", robAfter:"rob_after", portName:"port_name",
-        notes:"notes", fileUrl:"file_url", voyageId:"voyage_id", portCallId:"port_call_id"
-      };
-      const fields: string[] = []; const vals: any[] = []; let p = 1;
-      for (const [camel, col] of Object.entries(keyMap)) {
-        if (req.body[camel] !== undefined) { fields.push(`${col} = $${p++}`); vals.push(req.body[camel]); }
-      }
-      if (!fields.length) return res.status(400).json({ message: "No fields" });
-      vals.push(id, vesselId);
-      const { rows } = await pool.query(
-        `UPDATE bunker_records SET ${fields.join(", ")} WHERE id = $${p++} AND vessel_id = $${p} RETURNING *`, vals
-      );
-      if (!rows.length) return res.status(404).json({ message: "Not found" });
-      res.json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed to update bunker record" }); }
-  });
-
-  app.delete("/api/vessels/:vesselId/bunker/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const vesselId = parseInt(req.params.vesselId);
-      const id = parseInt(req.params.id);
-      await pool.query("DELETE FROM bunker_records WHERE id = $1 AND vessel_id = $2", [id, vesselId]);
-      res.json({ success: true });
-    } catch { res.status(500).json({ message: "Failed to delete bunker record" }); }
-  });
-
-  app.get("/api/vessels/:vesselId/bunker/rob", isAuthenticated, async (req: any, res) => {
-    try {
-      const vesselId = parseInt(req.params.vesselId);
-      const { rows: surveys } = await pool.query(
-        "SELECT * FROM bunker_surveys WHERE vessel_id = $1 ORDER BY survey_date DESC LIMIT 1", [vesselId]
-      );
-      if (surveys.length) {
-        const s = surveys[0];
-        return res.json({
-          source: "survey",
-          surveyDate: s.survey_date,
-          robs: {
-            IFO380: s.ifo380_rob, VLSFO: s.vlsfo_rob,
-            MGO: s.mgo_rob, LSMGO: s.lsmgo_rob,
-          }
-        });
-      }
-      const { rows: robRows } = await pool.query(
-        `SELECT fuel_type, rob_after, record_date FROM bunker_records
-         WHERE vessel_id = $1 AND rob_after IS NOT NULL
-         ORDER BY record_date DESC`, [vesselId]
-      );
-      const robs: Record<string, any> = {};
-      for (const r of robRows) {
-        if (!robs[r.fuel_type]) robs[r.fuel_type] = { rob: r.rob_after, date: r.record_date };
-      }
-      res.json({ source: "records", robs });
-    } catch { res.status(500).json({ message: "Failed to get ROB" }); }
-  });
-
-  app.get("/api/vessels/:vesselId/bunker/consumption", isAuthenticated, async (req: any, res) => {
-    try {
-      const vesselId = parseInt(req.params.vesselId);
-      const days = parseInt((req.query.days as string) || "30");
-      const { rows } = await pool.query(
-        `SELECT date_trunc('day', record_date) AS day, fuel_type, SUM(quantity) AS consumed
-         FROM bunker_records
-         WHERE vessel_id = $1 AND record_type = 'consumption'
-           AND record_date >= NOW() - INTERVAL '${days} days'
-         GROUP BY day, fuel_type ORDER BY day ASC`,
-        [vesselId]
-      );
-      const dailyMap: Record<string, Record<string, number>> = {};
-      for (const r of rows) {
-        const d = r.day.toISOString().split("T")[0];
-        if (!dailyMap[d]) dailyMap[d] = {};
-        dailyMap[d][r.fuel_type] = parseFloat(r.consumed);
-      }
-      res.json({ daily: dailyMap, days });
-    } catch { res.status(500).json({ message: "Failed to get consumption" }); }
-  });
-
-  app.get("/api/vessels/:vesselId/bunker/cost-analysis", isAuthenticated, async (req: any, res) => {
-    try {
-      const vesselId = parseInt(req.params.vesselId);
-      const { rows } = await pool.query(
-        `SELECT date_trunc('month', record_date) AS month, fuel_type,
-                SUM(total_cost) AS total_cost, SUM(quantity) AS quantity,
-                AVG(price_per_ton) AS avg_price
-         FROM bunker_records
-         WHERE vessel_id = $1 AND record_type = 'bunkering' AND total_cost IS NOT NULL
-         GROUP BY month, fuel_type ORDER BY month ASC`,
-        [vesselId]
-      );
-      res.json(rows);
-    } catch { res.status(500).json({ message: "Failed to get cost analysis" }); }
-  });
-
-  app.post("/api/vessels/:vesselId/bunker/survey", isAuthenticated, async (req: any, res) => {
-    try {
-      const vesselId = parseInt(req.params.vesselId);
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { surveyDate, ifo380Rob = 0, vlsfoRob = 0, mgoRob = 0, lsmgoRob = 0, notes } = req.body;
-      if (!surveyDate) return res.status(400).json({ message: "surveyDate required" });
-      const { rows } = await pool.query(
-        `INSERT INTO bunker_surveys (vessel_id, survey_date, user_id, ifo380_rob, vlsfo_rob, mgo_rob, lsmgo_rob, notes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-        [vesselId, surveyDate, userId, ifo380Rob, vlsfoRob, mgoRob, lsmgoRob, notes || null]
-      );
-      res.status(201).json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed to save survey" }); }
-  });
-
-  app.get("/api/vessels/:vesselId/bunker/surveys", isAuthenticated, async (req: any, res) => {
-    try {
-      const vesselId = parseInt(req.params.vesselId);
-      const { rows } = await pool.query(
-        "SELECT * FROM bunker_surveys WHERE vessel_id = $1 ORDER BY survey_date DESC LIMIT 20", [vesselId]
-      );
-      res.json(rows);
-    } catch { res.status(500).json({ message: "Failed to get surveys" }); }
-  });
-
-  // ─── FINAL DISBURSEMENT ACCOUNTS (FDA) ───────────────────────────────────────
-
-  async function genFdaRefNumber(): Promise<string> {
-    const year = new Date().getFullYear();
-    const { rows } = await pool.query("SELECT COUNT(*) FROM final_disbursements WHERE EXTRACT(YEAR FROM created_at) = $1", [year]);
-    const seq = parseInt(rows[0].count) + 1;
-    return `FDA-${year}-${String(seq).padStart(3, "0")}`;
-  }
-
-  function calcFdaTotals(lineItems: any[]) {
-    const totalProforma = lineItems.reduce((s: number, i: any) => s + (parseFloat(i.proformaAmount) || 0), 0);
-    const totalActual = lineItems.reduce((s: number, i: any) => s + (parseFloat(i.actualAmount) || 0), 0);
-    const totalVariance = totalActual - totalProforma;
-    const variancePercentage = totalProforma !== 0 ? (totalVariance / totalProforma) * 100 : 0;
-    return { totalProforma, totalActual, totalVariance, variancePercentage };
-  }
-
-  app.get("/api/final-da", isAuthenticated, attachOrgContext, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub;
-      const { rows: aRows } = await pool.query("SELECT user_role FROM users WHERE id = $1", [userId]);
-      const isAdminUser = aRows[0]?.user_role === "admin";
-      let query: string;
-      let params: any[];
-      if (isAdminUser) {
-        query = `SELECT fd.*, p.name AS port_name, v.name AS vessel_name,
-                   pr.reference_number AS proforma_ref
-                 FROM final_disbursements fd
-                 LEFT JOIN ports p ON p.id = fd.port_id
-                 LEFT JOIN vessels v ON v.id = fd.vessel_id
-                 LEFT JOIN proformas pr ON pr.id = fd.proforma_id
-                 ORDER BY fd.created_at DESC`;
-        params = [];
-      } else if (req.organizationId) {
-        query = `SELECT fd.*, p.name AS port_name, v.name AS vessel_name,
-                   pr.reference_number AS proforma_ref
-                 FROM final_disbursements fd
-                 LEFT JOIN ports p ON p.id = fd.port_id
-                 LEFT JOIN vessels v ON v.id = fd.vessel_id
-                 LEFT JOIN proformas pr ON pr.id = fd.proforma_id
-                 WHERE fd.user_id = $1 OR fd.organization_id = $2
-                 ORDER BY fd.created_at DESC`;
-        params = [userId, req.organizationId];
-      } else {
-        query = `SELECT fd.*, p.name AS port_name, v.name AS vessel_name,
-                   pr.reference_number AS proforma_ref
-                 FROM final_disbursements fd
-                 LEFT JOIN ports p ON p.id = fd.port_id
-                 LEFT JOIN vessels v ON v.id = fd.vessel_id
-                 LEFT JOIN proformas pr ON pr.id = fd.proforma_id
-                 WHERE fd.user_id = $1
-                 ORDER BY fd.created_at DESC`;
-        params = [userId];
-      }
-      const { rows } = await pool.query(query, params);
-      res.json(rows);
-    } catch (err) {
-      console.error("GET final-da error:", err);
-      res.status(500).json({ message: "Failed to fetch Final DAs" });
-    }
-  });
-
-  app.get("/api/final-da/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const { rows } = await pool.query(
-        `SELECT fd.*, p.name AS port_name, p.code AS port_locode,
-           v.name AS vessel_name, v.imo_number,
-           pr.reference_number AS proforma_ref, pr.line_items AS proforma_line_items,
-           pr.total_usd AS proforma_total_usd,
-           u.first_name, u.last_name, u.email
-         FROM final_disbursements fd
-         LEFT JOIN ports p ON p.id = fd.port_id
-         LEFT JOIN vessels v ON v.id = fd.vessel_id
-         LEFT JOIN proformas pr ON pr.id = fd.proforma_id
-         LEFT JOIN users u ON u.id = fd.user_id
-         WHERE fd.id = $1`,
-        [parseInt(req.params.id)]
-      );
-      if (!rows.length) return res.status(404).json({ message: "Final DA not found" });
-      res.json(rows[0]);
-    } catch (err) {
-      res.status(500).json({ message: "Failed to fetch Final DA" });
-    }
-  });
-
-  app.post("/api/final-da/from-proforma/:proformaId", isAuthenticated, attachOrgContext, async (req: any, res) => {
-    try {
-      const proformaId = parseInt(req.params.proformaId);
-      const userId = req.user?.claims?.sub;
-      const { rows: pRows } = await pool.query(
-        "SELECT * FROM proformas WHERE id = $1",
-        [proformaId]
-      );
-      if (!pRows.length) return res.status(404).json({ message: "Proforma not found" });
-      const pf = pRows[0];
-      const proformaItems: any[] = pf.line_items || [];
-      const lineItems = proformaItems.map((item: any) => ({
-        description: item.description,
-        proformaAmount: parseFloat(item.amountUsd) || 0,
-        actualAmount: parseFloat(item.amountUsd) || 0,
-        difference: 0,
-        notes: item.notes || "",
-      }));
-      const { totalProforma, totalActual, totalVariance, variancePercentage } = calcFdaTotals(lineItems);
-      const refNumber = await genFdaRefNumber();
-      const { rows } = await pool.query(
-        `INSERT INTO final_disbursements
-           (proforma_id, voyage_id, user_id, organization_id, vessel_id, port_id,
-            reference_number, to_company, line_items, total_proforma, total_actual,
-            total_variance, variance_percentage, currency, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'draft') RETURNING *`,
-        [
-          proformaId,
-          pf.voyage_id || null,
-          userId,
-          req.organizationId || null,
-          pf.vessel_id || null,
-          pf.port_id,
-          refNumber,
-          pf.to_company || null,
-          JSON.stringify(lineItems),
-          totalProforma,
-          totalActual,
-          totalVariance,
-          variancePercentage,
-          pf.currency || "USD",
-        ]
-      );
-      res.status(201).json(rows[0]);
-    } catch (err) {
-      console.error("Create FDA from proforma error:", err);
-      res.status(500).json({ message: "Failed to create Final DA from proforma" });
-    }
-  });
-
-  app.post("/api/final-da", isAuthenticated, attachOrgContext, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub;
-      const { proformaId, portId, vesselId, voyageId, portCallId, toCompany, lineItems = [], currency, notes, bankDetails } = req.body;
-      if (!portId) return res.status(400).json({ message: "portId is required" });
-      const items = lineItems.map((item: any) => ({
-        ...item,
-        difference: (parseFloat(item.actualAmount) || 0) - (parseFloat(item.proformaAmount) || 0),
-      }));
-      const { totalProforma, totalActual, totalVariance, variancePercentage } = calcFdaTotals(items);
-      const refNumber = await genFdaRefNumber();
-      const { rows } = await pool.query(
-        `INSERT INTO final_disbursements
-           (proforma_id, port_call_id, voyage_id, user_id, organization_id, vessel_id, port_id,
-            reference_number, to_company, line_items, total_proforma, total_actual,
-            total_variance, variance_percentage, currency, notes, bank_details, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'draft') RETURNING *`,
-        [
-          proformaId || null, portCallId || null, voyageId || null,
-          userId, req.organizationId || null, vesselId || null, portId,
-          refNumber, toCompany || null, JSON.stringify(items),
-          totalProforma, totalActual, totalVariance, variancePercentage,
-          currency || "USD", notes || null, bankDetails ? JSON.stringify(bankDetails) : null,
-        ]
-      );
-      res.status(201).json(rows[0]);
-    } catch (err) {
-      console.error("Create FDA error:", err);
-      res.status(500).json({ message: "Failed to create Final DA" });
-    }
-  });
-
-  app.patch("/api/final-da/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const { lineItems, toCompany, currency, notes, status, bankDetails, closedAt } = req.body;
-      const fields: string[] = [];
-      const vals: any[] = [];
-      let p = 1;
-      if (toCompany !== undefined) { fields.push(`to_company = $${p++}`); vals.push(toCompany); }
-      if (currency !== undefined) { fields.push(`currency = $${p++}`); vals.push(currency); }
-      if (notes !== undefined) { fields.push(`notes = $${p++}`); vals.push(notes); }
-      if (status !== undefined) {
-        fields.push(`status = $${p++}`); vals.push(status);
-        if (status === "paid" || status === "final") {
-          fields.push(`closed_at = $${p++}`); vals.push(new Date());
-        }
-      }
-      if (closedAt !== undefined) { fields.push(`closed_at = $${p++}`); vals.push(closedAt ? new Date(closedAt) : null); }
-      if (bankDetails !== undefined) { fields.push(`bank_details = $${p++}`); vals.push(JSON.stringify(bankDetails)); }
-      if (lineItems !== undefined) {
-        const items = lineItems.map((item: any) => ({
-          ...item,
-          difference: (parseFloat(item.actualAmount) || 0) - (parseFloat(item.proformaAmount) || 0),
-        }));
-        const { totalProforma, totalActual, totalVariance, variancePercentage } = calcFdaTotals(items);
-        fields.push(`line_items = $${p++}`); vals.push(JSON.stringify(items));
-        fields.push(`total_proforma = $${p++}`); vals.push(totalProforma);
-        fields.push(`total_actual = $${p++}`); vals.push(totalActual);
-        fields.push(`total_variance = $${p++}`); vals.push(totalVariance);
-        fields.push(`variance_percentage = $${p++}`); vals.push(variancePercentage);
-      }
-      if (!fields.length) return res.status(400).json({ message: "No fields to update" });
-      vals.push(id);
-      const { rows } = await pool.query(`UPDATE final_disbursements SET ${fields.join(",")} WHERE id = $${p} RETURNING *`, vals);
-      if (!rows.length) return res.status(404).json({ message: "Final DA not found" });
-      res.json(rows[0]);
-    } catch (err) {
-      console.error("PATCH FDA error:", err);
-      res.status(500).json({ message: "Failed to update Final DA" });
-    }
-  });
-
-  app.delete("/api/final-da/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub;
-      const { rows: aRows } = await pool.query("SELECT user_role FROM users WHERE id = $1", [userId]);
-      const isAdminUser = aRows[0]?.user_role === "admin";
-      const { rows: fdaRows } = await pool.query("SELECT user_id FROM final_disbursements WHERE id = $1", [parseInt(req.params.id)]);
-      if (!fdaRows.length) return res.status(404).json({ message: "Not found" });
-      if (!isAdminUser && fdaRows[0].user_id !== userId) return res.status(403).json({ message: "Access denied" });
-      await pool.query("DELETE FROM final_disbursements WHERE id = $1", [parseInt(req.params.id)]);
-      res.json({ success: true });
-    } catch {
-      res.status(500).json({ message: "Failed to delete Final DA" });
-    }
-  });
-
-  app.get("/api/final-da/:id/variance-report", isAuthenticated, async (req: any, res) => {
-    try {
-      const { rows } = await pool.query(
-        `SELECT fd.*, p.name AS port_name, v.name AS vessel_name
-         FROM final_disbursements fd
-         LEFT JOIN ports p ON p.id = fd.port_id
-         LEFT JOIN vessels v ON v.id = fd.vessel_id
-         WHERE fd.id = $1`,
-        [parseInt(req.params.id)]
-      );
-      if (!rows.length) return res.status(404).json({ message: "Final DA not found" });
-      const fda = rows[0];
-      const items: any[] = fda.line_items || [];
-      const sortedByVariance = [...items]
-        .sort((a, b) => Math.abs((parseFloat(b.actualAmount) || 0) - (parseFloat(b.proformaAmount) || 0)) -
-                        Math.abs((parseFloat(a.actualAmount) || 0) - (parseFloat(a.proformaAmount) || 0)));
-      res.json({
-        id: fda.id,
-        referenceNumber: fda.reference_number,
-        portName: fda.port_name,
-        vesselName: fda.vessel_name,
-        totalProforma: fda.total_proforma,
-        totalActual: fda.total_actual,
-        totalVariance: fda.total_variance,
-        variancePercentage: fda.variance_percentage,
-        lineItems: items,
-        topVarianceItems: sortedByVariance.slice(0, 3),
-      });
-    } catch {
-      res.status(500).json({ message: "Failed to get variance report" });
-    }
-  });
-
   // ─── FIXTURES ───────────────────────────────────────────────────────────────
 
-  app.get("/api/fixtures", isAuthenticated, attachOrgContext, async (req: any, res) => {
+  app.get("/api/fixtures", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const isAdmin = req.user.userRole === "admin" || req.user.activeRole === "admin";
-      const result = isAdmin ? await storage.getAllFixtures() : await storage.getFixtures(userId, req.organizationId);
+      const result = isAdmin ? await storage.getAllFixtures() : await storage.getFixtures(userId);
       res.json(result);
     } catch {
       res.status(500).json({ message: "Failed to fetch fixtures" });
     }
   });
 
-  app.post("/api/fixtures", isAuthenticated, attachOrgContext, async (req: any, res) => {
+  app.post("/api/fixtures", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const fixture = await storage.createFixture({ ...req.body, userId, organizationId: req.organizationId ?? null });
-      if (req.organizationId) {
-        const { rows } = await pool.query("SELECT first_name, last_name FROM users WHERE id = $1", [userId]);
-        const name = `${rows[0]?.first_name || ""} ${rows[0]?.last_name || ""}`.trim() || "A user";
-        logOrgActivity({ organizationId: req.organizationId, userId, action: "created_fixture", entityType: "fixture", entityId: fixture.id, description: `${name} created fixture for ${fixture.vesselName}` });
-      }
+      const fixture = await storage.createFixture({ ...req.body, userId });
       res.status(201).json(fixture);
     } catch {
       res.status(500).json({ message: "Failed to create fixture" });
@@ -5544,10 +4162,10 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/cargo-positions", isAuthenticated, attachOrgContext, async (req: any, res) => {
+  app.post("/api/cargo-positions", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
-      const pos = await storage.createCargoPosition({ ...req.body, userId, organizationId: req.organizationId ?? null });
+      const pos = await storage.createCargoPosition({ ...req.body, userId });
       res.status(201).json(pos);
 
       if (pos.positionType === "cargo") {
@@ -5746,16 +4364,12 @@ export async function registerRoutes(
   }
 
   app.get("/api/market/freight-indices", isAuthenticated, async (_req, res) => {
-    const simpleCached = cache.get("market:freight-indices");
-    if (simpleCached) return res.json(simpleCached);
     try {
       const now = Date.now();
       const cacheValid = freightIndexCache && (now - freightIndexCache.fetchedAt) < FREIGHT_CACHE_TTL;
 
       if (cacheValid) {
-        const data = { ...freightIndexCache!.data, cached: true };
-        cache.set("market:freight-indices", data, 15 * 60);
-        return res.json(data);
+        return res.json({ ...freightIndexCache!.data, cached: true });
       }
 
       const fresh = await fetchFreightIndices();
@@ -5769,7 +4383,7 @@ export async function registerRoutes(
       };
 
       if (fresh) freightIndexCache = { data, fetchedAt: now };
-      cache.set("market:freight-indices", data, 15 * 60);
+
       res.json(data);
     } catch {
       res.json({ indices: FREIGHT_FALLBACK, lastUpdated: new Date().toISOString(), source: "Fallback", cached: false, hasApiKey: false });
@@ -5779,11 +4393,8 @@ export async function registerRoutes(
   // ─── BUNKER PRICES ───────────────────────────────────────────────────────────
 
   app.get("/api/market/bunker-prices", isAuthenticated, async (_req, res) => {
-    const cached = cache.get("market:bunker-prices");
-    if (cached) return res.json(cached);
     try {
       const prices = await storage.getBunkerPrices();
-      cache.set("market:bunker-prices", prices, 15 * 60);
       res.json(prices);
     } catch {
       res.status(500).json({ message: "Failed to fetch bunker prices" });
@@ -5796,7 +4407,6 @@ export async function registerRoutes(
       const user = await storage.getUser(userId);
       if (user?.userRole !== "admin") return res.status(403).json({ message: "Admin only" });
       const price = await storage.upsertBunkerPrice({ ...req.body, updatedBy: userId });
-      cache.invalidate("market:bunker-prices");
       res.status(201).json(price);
     } catch {
       res.status(500).json({ message: "Failed to save bunker price" });
@@ -5810,7 +4420,6 @@ export async function registerRoutes(
       if (user?.userRole !== "admin") return res.status(403).json({ message: "Admin only" });
       const id = parseInt(req.params.id);
       const price = await storage.upsertBunkerPrice({ ...req.body, updatedBy: userId });
-      cache.invalidate("market:bunker-prices");
       res.json(price);
     } catch {
       res.status(500).json({ message: "Failed to update bunker price" });
@@ -5824,7 +4433,6 @@ export async function registerRoutes(
       if (user?.userRole !== "admin") return res.status(403).json({ message: "Admin only" });
       const id = parseInt(req.params.id);
       await storage.deleteBunkerPrice(id);
-      cache.invalidate("market:bunker-prices");
       res.json({ success: true });
     } catch {
       res.status(500).json({ message: "Failed to delete bunker price" });
@@ -5929,17 +4537,17 @@ export async function registerRoutes(
 
   // ─── INVOICES ────────────────────────────────────────────────────────────────
 
-  app.get("/api/invoices", isAuthenticated, attachOrgContext, async (req: any, res) => {
+  app.get("/api/invoices", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
-      const items = await storage.getInvoicesByUser(userId, req.organizationId);
+      const items = await storage.getInvoicesByUser(userId);
       res.json(items);
     } catch {
       res.status(500).json({ message: "Failed to get invoices" });
     }
   });
 
-  app.post("/api/invoices", isAuthenticated, attachOrgContext, async (req: any, res) => {
+  app.post("/api/invoices", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const { title, amount, currency, dueDate, notes, invoiceType, voyageId, proformaId, linkedProformaId } = req.body;
@@ -5947,7 +4555,6 @@ export async function registerRoutes(
 
       const invoice = await storage.createInvoice({
         createdByUserId: userId,
-        organizationId: req.organizationId ?? null,
         title,
         amount: parseFloat(amount),
         currency: currency || "USD",
@@ -5990,7 +4597,7 @@ export async function registerRoutes(
 
   // ─── PORT ALERTS ─────────────────────────────────────────────────────────────
 
-  app.get("/api/port-alerts", async (req: any, res) => {
+  app.get("/api/port-alerts", async (req, res) => {
     try {
       const portId = req.query.portId ? parseInt(req.query.portId as string) : undefined;
       const portName = req.query.portName as string | undefined;
@@ -6487,1282 +5094,6 @@ export async function registerRoutes(
       console.error("Audit log fetch error:", error);
       res.status(500).json({ message: "Failed to fetch audit logs" });
     }
-  });
-
-  // ─── REPORTS ────────────────────────────────────────────────────────────────
-
-  app.get("/api/reports/voyages", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { from, to } = req.query as { from?: string; to?: string };
-
-      const params: any[] = [userId];
-      let dateFilter = "";
-      if (from) { params.push(from); dateFilter += ` AND v.created_at >= $${params.length}`; }
-      if (to)   { params.push(to);   dateFilter += ` AND v.created_at <= $${params.length}`; }
-
-      const [statsRow, byPort, list] = await Promise.all([
-        pool.query(`
-          SELECT
-            COUNT(*) AS total,
-            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
-            SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
-            SUM(CASE WHEN status = 'active'    THEN 1 ELSE 0 END) AS active,
-            SUM(CASE WHEN status = 'planned'   THEN 1 ELSE 0 END) AS planned,
-            AVG(CASE WHEN eta IS NOT NULL AND etd IS NOT NULL
-                THEN EXTRACT(EPOCH FROM (etd - eta)) / 86400 END) AS avg_duration_days
-          FROM voyages v
-          WHERE (user_id = $1 OR agent_user_id = $1) ${dateFilter}
-        `, params),
-        pool.query(`
-          SELECT p.name AS port_name, COUNT(*) AS count
-          FROM voyages v
-          JOIN ports p ON p.id = v.port_id
-          WHERE (v.user_id = $1 OR v.agent_user_id = $1) ${dateFilter}
-          GROUP BY p.name ORDER BY count DESC LIMIT 10
-        `, params),
-        pool.query(`
-          SELECT v.id, v.vessel_name, v.status, v.purpose_of_call,
-                 v.eta, v.etd, v.created_at, p.name AS port_name
-          FROM voyages v
-          JOIN ports p ON p.id = v.port_id
-          WHERE (v.user_id = $1 OR v.agent_user_id = $1) ${dateFilter}
-          ORDER BY v.created_at DESC LIMIT 100
-        `, params),
-      ]);
-
-      const s = statsRow.rows[0];
-      res.json({
-        stats: {
-          total: parseInt(s.total),
-          completed: parseInt(s.completed),
-          cancelled: parseInt(s.cancelled),
-          active: parseInt(s.active),
-          planned: parseInt(s.planned),
-          avgDurationDays: s.avg_duration_days ? parseFloat(parseFloat(s.avg_duration_days).toFixed(1)) : null,
-        },
-        byPort: byPort.rows.map(r => ({ portName: r.port_name, count: parseInt(r.count) })),
-        list: list.rows,
-      });
-    } catch (err) {
-      console.error("Voyage report error:", err);
-      res.status(500).json({ message: "Failed to generate voyage report" });
-    }
-  });
-
-  app.get("/api/reports/financial", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { from, to } = req.query as { from?: string; to?: string };
-
-      const pParams: any[] = [userId];
-      let pDateFilter = "";
-      if (from) { pParams.push(from); pDateFilter += ` AND p.created_at >= $${pParams.length}`; }
-      if (to)   { pParams.push(to);   pDateFilter += ` AND p.created_at <= $${pParams.length}`; }
-
-      const iParams: any[] = [userId];
-      let iDateFilter = "";
-      if (from) { iParams.push(from); iDateFilter += ` AND i.created_at >= $${iParams.length}`; }
-      if (to)   { iParams.push(to);   iDateFilter += ` AND i.created_at <= $${iParams.length}`; }
-
-      const [proformaStats, invoiceStats, monthly, byPort] = await Promise.all([
-        pool.query(`
-          SELECT
-            COUNT(*) AS total_count,
-            COALESCE(SUM(total_usd), 0) AS total_usd,
-            COALESCE(SUM(total_eur), 0) AS total_eur
-          FROM proformas p
-          WHERE p.user_id = $1 ${pDateFilter}
-        `, pParams),
-        pool.query(`
-          SELECT
-            status,
-            COUNT(*) AS count,
-            COALESCE(SUM(amount), 0) AS total
-          FROM invoices i
-          WHERE i.created_by_user_id = $1 ${iDateFilter}
-          GROUP BY status
-        `, iParams),
-        pool.query(`
-          SELECT
-            TO_CHAR(p.created_at, 'YYYY-MM') AS month,
-            COALESCE(SUM(p.total_usd), 0) AS total_usd,
-            COUNT(*) AS count
-          FROM proformas p
-          WHERE p.user_id = $1 ${pDateFilter}
-          GROUP BY month ORDER BY month ASC LIMIT 12
-        `, pParams),
-        pool.query(`
-          SELECT po.name AS port_name,
-                 COALESCE(SUM(p.total_usd), 0) AS total_usd,
-                 COUNT(*) AS count
-          FROM proformas p
-          JOIN ports po ON po.id = p.port_id
-          WHERE p.user_id = $1 ${pDateFilter}
-          GROUP BY po.name ORDER BY total_usd DESC LIMIT 8
-        `, pParams),
-      ]);
-
-      const ps = proformaStats.rows[0];
-      const invoiceMap: Record<string, { count: number; total: number }> = {};
-      for (const r of invoiceStats.rows) {
-        invoiceMap[r.status] = { count: parseInt(r.count), total: parseFloat(r.total) };
-      }
-
-      res.json({
-        proforma: {
-          totalCount: parseInt(ps.total_count),
-          totalUsd: parseFloat(ps.total_usd),
-          totalEur: parseFloat(ps.total_eur),
-        },
-        invoices: {
-          pending:   invoiceMap["pending"]   || { count: 0, total: 0 },
-          paid:      invoiceMap["paid"]      || { count: 0, total: 0 },
-          cancelled: invoiceMap["cancelled"] || { count: 0, total: 0 },
-        },
-        monthly: monthly.rows.map(r => ({
-          month: r.month,
-          totalUsd: parseFloat(r.total_usd),
-          count: parseInt(r.count),
-        })),
-        byPort: byPort.rows.map(r => ({
-          portName: r.port_name,
-          totalUsd: parseFloat(r.total_usd),
-          count: parseInt(r.count),
-        })),
-      });
-    } catch (err) {
-      console.error("Financial report error:", err);
-      res.status(500).json({ message: "Failed to generate financial report" });
-    }
-  });
-
-  app.get("/api/reports/fleet", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-
-      const [vessels, voyagesPerVessel, certs] = await Promise.all([
-        pool.query(`
-          SELECT id, name, vessel_type, flag, grt, fleet_status
-          FROM vessels
-          WHERE user_id = $1
-          ORDER BY name ASC
-        `, [userId]),
-        pool.query(`
-          SELECT vessel_id,
-                 COUNT(*) AS total_voyages,
-                 SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_voyages,
-                 SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed_voyages
-          FROM voyages
-          WHERE user_id = $1 AND vessel_id IS NOT NULL
-          GROUP BY vessel_id
-        `, [userId]),
-        pool.query(`
-          SELECT vc.vessel_id,
-                 COUNT(*) AS total_certs,
-                 SUM(CASE WHEN vc.expires_at > NOW() + INTERVAL '30 days' THEN 1 ELSE 0 END) AS valid,
-                 SUM(CASE WHEN vc.expires_at BETWEEN NOW() AND NOW() + INTERVAL '30 days' THEN 1 ELSE 0 END) AS expiring,
-                 SUM(CASE WHEN vc.expires_at < NOW() THEN 1 ELSE 0 END) AS expired
-          FROM vessel_certificates vc
-          JOIN vessels v ON v.id = vc.vessel_id
-          WHERE v.user_id = $1
-          GROUP BY vc.vessel_id
-        `, [userId]),
-      ]);
-
-      const voyageMap: Record<number, any> = {};
-      for (const r of voyagesPerVessel.rows) {
-        voyageMap[r.vessel_id] = {
-          totalVoyages: parseInt(r.total_voyages),
-          activeVoyages: parseInt(r.active_voyages),
-          completedVoyages: parseInt(r.completed_voyages),
-        };
-      }
-      const certMap: Record<number, any> = {};
-      for (const r of certs.rows) {
-        certMap[r.vessel_id] = {
-          totalCerts: parseInt(r.total_certs),
-          valid: parseInt(r.valid),
-          expiring: parseInt(r.expiring),
-          expired: parseInt(r.expired),
-        };
-      }
-
-      const vesselList = vessels.rows.map((v: any) => ({
-        id: v.id,
-        name: v.name,
-        vesselType: v.vessel_type,
-        flag: v.flag,
-        grt: v.grt,
-        status: v.fleet_status,
-        voyages: voyageMap[v.id] || { totalVoyages: 0, activeVoyages: 0, completedVoyages: 0 },
-        certs: certMap[v.id] || { totalCerts: 0, valid: 0, expiring: 0, expired: 0 },
-      }));
-
-      const totalVessels = vesselList.length;
-      const activeVessels = vesselList.filter((v: any) => v.voyages.activeVoyages > 0).length;
-      const totalCerts = vesselList.reduce((acc: number, v: any) => acc + v.certs.totalCerts, 0);
-      const expiredCerts = vesselList.reduce((acc: number, v: any) => acc + v.certs.expired, 0);
-      const expiringCerts = vesselList.reduce((acc: number, v: any) => acc + v.certs.expiring, 0);
-
-      res.json({
-        summary: {
-          totalVessels,
-          activeVessels,
-          utilizationRate: totalVessels > 0 ? Math.round((activeVessels / totalVessels) * 100) : 0,
-          totalCerts,
-          expiredCerts,
-          expiringCerts,
-        },
-        vessels: vesselList,
-      });
-    } catch (err) {
-      console.error("Fleet report error:", err);
-      res.status(500).json({ message: "Failed to generate fleet report" });
-    }
-  });
-
-  app.get("/api/reports/performance", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-
-      const [bids, reviews, monthly] = await Promise.all([
-        pool.query(`
-          SELECT
-            COUNT(*) AS total_bids,
-            SUM(CASE WHEN tb.status = 'selected' THEN 1 ELSE 0 END) AS won,
-            SUM(CASE WHEN tb.status = 'rejected' THEN 1 ELSE 0 END) AS lost,
-            AVG(EXTRACT(EPOCH FROM (tb.created_at - pt.created_at)) / 3600) AS avg_response_hours
-          FROM tender_bids tb
-          JOIN port_tenders pt ON pt.id = tb.tender_id
-          WHERE tb.agent_user_id = $1
-        `, [userId]),
-        pool.query(`
-          SELECT
-            COUNT(*) AS total_reviews,
-            AVG(rating) AS avg_rating,
-            SUM(CASE WHEN rating >= 4 THEN 1 ELSE 0 END) AS positive,
-            SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS neutral,
-            SUM(CASE WHEN rating <= 2 THEN 1 ELSE 0 END) AS negative
-          FROM voyage_reviews
-          WHERE reviewee_user_id = $1
-        `, [userId]),
-        pool.query(`
-          SELECT
-            TO_CHAR(created_at, 'YYYY-MM') AS month,
-            COUNT(*) AS count,
-            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed
-          FROM voyages
-          WHERE (user_id = $1 OR agent_user_id = $1)
-            AND created_at >= NOW() - INTERVAL '12 months'
-          GROUP BY month ORDER BY month ASC
-        `, [userId]),
-      ]);
-
-      const b = bids.rows[0];
-      const r = reviews.rows[0];
-
-      res.json({
-        bids: {
-          total: parseInt(b.total_bids) || 0,
-          won: parseInt(b.won) || 0,
-          lost: parseInt(b.lost) || 0,
-          winRate: b.total_bids > 0 ? Math.round((parseInt(b.won) / parseInt(b.total_bids)) * 100) : 0,
-          avgResponseHours: b.avg_response_hours ? parseFloat(parseFloat(b.avg_response_hours).toFixed(1)) : null,
-        },
-        reviews: {
-          total: parseInt(r.total_reviews) || 0,
-          avgRating: r.avg_rating ? parseFloat(parseFloat(r.avg_rating).toFixed(2)) : null,
-          positive: parseInt(r.positive) || 0,
-          neutral: parseInt(r.neutral) || 0,
-          negative: parseInt(r.negative) || 0,
-        },
-        monthly: monthly.rows.map(row => ({
-          month: row.month,
-          count: parseInt(row.count),
-          completed: parseInt(row.completed),
-        })),
-      });
-    } catch (err) {
-      console.error("Performance report error:", err);
-      res.status(500).json({ message: "Failed to generate performance report" });
-    }
-  });
-
-  // ─── MARITIME DOC TEMPLATES ──────────────────────────────────────────────────
-
-  app.get("/api/maritime-doc-templates", isAuthenticated, async (_req, res) => {
-    try {
-      const { rows } = await pool.query(`SELECT * FROM maritime_doc_templates ORDER BY category, name`);
-      res.json(rows);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  app.get("/api/maritime-doc-templates/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const { rows } = await pool.query(`SELECT * FROM maritime_doc_templates WHERE id = $1`, [req.params.id]);
-      if (!rows[0]) return res.status(404).json({ message: "Template not found" });
-      res.json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  app.post("/api/maritime-doc-templates", isAuthenticated, async (req: any, res) => {
-    try {
-      const { name, code, category, description, fields } = req.body;
-      if (!name || !code || !fields) return res.status(400).json({ message: "name, code, fields required" });
-      const { rows } = await pool.query(
-        `INSERT INTO maritime_doc_templates (name, code, category, description, fields, is_built_in)
-         VALUES ($1, $2, $3, $4, $5::jsonb, FALSE) RETURNING *`,
-        [name, code, category || "cargo", description || "", JSON.stringify(fields)]
-      );
-      res.status(201).json(rows[0]);
-    } catch (err: any) {
-      if (err.code === "23505") return res.status(409).json({ message: "Template code already exists" });
-      res.status(500).json({ message: "Failed" });
-    }
-  });
-
-  // ─── MARITIME DOCUMENTS ───────────────────────────────────────────────────────
-
-  app.post("/api/voyages/:id/maritime-docs", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const voyageId = parseInt(req.params.id);
-      const { templateId, portCallId } = req.body;
-      if (!templateId) return res.status(400).json({ message: "templateId required" });
-
-      const { rows: vRows } = await pool.query(`SELECT * FROM voyages WHERE id = $1`, [voyageId]);
-      const voyage = vRows[0];
-      if (!voyage) return res.status(404).json({ message: "Voyage not found" });
-
-      const { rows: tRows } = await pool.query(`SELECT * FROM maritime_doc_templates WHERE id = $1`, [templateId]);
-      const template = tRows[0];
-      if (!template) return res.status(404).json({ message: "Template not found" });
-
-      const { rows: countRows } = await pool.query(
-        `SELECT COUNT(*) as cnt FROM maritime_documents WHERE template_id = $1 AND voyage_id = $2`,
-        [templateId, voyageId]
-      );
-      const seq = parseInt(countRows[0].cnt) + 1;
-      const year = new Date().getFullYear();
-      const docNumber = `${template.code}-${year}-${String(voyageId).padStart(3, "0")}-${seq}`;
-
-      let portName = voyage.load_port || "";
-      if (portCallId) {
-        const { rows: pcRows } = await pool.query(`SELECT port_name FROM voyage_port_calls WHERE id = $1`, [portCallId]);
-        if (pcRows[0]) portName = pcRows[0].port_name || portName;
-      }
-
-      const autoData: Record<string, string> = {
-        vesselName: voyage.vessel_name || "",
-        voyageNo: `VOY-${voyageId}`,
-        loadPort: voyage.load_port || "",
-        dischargePort: voyage.discharge_port || "",
-        imoNumber: voyage.imo_number || "",
-        portOfLoading: voyage.load_port || "",
-        portOfDischarge: voyage.discharge_port || "",
-        placeOfIssue: portName,
-        port: portName,
-      };
-
-      const fields: any[] = Array.isArray(template.fields) ? template.fields : [];
-      const data: Record<string, any> = {};
-      for (const field of fields) {
-        if (field.autoFill && autoData[field.autoFill]) {
-          data[field.fieldName] = autoData[field.autoFill];
-        } else if (field.defaultValue !== undefined && field.defaultValue !== "") {
-          data[field.fieldName] = field.defaultValue;
-        } else {
-          data[field.fieldName] = field.fieldType === "table" ? [] : "";
-        }
-      }
-
-      const { rows } = await pool.query(
-        `INSERT INTO maritime_documents (template_id, voyage_id, port_call_id, user_id, organization_id, document_number, data, status, version)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, 'draft', 1) RETURNING *`,
-        [templateId, voyageId, portCallId || null, userId, req.organizationId || null, docNumber, JSON.stringify(data)]
-      );
-
-      const { rows: fullRows } = await pool.query(`
-        SELECT md.*, mdt.name as template_name, mdt.code as template_code, mdt.category as template_category,
-               mdt.fields as template_fields,
-               u.first_name || ' ' || u.last_name as creator_name
-        FROM maritime_documents md
-        JOIN maritime_doc_templates mdt ON md.template_id = mdt.id
-        JOIN users u ON md.user_id = u.id
-        WHERE md.id = $1
-      `, [rows[0].id]);
-
-      res.status(201).json(fullRows[0]);
-    } catch (err) {
-      console.error("maritime-doc create error:", err);
-      res.status(500).json({ message: "Failed to create document" });
-    }
-  });
-
-  app.get("/api/voyages/:id/maritime-docs", isAuthenticated, async (req: any, res) => {
-    try {
-      const voyageId = parseInt(req.params.id);
-      const { rows } = await pool.query(`
-        SELECT md.*, mdt.name as template_name, mdt.code as template_code, mdt.category as template_category,
-               u.first_name || ' ' || u.last_name as creator_name
-        FROM maritime_documents md
-        JOIN maritime_doc_templates mdt ON md.template_id = mdt.id
-        JOIN users u ON md.user_id = u.id
-        WHERE md.voyage_id = $1 AND md.parent_id IS NULL
-        ORDER BY md.created_at DESC
-      `, [voyageId]);
-      res.json(rows);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  app.get("/api/maritime-docs/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const { rows } = await pool.query(`
-        SELECT md.*, mdt.name as template_name, mdt.code as template_code, mdt.category as template_category,
-               mdt.fields as template_fields, mdt.description as template_description,
-               u.first_name || ' ' || u.last_name as creator_name,
-               su.first_name || ' ' || su.last_name as signer_name,
-               ru.first_name || ' ' || ru.last_name as reviewer_name
-        FROM maritime_documents md
-        JOIN maritime_doc_templates mdt ON md.template_id = mdt.id
-        JOIN users u ON md.user_id = u.id
-        LEFT JOIN users su ON md.signed_by_user_id = su.id
-        LEFT JOIN users ru ON md.reviewed_by_user_id = ru.id
-        WHERE md.id = $1
-      `, [req.params.id]);
-      if (!rows[0]) return res.status(404).json({ message: "Document not found" });
-      res.json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  app.patch("/api/maritime-docs/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const docId = parseInt(req.params.id);
-      const { data, notes } = req.body;
-
-      const { rows: existing } = await pool.query(`SELECT * FROM maritime_documents WHERE id = $1`, [docId]);
-      if (!existing[0]) return res.status(404).json({ message: "Document not found" });
-      if (existing[0].status === "signed") return res.status(400).json({ message: "Signed documents cannot be edited" });
-
-      const updates: string[] = [];
-      const values: any[] = [];
-      let idx = 1;
-      if (data !== undefined) { updates.push(`data = $${idx++}::jsonb`); values.push(JSON.stringify(data)); }
-      if (notes !== undefined) { updates.push(`notes = $${idx++}`); values.push(notes); }
-      if (!updates.length) return res.status(400).json({ message: "Nothing to update" });
-      values.push(docId);
-
-      const { rows } = await pool.query(
-        `UPDATE maritime_documents SET ${updates.join(", ")} WHERE id = $${idx} RETURNING *`,
-        values
-      );
-      res.json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed to update" }); }
-  });
-
-  app.patch("/api/maritime-docs/:id/status", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const docId = parseInt(req.params.id);
-      const { status } = req.body;
-      const allowed = ["draft", "pending_review", "approved", "void"];
-      if (!allowed.includes(status)) return res.status(400).json({ message: "Invalid status" });
-
-      const updates: Record<string, any> = { status };
-      if (status === "approved") {
-        updates.reviewed_by_user_id = userId;
-        updates.reviewed_at = new Date().toISOString();
-      }
-
-      const setClauses = Object.keys(updates).map((k, i) => `${k} = $${i + 1}`).join(", ");
-      const vals = [...Object.values(updates), docId];
-      const { rows } = await pool.query(
-        `UPDATE maritime_documents SET ${setClauses} WHERE id = $${vals.length} RETURNING *`,
-        vals
-      );
-      if (!rows[0]) return res.status(404).json({ message: "Not found" });
-      res.json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  app.post("/api/maritime-docs/:id/sign", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const docId = parseInt(req.params.id);
-      const { signatureText } = req.body;
-      if (!signatureText) return res.status(400).json({ message: "signatureText required" });
-
-      const { rows } = await pool.query(
-        `UPDATE maritime_documents
-         SET status = 'signed', signed_by_user_id = $1, signed_at = NOW(), signature_text = $2
-         WHERE id = $3 AND status != 'void' RETURNING *`,
-        [userId, signatureText, docId]
-      );
-      if (!rows[0]) return res.status(404).json({ message: "Document not found or voided" });
-      res.json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  app.post("/api/maritime-docs/:id/new-version", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const docId = parseInt(req.params.id);
-
-      const { rows: orig } = await pool.query(`SELECT * FROM maritime_documents WHERE id = $1`, [docId]);
-      if (!orig[0]) return res.status(404).json({ message: "Document not found" });
-
-      const newVersion = orig[0].version + 1;
-      const newDocNumber = orig[0].document_number ? `${orig[0].document_number}-v${newVersion}` : null;
-
-      const { rows } = await pool.query(
-        `INSERT INTO maritime_documents (template_id, voyage_id, port_call_id, user_id, organization_id, document_number, data, status, notes, version, parent_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, 'draft', $8, $9, $10) RETURNING *`,
-        [orig[0].template_id, orig[0].voyage_id, orig[0].port_call_id, userId,
-         orig[0].organization_id, newDocNumber, JSON.stringify(orig[0].data),
-         orig[0].notes, newVersion, orig[0].parent_id ?? orig[0].id]
-      );
-      res.status(201).json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // ─── REMINDERS ────────────────────────────────────────────────────────────────
-
-  app.get("/api/reminders", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const filter = (req.query.filter as string) || "active";
-      let whereClause = "r.user_id = $1";
-      if (filter === "active") whereClause += " AND r.is_completed = FALSE AND (r.is_snoozed = FALSE OR r.snoozed_until <= NOW())";
-      else if (filter === "completed") whereClause += " AND r.is_completed = TRUE";
-      else if (filter === "snoozed") whereClause += " AND r.is_snoozed = TRUE AND r.snoozed_until > NOW()";
-
-      const { rows } = await pool.query(
-        `SELECT r.* FROM reminders r WHERE ${whereClause} ORDER BY
-          CASE r.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'normal' THEN 3 ELSE 4 END,
-          r.due_date ASC NULLS LAST, r.created_at DESC
-         LIMIT 100`,
-        [userId]
-      );
-      const { rows: countRows } = await pool.query(
-        `SELECT COUNT(*) as cnt FROM reminders WHERE user_id = $1 AND is_completed = FALSE AND (is_snoozed = FALSE OR snoozed_until <= NOW())`,
-        [userId]
-      );
-      res.json({ reminders: rows, pendingCount: parseInt(countRows[0].cnt) });
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  app.get("/api/reminders/pending-count", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { rows } = await pool.query(
-        `SELECT COUNT(*) as cnt FROM reminders WHERE user_id = $1 AND is_completed = FALSE AND (is_snoozed = FALSE OR snoozed_until <= NOW())`,
-        [userId]
-      );
-      res.json({ count: parseInt(rows[0].cnt) });
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  app.post("/api/reminders", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { title, message, category, priority, dueDate, entityType, entityId, notes } = req.body;
-      if (!title || !message) return res.status(400).json({ message: "title and message required" });
-      const { rows } = await pool.query(
-        `INSERT INTO reminders (user_id, organization_id, type, category, title, message, entity_type, entity_id, priority, due_date)
-         VALUES ($1, $2, 'manual', $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-        [userId, req.organizationId || null, category || "custom", title, message,
-         entityType || null, entityId || null, priority || "normal", dueDate || null]
-      );
-      res.status(201).json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  app.patch("/api/reminders/:id/complete", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { rows } = await pool.query(
-        `UPDATE reminders SET is_completed = TRUE, completed_at = NOW() WHERE id = $1 AND user_id = $2 RETURNING *`,
-        [req.params.id, userId]
-      );
-      if (!rows[0]) return res.status(404).json({ message: "Not found" });
-      res.json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  app.patch("/api/reminders/:id/snooze", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { until } = req.body;
-      if (!until) return res.status(400).json({ message: "until required" });
-      const { rows } = await pool.query(
-        `UPDATE reminders SET is_snoozed = TRUE, snoozed_until = $1 WHERE id = $2 AND user_id = $3 RETURNING *`,
-        [until, req.params.id, userId]
-      );
-      if (!rows[0]) return res.status(404).json({ message: "Not found" });
-      res.json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  app.delete("/api/reminders/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      await pool.query(`DELETE FROM reminders WHERE id = $1 AND user_id = $2`, [req.params.id, userId]);
-      res.status(204).end();
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // ─── REMINDER RULES ───────────────────────────────────────────────────────────
-
-  app.get("/api/reminder-rules", isAuthenticated, async (_req, res) => {
-    try {
-      const { rows } = await pool.query(
-        `SELECT * FROM reminder_rules WHERE organization_id IS NULL AND user_id IS NULL ORDER BY rule_type`
-      );
-      res.json(rows);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  app.patch("/api/reminder-rules/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const { isActive, emailEnabled, triggerCondition } = req.body;
-      const updates: string[] = [];
-      const vals: any[] = [];
-      let i = 1;
-      if (isActive !== undefined) { updates.push(`is_active = $${i++}`); vals.push(isActive); }
-      if (emailEnabled !== undefined) { updates.push(`email_enabled = $${i++}`); vals.push(emailEnabled); }
-      if (triggerCondition !== undefined) { updates.push(`trigger_condition = $${i++}`); vals.push(triggerCondition); }
-      if (!updates.length) return res.status(400).json({ message: "Nothing to update" });
-      vals.push(req.params.id);
-      const { rows } = await pool.query(
-        `UPDATE reminder_rules SET ${updates.join(", ")} WHERE id = $${i} RETURNING *`,
-        vals
-      );
-      if (!rows[0]) return res.status(404).json({ message: "Not found" });
-      res.json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // ─── PORT COST BENCHMARKS ─────────────────────────────────────────────────────
-
-  // GET /api/benchmarks/ports — all ports that have benchmark data
-  app.get("/api/benchmarks/ports", async (_req, res) => {
-    try {
-      const { rows } = await pool.query(`
-        SELECT
-          p.id AS port_id, p.name AS port_name, p.code,
-          COUNT(DISTINCT b.purpose_of_call) AS purposes,
-          SUM(b.sample_count) AS total_samples,
-          MIN(b.avg_total_cost) AS min_avg_cost,
-          MAX(b.avg_total_cost) AS max_avg_cost,
-          MAX(b.last_updated) AS last_updated
-        FROM port_cost_benchmarks b
-        JOIN ports p ON p.id = b.port_id
-        GROUP BY p.id, p.name, p.code
-        ORDER BY total_samples DESC
-      `);
-      res.json(rows);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // GET /api/benchmarks/ports/:portId — detailed breakdown for a port
-  app.get("/api/benchmarks/ports/:portId", async (req: any, res) => {
-    try {
-      const portId = parseInt(req.params.portId);
-      const { rows } = await pool.query(
-        `SELECT b.*, p.name AS port_name, p.code
-         FROM port_cost_benchmarks b
-         JOIN ports p ON p.id = b.port_id
-         WHERE b.port_id = $1
-         ORDER BY b.purpose_of_call, b.vessel_size_category`,
-        [portId]
-      );
-      if (!rows.length) return res.status(404).json({ message: "No benchmark data for this port" });
-      res.json(rows);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // GET /api/benchmarks/compare?ports=1,2,3&grt=15000&purpose=loading
-  app.get("/api/benchmarks/compare", async (req: any, res) => {
-    try {
-      const portIds = ((req.query.ports as string) || "").split(",").map(Number).filter(Boolean);
-      if (portIds.length < 1) return res.status(400).json({ message: "At least 1 port required" });
-      const grt = parseInt(req.query.grt as string) || 10000;
-      const purpose = (req.query.purpose as string) || "loading";
-
-      // Map GRT to category
-      let sizeCategory = "medium";
-      if (grt < 5000) sizeCategory = "small";
-      else if (grt < 20000) sizeCategory = "medium";
-      else if (grt < 50000) sizeCategory = "large";
-      else sizeCategory = "vlarge";
-
-      const { rows } = await pool.query(
-        `SELECT b.*, p.name AS port_name, p.code
-         FROM port_cost_benchmarks b
-         JOIN ports p ON p.id = b.port_id
-         WHERE b.port_id = ANY($1::int[])
-           AND b.purpose_of_call = $2
-           AND b.vessel_size_category = $3`,
-        [portIds, purpose, sizeCategory]
-      );
-      res.json({ rows, sizeCategory, purpose, grt });
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // GET /api/benchmarks/estimate?portId=123&grt=15000&purpose=loading
-  app.get("/api/benchmarks/estimate", async (req: any, res) => {
-    try {
-      const portId = parseInt(req.query.portId as string);
-      if (!portId) return res.status(400).json({ message: "portId required" });
-      const grt = parseInt(req.query.grt as string) || 10000;
-      const purpose = (req.query.purpose as string) || "loading";
-
-      let sizeCategory = "medium";
-      if (grt < 5000) sizeCategory = "small";
-      else if (grt < 20000) sizeCategory = "medium";
-      else if (grt < 50000) sizeCategory = "large";
-      else sizeCategory = "vlarge";
-
-      const { rows } = await pool.query(
-        `SELECT b.*, p.name AS port_name
-         FROM port_cost_benchmarks b
-         JOIN ports p ON p.id = b.port_id
-         WHERE b.port_id = $1 AND b.purpose_of_call = $2 AND b.vessel_size_category = $3
-         LIMIT 1`,
-        [portId, purpose, sizeCategory]
-      );
-      if (!rows[0]) return res.json({ hasData: false });
-      const r = rows[0];
-      res.json({
-        hasData: true,
-        portName: r.port_name,
-        sizeCategory,
-        purpose,
-        grt,
-        avgTotalCost: r.avg_total_cost,
-        minTotalCost: r.min_total_cost,
-        maxTotalCost: r.max_total_cost,
-        avgAgencyFee: r.avg_agency_fee,
-        avgPilotage: r.avg_pilotage,
-        avgTugboat: r.avg_tugboat,
-        avgBerthing: r.avg_berthing,
-        avgPortDues: r.avg_port_dues,
-        sampleCount: r.sample_count,
-        lastUpdated: r.last_updated,
-        insufficientData: r.sample_count < 3,
-      });
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  app.get("/api/maritime-docs/:id/versions", isAuthenticated, async (req: any, res) => {
-    try {
-      const docId = parseInt(req.params.id);
-      const { rows: orig } = await pool.query(`SELECT parent_id, id FROM maritime_documents WHERE id = $1`, [docId]);
-      if (!orig[0]) return res.status(404).json({ message: "Not found" });
-      const rootId = orig[0].parent_id ?? orig[0].id;
-      const { rows } = await pool.query(
-        `SELECT md.id, md.version, md.status, md.document_number, md.created_at,
-                u.first_name || ' ' || u.last_name as creator_name
-         FROM maritime_documents md JOIN users u ON md.user_id = u.id
-         WHERE md.id = $1 OR md.parent_id = $1 ORDER BY md.version ASC`,
-        [rootId]
-      );
-      res.json(rows);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // ── EMAIL INBOUND SYSTEM ───────────────────────────────────────────────────
-
-  // Webhook — receives inbound emails from email service
-  app.post("/api/email/inbound", async (req: any, res) => {
-    try {
-      const { from, fromName, to, subject, bodyText, bodyHtml, attachments, secret } = req.body;
-      if (process.env.EMAIL_WEBHOOK_SECRET && secret !== process.env.EMAIL_WEBHOOK_SECRET) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-      if (!from || !to) return res.status(400).json({ message: "from and to required" });
-
-      const { resolveForwardingEmail, saveInboundEmail, classifyEmailWithAI } = await import("./email-inbound");
-      const rule = await resolveForwardingEmail(to);
-      const userId = rule?.userId || null;
-      const organizationId = rule?.organizationId || null;
-      const linkedVoyageId = rule?.linkedVoyageId || null;
-
-      let aiClassification = "general", aiExtractedData = {}, aiSuggestion = "";
-      try {
-        const ai = await classifyEmailWithAI(subject || "", bodyText || "");
-        aiClassification = ai.classification; aiExtractedData = ai.extractedData; aiSuggestion = ai.suggestion;
-      } catch {}
-
-      const emailId = await saveInboundEmail({ userId, organizationId, fromEmail: from, fromName: fromName || null,
-        toEmail: to, subject, bodyText, bodyHtml, attachments: attachments || [],
-        linkedVoyageId, aiClassification, aiExtractedData, aiSuggestion });
-
-      if (userId) {
-        await pool.query(`INSERT INTO notifications (user_id, type, title, message, link) VALUES ($1,'email_received',$2,$3,$4)`,
-          [userId, `New Email: ${subject || "(no subject)"}`, `From ${fromName || from}`, `/email-inbox`]).catch(() => {});
-      }
-      res.json({ success: true, emailId });
-    } catch (err) { console.error("[email/inbound]", err); res.status(500).json({ message: "Failed" }); }
-  });
-
-  // Manual email add for testing
-  app.post("/api/email/inbound/manual", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { fromEmail, fromName, subject, bodyText, bodyHtml, attachments, linkedVoyageId } = req.body;
-      if (!fromEmail) return res.status(400).json({ message: "fromEmail required" });
-
-      const { saveInboundEmail, classifyEmailWithAI } = await import("./email-inbound");
-      const userRow = await pool.query(`SELECT active_organization_id, first_name, last_name FROM users WHERE id = $1`, [userId]);
-      const u = userRow.rows[0];
-      const orgId = u?.active_organization_id || null;
-
-      const ruleRow = await pool.query(`SELECT forwarding_email FROM email_forwarding_rules WHERE user_id = $1 AND is_active = TRUE LIMIT 1`, [userId]);
-      const toEmail = ruleRow.rows[0]?.forwarding_email || `manual@inbound.vesselpda.app`;
-
-      let aiClassification = "general", aiExtractedData = {}, aiSuggestion = "";
-      try {
-        const ai = await classifyEmailWithAI(subject || "", bodyText || "");
-        aiClassification = ai.classification; aiExtractedData = ai.extractedData; aiSuggestion = ai.suggestion;
-      } catch {}
-
-      const emailId = await saveInboundEmail({ userId, organizationId: orgId, fromEmail, fromName: fromName || null,
-        toEmail, subject, bodyText, bodyHtml, attachments: attachments || [],
-        linkedVoyageId: linkedVoyageId || null, aiClassification, aiExtractedData, aiSuggestion });
-
-      res.json({ success: true, emailId });
-    } catch (err) { console.error("[email/inbound/manual]", err); res.status(500).json({ message: "Failed" }); }
-  });
-
-  // Get inbox emails
-  app.get("/api/email/inbox", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const userRow = await pool.query(`SELECT active_organization_id FROM users WHERE id = $1`, [userId]);
-      const orgId = userRow.rows[0]?.active_organization_id || null;
-      const showProcessed = req.query.processed === "true";
-      const { rows } = await pool.query(
-        `SELECT ie.*, v.name AS voyage_name FROM inbound_emails ie
-         LEFT JOIN voyages v ON v.id = ie.linked_voyage_id
-         WHERE (ie.user_id = $1 OR ie.organization_id = $2) AND ie.is_processed = $3
-         ORDER BY ie.received_at DESC LIMIT 100`,
-        [userId, orgId, showProcessed]
-      );
-      res.json(rows);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // Get unread count
-  app.get("/api/email/inbox/count", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const userRow = await pool.query(`SELECT active_organization_id FROM users WHERE id = $1`, [userId]);
-      const orgId = userRow.rows[0]?.active_organization_id || null;
-      const { rows } = await pool.query(
-        `SELECT COUNT(*) FROM inbound_emails WHERE (user_id = $1 OR organization_id = $2) AND is_processed = FALSE`,
-        [userId, orgId]
-      );
-      res.json({ count: parseInt(rows[0].count) });
-    } catch { res.json({ count: 0 }); }
-  });
-
-  // Get single email
-  app.get("/api/email/inbox/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { rows } = await pool.query(
-        `SELECT ie.*, v.name AS voyage_name FROM inbound_emails ie
-         LEFT JOIN voyages v ON v.id = ie.linked_voyage_id
-         WHERE ie.id = $1 AND (ie.user_id = $2 OR ie.organization_id IN (SELECT active_organization_id FROM users WHERE id = $2))`,
-        [req.params.id, userId]
-      );
-      if (!rows[0]) return res.status(404).json({ message: "Not found" });
-      res.json(rows[0]);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // Process email
-  app.post("/api/email/inbox/:id/process", isAuthenticated, async (req: any, res) => {
-    try {
-      const { action, entityId } = req.body;
-      const { markEmailProcessed } = await import("./email-inbound");
-      await markEmailProcessed(parseInt(req.params.id), action || "manual", entityId);
-      res.json({ success: true });
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // Dismiss email
-  app.post("/api/email/inbox/:id/dismiss", isAuthenticated, async (req: any, res) => {
-    try {
-      await pool.query(`UPDATE inbound_emails SET is_processed = TRUE, processed_action = 'dismissed' WHERE id = $1`, [req.params.id]);
-      res.json({ success: true });
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // Delete email
-  app.delete("/api/email/inbox/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      await pool.query(`DELETE FROM inbound_emails WHERE id = $1 AND user_id = $2`, [req.params.id, userId]);
-      res.json({ success: true });
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // Link email to voyage
-  app.patch("/api/email/inbox/:id/link-voyage", isAuthenticated, async (req: any, res) => {
-    try {
-      const { voyageId } = req.body;
-      await pool.query(`UPDATE inbound_emails SET linked_voyage_id = $1 WHERE id = $2`, [voyageId || null, req.params.id]);
-      res.json({ success: true });
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // Get forwarding rules
-  app.get("/api/email/forwarding-rules", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { rows } = await pool.query(
-        `SELECT efr.*, v.name AS voyage_name FROM email_forwarding_rules efr
-         LEFT JOIN voyages v ON v.id = efr.linked_voyage_id
-         WHERE efr.user_id = $1 ORDER BY efr.created_at DESC`,
-        [userId]
-      );
-      res.json(rows);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // Create forwarding rule
-  app.post("/api/email/forwarding-rules", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { ruleType, linkedVoyageId } = req.body;
-      const userRow = await pool.query(
-        `SELECT u.first_name, u.last_name, u.active_organization_id, o.name AS org_name
-         FROM users u LEFT JOIN organizations o ON o.id = u.active_organization_id WHERE u.id = $1`, [userId]
-      );
-      const u = userRow.rows[0];
-      const slug = u?.org_name || `${u?.first_name || "user"}${u?.last_name || ""}`;
-      const { generateForwardingEmail } = await import("./email-inbound");
-      const forwardingEmail = generateForwardingEmail(slug);
-      const { rows } = await pool.query(
-        `INSERT INTO email_forwarding_rules (user_id, organization_id, forwarding_email, rule_type, linked_voyage_id)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [userId, u?.active_organization_id || null, forwardingEmail, ruleType || "general", linkedVoyageId || null]
-      );
-      res.json(rows[0]);
-    } catch (err: any) {
-      if (err.code === "23505") return res.status(409).json({ message: "Already exists" });
-      res.status(500).json({ message: "Failed" });
-    }
-  });
-
-  // Delete forwarding rule
-  app.delete("/api/email/forwarding-rules/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      await pool.query(`DELETE FROM email_forwarding_rules WHERE id = $1 AND user_id = $2`, [req.params.id, userId]);
-      res.json({ success: true });
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // Get emails for a voyage
-  app.get("/api/voyages/:id/emails", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { rows } = await pool.query(
-        `SELECT ie.* FROM inbound_emails ie
-         WHERE ie.linked_voyage_id = $1
-           AND (ie.user_id = $2 OR ie.organization_id IN (SELECT active_organization_id FROM users WHERE id = $2))
-         ORDER BY ie.received_at DESC`,
-        [req.params.id, userId]
-      );
-      res.json(rows);
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // Push notification subscription (infrastructure)
-  app.post("/api/push/subscribe", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { endpoint, keys } = req.body;
-      if (!endpoint) return res.status(400).json({ message: "endpoint required" });
-      await pool.query(`CREATE TABLE IF NOT EXISTS push_subscriptions (
-        id SERIAL PRIMARY KEY, user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        endpoint TEXT NOT NULL, keys JSONB, created_at TIMESTAMP DEFAULT NOW(), UNIQUE(user_id, endpoint)
-      )`).catch(() => {});
-      await pool.query(
-        `INSERT INTO push_subscriptions (user_id, endpoint, keys) VALUES ($1, $2, $3)
-         ON CONFLICT (user_id, endpoint) DO UPDATE SET keys = EXCLUDED.keys`,
-        [userId, endpoint, JSON.stringify(keys || {})]
-      );
-      res.json({ success: true });
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  app.get("/sitemap.xml", (_req, res) => {
-    const base = "https://vesselpda.com";
-    const pages = [
-      { url: "/", priority: "1.0", changefreq: "weekly" },
-      { url: "/register", priority: "0.9", changefreq: "monthly" },
-      { url: "/login", priority: "0.8", changefreq: "monthly" },
-      { url: "/directory", priority: "0.8", changefreq: "daily" },
-      { url: "/forum", priority: "0.7", changefreq: "daily" },
-      { url: "/port-info", priority: "0.7", changefreq: "weekly" },
-      { url: "/market-data", priority: "0.6", changefreq: "daily" },
-    ];
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${pages.map(p => `  <url>
-    <loc>${base}${p.url}</loc>
-    <changefreq>${p.changefreq}</changefreq>
-    <priority>${p.priority}</priority>
-  </url>`).join("\n")}
-</urlset>`;
-    res.set("Content-Type", "application/xml");
-    res.send(xml);
-  });
-
-  app.delete("/api/push/subscribe", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { endpoint } = req.body;
-      await pool.query(`DELETE FROM push_subscriptions WHERE user_id = $1 AND endpoint = $2`, [userId, endpoint]).catch(() => {});
-      res.json({ success: true });
-    } catch { res.status(500).json({ message: "Failed" }); }
-  });
-
-  // ── Compliance Management ──────────────────────────────────────────────────
-
-  app.get("/api/compliance/checklists", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { vesselId, standard } = req.query;
-      let q = `SELECT cl.*, v.name AS vessel_name FROM compliance_checklists cl
-               LEFT JOIN vessels v ON v.id = cl.vessel_id
-               WHERE cl.user_id = $1`;
-      const params: any[] = [userId];
-      if (vesselId) { params.push(vesselId); q += ` AND cl.vessel_id = $${params.length}`; }
-      if (standard) { params.push(standard); q += ` AND cl.standard_code = $${params.length}`; }
-      q += ` ORDER BY cl.created_at DESC`;
-      const { rows } = await pool.query(q, params);
-      res.json(rows);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.post("/api/compliance/checklists", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { vesselId, organizationId, standardCode, version, notes, nextAuditDate } = req.body;
-      const { getStandardTemplate, STANDARD_NAMES } = await import("./migrate-compliance");
-      const items = await getStandardTemplate(standardCode);
-      const standardName = STANDARD_NAMES[standardCode] || standardCode;
-      const { rows: [cl] } = await pool.query(
-        `INSERT INTO compliance_checklists (vessel_id, organization_id, user_id, standard_code, standard_name, version, total_items, notes, next_audit_date)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-        [vesselId || null, organizationId || null, userId, standardCode, standardName, version || null, items.length, notes || null, nextAuditDate || null]
-      );
-      if (items.length > 0) {
-        for (const item of items) {
-          await pool.query(
-            `INSERT INTO compliance_items (checklist_id, section_number, section_title, requirement)
-             VALUES ($1, $2, $3, $4)`,
-            [cl.id, item.sn, item.title, item.req]
-          );
-        }
-      }
-      res.json(cl);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.get("/api/compliance/checklists/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { rows: [cl] } = await pool.query(
-        `SELECT cl.*, v.name AS vessel_name FROM compliance_checklists cl
-         LEFT JOIN vessels v ON v.id = cl.vessel_id
-         WHERE cl.id = $1 AND cl.user_id = $2`,
-        [req.params.id, userId]
-      );
-      if (!cl) return res.status(404).json({ message: "Not found" });
-      const { rows: items } = await pool.query(
-        `SELECT * FROM compliance_items WHERE checklist_id = $1 ORDER BY section_number, id`,
-        [cl.id]
-      );
-      res.json({ ...cl, items });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.patch("/api/compliance/checklists/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { status, notes, nextAuditDate, lastAuditDate, auditorName } = req.body;
-      const { rows: [cl] } = await pool.query(
-        `UPDATE compliance_checklists SET status = COALESCE($3, status), notes = COALESCE($4, notes),
-         next_audit_date = COALESCE($5, next_audit_date), last_audit_date = COALESCE($6, last_audit_date),
-         auditor_name = COALESCE($7, auditor_name)
-         WHERE id = $1 AND user_id = $2 RETURNING *`,
-        [req.params.id, userId, status || null, notes || null, nextAuditDate || null, lastAuditDate || null, auditorName || null]
-      );
-      res.json(cl);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.get("/api/compliance/checklists/:id/items", isAuthenticated, async (req: any, res) => {
-    try {
-      const { rows } = await pool.query(
-        `SELECT * FROM compliance_items WHERE checklist_id = $1 ORDER BY section_number, id`,
-        [req.params.id]
-      );
-      res.json(rows);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.patch("/api/compliance/items/:itemId", isAuthenticated, async (req: any, res) => {
-    try {
-      const { isCompliant, evidence, evidenceFileUrl, responsiblePerson, dueDate, findingType,
-              correctiveAction, correctiveActionDueDate, correctiveActionStatus, notes } = req.body;
-      const { rows: [item] } = await pool.query(
-        `UPDATE compliance_items SET
-           is_compliant = COALESCE($2, is_compliant),
-           evidence = COALESCE($3, evidence),
-           evidence_file_url = COALESCE($4, evidence_file_url),
-           responsible_person = COALESCE($5, responsible_person),
-           due_date = COALESCE($6, due_date),
-           finding_type = COALESCE($7, finding_type),
-           corrective_action = COALESCE($8, corrective_action),
-           corrective_action_due_date = COALESCE($9, corrective_action_due_date),
-           corrective_action_status = COALESCE($10, corrective_action_status),
-           notes = COALESCE($11, notes),
-           completed_date = CASE WHEN $2 = TRUE AND completed_date IS NULL THEN NOW() WHEN $2 = FALSE THEN NULL ELSE completed_date END,
-           updated_at = NOW()
-         WHERE id = $1 RETURNING *`,
-        [req.params.itemId, isCompliant ?? null, evidence ?? null, evidenceFileUrl ?? null,
-         responsiblePerson ?? null, dueDate ?? null, findingType ?? null,
-         correctiveAction ?? null, correctiveActionDueDate ?? null, correctiveActionStatus ?? null, notes ?? null]
-      );
-      if (!item) return res.status(404).json({ message: "Not found" });
-      const { rows: [stats] } = await pool.query(
-        `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE is_compliant) AS completed
-         FROM compliance_items WHERE checklist_id = $1`,
-        [item.checklist_id]
-      );
-      const total = parseInt(stats.total);
-      const completed = parseInt(stats.completed);
-      const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-      const status = pct === 100 ? "compliant" : pct === 0 ? "not_started" : "in_progress";
-      await pool.query(
-        `UPDATE compliance_checklists SET completed_items = $2, compliance_percentage = $3, status = $4, total_items = $5
-         WHERE id = $1`,
-        [item.checklist_id, completed, pct, status, total]
-      );
-      res.json(item);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.post("/api/compliance/checklists/:id/audits", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { auditType, auditorName, auditorOrganization, auditDate, findings, overallResult, reportFileUrl, nextAuditDate, notes } = req.body;
-      const { rows: [audit] } = await pool.query(
-        `INSERT INTO compliance_audits (checklist_id, audit_type, auditor_name, auditor_organization, audit_date, findings, overall_result, report_file_url, next_audit_date, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-        [req.params.id, auditType, auditorName, auditorOrganization || null,
-         auditDate, JSON.stringify(findings || []), overallResult || null,
-         reportFileUrl || null, nextAuditDate || null, notes || null]
-      );
-      await pool.query(
-        `UPDATE compliance_checklists SET last_audit_date = $2, auditor_name = $3,
-         next_audit_date = COALESCE($4, next_audit_date)
-         WHERE id = $1`,
-        [req.params.id, auditDate, auditorName, nextAuditDate || null]
-      );
-      res.json(audit);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.get("/api/compliance/checklists/:id/audits", isAuthenticated, async (req: any, res) => {
-    try {
-      const { rows } = await pool.query(
-        `SELECT * FROM compliance_audits WHERE checklist_id = $1 ORDER BY audit_date DESC`,
-        [req.params.id]
-      );
-      res.json(rows);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.get("/api/compliance/dashboard", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { rows: checklists } = await pool.query(
-        `SELECT cl.*, v.name AS vessel_name FROM compliance_checklists cl
-         LEFT JOIN vessels v ON v.id = cl.vessel_id
-         WHERE cl.user_id = $1 ORDER BY cl.standard_code, cl.created_at DESC`,
-        [userId]
-      );
-      const { rows: openFindings } = await pool.query(
-        `SELECT ci.* FROM compliance_items ci
-         JOIN compliance_checklists cl ON cl.id = ci.checklist_id
-         WHERE cl.user_id = $1 AND ci.finding_type IN ('non_conformity','major_non_conformity')
-           AND ci.corrective_action_status IN ('open','in_progress')`,
-        [userId]
-      );
-      const { rows: upcomingAudits } = await pool.query(
-        `SELECT cl.*, v.name AS vessel_name FROM compliance_checklists cl
-         LEFT JOIN vessels v ON v.id = cl.vessel_id
-         WHERE cl.user_id = $1 AND cl.next_audit_date IS NOT NULL
-           AND cl.next_audit_date > NOW() AND cl.next_audit_date < NOW() + INTERVAL '90 days'
-         ORDER BY cl.next_audit_date`,
-        [userId]
-      );
-      const byStandard: Record<string, any> = {};
-      for (const cl of checklists) {
-        if (!byStandard[cl.standard_code] || (cl.compliance_percentage ?? 0) > (byStandard[cl.standard_code].compliance_percentage ?? 0)) {
-          byStandard[cl.standard_code] = cl;
-        }
-      }
-      res.json({ checklists, byStandard, openFindings, upcomingAudits });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.get("/api/compliance/vessels/:vesselId/status", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { rows } = await pool.query(
-        `SELECT cl.*, v.name AS vessel_name FROM compliance_checklists cl
-         LEFT JOIN vessels v ON v.id = cl.vessel_id
-         WHERE cl.user_id = $1 AND cl.vessel_id = $2 ORDER BY cl.standard_code`,
-        [userId, req.params.vesselId]
-      );
-      res.json(rows);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.get("/api/compliance/expiring", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      const { rows } = await pool.query(
-        `SELECT cl.*, v.name AS vessel_name,
-           EXTRACT(DAY FROM cl.next_audit_date - NOW()) AS days_until_audit
-         FROM compliance_checklists cl
-         LEFT JOIN vessels v ON v.id = cl.vessel_id
-         WHERE cl.user_id = $1 AND cl.next_audit_date IS NOT NULL
-           AND cl.next_audit_date < NOW() + INTERVAL '90 days'
-         ORDER BY cl.next_audit_date`,
-        [userId]
-      );
-      res.json(rows);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
-
-  app.delete("/api/compliance/checklists/:id", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user?.claims?.sub || req.user?.id;
-      await pool.query(`DELETE FROM compliance_checklists WHERE id = $1 AND user_id = $2`, [req.params.id, userId]);
-      res.json({ success: true });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   return httpServer;

@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -9,20 +10,10 @@ import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { startCronJobs } from "./cron-jobs";
 import { initSocket } from "./socket";
-import { config } from "./config";
-import path from "path";
-import fsModule from "fs";
 
 const app = express();
 const httpServer = createServer(app);
 initSocket(httpServer);
-
-app.get("/api/health", (_req, res) => res.status(200).json({ status: "ok" }));
-app.get("/", (_req, res) => {
-  const tryPaths = [path.resolve(__dirname, "public", "index.html"), path.resolve(process.cwd(), "dist", "public", "index.html")];
-  for (const p of tryPaths) { if (fsModule.existsSync(p)) return res.sendFile(p); }
-  res.status(200).send("<html><body><h1>VesselPDA</h1></body></html>");
-});
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -60,13 +51,31 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { message: "Too many requests, please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV !== "production",
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  message: { message: "Too many requests." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV !== "production",
+});
+
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
   }
 }
 
-if (config.NODE_ENV === "production") {
+if (process.env.NODE_ENV === "production") {
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.hostname.startsWith("www.")) {
       const nonWwwHost = req.hostname.slice(4);
@@ -75,6 +84,9 @@ if (config.NODE_ENV === "production") {
     next();
   });
 }
+
+app.use("/api/auth", authLimiter);
+app.use("/api", apiLimiter);
 
 app.use(
   express.json({
@@ -175,12 +187,6 @@ app.use((req, res, next) => {
   next();
 });
 
-
-const port = config.PORT;
-httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
-  console.log("Server is ready and listening on port " + port);
-});
-
 (async () => {
   await registerRoutes(httpServer, app);
 
@@ -200,11 +206,70 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (config.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production") {
     serveStatic(app);
   } else {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
 
+  // ALWAYS serve the app on the port specified in the environment variable PORT
+  // Other ports are firewalled. Default to 5000 if not specified.
+  // this serves both the API and the client.
+  // It is the only port that is not firewalled.
+  const port = parseInt(process.env.PORT || "5000", 10);
+  httpServer.listen(
+    {
+      port,
+      host: "0.0.0.0",
+      reusePort: true,
+    },
+    () => {
+      log(`serving on port ${port}`);
+
+      import("./seed").then(({ seedDatabase, seedForumCategories, seedPortCoordinates }) => {
+        seedDatabase().catch((err: Error) => console.error("Seed error:", err));
+        seedForumCategories().catch((err: Error) => console.error("Forum seed error:", err));
+        seedPortCoordinates().catch((err: Error) => console.error("Port coords seed error:", err));
+      });
+
+      seedBunkerPrices().catch((err: Error) => console.error("Bunker seed error:", err));
+
+      seedTestAdmin().catch((err: Error) => console.error("Test admin seed error:", err));
+
+      import("./seed-templates").then(({ seedDocumentTemplates }) => {
+        seedDocumentTemplates().catch((err: Error) => console.error("Template seed error:", err));
+      });
+
+      import("./seed-tariffs").then(({ seedTariffData, ensureNewTariffTables }) => {
+        ensureNewTariffTables()
+          .then(() => seedTariffData())
+          .catch((err: Error) => console.error("Tariff setup error:", err));
+      });
+
+      import("./startup-checks").then(({ runStartupChecks }) => {
+        setTimeout(() => {
+          runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));
+        }, 10000);
+      });
+
+      import("./cleanup-ports").then(({ cleanupInvalidPorts }) => {
+        cleanupInvalidPorts().catch((err: Error) => console.error("Cleanup error:", err));
+      });
+
+      import("./sanctions").then(({ loadSanctionsList }) => {
+        setTimeout(() => {
+          loadSanctionsList().catch((err: Error) => console.error("Sanctions load error:", err));
+        }, 5000);
+      });
+
+      import("./geocode-ports").then(({ geocodeMissingPorts }) => {
+        setTimeout(() => {
+          geocodeMissingPorts().catch((err: Error) => console.error("Geocode error:", err));
+        }, 15000);
+      });
+
+      startCronJobs();
+    },
+  );
 })();

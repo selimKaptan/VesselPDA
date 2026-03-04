@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import { FileText, Ship, Globe, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Settings2, Package, AlertTriangle, Crown, ChevronsUpDown, Check, MapPin, RefreshCw, Zap, TrendingUp, Scale } from "lucide-react";
+import { FileText, Ship, Globe, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Settings2, Package, AlertTriangle, Crown, ChevronsUpDown, Check, MapPin, RefreshCw, Zap } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,59 +71,6 @@ function getPortCityCode(code: string): string {
 
 function getCityName(cityCode: string): string {
   return CITY_CODE_NAMES[cityCode] ?? cityCode;
-}
-
-// ─── Benchmark Hint (shown after port selection) ──────────────────────────────
-interface BenchmarkEstimate {
-  hasData: boolean;
-  portName?: string;
-  avgTotalCost?: number;
-  minTotalCost?: number;
-  maxTotalCost?: number;
-  sampleCount?: number;
-  insufficientData?: boolean;
-}
-
-function BenchmarkHint({ portId, grt, purpose }: { portId: number; grt: number; purpose: string }) {
-  const normalizedPurpose = purpose.toLowerCase().replace("ing", "ing").replace("load", "loading").replace("discharge", "discharging").replace("bunker", "bunkering").replace("transit", "transit");
-  const purposeKey = ["loading", "discharging", "bunkering", "transit"].find(p => purpose.toLowerCase().startsWith(p.slice(0, 4))) || "loading";
-
-  const { data, isLoading } = useQuery<BenchmarkEstimate>({
-    queryKey: ["/api/benchmarks/estimate", portId, grt, purposeKey],
-    queryFn: () => fetch(`/api/benchmarks/estimate?portId=${portId}&grt=${grt}&purpose=${purposeKey}`, { credentials: "include" }).then(r => r.json()),
-    enabled: !!portId && !!grt,
-  });
-
-  if (isLoading) {
-    return <div className="h-10 bg-muted/30 rounded-md animate-pulse" />;
-  }
-  if (!data || !data.hasData) return null;
-
-  if (data.insufficientData) {
-    return (
-      <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md px-3 py-2" data-testid="benchmark-insufficient">
-        <Scale className="w-3.5 h-3.5 flex-shrink-0" />
-        <span>Benchmark data for this port is based on fewer than 3 DAs — not enough for a reliable estimate.</span>
-      </div>
-    );
-  }
-
-  const fmt = (v?: number) => v ? `$${Math.round(v).toLocaleString()}` : "—";
-
-  return (
-    <div className="flex flex-wrap items-center gap-2 text-xs bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md px-3 py-2.5" data-testid="benchmark-hint">
-      <TrendingUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-      <span className="text-blue-700 dark:text-blue-300">
-        <strong>Historical average DA for {data.portName}:</strong>{" "}
-        {fmt(data.avgTotalCost)}
-        {data.minTotalCost && data.maxTotalCost && (
-          <span className="text-blue-500 ml-1">({fmt(data.minTotalCost)} – {fmt(data.maxTotalCost)} range)</span>
-        )}
-        <span className="text-blue-400 ml-1">· based on {data.sampleCount} DAs</span>
-      </span>
-      <a href="/port-benchmarking" target="_blank" className="ml-auto text-blue-600 hover:underline text-[10px]">Compare ports →</a>
-    </div>
-  );
 }
 
 export default function ProformaNew() {
@@ -499,15 +446,6 @@ export default function ProformaNew() {
                   </>
                 )}
               </div>
-            )}
-
-            {/* ── Benchmark Hint ── */}
-            {selectedPort && selectedVesselData && (
-              <BenchmarkHint
-                portId={parseInt(selectedPort)}
-                grt={selectedVesselData.grt || 10000}
-                purpose={purposeOfCall}
-              />
             )}
 
             <Separator />

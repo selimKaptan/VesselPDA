@@ -9,7 +9,6 @@ import { users, companyProfiles } from "./models/auth";
 export const vessels = pgTable("vessels", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: varchar("user_id").notNull().references(() => users.id),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   companyProfileId: integer("company_profile_id").references(() => companyProfiles.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   flag: text("flag").notNull(),
@@ -23,9 +22,7 @@ export const vessels = pgTable("vessels", {
   callSign: text("call_sign"),
   fleetStatus: text("fleet_status").default("idle"),
   createdAt: timestamp("created_at").defaultNow(),
-}, (t) => ({
-  userIdIdx: index("vessels_user_id_idx").on(t.userId),
-}));
+});
 
 export const vesselRelations = relations(vessels, ({ one }) => ({
   user: one(users, { fields: [vessels.userId], references: [users.id] }),
@@ -74,7 +71,6 @@ export const tariffRateRelations = relations(tariffRates, ({ one }) => ({
 export const proformas = pgTable("proformas", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: varchar("user_id").notNull().references(() => users.id),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   companyProfileId: integer("company_profile_id").references(() => companyProfiles.id, { onDelete: "set null" }),
   vesselId: integer("vessel_id").notNull().references(() => vessels.id),
   portId: integer("port_id").notNull().references(() => ports.id),
@@ -94,11 +90,7 @@ export const proformas = pgTable("proformas", {
   bankDetails: jsonb("bank_details").$type<BankDetails>(),
   status: text("status").notNull().default("draft"),
   createdAt: timestamp("created_at").defaultNow(),
-}, (t) => ({
-  userIdIdx: index("proformas_user_id_idx").on(t.userId),
-  portIdIdx: index("proformas_port_id_idx").on(t.portId),
-  statusIdx: index("proformas_status_idx").on(t.status),
-}));
+});
 
 export const proformaRelations = relations(proformas, ({ one }) => ({
   user: one(users, { fields: [proformas.userId], references: [users.id] }),
@@ -148,9 +140,7 @@ export const forumTopics = pgTable("forum_topics", {
   isLocked: boolean("is_locked").notNull().default(false),
   lastActivityAt: timestamp("last_activity_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
-}, (t) => ({
-  categoryActivityIdx: index("forum_topics_category_activity_idx").on(t.categoryId, t.lastActivityAt),
-}));
+});
 
 export const forumTopicRelations = relations(forumTopics, ({ one, many }) => ({
   category: one(forumCategories, { fields: [forumTopics.categoryId], references: [forumCategories.id] }),
@@ -191,11 +181,11 @@ export const forumDislikes = pgTable("forum_dislikes", {
 
 export type ForumDislike = typeof forumDislikes.$inferSelect;
 
-export const insertVesselSchema = createInsertSchema(vessels).omit({ createdAt: true });
-export const insertPortSchema = createInsertSchema(ports).omit({ createdAt: true });
-export const insertTariffCategorySchema = createInsertSchema(tariffCategories).omit({});
-export const insertTariffRateSchema = createInsertSchema(tariffRates).omit({});
-export const insertProformaSchema = createInsertSchema(proformas).omit({ createdAt: true });
+export const insertVesselSchema = createInsertSchema(vessels).omit({ id: true, createdAt: true });
+export const insertPortSchema = createInsertSchema(ports).omit({ id: true, createdAt: true });
+export const insertTariffCategorySchema = createInsertSchema(tariffCategories).omit({ id: true });
+export const insertTariffRateSchema = createInsertSchema(tariffRates).omit({ id: true });
+export const insertProformaSchema = createInsertSchema(proformas).omit({ id: true, createdAt: true });
 
 export type InsertVessel = z.infer<typeof insertVesselSchema>;
 export type Vessel = typeof vessels.$inferSelect;
@@ -208,9 +198,9 @@ export type TariffRate = typeof tariffRates.$inferSelect;
 export type InsertProforma = z.infer<typeof insertProformaSchema>;
 export type Proforma = typeof proformas.$inferSelect;
 
-export const insertForumCategorySchema = createInsertSchema(forumCategories).omit({ createdAt: true });
-export const insertForumTopicSchema = createInsertSchema(forumTopics).omit({ createdAt: true, lastActivityAt: true, viewCount: true, replyCount: true, likeCount: true, isPinned: true, isLocked: true });
-export const insertForumReplySchema = createInsertSchema(forumReplies).omit({ createdAt: true, likeCount: true });
+export const insertForumCategorySchema = createInsertSchema(forumCategories).omit({ id: true, createdAt: true });
+export const insertForumTopicSchema = createInsertSchema(forumTopics).omit({ id: true, createdAt: true, lastActivityAt: true, viewCount: true, replyCount: true, likeCount: true, isPinned: true, isLocked: true });
+export const insertForumReplySchema = createInsertSchema(forumReplies).omit({ id: true, createdAt: true, likeCount: true });
 
 export type InsertForumCategory = z.infer<typeof insertForumCategorySchema>;
 export type ForumCategory = typeof forumCategories.$inferSelect;
@@ -225,7 +215,6 @@ export type ForumLike = typeof forumLikes.$inferSelect;
 export const portTenders = pgTable("port_tenders", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: varchar("user_id").notNull().references(() => users.id),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   portId: integer("port_id").notNull().references(() => ports.id),
   vesselName: text("vessel_name"),
   description: text("description"),
@@ -242,13 +231,10 @@ export const portTenders = pgTable("port_tenders", {
   nominatedAgentId: varchar("nominated_agent_id"),
   nominatedAt: timestamp("nominated_at"),
   createdAt: timestamp("created_at").defaultNow(),
-}, (t) => ({
-  statusCreatedIdx: index("port_tenders_status_created_idx").on(t.status, t.createdAt),
-}));
+});
 
 export const tenderBids = pgTable("tender_bids", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   tenderId: integer("tender_id").notNull().references(() => portTenders.id),
   agentUserId: varchar("agent_user_id").notNull().references(() => users.id),
   agentCompanyId: integer("agent_company_id").references(() => companyProfiles.id),
@@ -258,9 +244,7 @@ export const tenderBids = pgTable("tender_bids", {
   currency: text("currency").notNull().default("USD"),
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
-}, (t) => ({
-  tenderAgentIdx: index("tender_bids_tender_agent_idx").on(t.tenderId, t.agentUserId),
-}));
+});
 
 export const portTenderRelations = relations(portTenders, ({ one, many }) => ({
   user: one(users, { fields: [portTenders.userId], references: [users.id] }),
@@ -274,8 +258,8 @@ export const tenderBidRelations = relations(tenderBids, ({ one }) => ({
   agentCompany: one(companyProfiles, { fields: [tenderBids.agentCompanyId], references: [companyProfiles.id] }),
 }));
 
-export const insertPortTenderSchema = createInsertSchema(portTenders).omit({ createdAt: true, nominatedAt: true, nominatedAgentId: true, status: true });
-export const insertTenderBidSchema = createInsertSchema(tenderBids).omit({ createdAt: true, status: true });
+export const insertPortTenderSchema = createInsertSchema(portTenders).omit({ id: true, createdAt: true, nominatedAt: true, nominatedAgentId: true, status: true });
+export const insertTenderBidSchema = createInsertSchema(tenderBids).omit({ id: true, createdAt: true, status: true });
 
 export type InsertPortTender = z.infer<typeof insertPortTenderSchema>;
 export type PortTender = typeof portTenders.$inferSelect;
@@ -302,7 +286,7 @@ export const agentReviewRelations = relations(agentReviews, ({ one }) => ({
   tender: one(portTenders, { fields: [agentReviews.tenderId], references: [portTenders.id] }),
 }));
 
-export const insertAgentReviewSchema = createInsertSchema(agentReviews).omit({ createdAt: true });
+export const insertAgentReviewSchema = createInsertSchema(agentReviews).omit({ id: true, createdAt: true });
 export type InsertAgentReview = z.infer<typeof insertAgentReviewSchema>;
 export type AgentReview = typeof agentReviews.$inferSelect;
 
@@ -324,7 +308,7 @@ export const vesselWatchlistRelations = relations(vesselWatchlist, ({ one }) => 
   user: one(users, { fields: [vesselWatchlist.userId], references: [users.id] }),
 }));
 
-export const insertVesselWatchlistSchema = createInsertSchema(vesselWatchlist).omit({ addedAt: true });
+export const insertVesselWatchlistSchema = createInsertSchema(vesselWatchlist).omit({ id: true, addedAt: true });
 export type InsertVesselWatchlist = z.infer<typeof insertVesselWatchlistSchema>;
 export type VesselWatchlistItem = typeof vesselWatchlist.$inferSelect;
 
@@ -338,7 +322,7 @@ export const feedbacks = pgTable("feedbacks", {
   pageUrl: text("page_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });
-export const insertFeedbackSchema = createInsertSchema(feedbacks).omit({ createdAt: true });
+export const insertFeedbackSchema = createInsertSchema(feedbacks).omit({ id: true, createdAt: true });
 export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
 export type Feedback = typeof feedbacks.$inferSelect;
 
@@ -351,16 +335,13 @@ export const notifications = pgTable("notifications", {
   link: text("link"),
   isRead: boolean("is_read").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
-}, (t) => ({
-  userIsReadIdx: index("notifications_user_is_read_idx").on(t.userId, t.isRead),
-  createdAtIdx: index("notifications_created_at_idx").on(t.createdAt),
-}));
+});
 
 export const notificationRelations = relations(notifications, ({ one }) => ({
   user: one(users, { fields: [notifications.userId], references: [users.id] }),
 }));
 
-export const insertNotificationSchema = createInsertSchema(notifications).omit({ createdAt: true, isRead: true });
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true, isRead: true });
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
 
@@ -369,9 +350,8 @@ export type Notification = typeof notifications.$inferSelect;
 export const voyages = pgTable("voyages", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: varchar("user_id").notNull().references(() => users.id),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   vesselId: integer("vessel_id").references(() => vessels.id),
-  portId: integer("port_id").references(() => ports.id),
+  portId: integer("port_id").notNull().references(() => ports.id),
   agentUserId: varchar("agent_user_id").references(() => users.id),
   tenderId: integer("tender_id").references(() => portTenders.id),
   vesselName: text("vessel_name"),
@@ -387,49 +367,7 @@ export const voyages = pgTable("voyages", {
   purposeOfCall: text("purpose_of_call").notNull().default("Loading"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
-  voyageNumber: text("voyage_number"),
-  loadPort: text("load_port"),
-  voyageType: text("voyage_type").default("single"),
-  currentPortCallId: integer("current_port_call_id"),
-}, (t) => ({
-  userIdIdx: index("voyages_user_id_idx").on(t.userId),
-  portIdIdx: index("voyages_port_id_idx").on(t.portId),
-  statusIdx: index("voyages_status_idx").on(t.status),
-  etaIdx: index("voyages_eta_idx").on(t.eta),
-}));
-
-export const voyagePortCalls = pgTable("voyage_port_calls", {
-  id: serial("id").primaryKey(),
-  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
-  portId: integer("port_id").notNull().references(() => ports.id),
-  portCallOrder: integer("port_call_order").notNull().default(1),
-  portCallType: text("port_call_type").notNull().default("discharging"),
-  status: text("status").notNull().default("planned"),
-  eta: timestamp("eta"),
-  etd: timestamp("etd"),
-  ata: timestamp("ata"),
-  atd: timestamp("atd"),
-  berthName: text("berth_name"),
-  terminalName: text("terminal_name"),
-  cargoType: text("cargo_type"),
-  cargoQuantity: real("cargo_quantity"),
-  cargoUnit: text("cargo_unit").default("MT"),
-  agentUserId: varchar("agent_user_id").references(() => users.id, { onDelete: "set null" }),
-  agentCompanyId: integer("agent_company_id"),
-  proformaId: integer("proforma_id").references(() => proformas.id, { onDelete: "set null" }),
-  notes: text("notes"),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at").defaultNow(),
 });
-
-export const voyagePortCallRelations = relations(voyagePortCalls, ({ one }) => ({
-  voyage: one(voyages, { fields: [voyagePortCalls.voyageId], references: [voyages.id] }),
-  port: one(ports, { fields: [voyagePortCalls.portId], references: [ports.id] }),
-  agent: one(users, { fields: [voyagePortCalls.agentUserId], references: [users.id] }),
-}));
-
-export type VoyagePortCall = typeof voyagePortCalls.$inferSelect;
-export type InsertVoyagePortCall = typeof voyagePortCalls.$inferInsert;
 
 export const voyageRelations = relations(voyages, ({ one, many }) => ({
   user: one(users, { fields: [voyages.userId], references: [users.id] }),
@@ -438,7 +376,6 @@ export const voyageRelations = relations(voyages, ({ one, many }) => ({
   tender: one(portTenders, { fields: [voyages.tenderId], references: [portTenders.id] }),
   checklists: many(voyageChecklists),
   serviceRequests: many(serviceRequests),
-  portCalls: many(voyagePortCalls),
 }));
 
 export const voyageChecklists = pgTable("voyage_checklists", {
@@ -459,7 +396,6 @@ export const voyageChecklistRelations = relations(voyageChecklists, ({ one }) =>
 
 export const serviceRequests = pgTable("service_requests", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   requesterId: varchar("requester_id").notNull().references(() => users.id),
   portId: integer("port_id").notNull().references(() => ports.id),
   voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
@@ -472,9 +408,7 @@ export const serviceRequests = pgTable("service_requests", {
   preferredDate: timestamp("preferred_date"),
   status: text("status").notNull().default("open"),
   createdAt: timestamp("created_at").defaultNow(),
-}, (t) => ({
-  statusPortIdx: index("service_requests_status_port_idx").on(t.status, t.portId),
-}));
+});
 
 export const serviceRequestRelations = relations(serviceRequests, ({ one, many }) => ({
   requester: one(users, { fields: [serviceRequests.requesterId], references: [users.id] }),
@@ -565,7 +499,6 @@ export const voyageChatMessageRelations = relations(voyageChatMessages, ({ one }
 
 export const conversations = pgTable("conversations", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   user1Id: varchar("user1_id").notNull().references(() => users.id),
   user2Id: varchar("user2_id").notNull().references(() => users.id),
   voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
@@ -575,10 +508,7 @@ export const conversations = pgTable("conversations", {
   externalEmail: text("external_email"),
   externalEmailName: text("external_email_name"),
   externalEmailForward: boolean("external_email_forward").notNull().default(false),
-}, (t) => ({
-  user1Idx: index("conversations_user1_idx").on(t.user1Id),
-  user2Idx: index("conversations_user2_idx").on(t.user2Id),
-}));
+});
 
 export const conversationRelations = relations(conversations, ({ one, many }) => ({
   user1: one(users, { fields: [conversations.user1Id], references: [users.id] }),
@@ -599,9 +529,7 @@ export const messages = pgTable("messages", {
   fileSize: integer("file_size"),
   readAt: timestamp("read_at"),
   mentions: text("mentions"),
-}, (t) => ({
-  convCreatedIdx: index("messages_conversation_created_idx").on(t.conversationId, t.createdAt),
-}));
+});
 
 export const messageRelations = relations(messages, ({ one }) => ({
   conversation: one(conversations, { fields: [messages.conversationId], references: [conversations.id] }),
@@ -612,7 +540,6 @@ export const messageRelations = relations(messages, ({ one }) => ({
 
 export const directNominations = pgTable("direct_nominations", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   nominatorUserId: varchar("nominator_user_id").notNull().references(() => users.id),
   agentUserId: varchar("agent_user_id").notNull().references(() => users.id),
   agentCompanyId: integer("agent_company_id").references(() => companyProfiles.id),
@@ -637,15 +564,15 @@ export const directNominationRelations = relations(directNominations, ({ one }) 
 
 // ─── SCHEMA EXPORTS ───────────────────────────────────────────────────────────
 
-export const insertVoyageSchema = createInsertSchema(voyages).omit({ createdAt: true });
-export const insertVoyageChecklistSchema = createInsertSchema(voyageChecklists).omit({ createdAt: true, isCompleted: true, completedAt: true });
-export const insertServiceRequestSchema = createInsertSchema(serviceRequests).omit({ createdAt: true, status: true });
-export const insertServiceOfferSchema = createInsertSchema(serviceOffers).omit({ createdAt: true, status: true });
-export const insertVoyageDocumentSchema = createInsertSchema(voyageDocuments).omit({ createdAt: true });
-export const insertVoyageReviewSchema = createInsertSchema(voyageReviews).omit({ createdAt: true });
-export const insertVoyageChatMessageSchema = createInsertSchema(voyageChatMessages).omit({ createdAt: true });
-export const insertConversationSchema = createInsertSchema(conversations).omit({ createdAt: true, lastMessageAt: true });
-export const insertMessageSchema = createInsertSchema(messages).omit({ createdAt: true, isRead: true, readAt: true });
+export const insertVoyageSchema = createInsertSchema(voyages).omit({ id: true, createdAt: true });
+export const insertVoyageChecklistSchema = createInsertSchema(voyageChecklists).omit({ id: true, createdAt: true, isCompleted: true, completedAt: true });
+export const insertServiceRequestSchema = createInsertSchema(serviceRequests).omit({ id: true, createdAt: true, status: true });
+export const insertServiceOfferSchema = createInsertSchema(serviceOffers).omit({ id: true, createdAt: true, status: true });
+export const insertVoyageDocumentSchema = createInsertSchema(voyageDocuments).omit({ id: true, createdAt: true });
+export const insertVoyageReviewSchema = createInsertSchema(voyageReviews).omit({ id: true, createdAt: true });
+export const insertVoyageChatMessageSchema = createInsertSchema(voyageChatMessages).omit({ id: true, createdAt: true });
+export const insertConversationSchema = createInsertSchema(conversations).omit({ id: true, createdAt: true, lastMessageAt: true });
+export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true, isRead: true, readAt: true });
 
 export type InsertVoyage = z.infer<typeof insertVoyageSchema>;
 export type Voyage = typeof voyages.$inferSelect;
@@ -666,7 +593,7 @@ export type ServiceRequest = typeof serviceRequests.$inferSelect;
 export type InsertServiceOffer = z.infer<typeof insertServiceOfferSchema>;
 export type ServiceOffer = typeof serviceOffers.$inferSelect;
 
-export const insertDirectNominationSchema = createInsertSchema(directNominations).omit({ createdAt: true, status: true, respondedAt: true });
+export const insertDirectNominationSchema = createInsertSchema(directNominations).omit({ id: true, createdAt: true, status: true, respondedAt: true });
 export type InsertDirectNomination = z.infer<typeof insertDirectNominationSchema>;
 export type DirectNomination = typeof directNominations.$inferSelect;
 
@@ -686,7 +613,7 @@ export const endorsementRelations = relations(endorsements, ({ one }) => ({
   toCompanyProfile: one(companyProfiles, { fields: [endorsements.toCompanyProfileId], references: [companyProfiles.id] }),
 }));
 
-export const insertEndorsementSchema = createInsertSchema(endorsements).omit({ createdAt: true });
+export const insertEndorsementSchema = createInsertSchema(endorsements).omit({ id: true, createdAt: true });
 export type InsertEndorsement = z.infer<typeof insertEndorsementSchema>;
 export type Endorsement = typeof endorsements.$inferSelect;
 
@@ -694,7 +621,6 @@ export type Endorsement = typeof endorsements.$inferSelect;
 
 export const vesselCertificates = pgTable("vessel_certificates", {
   id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   userId: varchar("user_id").notNull().references(() => users.id),
   vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
@@ -717,7 +643,7 @@ export const vesselCertificateRelations = relations(vesselCertificates, ({ one }
   vessel: one(vessels, { fields: [vesselCertificates.vesselId], references: [vessels.id] }),
 }));
 
-export const insertVesselCertificateSchema = createInsertSchema(vesselCertificates).omit({ createdAt: true, status: true });
+export const insertVesselCertificateSchema = createInsertSchema(vesselCertificates).omit({ id: true, createdAt: true, status: true });
 export type InsertVesselCertificate = z.infer<typeof insertVesselCertificateSchema>;
 export type VesselCertificate = typeof vesselCertificates.$inferSelect;
 
@@ -740,7 +666,7 @@ export const portCallAppointmentRelations = relations(portCallAppointments, ({ o
   user: one(users, { fields: [portCallAppointments.userId], references: [users.id] }),
 }));
 
-export const insertPortCallAppointmentSchema = createInsertSchema(portCallAppointments).omit({ createdAt: true });
+export const insertPortCallAppointmentSchema = createInsertSchema(portCallAppointments).omit({ id: true, createdAt: true });
 export type InsertPortCallAppointment = z.infer<typeof insertPortCallAppointmentSchema>;
 export type PortCallAppointment = typeof portCallAppointments.$inferSelect;
 
@@ -749,7 +675,6 @@ export type PortCallAppointment = typeof portCallAppointments.$inferSelect;
 export const fixtures = pgTable("fixtures", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   status: text("status").notNull().default("negotiating"),
   vesselName: text("vessel_name").notNull(),
   imoNumber: text("imo_number"),
@@ -774,7 +699,7 @@ export const fixtureRelations = relations(fixtures, ({ one }) => ({
   user: one(users, { fields: [fixtures.userId], references: [users.id] }),
 }));
 
-export const insertFixtureSchema = createInsertSchema(fixtures).omit({ createdAt: true, status: true });
+export const insertFixtureSchema = createInsertSchema(fixtures).omit({ id: true, createdAt: true, status: true });
 export type InsertFixture = z.infer<typeof insertFixtureSchema>;
 export type Fixture = typeof fixtures.$inferSelect;
 
@@ -806,7 +731,7 @@ export const laytimeRelations = relations(laytimeCalculations, ({ one }) => ({
   fixture: one(fixtures, { fields: [laytimeCalculations.fixtureId], references: [fixtures.id] }),
 }));
 
-export const insertLaytimeSchema = createInsertSchema(laytimeCalculations).omit({ createdAt: true, timeUsedHours: true, demurrageAmount: true, despatchAmount: true });
+export const insertLaytimeSchema = createInsertSchema(laytimeCalculations).omit({ id: true, createdAt: true, timeUsedHours: true, demurrageAmount: true, despatchAmount: true });
 export type InsertLaytime = z.infer<typeof insertLaytimeSchema>;
 export type LaytimeCalculation = typeof laytimeCalculations.$inferSelect;
 
@@ -815,7 +740,6 @@ export type LaytimeCalculation = typeof laytimeCalculations.$inferSelect;
 export const cargoPositions = pgTable("cargo_positions", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   positionType: text("position_type").notNull().default("cargo"),
   title: text("title").notNull(),
   description: text("description"),
@@ -838,7 +762,7 @@ export const cargoPositionRelations = relations(cargoPositions, ({ one }) => ({
   user: one(users, { fields: [cargoPositions.userId], references: [users.id] }),
 }));
 
-export const insertCargoPositionSchema = createInsertSchema(cargoPositions).omit({ createdAt: true, status: true });
+export const insertCargoPositionSchema = createInsertSchema(cargoPositions).omit({ id: true, createdAt: true, status: true });
 export type InsertCargoPosition = z.infer<typeof insertCargoPositionSchema>;
 export type CargoPosition = typeof cargoPositions.$inferSelect;
 
@@ -856,7 +780,7 @@ export const bunkerPrices = pgTable("bunker_prices", {
   updatedBy: varchar("updated_by").references(() => users.id),
 });
 
-export const insertBunkerPriceSchema = createInsertSchema(bunkerPrices).omit({});
+export const insertBunkerPriceSchema = createInsertSchema(bunkerPrices).omit({ id: true });
 export type InsertBunkerPrice = z.infer<typeof insertBunkerPriceSchema>;
 export type BunkerPrice = typeof bunkerPrices.$inferSelect;
 
@@ -872,7 +796,7 @@ export const documentTemplates = pgTable("document_templates", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertDocumentTemplateSchema = createInsertSchema(documentTemplates).omit({ createdAt: true });
+export const insertDocumentTemplateSchema = createInsertSchema(documentTemplates).omit({ id: true, createdAt: true });
 export type InsertDocumentTemplate = z.infer<typeof insertDocumentTemplateSchema>;
 export type DocumentTemplate = typeof documentTemplates.$inferSelect;
 
@@ -880,7 +804,6 @@ export type DocumentTemplate = typeof documentTemplates.$inferSelect;
 
 export const invoices = pgTable("invoices", {
   id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
   proformaId: integer("proforma_id").references(() => proformas.id, { onDelete: "set null" }),
   createdByUserId: varchar("created_by_user_id").notNull().references(() => users.id),
@@ -894,9 +817,7 @@ export const invoices = pgTable("invoices", {
   invoiceType: text("invoice_type").notNull().default("invoice"),
   linkedProformaId: integer("linked_proforma_id"),
   createdAt: timestamp("created_at").defaultNow(),
-}, (t) => ({
-  creatorStatusIdx: index("invoices_creator_status_idx").on(t.createdByUserId, t.status),
-}));
+});
 
 export const invoiceRelations = relations(invoices, ({ one }) => ({
   voyage: one(voyages, { fields: [invoices.voyageId], references: [voyages.id] }),
@@ -904,7 +825,7 @@ export const invoiceRelations = relations(invoices, ({ one }) => ({
   creator: one(users, { fields: [invoices.createdByUserId], references: [users.id] }),
 }));
 
-export const insertInvoiceSchema = createInsertSchema(invoices).omit({ createdAt: true, status: true });
+export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true, status: true });
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 export type Invoice = typeof invoices.$inferSelect;
 
@@ -930,14 +851,13 @@ export const portAlertRelations = relations(portAlerts, ({ one }) => ({
   creator: one(users, { fields: [portAlerts.createdByUserId], references: [users.id] }),
 }));
 
-export const insertPortAlertSchema = createInsertSchema(portAlerts).omit({ createdAt: true });
+export const insertPortAlertSchema = createInsertSchema(portAlerts).omit({ id: true, createdAt: true });
 export type InsertPortAlert = z.infer<typeof insertPortAlertSchema>;
 export type PortAlert = typeof portAlerts.$inferSelect;
 
 // ── Vessel Crew ──────────────────────────────────────────────────────────────
 export const vesselCrew = pgTable("vessel_crew", {
   id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
   userId: varchar("user_id").notNull().references(() => users.id),
   firstName: text("first_name").notNull(),
@@ -961,7 +881,7 @@ export const vesselCrewRelations = relations(vesselCrew, ({ one }) => ({
   user: one(users, { fields: [vesselCrew.userId], references: [users.id] }),
 }));
 
-export const insertVesselCrewSchema = createInsertSchema(vesselCrew).omit({ createdAt: true });
+export const insertVesselCrewSchema = createInsertSchema(vesselCrew).omit({ id: true, createdAt: true });
 export type InsertVesselCrew = z.infer<typeof insertVesselCrewSchema>;
 export type VesselCrew = typeof vesselCrew.$inferSelect;
 
@@ -991,7 +911,7 @@ export const vesselPositionsRelations = relations(vesselPositions, ({ one }) => 
   watchlistItem: one(vesselWatchlist, { fields: [vesselPositions.watchlistItemId], references: [vesselWatchlist.id] }),
 }));
 
-export const insertVesselPositionSchema = createInsertSchema(vesselPositions).omit({ timestamp: true });
+export const insertVesselPositionSchema = createInsertSchema(vesselPositions).omit({ id: true, timestamp: true });
 export type InsertVesselPosition = z.infer<typeof insertVesselPositionSchema>;
 export type VesselPositionRecord = typeof vesselPositions.$inferSelect;
 
@@ -1009,15 +929,13 @@ export const sanctionsChecks = pgTable("sanctions_checks", {
   matchDetails: jsonb("match_details"),
   source: text("source").notNull().default("ofac"),
   checkedAt: timestamp("checked_at").defaultNow().notNull(),
-}, (t) => ({
-  userCheckedIdx: index("sanctions_checks_user_checked_idx").on(t.userId, t.checkedAt),
-}));
+});
 
 export const sanctionsChecksRelations = relations(sanctionsChecks, ({ one }) => ({
   user: one(users, { fields: [sanctionsChecks.userId], references: [users.id] }),
 }));
 
-export const insertSanctionsCheckSchema = createInsertSchema(sanctionsChecks).omit({ checkedAt: true });
+export const insertSanctionsCheckSchema = createInsertSchema(sanctionsChecks).omit({ id: true, checkedAt: true });
 export type InsertSanctionsCheck = z.infer<typeof insertSanctionsCheckSchema>;
 export type SanctionsCheck = typeof sanctionsChecks.$inferSelect;
 
@@ -1034,7 +952,7 @@ export const exchangeRates = pgTable("exchange_rates", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const insertExchangeRateSchema = createInsertSchema(exchangeRates).omit({ updatedAt: true });
+export const insertExchangeRateSchema = createInsertSchema(exchangeRates).omit({ id: true, updatedAt: true });
 export type InsertExchangeRate = z.infer<typeof insertExchangeRateSchema>;
 export type ExchangeRate = typeof exchangeRates.$inferSelect;
 
@@ -1043,7 +961,6 @@ export type ExchangeRate = typeof exchangeRates.$inferSelect;
 export const fleets = pgTable("fleets", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   description: text("description"),
   color: text("color").notNull().default("#2563EB"),
@@ -1069,7 +986,7 @@ export const fleetVesselsRelations = relations(fleetVessels, ({ one }) => ({
   vessel: one(vessels, { fields: [fleetVessels.vesselId], references: [vessels.id] }),
 }));
 
-export const insertFleetSchema = createInsertSchema(fleets).omit({ createdAt: true });
+export const insertFleetSchema = createInsertSchema(fleets).omit({ id: true, createdAt: true });
 export type InsertFleet = z.infer<typeof insertFleetSchema>;
 export type Fleet = typeof fleets.$inferSelect;
 
@@ -1088,448 +1005,6 @@ export const auditLogs = pgTable("audit_logs", {
   entityIdx: index("audit_logs_entity_idx").on(t.entityType, t.entityId),
 }));
 
-export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ createdAt: true });
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
-
-// ─── NOTIFICATION PREFERENCES ─────────────────────────────────────────────────
-export const notificationPreferences = pgTable("notification_preferences", {
-  userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
-  emailOnNewTender:        boolean("email_on_new_tender").notNull().default(true),
-  emailOnBidReceived:      boolean("email_on_bid_received").notNull().default(true),
-  emailOnNomination:       boolean("email_on_nomination").notNull().default(true),
-  emailOnMessage:          boolean("email_on_message").notNull().default(false),
-  emailOnForumReply:       boolean("email_on_forum_reply").notNull().default(false),
-  emailOnCertificateExpiry:boolean("email_on_certificate_expiry").notNull().default(true),
-  emailOnVoyageUpdate:     boolean("email_on_voyage_update").notNull().default(true),
-  pushEnabled:             boolean("push_enabled").notNull().default(true),
-  dailyDigest:             boolean("daily_digest").notNull().default(false),
-  updatedAt:               timestamp("updated_at").defaultNow(),
-});
-
-export type NotificationPreferences = typeof notificationPreferences.$inferSelect;
-export type InsertNotificationPreferences = typeof notificationPreferences.$inferInsert;
-
-// ─── ORGANIZATIONS ─────────────────────────────────────────────────────────────
-
-export const organizations = pgTable("organizations", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  name: text("name").notNull(),
-  slug: text("slug").unique(),
-  type: text("type").notNull().default("other"),
-  logoUrl: text("logo_url"),
-  website: text("website"),
-  phone: text("phone"),
-  email: text("email"),
-  address: text("address"),
-  country: text("country"),
-  taxId: text("tax_id"),
-  subscriptionPlan: text("subscription_plan").notNull().default("free"),
-  maxMembers: integer("max_members").notNull().default(5),
-  isActive: boolean("is_active").notNull().default(true),
-  ownerId: varchar("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const organizationMembers = pgTable("organization_members", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  role: text("role").notNull().default("member"),
-  displayName: text("display_name"),
-  department: text("department"),
-  jobTitle: text("job_title"),
-  isActive: boolean("is_active").notNull().default(true),
-  joinedAt: timestamp("joined_at").defaultNow(),
-  invitedBy: varchar("invited_by").references(() => users.id),
-});
-
-export const organizationInvites = pgTable("organization_invites", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  invitedEmail: text("invited_email").notNull(),
-  invitedByUserId: varchar("invited_by_user_id").notNull().references(() => users.id),
-  role: text("role").notNull().default("member"),
-  token: text("token").notNull().unique(),
-  status: text("status").notNull().default("pending"),
-  expiresAt: timestamp("expires_at").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const organizationsRelations = relations(organizations, ({ one, many }) => ({
-  owner: one(users, { fields: [organizations.ownerId], references: [users.id] }),
-  members: many(organizationMembers),
-  invites: many(organizationInvites),
-}));
-
-export const organizationMembersRelations = relations(organizationMembers, ({ one }) => ({
-  organization: one(organizations, { fields: [organizationMembers.organizationId], references: [organizations.id] }),
-  user: one(users, { fields: [organizationMembers.userId], references: [users.id] }),
-}));
-
-export const organizationInvitesRelations = relations(organizationInvites, ({ one }) => ({
-  organization: one(organizations, { fields: [organizationInvites.organizationId], references: [organizations.id] }),
-  invitedBy: one(users, { fields: [organizationInvites.invitedByUserId], references: [users.id] }),
-}));
-
-export const insertOrganizationSchema = createInsertSchema(organizations).omit({ createdAt: true, ownerId: true });
-export const insertOrganizationMemberSchema = createInsertSchema(organizationMembers).omit({ joinedAt: true });
-export const insertOrganizationInviteSchema = createInsertSchema(organizationInvites).omit({ createdAt: true });
-
-export type Organization = typeof organizations.$inferSelect;
-export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
-export type OrganizationMember = typeof organizationMembers.$inferSelect;
-export type OrganizationInvite = typeof organizationInvites.$inferSelect;
-
-// ─── ORGANIZATION ROLES ────────────────────────────────────────────────────────
-
-export interface OrgPermissions {
-  vessels:      { view: boolean; create: boolean; edit: boolean; delete: boolean };
-  voyages:      { view: boolean; create: boolean; edit: boolean; delete: boolean };
-  proformas:    { view: boolean; create: boolean; edit: boolean; delete: boolean; approve: boolean; send: boolean };
-  invoices:     { view: boolean; create: boolean; edit: boolean; delete: boolean; pay: boolean };
-  tenders:      { view: boolean; create: boolean; bid: boolean; nominate: boolean };
-  documents:    { view: boolean; upload: boolean; delete: boolean; sign: boolean };
-  messages:     { view: boolean; send: boolean };
-  fixtures:     { view: boolean; create: boolean; edit: boolean };
-  crew:         { view: boolean; manage: boolean };
-  certificates: { view: boolean; manage: boolean };
-  reports:      { view: boolean; export: boolean };
-  settings:     { view: boolean; manage: boolean };
-  members:      { view: boolean; invite: boolean; remove: boolean; editRoles: boolean };
-}
-
-export const organizationRoles = pgTable("organization_roles", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  color: text("color").notNull().default("#3B82F6"),
-  isDefault: boolean("is_default").notNull().default(false),
-  isOwnerRole: boolean("is_owner_role").notNull().default(false),
-  permissions: jsonb("permissions").notNull().$type<OrgPermissions>(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const organizationRolesRelations = relations(organizationRoles, ({ one }) => ({
-  organization: one(organizations, { fields: [organizationRoles.organizationId], references: [organizations.id] }),
-}));
-
-export type OrganizationRole = typeof organizationRoles.$inferSelect;
-export type InsertOrganizationRole = typeof organizationRoles.$inferInsert;
-
-// ─── ORGANIZATION ACTIVITY FEED ───────────────────────────────────────────────
-
-export const organizationActivityFeed = pgTable("organization_activity_feed", {
-  id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  action: text("action").notNull(),
-  entityType: text("entity_type").notNull(),
-  entityId: integer("entity_id"),
-  description: text("description").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const organizationActivityFeedRelations = relations(organizationActivityFeed, ({ one }) => ({
-  organization: one(organizations, { fields: [organizationActivityFeed.organizationId], references: [organizations.id] }),
-  user: one(users, { fields: [organizationActivityFeed.userId], references: [users.id] }),
-}));
-
-export type OrgActivityFeedEntry = typeof organizationActivityFeed.$inferSelect;
-export type InsertOrgActivityFeedEntry = typeof organizationActivityFeed.$inferInsert;
-
-// ─── TEAM CHAT ────────────────────────────────────────────────────────────────
-
-export const teamChannels = pgTable("team_channels", {
-  id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  description: text("description"),
-  channelType: text("channel_type").notNull().default("public"),
-  createdByUserId: varchar("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const teamChannelMembers = pgTable("team_channel_members", {
-  channelId: integer("channel_id").notNull().references(() => teamChannels.id, { onDelete: "cascade" }),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  joinedAt: timestamp("joined_at").defaultNow().notNull(),
-}, (t) => ({ pk: primaryKey({ columns: [t.channelId, t.userId] }) }));
-
-export const teamMessages = pgTable("team_messages", {
-  id: serial("id").primaryKey(),
-  channelId: integer("channel_id").notNull().references(() => teamChannels.id, { onDelete: "cascade" }),
-  senderId: varchar("sender_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  content: text("content").notNull(),
-  messageType: text("message_type").notNull().default("text"),
-  fileUrl: text("file_url"),
-  fileName: text("file_name"),
-  isEdited: boolean("is_edited").notNull().default(false),
-  replyToId: integer("reply_to_id"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const teamChannelsRelations = relations(teamChannels, ({ one, many }) => ({
-  organization: one(organizations, { fields: [teamChannels.organizationId], references: [organizations.id] }),
-  createdBy: one(users, { fields: [teamChannels.createdByUserId], references: [users.id] }),
-  messages: many(teamMessages),
-  members: many(teamChannelMembers),
-}));
-
-export const teamChannelMembersRelations = relations(teamChannelMembers, ({ one }) => ({
-  channel: one(teamChannels, { fields: [teamChannelMembers.channelId], references: [teamChannels.id] }),
-  user: one(users, { fields: [teamChannelMembers.userId], references: [users.id] }),
-}));
-
-export const teamMessagesRelations = relations(teamMessages, ({ one }) => ({
-  channel: one(teamChannels, { fields: [teamMessages.channelId], references: [teamChannels.id] }),
-  sender: one(users, { fields: [teamMessages.senderId], references: [users.id] }),
-  replyTo: one(teamMessages, { fields: [teamMessages.replyToId], references: [teamMessages.id] }),
-}));
-
-export type TeamChannel = typeof teamChannels.$inferSelect;
-export type InsertTeamChannel = typeof teamChannels.$inferInsert;
-export type TeamMessage = typeof teamMessages.$inferSelect;
-export type InsertTeamMessage = typeof teamMessages.$inferInsert;
-
-// ─── VOYAGE COLLABORATORS ─────────────────────────────────────────────────────
-
-export interface VoyagePermissions {
-  viewVoyage: boolean;
-  editVoyage: boolean;
-  viewDocuments: boolean;
-  uploadDocuments: boolean;
-  deleteDocuments: boolean;
-  signDocuments: boolean;
-  viewProforma: boolean;
-  editProforma: boolean;
-  viewInvoice: boolean;
-  viewChecklist: boolean;
-  editChecklist: boolean;
-  viewChat: boolean;
-  sendChat: boolean;
-  viewTimeline: boolean;
-}
-
-export const DEFAULT_VIEWER_PERMISSIONS: VoyagePermissions = {
-  viewVoyage: true, editVoyage: false,
-  viewDocuments: true, uploadDocuments: false, deleteDocuments: false, signDocuments: false,
-  viewProforma: true, editProforma: false,
-  viewInvoice: true,
-  viewChecklist: true, editChecklist: false,
-  viewChat: true, sendChat: false,
-  viewTimeline: true,
-};
-
-export const DEFAULT_EDITOR_PERMISSIONS: VoyagePermissions = {
-  viewVoyage: true, editVoyage: true,
-  viewDocuments: true, uploadDocuments: true, deleteDocuments: false, signDocuments: false,
-  viewProforma: true, editProforma: false,
-  viewInvoice: true,
-  viewChecklist: true, editChecklist: true,
-  viewChat: true, sendChat: true,
-  viewTimeline: true,
-};
-
-export const DEFAULT_MANAGER_PERMISSIONS: VoyagePermissions = {
-  viewVoyage: true, editVoyage: true,
-  viewDocuments: true, uploadDocuments: true, deleteDocuments: true, signDocuments: true,
-  viewProforma: true, editProforma: true,
-  viewInvoice: true,
-  viewChecklist: true, editChecklist: true,
-  viewChat: true, sendChat: true,
-  viewTimeline: true,
-};
-
-export const voyageCollaborators = pgTable("voyage_collaborators", {
-  id: serial("id").primaryKey(),
-  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
-  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: "cascade" }),
-  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
-  invitedByUserId: varchar("invited_by_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  role: text("role").notNull().default("viewer"),
-  permissions: jsonb("permissions").notNull().$type<VoyagePermissions>(),
-  status: text("status").notNull().default("pending"),
-  invitedAt: timestamp("invited_at").defaultNow().notNull(),
-  respondedAt: timestamp("responded_at"),
-  notes: text("notes"),
-});
-
-export const voyageCollaboratorsRelations = relations(voyageCollaborators, ({ one }) => ({
-  voyage: one(voyages, { fields: [voyageCollaborators.voyageId], references: [voyages.id] }),
-  organization: one(organizations, { fields: [voyageCollaborators.organizationId], references: [organizations.id] }),
-  user: one(users, { fields: [voyageCollaborators.userId], references: [users.id] }),
-  invitedBy: one(users, { fields: [voyageCollaborators.invitedByUserId], references: [users.id] }),
-}));
-
-export type VoyageCollaborator = typeof voyageCollaborators.$inferSelect;
-export type InsertVoyageCollaborator = typeof voyageCollaborators.$inferInsert;
-
-export const voyageExpenses = pgTable("voyage_expenses", {
-  id: serial("id").primaryKey(),
-  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
-  portCallId: integer("port_call_id").references(() => voyagePortCalls.id, { onDelete: "set null" }),
-  userId: varchar("user_id").notNull().references(() => users.id),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
-  category: text("category").notNull(),
-  description: text("description").notNull(),
-  budgetAmount: real("budget_amount"),
-  actualAmount: real("actual_amount").notNull(),
-  currency: text("currency").notNull().default("USD"),
-  exchangeRate: real("exchange_rate").notNull().default(1),
-  amountUsd: real("amount_usd"),
-  vendor: text("vendor"),
-  invoiceNumber: text("invoice_number"),
-  invoiceDate: timestamp("invoice_date"),
-  receiptFileUrl: text("receipt_file_url"),
-  paymentStatus: text("payment_status").notNull().default("unpaid"),
-  paidAt: timestamp("paid_at"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export type VoyageExpense = typeof voyageExpenses.$inferSelect;
-export type InsertVoyageExpense = typeof voyageExpenses.$inferInsert;
-
-export const voyageBudgets = pgTable("voyage_budgets", {
-  id: serial("id").primaryKey(),
-  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
-  category: text("category").notNull(),
-  budgetAmount: real("budget_amount").notNull(),
-  currency: text("currency").notNull().default("USD"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export type VoyageBudget = typeof voyageBudgets.$inferSelect;
-export type InsertVoyageBudget = typeof voyageBudgets.$inferInsert;
-
-export const bunkerRecords = pgTable("bunker_records", {
-  id: serial("id").primaryKey(),
-  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
-  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
-  portCallId: integer("port_call_id").references(() => voyagePortCalls.id, { onDelete: "set null" }),
-  userId: varchar("user_id").notNull().references(() => users.id),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
-  recordType: text("record_type").notNull(),
-  recordDate: timestamp("record_date").notNull(),
-  fuelType: text("fuel_type").notNull(),
-  quantity: real("quantity").notNull(),
-  unit: text("unit").notNull().default("MT"),
-  pricePerTon: real("price_per_ton"),
-  totalCost: real("total_cost"),
-  currency: text("currency").notNull().default("USD"),
-  supplier: text("supplier"),
-  deliveryNote: text("delivery_note"),
-  robBefore: real("rob_before"),
-  robAfter: real("rob_after"),
-  portName: text("port_name"),
-  notes: text("notes"),
-  fileUrl: text("file_url"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export type BunkerRecord = typeof bunkerRecords.$inferSelect;
-export type InsertBunkerRecord = typeof bunkerRecords.$inferInsert;
-
-export const bunkerSurveys = pgTable("bunker_surveys", {
-  id: serial("id").primaryKey(),
-  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
-  surveyDate: timestamp("survey_date").notNull(),
-  userId: varchar("user_id").notNull().references(() => users.id),
-  ifo380Rob: real("ifo380_rob").notNull().default(0),
-  vlsfoRob: real("vlsfo_rob").notNull().default(0),
-  mgoRob: real("mgo_rob").notNull().default(0),
-  lsmgoRob: real("lsmgo_rob").notNull().default(0),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export type BunkerSurvey = typeof bunkerSurveys.$inferSelect;
-export type InsertBunkerSurvey = typeof bunkerSurveys.$inferInsert;
-
-export const portCostBenchmarks = pgTable("port_cost_benchmarks", {
-  id: serial("id").primaryKey(),
-  portId: integer("port_id").notNull().references(() => ports.id, { onDelete: "cascade" }),
-  vesselSizeCategory: text("vessel_size_category").notNull(),
-  purposeOfCall: text("purpose_of_call").notNull(),
-  avgTotalCost: real("avg_total_cost"),
-  minTotalCost: real("min_total_cost"),
-  maxTotalCost: real("max_total_cost"),
-  avgAgencyFee: real("avg_agency_fee"),
-  avgPilotage: real("avg_pilotage"),
-  avgTugboat: real("avg_tugboat"),
-  avgBerthing: real("avg_berthing"),
-  avgPortDues: real("avg_port_dues"),
-  sampleCount: integer("sample_count").default(0),
-  currency: text("currency").default("USD"),
-  lastUpdated: timestamp("last_updated").defaultNow(),
-});
-
-export type PortCostBenchmark = typeof portCostBenchmarks.$inferSelect;
-export type InsertPortCostBenchmark = typeof portCostBenchmarks.$inferInsert;
-
-// ── Compliance Management ─────────────────────────────────────────────────────
-
-export const complianceChecklists = pgTable("compliance_checklists", {
-  id: serial("id").primaryKey(),
-  vesselId: integer("vessel_id").references(() => vessels.id, { onDelete: "set null" }),
-  organizationId: integer("organization_id").references((): any => organizations.id, { onDelete: "set null" }),
-  userId: varchar("user_id").notNull().references(() => users.id),
-  standardCode: text("standard_code").notNull(),
-  standardName: text("standard_name").notNull(),
-  version: text("version"),
-  totalItems: integer("total_items").notNull().default(0),
-  completedItems: integer("completed_items").notNull().default(0),
-  compliancePercentage: real("compliance_percentage").default(0),
-  status: text("status").notNull().default("in_progress"),
-  lastAuditDate: timestamp("last_audit_date"),
-  nextAuditDate: timestamp("next_audit_date"),
-  auditorName: text("auditor_name"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export type ComplianceChecklist = typeof complianceChecklists.$inferSelect;
-export type InsertComplianceChecklist = typeof complianceChecklists.$inferInsert;
-
-export const complianceItems = pgTable("compliance_items", {
-  id: serial("id").primaryKey(),
-  checklistId: integer("checklist_id").notNull().references(() => complianceChecklists.id, { onDelete: "cascade" }),
-  sectionNumber: text("section_number"),
-  sectionTitle: text("section_title").notNull(),
-  requirement: text("requirement").notNull(),
-  isCompliant: boolean("is_compliant").default(false),
-  evidence: text("evidence"),
-  evidenceFileUrl: text("evidence_file_url"),
-  responsiblePerson: text("responsible_person"),
-  dueDate: timestamp("due_date"),
-  completedDate: timestamp("completed_date"),
-  findingType: text("finding_type"),
-  correctiveAction: text("corrective_action"),
-  correctiveActionDueDate: timestamp("corrective_action_due_date"),
-  correctiveActionStatus: text("corrective_action_status").default("open"),
-  notes: text("notes"),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export type ComplianceItem = typeof complianceItems.$inferSelect;
-export type InsertComplianceItem = typeof complianceItems.$inferInsert;
-
-export const complianceAudits = pgTable("compliance_audits", {
-  id: serial("id").primaryKey(),
-  checklistId: integer("checklist_id").notNull().references(() => complianceChecklists.id, { onDelete: "cascade" }),
-  auditType: text("audit_type").notNull(),
-  auditorName: text("auditor_name").notNull(),
-  auditorOrganization: text("auditor_organization"),
-  auditDate: timestamp("audit_date").notNull(),
-  findings: jsonb("findings").default([]),
-  overallResult: text("overall_result"),
-  reportFileUrl: text("report_file_url"),
-  nextAuditDate: timestamp("next_audit_date"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export type ComplianceAudit = typeof complianceAudits.$inferSelect;
-export type InsertComplianceAudit = typeof complianceAudits.$inferInsert;

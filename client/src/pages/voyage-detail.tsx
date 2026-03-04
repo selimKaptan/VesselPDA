@@ -1,20 +1,14 @@
 import { useState, useRef, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import {
   Ship, MapPin, Calendar, ArrowLeft, CheckCircle2, Circle, Trash2,
   Plus, Loader2, ChevronDown, Wrench, Fuel, ShoppingCart, Users as UsersIcon,
   Sparkles, HelpCircle, Clock, PlayCircle, XCircle, ClipboardList,
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
-  CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, UserPlus, Building2,
-  Shield, Check, X as XIcon, Edit2, Route, Package, ChevronRight as ChevronRightIcon,
-  ArrowRight, Navigation, MoreVertical, RefreshCw, Wallet, ExternalLink, Mail, MailCheck, Bot, Copy, Link2
+  CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck
 } from "lucide-react";
-import { SofEditor } from "@/components/sof-editor";
-import { VoyageExpensesTab } from "@/components/voyage-expenses-tab";
-import { VoyageBunkerTab } from "@/components/voyage-bunker-tab";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
-import { VoyageTimeline } from "@/components/voyage-timeline";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
@@ -63,32 +57,9 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
 };
 
-const PC_STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
-  planned:     { label: "Planned",    color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",      icon: Clock },
-  approaching: { label: "Approaching",color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400",      icon: Navigation },
-  at_anchor:   { label: "At Anchor",  color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400", icon: Anchor },
-  berthed:     { label: "Berthed",    color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400", icon: MapPin },
-  operations:  { label: "Operations", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",  icon: PlayCircle },
-  completed:   { label: "Completed",  color: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400",         icon: CheckCircle2 },
-  skipped:     { label: "Skipped",    color: "bg-red-100 text-red-500 dark:bg-red-900/30 dark:text-red-400",          icon: XCircle },
-};
-
-const PC_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
-  loading:     { label: "Loading",     color: "text-green-600 bg-green-50 dark:bg-green-900/20" },
-  discharging: { label: "Discharging", color: "text-orange-600 bg-orange-50 dark:bg-orange-900/20" },
-  bunkering:   { label: "Bunkering",   color: "text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20" },
-  transit:     { label: "Transit",     color: "text-blue-600 bg-blue-50 dark:bg-blue-900/20" },
-  repair:      { label: "Repair",      color: "text-red-600 bg-red-50 dark:bg-red-900/20" },
-  crew_change: { label: "Crew Change", color: "text-purple-600 bg-purple-50 dark:bg-purple-900/20" },
-  other:       { label: "Other",       color: "text-gray-600 bg-gray-50 dark:bg-gray-800" },
-};
-
-const PC_STATUS_ORDER = ["planned","approaching","at_anchor","berthed","operations","completed","skipped"] as const;
-
 function PortSearch({ value, onChange }: { value: string; onChange: (portId: number, portName: string) => void }) {
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
-  const closeTimeout = useState<ReturnType<typeof setTimeout> | null>(null);
   const { data: ports } = useQuery<Port[]>({
     queryKey: ["/api/ports", query],
     queryFn: async () => {
@@ -98,43 +69,14 @@ function PortSearch({ value, onChange }: { value: string; onChange: (portId: num
     },
     enabled: query.length >= 2,
   });
-  const selectPort = (id: number, name: string) => {
-    onChange(id, name);
-    setQuery(name);
-    setOpen(false);
-  };
   return (
     <div className="relative">
-      <Input
-        value={query}
-        onChange={e => { setQuery(e.target.value); setOpen(true); }}
-        placeholder="Search port..."
-        onFocus={() => setOpen(true)}
-        onBlur={() => { closeTimeout[1](setTimeout(() => setOpen(false), 200)); }}
-        onKeyDown={e => {
-          if (e.key === "Enter" && ports && ports.length > 0 && open) {
-            e.preventDefault();
-            selectPort(ports[0].id, ports[0].name);
-          }
-          if (e.key === "Escape") setOpen(false);
-        }}
-        data-testid="input-port-search"
-      />
+      <Input value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }} placeholder="Liman ara..." onFocus={() => setOpen(true)} />
       {open && ports && ports.length > 0 && (
-        <div className="absolute z-[200] top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto" role="listbox">
-          {ports.map((p, idx) => (
-            <button
-              key={p.id}
-              type="button"
-              role="option"
-              aria-selected={false}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
-              data-testid={`port-search-option-${idx}`}
-              onMouseDown={e => { e.preventDefault(); selectPort(p.id, p.name); }}
-              onClick={() => selectPort(p.id, p.name)}
-            >
-              <span className="font-medium">{p.name}</span>
-              {p.code && <span className="ml-2 text-xs text-muted-foreground">{p.code}</span>}
+        <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
+          {ports.map(p => (
+            <button key={p.id} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors" onMouseDown={() => { onChange(p.id, p.name); setQuery(p.name); setOpen(false); }}>
+              <span className="font-medium">{p.name}</span>{p.code && <span className="ml-2 text-xs text-muted-foreground">{p.code}</span>}
             </button>
           ))}
         </div>
@@ -166,222 +108,6 @@ function StarRatingInput({ value, onChange }: { value: number; onChange: (v: num
   );
 }
 
-function VoyageEmailTab({ voyageId }: { voyageId: number }) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [showManual, setShowManual] = useState(false);
-  const [manualForm, setManualForm] = useState({ fromEmail: "", fromName: "", subject: "", bodyText: "" });
-  const [selectedEmail, setSelectedEmail] = useState<any>(null);
-
-  const { data: rawVoyageEmails, isLoading } = useQuery<any>({
-    queryKey: ["/api/voyages", voyageId, "emails"],
-    queryFn: async () => {
-      const res = await fetch(`/api/voyages/${voyageId}/emails`, { credentials: "include" });
-      return res.json();
-    },
-  });
-  const emails: any[] = Array.isArray(rawVoyageEmails) ? rawVoyageEmails : [];
-
-  const { data: rawVoyageRules } = useQuery<any>({ queryKey: ["/api/email/forwarding-rules"] });
-  const rules: any[] = Array.isArray(rawVoyageRules) ? rawVoyageRules : [];
-  const voyageRule = rules.find((r: any) => r.linked_voyage_id === voyageId);
-
-  const addManualMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("POST", "/api/email/inbound/manual", { ...data, linkedVoyageId: voyageId }),
-    onSuccess: () => {
-      toast({ title: "Email added" });
-      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "emails"] });
-      setShowManual(false);
-      setManualForm({ fromEmail: "", fromName: "", subject: "", bodyText: "" });
-    },
-  });
-
-  const createRuleMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/email/forwarding-rules", { ruleType: "voyage_update", linkedVoyageId: voyageId }),
-    onSuccess: () => {
-      toast({ title: "Forwarding address created" });
-      queryClient.invalidateQueries({ queryKey: ["/api/email/forwarding-rules"] });
-    },
-  });
-
-  const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast({ title: "Copied!" });
-  };
-
-  const dismissMutation = useMutation({
-    mutationFn: (id: number) => apiRequest("POST", `/api/email/inbox/${id}/dismiss`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "emails"] });
-      setSelectedEmail(null);
-    },
-  });
-
-  return (
-    <div className="space-y-4" data-testid="panel-email">
-      {/* Forwarding address banner */}
-      <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 p-4">
-        <div className="flex items-start gap-3">
-          <Link2 className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">Voyage Forwarding Address</p>
-            {voyageRule ? (
-              <div className="flex items-center gap-2 mt-1">
-                <code className="text-xs font-mono bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 rounded text-blue-700 dark:text-blue-300 break-all">
-                  {voyageRule.forwarding_email}
-                </code>
-                <Button variant="ghost" size="icon" className="h-6 w-6 flex-shrink-0"
-                  onClick={() => handleCopy(voyageRule.forwarding_email)} data-testid="button-copy-voyage-email">
-                  <Copy className="w-3 h-3" />
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 mt-1">
-                <p className="text-xs text-blue-700 dark:text-blue-300">
-                  Generate a forwarding address to receive emails automatically for this voyage.
-                </p>
-                <Button size="sm" className="h-7 text-xs gap-1 flex-shrink-0" onClick={() => createRuleMutation.mutate()}
-                  disabled={createRuleMutation.isPending} data-testid="button-generate-voyage-email">
-                  <Plus className="w-3 h-3" /> Generate
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Mail className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-          <h2 className="font-semibold text-sm">Voyage Emails</h2>
-          <span className="text-xs text-muted-foreground">({emails.length})</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8" onClick={() => setShowManual(true)}
-            data-testid="button-add-voyage-email">
-            <Plus className="w-3.5 h-3.5" /> Add Email
-          </Button>
-          <Link href="/email-inbox">
-            <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-8" data-testid="button-view-inbox">
-              <ExternalLink className="w-3.5 h-3.5" /> Full Inbox
-            </Button>
-          </Link>
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="text-center py-8 text-muted-foreground text-sm">
-          <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2" /> Loading emails...
-        </div>
-      ) : emails.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <Mail className="w-10 h-10 mx-auto mb-3 opacity-40" />
-          <p className="text-sm">No emails linked to this voyage yet.</p>
-          <p className="text-xs mt-1">Share the forwarding address above or add emails manually.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {emails.map((email: any) => (
-            <div key={email.id} className={`rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors ${selectedEmail?.id === email.id ? "bg-muted" : ""}`}
-              onClick={() => setSelectedEmail(selectedEmail?.id === email.id ? null : email)}>
-              <div className="flex items-start gap-2">
-                <div className={`mt-0.5 w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${email.is_processed ? "bg-muted" : "bg-blue-100 dark:bg-blue-900/30"}`}>
-                  {email.is_processed ? <MailCheck className="w-3.5 h-3.5 text-muted-foreground" /> : <Mail className="w-3.5 h-3.5 text-blue-600" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium truncate">{email.from_name || email.from_email}</span>
-                    <span className="text-xs text-muted-foreground flex-shrink-0">
-                      {new Date(email.received_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate">{email.subject || "(no subject)"}</p>
-                  {email.ai_suggestion && !email.is_processed && (
-                    <div className="flex items-start gap-1 mt-1.5">
-                      <Bot className="w-3 h-3 text-blue-500 mt-0.5 flex-shrink-0" />
-                      <p className="text-xs text-blue-600 dark:text-blue-400">{email.ai_suggestion}</p>
-                    </div>
-                  )}
-                  {selectedEmail?.id === email.id && (
-                    <div className="mt-3 space-y-2">
-                      {email.body_text && (
-                        <pre className="text-xs whitespace-pre-wrap font-sans bg-muted/40 rounded p-2 max-h-40 overflow-y-auto">
-                          {email.body_text}
-                        </pre>
-                      )}
-                      {!email.is_processed && (
-                        <Button variant="outline" size="sm" className="h-7 text-xs gap-1"
-                          onClick={(e) => { e.stopPropagation(); dismissMutation.mutate(email.id); }}
-                          data-testid={`button-dismiss-voyage-email-${email.id}`}>
-                          Dismiss
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Manual email dialog */}
-      {showManual && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-background border rounded-xl shadow-2xl p-5 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-sm flex items-center gap-2">
-                <Plus className="w-4 h-4" /> Add Email to Voyage
-              </h3>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowManual(false)}>
-                <XIcon className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-xs">From Email *</Label>
-                  <Input className="h-8 text-sm" value={manualForm.fromEmail}
-                    onChange={e => setManualForm(f => ({ ...f, fromEmail: e.target.value }))}
-                    placeholder="sender@example.com" data-testid="input-voyage-email-from" />
-                </div>
-                <div>
-                  <Label className="text-xs">From Name</Label>
-                  <Input className="h-8 text-sm" value={manualForm.fromName}
-                    onChange={e => setManualForm(f => ({ ...f, fromName: e.target.value }))}
-                    placeholder="John Smith" />
-                </div>
-              </div>
-              <div>
-                <Label className="text-xs">Subject</Label>
-                <Input className="h-8 text-sm" value={manualForm.subject}
-                  onChange={e => setManualForm(f => ({ ...f, subject: e.target.value }))}
-                  placeholder="Email subject..." data-testid="input-voyage-email-subject" />
-              </div>
-              <div>
-                <Label className="text-xs">Body</Label>
-                <Textarea className="text-sm min-h-[80px]" value={manualForm.bodyText}
-                  onChange={e => setManualForm(f => ({ ...f, bodyText: e.target.value }))}
-                  placeholder="Email content..." data-testid="textarea-voyage-email-body" />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={() => setShowManual(false)}>Cancel</Button>
-                <Button size="sm" onClick={() => addManualMutation.mutate(manualForm)}
-                  disabled={!manualForm.fromEmail || addManualMutation.isPending}
-                  data-testid="button-submit-voyage-email">
-                  {addManualMutation.isPending ? <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Plus className="w-3.5 h-3.5 mr-1.5" />}
-                  Add & Classify
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function VoyageDetail() {
   const { id } = useParams<{ id: string }>();
   const voyageId = parseInt(id || "0");
@@ -392,31 +118,7 @@ export default function VoyageDetail() {
   const [newTask, setNewTask] = useState("");
   const [chatMessage, setChatMessage] = useState("");
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"route" | "operation" | "expenses" | "bunker" | "documents" | "comms" | "timeline" | "collaborators" | "email">("route");
-  const [showAddPortCallDialog, setShowAddPortCallDialog] = useState(false);
-  const [editingPortCall, setEditingPortCall] = useState<any | null>(null);
-  const [pcForm, setPcForm] = useState({
-    portId: 0, portName: "", portCallType: "discharging", status: "planned",
-    eta: "", etd: "", berthName: "", terminalName: "",
-    cargoType: "", cargoQuantity: "", cargoUnit: "MT", notes: "",
-  });
-  const [showInviteDialog, setShowInviteDialog] = useState(false);
-  const [inviteSearch, setInviteSearch] = useState("");
-  const [inviteTargetType, setInviteTargetType] = useState<"org" | "user">("org");
-  const [inviteTargetId, setInviteTargetId] = useState<string | number | null>(null);
-  const [inviteTargetName, setInviteTargetName] = useState("");
-  const [inviteRole, setInviteRole] = useState<"viewer" | "editor" | "manager">("viewer");
-  const [sofOpenPcId, setSofOpenPcId] = useState<number | null>(null);
-  const [invitePerms, setInvitePerms] = useState<Record<string, boolean>>({
-    viewVoyage: true, editVoyage: false,
-    viewDocuments: true, uploadDocuments: false, deleteDocuments: false, signDocuments: false,
-    viewProforma: true, editProforma: false,
-    viewInvoice: true,
-    viewChecklist: true, editChecklist: false,
-    viewChat: true, sendChat: false,
-    viewTimeline: true,
-  });
-  const [editingCollab, setEditingCollab] = useState<any | null>(null);
+  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms">("operation");
   const [docFilter, setDocFilter] = useState<string>("all");
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [showServiceDialog, setShowServiceDialog] = useState(false);
@@ -453,28 +155,6 @@ export default function VoyageDetail() {
       return res.json();
     },
     enabled: !!voyageId,
-  });
-
-  const { data: maritimeTemplates = [] } = useQuery<any[]>({
-    queryKey: ["/api/maritime-doc-templates"],
-    queryFn: () => fetch("/api/maritime-doc-templates", { credentials: "include" }).then(r => r.json()),
-    enabled: activeTab === "documents",
-  });
-
-  const { data: maritimeDocs = [], isLoading: maritimeDocsLoading } = useQuery<any[]>({
-    queryKey: ["/api/voyages", voyageId, "maritime-docs"],
-    queryFn: () => fetch(`/api/voyages/${voyageId}/maritime-docs`, { credentials: "include" }).then(r => r.json()),
-    enabled: activeTab === "documents" && !!voyageId,
-  });
-
-  const createMaritimeDocMutation = useMutation({
-    mutationFn: (templateId: number) =>
-      apiRequest("POST", `/api/voyages/${voyageId}/maritime-docs`, { templateId }).then(r => r.json()),
-    onSuccess: (doc) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "maritime-docs"] });
-      toast({ title: `${doc.template_name} created`, description: doc.document_number });
-    },
-    onError: () => toast({ title: "Failed to create document", variant: "destructive" }),
   });
 
   const { data: reviewData } = useQuery<{ reviews: any[]; myReview: any }>({
@@ -520,37 +200,6 @@ export default function VoyageDetail() {
     queryKey: ["/api/document-templates"],
   });
 
-  const { data: collaborators = [], refetch: refetchCollabs } = useQuery<any[]>({
-    queryKey: ["/api/voyages", voyageId, "collaborators"],
-    queryFn: async () => {
-      const res = await fetch(`/api/voyages/${voyageId}/collaborators`);
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: !!voyageId,
-  });
-
-  const { data: portCalls = [], refetch: refetchPortCalls } = useQuery<any[]>({
-    queryKey: ["/api/voyages", voyageId, "port-calls"],
-    queryFn: async () => {
-      const res = await fetch(`/api/voyages/${voyageId}/port-calls`);
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: !!voyageId,
-  });
-
-  const { data: orgSearchResults = [] } = useQuery<any[]>({
-    queryKey: ["/api/directory", inviteSearch],
-    queryFn: async () => {
-      if (inviteSearch.length < 2) return [];
-      const res = await fetch(`/api/directory?q=${encodeURIComponent(inviteSearch)}`);
-      if (!res.ok) return [];
-      return res.json();
-    },
-    enabled: inviteSearch.length >= 2 && inviteTargetType === "org",
-  });
-
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
@@ -561,70 +210,6 @@ export default function VoyageDetail() {
 
   const revieweeUserId = isOwner ? voyage?.agentUserId : (isAgent ? voyage?.userId : null);
   const canReview = voyage?.status === "completed" && (isOwner || isAgent) && revieweeUserId && !reviewData?.myReview;
-
-  const inviteCollabMutation = useMutation({
-    mutationFn: async () => {
-      const body: any = { role: inviteRole, permissions: invitePerms };
-      if (inviteTargetType === "org") body.organizationId = inviteTargetId;
-      else body.userId = inviteTargetId;
-      return apiRequest("POST", `/api/voyages/${voyageId}/collaborators`, body);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "collaborators"] });
-      setShowInviteDialog(false);
-      setInviteSearch(""); setInviteTargetId(null); setInviteTargetName(""); setInviteRole("viewer");
-      toast({ title: "Invitation sent" });
-    },
-    onError: () => toast({ title: "Failed to invite", variant: "destructive" }),
-  });
-
-  const updateCollabMutation = useMutation({
-    mutationFn: async ({ collabId, role, permissions }: { collabId: number; role: string; permissions: Record<string, boolean> }) => {
-      return apiRequest("PATCH", `/api/voyages/${voyageId}/collaborators/${collabId}`, { role, permissions });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "collaborators"] });
-      setEditingCollab(null);
-      toast({ title: "Permissions updated" });
-    },
-    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
-  });
-
-  const removeCollabMutation = useMutation({
-    mutationFn: async (collabId: number) => {
-      return apiRequest("DELETE", `/api/voyages/${voyageId}/collaborators/${collabId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "collaborators"] });
-      toast({ title: "Collaborator removed" });
-    },
-    onError: () => toast({ title: "Failed to remove", variant: "destructive" }),
-  });
-
-  const respondCollabMutation = useMutation({
-    mutationFn: async ({ collabId, status }: { collabId: number; status: string }) => {
-      return apiRequest("PATCH", `/api/voyages/${voyageId}/collaborators/${collabId}/respond`, { status });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "collaborators"] });
-      toast({ title: "Response recorded" });
-    },
-    onError: () => toast({ title: "Failed to respond", variant: "destructive" }),
-  });
-
-  const myPendingInvite = collaborators.find((c: any) =>
-    c.status === "pending" && (c.user_id === userId)
-  );
-
-  function applyRoleDefaults(role: "viewer" | "editor" | "manager") {
-    const presets: Record<string, Record<string, boolean>> = {
-      viewer: { viewVoyage: true, editVoyage: false, viewDocuments: true, uploadDocuments: false, deleteDocuments: false, signDocuments: false, viewProforma: true, editProforma: false, viewInvoice: true, viewChecklist: true, editChecklist: false, viewChat: true, sendChat: false, viewTimeline: true },
-      editor: { viewVoyage: true, editVoyage: true, viewDocuments: true, uploadDocuments: true, deleteDocuments: false, signDocuments: false, viewProforma: true, editProforma: false, viewInvoice: true, viewChecklist: true, editChecklist: true, viewChat: true, sendChat: true, viewTimeline: true },
-      manager: { viewVoyage: true, editVoyage: true, viewDocuments: true, uploadDocuments: true, deleteDocuments: true, signDocuments: true, viewProforma: true, editProforma: true, viewInvoice: true, viewChecklist: true, editChecklist: true, viewChat: true, sendChat: true, viewTimeline: true },
-    };
-    setInvitePerms(presets[role]);
-    setInviteRole(role);
-  }
 
   const statusMutation = useMutation({
     mutationFn: async (status: string) => {
@@ -812,108 +397,6 @@ export default function VoyageDetail() {
     onError: () => toast({ title: "Mesaj gönderilemedi", variant: "destructive" }),
   });
 
-  const addPortCallMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", `/api/voyages/${voyageId}/port-calls`, data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "port-calls"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/voyages"] });
-      toast({ title: "Port call added" });
-      setShowAddPortCallDialog(false);
-      setEditingPortCall(null);
-      setPcForm({ portId: 0, portName: "", portCallType: "discharging", status: "planned", eta: "", etd: "", berthName: "", terminalName: "", cargoType: "", cargoQuantity: "", cargoUnit: "MT", notes: "" });
-    },
-    onError: () => toast({ title: "Failed to add port call", variant: "destructive" }),
-  });
-
-  const updatePortCallMutation = useMutation({
-    mutationFn: async ({ pcId, data }: { pcId: number; data: any }) => {
-      const res = await apiRequest("PATCH", `/api/voyages/${voyageId}/port-calls/${pcId}`, data);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "port-calls"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/voyages"] });
-      toast({ title: "Port call updated" });
-      setShowAddPortCallDialog(false);
-      setEditingPortCall(null);
-    },
-    onError: () => toast({ title: "Failed to update port call", variant: "destructive" }),
-  });
-
-  const updatePcStatusMutation = useMutation({
-    mutationFn: async ({ pcId, status }: { pcId: number; status: string }) => {
-      const res = await apiRequest("PATCH", `/api/voyages/${voyageId}/port-calls/${pcId}/status`, { status });
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "port-calls"] });
-      toast({ title: "Port call status updated" });
-    },
-    onError: () => toast({ title: "Failed to update status", variant: "destructive" }),
-  });
-
-  const deletePortCallMutation = useMutation({
-    mutationFn: async (pcId: number) => {
-      await apiRequest("DELETE", `/api/voyages/${voyageId}/port-calls/${pcId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "port-calls"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/voyages"] });
-      toast({ title: "Port call removed" });
-    },
-    onError: () => toast({ title: "Failed to delete port call", variant: "destructive" }),
-  });
-
-  function openAddPortCall() {
-    setEditingPortCall(null);
-    setPcForm({ portId: 0, portName: "", portCallType: "discharging", status: "planned", eta: "", etd: "", berthName: "", terminalName: "", cargoType: "", cargoQuantity: "", cargoUnit: "MT", notes: "" });
-    setShowAddPortCallDialog(true);
-  }
-
-  function openEditPortCall(pc: any) {
-    setEditingPortCall(pc);
-    setPcForm({
-      portId: pc.port_id,
-      portName: pc.port_name || "",
-      portCallType: pc.port_call_type || "discharging",
-      status: pc.status || "planned",
-      eta: pc.eta ? new Date(pc.eta).toISOString().slice(0, 16) : "",
-      etd: pc.etd ? new Date(pc.etd).toISOString().slice(0, 16) : "",
-      berthName: pc.berth_name || "",
-      terminalName: pc.terminal_name || "",
-      cargoType: pc.cargo_type || "",
-      cargoQuantity: pc.cargo_quantity ? String(pc.cargo_quantity) : "",
-      cargoUnit: pc.cargo_unit || "MT",
-      notes: pc.notes || "",
-    });
-    setShowAddPortCallDialog(true);
-  }
-
-  function submitPortCallForm() {
-    const payload: any = {
-      portId: pcForm.portId,
-      portCallType: pcForm.portCallType,
-      status: pcForm.status,
-      berthName: pcForm.berthName || null,
-      terminalName: pcForm.terminalName || null,
-      cargoType: pcForm.cargoType || null,
-      cargoQuantity: pcForm.cargoQuantity ? parseFloat(pcForm.cargoQuantity) : null,
-      cargoUnit: pcForm.cargoUnit,
-      notes: pcForm.notes || null,
-    };
-    if (pcForm.eta) payload.eta = pcForm.eta;
-    if (pcForm.etd) payload.etd = pcForm.etd;
-
-    if (editingPortCall) {
-      updatePortCallMutation.mutate({ pcId: editingPortCall.id, data: payload });
-    } else {
-      addPortCallMutation.mutate(payload);
-    }
-  }
-
   function handleChatKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter" && !e.shiftKey && chatMessage.trim()) {
       e.preventDefault();
@@ -1099,22 +582,16 @@ export default function VoyageDetail() {
       </Card>
 
       {/* Tab Bar */}
-      <div className="flex gap-1 bg-muted/40 p-1 rounded-xl overflow-x-auto">
+      <div className="flex gap-1 bg-muted/40 p-1 rounded-xl">
         {([
-          { key: "route",         label: "Route",          icon: Route },
-          { key: "operation",     label: "Operation",      icon: ClipboardList },
-          { key: "expenses",      label: "Expenses",       icon: Wallet },
-          { key: "bunker",        label: "Bunker",         icon: Fuel },
-          { key: "documents",     label: "Documents",      icon: FolderOpen },
-          { key: "comms",         label: "Comms",          icon: MessageCircle },
-          { key: "timeline",      label: "Timeline",       icon: GitBranch },
-          { key: "collaborators", label: "Collaborators",  icon: UsersIcon },
-          { key: "email",         label: "Email",          icon: Mail },
+          { key: "operation", label: "Operasyon",  icon: ClipboardList },
+          { key: "documents", label: "Dokümanlar", icon: FolderOpen },
+          { key: "comms",     label: "İletişim",   icon: MessageCircle },
         ] as const).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${
               activeTab === key
                 ? "bg-background shadow-sm text-foreground"
                 : "text-muted-foreground hover:text-foreground"
@@ -1122,215 +599,14 @@ export default function VoyageDetail() {
             data-testid={`tab-${key}`}
           >
             <Icon className="w-4 h-4" /> {label}
-            {key === "route" && portCalls.length > 0 && (
-              <span className="ml-1 text-[10px] bg-[hsl(var(--maritime-primary)/0.15)] text-[hsl(var(--maritime-primary))] px-1.5 py-0.5 rounded-full font-semibold">
-                {portCalls.length}
-              </span>
-            )}
             {key === "comms" && chatMessages.length > 0 && (
               <span className="ml-1 text-[10px] bg-[hsl(var(--maritime-primary)/0.15)] text-[hsl(var(--maritime-primary))] px-1.5 py-0.5 rounded-full font-semibold">
                 {chatMessages.length}
               </span>
             )}
-            {key === "collaborators" && collaborators.filter((c: any) => c.status === "pending").length > 0 && (
-              <span className="ml-1 text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded-full font-semibold">
-                {collaborators.filter((c: any) => c.status === "pending").length}
-              </span>
-            )}
           </button>
         ))}
       </div>
-
-      {/* ── Tab: Route ─────────────────────────────────────────── */}
-      {activeTab === "route" && (
-        <div className="space-y-4">
-          {/* Route Breadcrumb */}
-          {portCalls.length > 0 && (
-            <Card className="p-4">
-              <div className="flex items-center gap-2 flex-wrap">
-                {portCalls.map((pc: any, idx: number) => {
-                  const scfg = PC_STATUS_CONFIG[pc.status] || PC_STATUS_CONFIG.planned;
-                  const SIcon = scfg.icon;
-                  return (
-                    <div key={pc.id} className="flex items-center gap-2">
-                      {idx > 0 && <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
-                      <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium ${
-                        pc.status === "operations" || pc.status === "berthed"
-                          ? "border-green-300 bg-green-50 dark:bg-green-900/20"
-                          : pc.status === "completed"
-                          ? "border-gray-300 bg-gray-50 dark:bg-gray-800/50"
-                          : "border-border bg-background"
-                      }`}>
-                        <SIcon className={`w-3.5 h-3.5 ${
-                          pc.status === "operations" ? "text-green-600" :
-                          pc.status === "completed" ? "text-gray-400" : "text-muted-foreground"
-                        }`} />
-                        <span>{pc.port_name || `Port #${pc.port_id}`}</span>
-                        <span className={`text-[9px] px-1 rounded ${
-                          PC_TYPE_CONFIG[pc.port_call_type]?.color || "text-gray-500 bg-gray-50"
-                        }`}>
-                          {PC_TYPE_CONFIG[pc.port_call_type]?.label || pc.port_call_type}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-          )}
-
-          {/* Port Call List */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Route className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              <h2 className="font-semibold text-sm">Port Calls</h2>
-              {portCalls.length > 0 && (
-                <Badge variant="secondary" className="text-[10px]">{portCalls.length} stop{portCalls.length !== 1 ? "s" : ""}</Badge>
-              )}
-            </div>
-            <Button size="sm" onClick={openAddPortCall} className="gap-1.5 h-8 text-xs" data-testid="button-add-port-call">
-              <Plus className="w-3.5 h-3.5" /> Add Port Call
-            </Button>
-          </div>
-
-          {portCalls.length === 0 ? (
-            <Card className="p-10 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-[hsl(var(--maritime-primary)/0.08)] flex items-center justify-center mx-auto mb-4">
-                <Anchor className="w-7 h-7 text-[hsl(var(--maritime-primary)/0.4)]" />
-              </div>
-              <p className="text-sm font-semibold text-muted-foreground mb-1">No port calls yet</p>
-              <p className="text-xs text-muted-foreground/70 mb-4">Add port calls to build the voyage route</p>
-              <Button size="sm" onClick={openAddPortCall} className="gap-1.5">
-                <Plus className="w-3.5 h-3.5" /> Add First Port Call
-              </Button>
-            </Card>
-          ) : (
-            <div className="relative">
-              {/* Vertical connector line */}
-              <div className="absolute left-[22px] top-8 bottom-8 w-0.5 bg-border z-0" />
-
-              <div className="space-y-3">
-                {portCalls.map((pc: any, idx: number) => {
-                  const scfg = PC_STATUS_CONFIG[pc.status] || PC_STATUS_CONFIG.planned;
-                  const SIcon = scfg.icon;
-                  const tcfg = PC_TYPE_CONFIG[pc.port_call_type] || PC_TYPE_CONFIG.other;
-                  const isActive = pc.status === "operations" || pc.status === "berthed";
-                  return (
-                    <Card key={pc.id} className={`relative z-10 p-4 ${isActive ? "border-green-300 dark:border-green-700 shadow-sm" : ""}`} data-testid={`card-port-call-${pc.id}`}>
-                      <div className="flex items-start gap-3">
-                        {/* Step indicator */}
-                        <div className={`w-11 h-11 rounded-full flex flex-col items-center justify-center flex-shrink-0 border-2 ${
-                          isActive ? "border-green-400 bg-green-50 dark:bg-green-900/20" :
-                          pc.status === "completed" ? "border-gray-300 bg-gray-50 dark:bg-gray-800" :
-                          "border-[hsl(var(--maritime-primary)/0.3)] bg-[hsl(var(--maritime-primary)/0.05)]"
-                        }`}>
-                          <span className="text-[10px] font-bold text-muted-foreground">{String(idx + 1).padStart(2, "0")}</span>
-                          <SIcon className={`w-3 h-3 ${isActive ? "text-green-600" : pc.status === "completed" ? "text-gray-400" : "text-[hsl(var(--maritime-primary))]"}`} />
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-semibold text-sm">{pc.port_name || `Port #${pc.port_id}`}</span>
-                                {pc.port_locode && <span className="text-[10px] font-mono text-muted-foreground">{pc.port_locode}</span>}
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${tcfg.color}`}>{tcfg.label}</span>
-                                {isActive && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 font-semibold animate-pulse">● CURRENT</span>}
-                              </div>
-                              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                                {pc.eta && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />ETA: {new Date(pc.eta).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>}
-                                {pc.etd && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />ETD: {new Date(pc.etd).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>}
-                                {pc.berth_name && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{pc.berth_name}</span>}
-                                {pc.cargo_quantity && <span className="flex items-center gap-1"><Package className="w-3 h-3" />{pc.cargo_quantity.toLocaleString()} {pc.cargo_unit}</span>}
-                              </div>
-                              {pc.notes && <p className="text-xs text-muted-foreground mt-1 italic">{pc.notes}</p>}
-                            </div>
-
-                            {/* Actions */}
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs gap-1" data-testid={`button-pc-status-${pc.id}`}>
-                                    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${scfg.color}`}>
-                                      <SIcon className="w-3 h-3" />{scfg.label}
-                                    </span>
-                                    <ChevronDown className="w-3 h-3" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-44">
-                                  {PC_STATUS_ORDER.map(s => {
-                                    const c = PC_STATUS_CONFIG[s];
-                                    const CIcon = c.icon;
-                                    return (
-                                      <DropdownMenuItem
-                                        key={s}
-                                        onClick={() => updatePcStatusMutation.mutate({ pcId: pc.id, status: s })}
-                                        className={`text-xs gap-2 ${s === pc.status ? "font-semibold" : ""}`}
-                                      >
-                                        <CIcon className="w-3.5 h-3.5" />{c.label}
-                                        {s === pc.status && <Check className="w-3 h-3 ml-auto" />}
-                                      </DropdownMenuItem>
-                                    );
-                                  })}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" data-testid={`button-pc-menu-${pc.id}`}>
-                                    <MoreVertical className="w-3.5 h-3.5" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => openEditPortCall(pc)} className="text-xs gap-2">
-                                    <Edit2 className="w-3.5 h-3.5" /> Edit Details
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={() => deletePortCallMutation.mutate(pc.id)}
-                                    className="text-xs gap-2 text-destructive focus:text-destructive"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" /> Remove
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      {/* ── SOF toggle button ── */}
-                      <div className="mt-3 pt-2 border-t flex items-center justify-between">
-                        <button
-                          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                          onClick={() => setSofOpenPcId(sofOpenPcId === pc.id ? null : pc.id)}
-                          data-testid={`button-sof-toggle-${pc.id}`}
-                        >
-                          <FileText className="w-3.5 h-3.5" />
-                          <span className="font-medium">Statement of Facts (SOF)</span>
-                          <ChevronDown className={`w-3 h-3 transition-transform ${sofOpenPcId === pc.id ? "rotate-180" : ""}`} />
-                        </button>
-                      </div>
-                      {/* ── SOF Editor panel ── */}
-                      {sofOpenPcId === pc.id && (
-                        <div className="mt-3 pt-3 border-t">
-                          <SofEditor
-                            voyageId={voyageId}
-                            portCallId={pc.id}
-                            portCallType={pc.port_call_type || "discharging"}
-                            vesselName={voyage?.vesselName}
-                            portName={pc.port_name}
-                          />
-                        </div>
-                      )}
-                    </Card>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ── Tab: Operasyon ─────────────────────────────────────── */}
       {activeTab === "operation" && (
@@ -1572,23 +848,6 @@ export default function VoyageDetail() {
         </div>
       )}
 
-      {/* ── Tab: Expenses ───────────────────────────────────────── */}
-      {activeTab === "expenses" && (
-        <VoyageExpensesTab
-          voyageId={voyage.id}
-          portCalls={portCalls}
-        />
-      )}
-
-      {/* ── Tab: Bunker ─────────────────────────────────────────── */}
-      {activeTab === "bunker" && (
-        <VoyageBunkerTab
-          voyageId={voyage.id}
-          vesselId={voyage.vesselId || voyage.vessel_id}
-          portCalls={portCalls}
-        />
-      )}
-
       {/* ── Tab: Dokümanlar ────────────────────────────────────── */}
       {activeTab === "documents" && (
         <Card
@@ -1698,104 +957,6 @@ export default function VoyageDetail() {
         </Card>
       )}
 
-      {/* ── Standard Maritime Documents (always shown under documents tab) ── */}
-      {activeTab === "documents" && (
-        <Card className="p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              <h2 className="font-semibold text-sm">Standard Maritime Documents</h2>
-              {(maritimeDocs as any[]).length > 0 && (
-                <span className="text-xs text-muted-foreground">({(maritimeDocs as any[]).length} created)</span>
-              )}
-            </div>
-          </div>
-
-          {/* Template cards grid */}
-          <div>
-            <p className="text-xs text-muted-foreground mb-3">Click a template to create a new document — vessel and voyage details auto-filled.</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-              {(maritimeTemplates as any[]).map((tmpl: any) => {
-                const CATEGORY_COLORS: Record<string, string> = {
-                  cargo: "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300",
-                  port: "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-300",
-                  crew: "bg-violet-50 border-violet-200 text-violet-700 dark:bg-violet-900/20 dark:border-violet-800 dark:text-violet-300",
-                  customs: "bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-900/20 dark:border-orange-800 dark:text-orange-300",
-                  safety: "bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300",
-                };
-                const colorClass = CATEGORY_COLORS[tmpl.category] ?? "bg-muted border-border text-muted-foreground";
-                return (
-                  <button
-                    key={tmpl.id}
-                    onClick={() => createMaritimeDocMutation.mutate(tmpl.id)}
-                    disabled={createMaritimeDocMutation.isPending}
-                    className={`flex flex-col items-start gap-1.5 p-3 rounded-lg border transition-all hover:shadow-sm hover:scale-[1.02] text-left ${colorClass}`}
-                    data-testid={`card-maritime-template-${tmpl.id}`}
-                  >
-                    <div className="flex items-center gap-1.5 w-full">
-                      <FileText className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider">{tmpl.code}</span>
-                    </div>
-                    <p className="text-xs font-medium leading-tight">{tmpl.name}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Created maritime documents list */}
-          {(maritimeDocs as any[]).length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Created Documents</p>
-              <div className="space-y-1.5">
-                {(maritimeDocs as any[]).map((mdoc: any) => {
-                  const STATUS_COLORS: Record<string, string> = {
-                    draft: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-                    pending_review: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-                    approved: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-                    signed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-                    void: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-                  };
-                  const STATUS_LABELS: Record<string, string> = {
-                    draft: "Draft", pending_review: "Review", approved: "Approved", signed: "Signed", void: "Void",
-                  };
-                  return (
-                    <Link
-                      key={mdoc.id}
-                      href={`/maritime-docs/${mdoc.id}`}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group"
-                      data-testid={`maritime-doc-${mdoc.id}`}
-                    >
-                      <FileText className="w-4 h-4 flex-shrink-0 text-[hsl(var(--maritime-primary))]" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="text-sm font-medium truncate">{mdoc.template_name}</p>
-                          <span className="text-[10px] font-mono text-muted-foreground">{mdoc.document_number}</span>
-                          {mdoc.version > 1 && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium">v{mdoc.version}</span>
-                          )}
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${STATUS_COLORS[mdoc.status] ?? ""}`} data-testid={`badge-maritime-status-${mdoc.id}`}>
-                            {STATUS_LABELS[mdoc.status] ?? mdoc.status}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {mdoc.creator_name} · {new Date(mdoc.created_at).toLocaleDateString("en-GB")}
-                        </p>
-                      </div>
-                      <ExternalLink className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {(maritimeDocs as any[]).length === 0 && !maritimeDocsLoading && (
-            <p className="text-xs text-muted-foreground text-center py-4">No standard documents created yet. Click a template above to get started.</p>
-          )}
-        </Card>
-      )}
-
       {/* ── Tab: İletişim ──────────────────────────────────────── */}
       {activeTab === "comms" && (() => {
         const role = (user as any)?.activeRole || (user as any)?.role;
@@ -1898,399 +1059,6 @@ export default function VoyageDetail() {
           </Card>
         );
       })()}
-
-      {/* ── Tab: Timeline ──────────────────────────────────────── */}
-      {activeTab === "timeline" && (
-        <Card className="p-6" data-testid="panel-timeline">
-          <div className="flex items-center gap-2 mb-5">
-            <GitBranch className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-            <h2 className="font-semibold text-sm">Voyage Timeline</h2>
-            <span className="text-xs text-muted-foreground ml-auto">Chronological event history</span>
-          </div>
-          <VoyageTimeline voyageId={Number(voyageId)} />
-        </Card>
-      )}
-
-      {/* ── Tab: Collaborators ─────────────────────────────────── */}
-      {activeTab === "collaborators" && (
-        <div className="space-y-4" data-testid="panel-collaborators">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <UsersIcon className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              <h2 className="font-semibold text-sm">Voyage Collaborators</h2>
-              <span className="text-xs text-muted-foreground">({collaborators.length})</span>
-            </div>
-            {isOwner && (
-              <Button size="sm" className="gap-1.5" onClick={() => setShowInviteDialog(true)} data-testid="button-invite-collaborator">
-                <UserPlus className="w-3.5 h-3.5" /> Invite
-              </Button>
-            )}
-          </div>
-
-          {/* My pending invite banner */}
-          {myPendingInvite && (
-            <Card className="p-4 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium">You have a pending collaboration invite</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Role: <span className="font-medium capitalize">{myPendingInvite.role}</span></p>
-                </div>
-                <div className="flex gap-2 flex-shrink-0">
-                  <Button size="sm" variant="outline" className="gap-1 border-red-200 text-red-600 hover:bg-red-50"
-                    onClick={() => respondCollabMutation.mutate({ collabId: myPendingInvite.id, status: "declined" })}>
-                    <XIcon className="w-3 h-3" /> Decline
-                  </Button>
-                  <Button size="sm" className="gap-1 bg-green-600 hover:bg-green-700"
-                    onClick={() => respondCollabMutation.mutate({ collabId: myPendingInvite.id, status: "accepted" })}>
-                    <Check className="w-3 h-3" /> Accept
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {/* Collaborator list */}
-          {collaborators.length === 0 ? (
-            <Card className="p-8 text-center">
-              <UsersIcon className="w-8 h-8 mx-auto mb-3 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">No collaborators yet.</p>
-              {isOwner && <p className="text-xs text-muted-foreground mt-1">Invite agents, brokers or partners to collaborate on this voyage.</p>}
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {collaborators.map((c: any) => (
-                <Card key={c.id} className="p-4" data-testid={`collab-card-${c.id}`}>
-                  {editingCollab?.id === c.id ? (
-                    /* Edit mode */
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Edit2 className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">Edit Permissions — {c.org_name || `${c.user_first_name} ${c.user_last_name}`}</span>
-                      </div>
-                      <div>
-                        <Label className="text-xs">Role</Label>
-                        <Select value={editingCollab.role} onValueChange={r => setEditingCollab((prev: any) => ({ ...prev, role: r }))}>
-                          <SelectTrigger className="h-8 mt-1"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="viewer">Viewer</SelectItem>
-                            <SelectItem value="editor">Editor</SelectItem>
-                            <SelectItem value="manager">Manager</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {Object.entries(editingCollab.permissions || {}).map(([key, val]) => (
-                          <label key={key} className="flex items-center gap-2 text-xs cursor-pointer">
-                            <input type="checkbox" checked={!!val} onChange={e => setEditingCollab((prev: any) => ({ ...prev, permissions: { ...prev.permissions, [key]: e.target.checked } }))} className="rounded" />
-                            <span className="capitalize">{key.replace(/([A-Z])/g, " $1").trim()}</span>
-                          </label>
-                        ))}
-                      </div>
-                      <div className="flex gap-2 pt-1">
-                        <Button size="sm" onClick={() => updateCollabMutation.mutate({ collabId: c.id, role: editingCollab.role, permissions: editingCollab.permissions })} disabled={updateCollabMutation.isPending}>
-                          {updateCollabMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setEditingCollab(null)}>Cancel</Button>
-                      </div>
-                    </div>
-                  ) : (
-                    /* View mode */
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                          {c.org_name ? <Building2 className="w-4 h-4 text-primary" /> : <UsersIcon className="w-4 h-4 text-primary" />}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-medium truncate">
-                              {c.org_name || `${c.user_first_name || ""} ${c.user_last_name || ""}`.trim() || c.user_email}
-                            </span>
-                            <Badge variant="outline" className={`text-[10px] capitalize ${c.role === "manager" ? "border-blue-300 text-blue-600" : c.role === "editor" ? "border-green-300 text-green-600" : "border-gray-300 text-gray-600"}`}>
-                              {c.role}
-                            </Badge>
-                            <Badge variant="outline" className={`text-[10px] ${c.status === "accepted" ? "border-green-300 text-green-600" : c.status === "declined" ? "border-red-300 text-red-600" : "border-amber-300 text-amber-600"}`}>
-                              {c.status}
-                            </Badge>
-                          </div>
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {c.permissions && Object.entries(c.permissions).filter(([, v]) => v).slice(0, 6).map(([k]) => (
-                              <span key={k} className="text-[9px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
-                                {k.replace(/([A-Z])/g, " $1").trim()}
-                              </span>
-                            ))}
-                            {c.permissions && Object.entries(c.permissions).filter(([, v]) => v).length > 6 && (
-                              <span className="text-[9px] text-muted-foreground">+{Object.entries(c.permissions).filter(([, v]) => v).length - 6} more</span>
-                            )}
-                          </div>
-                          <p className="text-[10px] text-muted-foreground mt-1">
-                            Invited by {c.inviter_first_name} {c.inviter_last_name} · {new Date(c.invited_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                      {isOwner && (
-                        <div className="flex gap-1 flex-shrink-0">
-                          <Button size="icon" variant="ghost" className="h-7 w-7" title="Edit permissions"
-                            onClick={() => setEditingCollab({ id: c.id, role: c.role, permissions: { ...c.permissions } })}>
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" title="Remove"
-                            onClick={() => removeCollabMutation.mutate(c.id)}>
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Tab: Email ──────────────────────────────────────────── */}
-      {activeTab === "email" && (
-        <VoyageEmailTab voyageId={voyageId} />
-      )}
-
-      {/* ── Add / Edit Port Call Dialog ──────────────────────────── */}
-      <Dialog open={showAddPortCallDialog} onOpenChange={v => { setShowAddPortCallDialog(v); if (!v) setEditingPortCall(null); }}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" data-testid="dialog-add-port-call">
-          <DialogHeader>
-            <DialogTitle className="font-serif flex items-center gap-2">
-              <Route className="w-4 h-4" />
-              {editingPortCall ? "Edit Port Call" : "Add Port Call"}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>Port <span className="text-destructive">*</span></Label>
-              <PortSearch
-                value={pcForm.portName}
-                onChange={(id, name) => setPcForm(f => ({ ...f, portId: id, portName: name }))}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Call Type</Label>
-                <Select value={pcForm.portCallType} onValueChange={v => setPcForm(f => ({ ...f, portCallType: v }))}>
-                  <SelectTrigger data-testid="select-pc-type"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="loading">Loading</SelectItem>
-                    <SelectItem value="discharging">Discharging</SelectItem>
-                    <SelectItem value="bunkering">Bunkering</SelectItem>
-                    <SelectItem value="transit">Transit</SelectItem>
-                    <SelectItem value="repair">Repair</SelectItem>
-                    <SelectItem value="crew_change">Crew Change</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Status</Label>
-                <Select value={pcForm.status} onValueChange={v => setPcForm(f => ({ ...f, status: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {PC_STATUS_ORDER.map(s => (
-                      <SelectItem key={s} value={s}>{PC_STATUS_CONFIG[s].label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>ETA</Label>
-                <Input type="datetime-local" value={pcForm.eta} onChange={e => setPcForm(f => ({ ...f, eta: e.target.value }))} data-testid="input-pc-eta" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>ETD</Label>
-                <Input type="datetime-local" value={pcForm.etd} onChange={e => setPcForm(f => ({ ...f, etd: e.target.value }))} data-testid="input-pc-etd" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Berth Name</Label>
-                <Input value={pcForm.berthName} onChange={e => setPcForm(f => ({ ...f, berthName: e.target.value }))} placeholder="e.g. Berth 7" data-testid="input-pc-berth" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Terminal</Label>
-                <Input value={pcForm.terminalName} onChange={e => setPcForm(f => ({ ...f, terminalName: e.target.value }))} placeholder="e.g. T3" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5 col-span-2">
-                <Label>Cargo Type</Label>
-                <Input value={pcForm.cargoType} onChange={e => setPcForm(f => ({ ...f, cargoType: e.target.value }))} placeholder="e.g. Bulk Coal, Crude Oil..." />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Unit</Label>
-                <Select value={pcForm.cargoUnit} onValueChange={v => setPcForm(f => ({ ...f, cargoUnit: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="MT">MT</SelectItem>
-                    <SelectItem value="CBM">CBM</SelectItem>
-                    <SelectItem value="TEU">TEU</SelectItem>
-                    <SelectItem value="BBL">BBL</SelectItem>
-                    <SelectItem value="Units">Units</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Cargo Quantity</Label>
-              <Input
-                type="number"
-                value={pcForm.cargoQuantity}
-                onChange={e => setPcForm(f => ({ ...f, cargoQuantity: e.target.value }))}
-                placeholder="0"
-                data-testid="input-pc-cargo-qty"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>Notes</Label>
-              <Textarea
-                value={pcForm.notes}
-                onChange={e => setPcForm(f => ({ ...f, notes: e.target.value }))}
-                placeholder="Additional notes..."
-                rows={2}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowAddPortCallDialog(false); setEditingPortCall(null); }}>Cancel</Button>
-            <Button
-              onClick={submitPortCallForm}
-              disabled={!pcForm.portId || addPortCallMutation.isPending || updatePortCallMutation.isPending}
-              data-testid="button-save-port-call"
-            >
-              {(addPortCallMutation.isPending || updatePortCallMutation.isPending) ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{editingPortCall ? "Updating..." : "Adding..."}</>
-              ) : (editingPortCall ? "Update Port Call" : "Add Port Call")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Invite Collaborator Dialog */}
-      <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-serif flex items-center gap-2"><UserPlus className="w-4 h-4" /> Invite Collaborator</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            {/* Target type toggle */}
-            <div className="flex gap-2">
-              <Button size="sm" variant={inviteTargetType === "org" ? "default" : "outline"} onClick={() => { setInviteTargetType("org"); setInviteTargetId(null); setInviteTargetName(""); setInviteSearch(""); }} className="gap-1.5 flex-1">
-                <Building2 className="w-3.5 h-3.5" /> Organization
-              </Button>
-              <Button size="sm" variant={inviteTargetType === "user" ? "default" : "outline"} onClick={() => { setInviteTargetType("user"); setInviteTargetId(null); setInviteTargetName(""); setInviteSearch(""); }} className="gap-1.5 flex-1">
-                <UsersIcon className="w-3.5 h-3.5" /> Individual User
-              </Button>
-            </div>
-
-            {/* Search */}
-            <div className="space-y-1.5">
-              <Label>{inviteTargetType === "org" ? "Search Organization" : "Enter User Email or ID"}</Label>
-              {inviteTargetId ? (
-                <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-muted/50">
-                  <span className="text-sm flex-1">{inviteTargetName}</span>
-                  <button onClick={() => { setInviteTargetId(null); setInviteTargetName(""); setInviteSearch(""); }}><XIcon className="w-4 h-4 text-muted-foreground" /></button>
-                </div>
-              ) : (
-                <div className="relative">
-                  <Input
-                    data-testid="input-invite-search"
-                    value={inviteSearch}
-                    onChange={e => setInviteSearch(e.target.value)}
-                    placeholder={inviteTargetType === "org" ? "Search by company name..." : "Enter user ID or email..."}
-                  />
-                  {inviteTargetType === "org" && orgSearchResults.length > 0 && (
-                    <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
-                      {orgSearchResults.slice(0, 8).map((o: any) => (
-                        <button key={o.id} type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors flex items-center gap-2"
-                          onClick={() => { setInviteTargetId(o.organizationId || o.id); setInviteTargetName(o.companyName || o.name); setInviteSearch(""); }}>
-                          <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                          <span>{o.companyName || o.name}</span>
-                          {o.companyType && <span className="text-xs text-muted-foreground ml-auto">{o.companyType}</span>}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {inviteTargetType === "user" && inviteSearch.length > 2 && (
-                    <div className="mt-1 flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => { setInviteTargetId(inviteSearch); setInviteTargetName(inviteSearch); }}>
-                        Use "{inviteSearch}"
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Role */}
-            <div className="space-y-1.5">
-              <Label>Role</Label>
-              <Select value={inviteRole} onValueChange={(r: any) => applyRoleDefaults(r)}>
-                <SelectTrigger data-testid="select-invite-role"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="viewer">Viewer — read-only access</SelectItem>
-                  <SelectItem value="editor">Editor — can edit voyage & checklist</SelectItem>
-                  <SelectItem value="manager">Manager — full access including documents & proforma</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Custom permissions */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> Permissions</Label>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 p-3 bg-muted/40 rounded-md">
-                {[
-                  ["viewVoyage", "View Voyage"], ["editVoyage", "Edit Voyage"],
-                  ["viewDocuments", "View Documents"], ["uploadDocuments", "Upload Documents"],
-                  ["deleteDocuments", "Delete Documents"], ["signDocuments", "Sign Documents"],
-                  ["viewProforma", "View Proforma"], ["editProforma", "Edit Proforma"],
-                  ["viewInvoice", "View Invoice"], ["viewChecklist", "View Checklist"],
-                  ["editChecklist", "Edit Checklist"], ["viewChat", "View Chat"],
-                  ["sendChat", "Send Chat"], ["viewTimeline", "View Timeline"],
-                ].map(([key, label]) => (
-                  <label key={key} className="flex items-center gap-2 text-xs cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={!!invitePerms[key]}
-                      onChange={e => setInvitePerms(p => ({ ...p, [key]: e.target.checked }))}
-                      className="rounded"
-                      data-testid={`perm-${key}`}
-                    />
-                    <span>{label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowInviteDialog(false)}>Cancel</Button>
-              <Button
-                data-testid="button-send-invite"
-                onClick={() => inviteCollabMutation.mutate()}
-                disabled={!inviteTargetId || inviteCollabMutation.isPending}
-              >
-                {inviteCollabMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <UserPlus className="w-4 h-4 mr-1" />}
-                Send Invite
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Service Request Dialog */}
       <Dialog open={showServiceDialog} onOpenChange={setShowServiceDialog}>

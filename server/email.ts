@@ -6,16 +6,15 @@ let _connectionSettings: any;
 async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: string } | null> {
   const FROM_EMAIL = "noreply@vesselpda.com";
 
-  const { config } = await import("./config");
-  const hostname = config.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = config.REPL_IDENTITY
-    ? "repl " + config.REPL_IDENTITY
-    : config.WEB_REPL_RENEWAL
-    ? "depl " + config.WEB_REPL_RENEWAL
+  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+  const xReplitToken = process.env.REPL_IDENTITY
+    ? "repl " + process.env.REPL_IDENTITY
+    : process.env.WEB_REPL_RENEWAL
+    ? "depl " + process.env.WEB_REPL_RENEWAL
     : null;
 
   if (!hostname || !xReplitToken) {
-    const fallback = config.RESEND_API_KEY;
+    const fallback = process.env.RESEND_API_KEY;
     if (fallback) return { apiKey: fallback, fromEmail: FROM_EMAIL };
     return null;
   }
@@ -897,48 +896,6 @@ export async function sendProformaEmail(data: ProformaEmailData): Promise<boolea
     console.log(`[email] Proforma email sent to ${data.toEmail}`);
     return true;
   } catch (err) { console.error("[email] sendProformaEmail failed:", err); return false; }
-}
-
-export async function sendOrganizationInviteEmail(data: {
-  to: string;
-  orgName: string;
-  inviterName: string;
-  inviteToken: string;
-  role: string;
-}): Promise<boolean> {
-  const creds = await getResendCredentials();
-  if (!creds) { console.warn("[email] No credentials — skipping sendOrganizationInviteEmail"); return false; }
-  const resend = new Resend(creds.apiKey);
-  const inviteUrl = `https://vesselpda.com/organization/join/${data.inviteToken}`;
-  const html = emailWrapper(`
-    <tr>${emailHeader("You've Been Invited")}</tr>
-    <tr><td style="padding:32px">
-      <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#0f172a">Organization Invitation</p>
-      <p style="margin:0 0 20px;color:#334155;font-size:15px;line-height:1.7">
-        <strong>${data.inviterName}</strong> has invited you to join <strong>${data.orgName}</strong> on VesselPDA as a <strong>${data.role}</strong>.
-      </p>
-      <div style="margin-top:24px">
-        <table cellpadding="0" cellspacing="0"><tr><td style="border-radius:8px;background:#003D7A">
-          <a href="${inviteUrl}" style="display:inline-block;padding:12px 24px;color:#fff;font-size:14px;font-weight:600;text-decoration:none">Accept Invitation →</a>
-        </td></tr></table>
-      </div>
-      <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-        <p style="margin:0;color:#94a3b8;font-size:12px">This invitation expires in 7 days. If you did not expect this email, you can safely ignore it.</p>
-      </div>
-    </td></tr>
-    <tr>${emailFooter()}</tr>
-  `);
-  try {
-    const { error } = await resend.emails.send({
-      from: `VesselPDA <${creds.fromEmail}>`,
-      to: [data.to],
-      subject: `Invitation to join ${data.orgName} on VesselPDA`,
-      html,
-    });
-    if (error) { console.error("[email] sendOrganizationInviteEmail error:", error); return false; }
-    console.log(`[email] Org invite sent to ${data.to}`);
-    return true;
-  } catch (err) { console.error("[email] sendOrganizationInviteEmail failed:", err); return false; }
 }
 
 export async function sendMessageBridgeEmail(
