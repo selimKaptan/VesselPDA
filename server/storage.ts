@@ -35,6 +35,7 @@ import {
   type DocumentTemplate, type InsertDocumentTemplate,
   type Invoice, type InsertInvoice,
   type PortAlert, type InsertPortAlert,
+  type VesselQ88, type InsertVesselQ88,
   vessels, ports, tariffCategories, tariffRates, proformas, proformaApprovalLogs,
   forumCategories, forumTopics, forumReplies, forumLikes, forumDislikes,
   portTenders, tenderBids, agentReviews, vesselWatchlist,
@@ -43,7 +44,7 @@ import {
   voyageDocuments, voyageReviews, conversations, messages,
   directNominations, voyageChatMessages, endorsements,
   vesselCertificates, portCallAppointments, fixtures, cargoPositions, bunkerPrices,
-  documentTemplates, invoices, portAlerts, vesselCrew,
+  documentTemplates, invoices, portAlerts, vesselCrew, vesselQ88,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
@@ -242,6 +243,12 @@ export interface IStorage {
   getBunkerPrices(): Promise<BunkerPrice[]>;
   upsertBunkerPrice(data: InsertBunkerPrice): Promise<BunkerPrice>;
   deleteBunkerPrice(id: number): Promise<boolean>;
+
+  getVesselQ88(vesselId: number): Promise<VesselQ88 | undefined>;
+  createVesselQ88(data: InsertVesselQ88): Promise<VesselQ88>;
+  updateVesselQ88(vesselId: number, data: Partial<InsertVesselQ88>): Promise<VesselQ88>;
+  getPublicVesselQ88(vesselId: number): Promise<VesselQ88 | undefined>;
+  duplicateVesselQ88(sourceVesselId: number, targetVesselId: number, userId: string): Promise<VesselQ88>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2081,6 +2088,52 @@ export class DatabaseStorage implements IStorage {
   async deletePortAlert(id: number): Promise<boolean> {
     const result = await db.delete(portAlerts).where(eq(portAlerts.id, id));
     return (result as any).rowCount > 0;
+  }
+
+  // ─── VESSEL Q88 ─────────────────────────────────────────────────────────────
+
+  async getVesselQ88(vesselId: number): Promise<VesselQ88 | undefined> {
+    const [row] = await db.select().from(vesselQ88).where(eq(vesselQ88.vesselId, vesselId));
+    return row;
+  }
+
+  async createVesselQ88(data: InsertVesselQ88): Promise<VesselQ88> {
+    const [row] = await db.insert(vesselQ88).values(data).returning();
+    return row;
+  }
+
+  async updateVesselQ88(vesselId: number, data: Partial<InsertVesselQ88>): Promise<VesselQ88> {
+    const existing = await this.getVesselQ88(vesselId);
+    if (!existing) throw new Error("Q88 not found");
+    const [row] = await db
+      .update(vesselQ88)
+      .set({ ...data, lastUpdated: new Date(), version: (existing.version ?? 1) + 1 })
+      .where(eq(vesselQ88.vesselId, vesselId))
+      .returning();
+    return row;
+  }
+
+  async getPublicVesselQ88(vesselId: number): Promise<VesselQ88 | undefined> {
+    const [row] = await db
+      .select()
+      .from(vesselQ88)
+      .where(and(eq(vesselQ88.vesselId, vesselId), eq(vesselQ88.isPublic, true)));
+    return row;
+  }
+
+  async duplicateVesselQ88(sourceVesselId: number, targetVesselId: number, userId: string): Promise<VesselQ88> {
+    const source = await this.getVesselQ88(sourceVesselId);
+    if (!source) throw new Error("Source Q88 not found");
+    const { id: _id, createdAt: _ca, ...rest } = source;
+    const [row] = await db.insert(vesselQ88).values({
+      ...rest,
+      vesselId: targetVesselId,
+      userId,
+      version: 1,
+      status: "draft",
+      lastUpdated: new Date(),
+    }).returning();
+    return row;
   }
 }
 

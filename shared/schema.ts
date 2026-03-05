@@ -1415,3 +1415,124 @@ export type OrganizationMember = typeof organizationMembers.$inferSelect;
 export type OrganizationInvite = typeof organizationInvites.$inferSelect;
 export type InsertOrg = z.infer<typeof insertOrgSchema>;
 export type InsertOrgInvite = z.infer<typeof insertOrgInviteSchema>;
+
+// ==================== VESSEL Q88 ====================
+
+export interface HoldDetail {
+  holdNumber: number;
+  length: number;
+  breadth: number;
+  depth: number;
+  grainCapacity?: number;
+  baleCapacity?: number;
+}
+
+export const vesselQ88 = pgTable("vessel_q88", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+
+  // Section 1: General Information
+  vesselName: varchar("vessel_name", { length: 200 }),
+  exName: varchar("ex_name", { length: 200 }),
+  flag: varchar("flag", { length: 100 }),
+  portOfRegistry: varchar("port_of_registry", { length: 200 }),
+  imoNumber: varchar("imo_number", { length: 20 }),
+  callSign: varchar("call_sign", { length: 20 }),
+  mmsiNumber: varchar("mmsi_number", { length: 20 }),
+  vesselType: varchar("vessel_type", { length: 100 }),
+  yearBuilt: integer("year_built"),
+  builder: varchar("builder", { length: 200 }),
+  classificationSociety: varchar("classification_society", { length: 200 }),
+  classNotation: varchar("class_notation", { length: 200 }),
+  piClub: varchar("pi_club", { length: 200 }),
+  hullMaterial: varchar("hull_material", { length: 50 }).default("Steel"),
+
+  // Section 2: Dimensions & Tonnage
+  grt: real("grt"),
+  nrt: real("nrt"),
+  dwt: real("dwt"),
+  displacement: real("displacement"),
+  loa: real("loa"),
+  lbp: real("lbp"),
+  beam: real("beam"),
+  depth: real("depth"),
+  maxDraft: real("max_draft"),
+  summerDraft: real("summer_draft"),
+  tpc: real("tpc"),
+  lightShipWeight: real("light_ship_weight"),
+  grainCapacity: real("grain_capacity"),
+  baleCapacity: real("bale_capacity"),
+
+  // Section 3: Hold & Hatch Details
+  numberOfHolds: integer("number_of_holds"),
+  numberOfHatches: integer("number_of_hatches"),
+  holdDimensions: jsonb("hold_dimensions").$type<HoldDetail[]>().default([]),
+  hatchType: varchar("hatch_type", { length: 100 }),
+  hatchCovers: varchar("hatch_covers", { length: 200 }),
+
+  // Section 4: Cargo Gear
+  numberOfCranes: integer("number_of_cranes"),
+  craneCapacity: varchar("crane_capacity", { length: 200 }),
+  numberOfDerricks: integer("number_of_derricks"),
+  derrickCapacity: varchar("derrick_capacity", { length: 200 }),
+  grabsAvailable: boolean("grabs_available").default(false),
+  grabCapacity: varchar("grab_capacity", { length: 100 }),
+  cargoGearDetails: text("cargo_gear_details"),
+
+  // Section 5: Engine & Speed
+  mainEngine: varchar("main_engine", { length: 200 }),
+  enginePower: varchar("engine_power", { length: 100 }),
+  serviceSpeed: real("service_speed"),
+  maxSpeed: real("max_speed"),
+  fuelType: varchar("fuel_type", { length: 100 }),
+  fuelConsumption: varchar("fuel_consumption", { length: 200 }),
+  auxiliaryEngines: varchar("auxiliary_engines", { length: 200 }),
+  bowThruster: boolean("bow_thruster").default(false),
+  bowThrusterPower: varchar("bow_thruster_power", { length: 100 }),
+
+  // Section 6: Tank Capacities
+  heavyFuelCapacity: real("heavy_fuel_capacity"),
+  dieselOilCapacity: real("diesel_oil_capacity"),
+  freshWaterCapacity: real("fresh_water_capacity"),
+  ballastCapacity: real("ballast_capacity"),
+
+  // Section 7: Communication & Navigation
+  communicationEquipment: jsonb("communication_equipment").$type<string[]>().default([]),
+  navigationEquipment: jsonb("navigation_equipment").$type<string[]>().default([]),
+
+  // Section 8: Safety
+  lifeboats: varchar("lifeboats", { length: 200 }),
+  lifeRafts: varchar("life_rafts", { length: 200 }),
+  fireExtinguishing: varchar("fire_extinguishing", { length: 300 }),
+
+  // Section 9: Crew
+  crewCapacity: integer("crew_capacity"),
+  officerCabins: integer("officer_cabins"),
+  crewCabins: integer("crew_cabins"),
+
+  // Section 10: Certificates
+  certificatesOnBoard: jsonb("certificates_on_board").$type<string[]>().default([]),
+
+  // Section 11: Special Equipment
+  specialEquipment: text("special_equipment"),
+  iceClass: varchar("ice_class", { length: 50 }),
+  fittedForHeavyLifts: boolean("fitted_for_heavy_lifts").default(false),
+  co2Fitted: boolean("co2_fitted").default(false),
+
+  // Meta
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  isPublic: boolean("is_public").default(false),
+  version: integer("version").default(1),
+  status: varchar("status", { length: 20 }).default("draft"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const q88Relations = relations(vesselQ88, ({ one }) => ({
+  vessel: one(vessels, { fields: [vesselQ88.vesselId], references: [vessels.id] }),
+  user: one(users, { fields: [vesselQ88.userId], references: [users.id] }),
+}));
+
+export const insertQ88Schema = createInsertSchema(vesselQ88).omit({ id: true, createdAt: true });
+export type VesselQ88 = typeof vesselQ88.$inferSelect;
+export type InsertVesselQ88 = z.infer<typeof insertQ88Schema>;

@@ -1,0 +1,596 @@
+INSTRUCTIONS.md'yi oku. Gemi Document Vault (Evrak Kasası) sistemi ekle. Bu sistem 3 kritik problemi çözer:
+1. Armatör belgeleri sadece 1 kez yükler, her seferde tekrar yüklemez
+2. Yeni voyage oluşturulduğunda belgeler otomatik iliştirilir
+3. Belge süreleri dolmadan otomatik uyarı gönderilir
+
+=== 1. DATABASE ===
+
+shared/schema.ts'e ekle:
+
+// Document Vault — Geminin merkezi belge kasası
+export const vesselDocumentVault = pgTable("vessel_document_vault", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  
+  // Belge bilgileri
+  documentName: varchar("document_name", { length: 300 }).notNull(),
+  documentType: varchar("document_type", { length: 50 }).notNull(),
+  // documentType values:
+  // pi_club — P&I Club Certificate
+  // class_certificate — Classification Certificate
+  // ism_doc — ISM Document of Compliance
+  // isps_certificate — ISPS Certificate
+  // safety_management — Safety Management Certificate
+  // safety_construction — Safety Construction Certificate
+  // safety_equipment — Safety Equipment Certificate
+  // load_line — International Load Line Certificate
+  // tonnage — International Tonnage Certificate
+  // civil_liability — Civil Liability Certificate (CLC)
+  // bunker_convention — Bunker Convention Certificate
+  // wreck_removal — Wreck Removal Convention Certificate
+  // marpol — MARPOL Certificate
+  // ballast_water — Ballast Water Management Certificate
+  // iopp — IOPP Certificate
+  // crew_list — Crew List
+  // continuous_synopsis — Continuous Synopsis Record
+  // insurance — Hull & Machinery Insurance
+  // registry — Certificate of Registry
+  // radio — Radio Station License
+  // sanitary — De-Rat / Sanitary Certificate
+  // other — Other Document
+  
+  category: varchar("category", { length: 30 }).notNull().default("statutory"),
+  // category: statutory (yasal zorunlu), commercial (ticari), operational (operasyonel), crew (mürettebat)
+  
+  // Dosya
+  fileUrl: text("file_url"), // disk storage URL
+  fileBase64: text("file_base64"), // geriye uyumluluk
+  fileName: varchar("file_name", { length: 300 }),
+  fileSize: integer("file_size"), // bytes
+  mimeType: varchar("mime_type", { length: 100 }),
+  
+  // Geçerlilik
+  issueDate: timestamp("issue_date"),
+  expiryDate: timestamp("expiry_date"),
+  issuingAuthority: varchar("issuing_authority", { length: 200 }),
+  certificateNumber: varchar("certificate_number", { length: 100 }),
+  
+  // Durum
+  status: varchar("status", { length: 20 }).default("active"),
+  // status: active, expired, expiring_soon, archived, superseded
+  
+  // Hatırlatma
+  reminderSent30: boolean("reminder_sent_30").default(false), // 30 gün kala gönderildi mi
+  reminderSent14: boolean("reminder_sent_14").default(false), // 14 gün kala
+  reminderSent7: boolean("reminder_sent_7").default(false),   // 7 gün kala
+  reminderSentExpired: boolean("reminder_sent_expired").default(false), // süresi dolmuş
+  
+  // Versiyon yönetimi
+  version: integer("version").default(1),
+  previousVersionId: integer("previous_version_id"), // eski versiyon referansı
+  
+  // Auto-attach ayarı
+  autoAttachToVoyage: boolean("auto_attach_to_voyage").default(true),
+  
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Voyage-Document bağlantısı (otomatik veya manuel iliştirilen belgeler)
+export const voyageVaultDocuments = pgTable("voyage_vault_documents", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  vaultDocumentId: integer("vault_document_id").notNull().references(() => vesselDocumentVault.id),
+  attachedBy: varchar("attached_by", { length: 20 }).default("auto"), // auto, manual
+  attachedAt: timestamp("attached_at").defaultNow(),
+});
+
+export const vaultRelations = relations(vesselDocumentVault, ({ one, many }) => ({
+  vessel: one(vessels, { fields: [vesselDocumentVault.vesselId], references: [vessels.id] }),
+  user: one(users, { fields: [vesselDocumentVault.userId], references: [users.id] }),
+  previousVersion: one(vesselDocumentVault, { fields: [vesselDocumentVault.previousVersionId], references: [vesselDocumentVault.id] }),
+  voyageLinks: many(voyageVaultDocuments),
+}));
+
+export const voyageVaultRelations = relations(voyageVaultDocuments, ({ one }) => ({
+  voyage: one(voyages, { fields: [voyageVaultDocuments.voyageId], references: [voyages.id] }),
+  vaultDocument: one(vesselDocumentVault, { fields: [voyageVaultDocuments.vaultDocumentId], references: [vesselDocumentVault.id] }),
+}));
+
+export const insertVaultDocSchema = createInsertSchema(vesselDocumentVault).omit({ id: true, createdAt: true, updatedAt: true });
+
+npx drizzle-kit push
+
+=== 2. API ENDPOINTS ===
+
+server/routes/vault.routes.ts oluştur:
+
+// Geminin tüm vault belgeleri
+GET /api/vessels/:vesselId/vault
+- isAuthenticated
+- Tüm aktif belgeler (archived hariç)
+- Category ve documentType'a göre grupla
+- Her belgenin expiry durumunu hesapla:
+  * expired: expiryDate < now → status: expired (kırmızı)
+  * expiring_soon: expiryDate < now + 30 gün → status: expiring_soon (amber)
+  * active: diğer → status: active (yeşil)
+  * no_expiry: expiryDate null → permanent (mavi)
+
+Response:
+{
+  documents: [...],
+  summary: {
+    total: 15,
+    active: 10,
+    expiringSoon: 3,
+    expired: 2,
+    completeness: 78, // zorunlu belge yüzdesi
+  },
+  requiredDocuments: [
+    // Eksik zorunlu belgeler listesi
+    { documentType: "ballast_water", name: "Ballast Water Management Certificate", missing: true },
+  ]
+}
+
+// Vault'a belge yükle
+POST /api/vessels/:vesselId/vault
+- isAuthenticated
+- Multer ile dosya upload VEYA base64
+- Body: documentName, documentType, category, issueDate, expiryDate, issuingAuthority, certificateNumber, autoAttachToVoyage, notes
+- Dosyayı file-storage ile kaydet
+- Eğer aynı documentType'ta eski belge varsa → eski: status=superseded, yeni: previousVersionId=eski.id
+
+// Vault belgesini güncelle
+PATCH /api/vessels/:vesselId/vault/:docId
+- Tarih, otorite, notlar güncellenebilir
+- Dosya değişiyorsa yeni versiyon oluştur
+
+// Vault belgesini arşivle
+POST /api/vessels/:vesselId/vault/:docId/archive
+- status: archived
+- autoAttachToVoyage: false
+
+// Vault belgesini sil
+DELETE /api/vessels/:vesselId/vault/:docId
+- Sadece dosya sahibi veya admin
+
+// Belge yeni versiyonunu yükle
+POST /api/vessels/:vesselId/vault/:docId/new-version
+- Yeni dosya yükle
+- Eski belge: status=superseded
+- Yeni belge: previousVersionId=eski.id, version=eski.version+1
+
+// Belge indir
+GET /api/vessels/:vesselId/vault/:docId/download
+- Dosyayı stream olarak döndür
+
+// Vault özet (tüm gemiler)
+GET /api/vault/summary
+- Kullanıcının tüm gemilerinin vault özeti
+- Her gemi: toplam belge, expired sayısı, expiring soon sayısı
+- Fleet-wide alertler
+
+// ============ OTOMATİK VOYAGE İLİŞTİRME ============
+
+// Bu fonksiyon voyage oluşturulduğunda çağrılır
+// server/vault-auto-attach.ts oluştur:
+
+export async function autoAttachVaultDocuments(voyageId: number, vesselId: number) {
+  // 1. Geminin vault'undaki autoAttachToVoyage=true ve status=active olan belgeleri çek
+  const vaultDocs = await db.select().from(vesselDocumentVault).where(
+    and(
+      eq(vesselDocumentVault.vesselId, vesselId),
+      eq(vesselDocumentVault.autoAttachToVoyage, true),
+      eq(vesselDocumentVault.status, 'active'),
+    )
+  );
+
+  // 2. Her belgeyi voyage'a iliştir
+  for (const doc of vaultDocs) {
+    await db.insert(voyageVaultDocuments).values({
+      voyageId,
+      vaultDocumentId: doc.id,
+      attachedBy: 'auto',
+    });
+  }
+
+  // 3. Voyage activity log
+  if (vaultDocs.length > 0) {
+    await logVoyageActivity({
+      voyageId,
+      activityType: 'documents_auto_attached',
+      title: `${vaultDocs.length} documents auto-attached from vessel vault`,
+      description: vaultDocs.map(d => d.documentName).join(', '),
+    });
+  }
+
+  return vaultDocs.length;
+}
+
+// Mevcut voyage oluşturma endpoint'lerinde çağır:
+// POST /api/voyages → voyage oluşturulduktan sonra:
+//   const attachedCount = await autoAttachVaultDocuments(voyage.id, voyage.vesselId);
+// POST /api/tenders/:id/nominate → voyage oluşturulduktan sonra aynı çağrı
+
+// Voyage'daki vault belgelerini getir
+GET /api/voyages/:voyageId/vault-documents
+- Voyage'a iliştirilmiş vault belgeleri
+- attachedBy: auto/manual göster
+- Her belgenin expiry durumu
+
+// Manuel vault belgesi iliştir
+POST /api/voyages/:voyageId/vault-documents
+- Body: { vaultDocumentId }
+- attachedBy: 'manual'
+
+// İliştirmeyi kaldır
+DELETE /api/voyages/:voyageId/vault-documents/:linkId
+- Sadece bağlantıyı kaldır, vault'taki belgeyi silme
+
+=== 3. EXPIRY REMINDER SİSTEMİ ===
+
+server/vault-reminders.ts oluştur:
+
+import { db } from './db';
+import { vesselDocumentVault, vessels, users } from '../shared/schema';
+import { and, eq, lt, gt, lte } from 'drizzle-orm';
+
+export async function checkVaultExpiryReminders() {
+  const now = new Date();
+  const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const in14Days = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+  const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  let totalSent = 0;
+
+  // 30 gün kala uyarı
+  const docs30 = await db.select({
+    doc: vesselDocumentVault,
+    vesselName: vessels.name,
+    userEmail: users.email,
+    userName: users.firstName,
+  })
+  .from(vesselDocumentVault)
+  .innerJoin(vessels, eq(vesselDocumentVault.vesselId, vessels.id))
+  .innerJoin(users, eq(vesselDocumentVault.userId, users.id))
+  .where(and(
+    eq(vesselDocumentVault.status, 'active'),
+    lte(vesselDocumentVault.expiryDate, in30Days),
+    gt(vesselDocumentVault.expiryDate, in14Days),
+    eq(vesselDocumentVault.reminderSent30, false),
+  ));
+
+  for (const row of docs30) {
+    const daysLeft = Math.ceil((new Date(row.doc.expiryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Email gönder
+    const { subject, html } = documentExpiryTemplate({
+      userName: row.userName || 'Dear Sir/Madam',
+      vesselName: row.vesselName,
+      documentName: row.doc.documentName,
+      documentType: row.doc.documentType,
+      expiryDate: new Date(row.doc.expiryDate).toLocaleDateString('en-GB'),
+      daysLeft,
+      severity: 'warning', // 30 gün: warning (amber)
+      vaultUrl: `https://vesselpda.com/vessel-vault/${row.doc.vesselId}`,
+    });
+
+    try {
+      if (row.userEmail) await sendEmail({ to: row.userEmail, subject, html });
+      
+      // Platform notification
+      await storage.createNotification({
+        userId: row.doc.userId,
+        type: 'document_expiring',
+        title: `Document Expiring in ${daysLeft} days`,
+        message: `${row.doc.documentName} for ${row.vesselName} expires on ${new Date(row.doc.expiryDate).toLocaleDateString('en-GB')}`,
+        link: `/vessel-vault/${row.doc.vesselId}`,
+      });
+
+      await db.update(vesselDocumentVault).set({ reminderSent30: true }).where(eq(vesselDocumentVault.id, row.doc.id));
+      totalSent++;
+    } catch (e) {
+      console.error('Vault reminder error:', e);
+    }
+  }
+
+  // 14 gün kala uyarı (aynı pattern, reminderSent14)
+  const docs14 = await db.select({
+    doc: vesselDocumentVault,
+    vesselName: vessels.name,
+    userEmail: users.email,
+    userName: users.firstName,
+  })
+  .from(vesselDocumentVault)
+  .innerJoin(vessels, eq(vesselDocumentVault.vesselId, vessels.id))
+  .innerJoin(users, eq(vesselDocumentVault.userId, users.id))
+  .where(and(
+    eq(vesselDocumentVault.status, 'active'),
+    lte(vesselDocumentVault.expiryDate, in14Days),
+    gt(vesselDocumentVault.expiryDate, in7Days),
+    eq(vesselDocumentVault.reminderSent14, false),
+  ));
+
+  for (const row of docs14) {
+    const daysLeft = Math.ceil((new Date(row.doc.expiryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const { subject, html } = documentExpiryTemplate({
+      userName: row.userName || 'Dear Sir/Madam',
+      vesselName: row.vesselName,
+      documentName: row.doc.documentName,
+      documentType: row.doc.documentType,
+      expiryDate: new Date(row.doc.expiryDate).toLocaleDateString('en-GB'),
+      daysLeft,
+      severity: 'urgent', // 14 gün: urgent (orange)
+      vaultUrl: `https://vesselpda.com/vessel-vault/${row.doc.vesselId}`,
+    });
+    try {
+      if (row.userEmail) await sendEmail({ to: row.userEmail, subject, html });
+      await storage.createNotification({ userId: row.doc.userId, type: 'document_expiring_urgent', title: `URGENT: Document Expiring in ${daysLeft} days`, message: `${row.doc.documentName} for ${row.vesselName}`, link: `/vessel-vault/${row.doc.vesselId}` });
+      await db.update(vesselDocumentVault).set({ reminderSent14: true }).where(eq(vesselDocumentVault.id, row.doc.id));
+      totalSent++;
+    } catch (e) { console.error(e); }
+  }
+
+  // 7 gün kala uyarı
+  const docs7 = await db.select({
+    doc: vesselDocumentVault,
+    vesselName: vessels.name,
+    userEmail: users.email,
+    userName: users.firstName,
+  })
+  .from(vesselDocumentVault)
+  .innerJoin(vessels, eq(vesselDocumentVault.vesselId, vessels.id))
+  .innerJoin(users, eq(vesselDocumentVault.userId, users.id))
+  .where(and(
+    eq(vesselDocumentVault.status, 'active'),
+    lte(vesselDocumentVault.expiryDate, in7Days),
+    gt(vesselDocumentVault.expiryDate, now),
+    eq(vesselDocumentVault.reminderSent7, false),
+  ));
+
+  for (const row of docs7) {
+    const daysLeft = Math.ceil((new Date(row.doc.expiryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const { subject, html } = documentExpiryTemplate({
+      userName: row.userName || 'Dear Sir/Madam',
+      vesselName: row.vesselName,
+      documentName: row.doc.documentName,
+      documentType: row.doc.documentType,
+      expiryDate: new Date(row.doc.expiryDate).toLocaleDateString('en-GB'),
+      daysLeft,
+      severity: 'critical', // 7 gün: critical (kırmızı)
+      vaultUrl: `https://vesselpda.com/vessel-vault/${row.doc.vesselId}`,
+    });
+    try {
+      if (row.userEmail) await sendEmail({ to: row.userEmail, subject, html });
+      await storage.createNotification({ userId: row.doc.userId, type: 'document_expiring_critical', title: `CRITICAL: ${row.doc.documentName} expires in ${daysLeft} days!`, message: `${row.vesselName} — Renew immediately`, link: `/vessel-vault/${row.doc.vesselId}` });
+      await db.update(vesselDocumentVault).set({ reminderSent7: true }).where(eq(vesselDocumentVault.id, row.doc.id));
+      totalSent++;
+    } catch (e) { console.error(e); }
+  }
+
+  // Süresi dolmuş belgeleri güncelle
+  const expired = await db.select().from(vesselDocumentVault).where(and(
+    eq(vesselDocumentVault.status, 'active'),
+    lt(vesselDocumentVault.expiryDate, now),
+  ));
+  for (const doc of expired) {
+    await db.update(vesselDocumentVault).set({ status: 'expired' }).where(eq(vesselDocumentVault.id, doc.id));
+    if (!doc.reminderSentExpired) {
+      // Expired notification
+      await storage.createNotification({ userId: doc.userId, type: 'document_expired', title: `EXPIRED: ${doc.documentName}`, message: `This document has expired. Please upload renewed version.`, link: `/vessel-vault/${doc.vesselId}` });
+      await db.update(vesselDocumentVault).set({ reminderSentExpired: true }).where(eq(vesselDocumentVault.id, doc.id));
+    }
+  }
+
+  return { remindersSent: totalSent, expiredUpdated: expired.length };
+}
+
+// server/index.ts'de scheduler'a ekle:
+import { checkVaultExpiryReminders } from './vault-reminders';
+
+// Mevcut reminder scheduler'ın yanına ekle — günde 1 kez:
+setInterval(async () => {
+  console.log('Checking vault document expiry...');
+  const result = await checkVaultExpiryReminders();
+  console.log('Vault check result:', result);
+}, 24 * 60 * 60 * 1000);
+
+// İlk çalıştırma: 2 dakika sonra
+setTimeout(() => checkVaultExpiryReminders(), 120000);
+
+=== 4. EMAIL TEMPLATE ===
+
+server/email-templates.ts'e ekle:
+
+export function documentExpiryTemplate(params: {
+  userName: string;
+  vesselName: string;
+  documentName: string;
+  documentType: string;
+  expiryDate: string;
+  daysLeft: number;
+  severity: 'warning' | 'urgent' | 'critical';
+  vaultUrl: string;
+}): { subject: string; html: string } {
+  // severity bazlı renk ve mesaj:
+  // warning (30 gün): amber tema, "Expiring Soon"
+  // urgent (14 gün): orange tema, "Expiring — Action Required"
+  // critical (7 gün): kırmızı tema, "EXPIRING — Immediate Action Required"
+  
+  // baseTemplate kullan
+  // İçerik:
+  // Büyük uyarı ikonu ve başlık
+  // Vessel ve belge bilgileri tablosu
+  // "Expires in X days" büyük countdown gösterge
+  // "Upload Renewed Document" butonu → vaultUrl
+  // Alt not: "Renew this document to maintain compliance"
+  
+  const severityConfig = {
+    warning: { color: '#F59E0B', label: 'Expiring Soon', icon: '⚠️' },
+    urgent: { color: '#F97316', label: 'Action Required', icon: '🔶' },
+    critical: { color: '#EF4444', label: 'Immediate Action Required', icon: '🔴' },
+  };
+  const config = severityConfig[params.severity];
+  
+  return {
+    subject: `${config.icon} ${params.documentName} — ${config.label} (${params.daysLeft} days) — ${params.vesselName}`,
+    html: baseTemplate(`...email content with ${config.color} theme...`),
+  };
+}
+
+=== 5. FRONTEND — VESSEL VAULT PAGE ===
+
+client/src/pages/vessel-vault.tsx oluştur:
+
+Üstte: Gemi ismi + Vault completeness progress bar
+
+Alert banner (varsa):
+- Kırmızı: "3 documents expired — renew immediately"
+- Amber: "2 documents expiring within 30 days"
+
+Vault Summary kartları (4'lü grid):
+- Total Documents: 15
+- Active: 10 (yeşil)
+- Expiring Soon: 3 (amber, pulse animasyonu)
+- Expired: 2 (kırmızı)
+
+"+ Upload Document" büyük buton
+
+Belge listesi — category'ye göre gruplu:
+
+📋 STATUTORY DOCUMENTS
+  ┣ Classification Certificate — Lloyd's Register — Expires: 15 Mar 2027 ✅
+  ┣ P&I Club Certificate — Standard Club — Expires: 01 Apr 2026 ⚠️ (26 days)
+  ┣ ISM DOC — Expires: 20 Jun 2027 ✅
+  ┗ ISPS Certificate — Missing ❌ [Upload]
+
+💼 COMMERCIAL DOCUMENTS
+  ┣ Hull & Machinery Insurance — Expires: 01 Jul 2026 ✅
+  ┗ Civil Liability Certificate — Expires: 15 Mar 2026 🔴 EXPIRED [Renew]
+
+⚙️ OPERATIONAL DOCUMENTS
+  ┣ MARPOL Certificate — Expires: 10 Aug 2027 ✅
+  ┗ Ballast Water Management — Missing ❌ [Upload]
+
+Her belge kartı:
+- Sol: document type ikonu + isim
+- Orta: issuing authority + certificate number
+- Sağ: expiry date + status badge + actions
+
+Status badge:
+- ✅ Active (yeşil) — süresi uzak
+- ⚠️ Expiring (amber) — 30 gün içinde doluyor
+- 🔴 Expired (kırmızı) — süresi dolmuş
+- ❌ Missing (gri) — henüz yüklenmemiş
+- 📎 No Expiry (mavi) — süresiz belge
+
+Her belge kartında actions:
+- 📥 Download
+- ✏️ Edit details
+- 🔄 Upload New Version
+- 🗑️ Archive
+- Toggle: Auto-attach to voyages (on/off)
+
+Belge yükleme dialog:
+- Document Type: select (tüm tipler listeli, ikonlu)
+- Document Name: otomatik doldur (type'dan), düzenlenebilir
+- Category: auto-select (type'a göre)
+- File: drag & drop veya browse
+- Issue Date: date picker
+- Expiry Date: date picker (opsiyonel — bazı belgeler süresiz)
+- Issuing Authority: text input
+- Certificate Number: text input
+- Notes: textarea
+- Auto-attach to voyages: toggle (varsayılan: ON)
+- [Upload Document]
+
+=== 6. REQUIRED DOCUMENTS CHECKLİST ===
+
+Zorunlu belge listesi (IMO/SOLAS/MARPOL):
+const REQUIRED_DOCUMENTS = [
+  { type: 'registry', name: 'Certificate of Registry', category: 'statutory' },
+  { type: 'class_certificate', name: 'Classification Certificate', category: 'statutory' },
+  { type: 'safety_management', name: 'Safety Management Certificate', category: 'statutory' },
+  { type: 'ism_doc', name: 'ISM Document of Compliance', category: 'statutory' },
+  { type: 'isps_certificate', name: 'ISPS Certificate', category: 'statutory' },
+  { type: 'safety_construction', name: 'Safety Construction Certificate', category: 'statutory' },
+  { type: 'safety_equipment', name: 'Safety Equipment Certificate', category: 'statutory' },
+  { type: 'load_line', name: 'International Load Line Certificate', category: 'statutory' },
+  { type: 'tonnage', name: 'International Tonnage Certificate', category: 'statutory' },
+  { type: 'iopp', name: 'IOPP Certificate', category: 'statutory' },
+  { type: 'marpol', name: 'MARPOL Certificate', category: 'operational' },
+  { type: 'ballast_water', name: 'Ballast Water Management Certificate', category: 'operational' },
+  { type: 'pi_club', name: 'P&I Club Certificate', category: 'commercial' },
+  { type: 'insurance', name: 'Hull & Machinery Insurance', category: 'commercial' },
+  { type: 'civil_liability', name: 'Civil Liability Certificate (CLC)', category: 'commercial' },
+  { type: 'bunker_convention', name: 'Bunker Convention Certificate', category: 'commercial' },
+  { type: 'radio', name: 'Radio Station License', category: 'operational' },
+  { type: 'sanitary', name: 'De-Rat / Sanitary Certificate', category: 'operational' },
+];
+
+Vault sayfasında "Document Checklist" bölümü:
+- Yüklenen belgeler: ✅ yeşil checkmark
+- Eksik belgeler: ❌ kırmızı + "Upload" butonu
+- Completeness: "14/18 Required Documents (78%)"
+
+=== 7. VOYAGE ENTEGRASYONU ===
+
+Voyage detail sayfasında "Documents" tab'ı güncelle:
+
+Mevcut voyage documents'ın üstüne:
+
+"Vessel Vault Documents (Auto-attached)" bölümü:
+- Otomatik iliştirilen belgeler listesi
+- Her belgenin yanında: "From Vault — Auto" badge (yeşil)
+- Manuel eklenenler: "Manual" badge (mavi)
+- "Attach More from Vault" butonu → vault belgelerini seç
+
+Voyage oluşturulduğunda bildirim:
+"12 documents automatically attached from vessel vault"
+
+=== 8. DASHBOARD WIDGET ===
+
+Fleet veya Dashboard'a "Document Alerts" widget:
+
+<Card title="Document Alerts" icon="📜">
+  {expiredDocs > 0 && (
+    <AlertRow color="red" count={expiredDocs} label="Expired Documents" />
+  )}
+  {expiringDocs > 0 && (
+    <AlertRow color="amber" count={expiringDocs} label="Expiring Within 30 Days" />
+  )}
+  {missingDocs > 0 && (
+    <AlertRow color="slate" count={missingDocs} label="Missing Required Documents" />
+  )}
+  <Link href="/vessels">Manage Document Vault →</Link>
+</Card>
+
+=== 9. ROUTING & NAVIGATION ===
+
+client/src/App.tsx'e ekle:
+import VesselVault from "@/pages/vessel-vault";
+<Route path="/vessel-vault/:vesselId" component={VesselVault} />
+
+Fleet sidebar'ına ekle:
+{ icon: Archive, label: "Document Vault", href: "/vessels" }
+(Her geminin detayından da erişilebilir)
+
+Vessel listesinde her gemi kartında:
+- "Vault: 14/18" badge → tıklanınca /vessel-vault/:vesselId
+
+=== 10. IMPORTANT ===
+
+- Vault belgeleri gemiye ait, kullanıcıya değil — gemi el değiştirse belgeler kalır
+- Auto-attach SADECE active + autoAttachToVoyage=true belgeleri iliştirir
+- Expired belgeler otomatik iliştirilmez
+- Yeni versiyon yüklenince eski: superseded, yeni: active olur
+- Voyage'a iliştirme referans bazlı — dosya kopyalanmaz, vault'a link
+- Reminder sadece 1 kez gönderilir (per threshold)
+- Belge silinince voyage bağlantıları da temizlenir
+- File upload mevcut file-storage.ts altyapısını kullansın
+- PDF, JPEG, PNG, DOC, DOCX desteklenmeli
+- Max dosya boyutu: 10MB
+- Mevcut vesselCertificates tablosu ile çakışma olmasın — vault ayrı, daha kapsamlı
+- npx drizzle-kit push

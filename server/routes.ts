@@ -39,6 +39,7 @@ import messageRoutes from "./routes/message.routes";
 import commercialRoutes from "./routes/commercial.routes";
 import miscRoutes from "./routes/misc.routes";
 import searchRoutes from "./routes/search.routes";
+import q88Routes from "./routes/q88.routes";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -74,6 +75,7 @@ export async function registerRoutes(
   app.use(commercialRoutes);  // /api/fixtures, /api/laytime, /api/cargo-positions
   app.use(miscRoutes);        // /api/invoices, /api/document-templates, /api/port-alerts, /api/certificates
   app.use(searchRoutes);      // /api/search
+  app.use("/api", q88Routes); // /api/vessels/:id/q88, /api/q88/public/:id
 
   // ─── Prefix-mounted (paths stripped inside router) ────────────────────────
   app.use("/api/vessels", vesselRoutes);

@@ -508,6 +508,39 @@ function FleetMap({
   );
 }
 
+// ─── Q88 Badge ───────────────────────────────────────────────────────────────
+
+function VesselQ88Badge({ vesselId }: { vesselId: number }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["/api/vessels", vesselId, "q88"],
+    queryFn: () => fetch(`/api/vessels/${vesselId}/q88`).then(r => r.ok ? r.json() : null),
+    staleTime: 60000,
+    retry: false,
+  });
+  if (isLoading) return null;
+  if (!data) return (
+    <Link to={`/vessel-q88/${vesselId}`} onClick={(e: any) => e.stopPropagation()}>
+      <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-300 dark:border-slate-600 cursor-pointer hover:border-sky-400 hover:text-sky-500 transition-colors" data-testid={`badge-q88-none-${vesselId}`}>
+        No Q88
+      </Badge>
+    </Link>
+  );
+  if (data.status === "complete" || data.status === "shared") return (
+    <Link to={`/vessel-q88/${vesselId}`} onClick={(e: any) => e.stopPropagation()}>
+      <Badge className="text-[10px] bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800 cursor-pointer" data-testid={`badge-q88-complete-${vesselId}`}>
+        Q88 ✓
+      </Badge>
+    </Link>
+  );
+  return (
+    <Link to={`/vessel-q88/${vesselId}`} onClick={(e: any) => e.stopPropagation()}>
+      <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800 cursor-pointer" data-testid={`badge-q88-draft-${vesselId}`}>
+        Q88 Draft
+      </Badge>
+    </Link>
+  );
+}
+
 // ─── Vessel Card ──────────────────────────────────────────────────────────────
 
 function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete, fleets, onAddToFleet, onRemoveFromFleet }: {
@@ -578,6 +611,11 @@ function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete, fleets, onAddT
             <span className="text-xs text-muted-foreground">Aktif sefer yok</span>
           </div>
         )}
+
+        {/* Q88 Badge */}
+        <div className="flex items-center gap-1.5 mb-2.5">
+          <VesselQ88Badge vesselId={vessel.id} />
+        </div>
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-1.5 mb-3">

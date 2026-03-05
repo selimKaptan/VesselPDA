@@ -45,6 +45,7 @@ import MessageThread from "@/pages/message-thread";
 import Nominations from "@/pages/nominations";
 import SanctionsCheck from "@/pages/sanctions-check";
 import VesselCertificates from "@/pages/vessel-certificates";
+import VesselQ88 from "@/pages/vessel-q88";
 import Fixtures from "@/pages/fixtures";
 import CargoPositions from "@/pages/cargo-positions";
 import MarketData from "@/pages/market-data";
@@ -104,6 +105,7 @@ function AuthenticatedRouter() {
       <Route path="/nominations" component={Nominations} />
       <Route path="/sanctions-check" component={SanctionsCheck} />
       <Route path="/vessel-certificates" component={VesselCertificates} />
+      <Route path="/vessel-q88/:vesselId" component={VesselQ88} />
       <Route path="/fixtures" component={Fixtures} />
       <Route path="/cargo-positions" component={CargoPositions} />
       <Route path="/market-data" component={MarketData} />
