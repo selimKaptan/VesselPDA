@@ -1,0 +1,186 @@
+INSTRUCTIONS.md'yi oku. Proforma (PDA) sonrası tüm iş akışını uçtan uca bağla. Şu an PDA oluşturuluyor ama sonraki adımlar kopuk. Tüm akışı birbirine bağlı hale getir:
+
+PDA → Email Gönder → Shipowner Onayı → FDA Oluştur → Invoice Oluştur
+
+=== 1. PROFORMA DETAY SAYFASI — ACTION BAR ===
+
+client/src/pages/proforma-view.tsx sayfasına üstte bir "Workflow Action Bar" ekle:
+
+Proforma status'üne göre farklı aksiyonlar göster:
+
+STATUS: draft
+  Aksiyonlar: [Edit] [Calculate] [Send for Approval →]
+  Banner: Mavi — "This PDA is in draft. Calculate and send for approval."
+
+STATUS: sent (email gönderildi, onay bekliyor)
+  Aksiyonlar: [Resend Email] [Mark as Approved ✓] [Request Revision]
+  Banner: Amber — "Awaiting approval from shipowner. Sent on {date}."
+
+STATUS: approved
+  Aksiyonlar: [Create FDA →] [Create Invoice →] [Download PDF]
+  Banner: Yeşil — "Approved by {name} on {date}. Ready for final disbursement."
+
+STATUS: revision_requested
+  Aksiyonlar: [Edit & Resubmit →]
+  Banner: Kırmızı — "Revision requested: {note}. Please update and resubmit."
+
+STATUS: completed (FDA oluşturuldu)
+  Aksiyonlar: [View FDA →] [View Invoice →] [Download PDF]
+  Banner: Yeşil tamamlandı — "Completed. FDA Reference: {fdaRef}"
+
+Her status geçişinde:
+- Notification oluştur (karşı tarafa)
+- Audit log kaydet
+- WebSocket ile anlık bildirim gönder
+
+=== 2. SEND FOR APPROVAL FLOW ===
+
+"Send for Approval" butonuna tıklanınca dialog aç:
+
+Dialog içeriği:
+- Recipient: Email input (shipowner email, otomatik doldur eğer voyage varsa)
+- Subject: "PDA for Review: {vesselName} at {portName}" (düzenlenebilir)
+- Message: textarea (varsayılan: "Please review the attached Proforma Disbursement Account...")
+- PDF otomatik oluşturulup ek olarak gönderilecek bilgisi
+- [Cancel] [Send for Approval] butonları
+
+Backend'de:
+- POST /api/proformas/:id/send-approval endpoint'i oluştur veya mevcut send-email'i güncelle:
+  * Proforma status'ünü 'sent' yap
+  * sentAt timestamp kaydet
+  * recipientEmail kaydet
+  * PDF oluştur ve email'e ekle
+  * Notification oluştur
+  * Audit log: "PDA sent for approval"
+
+=== 3. APPROVAL / REVISION FLOW ===
+
+Shipowner (veya proforma alıcısı) iki şekilde onaylayabilir:
+
+A) Platform üzerinden (eğer shipowner kayıtlıysa):
+- /pda-review sayfasında bekleyen PDA'ları görsün
+- "Approve" → status: approved, approvedBy, approvedAt kaydet
+- "Request Revision" → dialog: revision note gir → status: revision_requested
+
+B) Email üzerinden (kayıtlı değilse):
+- Email'de iki link buton:
+  * "Approve PDA" → /api/proformas/:id/approve?token=xxx (public endpoint, token ile güvenlik)
+  * "Request Revision" → /api/proformas/:id/revision?token=xxx
+
+Backend endpoint'leri:
+POST /api/proformas/:id/approve
+  - isAuthenticated VEYA valid token
+  - Status: approved, approvedBy, approvedAt
+  - Notification: "PDA approved by {name}"
+  - Audit log
+
+POST /api/proformas/:id/request-revision
+  - Body: { note: "Please adjust pilotage fee" }
+  - Status: revision_requested, revisionNote
+  - Notification: "Revision requested on PDA {ref}"
+  - Audit log
+
+=== 4. PDA → FDA OTOMATIK BAĞLANTI ===
+
+Proforma approved olduğunda:
+- "Create FDA" butonu belirgin şekilde göster (yeşil, büyük)
+- Tıklanınca: POST /api/fda ile proformaId gönder
+- FDA otomatik oluşsun (mevcut endpoint bunu zaten yapıyor)
+- FDA oluşunca proforma status'ü "completed" olsun
+- Proforma sayfasında FDA linki göster
+- FDA sayfasında "Based on PDA: {pdaRef}" linki göster
+
+=== 5. FDA → INVOICE OTOMATIK BAĞLANTI ===
+
+FDA approved olduğunda:
+- "Create Invoice" butonu göster
+- Tıklanınca dialog:
+  * Invoice Title: "Port Disbursement — {vesselName} at {portName}" (düzenlenebilir)
+  * Amount: FDA totalActualUsd (otomatik)
+  * Currency: USD / EUR select
+  * Due Date: date picker (varsayılan: +30 gün)
+  * [Cancel] [Create Invoice]
+
+- POST /api/invoices ile:
+  * proformaId ve fdaId bağla (eğer yoksa voyageId ile)
+  * Invoice oluşsun
+  * FDA sayfasında "Invoice: {invoiceRef}" linki göster
+  * Invoice sayfasında "Based on FDA: {fdaRef}" linki göster
+
+=== 6. PROFORMA LİSTE SAYFASI — STATUS FLOW GÖSTERGESİ ===
+
+client/src/pages/proformas.tsx'de her proforma satırında mini workflow göstergesi:
+
+Yatay nokta çizgisi: ● Draft → ● Sent → ● Approved → ● FDA → ● Invoice
+- Tamamlanan adımlar: yeşil ●
+- Aktif adım: sky-500 ● (pulse animasyonu)
+- Gelecek adımlar: slate-600 ○
+
+Status badge renkleri:
+- draft: slate/gri
+- sent: amber/sarı
+- approved: green/yeşil
+- revision_requested: red/kırmızı
+- completed: emerald + checkmark
+
+=== 7. VOYAGE BAĞLANTISI ===
+
+Eğer proforma bir voyage'a bağlıysa:
+- Proforma sayfasında: "Voyage: {voyageId} — {vesselName} → {portName}" linki
+- Voyage detay sayfasında: "Documents" sekmesinde PDA, FDA, Invoice linkleri
+- Voyage'dan direkt PDA oluşturma butonu (vessel ve port bilgileri otomatik dolsun)
+
+Voyage detail sayfasına "Financial" tab ekle:
+- PDA: link + status badge
+- FDA: link + status badge (varsa)
+- Invoice: link + status badge (varsa)
+- Toplam maliyet özeti: Estimated vs Actual vs Variance
+
+=== 8. NOTIFICATION ZİNCİRİ ===
+
+Her adımda otomatik bildirim:
+
+1. PDA created → agent'a: "New PDA draft created for {vessel}"
+2. PDA sent → shipowner'a: "PDA awaiting your approval for {vessel} at {port}"
+3. PDA approved → agent'a: "PDA approved! You can now create FDA."
+4. PDA revision → agent'a: "Revision requested: {note}"
+5. FDA created → shipowner'a: "Final Disbursement Account ready for {vessel}"
+6. FDA approved → agent'a: "FDA approved. You can create invoice."
+7. Invoice created → shipowner'a: "Invoice ready: {amount} USD"
+8. Invoice paid → agent'a: "Payment received for {vessel} disbursement"
+
+Her bildirim:
+- DB notification kaydı
+- WebSocket push (eğer online)
+- Email (kritik olanlar: approval, revision, invoice)
+
+=== 9. DATABASE GÜNCELLEMELER ===
+
+shared/schema.ts'de proformas tablosuna ekle (yoksa):
+- sentAt: timestamp
+- recipientEmail: varchar
+- approvedBy: varchar
+- approvedAt: timestamp
+- revisionNote: text
+- revisionRequestedAt: timestamp
+- fdaId: integer (FDA referansı)
+- invoiceId: integer (Invoice referansı)
+- approvalToken: varchar (email onay için unique token)
+
+invoices tablosuna ekle (yoksa):
+- proformaId: integer referansı
+- fdaId: integer referansı
+
+npx drizzle-kit push ile tabloları güncelle.
+
+=== 10. IMPORTANT ===
+
+- Bu bir WORKFLOW — her adım bir öncekine bağlı
+- Status geçişleri tek yönlü: draft → sent → approved → completed
+- Revision: sent → revision_requested → sent (döngü mümkün)
+- Her status değişikliğinde audit log yaz
+- Mevcut çalışan endpoint'leri BOZMA, sadece eksikleri ekle
+- Frontend'de mevcut proforma-view.tsx'i güncelle, silme
+- Voyage bağlantısı opsiyonel — voyage olmadan da PDA akışı çalışmalı
+- Email gönderimi mevcut Resend altyapısını kullan
+- PDF oluşturma mevcut proforma-pdf.ts'i kullan
