@@ -1,0 +1,115 @@
+INSTRUCTIONS.md'yi oku. Yeni kullanıcılar için onboarding wizard ekle. İlk kez giriş yapan kullanıcıyı adım adım platforma tanıt.
+
+=== 1. ONBOARDING STATE ===
+
+shared/schema.ts'de users tablosuna ekle (yoksa):
+- onboardingCompleted: boolean default false
+- onboardingStep: integer default 0
+
+=== 2. ONBOARDING COMPONENT ===
+
+client/src/components/onboarding-wizard.tsx oluştur:
+
+Full screen overlay modal — 5 adım:
+
+STEP 1: "Welcome to VesselPDA! 👋"
+- "Tell us about yourself"
+- Role confirmation (zaten seçilmiş, göster ve onayla)
+- Company name input (opsiyonel)
+- "What do you mainly need?" checkboxes:
+  * Calculate port disbursements (PDA)
+  * Find ship agents
+  * Manage vessel operations
+  * Track my fleet
+  * Post/bid on tenders
+
+STEP 2: "Set Up Your Profile" (role'a göre farklı)
+Agent:
+  - Company name
+  - Served ports (multi-select)
+  - Service types (multi-select: agency, stevedoring, forwarding, etc.)
+  
+Shipowner:
+  - Company name
+  - Fleet size (1-5, 5-20, 20+)
+  - "Add your first vessel?" → vessel name + IMO input (opsiyonel)
+
+Broker:
+  - Company name
+  - Trading routes (text)
+
+Provider:
+  - Company name
+  - Service type
+  - Served ports
+
+STEP 3: "Quick Tour" — Platformun ana özelliklerini göster
+- 4 kart grid:
+  * 📋 Proformas — "Calculate port costs instantly"
+  * 📢 Tenders — "Find or offer port services"
+  * 🗺️ Voyages — "Manage port calls end-to-end"
+  * 📡 Tracking — "Monitor vessel positions live"
+- Her kartın altında "Try Now →" linki
+
+STEP 4: "Your First Action" — Role'a göre farklı CTA
+Agent:
+  - "Create your company profile to appear in the directory"
+  - [Set Up Profile →] butonu
+
+Shipowner:
+  - "Calculate your first proforma"
+  - [Create PDA →] butonu
+
+Broker:
+  - "Post your first cargo position"
+  - [Add Position →] butonu
+
+Provider:
+  - "Set up your services"
+  - [Create Profile →] butonu
+
+STEP 5: "You're All Set! 🎉"
+- Confetti animasyonu (CSS ile basit)
+- "Here are some quick links to get started:"
+- 4 link: Dashboard, Create PDA, Browse Directory, Join Forum
+- [Go to Dashboard] butonu
+
+Her adımda: Skip butonu (sağ üst), progress dots (alt), Back/Next butonları
+
+=== 3. ONBOARDING TRIGGER ===
+
+client/src/App.tsx veya AuthenticatedLayout'ta:
+- user.onboardingCompleted === false ise OnboardingWizard göster
+- Wizard tamamlanınca: PATCH /api/user/onboarding-complete
+- Backend: onboardingCompleted = true kaydet
+
+=== 4. BACKEND ENDPOINT ===
+
+PATCH /api/user/onboarding-complete
+- isAuthenticated
+- Updates: onboardingCompleted: true, onboardingStep: 5
+- Eğer profile bilgileri geldiyse (company name, served ports) → company profile oluştur/güncelle
+
+PATCH /api/user/onboarding-step
+- isAuthenticated
+- Body: { step: number, data: any }
+- Her adımın verisini kaydet (opsiyonel)
+
+=== 5. TASARIM ===
+
+- Full screen overlay: bg-black/60 backdrop-blur
+- Orta dialog: max-w-2xl, bg-slate-900, rounded-2xl
+- Progress dots: 5 nokta, aktif sky-500
+- Smooth transitions: step değişiminde fade
+- İllüstrasyonlar yerine emoji ve ikonlar kullan
+- Confetti: CSS keyframes ile basit parçacıklar
+
+=== 6. IMPORTANT ===
+
+- Onboarding sadece İLK GİRİŞTE gösterilsin
+- Skip ile her zaman atlayabilsin
+- Tamamlandıktan sonra bir daha gösterme
+- Settings'te "Restart onboarding tour" butonu ekle (opsiyonel)
+- Mobile'da da çalışsın (responsive)
+- Backend'e minimum değişiklik — sadece 2 yeni alan ve 2 endpoint
+- npx drizzle-kit push ile tablo güncelle
