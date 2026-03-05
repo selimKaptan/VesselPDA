@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useEffect, useRef } from "react";
-import { Building2, Phone, Mail, Globe, MapPin, Save, Loader2, Check, X, Upload, Trash2, Image } from "lucide-react";
+import { Building2, Phone, Mail, Globe, MapPin, Save, Loader2, Check, X, Upload, Trash2, Image, Landmark } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +42,13 @@ export default function CompanyProfilePage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [bankName, setBankName] = useState("");
+  const [bankAccountName, setBankAccountName] = useState("");
+  const [bankIban, setBankIban] = useState("");
+  const [bankSwift, setBankSwift] = useState("");
+  const [bankCurrency, setBankCurrency] = useState("USD");
+  const [bankBranchName, setBankBranchName] = useState("");
+
   useEffect(() => {
     if (profile) {
       setCompanyName(profile.companyName || "");
@@ -56,6 +63,12 @@ export default function CompanyProfilePage() {
       setSelectedPorts((profile.servedPorts as number[]) || []);
       setSelectedServices((profile.serviceTypes as string[]) || []);
       setLogoPreview(profile.logoUrl || null);
+      setBankName((profile as any).bankName || "");
+      setBankAccountName((profile as any).bankAccountName || "");
+      setBankIban((profile as any).bankIban || "");
+      setBankSwift((profile as any).bankSwift || "");
+      setBankCurrency((profile as any).bankCurrency || "USD");
+      setBankBranchName((profile as any).bankBranchName || "");
     }
   }, [profile]);
 
@@ -117,6 +130,27 @@ export default function CompanyProfilePage() {
     },
     onError: (error: Error) => {
       toast({ title: "Failed to remove logo", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const saveBankMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("PATCH", "/api/company-profile/bank-details", {
+        bankName: bankName || null,
+        bankAccountName: bankAccountName || null,
+        bankIban: bankIban || null,
+        bankSwift: bankSwift || null,
+        bankCurrency: bankCurrency || "USD",
+        bankBranchName: bankBranchName || null,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/company-profile/me"] });
+      toast({ title: "Bank details saved" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to save bank details", description: error.message, variant: "destructive" });
     },
   });
 
@@ -391,6 +425,63 @@ export default function CompanyProfilePage() {
               </label>
             ))}
           </div>
+        </div>
+      </Card>
+
+      <Card className="p-6 space-y-6">
+        <h2 className="font-serif font-semibold text-lg flex items-center gap-2">
+          <Landmark className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
+          Bank Details
+        </h2>
+        <p className="text-sm text-muted-foreground -mt-4">Used for auto-fill in Proforma, SOF and FDA PDF exports.</p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Bank Name</Label>
+            <Input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="e.g. Ziraat Bank" data-testid="input-bank-name" />
+          </div>
+          <div className="space-y-2">
+            <Label>Account Name / Beneficiary</Label>
+            <Input value={bankAccountName} onChange={(e) => setBankAccountName(e.target.value)} placeholder="Company or person name" data-testid="input-bank-account-name" />
+          </div>
+          <div className="space-y-2">
+            <Label>IBAN</Label>
+            <Input value={bankIban} onChange={(e) => setBankIban(e.target.value)} placeholder="TR00 0000 0000 0000 0000 0000 00" data-testid="input-bank-iban" />
+          </div>
+          <div className="space-y-2">
+            <Label>SWIFT / BIC Code</Label>
+            <Input value={bankSwift} onChange={(e) => setBankSwift(e.target.value)} placeholder="e.g. TCZBTR2A" data-testid="input-bank-swift" />
+          </div>
+          <div className="space-y-2">
+            <Label>Currency</Label>
+            <Select value={bankCurrency} onValueChange={setBankCurrency}>
+              <SelectTrigger data-testid="select-bank-currency">
+                <SelectValue placeholder="Select currency" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="USD">USD — US Dollar</SelectItem>
+                <SelectItem value="EUR">EUR — Euro</SelectItem>
+                <SelectItem value="TRY">TRY — Turkish Lira</SelectItem>
+                <SelectItem value="GBP">GBP — British Pound</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Branch Name <span className="text-muted-foreground text-xs">(optional)</span></Label>
+            <Input value={bankBranchName} onChange={(e) => setBankBranchName(e.target.value)} placeholder="e.g. Istanbul Main Branch" data-testid="input-bank-branch" />
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            onClick={() => saveBankMutation.mutate()}
+            disabled={saveBankMutation.isPending || profileLoading}
+            className="gap-2"
+            data-testid="button-save-bank-details"
+          >
+            {saveBankMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Save Bank Details
+          </Button>
         </div>
       </Card>
 
