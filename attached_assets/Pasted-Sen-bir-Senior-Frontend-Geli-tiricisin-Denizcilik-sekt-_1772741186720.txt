@@ -1,0 +1,22 @@
+Sen bir Senior Frontend Geliştiricisin. Denizcilik sektörüne yönelik modern, dark mode (koyu tema) destekli bir B2B SaaS platformu geliştiriyoruz. Mevcut teknoloji yığınımız: [Buraya React, Next.js, Tailwind CSS vb. yazın].
+
+Şu anda "Fleet -> Vessels -> Crew" (Gemi Personel Listesi) sayfasının UI ve veri tablosu üzerinde çalışıyoruz. Ekranda mevcut bir "Crew List" tablomuz var. Bu tabloda sütun olarak; Name, Rank, Nationality, Contract End, Passport Exp, Passport Doc (Yükleme İkonu), Seaman's Book Exp ve Seaman's Book Doc bulunuyor. Tarih sütunlarında, süresi geçenler kırmızı ve 'X' ikonu ile, süresi yaklaşanlar sarı ve '⚠' (uyarı) ikonu ile gösteriliyor.
+
+Aşağıdaki 4 yeni özelliği bu sayfaya ve tabloya entegre etmeni istiyorum:
+
+1. YENİ SÜTUN (Sağlık Raporu): 
+"Seaman's Book Doc" sütunundan sonra gelmek üzere "Medical Fitness Exp" (tarih) ve "Medical Fitness Doc" (döküman yükleme butonu/ikonu) isimli iki yeni sütun ekle. Mevcut uyarı (sarı/kırmızı) mantığı bu tarih sütunu için de geçerli olsun.
+
+2. DİNAMİK TOOLTIP (İpucu Gösterimi): 
+Tarih sütunlarındaki uyarı ikonlarının (sarı üçgen veya kırmızı çarpı) üzerine gelindiğinde (hover) bir Tooltip açılsın. 
+- Eğer tarih sarıysa (bitmesine 30 günden az kalmışsa): "Expires in [X] days" yazsın.
+- Eğer tarih kırmızıysa (süresi geçmişse): "Expired [X] days ago" yazsın.
+Lütfen bu gün hesaplama mantığını (JavaScript/TypeScript fonksiyonunu) da koda dahil et.
+
+3. TOPLU İNDİRME BUTONU (Export All Docs): 
+Tablonun sağ üst kısmında yer alan "+ Add Crew Member" (Primary) butonunun hemen soluna, "Export All Docs" isimli ikincil (Secondary/Outline) bir buton ekle. Yanında bir indirme (download) ikonu olsun. 
+
+4. GENEL PERSONEL HAVUZU EKRANI (Crew Roster):
+Sadece tek bir gemiye ait personeli değil, şirketteki tüm personeli (gemide olanlar ve karada izinde olanlar dahil) görebileceğimiz ayrı bir "Crew Roster" (Personel Havuzu) ana sayfası için yeni bir tablo/komponent oluştur. Bu tabloda yukarıdaki sütunlara ek olarak "Current Status" (On Board / On Leave) ve "Assigned Vessel" (Atandığı Gemi veya '-' işareti) sütunları olsun.
+
+Lütfen mevcut dark mode tasarım diline, Tailwind CSS standartlarına (veya mevcut UI kütüphanesine) sadık kalarak temiz, modüler ve okunabilir bir kod üret.
