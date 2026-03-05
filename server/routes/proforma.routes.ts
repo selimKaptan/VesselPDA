@@ -485,24 +485,6 @@ router.post("/", isAuthenticated, async (req: any, res: any, next: any) => {
     }
     const refNum = `PDA-${Date.now().toString(36).toUpperCase()}`;
     const exchangeRate = req.body.exchangeRate ? Number(req.body.exchangeRate) : 1.1593;
-
-    let bankDetails = req.body.bankDetails || null;
-    if (!bankDetails) {
-      try {
-        const cp = await storage.getCompanyProfileByUser(userId);
-        if (cp && ((cp as any).bankName || (cp as any).bankIban)) {
-          bankDetails = {
-            bankName: (cp as any).bankName || "",
-            beneficiary: (cp as any).bankAccountName || cp.companyName || "",
-            usdIban: (cp as any).bankIban || "",
-            eurIban: (cp as any).bankIban || "",
-            swiftCode: (cp as any).bankSwift || "",
-            branch: (cp as any).bankBranchName || "",
-          };
-        }
-      } catch { /* ignore bank auto-fill error */ }
-    }
-
     const proforma = await storage.createProforma({
       userId,
       vesselId: Number(vesselId),
@@ -521,8 +503,7 @@ router.post("/", isAuthenticated, async (req: any, res: any, next: any) => {
       totalEur: req.body.totalEur ? Number(req.body.totalEur) : Math.round(Number(totalUsd) / exchangeRate),
       notes: req.body.notes || null,
       status: req.body.status || "draft",
-      bankDetails: bankDetails || null,
-    } as any);
+    });
 
     await storage.incrementProformaCount(userId);
     logAction(userId, "create", "proforma", proforma.id, { referenceNumber: proforma.referenceNumber, portId: Number(portId), vesselId: Number(vesselId), totalUsd: Number(totalUsd) }, getClientIp(req));

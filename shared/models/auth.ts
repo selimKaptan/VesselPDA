@@ -66,12 +66,6 @@ export const companyProfiles = pgTable("company_profiles", {
   verificationRequestedAt: timestamp("verification_requested_at"),
   verificationApprovedAt: timestamp("verification_approved_at"),
   verificationNote: text("verification_note"),
-  bankName: text("bank_name"),
-  bankAccountName: text("bank_account_name"),
-  bankIban: text("bank_iban"),
-  bankSwift: text("bank_swift"),
-  bankCurrency: varchar("bank_currency", { length: 10 }).default("USD"),
-  bankBranchName: text("bank_branch_name"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

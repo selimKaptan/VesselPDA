@@ -7,7 +7,6 @@ import { sql as drizzleSql, eq, desc } from "drizzle-orm";
 import { fdaAccounts, type FdaLineItem } from "@shared/schema";
 import { logAction } from "../audit";
 import { logVoyageActivity } from "../voyage-activity";
-import { addPdfHeader, addPdfFooter } from "../proforma-pdf";
 
 const router = Router();
 
@@ -193,96 +192,65 @@ router.get("/:id/pdf", isAuthenticated, async (req: any, res: any, next: any) =>
 
     const PDFDocumentModule = await import("pdfkit");
     const PDFDocument = (PDFDocumentModule as any).default || PDFDocumentModule;
-    const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
+    const doc = new PDFDocument({ size: "A4", margin: 50 });
     const chunks: Buffer[] = [];
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
-    const fdaUserId = (fda as any).userId || req.user.claims.sub;
-    const companyProfile = fdaUserId ? await storage.getCompanyProfileByUser(fdaUserId) : null;
-
-    await new Promise<void>(async (resolve, reject) => {
+    await new Promise<void>((resolve) => {
       doc.on("end", resolve);
-      doc.on("error", reject);
-      try {
-        await addPdfHeader(doc, companyProfile || null, "FINAL DISBURSEMENT ACCOUNT");
+      doc.fontSize(16).font("Helvetica-Bold").text("FINAL DISBURSEMENT ACCOUNT", { align: "center" });
+      doc.moveDown(0.5);
+      doc.fontSize(10).font("Helvetica");
+      doc.text(`Reference: ${fda.referenceNumber}`);
+      doc.text(`Date: ${fda.createdAt ? new Date(fda.createdAt).toLocaleDateString("en-GB") : new Date().toLocaleDateString("en-GB")}`);
+      doc.text(`Vessel: ${fda.vesselName || "N/A"}`);
+      doc.text(`Port: ${fda.portName || "N/A"}`);
+      doc.text(`Status: ${(fda.status || "draft").toUpperCase()}`);
+      doc.moveDown(1);
 
-        doc.fontSize(9).font("Helvetica").fillColor("#333");
-        doc.text(`Reference: ${fda.referenceNumber}`, 50, doc.y, { width: 240 });
-        doc.text(`Date: ${fda.createdAt ? new Date(fda.createdAt).toLocaleDateString("en-GB") : new Date().toLocaleDateString("en-GB")}`, 50, doc.y + 2, { width: 240 });
-        doc.text(`Vessel: ${(fda as any).vesselName || "N/A"}`, 50, doc.y + 2, { width: 240 });
-        doc.text(`Port: ${(fda as any).portName || "N/A"}`, 50, doc.y + 2, { width: 240 });
-        doc.text(`Status: ${((fda as any).status || "draft").toUpperCase()}`, 50, doc.y + 2, { width: 240 });
-        doc.fillColor("#000").moveDown(1);
+      doc.font("Helvetica-Bold").fontSize(8);
+      const y = doc.y;
+      doc.text("DESCRIPTION", 50, y, { width: 170 });
+      doc.text("EST. USD", 225, y, { width: 65, align: "right" });
+      doc.text("ACT. USD", 295, y, { width: 65, align: "right" });
+      doc.text("VARIANCE", 365, y, { width: 65, align: "right" });
+      doc.text("VAR %", 435, y, { width: 55, align: "right" });
+      doc.text("REMARKS", 495, y, { width: 50 });
+      doc.moveTo(50, doc.y + 3).lineTo(545, doc.y + 3).stroke();
+      doc.moveDown(0.5);
 
-        doc.font("Helvetica-Bold").fontSize(8);
-        const y = doc.y;
-        doc.text("DESCRIPTION", 50, y, { width: 170 });
-        doc.text("EST. USD", 225, y, { width: 65, align: "right" });
-        doc.text("ACT. USD", 295, y, { width: 65, align: "right" });
-        doc.text("VARIANCE", 365, y, { width: 65, align: "right" });
-        doc.text("VAR %", 435, y, { width: 55, align: "right" });
-        doc.text("REMARKS", 495, y, { width: 50 });
-        doc.moveTo(50, doc.y + 3).lineTo(545, doc.y + 3).stroke();
-        doc.moveDown(0.5);
+      doc.font("Helvetica").fontSize(7);
+      const items = (fda.lineItems as FdaLineItem[]) || [];
+      for (const item of items) {
+        if (doc.y > 700) doc.addPage();
+        const iy = doc.y;
+        doc.text(item.description, 50, iy, { width: 170 });
+        doc.text((item.estimatedUsd || 0).toFixed(2), 225, iy, { width: 65, align: "right" });
+        doc.text((item.actualUsd || 0).toFixed(2), 295, iy, { width: 65, align: "right" });
+        const varColor = (item.varianceUsd || 0) > 0 ? "#dc2626" : "#16a34a";
+        doc.fillColor(varColor).text((item.varianceUsd || 0).toFixed(2), 365, iy, { width: 65, align: "right" });
+        doc.fillColor("#000").text(`${(item.variancePercent || 0).toFixed(1)}%`, 435, iy, { width: 55, align: "right" });
+        doc.text(item.remarks || "", 495, iy, { width: 50 });
+        doc.moveDown(0.3);
+      }
 
-        doc.font("Helvetica").fontSize(7);
-        const items = (fda.lineItems as FdaLineItem[]) || [];
-        for (const item of items) {
-          if (doc.y > 700) doc.addPage();
-          const iy = doc.y;
-          doc.text(item.description, 50, iy, { width: 170 });
-          doc.text((item.estimatedUsd || 0).toFixed(2), 225, iy, { width: 65, align: "right" });
-          doc.text((item.actualUsd || 0).toFixed(2), 295, iy, { width: 65, align: "right" });
-          const varColor = (item.varianceUsd || 0) > 0 ? "#dc2626" : "#16a34a";
-          doc.fillColor(varColor).text((item.varianceUsd || 0).toFixed(2), 365, iy, { width: 65, align: "right" });
-          doc.fillColor("#000").text(`${(item.variancePercent || 0).toFixed(1)}%`, 435, iy, { width: 55, align: "right" });
-          doc.text(item.remarks || "", 495, iy, { width: 50 });
-          doc.moveDown(0.3);
-        }
+      doc.moveDown(0.5).moveTo(50, doc.y).lineTo(545, doc.y).stroke().moveDown(0.5);
+      doc.font("Helvetica-Bold").fontSize(9);
+      const ty = doc.y;
+      doc.text("TOTAL", 50, ty);
+      doc.text(`$${(fda.totalEstimatedUsd || 0).toFixed(2)}`, 225, ty, { width: 65, align: "right" });
+      doc.text(`$${(fda.totalActualUsd || 0).toFixed(2)}`, 295, ty, { width: 65, align: "right" });
+      const totalVar = fda.varianceUsd || 0;
+      doc.fillColor(totalVar > 0 ? "#dc2626" : "#16a34a").text(`$${totalVar.toFixed(2)}`, 365, ty, { width: 65, align: "right" });
+      doc.text(`${(fda.variancePercent || 0).toFixed(1)}%`, 435, ty, { width: 55, align: "right" });
+      doc.fillColor("#000");
 
-        doc.moveDown(0.5).moveTo(50, doc.y).lineTo(545, doc.y).stroke().moveDown(0.5);
-        doc.font("Helvetica-Bold").fontSize(9);
-        const ty = doc.y;
-        doc.text("TOTAL", 50, ty);
-        doc.text(`$ ${(fda.totalEstimatedUsd || 0).toFixed(2)}`, 225, ty, { width: 65, align: "right" });
-        doc.text(`$ ${(fda.totalActualUsd || 0).toFixed(2)}`, 295, ty, { width: 65, align: "right" });
-        const totalVar = fda.varianceUsd || 0;
-        doc.fillColor(totalVar > 0 ? "#dc2626" : "#16a34a").text(`$ ${totalVar.toFixed(2)}`, 365, ty, { width: 65, align: "right" });
-        doc.text(`${(fda.variancePercent || 0).toFixed(1)}%`, 435, ty, { width: 55, align: "right" });
-        doc.fillColor("#000");
-
-        doc.moveDown(1.5);
-        if ((fda as any).approvedBy) {
-          doc.fontSize(8).text(`Approved by: ${(fda as any).approvedBy}${(fda as any).approvedAt ? " on " + new Date((fda as any).approvedAt).toLocaleDateString("en-GB") : ""}`);
-        }
-
-        const cp = companyProfile as any;
-        if (cp && (cp.bankName || cp.bankIban || cp.bankSwift)) {
-          doc.moveDown(1);
-          doc.moveTo(50, doc.y).lineTo(545, doc.y).lineWidth(0.5).strokeColor("#b0b8c4").stroke().lineWidth(1).strokeColor("black");
-          doc.moveDown(0.5);
-          const bankY = doc.y;
-          doc.rect(50, bankY, 495, 14).fill("#e8edf4");
-          doc.fillColor("#1e3a5f").fontSize(8.5).font("Helvetica-Bold").text("BANK DETAILS", 54, bankY + 3);
-          doc.y = bankY + 18;
-          doc.fillColor("#333").fontSize(8).font("Helvetica");
-          const bankFields: [string, string][] = [
-            ["Bank", cp.bankName || ""],
-            ["Beneficiary", cp.bankAccountName || cp.companyName || ""],
-            ["IBAN", cp.bankIban || ""],
-            ["SWIFT / BIC", cp.bankSwift || ""],
-            ["Branch", cp.bankBranchName || ""],
-          ];
-          for (const [label, val] of bankFields) {
-            if (!val) continue;
-            doc.text(`${label}: `, 54, doc.y, { continued: true }).font("Helvetica-Bold").text(val);
-            doc.font("Helvetica").moveDown(0.25);
-          }
-        }
-
-        addPdfFooter(doc, companyProfile || null);
-        doc.end();
-      } catch (err) { reject(err); }
+      doc.moveDown(2);
+      if (fda.approvedBy) {
+        doc.fontSize(8).text(`Approved by: ${fda.approvedBy}${fda.approvedAt ? " on " + new Date(fda.approvedAt).toLocaleDateString("en-GB") : ""}`);
+      }
+      doc.fontSize(7).fillColor("#666").text(`Generated by VesselPDA — ${new Date().toISOString().split("T")[0]}`, 50, 770, { align: "center" });
+      doc.end();
     });
 
     const pdfBuffer = Buffer.concat(chunks);

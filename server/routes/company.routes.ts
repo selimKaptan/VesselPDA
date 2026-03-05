@@ -69,27 +69,6 @@ router.post("/", isAuthenticated, async (req: any, res) => {
 });
 
 
-router.patch("/bank-details", isAuthenticated, async (req: any, res) => {
-  try {
-    const userId = req.user.claims.sub;
-    const profile = await storage.getCompanyProfileByUser(userId);
-    if (!profile) return res.status(404).json({ message: "Profile not found" });
-    const { bankName, bankAccountName, bankIban, bankSwift, bankCurrency, bankBranchName } = req.body;
-    const updated = await storage.updateCompanyProfile(profile.id, userId, {
-      bankName: bankName || null,
-      bankAccountName: bankAccountName || null,
-      bankIban: bankIban || null,
-      bankSwift: bankSwift || null,
-      bankCurrency: bankCurrency || "USD",
-      bankBranchName: bankBranchName || null,
-    } as any);
-    res.json(updated);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to update bank details" });
-  }
-});
-
-
 router.patch("/:id", isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user.claims.sub;

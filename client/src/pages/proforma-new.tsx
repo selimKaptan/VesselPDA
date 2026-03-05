@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { FileText, Ship, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Package, AlertTriangle, ChevronsUpDown, Check, MapPin, RefreshCw, Zap, Waves, PenLine, List, Landmark } from "lucide-react";
+import { FileText, Ship, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Package, AlertTriangle, ChevronsUpDown, Check, MapPin, RefreshCw, Zap, Waves, PenLine, List } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/auth-utils";
 import { Link, useLocation } from "wouter";
-import type { Vessel, Port, ProformaLineItem, CompanyProfile } from "@shared/schema";
+import type { Vessel, Port, ProformaLineItem } from "@shared/schema";
 
 const purposeOptions = ["Loading", "Discharging", "Loading/Discharging", "Transit", "Bunkering", "Repair", "Survey"];
 const cargoUnits = ["MT", "CBM", "TEU", "Units"];
@@ -101,13 +101,6 @@ export default function ProformaNew() {
   const [toCompany, setToCompany] = useState<string>("");
   const [toCountry, setToCountry] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
-
-  const [bankName, setBankName] = useState<string>("");
-  const [beneficiary, setBeneficiary] = useState<string>("");
-  const [usdIban, setUsdIban] = useState<string>("");
-  const [eurIban, setEurIban] = useState<string>("");
-  const [swiftCode, setSwiftCode] = useState<string>("");
-  const [bankBranch, setBankBranch] = useState<string>("");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Results
@@ -129,7 +122,6 @@ export default function ProformaNew() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
-  const { data: myCompanyProfile } = useQuery<CompanyProfile | null>({ queryKey: ["/api/company-profile/me"] });
 
   // Port search — server-side, debounced
   const [portSearchQuery, setPortSearchQuery] = useState("");
@@ -329,7 +321,6 @@ export default function ProformaNew() {
       totalEur,
       notes: notes || null,
       status: "draft",
-      bankDetails: (bankName || usdIban || swiftCode) ? { bankName, beneficiary, usdIban, eurIban, swiftCode, branch: bankBranch } : undefined,
     });
   };
 
@@ -810,59 +801,6 @@ export default function ProformaNew() {
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">Notes</Label>
                 <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Additional notes..." rows={3} data-testid="input-notes" />
-              </div>
-
-              <div className="pt-2">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <Landmark className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                    Bank Details for PDF
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-xs h-7 gap-1.5"
-                    data-testid="button-load-bank-profile"
-                    onClick={() => {
-                      const cp = myCompanyProfile as any;
-                      if (!cp) return;
-                      if (cp.bankName) setBankName(cp.bankName);
-                      if (cp.bankAccountName) setBeneficiary(cp.bankAccountName);
-                      if (cp.bankIban) { setUsdIban(cp.bankIban); setEurIban(cp.bankIban); }
-                      if (cp.bankSwift) setSwiftCode(cp.bankSwift);
-                      if (cp.bankBranchName) setBankBranch(cp.bankBranchName);
-                    }}
-                  >
-                    Load from Company Profile
-                  </Button>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Bank Name</Label>
-                    <Input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="e.g. Ziraat Bank" className="h-9 text-sm" data-testid="input-bank-name-proforma" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Beneficiary</Label>
-                    <Input value={beneficiary} onChange={(e) => setBeneficiary(e.target.value)} placeholder="Account holder name" className="h-9 text-sm" data-testid="input-bank-beneficiary" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">USD IBAN</Label>
-                    <Input value={usdIban} onChange={(e) => setUsdIban(e.target.value)} placeholder="IBAN for USD account" className="h-9 text-sm" data-testid="input-bank-usd-iban" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">EUR IBAN</Label>
-                    <Input value={eurIban} onChange={(e) => setEurIban(e.target.value)} placeholder="IBAN for EUR account" className="h-9 text-sm" data-testid="input-bank-eur-iban" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">SWIFT / BIC</Label>
-                    <Input value={swiftCode} onChange={(e) => setSwiftCode(e.target.value)} placeholder="e.g. TCZBTR2A" className="h-9 text-sm" data-testid="input-bank-swift-proforma" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Branch</Label>
-                    <Input value={bankBranch} onChange={(e) => setBankBranch(e.target.value)} placeholder="Branch name (optional)" className="h-9 text-sm" data-testid="input-bank-branch-proforma" />
-                  </div>
-                </div>
               </div>
             </Card>
           )}
