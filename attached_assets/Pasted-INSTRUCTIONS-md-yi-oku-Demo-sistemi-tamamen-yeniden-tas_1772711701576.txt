@@ -1,0 +1,542 @@
+INSTRUCTIONS.md'yi oku. Demo sistemi tamamen yeniden tasarla:
+1. Demo'ya girmek için üyelik zorunlu olsun
+2. Demo hesabı oluşturulduğunda zengin örnek verilerle doldurulsun
+
+=== 1. DEMO FLOW DEĞİŞİKLİĞİ ===
+
+Mevcut /demo sayfasını ve POST /api/demo/login endpoint'ini güncelle:
+
+ESKİ FLOW: Demo butonuna bas → otomatik giriş (üyeliksiz)
+YENİ FLOW: Demo butonuna bas → Register sayfasına yönlendir → Kayıt ol → Demo verileri otomatik yüklensin
+
+Landing page'deki "Try Demo" butonu:
+- ESKİ: href="/demo"
+- YENİ: href="/register?demo=true"
+
+Register sayfasında demo=true parametresi varsa:
+- Üstte banner: "🎯 Sign up to access the full demo with sample data"
+- Kayıt tamamlanınca → otomatik demo verisi yükle → dashboard'a yönlendir
+
+=== 2. DEMO SEED ENDPOINT ===
+
+server/routes/ içinde demo.routes.ts oluştur veya mevcut auth routes'a ekle:
+
+POST /api/user/seed-demo
+- isAuthenticated
+- Sadece 1 kez çalışır (user.demoSeeded === true ise skip)
+- Kullanıcının rolüne göre uygun demo verisi oluşturur
+- Response: { success: true, summary: { vessels: 5, proformas: 5, ... } }
+
+shared/schema.ts — users tablosuna ekle:
+- demoSeeded: boolean default false
+- isDemoAccount: boolean default false
+
+=== 3. DEMO SEED FONKSİYONU ===
+
+server/demo-seed.ts oluştur:
+
+import { db } from './db';
+import { vessels, ports, proformas, portTenders, tenderBids, voyages, voyageChecklists, voyageDocuments, statementOfFacts, sofEvents, finalDisbursements, invoices, noticeOfReadiness, fixtures, cargoPositions, conversations, messages, notifications } from '../shared/schema';
+
+export async function seedDemoData(userId: string, userRole: string) {
+  
+  // ============ DEMO GEMİLER (5 adet) ============
+  const demoVessels = [
+    {
+      userId,
+      name: "MV AEGEAN STAR",
+      flag: "Panama",
+      vesselType: "Bulk Carrier",
+      grt: 28900,
+      nrt: 15100,
+      dwt: 52000,
+      loa: 190,
+      beam: 32.2,
+      imoNumber: "9234567",
+      callSign: "3FKL9",
+      fleetStatus: "active",
+    },
+    {
+      userId,
+      name: "MV BARBAROS",
+      flag: "Turkey",
+      vesselType: "General Cargo",
+      grt: 12450,
+      nrt: 6200,
+      dwt: 18500,
+      loa: 145,
+      beam: 22.5,
+      imoNumber: "9345678",
+      callSign: "TCBB7",
+      fleetStatus: "active",
+    },
+    {
+      userId,
+      name: "MV BLACK SEA TRADER",
+      flag: "Liberia",
+      vesselType: "Bulk Carrier",
+      grt: 35200,
+      nrt: 18600,
+      dwt: 63000,
+      loa: 225,
+      beam: 32.3,
+      imoNumber: "9456789",
+      callSign: "A8QP2",
+      fleetStatus: "active",
+    },
+    {
+      userId,
+      name: "MV MEDITERRANEAN GLORY",
+      flag: "Marshall Islands",
+      vesselType: "Tanker",
+      grt: 42000,
+      nrt: 22100,
+      dwt: 74500,
+      loa: 228,
+      beam: 36.5,
+      imoNumber: "9567890",
+      callSign: "V7MG3",
+      fleetStatus: "active",
+    },
+    {
+      userId,
+      name: "MV IZMIR EXPRESS",
+      flag: "Turkey",
+      vesselType: "Container",
+      grt: 15800,
+      nrt: 8200,
+      dwt: 21000,
+      loa: 170,
+      beam: 27.2,
+      imoNumber: "9678901",
+      callSign: "TCIE4",
+      fleetStatus: "active",
+    },
+  ];
+
+  const insertedVessels = [];
+  for (const v of demoVessels) {
+    const [vessel] = await db.insert(vessels).values(v).returning();
+    insertedVessels.push(vessel);
+  }
+
+  // ============ LIMAN ID'LERİ ============
+  // Mevcut portlardan çek (seed edilmiş olmalı)
+  const portList = await db.select().from(ports).limit(5);
+  // Yoksa default port isimleri kullan
+  const portIds = portList.map(p => p.id);
+  const portNames = portList.map(p => p.name);
+
+  // ============ DEMO PROFORMALAR (5 adet, farklı status) ============
+  const now = new Date();
+  const demoProformas = [
+    {
+      userId,
+      vesselId: insertedVessels[0].id,
+      portId: portIds[0] || 1,
+      referenceNumber: "PDA-2026-0001",
+      lineItems: JSON.stringify([
+        { description: "Pilotage (Inward)", amountUsd: 2850, amountEur: 2453, category: "Pilotage", tariffSource: "database" },
+        { description: "Pilotage (Outward)", amountUsd: 2850, amountEur: 2453, category: "Pilotage", tariffSource: "database" },
+        { description: "Tugboat (Inward) x2", amountUsd: 4200, amountEur: 3616, category: "Tugboat", tariffSource: "database" },
+        { description: "Tugboat (Outward) x2", amountUsd: 4200, amountEur: 3616, category: "Tugboat", tariffSource: "database" },
+        { description: "Mooring / Unmooring", amountUsd: 1650, amountEur: 1421, category: "Mooring", tariffSource: "database" },
+        { description: "Berthing (4 days)", amountUsd: 3800, amountEur: 3272, category: "Berthing", tariffSource: "database" },
+        { description: "Port Authority Dues", amountUsd: 1200, amountEur: 1033, category: "Port Authority", tariffSource: "estimate" },
+        { description: "Light Dues", amountUsd: 890, amountEur: 766, category: "Light Dues", tariffSource: "database" },
+        { description: "Agency Fee", amountUsd: 3500, amountEur: 3015, category: "Agency", tariffSource: "database" },
+        { description: "Miscellaneous", amountUsd: 500, amountEur: 431, category: "Misc", tariffSource: "estimate" },
+      ]),
+      totalUsd: "25640",
+      totalEur: "22076",
+      exchangeRate: 43.93,
+      status: "approved",
+      createdAt: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000), // 30 gün önce
+    },
+    {
+      userId,
+      vesselId: insertedVessels[1].id,
+      portId: portIds[1] || 2,
+      referenceNumber: "PDA-2026-0002",
+      lineItems: JSON.stringify([
+        { description: "Pilotage (Inward)", amountUsd: 1850, amountEur: 1593, category: "Pilotage", tariffSource: "database" },
+        { description: "Pilotage (Outward)", amountUsd: 1850, amountEur: 1593, category: "Pilotage", tariffSource: "database" },
+        { description: "Tugboat (Inward)", amountUsd: 2100, amountEur: 1808, category: "Tugboat", tariffSource: "database" },
+        { description: "Tugboat (Outward)", amountUsd: 2100, amountEur: 1808, category: "Tugboat", tariffSource: "database" },
+        { description: "Berthing (3 days)", amountUsd: 2400, amountEur: 2066, category: "Berthing", tariffSource: "database" },
+        { description: "Agency Fee", amountUsd: 2500, amountEur: 2153, category: "Agency", tariffSource: "database" },
+      ]),
+      totalUsd: "12800",
+      totalEur: "11021",
+      exchangeRate: 43.93,
+      status: "sent",
+      createdAt: new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000),
+    },
+    {
+      userId,
+      vesselId: insertedVessels[2].id,
+      portId: portIds[2] || 3,
+      referenceNumber: "PDA-2026-0003",
+      lineItems: JSON.stringify([
+        { description: "Pilotage (Inward)", amountUsd: 3200, amountEur: 2755, category: "Pilotage", tariffSource: "database" },
+        { description: "Pilotage (Outward)", amountUsd: 3200, amountEur: 2755, category: "Pilotage", tariffSource: "database" },
+        { description: "Tugboat x3", amountUsd: 7500, amountEur: 6457, category: "Tugboat", tariffSource: "estimate" },
+        { description: "Berthing (5 days)", amountUsd: 5200, amountEur: 4478, category: "Berthing", tariffSource: "database" },
+        { description: "MARPOL", amountUsd: 980, amountEur: 844, category: "MARPOL", tariffSource: "database" },
+        { description: "Agency Fee", amountUsd: 4000, amountEur: 3445, category: "Agency", tariffSource: "database" },
+      ]),
+      totalUsd: "24080",
+      totalEur: "20734",
+      exchangeRate: 43.93,
+      status: "draft",
+      createdAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+    },
+    {
+      userId,
+      vesselId: insertedVessels[3].id,
+      portId: portIds[0] || 1,
+      referenceNumber: "PDA-2026-0004",
+      lineItems: JSON.stringify([
+        { description: "Pilotage (In/Out)", amountUsd: 5800, amountEur: 4994, category: "Pilotage", tariffSource: "database" },
+        { description: "Tugboat (In/Out) x2", amountUsd: 8400, amountEur: 7232, category: "Tugboat", tariffSource: "database" },
+        { description: "Mooring", amountUsd: 2200, amountEur: 1894, category: "Mooring", tariffSource: "database" },
+        { description: "Berthing (6 days)", amountUsd: 7800, amountEur: 6715, category: "Berthing", tariffSource: "database" },
+        { description: "Agency Fee", amountUsd: 5000, amountEur: 4305, category: "Agency", tariffSource: "database" },
+      ]),
+      totalUsd: "29200",
+      totalEur: "25140",
+      exchangeRate: 43.93,
+      status: "completed",
+      createdAt: new Date(now.getTime() - 45 * 24 * 60 * 60 * 1000),
+    },
+    {
+      userId,
+      vesselId: insertedVessels[4].id,
+      portId: portIds[3] || 4,
+      referenceNumber: "PDA-2026-0005",
+      lineItems: JSON.stringify([
+        { description: "Pilotage (In/Out)", amountUsd: 3600, amountEur: 3100, category: "Pilotage", tariffSource: "database" },
+        { description: "Tugboat (In/Out)", amountUsd: 4200, amountEur: 3616, category: "Tugboat", tariffSource: "database" },
+        { description: "Berthing (2 days)", amountUsd: 1800, amountEur: 1550, category: "Berthing", tariffSource: "database" },
+        { description: "Container Handling", amountUsd: 12000, amountEur: 10330, category: "Cargo", tariffSource: "estimate" },
+        { description: "Agency Fee", amountUsd: 3000, amountEur: 2583, category: "Agency", tariffSource: "database" },
+      ]),
+      totalUsd: "24600",
+      totalEur: "21179",
+      exchangeRate: 43.93,
+      status: "revision_requested",
+      createdAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
+    },
+  ];
+
+  const insertedProformas = [];
+  for (const p of demoProformas) {
+    const [proforma] = await db.insert(proformas).values(p).returning();
+    insertedProformas.push(proforma);
+  }
+
+  // ============ DEMO VOYAGES (5 adet, farklı status) ============
+  const demoVoyages = [
+    {
+      userId,
+      vesselId: insertedVessels[0].id,
+      portId: portIds[0] || 1,
+      status: "completed",
+      eta: new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000),
+      etd: new Date(now.getTime() - 24 * 24 * 60 * 60 * 1000),
+      purposeOfCall: "discharging",
+    },
+    {
+      userId,
+      vesselId: insertedVessels[1].id,
+      portId: portIds[1] || 2,
+      status: "in_progress",
+      eta: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
+      etd: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000),
+      purposeOfCall: "loading",
+    },
+    {
+      userId,
+      vesselId: insertedVessels[2].id,
+      portId: portIds[2] || 3,
+      status: "planned",
+      eta: new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000),
+      etd: new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000),
+      purposeOfCall: "discharging",
+    },
+    {
+      userId,
+      vesselId: insertedVessels[3].id,
+      portId: portIds[0] || 1,
+      status: "completed",
+      eta: new Date(now.getTime() - 50 * 24 * 60 * 60 * 1000),
+      etd: new Date(now.getTime() - 44 * 24 * 60 * 60 * 1000),
+      purposeOfCall: "discharging",
+    },
+    {
+      userId,
+      vesselId: insertedVessels[4].id,
+      portId: portIds[3] || 4,
+      status: "planned",
+      eta: new Date(now.getTime() + 12 * 24 * 60 * 60 * 1000),
+      etd: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
+      purposeOfCall: "loading",
+    },
+  ];
+
+  const insertedVoyages = [];
+  for (const v of demoVoyages) {
+    const [voyage] = await db.insert(voyages).values(v).returning();
+    insertedVoyages.push(voyage);
+  }
+
+  // ============ DEMO SOF (3 adet — completed voyage'lar için) ============
+  for (let i = 0; i < 3; i++) {
+    const voyage = insertedVoyages[i];
+    const vessel = insertedVessels[i];
+    const [sof] = await db.insert(statementOfFacts).values({
+      voyageId: voyage.id,
+      vesselId: vessel.id,
+      portId: voyage.portId,
+      userId,
+      vesselName: vessel.name,
+      portName: portNames[i] || `Port ${i + 1}`,
+      operation: voyage.purposeOfCall,
+      masterName: ["Capt. Yilmaz", "Capt. Petrov", "Capt. Smith"][i],
+      agentName: "Barbaros Shipping",
+      status: i === 0 ? "finalized" : i === 1 ? "draft" : "finalized",
+    }).returning();
+
+    // SOF Events
+    const baseDate = new Date(voyage.eta);
+    const events = [
+      { eventType: "vessel_arrived", eventName: "Vessel Arrived at Anchorage", eventDate: baseDate, sortOrder: 1 },
+      { eventType: "nor_tendered", eventName: "NOR Tendered", eventDate: new Date(baseDate.getTime() + 2 * 60 * 60 * 1000), sortOrder: 2 },
+      { eventType: "nor_accepted", eventName: "NOR Accepted", eventDate: new Date(baseDate.getTime() + 4 * 60 * 60 * 1000), sortOrder: 3 },
+      { eventType: "berthing_started", eventName: "Berthing Commenced", eventDate: new Date(baseDate.getTime() + 8 * 60 * 60 * 1000), sortOrder: 4 },
+      { eventType: "all_fast", eventName: "All Fast", eventDate: new Date(baseDate.getTime() + 9 * 60 * 60 * 1000), sortOrder: 5 },
+      { eventType: "loading_commenced", eventName: "Loading Commenced", eventDate: new Date(baseDate.getTime() + 12 * 60 * 60 * 1000), sortOrder: 6 },
+      { eventType: "loading_completed", eventName: "Loading Completed", eventDate: new Date(baseDate.getTime() + 72 * 60 * 60 * 1000), sortOrder: 7 },
+      { eventType: "vessel_sailed", eventName: "Vessel Sailed", eventDate: new Date(baseDate.getTime() + 80 * 60 * 60 * 1000), sortOrder: 8 },
+    ];
+    for (const evt of events) {
+      await db.insert(sofEvents).values({ sofId: sof.id, ...evt });
+    }
+  }
+
+  // ============ DEMO FDA (2 adet — completed PDA'lar için) ============
+  for (let i = 0; i < 2; i++) {
+    const pda = insertedProformas[i === 0 ? 0 : 3]; // approved ve completed olanlar
+    const pdaItems = JSON.parse(pda.lineItems as string);
+    const fdaItems = pdaItems.map((item: any, idx: number) => ({
+      id: `fda_${idx + 1}`,
+      description: item.description,
+      category: item.category,
+      estimatedUsd: item.amountUsd,
+      estimatedEur: item.amountEur,
+      actualUsd: item.amountUsd * (0.9 + Math.random() * 0.2), // %90-110 arası random
+      actualEur: item.amountEur * (0.9 + Math.random() * 0.2),
+      varianceUsd: 0,
+      variancePercent: 0,
+    }));
+    // Variance hesapla
+    fdaItems.forEach((item: any) => {
+      item.actualUsd = Math.round(item.actualUsd * 100) / 100;
+      item.actualEur = Math.round(item.actualEur * 100) / 100;
+      item.varianceUsd = Math.round((item.actualUsd - item.estimatedUsd) * 100) / 100;
+      item.variancePercent = item.estimatedUsd ? Math.round((item.varianceUsd / item.estimatedUsd) * 10000) / 100 : 0;
+    });
+
+    const totalEstUsd = fdaItems.reduce((s: number, i: any) => s + i.estimatedUsd, 0);
+    const totalActUsd = fdaItems.reduce((s: number, i: any) => s + i.actualUsd, 0);
+    const totalEstEur = fdaItems.reduce((s: number, i: any) => s + i.estimatedEur, 0);
+    const totalActEur = fdaItems.reduce((s: number, i: any) => s + i.actualEur, 0);
+
+    await db.insert(finalDisbursements).values({
+      userId,
+      proformaId: pda.id,
+      voyageId: insertedVoyages[i === 0 ? 0 : 3].id,
+      vesselId: insertedVessels[i === 0 ? 0 : 3].id,
+      portId: pda.portId,
+      referenceNumber: `FDA-2026-000${i + 1}`,
+      vesselName: insertedVessels[i === 0 ? 0 : 3].name,
+      portName: portNames[i === 0 ? 0 : 0] || "Demo Port",
+      lineItems: fdaItems,
+      totalEstimatedUsd: totalEstUsd,
+      totalActualUsd: totalActUsd,
+      totalEstimatedEur: totalEstEur,
+      totalActualEur: totalActEur,
+      varianceUsd: totalActUsd - totalEstUsd,
+      variancePercent: totalEstUsd ? Math.round(((totalActUsd - totalEstUsd) / totalEstUsd) * 10000) / 100 : 0,
+      exchangeRate: 43.93,
+      status: i === 0 ? "approved" : "draft",
+    });
+  }
+
+  // ============ DEMO INVOICES (5 adet) ============
+  const demoInvoices = [
+    { title: `Port Disbursement — ${insertedVessels[0].name}`, amount: "25640", currency: "USD", status: "paid", invoiceType: "disbursement" },
+    { title: `Port Disbursement — ${insertedVessels[1].name}`, amount: "12800", currency: "USD", status: "pending", invoiceType: "disbursement" },
+    { title: `Agency Fee — ${insertedVessels[2].name}`, amount: "4000", currency: "USD", status: "pending", invoiceType: "agency" },
+    { title: `Port Disbursement — ${insertedVessels[3].name}`, amount: "29200", currency: "USD", status: "paid", invoiceType: "disbursement" },
+    { title: `Survey Fee — ${insertedVessels[4].name}`, amount: "1500", currency: "EUR", status: "pending", invoiceType: "service" },
+  ];
+
+  for (let i = 0; i < demoInvoices.length; i++) {
+    await db.insert(invoices).values({
+      userId,
+      voyageId: insertedVoyages[i]?.id,
+      ...demoInvoices[i],
+      dueDate: new Date(now.getTime() + (i - 2) * 15 * 24 * 60 * 60 * 1000), // bazıları geçmiş, bazıları gelecek
+      createdAt: new Date(now.getTime() - (30 - i * 5) * 24 * 60 * 60 * 1000),
+    });
+  }
+
+  // ============ DEMO FIXTURES (3 adet) ============
+  const demoFixtures = [
+    { vesselName: insertedVessels[0].name, cargoType: "Wheat", loadingPort: "Constanta", dischargePort: portNames[0] || "Iskenderun", freightRate: "28.50", charterer: "Cargill International", shipowner: "Demo Shipping Co.", status: "completed", laycanFrom: new Date(now.getTime() - 35 * 24 * 60 * 60 * 1000), laycanTo: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) },
+    { vesselName: insertedVessels[2].name, cargoType: "Iron Ore", loadingPort: "Odessa", dischargePort: portNames[2] || "Mersin", freightRate: "18.75", charterer: "ArcelorMittal", shipowner: "Demo Shipping Co.", status: "active", laycanFrom: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000), laycanTo: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) },
+    { vesselName: insertedVessels[4].name, cargoType: "Container", loadingPort: portNames[3] || "Izmir", dischargePort: "Piraeus", freightRate: "450/TEU", charterer: "Maersk Line", shipowner: "Demo Shipping Co.", status: "pending", laycanFrom: new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000), laycanTo: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000) },
+  ];
+
+  for (const f of demoFixtures) {
+    await db.insert(fixtures).values({ userId, ...f });
+  }
+
+  // ============ DEMO CARGO POSITIONS (4 adet) ============
+  const demoCargo = [
+    { positionType: "cargo", title: "25,000 MT Wheat", loadingPort: "Constanta", dischargePort: "Iskenderun", laycanFrom: new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000), laycanTo: new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000), status: "active" },
+    { positionType: "cargo", title: "15,000 MT Coal", loadingPort: "Zonguldak", dischargePort: "Iskenderun", laycanFrom: new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000), laycanTo: new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000), status: "active" },
+    { positionType: "vessel", title: "Open — MV BARBAROS", loadingPort: "Mersin", dischargePort: "Any Med", laycanFrom: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000), laycanTo: new Date(now.getTime() + 20 * 24 * 60 * 60 * 1000), status: "active" },
+    { positionType: "vessel", title: "Open — MV BLACK SEA TRADER", loadingPort: "Istanbul", dischargePort: "Any Black Sea", laycanFrom: new Date(now.getTime() + 12 * 24 * 60 * 60 * 1000), laycanTo: new Date(now.getTime() + 25 * 24 * 60 * 60 * 1000), status: "active" },
+  ];
+
+  for (const c of demoCargo) {
+    await db.insert(cargoPositions).values({ userId, ...c });
+  }
+
+  // ============ DEMO NOR (2 adet) ============
+  for (let i = 0; i < 2; i++) {
+    await db.insert(noticeOfReadiness).values({
+      userId,
+      voyageId: insertedVoyages[i].id,
+      vesselId: insertedVessels[i].id,
+      portId: insertedVoyages[i].portId,
+      vesselName: insertedVessels[i].name,
+      portName: portNames[i] || `Port ${i + 1}`,
+      masterName: ["Capt. Yilmaz", "Capt. Petrov"][i],
+      agentName: "Barbaros Shipping",
+      operation: "discharging",
+      norTenderedAt: new Date(insertedVoyages[i].eta.getTime() + 2 * 60 * 60 * 1000),
+      norAcceptedAt: i === 0 ? new Date(insertedVoyages[i].eta.getTime() + 4 * 60 * 60 * 1000) : null,
+      laytimeStartsAt: i === 0 ? new Date(insertedVoyages[i].eta.getTime() + 6 * 60 * 60 * 1000) : null,
+      status: i === 0 ? "accepted" : "tendered",
+      readyTo: ["discharge"],
+      conditions: ["whether_in_berth_or_not", "whether_in_free_pratique_or_not"],
+    });
+  }
+
+  // ============ DEMO NOTIFICATIONS (5 adet) ============
+  const demoNotifications = [
+    { type: "pda_approved", title: "PDA Approved", message: `PDA ${insertedProformas[0].referenceNumber} has been approved`, link: `/proformas/${insertedProformas[0].id}` },
+    { type: "bid_received", title: "New Bid Received", message: `New bid on tender for ${insertedVessels[1].name}`, link: "/tenders" },
+    { type: "voyage_update", title: "Voyage Status Updated", message: `${insertedVessels[1].name} voyage is now in progress`, link: `/voyages/${insertedVoyages[1].id}` },
+    { type: "invoice_overdue", title: "Invoice Overdue", message: `Invoice for ${insertedVessels[2].name} is 5 days overdue`, link: "/invoices" },
+    { type: "system", title: "Welcome to VesselPDA!", message: "Your demo account is ready with sample data. Explore all features!", link: "/dashboard" },
+  ];
+
+  for (const n of demoNotifications) {
+    await db.insert(notifications).values({ userId, ...n, isRead: false });
+  }
+
+  // ============ CHECKLIST ITEMS (voyage'lara) ============
+  const checklists = [
+    "Arrange pilotage",
+    "Confirm berth allocation",
+    "Prepare NOR",
+    "Coordinate with stevedore",
+    "Submit customs declaration",
+    "Arrange fumigation certificate",
+    "Prepare SOF",
+    "Collect freight documents",
+  ];
+
+  for (let i = 0; i < 2; i++) {
+    for (let j = 0; j < checklists.length; j++) {
+      await db.insert(voyageChecklists).values({
+        voyageId: insertedVoyages[i].id,
+        title: checklists[j],
+        isCompleted: i === 0 ? true : j < 4, // completed voyage hepsi bitti, in_progress yarısı
+        assignedTo: j % 2 === 0 ? "agent" : "both",
+      });
+    }
+  }
+
+  // User'ı güncelle
+  await db.update(users).set({ demoSeeded: true, isDemoAccount: true }).where(eq(users.id, userId));
+
+  return {
+    vessels: insertedVessels.length,
+    proformas: insertedProformas.length,
+    voyages: insertedVoyages.length,
+    sofs: 3,
+    fdas: 2,
+    invoices: demoInvoices.length,
+    fixtures: demoFixtures.length,
+    cargoPositions: demoCargo.length,
+    nors: 2,
+    notifications: demoNotifications.length,
+  };
+}
+
+=== 4. REGISTER SAYFASI GÜNCELLE ===
+
+client/src/pages/register.tsx:
+
+- URL'den demo parametresini oku: const isDemo = new URLSearchParams(location.search).get('demo') === 'true';
+- isDemo ise üstte banner:
+  "🎯 Create a free account to explore VesselPDA with full demo data — 5 vessels, 5 proformas, voyages, invoices and more!"
+- Kayıt başarılı olunca:
+  if (isDemo) {
+    await fetch('/api/user/seed-demo', { method: 'POST' });
+    toast({ title: "Demo Ready! 🎉", description: "Sample data loaded. Explore all features!" });
+  }
+- Dashboard'a yönlendir
+
+=== 5. LANDING PAGE GÜNCELLE ===
+
+"Try Demo" butonunu güncelle:
+ESKİ: <a href="/demo">Try Demo</a>
+YENİ: <a href="/register?demo=true">Try Demo — Free Account</a>
+
+Button altına: "Create a free account to explore with sample data"
+
+=== 6. DEMO BADGE ===
+
+Demo kullanıcılarda dashboard'da banner:
+if (user.isDemoAccount) {
+  <div className="bg-sky-500/10 border border-sky-500/30 rounded-lg p-3 mb-4 flex items-center justify-between">
+    <div>
+      <span className="text-sky-400 font-semibold">🎯 Demo Mode</span>
+      <span className="text-slate-400 text-sm ml-2">Exploring with sample data. Upgrade anytime to use with real data.</span>
+    </div>
+    <a href="/pricing" className="text-sky-400 text-sm hover:underline">View Plans →</a>
+  </div>
+}
+
+=== 7. MEVCUT DEMO LOGIN KALDIRILMASI ===
+
+- /demo sayfasını /register?demo=true'ya redirect et
+- POST /api/demo/login endpoint'ini kaldırma ama deprecation uyarısı ekle
+- Mevcut demo hesaplar varsa çalışmaya devam etsin
+
+=== 8. IMPORTANT ===
+
+- Demo seed sadece 1 kez çalışır (demoSeeded check)
+- Seed sırasında hata olursa kalan verilerle devam et (her insert try-catch)
+- Mevcut portlar DB'de olmalı — yoksa seed-tariffs veya seed ile oluşturulmuş olmalı
+- Demo veriler gerçekçi olmalı — gerçek liman isimleri, gerçekçi GRT/NRT değerleri, mantıklı tarihler
+- Proforma lineItems JSON formatı mevcut API ile uyumlu olmalı
+- Voyage tarihleri: bazıları geçmiş (completed), bazıları şu an (in_progress), bazıları gelecek (planned)
+- Invoice'ların bazıları overdue, bazıları pending, bazıları paid — payment reminder test için
+- npx drizzle-kit push ile tablo değişikliklerini uygula
