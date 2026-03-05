@@ -1335,8 +1335,40 @@ export const DEFAULT_ORG_PERMISSIONS: Record<string, OrgPermissions> = {
   viewer:  { canCreateProforma: false, canApproveProforma: false, canCreateTender: false, canManageVoyages: false, canManageVessels: false, canViewFinance: false, canManageTeam: false, canSendMessages: false },
 };
 
+export const chamberOfShippingFees = pgTable("chamber_of_shipping_fees", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id"),
+  serviceType: varchar("service_type"),
+  vesselCategory: varchar("vessel_category"),
+  grtMin: integer("grt_min"),
+  grtMax: integer("grt_max"),
+  fee: real("fee"),
+  flagCategory: varchar("flag_category"),
+  currency: varchar("currency"),
+  validYear: integer("valid_year"),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const lightDues = pgTable("light_dues", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id"),
+  serviceType: varchar("service_type"),
+  vesselCategory: varchar("vessel_category"),
+  grtMin: integer("grt_min"),
+  grtMax: integer("grt_max"),
+  fee: real("fee"),
+  currency: varchar("currency"),
+  validYear: integer("valid_year"),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  serviceDesc: varchar("service_desc"),
+  rateUpTo800: real("rate_up_to_800"),
+  rateAbove800: real("rate_above_800"),
+});
+
 export const organizations = pgTable("organizations", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  id: serial("id").primaryKey(),
   name: text("name").notNull(),
   slug: text("slug"),
   type: text("type").default("other"),
@@ -1355,7 +1387,7 @@ export const organizations = pgTable("organizations", {
 });
 
 export const organizationMembers = pgTable("organization_members", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   role: text("role").notNull().default("member"),
@@ -1366,10 +1398,11 @@ export const organizationMembers = pgTable("organization_members", {
   invitedBy: varchar("invited_by").references(() => users.id),
   joinedAt: timestamp("joined_at").defaultNow(),
   isActive: boolean("is_active").default(true),
+  roleId: integer("role_id"),
 });
 
 export const organizationInvites = pgTable("organization_invites", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   invitedEmail: text("invited_email").notNull(),
   invitedByUserId: varchar("invited_by_user_id").notNull().references(() => users.id),
