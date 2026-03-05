@@ -1398,7 +1398,6 @@ export const organizationMembers = pgTable("organization_members", {
   invitedBy: varchar("invited_by").references(() => users.id),
   joinedAt: timestamp("joined_at").defaultNow(),
   isActive: boolean("is_active").default(true),
-  roleId: integer("role_id"),
 });
 
 export const organizationInvites = pgTable("organization_invites", {
