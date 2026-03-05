@@ -1,0 +1,340 @@
+INSTRUCTIONS.md'yi oku. Armatörler ve brokerlar, seferlerine istedikleri agent ve service provider'ları davet edebilsin. Davet edilen taraf kabul ederse voyage'a otomatik eklenir.
+
+=== 1. DATABASE ===
+
+shared/schema.ts'e ekle:
+
+// Voyage Davetleri
+export const voyageInvitations = pgTable("voyage_invitations", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  inviterId: varchar("inviter_id").notNull().references(() => users.id),
+  inviteeId: varchar("invitee_id").references(() => users.id), // platform kullanıcısı ise
+  inviteeEmail: varchar("invitee_email", { length: 300 }), // platform dışı ise
+  inviteeCompanyId: integer("invitee_company_id").references(() => companyProfiles.id),
+  inviteeRole: varchar("invitee_role", { length: 30 }).notNull(), // agent, provider, surveyor, broker, observer
+  serviceType: varchar("service_type", { length: 100 }), // stevedoring, surveying, fumigation, customs, etc.
+  message: text("message"), // davet mesajı
+  status: varchar("status", { length: 20 }).default("pending"), // pending, accepted, declined, expired, cancelled
+  token: varchar("token", { length: 100 }), // email ile davet için
+  respondedAt: timestamp("responded_at"),
+  declineReason: text("decline_reason"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Voyage Katılımcıları (davet kabul edilince buraya eklenir)
+export const voyageParticipants = pgTable("voyage_participants", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  companyProfileId: integer("company_profile_id").references(() => companyProfiles.id),
+  role: varchar("role", { length: 30 }).notNull(), // agent, provider, surveyor, broker, observer
+  serviceType: varchar("service_type", { length: 100 }),
+  permissions: jsonb("permissions").$type<VoyageParticipantPermissions>().default({}),
+  isActive: boolean("is_active").default(true),
+  joinedAt: timestamp("joined_at").defaultNow(),
+});
+
+export interface VoyageParticipantPermissions {
+  canViewDocuments?: boolean;
+  canUploadDocuments?: boolean;
+  canChat?: boolean;
+  canViewFinancials?: boolean;
+  canEditChecklist?: boolean;
+  canViewSOF?: boolean;
+}
+
+// Default permissions by role:
+// agent: tümü true
+// provider: viewDocs, uploadDocs, chat true. Financials false.
+// surveyor: viewDocs, uploadDocs, chat true.
+// broker: viewDocs, chat, viewFinancials true.
+// observer: sadece viewDocs, viewSOF true.
+
+export const voyageInviteRelations = relations(voyageInvitations, ({ one }) => ({
+  voyage: one(voyages, { fields: [voyageInvitations.voyageId], references: [voyages.id] }),
+  inviter: one(users, { fields: [voyageInvitations.inviterId], references: [users.id] }),
+  invitee: one(users, { fields: [voyageInvitations.inviteeId], references: [users.id] }),
+  inviteeCompany: one(companyProfiles, { fields: [voyageInvitations.inviteeCompanyId], references: [companyProfiles.id] }),
+}));
+
+export const voyageParticipantRelations = relations(voyageParticipants, ({ one }) => ({
+  voyage: one(voyages, { fields: [voyageParticipants.voyageId], references: [voyages.id] }),
+  user: one(users, { fields: [voyageParticipants.userId], references: [users.id] }),
+  companyProfile: one(companyProfiles, { fields: [voyageParticipants.companyProfileId], references: [companyProfiles.id] }),
+}));
+
+export const insertVoyageInviteSchema = createInsertSchema(voyageInvitations).omit({ id: true, createdAt: true });
+export const insertVoyageParticipantSchema = createInsertSchema(voyageParticipants).omit({ id: true, joinedAt: true });
+
+npx drizzle-kit push
+
+=== 2. API ENDPOINTS ===
+
+server/routes/voyage-invite.routes.ts oluştur:
+
+// Voyage'daki davetleri listele
+GET /api/voyages/:voyageId/invitations
+- isAuthenticated
+- Voyage'a ait tüm davetler
+- inviter ve invitee bilgileri ile join
+- Sadece voyage owner, agent veya katılımcılar görebilir
+
+// Davet gönder
+POST /api/voyages/:voyageId/invite
+- isAuthenticated
+- Body: {
+    inviteeId?: string,       // platform kullanıcısı (opsiyonel)
+    inviteeEmail?: string,    // email ile davet (opsiyonel)
+    inviteeCompanyId?: number, // şirket profili (opsiyonel)
+    inviteeRole: string,      // agent, provider, surveyor, broker, observer
+    serviceType?: string,     // stevedoring, surveying, etc.
+    message?: string,         // kişisel davet mesajı
+  }
+- Kontroller:
+  * Sadece voyage owner veya agent gönderebilir
+  * Aynı kişiye aynı voyage için tekrar davet gönderemez
+  * inviteeId VEYA inviteeEmail zorunlu (en az biri)
+- Token üret (email davet için)
+- ExpiresAt: 7 gün sonra
+- Platform kullanıcısına: notification + email
+- Platform dışına: sadece email
+- Voyage activity log: "Invitation sent to {name} as {role}"
+
+// Toplu davet
+POST /api/voyages/:voyageId/invite-bulk
+- Body: { invitations: [{ email, role, serviceType }...] }
+- Birden fazla kişiyi aynı anda davet et
+- Her biri için ayrı davet kaydı oluştur
+
+// Daveti kabul et (platform kullanıcısı)
+POST /api/voyages/:voyageId/invitations/:inviteId/accept
+- isAuthenticated
+- Sadece davet edilen kişi kabul edebilir
+- Status: accepted, respondedAt: now()
+- voyageParticipants tablosuna ekle (role ve permissions ile)
+- Voyage chat'e otomatik "welcome" mesajı
+- Notification: inviter'a "{name} accepted your invitation"
+- Voyage activity: "{name} joined as {role}"
+
+// Daveti reddet
+POST /api/voyages/:voyageId/invitations/:inviteId/decline
+- isAuthenticated
+- Body: { reason?: string }
+- Status: declined, declineReason
+- Notification: inviter'a "{name} declined the invitation"
+
+// Email token ile kabul (platform dışı)
+POST /api/voyage-invites/:token/accept
+- Public endpoint (token auth)
+- Token valid mi, expired mı kontrol
+- Kullanıcı kayıtlıysa: kabul et, participant ekle
+- Kayıtlı değilse: register sayfasına yönlendir, kayıt sonrası otomatik kabul
+
+// Daveti iptal et
+DELETE /api/voyages/:voyageId/invitations/:inviteId
+- Sadece inviter veya voyage owner
+- Status: cancelled
+
+// Daveti tekrar gönder
+POST /api/voyages/:voyageId/invitations/:inviteId/resend
+- Yeni token, yeni expiry
+- Email tekrar gönder
+
+// Voyage katılımcıları
+GET /api/voyages/:voyageId/participants
+- Tüm aktif katılımcılar
+- User + company bilgileri ile
+- Role ve permissions
+
+// Katılımcı güncelle
+PATCH /api/voyages/:voyageId/participants/:participantId
+- Role veya permissions güncelle
+- Sadece voyage owner
+
+// Katılımcıyı çıkar
+DELETE /api/voyages/:voyageId/participants/:participantId
+- Katılımcıyı deaktive et
+- Sadece voyage owner veya kendisi (ayrılma)
+- Voyage activity: "{name} left the voyage"
+
+// Benim davetlerim
+GET /api/my-voyage-invitations
+- isAuthenticated
+- Kullanıcıya gelen tüm bekleyen voyage davetleri
+- Badge count için de kullanılır
+
+server/routes.ts'e mount et:
+import voyageInviteRoutes from './routes/voyage-invite.routes';
+app.use('/api', voyageInviteRoutes);
+
+=== 3. EMAIL TEMPLATES ===
+
+server/email-templates.ts'e ekle:
+
+export function voyageInviteTemplate(params: {
+  recipientName: string;
+  inviterName: string;
+  inviterCompany: string;
+  vesselName: string;
+  portName: string;
+  role: string;
+  serviceType?: string;
+  message?: string;
+  eta: string;
+  acceptUrl: string;
+  declineUrl: string;
+}): { subject: string; html: string } {
+  // baseTemplate kullan
+  // "You're invited to join a voyage on VesselPDA"
+  // Voyage bilgileri: vessel, port, ETA
+  // Davet eden: isim, şirket
+  // Rol: Agent / Provider / Surveyor
+  // Kişisel mesaj (varsa)
+  // İki buton: "Accept Invitation" (yeşil) + "Decline" (outline)
+  // "This invitation expires in 7 days"
+}
+
+=== 4. FRONTEND — VOYAGE DETAIL PARTICIPANTS TAB ===
+
+client/src/pages/voyage-detail.tsx'e "Participants" tab ekle:
+
+Mevcut tab'lar arasına (Overview, Documents, Chat, Activity) "Participants" ekle.
+
+Tab içeriği:
+
+Üstte: "+ Invite" butonu (büyük, primary)
+
+Aktif Katılımcılar kartları (grid):
+Her katılımcı kartı:
+- Avatar + İsim + Şirket adı
+- Role badge (agent: sky, provider: purple, surveyor: amber, broker: green, observer: slate)
+- Service type (provider ise)
+- "Joined {date}" text
+- Permissions ikonları: 📄 Docs, 💬 Chat, 💰 Finance, ✅ Checklist
+- Actions (voyage owner için): Change Role, Remove
+
+Bekleyen Davetler bölümü:
+- Email, role, gönderim tarihi, expiry countdown
+- Actions: Resend, Cancel
+- Status badge: pending (amber), expired (red)
+
+=== 5. INVITE DIALOG ===
+
+"+ Invite" butonuna tıklayınca dialog:
+
+3 tab ile davet yöntemi:
+
+TAB A: "From Directory" (Platform kullanıcıları)
+- Company search (GET /api/directory?search=xxx)
+- Sonuçlar: şirket kartları — isim, port, rating, verified badge
+- Kart tıklanınca: seç ve davet formuna geç
+- Role select: Agent, Provider, Surveyor, Broker, Observer
+- Service type (provider ise): Stevedoring, Surveying, Fumigation, Customs, Forwarding, Other
+- Message textarea (opsiyonel)
+- [Send Invitation]
+
+TAB B: "By Email" (Platform dışı)
+- Email input
+- Name input (opsiyonel)
+- Role select
+- Service type (opsiyonel)
+- Message textarea
+- [Send Invitation]
+- Not: "They will receive an email invitation to join VesselPDA"
+
+TAB C: "Bulk Invite" (Toplu davet)
+- Textarea: her satıra bir email
+  Placeholder: "Enter emails, one per line:
+  agent@example.com
+  surveyor@example.com"
+- Role select (tümüne aynı rol)
+- [Send All Invitations]
+- Progress: "Sending 3/5..."
+
+=== 6. MY INVITATIONS PAGE ===
+
+Kullanıcıya gelen davetleri gösterme:
+
+client/src/pages/voyage-invitations.tsx:
+
+Üstte: "Voyage Invitations" başlık
+Badge: bekleyen davet sayısı
+
+Her davet kartı:
+- Gemi adı + port (büyük, bold)
+- Davet eden: isim + şirket
+- Rol: Agent / Provider / etc.
+- ETA: tarih
+- Kişisel mesaj (varsa)
+- İki buton: [Accept ✓] [Decline ✗]
+- Decline tıklanınca: reason dialog
+
+Empty state: "No pending invitations"
+
+client/src/App.tsx'e route ekle:
+<Route path="/voyage-invitations" component={VoyageInvitations} />
+
+Sidebar'da Communication altına ekle:
+{ icon: UserPlus, label: "Voyage Invitations", href: "/voyage-invitations", badge: pendingCount }
+
+=== 7. VOYAGE DETAIL — PARTICIPANTS GÖRÜNÜRLÜk ===
+
+Voyage detail sayfasında mevcut yapıya ek:
+
+- Documents tab: katılımcıların yetkisine göre göster/gizle
+- Chat tab: sadece canChat yetkisi olanlar yazabilir (diğerleri read-only)
+- Financial tab (PDA/FDA/Invoice): sadece canViewFinancials yetkisi olanlar görebilir
+- SOF tab: canViewSOF yetkisi kontrol
+
+Her tab'ın başında:
+if (!hasPermission('canViewDocuments')) return <AccessDenied message="You don't have permission to view documents" />;
+
+=== 8. NOTIFICATION & ACTIVITY ===
+
+Davet gönderildiğinde:
+- Platform notification: "{inviterName} invited you to join voyage {vesselName} at {portName} as {role}"
+- Email: voyageInviteTemplate
+- Voyage activity: "Invitation sent to {name}"
+
+Davet kabul edildiğinde:
+- Notification (inviter'a): "{name} accepted and joined as {role}"
+- Voyage chat'e sistem mesajı: "👋 {name} ({company}) joined as {role}"
+- Voyage activity: "{name} joined the voyage"
+
+Davet reddedildiğinde:
+- Notification (inviter'a): "{name} declined the invitation"
+- Voyage activity: "{name} declined"
+
+=== 9. VOYAGE OVERVIEW GÜNCELLE ===
+
+Voyage detail Overview tab'ında participants bölümü ekle:
+
+"Voyage Team" kartı:
+- Owner: avatar + isim + "Shipowner" badge
+- Agent: avatar + isim + "Agent" badge (varsa)
+- Diğer katılımcılar: avatar + isim + rol badge
+- "+ Invite More" butonu
+- Toplam katılımcı sayısı
+
+=== 10. DIRECTORY ENTEGRASYONU ===
+
+Company directory profile sayfasında (/directory/:id):
+- "Invite to Voyage" butonu ekle
+- Tıklanınca: voyage select dialog → hangi voyage'a davet edilecek seçilir
+- Voyage seçilince invite dialog açılır (rol ve mesaj ile)
+
+=== 11. IMPORTANT ===
+
+- Davet sistemi mevcut nomination sistemine EK — nomination agent için, invitation tüm roller için
+- Bir voyage'a birden fazla provider davet edilebilir (farklı servisler)
+- Agent genelde 1 tane olur ama özel durumda birden fazla olabilir
+- Voyage owner her zaman full yetki
+- Katılımcı kendi kendini çıkarabilir (leave)
+- Email davet token 7 gün geçerli
+- Kabul eden kullanıcı yoksa register'a yönlendir
+- Mevcut voyage yapısını BOZMA — participants ek katman
+- Mevcut chat, documents, SOF endpoint'lerine permission check ekle
+- Mobile'da da davet gönderme ve kabul etme çalışsın
+- npx drizzle-kit push
