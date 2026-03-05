@@ -1,0 +1,266 @@
+INSTRUCTIONS.md'yi oku. Q88 Vessel Questionnaire modülü ekle. Q88, geminin teknik özelliklerini standart formatta paylaşan uluslararası bir belgedir. Tüm armatörler, brokerlar ve acenteler bunu kullanır.
+
+=== 1. DATABASE ===
+
+shared/schema.ts'e ekle:
+
+export const vesselQ88 = pgTable("vessel_q88", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  
+  // Section 1: General Information
+  vesselName: varchar("vessel_name", { length: 200 }),
+  exName: varchar("ex_name", { length: 200 }),
+  flag: varchar("flag", { length: 100 }),
+  portOfRegistry: varchar("port_of_registry", { length: 200 }),
+  imoNumber: varchar("imo_number", { length: 20 }),
+  callSign: varchar("call_sign", { length: 20 }),
+  mmsiNumber: varchar("mmsi_number", { length: 20 }),
+  vesselType: varchar("vessel_type", { length: 100 }),
+  yearBuilt: integer("year_built"),
+  builder: varchar("builder", { length: 200 }),
+  classificationSociety: varchar("classification_society", { length: 200 }),
+  classNotation: varchar("class_notation", { length: 200 }),
+  piClub: varchar("pi_club", { length: 200 }),
+  hullMaterial: varchar("hull_material", { length: 50 }).default("Steel"),
+  
+  // Section 2: Dimensions & Tonnage
+  grt: real("grt"),
+  nrt: real("nrt"),
+  dwt: real("dwt"),
+  displacement: real("displacement"),
+  loa: real("loa"),
+  lbp: real("lbp"),
+  beam: real("beam"),
+  depth: real("depth"),
+  maxDraft: real("max_draft"),
+  summerDraft: real("summer_draft"),
+  tpc: real("tpc"),
+  lightShipWeight: real("light_ship_weight"),
+  grainCapacity: real("grain_capacity"),
+  baleCapacity: real("bale_capacity"),
+  
+  // Section 3: Hold & Hatch Details
+  numberOfHolds: integer("number_of_holds"),
+  numberOfHatches: integer("number_of_hatches"),
+  holdDimensions: jsonb("hold_dimensions").$type<HoldDetail[]>().default([]),
+  hatchType: varchar("hatch_type", { length: 100 }),
+  hatchCovers: varchar("hatch_covers", { length: 200 }),
+  
+  // Section 4: Cargo Gear
+  numberOfCranes: integer("number_of_cranes"),
+  craneCapacity: varchar("crane_capacity", { length: 200 }),
+  numberOfDerricks: integer("number_of_derricks"),
+  derrickCapacity: varchar("derrick_capacity", { length: 200 }),
+  grabsAvailable: boolean("grabs_available").default(false),
+  grabCapacity: varchar("grab_capacity", { length: 100 }),
+  cargoGearDetails: text("cargo_gear_details"),
+  
+  // Section 5: Engine & Speed
+  mainEngine: varchar("main_engine", { length: 200 }),
+  enginePower: varchar("engine_power", { length: 100 }),
+  serviceSpeed: real("service_speed"),
+  maxSpeed: real("max_speed"),
+  fuelType: varchar("fuel_type", { length: 100 }),
+  fuelConsumption: varchar("fuel_consumption", { length: 200 }),
+  auxiliaryEngines: varchar("auxiliary_engines", { length: 200 }),
+  bowThruster: boolean("bow_thruster").default(false),
+  bowThrusterPower: varchar("bow_thruster_power", { length: 100 }),
+  
+  // Section 6: Tank Capacities
+  heavyFuelCapacity: real("heavy_fuel_capacity"),
+  dieselOilCapacity: real("diesel_oil_capacity"),
+  freshWaterCapacity: real("fresh_water_capacity"),
+  ballastCapacity: real("ballast_capacity"),
+  
+  // Section 7: Communication & Navigation
+  communicationEquipment: jsonb("communication_equipment").$type<string[]>().default([]),
+  navigationEquipment: jsonb("navigation_equipment").$type<string[]>().default([]),
+  
+  // Section 8: Safety
+  lifeboats: varchar("lifeboats", { length: 200 }),
+  lifeRafts: varchar("life_rafts", { length: 200 }),
+  fireExtinguishing: varchar("fire_extinguishing", { length: 300 }),
+  
+  // Section 9: Crew
+  crewCapacity: integer("crew_capacity"),
+  officerCabins: integer("officer_cabins"),
+  crewCabins: integer("crew_cabins"),
+  
+  // Section 10: Certificates
+  certificatesOnBoard: jsonb("certificates_on_board").$type<string[]>().default([]),
+  
+  // Section 11: Special Equipment
+  specialEquipment: text("special_equipment"),
+  iceClass: varchar("ice_class", { length: 50 }),
+  fittedForHeavyLifts: boolean("fitted_for_heavy_lifts").default(false),
+  co2Fitted: boolean("co2_fitted").default(false),
+  
+  // Meta
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  isPublic: boolean("is_public").default(false),
+  version: integer("version").default(1),
+  status: varchar("status", { length: 20 }).default("draft"), // draft, complete, shared
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export interface HoldDetail {
+  holdNumber: number;
+  length: number;
+  breadth: number;
+  depth: number;
+  grainCapacity?: number;
+  baleCapacity?: number;
+}
+
+export const q88Relations = relations(vesselQ88, ({ one }) => ({
+  vessel: one(vessels, { fields: [vesselQ88.vesselId], references: [vessels.id] }),
+  user: one(users, { fields: [vesselQ88.userId], references: [users.id] }),
+}));
+
+export const insertQ88Schema = createInsertSchema(vesselQ88).omit({ id: true, createdAt: true });
+
+npx drizzle-kit push
+
+=== 2. API ENDPOINTS ===
+
+server/routes/q88.routes.ts oluştur:
+
+GET /api/vessels/:vesselId/q88
+- Geminin Q88'ini getir
+- Yoksa 404
+
+POST /api/vessels/:vesselId/q88
+- Yeni Q88 oluştur
+- Vessel bilgilerinden otomatik doldur: name, flag, imo, grt, nrt, dwt, loa, beam
+- Kullanıcı geri kalanı doldurur
+
+PATCH /api/vessels/:vesselId/q88
+- Q88 güncelle
+- lastUpdated ve version güncelle
+
+GET /api/vessels/:vesselId/q88/pdf
+- Q88'i standart PDF formatında export et
+- Profesyonel tablo düzeni: her section ayrı
+
+POST /api/vessels/:vesselId/q88/share
+- Q88'i email ile paylaş
+- Body: { email, message }
+- PDF oluştur ve email'e ekle
+
+POST /api/vessels/:vesselId/q88/duplicate
+- Q88'i başka gemiye kopyala (benzer gemiler için)
+
+GET /api/q88/public/:vesselId
+- isPublic true ise auth gerektirmez
+- Directory'den gelen ziyaretçiler görebilir
+
+server/routes.ts'e mount et:
+import q88Routes from './routes/q88.routes';
+app.use('/api', q88Routes);
+
+=== 3. Q88 PDF EXPORT ===
+
+Standart Q88 formatında PDF:
+
+VESSEL PARTICULARS QUESTIONNAIRE (Q88)
+
+1. GENERAL INFORMATION
+   Vessel Name: MV AEGEAN STAR
+   Ex-Name: —
+   Flag: Panama
+   Port of Registry: Panama City
+   IMO Number: 9234567
+   Call Sign: 3FKL9
+   Type: Bulk Carrier
+   Year Built: 2015
+   Builder: Hyundai Heavy Industries
+   Classification: Lloyd's Register — 100A1
+   P&I Club: The Standard Club
+
+2. DIMENSIONS & TONNAGE
+   GRT: 28,900 | NRT: 15,100 | DWT: 52,000
+   LOA: 190.00m | LBP: 182.50m | Beam: 32.20m
+   Depth: 18.30m | Max Draft: 12.80m | Summer Draft: 12.50m
+   TPC: 52.3 | Grain: 65,200 cbm | Bale: 62,800 cbm
+
+... (tüm section'lar)
+
+Her section ayrı başlık altında, tablo formatında.
+
+=== 4. FRONTEND — Q88 PAGE ===
+
+client/src/pages/vessel-q88.tsx oluştur:
+
+Multi-section accordion/tab form:
+
+Üstte: Vessel isim + completion progress bar (dolu alanlar / toplam alanlar %)
+
+Tab 1: "General" — vessel name, flag, IMO, class, P&I
+Tab 2: "Dimensions" — GRT, NRT, DWT, LOA, draft, capacity
+Tab 3: "Holds & Hatches" — hold sayısı, boyutları (dynamic form — + Add Hold)
+Tab 4: "Cargo Gear" — vinçler, derrickler, grab
+Tab 5: "Engine & Speed" — motor, hız, yakıt
+Tab 6: "Tanks" — yakıt, su, ballast kapasiteleri
+Tab 7: "Equipment" — iletişim, navigasyon, güvenlik
+Tab 8: "Crew & Cabins" — kapasite
+Tab 9: "Certificates" — mevcut sertifika listesi (checkboxes)
+Tab 10: "Special" — ice class, heavy lift, CO2
+
+Her tab:
+- Grid form layout (2-3 sütun)
+- Numeric inputlar uygun unit ile (m, MT, cbm, kW)
+- Otomatik kaydetme (debounce ile her değişiklikte PATCH)
+- Veya "Save" butonu
+
+Üst bar aksiyonlar:
+- "Auto-fill from Vessel" → geminin mevcut bilgilerini çek
+- "Export PDF" → /api/vessels/:id/q88/pdf
+- "Share via Email" → dialog: email + message
+- "Make Public" → toggle: directory'de görünür
+
+Completion indicator:
+- Her section'ın doluluk yüzdesi
+- Genel doluluk: "Q88 Completeness: 72%"
+- Boş zorunlu alanlar kırmızı border
+
+=== 5. VESSEL DETAY ENTEGRASYONU ===
+
+Vessel listesi (/vessels) sayfasında:
+- Her geminin yanında "Q88" badge
+  * Q88 yoksa: gri "No Q88" + "Create" link
+  * Q88 draft: amber "Q88 Draft"
+  * Q88 complete: yeşil "Q88 ✓"
+- Q88 badge tıklanınca /vessel-q88/:vesselId sayfasına git
+
+Vessel detay sayfasında (varsa):
+- "Q88 Questionnaire" tab veya section
+- Q88 özeti (temel bilgiler) + "View Full Q88" butonu
+
+=== 6. DIRECTORY ENTEGRASYONU ===
+
+Directory'deki şirket profilleri gemilerini listeliyorsa:
+- Her gemi yanında "Q88 Available" badge (isPublic true ise)
+- Tıklanınca public Q88 görüntüleme sayfası açılsın
+
+=== 7. ROUTING & NAVIGATION ===
+
+client/src/App.tsx'e ekle:
+import VesselQ88 from "@/pages/vessel-q88";
+<Route path="/vessel-q88/:vesselId" component={VesselQ88} />
+
+Fleet sidebar'ına ekle:
+{ icon: FileSpreadsheet, label: "Q88 Questionnaire", href: "/vessels" }
+(Veya her geminin detayında link olarak)
+
+=== 8. IMPORTANT ===
+
+- Q88 uluslararası standart — field isimleri İngilizce kalmalı
+- Geminin mevcut bilgileri (GRT, NRT, flag vb.) otomatik doldurulmalı
+- Hold dimensions dynamic array — her ambar ayrı eklenir
+- PDF export sektör standardına uygun olmalı
+- Auto-save veya explicit save — kullanıcı seçsin
+- Public Q88 auth gerektirmez — directory entegrasyonu için
+- Mevcut vessel sayfalarını bozma
+- npx drizzle-kit push
