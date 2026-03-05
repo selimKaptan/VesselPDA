@@ -426,11 +426,30 @@ export const voyageChecklistRelations = relations(voyageChecklists, ({ one }) =>
 
 // ─── VOYAGE CARGO LOGS ────────────────────────────────────────────────────────
 
+export const voyageCargoReceivers = pgTable("voyage_cargo_receivers", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  allocatedMt: real("allocated_mt").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const voyageCargoReceiverRelations = relations(voyageCargoReceivers, ({ one }) => ({
+  voyage: one(voyages, { fields: [voyageCargoReceivers.voyageId], references: [voyages.id] }),
+}));
+
+export const insertVoyageCargoReceiverSchema = createInsertSchema(voyageCargoReceivers).omit({ id: true, createdAt: true });
+export type InsertVoyageCargoReceiver = z.infer<typeof insertVoyageCargoReceiverSchema>;
+export type VoyageCargoReceiver = typeof voyageCargoReceivers.$inferSelect;
+
 export const voyageCargoLogs = pgTable("voyage_cargo_logs", {
   id: serial("id").primaryKey(),
   voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
-  logDate: timestamp("log_date").notNull(),
-  shift: text("shift").notNull().default("morning"),
+  logDate: timestamp("log_date"),
+  shift: text("shift").default("morning"),
+  fromTime: timestamp("from_time"),
+  toTime: timestamp("to_time"),
+  receiverId: integer("receiver_id").references(() => voyageCargoReceivers.id, { onDelete: "set null" }),
   amountHandled: real("amount_handled").notNull(),
   cumulativeTotal: real("cumulative_total"),
   remarks: text("remarks"),
@@ -440,6 +459,7 @@ export const voyageCargoLogs = pgTable("voyage_cargo_logs", {
 
 export const voyageCargoLogRelations = relations(voyageCargoLogs, ({ one }) => ({
   voyage: one(voyages, { fields: [voyageCargoLogs.voyageId], references: [voyages.id] }),
+  receiver: one(voyageCargoReceivers, { fields: [voyageCargoLogs.receiverId], references: [voyageCargoReceivers.id] }),
 }));
 
 export const insertVoyageCargoLogSchema = createInsertSchema(voyageCargoLogs).omit({ id: true, createdAt: true });

@@ -10,7 +10,7 @@ import { db } from "../db";
 import { eq, desc, asc } from "drizzle-orm";
 import multer from "multer";
 import { logVoyageActivity } from "../voyage-activity";
-import { voyageActivities, voyageCargoLogs, voyages } from "@shared/schema";
+import { voyageActivities, voyageCargoLogs, voyageCargoReceivers, voyages } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import path from "path";
 import fs from "fs";
@@ -519,12 +519,49 @@ router.post("/:id/documents/:docId/new-version", isAuthenticated, async (req: an
 
 // ─── CARGO OPS ROUTES ─────────────────────────────────────────────────────────
 
+router.get("/:id/cargo-receivers", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const receivers = await db.select().from(voyageCargoReceivers)
+      .where(eq(voyageCargoReceivers.voyageId, voyageId))
+      .orderBy(asc(voyageCargoReceivers.id));
+    res.json(receivers);
+  } catch {
+    res.status(500).json({ message: "Failed to fetch cargo receivers" });
+  }
+});
+
+router.post("/:id/cargo-receivers", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const { name, allocatedMt } = req.body;
+    if (!name || allocatedMt == null) return res.status(400).json({ message: "name and allocatedMt required" });
+    const [receiver] = await db.insert(voyageCargoReceivers).values({
+      voyageId,
+      name,
+      allocatedMt: Number(allocatedMt),
+    }).returning();
+    res.status(201).json(receiver);
+  } catch {
+    res.status(500).json({ message: "Failed to create cargo receiver" });
+  }
+});
+
+router.delete("/:id/cargo-receivers/:receiverId", isAuthenticated, async (req: any, res) => {
+  try {
+    await db.delete(voyageCargoReceivers).where(eq(voyageCargoReceivers.id, parseInt(req.params.receiverId)));
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ message: "Failed to delete cargo receiver" });
+  }
+});
+
 router.get("/:id/cargo-logs", isAuthenticated, async (req: any, res) => {
   try {
     const voyageId = parseInt(req.params.id);
     const logs = await db.select().from(voyageCargoLogs)
       .where(eq(voyageCargoLogs.voyageId, voyageId))
-      .orderBy(asc(voyageCargoLogs.logDate));
+      .orderBy(asc(voyageCargoLogs.createdAt));
     res.json(logs);
   } catch {
     res.status(500).json({ message: "Failed to fetch cargo logs" });
@@ -535,12 +572,15 @@ router.post("/:id/cargo-logs", isAuthenticated, async (req: any, res) => {
   try {
     const voyageId = parseInt(req.params.id);
     const userId = req.user?.claims?.sub || req.user?.id;
-    const { logDate, shift, amountHandled, cumulativeTotal, remarks } = req.body;
-    if (!logDate || amountHandled == null) return res.status(400).json({ message: "logDate and amountHandled required" });
+    const { logDate, shift, fromTime, toTime, receiverId, amountHandled, cumulativeTotal, remarks } = req.body;
+    if (amountHandled == null) return res.status(400).json({ message: "amountHandled required" });
     const [log] = await db.insert(voyageCargoLogs).values({
       voyageId,
-      logDate: new Date(logDate),
-      shift: shift || "morning",
+      logDate: fromTime ? new Date(fromTime) : (logDate ? new Date(logDate) : new Date()),
+      shift: shift || null,
+      fromTime: fromTime ? new Date(fromTime) : undefined,
+      toTime: toTime ? new Date(toTime) : undefined,
+      receiverId: receiverId ? Number(receiverId) : undefined,
       amountHandled: Number(amountHandled),
       cumulativeTotal: cumulativeTotal != null ? Number(cumulativeTotal) : undefined,
       remarks: remarks || null,

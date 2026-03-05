@@ -36,5 +36,6 @@ export default defineConfig({
     "port_authority_fees", "other_services",
     "ai_analysis_history",
     "voyage_cargo_logs",
+    "voyage_cargo_receivers",
   ],
 });

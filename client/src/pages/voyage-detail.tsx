@@ -7,7 +7,7 @@ import {
   Sparkles, HelpCircle, Clock, PlayCircle, XCircle, ClipboardList,
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
-  FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings, Archive,
+  FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings, Archive, X,
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
@@ -174,7 +174,9 @@ export default function VoyageDetail() {
   const [noteTitle, setNoteTitle] = useState("");
   const [noteDesc, setNoteDesc] = useState("");
   const [showAddLogDialog, setShowAddLogDialog] = useState(false);
-  const [logForm, setLogForm] = useState({ logDate: "", shift: "morning", amountHandled: 0, remarks: "" });
+  const [logForm, setLogForm] = useState({ fromTime: "", toTime: "", amountHandled: 0, remarks: "", receiverId: "" });
+  const [showAddReceiverDialog, setShowAddReceiverDialog] = useState(false);
+  const [receiverForm, setReceiverForm] = useState({ name: "", allocatedMt: 0 });
   const [docFilter, setDocFilter] = useState<string>("all");
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [showServiceDialog, setShowServiceDialog] = useState(false);
@@ -591,16 +593,24 @@ export default function VoyageDetail() {
     enabled: activeTab === "cargo_ops",
   });
 
+  const { data: receivers = [] } = useQuery<any[]>({
+    queryKey: ["/api/voyages", voyageId, "cargo-receivers"],
+    queryFn: () => fetch(`/api/voyages/${voyageId}/cargo-receivers`, { credentials: "include" }).then(r => r.json()),
+    enabled: activeTab === "cargo_ops",
+  });
+
   const addCargoLogMutation = useMutation({
     mutationFn: () => apiRequest("POST", `/api/voyages/${voyageId}/cargo-logs`, {
-      ...logForm,
-      logDate: new Date(logForm.logDate).toISOString(),
+      fromTime: logForm.fromTime ? new Date(logForm.fromTime).toISOString() : undefined,
+      toTime: logForm.toTime ? new Date(logForm.toTime).toISOString() : undefined,
       amountHandled: Number(logForm.amountHandled),
+      receiverId: logForm.receiverId ? Number(logForm.receiverId) : undefined,
+      remarks: logForm.remarks,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-logs"] });
       setShowAddLogDialog(false);
-      setLogForm({ logDate: "", shift: "morning", amountHandled: 0, remarks: "" });
+      setLogForm({ fromTime: "", toTime: "", amountHandled: 0, remarks: "", receiverId: "" });
       toast({ title: "Log added" });
     },
   });
@@ -608,6 +618,24 @@ export default function VoyageDetail() {
   const deleteCargoLogMutation = useMutation({
     mutationFn: (logId: number) => apiRequest("DELETE", `/api/voyages/${voyageId}/cargo-logs/${logId}`, {}),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-logs"] }),
+  });
+
+  const addReceiverMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/voyages/${voyageId}/cargo-receivers`, {
+      name: receiverForm.name,
+      allocatedMt: Number(receiverForm.allocatedMt),
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-receivers"] });
+      setShowAddReceiverDialog(false);
+      setReceiverForm({ name: "", allocatedMt: 0 });
+      toast({ title: "Receiver added" });
+    },
+  });
+
+  const deleteReceiverMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/voyages/${voyageId}/cargo-receivers/${id}`, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-receivers"] }),
   });
 
   const { data: collaboratorsData, refetch: refetchCollaborators } = useQuery<{ invitations: any[], participants: any[] }>({
@@ -1397,11 +1425,22 @@ export default function VoyageDetail() {
         const handledMt = cargoLogs.reduce((sum: number, l: any) => sum + (l.amountHandled || 0), 0);
         const remainingMt = Math.max(0, totalMt - handledMt);
         const progressPct = totalMt > 0 ? Math.min(100, Math.round((handledMt / totalMt) * 100)) : 0;
-        const avgRate = cargoLogs.length > 0 ? Math.round(handledMt / cargoLogs.length) : 0;
+        const totalLogged = cargoLogs.reduce((s: number, l: any) => {
+          if (!l.fromTime || !l.toTime) return s;
+          const hours = (new Date(l.toTime).getTime() - new Date(l.fromTime).getTime()) / 3_600_000;
+          return s + hours;
+        }, 0);
+        const avgRate = totalLogged > 0 ? Math.round((handledMt / totalLogged) * 24) : 0;
         const etcDate = avgRate > 0 && remainingMt > 0
           ? new Date(Date.now() + (remainingMt / avgRate) * 86_400_000).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
           : "—";
-        const SHIFT_LABELS: Record<string, string> = { morning: "Morning", afternoon: "Afternoon", night: "Night", full_day: "Full Day" };
+        const RECEIVER_COLORS = ["from-sky-500 to-blue-400", "from-violet-500 to-purple-400", "from-emerald-500 to-teal-400", "from-orange-500 to-amber-400", "from-rose-500 to-pink-400"];
+        const periodHours = logForm.fromTime && logForm.toTime
+          ? (new Date(logForm.toTime).getTime() - new Date(logForm.fromTime).getTime()) / 3_600_000
+          : 0;
+        const periodRate = periodHours > 0 && logForm.amountHandled > 0
+          ? Math.round((logForm.amountHandled / periodHours) * 24)
+          : 0;
 
         return (
           <div className="space-y-5" data-testid="tab-content-cargo-ops">
@@ -1424,7 +1463,7 @@ export default function VoyageDetail() {
                 <span>Remaining: <strong className="text-amber-400">{remainingMt.toLocaleString()} MT</strong></span>
               </div>
 
-              {/* Progress bar */}
+              {/* Main Progress bar */}
               <div className="h-4 rounded-full bg-slate-800 border border-slate-700 overflow-hidden">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-400 transition-all duration-700"
@@ -1432,12 +1471,59 @@ export default function VoyageDetail() {
                 />
               </div>
 
+              {/* ── Receivers / Cargo Parcels ──────── */}
+              <div className="space-y-2 border-t border-border/40 pt-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Cargo Parcels / Receivers</span>
+                  <Button variant="ghost" size="sm" className="h-6 text-xs gap-1 px-2"
+                    onClick={() => setShowAddReceiverDialog(true)} data-testid="button-add-receiver">
+                    <Plus className="w-3 h-3" /> Add Receiver
+                  </Button>
+                </div>
+                {receivers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">No receivers yet — add cargo parcels to track per-receiver progress.</p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {receivers.map((r: any, idx: number) => {
+                      const rHandled = cargoLogs.filter((l: any) => l.receiverId === r.id).reduce((s: number, l: any) => s + (l.amountHandled || 0), 0);
+                      const rPct = r.allocatedMt > 0 ? Math.min(100, Math.round((rHandled / r.allocatedMt) * 100)) : 0;
+                      const color = RECEIVER_COLORS[idx % RECEIVER_COLORS.length];
+                      return (
+                        <div key={r.id} className="space-y-1" data-testid={`receiver-row-${r.id}`}>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-medium">{r.name}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground tabular-nums">
+                                {rHandled.toLocaleString()} / {r.allocatedMt.toLocaleString()} MT
+                              </span>
+                              <span className={`font-semibold tabular-nums ${rPct >= 100 ? "text-green-400" : "text-sky-400"}`}>
+                                ({rPct}%)
+                              </span>
+                              <button
+                                onClick={() => deleteReceiverMutation.mutate(r.id)}
+                                className="text-muted-foreground/50 hover:text-destructive transition-colors"
+                                data-testid={`button-delete-receiver-${r.id}`}
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="h-2 rounded-full bg-slate-800 border border-slate-700/50 overflow-hidden">
+                            <div className={`h-full rounded-full bg-gradient-to-r ${color} transition-all duration-700`}
+                              style={{ width: `${rPct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               {/* Set total input */}
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex items-center gap-2 pt-1 border-t border-border/40">
                 <span className="text-xs text-muted-foreground">Set Total Cargo:</span>
                 <Input
-                  type="number"
-                  min={0}
+                  type="number" min={0}
                   className="h-7 w-32 text-xs"
                   defaultValue={totalMt > 0 ? totalMt : ""}
                   placeholder="e.g. 60000"
@@ -1457,15 +1543,13 @@ export default function VoyageDetail() {
               <div className="rounded-xl border border-border/60 bg-card p-4 space-y-1">
                 <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide">Current Rate</p>
                 <p className="text-2xl font-bold">{avgRate > 0 ? `${avgRate.toLocaleString()} MT` : "—"}</p>
-                <p className="text-xs text-muted-foreground">per day (avg of log entries)</p>
+                <p className="text-xs text-muted-foreground">per day (based on timed periods)</p>
               </div>
-
               <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1">
                 <p className="text-[11px] text-amber-400 font-semibold uppercase tracking-wide">Est. Completion (ETC)</p>
                 <p className="text-2xl font-bold text-amber-300">{etcDate}</p>
                 <p className="text-xs text-muted-foreground">based on current avg rate</p>
               </div>
-
               <div className="rounded-xl border border-border/60 bg-card p-4 space-y-1">
                 <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide">Operation Type</p>
                 <div className="pt-1">
@@ -1482,127 +1566,190 @@ export default function VoyageDetail() {
               </div>
             </div>
 
-            {/* ── Daily Cargo Logs ─────────────────── */}
+            {/* ── Operation Logs ───────────────────── */}
             <Card className="p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-sm flex items-center gap-2">
-                  <ClipboardList className="w-4 h-4 text-[hsl(var(--maritime-primary))]" /> Daily Cargo Logs
+                  <ClipboardList className="w-4 h-4 text-[hsl(var(--maritime-primary))]" /> Operation Logs
                 </h3>
                 <Button size="sm" onClick={() => setShowAddLogDialog(true)} data-testid="button-add-cargo-log">
-                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Daily Log
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Log
                 </Button>
               </div>
 
               {cargoLogs.length === 0 ? (
                 <div className="text-center py-10 text-muted-foreground text-sm">
-                  No logs yet. Add a daily shift log to start tracking cargo operations.
+                  No logs yet. Add an operation log to start tracking cargo progress.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border/60 text-xs text-muted-foreground">
-                        <th className="text-left py-2 pr-4 font-semibold">Date & Shift</th>
-                        <th className="text-right py-2 pr-4 font-semibold">Handled (MT)</th>
-                        <th className="text-right py-2 pr-4 font-semibold">Cumulative (MT)</th>
+                        <th className="text-left py-2 pr-4 font-semibold whitespace-nowrap">Period (From → To)</th>
+                        <th className="text-left py-2 pr-4 font-semibold">Receiver</th>
+                        <th className="text-right py-2 pr-4 font-semibold whitespace-nowrap">Handled (MT)</th>
+                        <th className="text-right py-2 pr-4 font-semibold whitespace-nowrap">Period Rate</th>
+                        <th className="text-right py-2 pr-4 font-semibold whitespace-nowrap">Cumulative</th>
                         <th className="text-left py-2 pr-4 font-semibold">Remarks</th>
                         <th className="py-2" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/30">
-                      {cargoLogs.map((log: any) => (
-                        <tr key={log.id} className="hover:bg-muted/20 transition-colors" data-testid={`row-cargo-log-${log.id}`}>
-                          <td className="py-2.5 pr-4">
-                            <span className="font-medium">
-                              {new Date(log.logDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
-                            </span>
-                            <span className="ml-2 text-xs text-muted-foreground">
-                              {SHIFT_LABELS[log.shift] ?? log.shift} Shift
-                            </span>
-                          </td>
-                          <td className="text-right py-2.5 pr-4 font-mono font-semibold text-green-400">
-                            {log.amountHandled?.toLocaleString()}
-                          </td>
-                          <td className="text-right py-2.5 pr-4 font-mono text-muted-foreground">
-                            {log.cumulativeTotal ? log.cumulativeTotal.toLocaleString() : "—"}
-                          </td>
-                          <td className="py-2.5 pr-4 text-muted-foreground text-xs">{log.remarks || "—"}</td>
-                          <td className="py-2.5 text-right">
-                            <Button
-                              variant="ghost" size="sm"
-                              className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                              onClick={() => deleteCargoLogMutation.mutate(log.id)}
-                              data-testid={`button-delete-log-${log.id}`}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
+                      {cargoLogs.map((log: any) => {
+                        const fmtDT = (dt: string) => new Date(dt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) + " " + new Date(dt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+                        const fmtTime = (dt: string) => new Date(dt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+                        const logReceiverName = receivers.find((r: any) => r.id === log.receiverId)?.name;
+                        const logHours = log.fromTime && log.toTime
+                          ? (new Date(log.toTime).getTime() - new Date(log.fromTime).getTime()) / 3_600_000
+                          : 0;
+                        const logRate = logHours > 0 ? Math.round((log.amountHandled / logHours) * 24) : null;
+                        const periodLabel = log.fromTime && log.toTime
+                          ? `${fmtDT(log.fromTime)} → ${fmtTime(log.toTime)}`
+                          : log.logDate
+                          ? new Date(log.logDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+                          : "—";
+
+                        return (
+                          <tr key={log.id} className="hover:bg-muted/20 transition-colors" data-testid={`row-cargo-log-${log.id}`}>
+                            <td className="py-2.5 pr-4 text-xs whitespace-nowrap">{periodLabel}</td>
+                            <td className="py-2.5 pr-4">
+                              {logReceiverName ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                                  {logReceiverName}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">General</span>
+                              )}
+                            </td>
+                            <td className="text-right py-2.5 pr-4 font-mono font-semibold text-green-400 whitespace-nowrap">
+                              {log.amountHandled?.toLocaleString()}
+                            </td>
+                            <td className="text-right py-2.5 pr-4 font-mono text-xs text-sky-300 whitespace-nowrap">
+                              {logRate ? `${logRate.toLocaleString()} MT/D` : "—"}
+                            </td>
+                            <td className="text-right py-2.5 pr-4 font-mono text-muted-foreground text-xs">
+                              {log.cumulativeTotal ? log.cumulativeTotal.toLocaleString() : "—"}
+                            </td>
+                            <td className="py-2.5 pr-4 text-muted-foreground text-xs max-w-[160px] truncate">{log.remarks || "—"}</td>
+                            <td className="py-2.5 text-right">
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                onClick={() => deleteCargoLogMutation.mutate(log.id)}
+                                data-testid={`button-delete-log-${log.id}`}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               )}
             </Card>
 
-            {/* Add Log Dialog */}
-            <Dialog open={showAddLogDialog} onOpenChange={setShowAddLogDialog}>
-              <DialogContent>
-                <DialogHeader><DialogTitle>Add Daily Cargo Log</DialogTitle></DialogHeader>
+            {/* ── Add Operation Log Dialog ─────────── */}
+            <Dialog open={showAddLogDialog} onOpenChange={v => { setShowAddLogDialog(v); if (!v) setLogForm({ fromTime: "", toTime: "", amountHandled: 0, remarks: "", receiverId: "" }); }}>
+              <DialogContent className="max-w-md">
+                <DialogHeader><DialogTitle>Add Operation Log</DialogTitle></DialogHeader>
                 <div className="space-y-3 py-2">
+                  {/* From / To datetime */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label>Date *</Label>
-                      <Input
-                        type="date"
-                        value={logForm.logDate}
-                        onChange={e => setLogForm(f => ({ ...f, logDate: e.target.value }))}
-                        data-testid="input-log-date"
-                      />
+                      <Label className="text-xs">From *</Label>
+                      <Input type="datetime-local" value={logForm.fromTime}
+                        onChange={e => setLogForm(f => ({ ...f, fromTime: e.target.value }))}
+                        className="text-xs h-9"
+                        data-testid="input-log-from-time" />
                     </div>
                     <div>
-                      <Label>Shift *</Label>
-                      <Select value={logForm.shift} onValueChange={v => setLogForm(f => ({ ...f, shift: v }))}>
-                        <SelectTrigger data-testid="select-log-shift"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="morning">Morning</SelectItem>
-                          <SelectItem value="afternoon">Afternoon</SelectItem>
-                          <SelectItem value="night">Night</SelectItem>
-                          <SelectItem value="full_day">Full Day</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label className="text-xs">To *</Label>
+                      <Input type="datetime-local" value={logForm.toTime}
+                        onChange={e => setLogForm(f => ({ ...f, toTime: e.target.value }))}
+                        className="text-xs h-9"
+                        data-testid="input-log-to-time" />
                     </div>
                   </div>
+
+                  {/* Receiver */}
                   <div>
-                    <Label>Amount Handled (MT) *</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={logForm.amountHandled || ""}
-                      onChange={e => setLogForm(f => ({ ...f, amountHandled: parseFloat(e.target.value) || 0 }))}
-                      data-testid="input-log-amount"
-                    />
+                    <Label className="text-xs">Receiver / Cargo</Label>
+                    <Select value={logForm.receiverId || "none"} onValueChange={v => setLogForm(f => ({ ...f, receiverId: v === "none" ? "" : v }))}>
+                      <SelectTrigger className="h-9 text-xs" data-testid="select-log-receiver"><SelectValue placeholder="None / General" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None / General</SelectItem>
+                        {receivers.map((r: any) => (
+                          <SelectItem key={r.id} value={String(r.id)}>{r.name} ({r.allocatedMt.toLocaleString()} MT)</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+
+                  {/* Amount */}
                   <div>
-                    <Label>Remarks</Label>
-                    <Textarea
-                      value={logForm.remarks}
+                    <Label className="text-xs">Amount Handled (MT) *</Label>
+                    <Input type="number" min={0} value={logForm.amountHandled || ""}
+                      onChange={e => setLogForm(f => ({ ...f, amountHandled: parseFloat(e.target.value) || 0 }))}
+                      className="h-9"
+                      data-testid="input-log-amount" />
+                    {periodRate > 0 && (
+                      <p className="mt-1.5 text-xs text-amber-400 font-medium">
+                        ✨ Rate for this period: {periodRate.toLocaleString()} MT/Day
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Remarks */}
+                  <div>
+                    <Label className="text-xs">Remarks</Label>
+                    <Textarea value={logForm.remarks}
                       onChange={e => setLogForm(f => ({ ...f, remarks: e.target.value }))}
-                      placeholder="Any notes about this shift..."
-                      rows={2}
-                      data-testid="input-log-remarks"
-                    />
+                      placeholder="Notes about this period..." rows={2}
+                      data-testid="input-log-remarks" />
                   </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setShowAddLogDialog(false)}>Cancel</Button>
                   <Button
                     onClick={() => addCargoLogMutation.mutate()}
-                    disabled={!logForm.logDate || !logForm.amountHandled || addCargoLogMutation.isPending}
+                    disabled={!logForm.fromTime || !logForm.toTime || !logForm.amountHandled || addCargoLogMutation.isPending}
                     data-testid="button-save-cargo-log"
                   >
                     {addCargoLogMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                     Save Log
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* ── Add Receiver Dialog ───────────────── */}
+            <Dialog open={showAddReceiverDialog} onOpenChange={v => { setShowAddReceiverDialog(v); if (!v) setReceiverForm({ name: "", allocatedMt: 0 }); }}>
+              <DialogContent className="max-w-sm">
+                <DialogHeader><DialogTitle>Add Cargo Receiver</DialogTitle></DialogHeader>
+                <div className="space-y-3 py-2">
+                  <div>
+                    <Label className="text-xs">Receiver / Parcel Name *</Label>
+                    <Input placeholder="e.g. IFFCO" value={receiverForm.name}
+                      onChange={e => setReceiverForm(f => ({ ...f, name: e.target.value }))}
+                      data-testid="input-receiver-name" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Allocated MT *</Label>
+                    <Input type="number" min={0} placeholder="e.g. 30000"
+                      value={receiverForm.allocatedMt || ""}
+                      onChange={e => setReceiverForm(f => ({ ...f, allocatedMt: parseFloat(e.target.value) || 0 }))}
+                      data-testid="input-receiver-allocated-mt" />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowAddReceiverDialog(false)}>Cancel</Button>
+                  <Button
+                    onClick={() => addReceiverMutation.mutate()}
+                    disabled={!receiverForm.name || !receiverForm.allocatedMt || addReceiverMutation.isPending}
+                    data-testid="button-save-receiver"
+                  >
+                    {addReceiverMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                    Add Receiver
                   </Button>
                 </DialogFooter>
               </DialogContent>
