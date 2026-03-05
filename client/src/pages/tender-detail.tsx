@@ -566,6 +566,15 @@ export default function TenderDetailPage() {
                     <MessageCircle className="w-3.5 h-3.5" /> Open Chat
                   </Button>
                 )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 border-emerald-400 text-emerald-700 hover:bg-emerald-100"
+                  onClick={() => navigate("/proformas/new")}
+                  data-testid="button-create-pda-from-tender"
+                >
+                  <FileText className="w-3.5 h-3.5" /> Create PDA
+                </Button>
               </div>
             </div>
           </div>

@@ -1451,13 +1451,18 @@ export default function Vessels() {
                           </div>
                         ))}
                       </div>
-                      <div className="flex gap-2 pt-1">
-                        <Button size="sm" variant="outline" className="flex-1 gap-1.5 h-9"
+                      <div className="flex gap-2 pt-1 flex-wrap">
+                        <Button size="sm" variant="outline" className="flex-1 gap-1.5 h-9 min-w-[70px]"
                           onClick={() => { setSelectedVessel(null); setEditingVessel(v); }}>
                           <Edit2 className="w-3.5 h-3.5" /> Edit
                         </Button>
+                        <Link href={`/proformas/new?vesselId=${v.id}`}>
+                          <Button size="sm" variant="outline" className="flex-1 gap-1.5 h-9 min-w-[80px] border-[hsl(var(--maritime-primary)/0.4)] text-[hsl(var(--maritime-primary))]">
+                            <FileText className="w-3.5 h-3.5" /> New PDA
+                          </Button>
+                        </Link>
                         <Link href={`/voyages?vesselId=${v.id}`}>
-                          <Button size="sm" className="flex-1 gap-1.5 h-9">
+                          <Button size="sm" className="flex-1 gap-1.5 h-9 min-w-[90px]">
                             <Plus className="w-3.5 h-3.5" /> New Voyage
                           </Button>
                         </Link>

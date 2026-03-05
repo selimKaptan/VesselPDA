@@ -131,6 +131,19 @@ export default function ProformaNew() {
   const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
   const { data: myCompanyProfile } = useQuery<CompanyProfile | null>({ queryKey: ["/api/company-profile/me"] });
 
+  // URL param pre-fill: ?vesselId=X auto-selects vessel from fleet
+  useEffect(() => {
+    if (!vessels?.length) return;
+    const params = new URLSearchParams(window.location.search);
+    const vid = params.get("vesselId");
+    if (vid && vessels.find(v => v.id.toString() === vid)) {
+      setVesselMode("fleet");
+      setSelectedVessel(vid);
+      const vessel = vessels.find(v => v.id.toString() === vid);
+      if (vessel) applyFlagCategories(vessel.flag || "");
+    }
+  }, [vessels]);
+
   // Port search — server-side, debounced
   const [portSearchQuery, setPortSearchQuery] = useState("");
   const portDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);

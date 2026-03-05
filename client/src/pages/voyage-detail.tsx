@@ -227,6 +227,16 @@ export default function VoyageDetail() {
   });
   const activeNor = (voyageNors as any[])[0];
 
+  const { data: voyageSofs = [] } = useQuery<any[]>({
+    queryKey: ["/api/sof", "voyage", voyageId],
+    queryFn: async () => {
+      const res = await fetch(`/api/sof?voyageId=${voyageId}`);
+      return res.ok ? res.json() : [];
+    },
+    enabled: !!voyageId,
+  });
+  const activeSof = (voyageSofs as any[])[0];
+
   const { data: docTemplates = [] } = useQuery<any[]>({
     queryKey: ["/api/document-templates"],
   });
@@ -941,6 +951,49 @@ export default function VoyageDetail() {
             )}
           </Card>
 
+          {/* SOF Card */}
+          <Card className="p-5 space-y-3" data-testid="card-sof-status">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                <h2 className="font-semibold text-sm">Statement of Facts</h2>
+              </div>
+              {!activeSof ? (
+                <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" asChild>
+                  <Link href={`/sof?voyageId=${voyageId}`}>
+                    <Plus className="w-3 h-3" /> Create SOF
+                  </Link>
+                </Button>
+              ) : (
+                <Link href={`/sof/${activeSof.id}`}>
+                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs">View SOF →</Button>
+                </Link>
+              )}
+            </div>
+            {!activeSof ? (
+              <p className="text-xs text-muted-foreground text-center py-2">
+                No Statement of Facts created for this voyage yet.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Status</span>
+                  <Badge className={
+                    activeSof.status === "final" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                    activeSof.status === "draft" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                    "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                  }>{activeSof.status}</Badge>
+                </div>
+                {activeSof.vesselName && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Vessel</span>
+                    <span>{activeSof.vesselName}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+
           {/* Liman Koşulları */}
           <div className="space-y-2">
             <div className="flex items-center gap-2 px-1">
@@ -1368,7 +1421,7 @@ export default function VoyageDetail() {
                 <FileText className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
                 <h2 className="font-semibold text-sm">Proforma Disbursement Accounts</h2>
               </div>
-              <Link href="/proformas/new">
+              <Link href={`/proformas/new?voyageId=${voyageId}`}>
                 <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" data-testid="button-create-pda">
                   <Plus className="w-3 h-3" /> Create PDA
                 </Button>
@@ -1377,7 +1430,7 @@ export default function VoyageDetail() {
             <div className="text-center py-6 text-muted-foreground" data-testid="section-pdas">
               <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
               <p className="text-sm">Create a Proforma Disbursement Account for this voyage.</p>
-              <Link href="/proformas/new">
+              <Link href={`/proformas/new?voyageId=${voyageId}`}>
                 <Button size="sm" variant="default" className="mt-3 gap-1.5" data-testid="button-create-pda-cta">
                   <Plus className="w-3.5 h-3.5" /> New PDA
                 </Button>

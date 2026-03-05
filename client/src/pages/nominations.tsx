@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { UserCheck, Clock, CheckCircle2, XCircle, Ship, MapPin, Calendar, ChevronRight, Loader2, Plus, HelpCircle } from "lucide-react";
+import { UserCheck, Clock, CheckCircle2, XCircle, Ship, MapPin, Calendar, ChevronRight, Loader2, Plus, HelpCircle, FileText } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -122,6 +122,22 @@ function NominationCard({ nom, role, onRespond }: { nom: any; role: "sent" | "re
             data-testid={`button-create-voyage-${nom.id}`}
           >
             <Ship className="w-3.5 h-3.5" /> Create Voyage from Nomination
+          </Button>
+        </div>
+      )}
+
+      {nom.status === "accepted" && role === "sent" && (
+        <div className="pt-1">
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full h-8 text-xs gap-1.5 border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+            asChild
+            data-testid={`button-create-pda-nomination-${nom.id}`}
+          >
+            <Link href="/proformas/new">
+              <FileText className="w-3.5 h-3.5" /> Create PDA for This Port Call
+            </Link>
           </Button>
         </div>
       )}
