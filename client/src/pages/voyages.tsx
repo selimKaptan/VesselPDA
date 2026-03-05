@@ -25,6 +25,15 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
   cancelled: { label: "Cancelled",  color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",        icon: XCircle },
 };
 
+// Port call operational stage — derived from voyage.status
+// If a dedicated portCallStage field is added to the voyage table in the future, extend this config
+const PORT_CALL_STAGE: Record<string, { label: string; dot: string; text: string }> = {
+  planned:   { label: "Pre-Arrival", dot: "bg-blue-400",   text: "text-blue-400"   },
+  active:    { label: "In Port",     dot: "bg-green-400",  text: "text-green-400"  },
+  completed: { label: "Departed",    dot: "bg-slate-400",  text: "text-slate-400"  },
+  cancelled: { label: "Cancelled",   dot: "bg-red-400",    text: "text-red-400"    },
+};
+
 const PURPOSE_OPTIONS = ["Loading", "Discharging", "Transit", "Bunkering", "Repair", "Crew Change", "Inspection"];
 
 const FLAG_EMOJI: Record<string, string> = {
@@ -306,10 +315,22 @@ export default function Voyages() {
                     )}
                   </div>
 
-                  <div className="flex items-center justify-end mt-3 text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                    <span className="text-xs font-medium">Detaylar</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </div>
+                  {/* Port call operational stage badge */}
+                  {(() => {
+                    const stage = PORT_CALL_STAGE[v.status] || PORT_CALL_STAGE.planned;
+                    return (
+                      <div className="flex items-center justify-between pt-1.5 border-t border-dashed border-border/50 mt-1.5">
+                        <div className="flex items-center gap-1.5" data-testid={`badge-stage-${v.id}`}>
+                          <span className={`inline-flex h-1.5 w-1.5 rounded-full ${stage.dot}`} />
+                          <span className={`text-[11px] font-semibold ${stage.text}`}>{stage.label}</span>
+                        </div>
+                        <div className="flex items-center text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="text-xs font-medium">Detaylar</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </Card>
               </Link>
             );

@@ -86,10 +86,10 @@ function getDateTag(dt: string | null | undefined): {
   const label = new Date(dt).toLocaleDateString("en-GB", {
     day: "2-digit", month: "short", year: "numeric",
   });
-  if (days > 1)   return { label, relText: `in ${days} days`,       color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" };
-  if (days === 1) return { label, relText: "Tomorrow",               color: "text-sky-400 bg-sky-500/10 border-sky-500/20"           };
-  if (days === 0) return { label, relText: "Today",                  color: "text-amber-400 bg-amber-500/10 border-amber-500/20"     };
-  return            { label, relText: `${Math.abs(days)} days ago`, color: "text-muted-foreground bg-muted/30 border-border"        };
+  if (days > 3)  return { label, relText: `in ${days} days`,        color: "text-slate-300 bg-slate-700/50 border-slate-600/30"   };
+  if (days > 0)  return { label, relText: days === 1 ? "Tomorrow" : `in ${days} days`, color: "text-orange-400 bg-orange-500/20 border-orange-500/20" };
+  if (days === 0) return { label, relText: "Today",                  color: "text-red-400 bg-red-500/20 border-red-500/20"          };
+  return            { label, relText: `${Math.abs(days)} days ago`, color: "text-red-400 bg-red-500/20 border-red-500/20"          };
 }
 
 function PortSearch({ value, onChange }: { value: string; onChange: (portId: number, portName: string) => void }) {
