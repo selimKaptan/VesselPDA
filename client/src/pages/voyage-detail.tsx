@@ -175,7 +175,10 @@ export default function VoyageDetail() {
   const [noteTitle, setNoteTitle] = useState("");
   const [noteDesc, setNoteDesc] = useState("");
   const [showAddLogDialog, setShowAddLogDialog] = useState(false);
-  const [logForm, setLogForm] = useState({ fromTime: "", toTime: "", amountHandled: 0, remarks: "", receiverId: "", logType: "operation" });
+  const [logForm, setLogForm] = useState<{
+    fromTime: string; toTime: string; logType: string; remarks: string; delayReason: string; delayNotes: string;
+    receiverEntries: Record<number, { amount: string; trucks: string }>;
+  }>({ fromTime: "", toTime: "", logType: "operation", remarks: "", delayReason: "", delayNotes: "", receiverEntries: {} });
   const [showAddReceiverDialog, setShowAddReceiverDialog] = useState(false);
   const [receiverForm, setReceiverForm] = useState({ name: "", allocatedMt: 0 });
   const [docFilter, setDocFilter] = useState<string>("all");
@@ -601,24 +604,43 @@ export default function VoyageDetail() {
   });
 
   const addCargoLogMutation = useMutation({
-    mutationFn: () => apiRequest("POST", `/api/voyages/${voyageId}/cargo-logs`, {
-      fromTime: logForm.fromTime ? new Date(logForm.fromTime).toISOString() : undefined,
-      toTime: logForm.toTime ? new Date(logForm.toTime).toISOString() : undefined,
-      amountHandled: Number(logForm.amountHandled),
-      receiverId: logForm.receiverId ? Number(logForm.receiverId) : undefined,
-      remarks: logForm.remarks,
-      logType: logForm.logType,
-    }),
+    mutationFn: () => {
+      const fromIso = logForm.fromTime ? new Date(logForm.fromTime).toISOString() : undefined;
+      const toIso = logForm.toTime ? new Date(logForm.toTime).toISOString() : undefined;
+      if (logForm.logType === "operation") {
+        const entries = Object.entries(logForm.receiverEntries)
+          .filter(([, v]) => v.amount && parseFloat(v.amount) > 0)
+          .map(([rId, v]) => ({
+            receiverId: Number(rId),
+            amountHandled: parseFloat(v.amount),
+            truckCount: v.trucks ? parseInt(v.trucks) : undefined,
+          }));
+        return apiRequest("POST", `/api/voyages/${voyageId}/cargo-logs`, {
+          fromTime: fromIso, toTime: toIso, logType: "operation", entries,
+        });
+      } else {
+        const fullReason = logForm.delayReason + (logForm.delayNotes ? `: ${logForm.delayNotes}` : "");
+        return apiRequest("POST", `/api/voyages/${voyageId}/cargo-logs`, {
+          fromTime: fromIso, toTime: toIso, logType: "delay",
+          amountHandled: 0, remarks: fullReason,
+        });
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-logs"] });
       setShowAddLogDialog(false);
-      setLogForm({ fromTime: "", toTime: "", amountHandled: 0, remarks: "", receiverId: "", logType: "operation" });
+      setLogForm({ fromTime: "", toTime: "", logType: "operation", remarks: "", delayReason: "", delayNotes: "", receiverEntries: {} });
       toast({ title: "Log added" });
     },
   });
 
   const deleteCargoLogMutation = useMutation({
     mutationFn: (logId: number) => apiRequest("DELETE", `/api/voyages/${voyageId}/cargo-logs/${logId}`, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-logs"] }),
+  });
+
+  const deleteBatchMutation = useMutation({
+    mutationFn: (batchId: string) => apiRequest("DELETE", `/api/voyages/${voyageId}/cargo-logs/batch/${batchId}`, {}),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-logs"] }),
   });
 
@@ -1463,19 +1485,25 @@ export default function VoyageDetail() {
           return h > 0 ? `in ~${h}h ${m}m` : `in ~${m}m`;
         })();
 
-        // Active receiver (from most recent log)
-        const lastLog = cargoLogs.length > 0 ? cargoLogs[cargoLogs.length - 1] : null;
-        const activeReceiverName = lastLog?.receiverId
-          ? receivers.find((r: any) => r.id === lastLog.receiverId)?.name ?? null
-          : null;
+        // Group logs by batchId for table display
+        const batchMap = new Map<string, any[]>();
+        cargoLogs.forEach((log: any) => {
+          const key = log.batchId || String(log.id);
+          if (!batchMap.has(key)) batchMap.set(key, []);
+          batchMap.get(key)!.push(log);
+        });
+        const groupedLogs = Array.from(batchMap.values());
 
-        // Modal period rate
-        const periodHours = logForm.fromTime && logForm.toTime
-          ? (new Date(logForm.toTime).getTime() - new Date(logForm.fromTime).getTime()) / 3_600_000
-          : 0;
-        const periodRate = periodHours > 0 && logForm.amountHandled > 0
-          ? parseFloat((logForm.amountHandled / periodHours).toFixed(1))
-          : 0;
+        // Active receivers from last batch
+        const lastBatch = groupedLogs.length > 0 ? groupedLogs[groupedLogs.length - 1] : null;
+        const activeReceiverNames = lastBatch
+          ? lastBatch
+              .filter((l: any) => l.receiverId && l.logType !== "delay")
+              .map((l: any) => receivers.find((r: any) => r.id === l.receiverId)?.name)
+              .filter(Boolean)
+              .join(" & ") || null
+          : null;
+        const lastBatchFromTime = lastBatch?.[0]?.fromTime ?? null;
 
         return (
           <div className="space-y-5" data-testid="tab-content-cargo-ops">
@@ -1492,16 +1520,16 @@ export default function VoyageDetail() {
               </div>
 
               {/* Active Status Banner */}
-              {lastLog && (
+              {lastBatch && (
                 <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-green-500/40 bg-green-500/[0.08]">
                   <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse flex-shrink-0" />
                   <span className="text-xs font-bold text-green-400 uppercase tracking-widest">
                     Currently {voyage?.purposeOfCall ?? "Operating"}
-                    {activeReceiverName ? `: ${activeReceiverName}` : ""}
+                    {activeReceiverNames ? `: ${activeReceiverNames}` : ""}
                   </span>
-                  {lastLog.fromTime && (
+                  {lastBatchFromTime && (
                     <span className="ml-auto text-[10px] text-green-400/60 whitespace-nowrap">
-                      Since {new Date(lastLog.fromTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                      Since {new Date(lastBatchFromTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
                     </span>
                   )}
                 </div>
@@ -1651,7 +1679,7 @@ export default function VoyageDetail() {
                 </Button>
               </div>
 
-              {cargoLogs.length === 0 ? (
+              {groupedLogs.length === 0 ? (
                 <div className="text-center py-10 text-muted-foreground text-sm">
                   No logs yet. Add an operation log to start tracking cargo progress.
                 </div>
@@ -1662,7 +1690,7 @@ export default function VoyageDetail() {
                       <tr className="border-b border-border/60 text-xs text-muted-foreground">
                         <th className="text-left py-2 pr-4 font-semibold whitespace-nowrap">Period (From → To)</th>
                         <th className="text-left py-2 pr-4 font-semibold">Receiver</th>
-                        <th className="text-right py-2 pr-4 font-semibold whitespace-nowrap">Handled (MT)</th>
+                        <th className="text-right py-2 pr-4 font-semibold whitespace-nowrap">Handled (MT & Trucks)</th>
                         <th className="text-right py-2 pr-4 font-semibold whitespace-nowrap">Period Rate</th>
                         <th className="text-right py-2 pr-4 font-semibold whitespace-nowrap">Cumulative</th>
                         <th className="text-left py-2 pr-4 font-semibold">Remarks</th>
@@ -1670,78 +1698,105 @@ export default function VoyageDetail() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/30">
-                      {cargoLogs.map((log: any, idx: number) => {
-                        const isDelay = log.logType === "delay";
+                      {groupedLogs.map((batch: any[], batchIdx: number) => {
+                        const rep = batch[0];
+                        const isDelay = rep.logType === "delay";
+                        const isTruckWait = isDelay && (rep.remarks || "").toLowerCase().includes("waiting_for_trucks");
                         const fmtDT = (dt: string) => new Date(dt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) + " " + new Date(dt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
                         const fmtTime = (dt: string) => new Date(dt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-                        const receiverIdx = log.receiverId != null ? (receiverIndexMap[log.receiverId] ?? 0) : -1;
-                        const logReceiverName = log.receiverId != null ? receivers.find((r: any) => r.id === log.receiverId)?.name : null;
-                        const badgeColor = receiverIdx >= 0 ? BADGE_COLORS[receiverIdx % BADGE_COLORS.length] : "";
-                        const logHours = log.fromTime && log.toTime
-                          ? (new Date(log.toTime).getTime() - new Date(log.fromTime).getTime()) / 3_600_000
+                        const batchMt = batch.reduce((s: number, l: any) => s + (l.amountHandled || 0), 0);
+                        const batchTrucks = batch.reduce((s: number, l: any) => s + (l.truckCount || 0), 0);
+                        const logHours = rep.fromTime && rep.toTime
+                          ? (new Date(rep.toTime).getTime() - new Date(rep.fromTime).getTime()) / 3_600_000
                           : 0;
-                        const logRate = logHours > 0 ? parseFloat((log.amountHandled / logHours).toFixed(1)) : null;
-                        const prevLog = idx > 0 ? cargoLogs[idx - 1] : null;
-                        const prevLogHours = prevLog?.fromTime && prevLog?.toTime
-                          ? (new Date(prevLog.toTime).getTime() - new Date(prevLog.fromTime).getTime()) / 3_600_000
+                        const batchRate = logHours > 0 && batchMt > 0 ? parseFloat((batchMt / logHours).toFixed(1)) : null;
+                        const prevBatch = batchIdx > 0 ? groupedLogs[batchIdx - 1] : null;
+                        const prevMt = prevBatch ? prevBatch.reduce((s: number, l: any) => s + (l.amountHandled || 0), 0) : 0;
+                        const prevHours = prevBatch?.[0]?.fromTime && prevBatch?.[0]?.toTime
+                          ? (new Date(prevBatch[0].toTime).getTime() - new Date(prevBatch[0].fromTime).getTime()) / 3_600_000
                           : 0;
-                        const prevLogRate = prevLogHours > 0 ? parseFloat((prevLog.amountHandled / prevLogHours).toFixed(1)) : 0;
-                        const rateTrend = logRate && prevLogRate > 0
-                          ? (logRate > prevLogRate ? "up" : logRate < prevLogRate ? "down" : "flat")
+                        const prevRate = prevHours > 0 && prevMt > 0 ? parseFloat((prevMt / prevHours).toFixed(1)) : 0;
+                        const rateTrend = batchRate && prevRate > 0
+                          ? (batchRate > prevRate ? "up" : batchRate < prevRate ? "down" : "flat")
                           : null;
-                        const periodLabel = log.fromTime && log.toTime
-                          ? `${fmtDT(log.fromTime)} → ${fmtTime(log.toTime)}`
-                          : log.logDate
-                          ? new Date(log.logDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+                        const periodLabel = rep.fromTime && rep.toTime
+                          ? `${fmtDT(rep.fromTime)} → ${fmtTime(rep.toTime)}`
+                          : rep.logDate
+                          ? new Date(rep.logDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
                           : "—";
+                        const batchKey = rep.batchId || String(rep.id);
+
+                        let rowBg = "hover:bg-muted/20";
+                        if (isTruckWait) rowBg = "bg-amber-900/20 hover:bg-amber-900/30";
+                        else if (isDelay) rowBg = "bg-red-900/20 hover:bg-red-900/30";
 
                         return (
-                          <tr key={log.id}
-                            className={`transition-colors ${isDelay ? "bg-red-900/20 hover:bg-red-900/30" : "hover:bg-muted/20"}`}
-                            data-testid={`row-cargo-log-${log.id}`}>
+                          <tr key={batchKey}
+                            className={`transition-colors ${rowBg}`}
+                            data-testid={`row-cargo-batch-${batchKey}`}>
                             <td className="py-2.5 pr-4 text-xs whitespace-nowrap">
                               <div className="flex items-center gap-1.5">
-                                {isDelay && <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />}
+                                {isTruckWait && <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />}
+                                {isDelay && !isTruckWait && <AlertTriangle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />}
                                 <span>{periodLabel}</span>
                               </div>
                             </td>
                             <td className="py-2.5 pr-4">
-                              {logReceiverName ? (
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badgeColor}`}>
-                                  {logReceiverName}
-                                </span>
+                              {isDelay ? (
+                                <span className="text-xs text-muted-foreground">—</span>
                               ) : (
-                                <span className="text-xs text-muted-foreground">General</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {batch.filter((l: any) => l.receiverId).map((l: any) => {
+                                    const rName = receivers.find((r: any) => r.id === l.receiverId)?.name;
+                                    const rIdx = receiverIndexMap[l.receiverId] ?? 0;
+                                    const bc = BADGE_COLORS[rIdx % BADGE_COLORS.length];
+                                    return rName ? (
+                                      <span key={l.id} className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${bc}`}>
+                                        {rName}
+                                      </span>
+                                    ) : null;
+                                  })}
+                                  {batch.every((l: any) => !l.receiverId) && (
+                                    <span className="text-xs text-muted-foreground">General</span>
+                                  )}
+                                </div>
                               )}
                             </td>
                             <td className="text-right py-2.5 pr-4 font-mono font-semibold whitespace-nowrap">
                               {isDelay ? (
-                                <span className="text-amber-400 text-xs font-semibold">
-                                  DELAY: {log.remarks || "Stoppage"}
+                                <span className={`text-xs font-semibold ${isTruckWait ? "text-amber-400" : "text-red-400"}`}>
+                                  {rep.remarks?.replace("waiting_for_trucks", "Waiting for Trucks") || "Stoppage"}
                                 </span>
                               ) : (
-                                <span className="text-green-400">{log.amountHandled?.toLocaleString()}</span>
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <span className="text-green-400">{batchMt.toLocaleString()} MT</span>
+                                  {batchTrucks > 0 && (
+                                    <span className="text-[10px] text-muted-foreground font-normal">({batchTrucks} Trucks)</span>
+                                  )}
+                                </div>
                               )}
                             </td>
                             <td className="text-right py-2.5 pr-4 font-mono text-xs whitespace-nowrap">
-                              {logRate && !isDelay ? (
+                              {batchRate && !isDelay ? (
                                 <span className={`flex items-center justify-end gap-1 ${rateTrend === "up" ? "text-green-400" : rateTrend === "down" ? "text-red-400" : "text-sky-300"}`}>
                                   {rateTrend === "up" && <TrendingUp className="w-3 h-3" />}
                                   {rateTrend === "down" && <TrendingDown className="w-3 h-3" />}
-                                  {logRate.toLocaleString()} MT/H
+                                  {batchRate.toLocaleString()} MT/H
                                 </span>
                               ) : "—"}
                             </td>
                             <td className="text-right py-2.5 pr-4 font-mono text-muted-foreground text-xs">
-                              {log.cumulativeTotal ? log.cumulativeTotal.toLocaleString() : "—"}
+                              {rep.cumulativeTotal ? rep.cumulativeTotal.toLocaleString() : "—"}
                             </td>
                             <td className="py-2.5 pr-4 text-muted-foreground text-xs max-w-[140px] truncate">
-                              {isDelay ? "" : (log.remarks || "—")}
+                              {isDelay ? "" : (rep.remarks || "—")}
                             </td>
                             <td className="py-2.5 text-right">
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                                onClick={() => deleteCargoLogMutation.mutate(log.id)}
-                                data-testid={`button-delete-log-${log.id}`}>
+                                onClick={() => rep.batchId
+                                  ? deleteBatchMutation.mutate(rep.batchId)
+                                  : deleteCargoLogMutation.mutate(rep.id)}
+                                data-testid={`button-delete-batch-${batchKey}`}>
                                 <Trash2 className="w-3.5 h-3.5" />
                               </Button>
                             </td>
@@ -1755,89 +1810,183 @@ export default function VoyageDetail() {
             </Card>
 
             {/* ── Add Operation Log Dialog ─────────── */}
-            <Dialog open={showAddLogDialog} onOpenChange={v => { setShowAddLogDialog(v); if (!v) setLogForm({ fromTime: "", toTime: "", amountHandled: 0, remarks: "", receiverId: "", logType: "operation" }); }}>
-              <DialogContent className="max-w-md">
-                <DialogHeader><DialogTitle>Add Operation Log</DialogTitle></DialogHeader>
-                <div className="space-y-3 py-2">
-                  {/* Log Type */}
-                  <div>
-                    <Label className="text-xs">Log Type</Label>
-                    <Select value={logForm.logType} onValueChange={v => setLogForm(f => ({ ...f, logType: v }))}>
-                      <SelectTrigger className="h-9 text-xs" data-testid="select-log-type"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="operation">Operation (Cargo Handling)</SelectItem>
-                        <SelectItem value="delay">Delay / Stoppage</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {/* From / To datetime */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs">From *</Label>
-                      <Input type="datetime-local" value={logForm.fromTime}
-                        onChange={e => setLogForm(f => ({ ...f, fromTime: e.target.value }))}
-                        className="text-xs h-9"
-                        data-testid="input-log-from-time" />
+            {(() => {
+              const periodHours = logForm.fromTime && logForm.toTime
+                ? (new Date(logForm.toTime).getTime() - new Date(logForm.fromTime).getTime()) / 3_600_000
+                : 0;
+              const totalEntryMt = Object.values(logForm.receiverEntries).reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+              const modalRate = periodHours > 0 && totalEntryMt > 0
+                ? parseFloat((totalEntryMt / periodHours).toFixed(1))
+                : 0;
+              const canSubmit = !!logForm.fromTime && !!logForm.toTime &&
+                (logForm.logType === "operation"
+                  ? totalEntryMt > 0
+                  : !!logForm.delayReason);
+
+              return (
+                <Dialog open={showAddLogDialog} onOpenChange={v => {
+                  setShowAddLogDialog(v);
+                  if (!v) setLogForm({ fromTime: "", toTime: "", logType: "operation", remarks: "", delayReason: "", delayNotes: "", receiverEntries: {} });
+                }}>
+                  <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+                    <DialogHeader><DialogTitle>Add Operation Log</DialogTitle></DialogHeader>
+                    <div className="space-y-4 py-2">
+
+                      {/* Log Type */}
+                      <div>
+                        <Label className="text-xs">Log Type</Label>
+                        <Select value={logForm.logType} onValueChange={v => setLogForm(f => ({ ...f, logType: v }))}>
+                          <SelectTrigger className="h-9 text-xs" data-testid="select-log-type"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="operation">Operation (Cargo Handling)</SelectItem>
+                            <SelectItem value="delay">Delay / Stoppage</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* From / To */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs">From *</Label>
+                          <Input type="datetime-local" value={logForm.fromTime}
+                            onChange={e => setLogForm(f => ({ ...f, fromTime: e.target.value }))}
+                            className="text-xs h-9" data-testid="input-log-from-time" />
+                        </div>
+                        <div>
+                          <Label className="text-xs">To *</Label>
+                          <Input type="datetime-local" value={logForm.toTime}
+                            onChange={e => setLogForm(f => ({ ...f, toTime: e.target.value }))}
+                            className="text-xs h-9" data-testid="input-log-to-time" />
+                        </div>
+                      </div>
+
+                      {/* ── OPERATION MODE: multi-receiver grid ─────────── */}
+                      {logForm.logType === "operation" && (
+                        <div className="space-y-2">
+                          <Label className="text-xs">Cargo Delivered by Receiver</Label>
+                          {receivers.length === 0 ? (
+                            <p className="text-xs text-muted-foreground italic py-2">No receivers configured — add cargo parcels first.</p>
+                          ) : (
+                            <div className="rounded-lg border border-border/60 divide-y divide-border/40 overflow-hidden">
+                              {/* Header row */}
+                              <div className="grid grid-cols-[1fr_120px_100px] gap-2 px-3 py-1.5 bg-muted/30 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                                <span>Receiver</span>
+                                <span className="text-right">Amount (MT)</span>
+                                <span className="text-right">Trucks #</span>
+                              </div>
+                              {receivers.map((r: any, rIdx: number) => {
+                                const entry = logForm.receiverEntries[r.id] || { amount: "", trucks: "" };
+                                const truckNum = parseInt(entry.trucks) || 0;
+                                const truckEst = truckNum > 0 ? truckNum * 24 : 0;
+                                const rColor = BADGE_COLORS[rIdx % BADGE_COLORS.length];
+                                return (
+                                  <div key={r.id} className="grid grid-cols-[1fr_120px_100px] gap-2 px-3 py-2 items-start">
+                                    <div className="pt-1.5">
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${rColor}`}>
+                                        {r.name}
+                                      </span>
+                                      <div className="text-[10px] text-muted-foreground/60 mt-0.5">
+                                        Alloc: {r.allocatedMt.toLocaleString()} MT
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <Input
+                                        type="number" min={0} placeholder="0"
+                                        value={entry.amount}
+                                        onChange={e => setLogForm(f => ({
+                                          ...f,
+                                          receiverEntries: { ...f.receiverEntries, [r.id]: { ...entry, amount: e.target.value } }
+                                        }))}
+                                        className="h-8 text-xs text-right"
+                                        data-testid={`input-receiver-amount-${r.id}`}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Input
+                                        type="number" min={0} placeholder="—"
+                                        value={entry.trucks}
+                                        onChange={e => setLogForm(f => ({
+                                          ...f,
+                                          receiverEntries: { ...f.receiverEntries, [r.id]: { ...entry, trucks: e.target.value } }
+                                        }))}
+                                        className="h-8 text-xs text-right"
+                                        data-testid={`input-receiver-trucks-${r.id}`}
+                                      />
+                                      {truckEst > 0 && (
+                                        <p className="text-[10px] text-muted-foreground/60 text-right mt-0.5">Est: ~{truckEst} MT</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {modalRate > 0 && (
+                            <p className="text-xs text-amber-400 font-medium">
+                              ✨ Period rate: {modalRate.toLocaleString()} MT/H ({totalEntryMt.toLocaleString()} MT total)
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* ── DELAY MODE: reason dropdown + notes ─────────── */}
+                      {logForm.logType === "delay" && (
+                        <div className="space-y-3">
+                          <div>
+                            <Label className="text-xs">Delay Reason *</Label>
+                            <Select value={logForm.delayReason} onValueChange={v => setLogForm(f => ({ ...f, delayReason: v }))}>
+                              <SelectTrigger
+                                className={`h-9 text-xs ${logForm.delayReason === "waiting_for_trucks" ? "border-amber-500/60 ring-1 ring-amber-500/30" : ""}`}
+                                data-testid="select-delay-reason"
+                              >
+                                <SelectValue placeholder="Select reason..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="waiting_for_trucks">
+                                  ⚠ Waiting for Trucks / Tankers
+                                </SelectItem>
+                                <SelectItem value="Rain / Weather">Rain / Weather</SelectItem>
+                                <SelectItem value="Equipment Breakdown">Equipment Breakdown</SelectItem>
+                                <SelectItem value="Shift Change">Shift Change</SelectItem>
+                                <SelectItem value="Customs / Inspection">Customs / Inspection</SelectItem>
+                                <SelectItem value="Hatch Shifting">Hatch Shifting</SelectItem>
+                                <SelectItem value="Other">Other</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {logForm.delayReason === "waiting_for_trucks" && (
+                              <p className="text-[11px] text-amber-400 mt-1.5 font-medium">
+                                ⚠ This stoppage will be highlighted in the log table.
+                              </p>
+                            )}
+                          </div>
+                          <div>
+                            <Label className="text-xs">Additional Notes (optional)</Label>
+                            <Textarea
+                              value={logForm.delayNotes}
+                              onChange={e => setLogForm(f => ({ ...f, delayNotes: e.target.value }))}
+                              placeholder="e.g. 15 trucks pending at gate..." rows={2}
+                              data-testid="input-delay-notes"
+                            />
+                          </div>
+                        </div>
+                      )}
+
                     </div>
-                    <div>
-                      <Label className="text-xs">To *</Label>
-                      <Input type="datetime-local" value={logForm.toTime}
-                        onChange={e => setLogForm(f => ({ ...f, toTime: e.target.value }))}
-                        className="text-xs h-9"
-                        data-testid="input-log-to-time" />
-                    </div>
-                  </div>
-
-                  {/* Receiver */}
-                  <div>
-                    <Label className="text-xs">Receiver / Cargo</Label>
-                    <Select value={logForm.receiverId || "none"} onValueChange={v => setLogForm(f => ({ ...f, receiverId: v === "none" ? "" : v }))}>
-                      <SelectTrigger className="h-9 text-xs" data-testid="select-log-receiver"><SelectValue placeholder="None / General" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None / General</SelectItem>
-                        {receivers.map((r: any) => (
-                          <SelectItem key={r.id} value={String(r.id)}>{r.name} ({r.allocatedMt.toLocaleString()} MT)</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Amount */}
-                  <div>
-                    <Label className="text-xs">Amount Handled (MT) *</Label>
-                    <Input type="number" min={0} value={logForm.amountHandled || ""}
-                      onChange={e => setLogForm(f => ({ ...f, amountHandled: parseFloat(e.target.value) || 0 }))}
-                      className="h-9"
-                      data-testid="input-log-amount" />
-                    {periodRate > 0 && (
-                      <p className="mt-1.5 text-xs text-amber-400 font-medium">
-                        ✨ Rate for this period: {periodRate.toLocaleString()} MT/H
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Remarks */}
-                  <div>
-                    <Label className="text-xs">Remarks</Label>
-                    <Textarea value={logForm.remarks}
-                      onChange={e => setLogForm(f => ({ ...f, remarks: e.target.value }))}
-                      placeholder="Notes about this period..." rows={2}
-                      data-testid="input-log-remarks" />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setShowAddLogDialog(false)}>Cancel</Button>
-                  <Button
-                    onClick={() => addCargoLogMutation.mutate()}
-                    disabled={!logForm.fromTime || !logForm.toTime || !logForm.amountHandled || addCargoLogMutation.isPending}
-                    data-testid="button-save-cargo-log"
-                  >
-                    {addCargoLogMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                    Save Log
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowAddLogDialog(false)}>Cancel</Button>
+                      <Button
+                        onClick={() => addCargoLogMutation.mutate()}
+                        disabled={!canSubmit || addCargoLogMutation.isPending}
+                        data-testid="button-save-cargo-log"
+                      >
+                        {addCargoLogMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                        Save Log
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              );
+            })()}
 
             {/* ── Add Receiver Dialog ───────────────── */}
             <Dialog open={showAddReceiverDialog} onOpenChange={v => { setShowAddReceiverDialog(v); if (!v) setReceiverForm({ name: "", allocatedMt: 0 }); }}>

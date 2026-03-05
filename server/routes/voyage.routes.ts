@@ -7,7 +7,7 @@ import { insertVoyageSchema } from "@shared/schema";
 import { emitToUser, emitToVoyage } from "../socket";
 import { logAction, getClientIp } from "../audit";
 import { db } from "../db";
-import { eq, desc, asc } from "drizzle-orm";
+import { eq, desc, asc, inArray } from "drizzle-orm";
 import multer from "multer";
 import { logVoyageActivity } from "../voyage-activity";
 import { voyageActivities, voyageCargoLogs, voyageCargoReceivers, voyages } from "@shared/schema";
@@ -572,23 +572,54 @@ router.post("/:id/cargo-logs", isAuthenticated, async (req: any, res) => {
   try {
     const voyageId = parseInt(req.params.id);
     const userId = req.user?.claims?.sub || req.user?.id;
-    const { logDate, shift, fromTime, toTime, receiverId, amountHandled, cumulativeTotal, remarks, logType } = req.body;
-    if (amountHandled == null) return res.status(400).json({ message: "amountHandled required" });
+    const { logDate, shift, fromTime, toTime, remarks, logType, entries, amountHandled, receiverId, truckCount } = req.body;
+    const resolvedLogType = logType || "operation";
+    const batchId = crypto.randomUUID();
+    const fromDt = fromTime ? new Date(fromTime) : (logDate ? new Date(logDate) : new Date());
+    const toDt = toTime ? new Date(toTime) : undefined;
+
+    // Operation with multi-receiver entries array
+    if (resolvedLogType === "operation" && Array.isArray(entries) && entries.length > 0) {
+      const validEntries = entries.filter((e: any) => e.amountHandled && Number(e.amountHandled) > 0);
+      if (validEntries.length === 0) return res.status(400).json({ message: "At least one entry with amount required" });
+      const rows = await db.insert(voyageCargoLogs).values(
+        validEntries.map((e: any) => ({
+          voyageId,
+          logDate: fromDt,
+          shift: shift || null,
+          fromTime: fromDt,
+          toTime: toDt,
+          receiverId: e.receiverId ? Number(e.receiverId) : undefined,
+          amountHandled: Number(e.amountHandled),
+          truckCount: e.truckCount ? Number(e.truckCount) : undefined,
+          batchId,
+          logType: resolvedLogType,
+          remarks: remarks || null,
+          createdBy: userId,
+        }))
+      ).returning();
+      return res.status(201).json(rows);
+    }
+
+    // Delay or legacy single-entry
+    const singleAmount = amountHandled != null ? Number(amountHandled) : 0;
     const [log] = await db.insert(voyageCargoLogs).values({
       voyageId,
-      logDate: fromTime ? new Date(fromTime) : (logDate ? new Date(logDate) : new Date()),
+      logDate: fromDt,
       shift: shift || null,
-      fromTime: fromTime ? new Date(fromTime) : undefined,
-      toTime: toTime ? new Date(toTime) : undefined,
+      fromTime: fromDt,
+      toTime: toDt,
       receiverId: receiverId ? Number(receiverId) : undefined,
-      amountHandled: Number(amountHandled),
-      cumulativeTotal: cumulativeTotal != null ? Number(cumulativeTotal) : undefined,
-      logType: logType || "operation",
+      amountHandled: singleAmount,
+      truckCount: truckCount ? Number(truckCount) : undefined,
+      batchId,
+      logType: resolvedLogType,
       remarks: remarks || null,
       createdBy: userId,
     }).returning();
-    res.status(201).json(log);
-  } catch {
+    res.status(201).json([log]);
+  } catch (err) {
+    console.error("cargo-logs POST error:", err);
     res.status(500).json({ message: "Failed to create cargo log" });
   }
 });
@@ -599,6 +630,16 @@ router.delete("/:id/cargo-logs/:logId", isAuthenticated, async (req: any, res) =
     res.json({ ok: true });
   } catch {
     res.status(500).json({ message: "Failed to delete cargo log" });
+  }
+});
+
+// Delete all logs in a batch (by batchId)
+router.delete("/:id/cargo-logs/batch/:batchId", isAuthenticated, async (req: any, res) => {
+  try {
+    await db.delete(voyageCargoLogs).where(eq(voyageCargoLogs.batchId, req.params.batchId));
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ message: "Failed to delete cargo log batch" });
   }
 });
 

@@ -451,6 +451,8 @@ export const voyageCargoLogs = pgTable("voyage_cargo_logs", {
   toTime: timestamp("to_time"),
   receiverId: integer("receiver_id").references(() => voyageCargoReceivers.id, { onDelete: "set null" }),
   amountHandled: real("amount_handled").notNull(),
+  truckCount: integer("truck_count"),
+  batchId: varchar("batch_id"),
   cumulativeTotal: real("cumulative_total"),
   logType: text("log_type").default("operation"),
   remarks: text("remarks"),
