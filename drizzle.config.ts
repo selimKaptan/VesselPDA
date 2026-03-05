@@ -28,5 +28,11 @@ export default defineConfig({
     "vessel_q88", "vessels", "vessel_watchlist", "voyage_activities",
     "voyage_chat_messages", "voyage_checklists", "voyage_collaborators",
     "voyage_documents", "voyage_reviews", "voyages",
+    "pilotage_tariffs", "external_pilotage_tariffs", "agency_fees",
+    "marpol_tariffs", "lcb_tariffs", "tonnage_tariffs", "cargo_handling_tariffs",
+    "berthing_tariffs", "supervision_fees", "custom_tariff_sections",
+    "custom_tariff_entries", "misc_expenses", "chamber_freight_share",
+    "harbour_master_dues", "sanitary_dues", "vts_fees",
+    "port_authority_fees", "other_services",
   ],
 });
