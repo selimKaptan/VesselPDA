@@ -7,10 +7,10 @@ import { insertVoyageSchema } from "@shared/schema";
 import { emitToUser, emitToVoyage } from "../socket";
 import { logAction, getClientIp } from "../audit";
 import { db } from "../db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, asc } from "drizzle-orm";
 import multer from "multer";
 import { logVoyageActivity } from "../voyage-activity";
-import { voyageActivities } from "@shared/schema";
+import { voyageActivities, voyageCargoLogs, voyages } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import path from "path";
 import fs from "fs";
@@ -516,5 +516,59 @@ router.post("/:id/documents/:docId/new-version", isAuthenticated, async (req: an
   }
 });
 
+
+// ─── CARGO OPS ROUTES ─────────────────────────────────────────────────────────
+
+router.get("/:id/cargo-logs", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const logs = await db.select().from(voyageCargoLogs)
+      .where(eq(voyageCargoLogs.voyageId, voyageId))
+      .orderBy(asc(voyageCargoLogs.logDate));
+    res.json(logs);
+  } catch {
+    res.status(500).json({ message: "Failed to fetch cargo logs" });
+  }
+});
+
+router.post("/:id/cargo-logs", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const { logDate, shift, amountHandled, cumulativeTotal, remarks } = req.body;
+    if (!logDate || amountHandled == null) return res.status(400).json({ message: "logDate and amountHandled required" });
+    const [log] = await db.insert(voyageCargoLogs).values({
+      voyageId,
+      logDate: new Date(logDate),
+      shift: shift || "morning",
+      amountHandled: Number(amountHandled),
+      cumulativeTotal: cumulativeTotal != null ? Number(cumulativeTotal) : undefined,
+      remarks: remarks || null,
+      createdBy: userId,
+    }).returning();
+    res.status(201).json(log);
+  } catch {
+    res.status(500).json({ message: "Failed to create cargo log" });
+  }
+});
+
+router.delete("/:id/cargo-logs/:logId", isAuthenticated, async (req: any, res) => {
+  try {
+    await db.delete(voyageCargoLogs).where(eq(voyageCargoLogs.id, parseInt(req.params.logId)));
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ message: "Failed to delete cargo log" });
+  }
+});
+
+router.patch("/:id/cargo-total", isAuthenticated, async (req: any, res) => {
+  try {
+    const { cargoTotalMt } = req.body;
+    await db.update(voyages).set({ cargoTotalMt: Number(cargoTotalMt) }).where(eq(voyages.id, parseInt(req.params.id)));
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ message: "Failed to update cargo total" });
+  }
+});
 
 export default router;

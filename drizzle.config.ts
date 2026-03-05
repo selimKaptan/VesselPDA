@@ -35,5 +35,6 @@ export default defineConfig({
     "harbour_master_dues", "sanitary_dues", "vts_fees",
     "port_authority_fees", "other_services",
     "ai_analysis_history",
+    "voyage_cargo_logs",
   ],
 });

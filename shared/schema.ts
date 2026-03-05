@@ -396,6 +396,7 @@ export const voyages = pgTable("voyages", {
   etd: timestamp("etd"),
   purposeOfCall: text("purpose_of_call").notNull().default("Loading"),
   notes: text("notes"),
+  cargoTotalMt: real("cargo_total_mt"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -422,6 +423,28 @@ export const voyageChecklists = pgTable("voyage_checklists", {
 export const voyageChecklistRelations = relations(voyageChecklists, ({ one }) => ({
   voyage: one(voyages, { fields: [voyageChecklists.voyageId], references: [voyages.id] }),
 }));
+
+// ─── VOYAGE CARGO LOGS ────────────────────────────────────────────────────────
+
+export const voyageCargoLogs = pgTable("voyage_cargo_logs", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  logDate: timestamp("log_date").notNull(),
+  shift: text("shift").notNull().default("morning"),
+  amountHandled: real("amount_handled").notNull(),
+  cumulativeTotal: real("cumulative_total"),
+  remarks: text("remarks"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const voyageCargoLogRelations = relations(voyageCargoLogs, ({ one }) => ({
+  voyage: one(voyages, { fields: [voyageCargoLogs.voyageId], references: [voyages.id] }),
+}));
+
+export const insertVoyageCargoLogSchema = createInsertSchema(voyageCargoLogs).omit({ id: true, createdAt: true });
+export type InsertVoyageCargoLog = z.infer<typeof insertVoyageCargoLogSchema>;
+export type VoyageCargoLog = typeof voyageCargoLogs.$inferSelect;
 
 // ─── VOYAGE ACTIVITIES (ACTIVITY TIMELINE) ───────────────────────────────────
 

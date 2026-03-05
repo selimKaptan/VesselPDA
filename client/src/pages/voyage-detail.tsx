@@ -160,7 +160,7 @@ export default function VoyageDetail() {
   const [newTask, setNewTask] = useState("");
   const [chatMessage, setChatMessage] = useState("");
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "financial" | "activity" | "participants">("operation");
+  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "financial" | "activity" | "participants" | "cargo_ops">("operation");
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [inviteTab, setInviteTab] = useState<"email" | "directory" | "bulk">("email");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -173,6 +173,8 @@ export default function VoyageDetail() {
   const [showNoteDialog, setShowNoteDialog] = useState(false);
   const [noteTitle, setNoteTitle] = useState("");
   const [noteDesc, setNoteDesc] = useState("");
+  const [showAddLogDialog, setShowAddLogDialog] = useState(false);
+  const [logForm, setLogForm] = useState({ logDate: "", shift: "morning", amountHandled: 0, remarks: "" });
   const [docFilter, setDocFilter] = useState<string>("all");
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [showServiceDialog, setShowServiceDialog] = useState(false);
@@ -583,6 +585,31 @@ export default function VoyageDetail() {
   });
   const activities = activitiesData?.activities || [];
 
+  const { data: cargoLogs = [] } = useQuery<any[]>({
+    queryKey: ["/api/voyages", voyageId, "cargo-logs"],
+    queryFn: () => fetch(`/api/voyages/${voyageId}/cargo-logs`, { credentials: "include" }).then(r => r.json()),
+    enabled: activeTab === "cargo_ops",
+  });
+
+  const addCargoLogMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/voyages/${voyageId}/cargo-logs`, {
+      ...logForm,
+      logDate: new Date(logForm.logDate).toISOString(),
+      amountHandled: Number(logForm.amountHandled),
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-logs"] });
+      setShowAddLogDialog(false);
+      setLogForm({ logDate: "", shift: "morning", amountHandled: 0, remarks: "" });
+      toast({ title: "Log added" });
+    },
+  });
+
+  const deleteCargoLogMutation = useMutation({
+    mutationFn: (logId: number) => apiRequest("DELETE", `/api/voyages/${voyageId}/cargo-logs/${logId}`, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-logs"] }),
+  });
+
   const { data: collaboratorsData, refetch: refetchCollaborators } = useQuery<{ invitations: any[], participants: any[] }>({
     queryKey: ["/api/voyages", voyageId, "invitations"],
     queryFn: () => fetch(`/api/voyages/${voyageId}/invitations`, { credentials: "include" }).then(r => r.json()),
@@ -958,6 +985,7 @@ export default function VoyageDetail() {
       <div className="flex gap-1 bg-muted/40 p-1 rounded-xl">
         {([
           { key: "operation",   label: "Operation",  icon: ClipboardList },
+          { key: "cargo_ops",   label: "Cargo Ops",  icon: Package },
           { key: "activity",    label: "Activity",   icon: Clock },
           { key: "documents",   label: "Documents",  icon: FolderOpen },
           { key: "comms",       label: "Messages",   icon: MessageCircle },
@@ -1362,6 +1390,226 @@ export default function VoyageDetail() {
           )}
         </div>
       )}
+
+      {/* ── Tab: Cargo Ops ─────────────────────────────────────── */}
+      {activeTab === "cargo_ops" && (() => {
+        const totalMt = (voyage as any)?.cargoTotalMt ?? 0;
+        const handledMt = cargoLogs.reduce((sum: number, l: any) => sum + (l.amountHandled || 0), 0);
+        const remainingMt = Math.max(0, totalMt - handledMt);
+        const progressPct = totalMt > 0 ? Math.min(100, Math.round((handledMt / totalMt) * 100)) : 0;
+        const avgRate = cargoLogs.length > 0 ? Math.round(handledMt / cargoLogs.length) : 0;
+        const etcDate = avgRate > 0 && remainingMt > 0
+          ? new Date(Date.now() + (remainingMt / avgRate) * 86_400_000).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+          : "—";
+        const SHIFT_LABELS: Record<string, string> = { morning: "Morning", afternoon: "Afternoon", night: "Night", full_day: "Full Day" };
+
+        return (
+          <div className="space-y-5" data-testid="tab-content-cargo-ops">
+
+            {/* ── Dashboard Card ─────────────────── */}
+            <Card className="p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-sm flex items-center gap-2">
+                  <Package className="w-4 h-4 text-[hsl(var(--maritime-primary))]" /> Cargo Operations
+                </h2>
+                {totalMt === 0 && (
+                  <span className="text-xs text-amber-400">Set total cargo below to begin tracking</span>
+                )}
+              </div>
+
+              {/* Stat row */}
+              <div className="flex flex-wrap items-baseline gap-6 text-sm">
+                <span>Total: <strong>{totalMt.toLocaleString()} MT</strong></span>
+                <span>Handled: <strong className="text-green-400">{handledMt.toLocaleString()} MT ({progressPct}%)</strong></span>
+                <span>Remaining: <strong className="text-amber-400">{remainingMt.toLocaleString()} MT</strong></span>
+              </div>
+
+              {/* Progress bar */}
+              <div className="h-4 rounded-full bg-slate-800 border border-slate-700 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-400 transition-all duration-700"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+
+              {/* Set total input */}
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-xs text-muted-foreground">Set Total Cargo:</span>
+                <Input
+                  type="number"
+                  min={0}
+                  className="h-7 w-32 text-xs"
+                  defaultValue={totalMt > 0 ? totalMt : ""}
+                  placeholder="e.g. 60000"
+                  onBlur={e => {
+                    const v = parseFloat(e.target.value);
+                    if (!isNaN(v)) apiRequest("PATCH", `/api/voyages/${voyageId}/cargo-total`, { cargoTotalMt: v })
+                      .then(() => queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId] }));
+                  }}
+                  data-testid="input-cargo-total-mt"
+                />
+                <span className="text-xs text-muted-foreground">MT</span>
+              </div>
+            </Card>
+
+            {/* ── 3 Metric Cards ──────────────────── */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-xl border border-border/60 bg-card p-4 space-y-1">
+                <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide">Current Rate</p>
+                <p className="text-2xl font-bold">{avgRate > 0 ? `${avgRate.toLocaleString()} MT` : "—"}</p>
+                <p className="text-xs text-muted-foreground">per day (avg of log entries)</p>
+              </div>
+
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1">
+                <p className="text-[11px] text-amber-400 font-semibold uppercase tracking-wide">Est. Completion (ETC)</p>
+                <p className="text-2xl font-bold text-amber-300">{etcDate}</p>
+                <p className="text-xs text-muted-foreground">based on current avg rate</p>
+              </div>
+
+              <div className="rounded-xl border border-border/60 bg-card p-4 space-y-1">
+                <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide">Operation Type</p>
+                <div className="pt-1">
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${
+                    voyage?.purposeOfCall === "Loading"
+                      ? "bg-green-500/15 text-green-400 border-green-500/25"
+                      : voyage?.purposeOfCall === "Discharging"
+                      ? "bg-orange-500/15 text-orange-400 border-orange-500/25"
+                      : "bg-slate-500/15 text-slate-400 border-slate-500/25"
+                  }`}>
+                    {voyage?.purposeOfCall ?? "—"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Daily Cargo Logs ─────────────────── */}
+            <Card className="p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-sm flex items-center gap-2">
+                  <ClipboardList className="w-4 h-4 text-[hsl(var(--maritime-primary))]" /> Daily Cargo Logs
+                </h3>
+                <Button size="sm" onClick={() => setShowAddLogDialog(true)} data-testid="button-add-cargo-log">
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Daily Log
+                </Button>
+              </div>
+
+              {cargoLogs.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground text-sm">
+                  No logs yet. Add a daily shift log to start tracking cargo operations.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border/60 text-xs text-muted-foreground">
+                        <th className="text-left py-2 pr-4 font-semibold">Date & Shift</th>
+                        <th className="text-right py-2 pr-4 font-semibold">Handled (MT)</th>
+                        <th className="text-right py-2 pr-4 font-semibold">Cumulative (MT)</th>
+                        <th className="text-left py-2 pr-4 font-semibold">Remarks</th>
+                        <th className="py-2" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/30">
+                      {cargoLogs.map((log: any) => (
+                        <tr key={log.id} className="hover:bg-muted/20 transition-colors" data-testid={`row-cargo-log-${log.id}`}>
+                          <td className="py-2.5 pr-4">
+                            <span className="font-medium">
+                              {new Date(log.logDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}
+                            </span>
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              {SHIFT_LABELS[log.shift] ?? log.shift} Shift
+                            </span>
+                          </td>
+                          <td className="text-right py-2.5 pr-4 font-mono font-semibold text-green-400">
+                            {log.amountHandled?.toLocaleString()}
+                          </td>
+                          <td className="text-right py-2.5 pr-4 font-mono text-muted-foreground">
+                            {log.cumulativeTotal ? log.cumulativeTotal.toLocaleString() : "—"}
+                          </td>
+                          <td className="py-2.5 pr-4 text-muted-foreground text-xs">{log.remarks || "—"}</td>
+                          <td className="py-2.5 text-right">
+                            <Button
+                              variant="ghost" size="sm"
+                              className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                              onClick={() => deleteCargoLogMutation.mutate(log.id)}
+                              data-testid={`button-delete-log-${log.id}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+
+            {/* Add Log Dialog */}
+            <Dialog open={showAddLogDialog} onOpenChange={setShowAddLogDialog}>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Add Daily Cargo Log</DialogTitle></DialogHeader>
+                <div className="space-y-3 py-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Date *</Label>
+                      <Input
+                        type="date"
+                        value={logForm.logDate}
+                        onChange={e => setLogForm(f => ({ ...f, logDate: e.target.value }))}
+                        data-testid="input-log-date"
+                      />
+                    </div>
+                    <div>
+                      <Label>Shift *</Label>
+                      <Select value={logForm.shift} onValueChange={v => setLogForm(f => ({ ...f, shift: v }))}>
+                        <SelectTrigger data-testid="select-log-shift"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="morning">Morning</SelectItem>
+                          <SelectItem value="afternoon">Afternoon</SelectItem>
+                          <SelectItem value="night">Night</SelectItem>
+                          <SelectItem value="full_day">Full Day</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Amount Handled (MT) *</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={logForm.amountHandled || ""}
+                      onChange={e => setLogForm(f => ({ ...f, amountHandled: parseFloat(e.target.value) || 0 }))}
+                      data-testid="input-log-amount"
+                    />
+                  </div>
+                  <div>
+                    <Label>Remarks</Label>
+                    <Textarea
+                      value={logForm.remarks}
+                      onChange={e => setLogForm(f => ({ ...f, remarks: e.target.value }))}
+                      placeholder="Any notes about this shift..."
+                      rows={2}
+                      data-testid="input-log-remarks"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowAddLogDialog(false)}>Cancel</Button>
+                  <Button
+                    onClick={() => addCargoLogMutation.mutate()}
+                    disabled={!logForm.logDate || !logForm.amountHandled || addCargoLogMutation.isPending}
+                    data-testid="button-save-cargo-log"
+                  >
+                    {addCargoLogMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                    Save Log
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        );
+      })()}
 
       {/* ── Tab: Dokümanlar ────────────────────────────────────── */}
       {activeTab === "documents" && (
