@@ -1,0 +1,171 @@
+INSTRUCTIONS.md'yi oku. Search dropdown'daki Glassmorphism tasarımını tüm dropdown, dialog, popover ve modal'lara uygula. Tutarlı premium B2B SaaS görünümü.
+
+=== 1. SHADCN/UI COMPONENT'LERİ GÜNCELLE ===
+
+Aşağıdaki component dosyalarını güncelle (client/src/components/ui/ altında):
+
+A) dialog.tsx — Tüm modal/dialog'lar:
+DialogOverlay:
+- ESKİ: bg-black/50 veya bg-background/80
+- YENİ: bg-black/40 backdrop-blur-sm
+
+DialogContent:
+- ESKİ: bg-background border
+- YENİ: bg-slate-900/85 backdrop-blur-md border border-slate-700/60 shadow-2xl shadow-black/60
+
+B) popover.tsx — Tüm popover'lar:
+PopoverContent:
+- ESKİ: bg-popover border
+- YENİ: bg-slate-900/85 backdrop-blur-md border border-slate-700/60 shadow-2xl shadow-black/60 rounded-xl
+
+C) dropdown-menu.tsx — Tüm dropdown menüler:
+DropdownMenuContent:
+- ESKİ: bg-popover border
+- YENİ: bg-slate-900/85 backdrop-blur-md border border-slate-700/60 shadow-2xl shadow-black/60 rounded-xl
+
+DropdownMenuItem:
+- ESKİ: hover:bg-accent
+- YENİ: hover:bg-slate-800/60 rounded-md transition-colors duration-150
+
+D) select.tsx — Tüm select dropdown'lar:
+SelectContent:
+- ESKİ: bg-popover border
+- YENİ: bg-slate-900/85 backdrop-blur-md border border-slate-700/60 shadow-2xl shadow-black/60 rounded-xl
+
+SelectItem:
+- ESKİ: hover:bg-accent
+- YENİ: hover:bg-slate-800/60 rounded-md transition-colors duration-150
+
+E) command.tsx (eğer varsa — Command Palette):
+CommandDialog veya CommandList:
+- bg-slate-900/85 backdrop-blur-md border border-slate-700/60 shadow-2xl shadow-black/60
+
+CommandItem:
+- hover:bg-slate-800/60 rounded-md
+
+F) tooltip.tsx — Tooltip'ler:
+TooltipContent:
+- ESKİ: bg-popover
+- YENİ: bg-slate-900/90 backdrop-blur-sm border border-slate-700/50 shadow-lg shadow-black/40 rounded-lg text-sm
+
+G) sheet.tsx — Slide-over panel'ler (mobile sidebar vb.):
+SheetContent:
+- ESKİ: bg-background border
+- YENİ: bg-slate-900/90 backdrop-blur-md border-l border-slate-700/60 shadow-2xl shadow-black/60
+
+SheetOverlay:
+- ESKİ: bg-black/50
+- YENİ: bg-black/40 backdrop-blur-sm
+
+H) alert-dialog.tsx — Onay dialog'ları:
+AlertDialogOverlay:
+- bg-black/40 backdrop-blur-sm
+
+AlertDialogContent:
+- bg-slate-900/85 backdrop-blur-md border border-slate-700/60 shadow-2xl shadow-black/60
+
+I) context-menu.tsx (eğer varsa):
+ContextMenuContent:
+- bg-slate-900/85 backdrop-blur-md border border-slate-700/60 shadow-2xl shadow-black/60 rounded-xl
+
+ContextMenuItem:
+- hover:bg-slate-800/60 rounded-md
+
+J) toast.tsx / toaster.tsx — Toast bildirimleri:
+Toast container:
+- ESKİ: bg-background border
+- YENİ: bg-slate-900/90 backdrop-blur-md border border-slate-700/60 shadow-xl shadow-black/50 rounded-xl
+
+Toast variants:
+- default: border-slate-700/60
+- success: border-green-500/40 shadow-green-500/10
+- destructive: border-red-500/40 shadow-red-500/10
+- warning: border-amber-500/40 shadow-amber-500/10
+
+=== 2. NOTIFICATION DROPDOWN ===
+
+Bildirim zili tıklanınca açılan dropdown:
+- bg-slate-900/85 backdrop-blur-md border border-slate-700/60 shadow-2xl shadow-black/60 rounded-xl
+- Max height: max-h-[400px] overflow-y-auto
+- Her notification item: hover:bg-slate-800/60 rounded-md p-3 transition-colors
+- Unread: border-l-2 border-sky-500 bg-sky-500/5
+
+=== 3. USER MENU DROPDOWN ===
+
+Sağ üstteki kullanıcı avatar'ına tıklayınca:
+- bg-slate-900/85 backdrop-blur-md border border-slate-700/60 shadow-2xl shadow-black/60 rounded-xl
+- Menu items: hover:bg-slate-800/60 rounded-md
+- Divider: border-slate-700/40
+- Logout item: hover:bg-red-500/10 text-red-400
+
+=== 4. AI CHAT WIDGET ===
+
+Sağ alttaki AI Asistan widget penceresi:
+- bg-slate-900/90 backdrop-blur-md border border-slate-700/60 shadow-2xl shadow-black/60 rounded-2xl
+- Chat mesaj balonları:
+  * User: bg-sky-500/20 border border-sky-500/30 rounded-xl
+  * AI: bg-slate-800/60 border border-slate-700/40 rounded-xl
+- Input alanı: bg-slate-800/50 border border-slate-700/50 focus:border-sky-500/50
+
+=== 5. FORM SELECT/COMBOBOX DROPDOWN'LARI ===
+
+Proforma, tender, voyage formlarındaki tüm select/combobox açılır menüleri:
+- bg-slate-900/85 backdrop-blur-md border border-slate-700/60 shadow-2xl shadow-black/60 rounded-xl
+- Search input (combobox'ta): bg-slate-800/50 border-b border-slate-700/40
+- Option items: hover:bg-slate-800/60 rounded-md px-3 py-2
+- Selected item: bg-sky-500/10 text-sky-400
+- Group headers: text-xs uppercase text-slate-500 px-3 py-1
+
+=== 6. DATE PICKER POPUP ===
+
+Tarih seçici popup:
+- bg-slate-900/85 backdrop-blur-md border border-slate-700/60 shadow-2xl shadow-black/60 rounded-xl
+- Gün hücreleri: hover:bg-slate-800/60 rounded-md
+- Seçili gün: bg-sky-500 text-white rounded-md
+- Bugün: ring-1 ring-sky-500/50
+
+=== 7. CONFIRMATION DIALOG'LAR ===
+
+Silme onayı, logout onayı gibi dialog'lar:
+- Overlay: bg-black/40 backdrop-blur-sm
+- Content: bg-slate-900/85 backdrop-blur-md border border-slate-700/60 shadow-2xl shadow-black/60
+- Destructive buton: bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/40
+
+=== 8. GLOBAL CSS VARIABLES ===
+
+Tutarlılık için CSS variable'lar tanımla — client/src/index.css veya globals.css:
+
+:root {
+  --glass-bg: rgba(15, 23, 42, 0.85);
+  --glass-blur: 12px;
+  --glass-border: rgba(51, 65, 85, 0.6);
+  --glass-shadow: rgba(0, 0, 0, 0.6);
+  --glass-hover: rgba(30, 41, 59, 0.6);
+}
+
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 25px 50px -12px var(--glass-shadow);
+}
+
+.glass-item:hover {
+  background: var(--glass-hover);
+  border-radius: 0.375rem;
+}
+
+Bu class'ları component'lerde kullanabilirsin: className="glass-panel"
+
+=== 9. IMPORTANT ===
+
+- shadcn/ui component'leri client/src/components/ui/ altında — doğrudan düzenle
+- Her component'in mevcut variant'larını koru (default, destructive, outline vb.)
+- backdrop-blur-md: Safari desteği için -webkit-backdrop-filter de ekle (CSS variable'da zaten var)
+- Performans: backdrop-blur GPU-intensive — çok fazla aynı anda açık element olmasın
+- Light mode varsa (theme toggle): light mode'da glassmorphism farklı olabilir — şimdilik sadece dark mode
+- Tutarlılık: TÜM floating panel'ler aynı glass stili kullanmalı
+- Mevcut fonksiyonelliği BOZMA — sadece style class'ları değiştir
+- Test: bir dialog aç, arkasındaki içerik hafif bulanık görünmeli
+- Mobile'da backdrop-blur bazı eski cihazlarda yavaş olabilir — sorun olursa mobile'da sadece solid bg kullan
