@@ -7,7 +7,7 @@ import {
   Sparkles, HelpCircle, Clock, PlayCircle, XCircle, ClipboardList,
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
-  FileCheck, Users2, UserPlus, MoreVertical,
+  FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck,
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,39 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
   completed: [],
   cancelled: [],
 };
+
+// ─── Port Call Stepper ────────────────────────────────────────────────────────
+
+const PORT_CALL_STEPS: { key: string; label: string; icon: any }[] = [
+  { key: "pre_arrival", label: "Pre-Arrival", icon: Anchor     },
+  { key: "anchorage",   label: "Anchorage",   icon: Anchor     },
+  { key: "berthed",     label: "Berthed",     icon: Ship       },
+  { key: "cargo_ops",   label: "Cargo Ops",   icon: Package    },
+  { key: "departed",    label: "Departed",    icon: Navigation },
+];
+
+function getStepperIndex(status: string): number {
+  if (status === "planned")   return 0;
+  if (status === "active")    return 3;
+  if (status === "completed") return 4;
+  return -1;
+}
+
+function getDateTag(dt: string | null | undefined): {
+  label: string; relText: string; color: string;
+} | null {
+  if (!dt) return null;
+  const now = Date.now();
+  const ms = new Date(dt).getTime();
+  const days = Math.ceil((ms - now) / 86_400_000);
+  const label = new Date(dt).toLocaleDateString("en-GB", {
+    day: "2-digit", month: "short", year: "numeric",
+  });
+  if (days > 1)   return { label, relText: `in ${days} days`,       color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" };
+  if (days === 1) return { label, relText: "Tomorrow",               color: "text-sky-400 bg-sky-500/10 border-sky-500/20"           };
+  if (days === 0) return { label, relText: "Today",                  color: "text-amber-400 bg-amber-500/10 border-amber-500/20"     };
+  return            { label, relText: `${Math.abs(days)} days ago`, color: "text-muted-foreground bg-muted/30 border-border"        };
+}
 
 function PortSearch({ value, onChange }: { value: string; onChange: (portId: number, portName: string) => void }) {
   const [query, setQuery] = useState(value);
@@ -659,24 +692,55 @@ export default function VoyageDetail() {
         </button>
       </Link>
 
-      {/* Header Card */}
-      <Card className="p-5">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
+      {/* ── HEADER CARD ─────────────────────────────────────────────────────── */}
+      <Card className="overflow-hidden border-border bg-card" data-testid="voyage-header-card">
+
+        {/* ── ROW 1: Temel Bilgiler ─────────────────────────────────────────── */}
+        <div className="flex items-center justify-between gap-4 flex-wrap px-5 pt-5 pb-4">
+
+          {/* Sol: ship icon + vessel name + purpose pill */}
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0">
-              <Ship className="w-6 h-6 text-[hsl(var(--maritime-primary))]" />
+            <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <Ship className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h1 className="font-serif text-xl font-bold">{voyage.vesselName || "Vessel Not Specified"}</h1>
-              <p className="text-sm text-muted-foreground">{voyage.purposeOfCall}</p>
+              <h1 className="font-bold text-lg leading-tight tracking-tight">
+                {voyage.vesselName || "Vessel Not Specified"}
+              </h1>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 bg-muted/40 px-2 py-0.5 rounded-full border border-border/50">
+                  {voyage.purposeOfCall}
+                </span>
+              </div>
             </div>
           </div>
+
+          {/* Sağ: status badge + butonlar */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full ${s.color}`}>
-              <StatusIcon className="w-3.5 h-3.5" />{s.label}
+            {/* Status badge */}
+            <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border ${
+              voyage.status === "active"
+                ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 shadow-[0_0_8px_rgba(16,185,129,0.15)]"
+                : voyage.status === "planned"
+                ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                : voyage.status === "completed"
+                ? "bg-muted/40 text-muted-foreground border-border"
+                : "bg-red-500/10 text-red-400 border-red-500/20"
+            }`} data-testid="badge-voyage-status">
+              <StatusIcon className="w-3.5 h-3.5" />
+              {s.label}
+              {voyage.status === "active" && (
+                <span className="relative flex h-1.5 w-1.5 ml-0.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                </span>
+              )}
             </span>
+
+            {/* Rate button */}
             {canReview && (
-              <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={() => setShowReviewDialog(true)} data-testid="button-review">
+              <Button size="sm" variant="outline" className="gap-1.5 h-8"
+                onClick={() => setShowReviewDialog(true)} data-testid="button-review">
                 <Star className="w-3.5 h-3.5" /> Rate
               </Button>
             )}
@@ -685,10 +749,12 @@ export default function VoyageDetail() {
                 <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" /> Rated
               </span>
             )}
+
+            {/* Change Status dropdown */}
             {isOwner && transitions.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1">
+                  <Button variant="outline" size="sm" className="gap-1" data-testid="button-change-status">
                     Change Status <ChevronDown className="w-3.5 h-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -699,7 +765,11 @@ export default function VoyageDetail() {
                     return (
                       <DropdownMenuItem
                         key={t}
-                        onClick={() => (t === "completed" || t === "cancelled") ? setPendingStatus(t) : statusMutation.mutate(t)}
+                        onClick={() =>
+                          (t === "completed" || t === "cancelled")
+                            ? setPendingStatus(t)
+                            : statusMutation.mutate(t)
+                        }
                         className="gap-2"
                       >
                         {TIcon && <TIcon className="w-4 h-4" />}{cfg?.label}
@@ -712,30 +782,134 @@ export default function VoyageDetail() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-5 pt-4 border-t text-sm">
-          <div>
-            <p className="text-xs text-muted-foreground mb-0.5">Port</p>
-            <p className="font-medium flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-muted-foreground" />{voyage.portName || `Port #${voyage.portId}`}</p>
+        {/* ── ROW 2: Port Call Stepper ──────────────────────────────────────── */}
+        <div className="px-5 py-4 border-t border-b border-border/50 bg-muted/20" data-testid="port-call-stepper">
+          {(() => {
+            const activeIdx = getStepperIndex(voyage.status);
+            return (
+              <div className="flex items-start gap-0">
+                {PORT_CALL_STEPS.map((step, idx) => {
+                  const StepIcon = step.icon;
+                  const isPast   = activeIdx >= 0 && idx < activeIdx;
+                  const isActive = activeIdx >= 0 && idx === activeIdx;
+                  const isLast   = idx === PORT_CALL_STEPS.length - 1;
+
+                  return (
+                    <div key={step.key} className="flex items-center flex-1 min-w-0">
+                      {/* Step node + label */}
+                      <div className="flex flex-col items-center gap-1.5 shrink-0">
+                        <div className={`
+                          w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all
+                          ${isActive
+                            ? "bg-primary border-primary text-primary-foreground shadow-[0_0_14px_rgba(59,130,246,0.45)]"
+                            : isPast
+                            ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
+                            : "bg-muted/30 border-border/50 text-muted-foreground/35"
+                          }
+                        `}>
+                          {isPast
+                            ? <CheckCheck className="w-3.5 h-3.5" />
+                            : <StepIcon className="w-3.5 h-3.5" />
+                          }
+                        </div>
+                        <span className={`text-[10px] font-semibold text-center whitespace-nowrap ${
+                          isActive ? "text-primary"
+                          : isPast  ? "text-emerald-400/80"
+                          : "text-muted-foreground/35"
+                        }`}>
+                          {step.label}
+                        </span>
+                      </div>
+
+                      {/* Connector line */}
+                      {!isLast && (
+                        <div className={`
+                          h-0.5 flex-1 mx-1 mb-5 rounded-full transition-all
+                          ${isPast ? "bg-emerald-500/40" : "bg-border/40"}
+                        `} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* ── ROW 3: Kompakt Detay Tag'ları ─────────────────────────────────── */}
+        <div className="px-5 py-4 flex flex-wrap items-start gap-3">
+
+          {/* Port Tag */}
+          <div className="flex items-center gap-2.5 bg-muted/30 border border-border/60 rounded-xl px-3 py-2.5"
+               data-testid="tag-port">
+            <div className="w-7 h-7 rounded-lg bg-sky-500/10 flex items-center justify-center shrink-0">
+              <MapPin className="w-3.5 h-3.5 text-sky-400" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide leading-none mb-0.5">Port</p>
+              <p className="text-sm font-bold truncate leading-tight">
+                {voyage.portName || `Port #${voyage.portId}`}
+              </p>
+            </div>
           </div>
-          {voyage.eta && (
-            <div>
-              <p className="text-xs text-muted-foreground mb-0.5">ETA</p>
-              <p className="font-medium flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-muted-foreground" />{new Date(voyage.eta).toLocaleDateString("en-GB")}</p>
-            </div>
-          )}
-          {voyage.etd && (
-            <div>
-              <p className="text-xs text-muted-foreground mb-0.5">ETD</p>
-              <p className="font-medium flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-muted-foreground" />{new Date(voyage.etd).toLocaleDateString("en-GB")}</p>
-            </div>
-          )}
+
+          {/* ETA Tag */}
+          {voyage.eta && (() => {
+            const tag = getDateTag(voyage.eta);
+            if (!tag) return null;
+            return (
+              <div className="flex items-center gap-2.5 bg-muted/30 border border-border/60 rounded-xl px-3 py-2.5"
+                   data-testid="tag-eta">
+                <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
+                  <Calendar className="w-3.5 h-3.5 text-violet-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide leading-none mb-0.5">ETA</p>
+                  <p className="text-sm font-bold leading-tight">{tag.label}</p>
+                  <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full border mt-0.5 leading-none ${tag.color}`}>
+                    {tag.relText}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ETD Tag */}
+          {voyage.etd && (() => {
+            const tag = getDateTag(voyage.etd);
+            if (!tag) return null;
+            return (
+              <div className="flex items-center gap-2.5 bg-muted/30 border border-border/60 rounded-xl px-3 py-2.5"
+                   data-testid="tag-etd">
+                <div className="w-7 h-7 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
+                  <CalendarClock className="w-3.5 h-3.5 text-orange-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide leading-none mb-0.5">ETD</p>
+                  <p className="text-sm font-bold leading-tight">{tag.label}</p>
+                  <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full border mt-0.5 leading-none ${tag.color}`}>
+                    {tag.relText}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Notes chip */}
           {voyage.notes && (
-            <div className="col-span-full">
-              <p className="text-xs text-muted-foreground mb-0.5">Notes</p>
-              <p className="text-sm">{voyage.notes}</p>
+            <div className="flex items-center gap-2.5 bg-muted/30 border border-border/60 rounded-xl px-3 py-2.5 max-w-xs"
+                 data-testid="tag-notes">
+              <div className="w-7 h-7 rounded-lg bg-muted/50 flex items-center justify-center shrink-0">
+                <Pen className="w-3.5 h-3.5 text-muted-foreground" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide leading-none mb-0.5">Notes</p>
+                <p className="text-xs text-foreground/80 truncate leading-tight">{voyage.notes}</p>
+              </div>
             </div>
           )}
         </div>
+
       </Card>
 
       {/* Tab Bar */}
