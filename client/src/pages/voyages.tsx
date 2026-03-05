@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { EmptyState } from "@/components/empty-state";
 import { Ship, Plus, MapPin, Calendar, ChevronRight, Anchor, CheckCircle2, Clock, XCircle, PlayCircle, Search, X, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -315,20 +316,21 @@ export default function Voyages() {
           })}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-24 text-center" data-testid="text-no-voyages">
-          <div className="w-20 h-20 rounded-2xl bg-[hsl(var(--maritime-primary)/0.08)] flex items-center justify-center mb-5">
-            <Anchor className="w-10 h-10 text-[hsl(var(--maritime-primary)/0.4)]" />
-          </div>
-          <h3 className="font-serif text-lg font-semibold text-muted-foreground mb-1">No voyages yet</h3>
-          <p className="text-sm text-muted-foreground/70 max-w-xs mb-6">
-            Start by creating a new voyage. Add checklists, documents and service requests along the way.
-          </p>
-          {role !== "provider" && (
-            <Button size="lg" className="gap-2 px-8" onClick={() => setShowCreate(true)} data-testid="button-create-first-voyage">
-              <Plus className="w-5 h-5" /> Create New Voyage
-            </Button>
-          )}
-        </div>
+        <EmptyState
+          icon="🗺️"
+          title="No Voyages Yet"
+          description="Voyages are created automatically when a tender is nominated, or you can create one manually."
+          actionLabel="+ Create Voyage"
+          onAction={() => setShowCreate(true)}
+          secondaryLabel="Browse Tenders"
+          secondaryHref="/tenders"
+          tips={[
+            "Create a voyage to manage operations, checklists, and documents",
+            "Nominate an agent to automatically generate a voyage file",
+            "Invite service providers to submit offers for the voyage",
+            "Track voyage progress and status in real-time"
+          ]}
+        />
       )}
 
       {/* Create Voyage Dialog */}

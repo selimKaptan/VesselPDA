@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { EmptyState } from "@/components/empty-state";
 import { PageMeta } from "@/components/page-meta";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -618,7 +619,19 @@ export default function TendersPage() {
 
           <TabsContent value="available" className="space-y-3 mt-4">
             {openTenders.length === 0 ? (
-              <EmptyState icon={Inbox} title="No open tenders" desc="New tenders for the ports you serve will appear here." />
+              <EmptyState
+                icon="📢"
+                title="No Open Tenders"
+                description="There are no open tenders matching your served ports at the moment. Check back soon!"
+                actionLabel="Update My Ports"
+                actionHref="/company-profile"
+                tips={[
+                  "Update your company profile to include all ports you serve",
+                  "Enable email notifications for new tenders in your area",
+                  "Keep your profile complete to increase your selection chances",
+                  "Review past tenders to understand typical requirements"
+                ]}
+              />
             ) : (
               openTenders.map(t => (
                 <TenderCard key={t.id} tender={t} role="agent" myBidStatus={getMyBidStatus(t.id)} isOwnTender={ownUserId ? t.userId === ownUserId : false} />
@@ -628,7 +641,11 @@ export default function TendersPage() {
 
           <TabsContent value="my-bids" className="space-y-3 mt-4">
             {!myBids || myBids.length === 0 ? (
-              <EmptyState icon={Send} title="No bids submitted yet" desc="You can submit bids from the Open Tenders tab." />
+              <EmptyState
+                icon="📋"
+                title="No Bids Submitted Yet"
+                description="You can submit bids from the Open Tenders tab."
+              />
             ) : (
               myBids.map((bid: any) => (
                 <MyBidCard key={bid.id} bid={bid} />
@@ -650,7 +667,22 @@ export default function TendersPage() {
 
           <TabsContent value="active" className="space-y-3 mt-4">
             {openTenders.length === 0 ? (
-              <EmptyState icon={Gavel} title="No active tenders" desc="Click 'Create New Tender' to get started." />
+              <EmptyState
+                icon="📢"
+                title="No Tenders Posted"
+                description="Create a port call tender to receive competitive bids from verified ship agents."
+                actionLabel="+ Post New Tender"
+                onAction={() => {
+                  const btn = document.querySelector('[data-testid="button-create-tender"]') as HTMLButtonElement;
+                  if (btn) btn.click();
+                }}
+                tips={[
+                  "Provide accurate vessel details (GRT/NRT) for better cost estimates",
+                  "Attach a Q88 form to provide agents with technical specifications",
+                  "Set a reasonable deadline to allow agents to calculate best prices",
+                  "Your tender will be sent to all verified agents in the selected port"
+                ]}
+              />
             ) : (
               openTenders.map(t => <TenderCard key={t.id} tender={t} role="shipowner" />)
             )}
@@ -658,7 +690,11 @@ export default function TendersPage() {
 
           <TabsContent value="past" className="space-y-3 mt-4">
             {closedTenders.length === 0 ? (
-              <EmptyState icon={FileText} title="No past tenders" />
+              <EmptyState
+                icon="📎"
+                title="No Past Tenders"
+                description="Completed and closed tenders will appear here."
+              />
             ) : (
               closedTenders.map(t => <TenderCard key={t.id} tender={t} role="shipowner" />)
             )}
@@ -743,7 +779,7 @@ function MyBidCard({ bid }: { bid: any }) {
   );
 }
 
-function EmptyState({ icon: Icon, title, desc }: { icon: any; title: string; desc?: string }) {
+function LocalEmptyState({ icon: Icon, title, desc }: { icon: any; title: string; desc?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
       <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center">

@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
 import { formatDistanceToNow, isPast, isWithinInterval, addDays } from "date-fns";
+import { EmptyState } from "@/components/empty-state";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   pending:   { label: "Pending",   color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",  icon: Clock },
@@ -225,11 +226,20 @@ export default function Invoices() {
           {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
         </div>
       ) : filtered.length === 0 ? (
-        <Card className="p-10 text-center text-muted-foreground">
-          <DollarSign className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="font-medium">No invoices found</p>
-          <p className="text-xs mt-1">Use the "New Invoice" button to create one</p>
-        </Card>
+        <EmptyState
+          icon="💳"
+          title="No Invoices"
+          description="Invoices are created from approved FDAs or manually for port services."
+          actionLabel="View FDAs"
+          actionHref="/fda"
+          secondaryLabel="Create Manual Invoice"
+          onAction={() => setShowNew(true)}
+          tips={[
+            "Approved Proforma DAs can be converted to invoices",
+            "Track payment status and overdue amounts here",
+            "Export invoices as PDF for your clients"
+          ]}
+        />
       ) : (
         <div className="space-y-3">
           {filtered.map((inv: any) => {

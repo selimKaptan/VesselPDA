@@ -20,6 +20,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
+import { EmptyState } from "@/components/empty-state";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -665,11 +666,18 @@ export default function Fixtures() {
       </div>
 
       {fixtures.length === 0 ? (
-        <Card className="p-12 text-center">
-          <Handshake className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground">No fixtures yet</p>
-          <Button className="mt-4" onClick={() => setDialogOpen(true)}>Add First Fixture</Button>
-        </Card>
+        <EmptyState
+          icon="📎"
+          title="No Fixtures"
+          description="Record charter party fixtures — vessel, cargo, route, and freight terms."
+          actionLabel="+ New Fixture"
+          onAction={() => setDialogOpen(true)}
+          tips={[
+            "Fixtures link vessels with cargo and charterers",
+            "Use the status 'Fixed' for confirmed contracts",
+            "Attach laytime calculations once the voyage begins"
+          ]}
+        />
       ) : (
         <div className="grid gap-4">
           {fixtures.map((fx: any) => (

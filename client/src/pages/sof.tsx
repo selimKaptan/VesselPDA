@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageMeta } from "@/components/page-meta";
+import { EmptyState } from "@/components/empty-state";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -120,78 +121,104 @@ export default function SofPage() {
           </Button>
         </div>
 
-        {/* Table */}
-        <div className="border rounded-xl overflow-hidden bg-card">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 border-b">
-              <tr>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Vessel</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Port</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Operation</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Status</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Created</th>
-                <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                Array.from({ length: 4 }).map((_, i) => (
+        {/* Content */}
+        {isLoading ? (
+          <div className="border rounded-xl overflow-hidden bg-card">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 border-b">
+                <tr>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Vessel</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Port</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Operation</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Status</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Created</th>
+                  <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 4 }).map((_, i) => (
                   <tr key={i} className="border-b">
                     {Array.from({ length: 6 }).map((_, j) => (
                       <td key={j} className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
                     ))}
                   </tr>
-                ))
-              ) : sofs.length === 0 ? (
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : sofs.length === 0 ? (
+          <EmptyState
+            icon="📝"
+            title="No Statements of Facts"
+            description="Create a SOF to record all events during a vessel's port call — from arrival to departure."
+            actionLabel="+ Create SOF"
+            onAction={() => setCreateOpen(true)}
+            secondaryLabel="View Voyages"
+            secondaryHref="/voyages"
+            tips={[
+              "SOFs automatically include 13 standard port events when created.",
+              "You can export SOFs to professional PDFs for sharing with principals.",
+              "Link a SOF to a voyage to auto-fill vessel and port details."
+            ]}
+          />
+        ) : (
+          <div className="border rounded-xl overflow-hidden bg-card">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 border-b">
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
-                    <ClipboardList className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                    <p>No SOFs yet. Create your first one.</p>
-                  </td>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Vessel</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Port</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Operation</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Status</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Created</th>
+                  <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Actions</th>
                 </tr>
-              ) : sofs.map((sof: any) => {
-                const st = (sof.status as SofStatus) || "draft";
-                const cfg = statusConfig[st] || statusConfig.draft;
-                return (
-                  <tr key={sof.id} className="border-b hover:bg-muted/20 transition-colors" data-testid={`row-sof-${sof.id}`}>
-                    <td className="px-4 py-3 font-medium">{sof.vesselName || "—"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{sof.portName || "—"}</td>
-                    <td className="px-4 py-3 capitalize text-muted-foreground">{sof.operation || "—"}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}>
-                        {cfg.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{fmtDate(sof.createdAt)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <Link href={`/sof/${sof.id}`}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" title="View" data-testid={`button-view-sof-${sof.id}`}>
-                            <Eye className="h-4 w-4" />
+              </thead>
+              <tbody>
+                {sofs.map((sof: any) => {
+                  const st = (sof.status as SofStatus) || "draft";
+                  const cfg = statusConfig[st] || statusConfig.draft;
+                  return (
+                    <tr key={sof.id} className="border-b hover:bg-muted/20 transition-colors" data-testid={`row-sof-${sof.id}`}>
+                      <td className="px-4 py-3 font-medium">{sof.vesselName || "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{sof.portName || "—"}</td>
+                      <td className="px-4 py-3 capitalize text-muted-foreground">{sof.operation || "—"}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}>
+                          {cfg.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{fmtDate(sof.createdAt)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <Link href={`/sof/${sof.id}`}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" title="View" data-testid={`button-view-sof-${sof.id}`}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                          <a href={`/api/sof/${sof.id}/pdf`} target="_blank" rel="noopener noreferrer">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600" title="Export PDF" data-testid={`button-pdf-sof-${sof.id}`}>
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </a>
+                          <Button
+                            variant="ghost" size="icon"
+                            className="h-8 w-8 text-red-500 hover:text-red-600"
+                            title="Delete"
+                            data-testid={`button-delete-sof-${sof.id}`}
+                            onClick={() => setDeleteId(sof.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
-                        </Link>
-                        <a href={`/api/sof/${sof.id}/pdf`} target="_blank" rel="noopener noreferrer">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600" title="Export PDF" data-testid={`button-pdf-sof-${sof.id}`}>
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </a>
-                        <Button
-                          variant="ghost" size="icon"
-                          className="h-8 w-8 text-red-500 hover:text-red-600"
-                          title="Delete"
-                          data-testid={`button-delete-sof-${sof.id}`}
-                          onClick={() => setDeleteId(sof.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Create Dialog */}

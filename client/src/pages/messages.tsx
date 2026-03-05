@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { MessageCircle, Search, Ship, Wrench, Paperclip, Mail } from "lucide-react";
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/empty-state";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,6 +37,72 @@ export default function Messages() {
     return conv.lastMessage || "No messages yet";
   }
 
+  function ConversationItem({ conv }: { conv: any }) {
+    return (
+      <Link href={`/messages/${conv.id}`}>
+        <div
+          className="flex items-start gap-3 px-4 py-3.5 rounded-xl bg-card border hover:border-[hsl(var(--maritime-primary)/0.4)] hover:shadow-sm transition-all cursor-pointer"
+          data-testid={`conversation-${conv.id}`}
+        >
+          <div className="w-10 h-10 rounded-full bg-[hsl(var(--maritime-primary)/0.12)] flex items-center justify-center flex-shrink-0 font-bold text-sm text-[hsl(var(--maritime-primary))] mt-0.5">
+            {(conv.otherUserName || "?")[0].toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className={`text-sm font-semibold truncate ${conv.unreadCount > 0 ? "text-foreground" : "text-foreground/80"}`}>
+                {conv.otherUserName}
+              </span>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {conv.externalEmailForward && (
+                  <Mail className="w-3 h-3 text-amber-500" aria-label="Email bridge active" />
+                )}
+                <span className="text-xs text-muted-foreground">
+                  {conv.lastMessageTime ? timeAgo(conv.lastMessageTime) : ""}
+                </span>
+              </div>
+            </div>
+
+            {/* Context badges */}
+            {(conv.voyageId || conv.serviceRequestId) && (
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                {conv.voyageId && (
+                  <span
+                    className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-[hsl(var(--maritime-primary)/0.08)] text-[hsl(var(--maritime-primary))]"
+                    data-testid={`badge-voyage-context-${conv.id}`}
+                  >
+                    <Ship className="w-2.5 h-2.5" /> Sefer #{conv.voyageId}
+                  </span>
+                )}
+                {conv.serviceRequestId && (
+                  <span
+                    className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-[hsl(var(--maritime-primary)/0.08)] text-[hsl(var(--maritime-primary))]"
+                    data-testid={`badge-service-context-${conv.id}`}
+                  >
+                    <Wrench className="w-2.5 h-2.5" /> Hizmet #{conv.serviceRequestId}
+                  </span>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-2 mt-0.5">
+              <p className={`text-xs truncate flex items-center gap-1 ${conv.unreadCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                {(conv.lastMessageType === "file" || conv.lastMessageType === "image") && (
+                  <Paperclip className="w-3 h-3 flex-shrink-0" />
+                )}
+                {getLastMessagePreview(conv)}
+              </p>
+              {conv.unreadCount > 0 && (
+                <Badge className="h-5 min-w-5 px-1.5 text-[10px] bg-[hsl(var(--maritime-primary))] flex-shrink-0" data-testid={`unread-badge-${conv.id}`}>
+                  {conv.unreadCount}
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+      </Link>
+    );
+  }
+
   return (
     <div className="px-3 py-5 max-w-2xl mx-auto space-y-5">
       <PageMeta title="Messages | VesselPDA" description="Direct messaging inbox" />
@@ -65,80 +132,36 @@ export default function Messages() {
         <div className="space-y-3">
           {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
         </div>
-      ) : filtered.length === 0 ? (
-        <Card className="p-10 text-center">
-          <MessageCircle className="w-10 h-10 mx-auto mb-3 opacity-20" />
-          <p className="font-medium text-sm">
-            {search ? "No conversations match your search" : "No messages yet"}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {search ? "" : "You can send messages from user profiles or voyage pages."}
-          </p>
-        </Card>
+      ) : search ? (
+        filtered.length === 0 ? (
+          <Card className="p-10 text-center">
+            <Search className="w-10 h-10 mx-auto mb-3 opacity-20" />
+            <p className="font-medium text-sm">No conversations match your search</p>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {filtered.map((conv: any) => (
+              <ConversationItem key={conv.id} conv={conv} />
+            ))}
+          </div>
+        )
+      ) : conversations.length === 0 ? (
+        <EmptyState
+          icon="✉️"
+          title="No Conversations"
+          description="Start a conversation with an agent, shipowner or service provider."
+          actionLabel="Browse Directory"
+          actionHref="/directory"
+          tips={[
+            "Messages can be started from user profiles in the directory.",
+            "Each voyage has its own dedicated chat for all participants.",
+            "You can share files and images in your conversations."
+          ]}
+        />
       ) : (
         <div className="space-y-2">
           {filtered.map((conv: any) => (
-            <Link key={conv.id} href={`/messages/${conv.id}`}>
-              <div
-                className="flex items-start gap-3 px-4 py-3.5 rounded-xl bg-card border hover:border-[hsl(var(--maritime-primary)/0.4)] hover:shadow-sm transition-all cursor-pointer"
-                data-testid={`conversation-${conv.id}`}
-              >
-                <div className="w-10 h-10 rounded-full bg-[hsl(var(--maritime-primary)/0.12)] flex items-center justify-center flex-shrink-0 font-bold text-sm text-[hsl(var(--maritime-primary))] mt-0.5">
-                  {(conv.otherUserName || "?")[0].toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`text-sm font-semibold truncate ${conv.unreadCount > 0 ? "text-foreground" : "text-foreground/80"}`}>
-                      {conv.otherUserName}
-                    </span>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {conv.externalEmailForward && (
-                        <Mail className="w-3 h-3 text-amber-500" aria-label="Email bridge active" />
-                      )}
-                      <span className="text-xs text-muted-foreground">
-                        {conv.lastMessageTime ? timeAgo(conv.lastMessageTime) : ""}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Context badges */}
-                  {(conv.voyageId || conv.serviceRequestId) && (
-                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                      {conv.voyageId && (
-                        <span
-                          className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-[hsl(var(--maritime-primary)/0.08)] text-[hsl(var(--maritime-primary))]"
-                          data-testid={`badge-voyage-context-${conv.id}`}
-                        >
-                          <Ship className="w-2.5 h-2.5" /> Sefer #{conv.voyageId}
-                        </span>
-                      )}
-                      {conv.serviceRequestId && (
-                        <span
-                          className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-[hsl(var(--maritime-primary)/0.08)] text-[hsl(var(--maritime-primary))]"
-                          data-testid={`badge-service-context-${conv.id}`}
-                        >
-                          <Wrench className="w-2.5 h-2.5" /> Hizmet #{conv.serviceRequestId}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between gap-2 mt-0.5">
-                    <p className={`text-xs truncate flex items-center gap-1 ${conv.unreadCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                      {(conv.lastMessageType === "file" || conv.lastMessageType === "image") && (
-                        <Paperclip className="w-3 h-3 flex-shrink-0" />
-                      )}
-                      {getLastMessagePreview(conv)}
-                    </p>
-                    {conv.unreadCount > 0 && (
-                      <Badge className="h-5 min-w-5 px-1.5 text-[10px] bg-[hsl(var(--maritime-primary))] flex-shrink-0" data-testid={`unread-badge-${conv.id}`}>
-                        {conv.unreadCount}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </Link>
+            <ConversationItem key={conv.id} conv={conv} />
           ))}
         </div>
       )}

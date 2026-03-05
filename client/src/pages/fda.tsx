@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageMeta } from "@/components/page-meta";
+import { EmptyState } from "@/components/empty-state";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -113,80 +114,106 @@ export default function FdaPage() {
           </DropdownMenu>
         </div>
 
-        {/* Table */}
-        <div className="border rounded-xl overflow-hidden bg-card">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 border-b">
-              <tr>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Reference</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Vessel</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Port</th>
-                <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Estimated</th>
-                <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Actual</th>
-                <th className="text-center px-4 py-3 font-semibold text-muted-foreground">Variance</th>
-                <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Status</th>
-                <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                Array.from({ length: 3 }).map((_, i) => (
+        {/* Content */}
+        {isLoading ? (
+          <div className="border rounded-xl overflow-hidden bg-card">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 border-b">
+                <tr>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Reference</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Vessel</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Port</th>
+                  <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Estimated</th>
+                  <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Actual</th>
+                  <th className="text-center px-4 py-3 font-semibold text-muted-foreground">Variance</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Status</th>
+                  <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 3 }).map((_, i) => (
                   <tr key={i} className="border-b">
                     {Array.from({ length: 8 }).map((_, j) => (
                       <td key={j} className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
                     ))}
                   </tr>
-                ))
-              ) : fdas.length === 0 ? (
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : fdas.length === 0 ? (
+          <EmptyState
+            icon="🧾"
+            title="No Final Disbursements"
+            description="Create an FDA after a voyage is completed to compare estimated costs against actual expenses."
+            actionLabel="Create from PDA"
+            onAction={() => setFromProformaOpen(true)}
+            tips={[
+              "FDAs allow you to track the variance between PDA estimates and final costs.",
+              "You can import all line items from an existing PDA to save time.",
+              "Once finalized, FDAs can be used to generate official invoices."
+            ]}
+          />
+        ) : (
+          <div className="border rounded-xl overflow-hidden bg-card">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 border-b">
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">
-                    <Calculator className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                    <p>No FDA records yet. Create your first from a Proforma or blank.</p>
-                  </td>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Reference</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Vessel</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Port</th>
+                  <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Estimated</th>
+                  <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Actual</th>
+                  <th className="text-center px-4 py-3 font-semibold text-muted-foreground">Variance</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Status</th>
+                  <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Actions</th>
                 </tr>
-              ) : fdas.map((fda: any) => {
-                const st = (fda.status as FdaStatus) || "draft";
-                const cfg = statusCfg[st] || statusCfg.draft;
-                return (
-                  <tr key={fda.id} className="border-b hover:bg-muted/20 transition-colors" data-testid={`row-fda-${fda.id}`}>
-                    <td className="px-4 py-3 font-mono text-xs font-medium">{fda.referenceNumber || `FDA-${fda.id}`}</td>
-                    <td className="px-4 py-3 font-medium">{fda.vesselName || "—"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{fda.portName || "—"}</td>
-                    <td className="px-4 py-3 text-right font-mono text-xs">{fmtUsd(fda.totalEstimatedUsd)}</td>
-                    <td className="px-4 py-3 text-right font-mono text-xs">{fmtUsd(fda.totalActualUsd)}</td>
-                    <td className="px-4 py-3 text-center"><VariancePill pct={fda.variancePercent} /></td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}>
-                        {cfg.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <Link href={`/fda/${fda.id}`}>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" title="View" data-testid={`button-view-fda-${fda.id}`}>
-                            <Eye className="h-4 w-4" />
+              </thead>
+              <tbody>
+                {fdas.map((fda: any) => {
+                  const st = (fda.status as FdaStatus) || "draft";
+                  const cfg = statusCfg[st] || statusCfg.draft;
+                  return (
+                    <tr key={fda.id} className="border-b hover:bg-muted/20 transition-colors" data-testid={`row-fda-${fda.id}`}>
+                      <td className="px-4 py-3 font-mono text-xs font-medium">{fda.referenceNumber || `FDA-${fda.id}`}</td>
+                      <td className="px-4 py-3 font-medium">{fda.vesselName || "—"}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{fda.portName || "—"}</td>
+                      <td className="px-4 py-3 text-right font-mono text-xs">{fmtUsd(fda.totalEstimatedUsd)}</td>
+                      <td className="px-4 py-3 text-right font-mono text-xs">{fmtUsd(fda.totalActualUsd)}</td>
+                      <td className="px-4 py-3 text-center"><VariancePill pct={fda.variancePercent} /></td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}>
+                          {cfg.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <Link href={`/fda/${fda.id}`}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" title="View" data-testid={`button-view-fda-${fda.id}`}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                          <a href={`/api/fda/${fda.id}/pdf`} target="_blank" rel="noopener noreferrer">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600" title="Export PDF" data-testid={`button-pdf-fda-${fda.id}`}>
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </a>
+                          <Button
+                            variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600"
+                            onClick={() => setDeleteId(fda.id)}
+                            data-testid={`button-delete-fda-${fda.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
-                        </Link>
-                        <a href={`/api/fda/${fda.id}/pdf`} target="_blank" rel="noopener noreferrer">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600" title="Export PDF" data-testid={`button-pdf-fda-${fda.id}`}>
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </a>
-                        <Button
-                          variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600"
-                          onClick={() => setDeleteId(fda.id)}
-                          data-testid={`button-delete-fda-${fda.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* From Proforma Dialog */}

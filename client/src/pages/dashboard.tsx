@@ -1,8 +1,9 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Ship, Anchor, Building2, Shield, Plus, LayoutDashboard, Handshake } from "lucide-react";
+import { Ship, Anchor, Building2, Shield, Plus, LayoutDashboard, Handshake, CheckCircle2, Circle, ChevronRight, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { PageMeta } from "@/components/page-meta";
@@ -14,6 +15,55 @@ import { AgentDashboard } from "@/components/dashboards/agent-dashboard";
 import { ProviderDashboard } from "@/components/dashboards/provider-dashboard";
 import { AdminDashboard } from "@/components/dashboards/admin-dashboard";
 import { BrokerDashboard } from "@/components/dashboards/broker-dashboard";
+
+function GettingStartedChecklist({ vessels, proformas, myProfile }: { vessels: Vessel[] | undefined; proformas: Proforma[] | undefined; myProfile: any }) {
+  const hasProfile = !!myProfile && (!!myProfile.companyName || !!myProfile.email);
+  const hasVessel = (vessels?.length || 0) > 0;
+  const hasProforma = (proformas?.length || 0) > 0;
+
+  const steps = [
+    { label: "Complete your company profile", href: "/company-profile", done: hasProfile },
+    { label: "Add your first vessel", href: "/vessels", done: hasVessel },
+    { label: "Create your first proforma", href: "/proformas/new", done: hasProforma },
+    { label: "Explore the port directory", href: "/directory", done: false },
+    { label: "Join the community forum", href: "/forum", done: false },
+  ];
+
+  return (
+    <Card className="border-[hsl(var(--maritime-primary)/0.2)] bg-gradient-to-br from-white to-sky-50/30 dark:from-slate-950 dark:to-sky-950/10 overflow-hidden" data-testid="card-getting-started">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg font-serif flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-sky-500/10 flex items-center justify-center">
+            <Zap className="w-4 h-4 text-sky-500" />
+          </div>
+          Getting Started with VesselPDA
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-1">
+        {steps.map((step, i) => (
+          <Link key={i} href={step.href}>
+            <div
+              className="flex items-center justify-between p-3 rounded-lg hover:bg-white/50 dark:hover:bg-white/5 transition-colors cursor-pointer group"
+              data-testid={`checklist-item-${i}`}
+            >
+              <div className="flex items-center gap-3">
+                {step.done ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                ) : (
+                  <Circle className="w-5 h-5 text-muted-foreground/30" />
+                )}
+                <span className={`text-sm font-medium ${step.done ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                  {step.label}
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </Link>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
 
 const ROLE_LABELS: Record<string, string> = {
   shipowner: "Shipowner",
@@ -112,6 +162,10 @@ export default function Dashboard() {
   const proformaCount = (user as any)?.proformaCount ?? 0;
   const proformaLimit = (user as any)?.proformaLimit ?? 1;
 
+  const hasProfile = !!myProfile && (!!myProfile.companyName || !!myProfile.email);
+  const hasVessel = (vessels?.length || 0) > 0;
+  const hasProforma = (proformas?.length || 0) > 0;
+
   const adminRoleSwitcher = isAdmin && (
     <div className="rounded-xl border-2 border-red-200 dark:border-red-900 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/20 p-4" data-testid="admin-role-switcher">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -201,6 +255,10 @@ export default function Dashboard() {
           </Link>
         )}
       </div>
+
+      {effectiveRole !== "admin" && !hasProfile && !hasVessel && !hasProforma && (
+        <GettingStartedChecklist vessels={vessels} proformas={proformas} myProfile={myProfile} />
+      )}
 
       {/* ── Admin overview mode ── */}
       {effectiveRole === "admin" && (

@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
 import { useAuth } from "@/hooks/use-auth";
+import { EmptyState } from "@/components/empty-state";
 
 const UNIT_OPTIONS = ["MT", "CBM", "TEU", "Units", "BBL", "Lot"];
 
@@ -183,11 +184,18 @@ export default function CargoPositions() {
       </div>
 
       {filtered.length === 0 ? (
-        <Card className="p-12 text-center">
-          <Package className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground">No active listings found in this category</p>
-          <Button className="mt-4" onClick={() => setDialogOpen(true)}>Post First Listing</Button>
-        </Card>
+        <EmptyState
+          icon="📦"
+          title="No Cargo Positions"
+          description="Post cargo or vessel positions to find matching opportunities."
+          actionLabel="+ Add Position"
+          onAction={() => setDialogOpen(true)}
+          tips={[
+            "Cargo positions are seen by shipowners looking for freight",
+            "Vessel positions help brokers find suitable cargo",
+            "Include a laycan range for better matching"
+          ]}
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((pos: any) => {

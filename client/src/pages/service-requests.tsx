@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
 import { useAuth } from "@/hooks/use-auth";
+import { EmptyState } from "@/components/empty-state";
 import type { Port, Vessel } from "@shared/schema";
 
 const SERVICE_TYPE_CONFIG: Record<string, { label: string; icon: any; color: string; bg: string }> = {
@@ -370,11 +371,18 @@ export default function ServiceRequests() {
           </TabsList>
           <TabsContent value="open" className="mt-4">
             {requests.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground">
-                <Wrench className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                <p className="font-medium">No open requests in your service area</p>
-                <p className="text-sm mt-1">You can update your service ports from your profile page.</p>
-              </div>
+              <EmptyState
+                icon="📢"
+                title="No Open Requests"
+                description="There are no open service requests in your registered service ports at the moment."
+                actionLabel="Update My Ports"
+                actionHref="/company-profile"
+                tips={[
+                  "You only see requests for ports you serve",
+                  "Enable notifications to get alerted for new requests",
+                  "Check the 'My Offers' tab for pending bids"
+                ]}
+              />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {requests.map(req => (
@@ -385,10 +393,16 @@ export default function ServiceRequests() {
           </TabsContent>
           <TabsContent value="myoffers" className="mt-4 space-y-3">
             {myOffers.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground">
-                <Send className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                <p className="font-medium">No offers submitted yet</p>
-              </div>
+              <EmptyState
+                icon="📋"
+                title="No Offers Submitted"
+                description="Respond to open service requests to submit your offers here."
+                tips={[
+                  "Competitive pricing increases your selection rate",
+                  "Include estimated duration in your offers",
+                  "Check the 'Open Requests' tab to find opportunities"
+                ]}
+              />
             ) : (
               myOffers.map(o => <OfferCard key={o.id} offer={o} />)
             )}
@@ -397,14 +411,18 @@ export default function ServiceRequests() {
       ) : (
         <>
           {requests.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <Wrench className="w-12 h-12 mx-auto mb-4 opacity-30" />
-              <p className="font-medium">No service requests yet</p>
-              <p className="text-sm mt-1">Create requests for services like fuel, repair, provisioning, and more.</p>
-              <Button className="mt-4 gap-2" onClick={() => setShowCreate(true)}>
-                <Plus className="w-4 h-4" /> Create Request
-              </Button>
-            </div>
+            <EmptyState
+              icon="🔔"
+              title="No Service Requests"
+              description="Create requests for services like fuel, repair, provisioning, and more."
+              actionLabel="+ New Request"
+              onAction={() => setShowCreate(true)}
+              tips={[
+                "Service requests reach all verified providers in the port",
+                "Be specific in your description for accurate offers",
+                "Compare multiple offers before selecting one"
+              ]}
+            />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {requests.map((req: any) => {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ShieldCheck, Plus, Trash2, Pencil, AlertTriangle, CheckCircle2, Clock, Loader2, BadgeCheck } from "lucide-react";
+import { ShieldCheck, Plus, Trash2, Pencil, AlertTriangle, CheckCircle2, Clock, Loader2, BadgeCheck, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
+import { EmptyState } from "@/components/empty-state";
 
 const CERT_TYPES: Record<string, string> = {
   ism: "ISM",
@@ -179,10 +180,18 @@ export default function VesselCertificates() {
       )}
 
       {vessels.length === 0 ? (
-        <Card className="p-12 text-center">
-          <ShieldCheck className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground">No vessels added yet. Please add a vessel first.</p>
-        </Card>
+        <EmptyState
+          icon="📜"
+          title="No Certificates"
+          description="Track vessel certificates and get alerts before they expire."
+          actionLabel="Add Certificate"
+          actionHref="/vessels"
+          tips={[
+            "Add vessels to your fleet first to manage their certificates",
+            "Upload digital copies for easy access during port calls",
+            "Set up expiry alerts to never miss a renewal"
+          ]}
+        />
       ) : (
         <div className="space-y-6">
           {vessels.map((vessel: any) => {

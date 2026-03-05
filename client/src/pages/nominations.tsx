@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { UserCheck, Clock, CheckCircle2, XCircle, Ship, MapPin, Calendar, ChevronRight, Loader2, Plus } from "lucide-react";
+import { UserCheck, Clock, CheckCircle2, XCircle, Ship, MapPin, Calendar, ChevronRight, Loader2, Plus, HelpCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { PageMeta } from "@/components/page-meta";
+import { EmptyState } from "@/components/empty-state";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   pending:  { label: "Pending",   color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",   icon: Clock },
@@ -208,18 +209,18 @@ export default function Nominations() {
 
           <TabsContent value="sent" className="mt-4 space-y-3">
             {sent.length === 0 ? (
-              <Card className="p-10 text-center">
-                <UserCheck className="w-10 h-10 mx-auto mb-3 opacity-20" />
-                <p className="font-medium text-sm">No nominations sent yet</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Visit an agent profile from the directory and use the "Nominate" button.
-                </p>
-                <Link href="/directory">
-                  <Button variant="outline" size="sm" className="mt-4 gap-1.5">
-                    <ChevronRight className="w-4 h-4" /> Go to Directory
-                  </Button>
-                </Link>
-              </Card>
+              <EmptyState
+                icon="🤝"
+                title="No Nominations Sent"
+                description="Nominate agents directly from the company directory."
+                actionLabel="Browse Directory"
+                actionHref="/directory"
+                tips={[
+                  "You can nominate agents for specific port calls",
+                  "Keep track of all your agent appointments in one place",
+                  "Agents will be notified immediately of your nomination"
+                ]}
+              />
             ) : (
               sent.map(nom => (
                 <NominationCard key={nom.id} nom={nom} role="sent" />
@@ -229,13 +230,11 @@ export default function Nominations() {
 
           <TabsContent value="received" className="mt-4 space-y-3">
             {received.length === 0 ? (
-              <Card className="p-10 text-center">
-                <UserCheck className="w-10 h-10 mx-auto mb-3 opacity-20" />
-                <p className="font-medium text-sm">No nominations received yet</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Shipowners can nominate you directly from your profile page.
-                </p>
-              </Card>
+              <EmptyState
+                icon="🤝"
+                title="No Nominations Received"
+                description="You haven't received any direct nominations yet."
+              />
             ) : (
               received.map(nom => (
                 <NominationCard

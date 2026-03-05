@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { EmptyState } from "@/components/empty-state";
 import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign, Zap, Loader2, Calculator, Ship, Anchor, Globe, Package, AlertTriangle, X, Send, RefreshCw, Clock, CheckCircle2, XCircle, Download } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -462,6 +463,22 @@ export default function Proformas() {
         <div className="space-y-3">
           {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
         </div>
+      ) : proformas && proformas.length === 0 ? (
+        <EmptyState
+          icon="📋"
+          title="No Proformas Yet"
+          description="Create your first Proforma Disbursement Account to calculate port costs for a vessel call."
+          actionLabel="+ Create New PDA"
+          actionHref="/proformas/new"
+          secondaryLabel="Try Quick Estimate"
+          onSecondaryAction={() => setShowQuickDialog(true)}
+          tips={[
+            "Use the Quick Estimate tool for a fast cost calculation without saving",
+            "Upload your own tariff templates to customize calculations",
+            "Send proformas to shipowners for digital approval",
+            "Convert approved proformas to FDAs with one click"
+          ]}
+        />
       ) : filteredProformas.length > 0 ? (
         <Card className="overflow-hidden">
           <div className="table-scroll-wrapper">
@@ -579,24 +596,19 @@ export default function Proformas() {
           </div>
         </Card>
       ) : (
-        <Card className="p-12 text-center space-y-4">
-          <FileText className="w-16 h-16 text-muted-foreground/20 mx-auto" />
-          <div>
-            <h3 className="font-serif font-semibold text-lg">No Proformas Found</h3>
-            <p className="text-muted-foreground text-sm mt-1">
-              {searchTerm || statusFilter !== "all" || vesselFilter !== "all"
-                ? "No proformas match your filters."
-                : "Create your first proforma to get started."}
-            </p>
-          </div>
-          {!searchTerm && statusFilter === "all" && vesselFilter === "all" && (
-            <Link href="/proformas/new">
-              <Button className="gap-2" data-testid="button-create-first-proforma-list">
-                <Plus className="w-4 h-4" /> Create Proforma
-              </Button>
-            </Link>
-          )}
-        </Card>
+        <div className="text-center py-12 border-2 border-dashed rounded-lg">
+          <p className="text-muted-foreground">No proformas match your filters.</p>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setSearchTerm("");
+              setStatusFilter("all");
+              setVesselFilter("all");
+            }}
+          >
+            Clear all filters
+          </Button>
+        </div>
       )}
     </div>
   );

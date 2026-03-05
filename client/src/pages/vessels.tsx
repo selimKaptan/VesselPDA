@@ -37,6 +37,7 @@ import { isUnauthorizedError } from "@/lib/auth-utils";
 import { PageMeta } from "@/components/page-meta";
 import type { Vessel } from "@shared/schema";
 import { useLocation, Link } from "wouter";
+import { EmptyState } from "@/components/empty-state";
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
 
@@ -1302,14 +1303,19 @@ export default function Vessels() {
               ))}
             </div>
           ) : vessels.length === 0 ? (
-            <div className="text-center py-20 text-muted-foreground" data-testid="text-no-vessels">
-              <Ship className="w-14 h-14 mx-auto mb-4 opacity-20" />
-              <p className="font-semibold text-lg">No vessels in your fleet yet</p>
-              <p className="text-sm mt-2">Add your first vessel to get started.</p>
-              <Button className="mt-5 gap-2" onClick={() => setShowForm(true)} data-testid="button-add-first-vessel">
-                <Plus className="w-4 h-4" /> Add First Vessel
-              </Button>
-            </div>
+            <EmptyState
+              icon="🚢"
+              title="No Vessels Added"
+              description="Add your fleet vessels to quickly create proformas and track their positions."
+              actionLabel="+ Add Vessel"
+              onAction={() => setShowForm(true)}
+              secondaryLabel="Search by IMO"
+              tips={[
+                "You can auto-fill vessel particulars using an IMO number.",
+                "Assign vessels to voyages to track their position on the fleet map.",
+                "Upload certificates to receive expiration alerts."
+              ]}
+            />
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               <Search className="w-10 h-10 mx-auto mb-3 opacity-20" />
