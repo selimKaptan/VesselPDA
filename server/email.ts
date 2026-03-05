@@ -13,6 +13,7 @@ import {
   messageBridgeTemplate,
   pdaFullTemplate,
   pdaApprovalRequestTemplate,
+  orgInviteTemplate,
 } from "./email-templates";
 
 // Replit Resend integration — fetches API key via OAuth connector
@@ -516,6 +517,27 @@ export interface ApprovalRequestEmailData {
   totalUsd: number;
   approvalToken: string;
   lineItems: Array<{ description: string; amountUsd?: number; quantity?: number; unit?: string }>;
+}
+
+export async function sendOrgInviteEmail(
+  to: string,
+  params: { organizationName: string; inviterName: string; role: string; acceptUrl: string }
+): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) { console.warn("[email] No credentials — skipping sendOrgInviteEmail"); return false; }
+  const resend = new Resend(creds.apiKey);
+  const { subject, html } = orgInviteTemplate({ recipientEmail: to, ...params });
+  try {
+    const { error } = await resend.emails.send({
+      from: `VesselPDA <${creds.fromEmail}>`,
+      to: [to],
+      subject,
+      html,
+    });
+    if (error) { console.error("[email] sendOrgInviteEmail error:", error); return false; }
+    console.log(`[email] Org invite sent to ${to}`);
+    return true;
+  } catch (err) { console.error("[email] sendOrgInviteEmail failed:", err); return false; }
 }
 
 export async function sendApprovalRequestEmail(data: ApprovalRequestEmailData): Promise<boolean> {

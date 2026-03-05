@@ -168,6 +168,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     color: "sky",
     subPages: [
       { label: "Settings", url: "/settings", icon: Settings },
+      { label: "Team Management", url: "/team", icon: Users },
     ],
   },
 ];
@@ -212,6 +213,7 @@ export const URL_TO_CATEGORY: Record<string, string> = {
   "/admin": "admin",
   "/tariff-management": "admin",
   "/settings": "settings",
+  "/team": "settings",
 };
 
 export function urlToCategory(pathname: string): string {

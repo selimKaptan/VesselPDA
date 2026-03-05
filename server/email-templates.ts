@@ -816,3 +816,28 @@ export function invoiceOverdueTemplate(params: {
     html: baseTemplate(content),
   };
 }
+
+export function orgInviteTemplate(params: {
+  recipientEmail: string;
+  organizationName: string;
+  inviterName: string;
+  role: string;
+  acceptUrl: string;
+}): { subject: string; html: string } {
+  const subject = `You've been invited to join ${params.organizationName} on VesselPDA`;
+  const roleDisplay = params.role.charAt(0).toUpperCase() + params.role.slice(1);
+  const content = `
+    <h2 style="font-family:Georgia,serif;font-size:22px;color:#F8FAFC;margin:0 0 6px 0">⚓ Team Invitation</h2>
+    <p style="color:#94a3b8;font-size:14px;line-height:1.6;margin:0 0 20px 0">You have been invited to join a team workspace on VesselPDA — the maritime platform connecting ship agents, shipowners, and service providers.</p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 20px 0">
+      ${infoRow("Organization", params.organizationName)}
+      ${infoRow("Invited By", params.inviterName)}
+      ${infoRow("Your Role", `<span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;background-color:rgba(56,189,248,0.15);color:#38BDF8">${roleDisplay}</span>`)}
+    </table>
+    <div style="text-align:center;padding:16px 0 8px">
+      <a href="${params.acceptUrl}" style="display:inline-block;padding:14px 32px;background-color:#38BDF8;color:#0B1120;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px">Accept Invitation →</a>
+    </div>
+    <p style="color:#64748b;font-size:12px;margin:20px 0 0;text-align:center">This invitation expires in 7 days. If you did not expect this invitation, you can safely ignore it.</p>
+  `;
+  return { subject, html: baseTemplate(content, "VesselPDA Team Management") };
+}

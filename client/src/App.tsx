@@ -63,6 +63,7 @@ import VerifyEmailPage from "@/pages/verify-email";
 import ForgotPasswordPage from "@/pages/forgot-password";
 import ResetPasswordPage from "@/pages/reset-password";
 import DemoPage from "@/pages/demo";
+import Team from "@/pages/team";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -114,6 +115,7 @@ function AuthenticatedRouter() {
       <Route path="/fda/:id" component={FdaDetail} />
       <Route path="/da-comparison" component={DaComparison} />
       <Route path="/da-comparison/:proformaId" component={DaComparison} />
+      <Route path="/team" component={Team} />
       <Route component={NotFound} />
     </Switch>
   );
