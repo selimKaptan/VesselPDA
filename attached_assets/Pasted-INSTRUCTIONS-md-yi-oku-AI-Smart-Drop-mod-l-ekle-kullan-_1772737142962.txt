@@ -1,0 +1,186 @@
+INSTRUCTIONS.md'yi oku. AI Smart Drop modülü ekle — kullanıcılar dosyaları sürükle-bırak ile AI'a analiz ettirip otomatik sisteme işlesin. Projede Anthropic Claude API kullanılıyor.
+
+=== 1. BACKEND — AI DOCUMENT PARSE ENDPOINT ===
+
+server/routes/ai.routes.ts'e ekle:
+
+POST /api/ai/parse-document
+- isAuthenticated
+- Body: { content: string, fileType: string, fileName: string }
+- Anthropic Claude API kullan (mevcut server/anthropic.ts altyapısı)
+- Content max 8000 karakter
+- Rate limit: kullanıcı başına dakikada max 5
+
+System Prompt:
+"You are an expert maritime and ship agency operations assistant. Analyze the following email, document or note and extract structured information. Return ONLY a valid JSON object with this exact structure, nothing else:
+{
+  detected_event: crew_change | spare_part | eta_update | nomination | cargo_info | port_call | invoice | nor_tendered | sof_update | laytime_notice | general_note,
+  confidence: 0.0-1.0,
+  vessel_name: string or null,
+  imo_number: string or null,
+  port_name: string or null,
+  date: YYYY-MM-DD or null,
+  summary: brief one-line summary,
+  details: { event-specific fields },
+  action_required: what needs to be done,
+  suggested_action: create_voyage | update_eta | create_proforma | add_crew | create_service_request | create_note | none,
+  raw_entities: { emails: [], phone_numbers: [], dates: [], amounts: [] }
+}
+If any field is not found, use null."
+
+Endpoint:
+- Anthropic SDK ile claude-sonnet-4-20250514 model çağır
+- Response'tan JSON çıkar (```json wrapper varsa temizle)
+- JSON parse edilemezse graceful fallback: detected_event: general_note
+- Audit log kaydet
+- Response: { success: true, analysis: parsed, tokensUsed: number }
+
+=== 2. AI EXECUTE ACTION ENDPOINT ===
+
+POST /api/ai/execute-action
+- isAuthenticated
+- Body: { type: string, vesselName: string, details: any }
+- Type'a göre:
+  * update_eta: ilgili voyage'ı bul, ETA güncelle
+  * add_crew: crew kaydı oluştur
+  * create_note: notification oluştur
+  * Diğerleri: ilgili sayfaya yönlendirme bilgisi döndür
+- Audit log kaydet
+
+=== 3. AI ANALYSIS HISTORY ===
+
+shared/schema.ts'e ekle:
+
+export const aiAnalysisHistory = pgTable("ai_analysis_history", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  fileName: varchar("file_name", { length: 300 }),
+  fileType: varchar("file_type", { length: 50 }),
+  detectedEvent: varchar("detected_event", { length: 50 }),
+  confidence: real("confidence"),
+  summary: text("summary"),
+  fullAnalysis: jsonb("full_analysis"),
+  actionTaken: varchar("action_taken", { length: 50 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+npx drizzle-kit push
+
+GET /api/ai/history?limit=10
+- Son analizler listesi
+
+Her analiz sonrası history'ye kaydet.
+
+=== 4. FRONTEND — AI SMART DROP COMPONENT ===
+
+client/src/components/ai-smart-drop.tsx oluştur:
+
+Glassmorphism drag-and-drop zone:
+- Varsayılan: border-2 border-dashed border-slate-700/50 bg-slate-900/40 backdrop-blur-sm rounded-2xl p-8
+- Dragging: border-sky-400 bg-sky-500/10 shadow-lg shadow-sky-500/20 scale-[1.02] + arka plan gradient pulse
+- Processing: spinner + "AI is analyzing your document..." text
+- İçerik: wand ikonu (🪄), "AI Smart Drop" başlık, "Drop an email, PDF or text file" açıklama, dosya tipi badge'leri (.eml .txt .pdf)
+- Hidden file input: accept=".eml,.txt,.pdf,.msg"
+- Tıklayınca da dosya seçebilsin (click + drag-drop)
+
+File processing:
+- .txt: FileReader.readAsText
+- .eml: FileReader.readAsText (email header + body)
+- .pdf: FileReader.readAsText (basit text extraction)
+- Max 5MB dosya boyutu kontrolü
+
+handleDrop:
+- Dosyadan text çıkar
+- POST /api/ai/parse-document çağır
+- Başarılı: result modal aç
+- Hata: toast göster
+
+Ek: "Or paste text directly →" butonu
+- Tıklayınca textarea dialog aç
+- Yapıştırılan metni aynı endpoint'e gönder
+
+=== 5. FRONTEND — ANALYSIS RESULT MODAL ===
+
+Dialog/Modal — glass-panel stili:
+
+Üstte:
+- 🪄 AI Analysis Result + Confidence badge (yeşil >80%, amber >50%, kırmızı <50%)
+
+Detected Event Banner:
+- bg-sky-500/10 border border-sky-500/30 rounded-xl p-4
+- Event ikonu + label + summary
+- Event ikonları: crew_change=👥, spare_part=🔧, eta_update=🕐, nomination=🤝, cargo_info=📦, port_call=⚓, invoice=💳, nor_tendered=📋, sof_update=📝, laytime_notice=⏱️, general_note=📌
+
+Extracted Details (2 sütun grid):
+- Vessel: 🚢 + isim
+- Port: ⚓ + isim
+- Date: 📅 + tarih
+- IMO: 🔢 + numara
+- Edit mode'da her alan düzenlenebilir input olsun
+
+Event-specific detail kartları:
+- crew_change: Crew On/Off isimleri, rank
+- spare_part: Parts listesi, urgency badge, delivery port
+- eta_update: Old ETA → New ETA, reason
+- nomination: Agent, shipowner, cargo info
+- cargo_info: Type, quantity, loading/discharge ports
+- invoice: Amount, currency, due date
+
+Action Required:
+- bg-amber-500/10 border border-amber-500/30 rounded-xl p-3
+- "ACTION REQUIRED" label + açıklama
+
+Raw Entities (extracted emails, dates, amounts):
+- Küçük badge'ler: 📧 email, 📅 tarih, 💰 tutar
+
+3 buton (alt kısım):
+1. "Cancel" — gri, secondary → modal kapat
+2. "✏️ Edit" — amber, outline → edit mode toggle (alanlar editable olur)
+3. "✓ Confirm & Process" — sky-500, primary, büyük → sisteme işle
+
+=== 6. CONFIRM & PROCESS LOGIC ===
+
+suggested_action'a göre:
+- create_voyage: /voyages sayfasına yönlendir, vessel+port+eta pre-fill (URL params)
+- update_eta: POST /api/ai/execute-action → toast "ETA Updated"
+- create_proforma: /proformas/new?vessel=X&port=Y yönlendir
+- add_crew: POST /api/ai/execute-action → toast "Crew Change Recorded"
+- create_service_request: /service-requests?new=true&vessel=X yönlendir
+- create_note: POST /api/ai/execute-action → toast "Note Saved"
+- none: sadece modal kapat
+
+Her işlemden sonra: AI history'ye actionTaken kaydet.
+
+=== 7. DASHBOARD ENTEGRASYONU ===
+
+Her rolün dashboard'ına AI Smart Drop widget kartı ekle:
+- Küçük versiyon: drop zone + "Drop file or paste text"
+- Dashboard'ın üst kısmında veya sağ panelde
+
+=== 8. ROUTING & NAVIGATION ===
+
+Tools sidebar'ına ekle:
+{ icon: Wand2, label: "AI Smart Drop", href: "/ai-smart-drop" }
+
+client/src/pages/ai-smart-drop.tsx oluştur:
+- Full page versiyon: büyük drop zone + sağda analysis history listesi
+- History: son 10 analiz, her birinde dosya adı, event, confidence, tarih, tekrar aç butonu
+
+client/src/App.tsx'e route ekle:
+<Route path="/ai-smart-drop" component={AiSmartDrop} />
+
+=== 9. IMPORTANT ===
+
+- Anthropic Claude API kullan — mevcut ANTHROPIC_API_KEY ve server/anthropic.ts
+- claude-sonnet-4-20250514 model kullan
+- Content max 8000 karakter (token tasarrufu)
+- Rate limit: dakikada 5 analiz
+- Confidence < 0.5 ise uyarı banner göster
+- Dosya tipi: sadece .eml, .txt, .pdf, .msg
+- Max dosya: 5MB
+- JSON parse hatası → graceful fallback (general_note)
+- Execute action: HER ZAMAN kullanıcı onayı ile, never auto-execute
+- Edit mode: kullanıcı AI çıktısını düzeltebilmeli
+- Mevcut AI chat widget'ını (/api/ai/chat) bozma
+- Glassmorphism: glass-panel class kullan
+- npx drizzle-kit push
