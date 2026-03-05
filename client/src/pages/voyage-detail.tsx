@@ -7,7 +7,7 @@ import {
   Sparkles, HelpCircle, Clock, PlayCircle, XCircle, ClipboardList,
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
-  FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings,
+  FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings, Archive,
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
@@ -542,6 +542,34 @@ export default function VoyageDetail() {
     a.href = href;
     a.download = doc.fileName || doc.name;
     a.click();
+  }
+
+  async function handleDownloadAllZip() {
+    if (!Array.isArray(docs) || docs.length === 0) return;
+    const JSZip = (await import("jszip")).default;
+    const zip = new JSZip();
+    await Promise.all(docs.map(async (doc: any) => {
+      const fileName = doc.fileName || doc.name || `document-${doc.id}`;
+      if (doc.fileBase64) {
+        const b64 = doc.fileBase64.includes(",") ? doc.fileBase64.split(",")[1] : doc.fileBase64;
+        zip.file(fileName, b64, { base64: true });
+      } else if (doc.fileUrl) {
+        try {
+          const res = await fetch(doc.fileUrl, { credentials: "include" });
+          const blob = await res.blob();
+          zip.file(fileName, blob);
+        } catch {
+          // skip files that fail to fetch
+        }
+      }
+    }));
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `voyage-${voyageId}-documents.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   function previewDoc(doc: any) {
@@ -1360,6 +1388,11 @@ export default function VoyageDetail() {
               {Array.isArray(docs) && docs.length > 0 && <span className="text-xs text-muted-foreground">({docs.length})</span>}
             </div>
             <div className="flex items-center gap-1.5">
+              {Array.isArray(docs) && docs.length > 0 && (
+                <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={handleDownloadAllZip} data-testid="button-download-all-zip">
+                  <Archive className="w-3 h-3" /> Download All
+                </Button>
+              )}
               <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowTemplateDialog(true)} data-testid="button-from-template">
                 <LayoutTemplate className="w-3 h-3" /> From Template
               </Button>
@@ -1769,11 +1802,18 @@ export default function VoyageDetail() {
 
             {participants.map((p: any) => {
               const roleColors: Record<string, string> = {
-                agent: "bg-sky-500/15 text-sky-500 border-sky-500/30",
-                provider: "bg-purple-500/15 text-purple-500 border-purple-500/30",
-                surveyor: "bg-amber-500/15 text-amber-500 border-amber-500/30",
-                broker: "bg-green-500/15 text-green-500 border-green-500/30",
-                observer: "bg-slate-500/15 text-slate-400 border-slate-500/30",
+                agent:    "bg-blue-500/15 text-blue-400 border-blue-500/30",
+                observer: "bg-violet-500/15 text-violet-400 border-violet-500/30",
+                broker:   "bg-teal-500/15 text-teal-400 border-teal-500/30",
+                provider: "bg-orange-500/15 text-orange-400 border-orange-500/30",
+                surveyor: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+              };
+              const ROLE_LABELS: Record<string, string> = {
+                agent:    "Agent Staff",
+                observer: "Shipowner",
+                broker:   "Charterer",
+                provider: "Provider",
+                surveyor: "Surveyor",
               };
               const roleColor = roleColors[p.role] ?? roleColors.observer;
               const name = `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() || p.email || "—";
@@ -1789,7 +1829,7 @@ export default function VoyageDetail() {
                       </div>
                       <div>
                         <p className="font-medium text-sm">{name}</p>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${roleColor} capitalize`}>{p.role}</span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${roleColor}`}>{ROLE_LABELS[p.role] ?? p.role}</span>
                       </div>
                     </div>
                     {isOwner && (
@@ -1935,11 +1975,11 @@ export default function VoyageDetail() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="agent">Agent</SelectItem>
-                    <SelectItem value="provider">Provider</SelectItem>
+                    <SelectItem value="agent">Agent Staff — Full Access</SelectItem>
+                    <SelectItem value="observer">Shipowner — View Only</SelectItem>
+                    <SelectItem value="broker">Charterer</SelectItem>
+                    <SelectItem value="provider">Provider / Supplier</SelectItem>
                     <SelectItem value="surveyor">Surveyor</SelectItem>
-                    <SelectItem value="broker">Broker</SelectItem>
-                    <SelectItem value="observer">Observer</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -2012,11 +2052,11 @@ export default function VoyageDetail() {
                 <Select value={inviteRole} onValueChange={setInviteRole}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="agent">Agent</SelectItem>
-                    <SelectItem value="provider">Provider</SelectItem>
+                    <SelectItem value="agent">Agent Staff — Full Access</SelectItem>
+                    <SelectItem value="observer">Shipowner — View Only</SelectItem>
+                    <SelectItem value="broker">Charterer</SelectItem>
+                    <SelectItem value="provider">Provider / Supplier</SelectItem>
                     <SelectItem value="surveyor">Surveyor</SelectItem>
-                    <SelectItem value="broker">Broker</SelectItem>
-                    <SelectItem value="observer">Observer</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -2052,11 +2092,11 @@ export default function VoyageDetail() {
                 <Select value={bulkRole} onValueChange={setBulkRole}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="agent">Agent</SelectItem>
-                    <SelectItem value="provider">Provider</SelectItem>
+                    <SelectItem value="agent">Agent Staff — Full Access</SelectItem>
+                    <SelectItem value="observer">Shipowner — View Only</SelectItem>
+                    <SelectItem value="broker">Charterer</SelectItem>
+                    <SelectItem value="provider">Provider / Supplier</SelectItem>
                     <SelectItem value="surveyor">Surveyor</SelectItem>
-                    <SelectItem value="broker">Broker</SelectItem>
-                    <SelectItem value="observer">Observer</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
