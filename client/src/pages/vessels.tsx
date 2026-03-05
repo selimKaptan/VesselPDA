@@ -10,7 +10,7 @@ import {
   LayoutGrid, Map as MapIcon,
   ShieldCheck, Pencil, AlertTriangle, CheckCircle2, Clock,
   ChevronLeft, Download, Upload, Eye, X,
-  Layers, Users2,
+  Layers, Users2, FileSpreadsheet,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -157,17 +157,18 @@ function getProgress(voyage: any): number {
 
 type VesselFormData = {
   name: string; flag: string; vesselType: string; imoNumber: string;
-  callSign: string; grt: string; nrt: string; dwt: string; loa: string; beam: string;
+  callSign: string; yearBuilt: string; grt: string; nrt: string; dwt: string; loa: string; beam: string;
 };
 
 const emptyForm = (): VesselFormData => ({
-  name: "", flag: "", vesselType: "", imoNumber: "", callSign: "",
+  name: "", flag: "", vesselType: "", imoNumber: "", callSign: "", yearBuilt: "",
   grt: "", nrt: "", dwt: "", loa: "", beam: "",
 });
 
 const vesselToForm = (v: Vessel): VesselFormData => ({
   name: v.name || "", flag: v.flag || "", vesselType: v.vesselType || "",
   imoNumber: v.imoNumber || "", callSign: v.callSign || "",
+  yearBuilt: (v as any).yearBuilt != null ? String((v as any).yearBuilt) : "",
   grt: v.grt != null ? String(v.grt) : "", nrt: v.nrt != null ? String(v.nrt) : "",
   dwt: v.dwt != null ? String(v.dwt) : "", loa: v.loa != null ? String(v.loa) : "",
   beam: v.beam != null ? String(v.beam) : "",
@@ -231,6 +232,7 @@ function VesselForm({
       loa: form.loa ? parseFloat(form.loa) : null,
       beam: form.beam ? parseFloat(form.beam) : null,
       imoNumber: form.imoNumber || null, callSign: form.callSign || null,
+      yearBuilt: form.yearBuilt ? parseInt(form.yearBuilt) : null,
     });
   };
 
@@ -310,6 +312,11 @@ function VesselForm({
           <Label htmlFor="callSign">Call Sign</Label>
           <Input id="callSign" placeholder="9HA4567" value={form.callSign}
             onChange={(e) => set("callSign", e.target.value)} data-testid="input-callsign" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="yearBuilt">Year Built</Label>
+          <Input id="yearBuilt" type="number" placeholder="e.g. 2005" value={form.yearBuilt}
+            onChange={(e) => set("yearBuilt", e.target.value)} data-testid="input-year-built" />
         </div>
       </div>
       <div className="flex justify-end gap-3 pt-2">
@@ -1432,47 +1439,135 @@ export default function Vessels() {
               <div className="p-6 space-y-4 overflow-y-auto flex-1">
                   {/* ── Genel ── */}
                   {detailTab === "general" && (
-                    <>
-                      <div className="space-y-2">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Operation Status</p>
-                        <FleetStatusSelector vessel={v} />
-                        <p className="text-[11px] text-muted-foreground">Click the badge to change status</p>
-                      </div>
+                    <div className="flex flex-col gap-4">
                       <div className="grid grid-cols-2 gap-3">
-                        {[
-                          { icon: MapPin,   label: "Location",   value: voy?.portName || "Unknown" },
-                          { icon: Activity, label: "Voyage",     value: voy ? (voy.status === "active" ? "Active" : "Planned") : "None" },
-                          { icon: Calendar, label: "ETA",        value: voy?.eta ? new Date(voy.eta).toLocaleDateString("en-GB") : "—" },
-                          { icon: Calendar, label: "ETD",        value: voy?.etd ? new Date(voy.etd).toLocaleDateString("en-GB") : "—" },
-                          { icon: FileText, label: "Purpose",    value: voy?.purposeOfCall || "—" },
-                          { icon: Ship,     label: "Call Sign",  value: v.callSign || "—" },
-                        ].map(({ icon: Icon, label, value }) => (
-                          <div key={label} className="bg-muted/30 rounded-xl p-3">
-                            <div className="flex items-center gap-1.5 mb-1">
-                              <Icon className="w-3.5 h-3.5 text-muted-foreground" />
-                              <p className="text-xs text-muted-foreground font-medium">{label}</p>
+
+                        {/* ── SOL SÜTUN — Vessel Particulars ── */}
+                        <div className="flex flex-col gap-3">
+                          <div className="rounded-lg border bg-card/50 p-3 space-y-2.5">
+                            <div className="flex items-center gap-1.5 pb-2 border-b">
+                              <Ship className="w-3 h-3 text-primary" />
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                Vessel Particulars
+                              </p>
                             </div>
-                            <p className="text-sm font-bold truncate">{value}</p>
+                            {[
+                              { label: "IMO No",     value: v.imoNumber || "—" },
+                              { label: "DWT",        value: v.dwt ? v.dwt.toLocaleString("en-US") + " MT" : "—" },
+                              { label: "GRT",        value: v.grt ? v.grt.toLocaleString("en-US") + " GT" : "—" },
+                              { label: "Call Sign",  value: v.callSign || "—" },
+                              { label: "Flag",       value: `${flag} ${v.flag || "—"}` },
+                              { label: "Year Built", value: (v as any).yearBuilt ? String((v as any).yearBuilt) : "—" },
+                            ].map(({ label, value }) => (
+                              <div key={label} className="flex items-center justify-between gap-2 text-xs">
+                                <span className="text-muted-foreground shrink-0">{label}</span>
+                                <span className="font-semibold text-right truncate">{value}</span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                          <Link href={`/vessel-q88/${v.id}`}>
+                            <Button variant="outline" size="sm"
+                              className="w-full gap-2 border-dashed text-xs"
+                              data-testid="button-vessel-q88">
+                              <FileSpreadsheet className="w-3.5 h-3.5" />
+                              Q88 Questionnaire
+                            </Button>
+                          </Link>
+                        </div>
+
+                        {/* ── SAĞ SÜTUN — Map + Voyage ── */}
+                        <div className="flex flex-col gap-3">
+
+                          {/* Map Placeholder */}
+                          <div className="relative rounded-lg overflow-hidden border h-[130px]"
+                            style={{ background: "hsl(var(--maritime-primary) / 0.07)" }}>
+                            <div className="absolute inset-0 opacity-[0.12]"
+                              style={{
+                                backgroundImage: `url("data:image/svg+xml,%3Csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 0L0 0 0 20' fill='none' stroke='%2364748b' stroke-width='0.5'/%3E%3C/svg%3E")`
+                              }} />
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                              <Ship className="w-12 h-12 text-muted-foreground/10" />
+                            </div>
+                            <div className="absolute top-2 right-2">
+                              <FleetStatusSelector vessel={v} />
+                            </div>
+                            <div className="absolute bottom-2 left-2 flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-muted-foreground/50" />
+                              <span className="text-[10px] text-muted-foreground/70 font-medium">
+                                {voy?.portName || "Location unknown"}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Current Voyage */}
+                          <div className="rounded-lg border bg-card/50 p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <Anchor className="w-3 h-3 text-primary" />
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                                  Current Voyage
+                                </p>
+                              </div>
+                              {voy && (
+                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${cfg.badge}`}>
+                                  {voy.status === "active" ? "Active" : "Planned"}
+                                </span>
+                              )}
+                            </div>
+                            {voy ? (
+                              <div className="space-y-1.5">
+                                {[
+                                  { label: "Voyage",  value: voy.name || voy.purposeOfCall || "—" },
+                                  { label: "Purpose", value: voy.purposeOfCall || "—" },
+                                  { label: "ETA",     value: voy.eta ? new Date(voy.eta).toLocaleDateString("en-GB") : "—" },
+                                  { label: "ETD",     value: voy.etd ? new Date(voy.etd).toLocaleDateString("en-GB") : "—" },
+                                ].map(({ label, value }) => (
+                                  <div key={label} className="flex items-center justify-between gap-1 text-[11px]">
+                                    <span className="text-muted-foreground shrink-0">{label}</span>
+                                    <span className="font-medium text-right truncate max-w-[60%]">{value}</span>
+                                  </div>
+                                ))}
+                                <Link href={`/voyages/${voy.id}`}>
+                                  <Button variant="ghost" size="sm"
+                                    className="w-full h-6 text-[11px] mt-0.5 gap-1 text-muted-foreground">
+                                    View Details <ChevronRight className="w-3 h-3" />
+                                  </Button>
+                                </Link>
+                              </div>
+                            ) : (
+                              <div className="text-center py-3">
+                                <p className="text-[11px] text-muted-foreground">No active voyage</p>
+                                <Link href="/voyages">
+                                  <Button size="sm" variant="ghost"
+                                    className="h-6 text-[11px] mt-1 gap-1">
+                                    <Plus className="w-3 h-3" /> New Voyage
+                                  </Button>
+                                </Link>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex gap-2 pt-1 flex-wrap">
-                        <Button size="sm" variant="outline" className="flex-1 gap-1.5 h-9 min-w-[70px]"
+
+                      {/* ── Action Buttons ── */}
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" className="flex-1 gap-1.5 h-9"
                           onClick={() => { setSelectedVessel(null); setEditingVessel(v); }}>
                           <Edit2 className="w-3.5 h-3.5" /> Edit
                         </Button>
-                        <Link href={`/proformas/new?vesselId=${v.id}`}>
-                          <Button size="sm" variant="outline" className="flex-1 gap-1.5 h-9 min-w-[80px] border-[hsl(var(--maritime-primary)/0.4)] text-[hsl(var(--maritime-primary))]">
+                        <Link href={`/proformas/new?vesselId=${v.id}`} className="flex-1">
+                          <Button size="sm" variant="outline"
+                            className="w-full gap-1.5 h-9 border-[hsl(var(--maritime-primary)/0.4)] text-[hsl(var(--maritime-primary))]">
                             <FileText className="w-3.5 h-3.5" /> New PDA
                           </Button>
                         </Link>
-                        <Link href={`/voyages?vesselId=${v.id}`}>
-                          <Button size="sm" className="flex-1 gap-1.5 h-9 min-w-[90px]">
+                        <Link href={`/voyages?vesselId=${v.id}`} className="flex-1">
+                          <Button size="sm" className="w-full gap-1.5 h-9">
                             <Plus className="w-3.5 h-3.5" /> New Voyage
                           </Button>
                         </Link>
                       </div>
-                    </>
+                    </div>
                   )}
 
                   {/* ── Sefer ── */}
