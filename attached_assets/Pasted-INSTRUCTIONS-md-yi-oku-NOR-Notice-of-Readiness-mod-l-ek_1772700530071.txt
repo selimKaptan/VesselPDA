@@ -1,0 +1,245 @@
+INSTRUCTIONS.md'yi oku. NOR (Notice of Readiness) modülü ekle. NOR, geminin limana vardığında yükleme/boşaltmaya hazır olduğunu bildiren resmi belgedir. Laytime bu andan itibaren başlar.
+
+=== 1. DATABASE ===
+
+shared/schema.ts'e ekle:
+
+export const noticeOfReadiness = pgTable("notice_of_readiness", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "cascade" }),
+  vesselId: integer("vessel_id").references(() => vessels.id),
+  portId: integer("port_id").references(() => ports.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  vesselName: varchar("vessel_name", { length: 200 }),
+  portName: varchar("port_name", { length: 200 }),
+  masterName: varchar("master_name", { length: 200 }),
+  agentName: varchar("agent_name", { length: 200 }),
+  chartererName: varchar("charterer_name", { length: 200 }),
+  cargoType: varchar("cargo_type", { length: 200 }),
+  cargoQuantity: varchar("cargo_quantity", { length: 100 }),
+  operation: varchar("operation", { length: 50 }), // loading, discharging, both
+  anchorageArrival: timestamp("anchorage_arrival"),
+  berthArrival: timestamp("berth_arrival"),
+  norTenderedAt: timestamp("nor_tendered_at"),
+  norTenderedTo: varchar("nor_tendered_to", { length: 300 }), // recipient name/role
+  norAcceptedAt: timestamp("nor_accepted_at"),
+  norAcceptedBy: varchar("nor_accepted_by", { length: 200 }),
+  laytimeStartsAt: timestamp("laytime_starts_at"),
+  readyTo: jsonb("ready_to").$type<string[]>().default([]), // ['load', 'discharge', 'receive_cargo']
+  conditions: jsonb("conditions").$type<string[]>().default([]),
+  // conditions: ['whether_in_berth_or_not', 'whether_in_free_pratique_or_not', 'whether_customs_cleared_or_not']
+  berthName: varchar("berth_name", { length: 200 }),
+  remarks: text("remarks"),
+  status: varchar("status", { length: 20 }).default("draft"), // draft, tendered, accepted, rejected
+  rejectionReason: text("rejection_reason"),
+  signatureMaster: text("signature_master"),
+  signatureAgent: text("signature_agent"),
+  signatureCharterer: text("signature_charterer"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const norRelations = relations(noticeOfReadiness, ({ one }) => ({
+  voyage: one(voyages, { fields: [noticeOfReadiness.voyageId], references: [voyages.id] }),
+  vessel: one(vessels, { fields: [noticeOfReadiness.vesselId], references: [vessels.id] }),
+  port: one(ports, { fields: [noticeOfReadiness.portId], references: [ports.id] }),
+  user: one(users, { fields: [noticeOfReadiness.userId], references: [users.id] }),
+}));
+
+export const insertNorSchema = createInsertSchema(noticeOfReadiness).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertNor = z.infer<typeof insertNorSchema>;
+export type Nor = typeof noticeOfReadiness.$inferSelect;
+
+npx drizzle-kit push
+
+=== 2. API ENDPOINTS ===
+
+server/routes/ içinde nor.routes.ts oluştur:
+
+GET /api/nor
+- isAuthenticated
+- Kullanıcının NOR'ları (admin hepsini görür)
+- createdAt DESC sırala
+
+POST /api/nor
+- isAuthenticated
+- Body: vessel, port, cargo, operation bilgileri
+- Eğer voyageId varsa voyage'dan bilgileri otomatik çek
+- status: 'draft'
+- Audit log + voyage activity log
+
+GET /api/nor/:id
+- NOR detayı
+
+PATCH /api/nor/:id
+- NOR güncelle (tarihler, isimler, remarks)
+- updatedAt güncelle
+
+DELETE /api/nor/:id
+- Sadece draft durumda silinebilir
+
+POST /api/nor/:id/tender
+- NOR'u resmi olarak sun (tender)
+- norTenderedAt: now()
+- status: 'tendered'
+- Notification: charterer/receiver'a "NOR tendered for {vessel} at {port}"
+- Email gönder (opsiyonel)
+- Voyage activity: 'nor_tendered'
+
+POST /api/nor/:id/accept
+- NOR'u kabul et
+- norAcceptedAt: now()
+- norAcceptedBy: user name
+- laytimeStartsAt hesapla: norAcceptedAt veya CP terms'e göre (örn: next working day 08:00)
+- status: 'accepted'
+- Notification: agent/master'a "NOR accepted, laytime starts at {time}"
+- Voyage activity: 'nor_accepted'
+
+POST /api/nor/:id/reject
+- NOR'u reddet
+- Body: { reason: "Vessel not ready, holds not clean" }
+- status: 'rejected'
+- rejectionReason kaydet
+- Notification: "NOR rejected: {reason}"
+
+POST /api/nor/:id/sign
+- Dijital imza ekle
+- Body: { role: 'master' | 'agent' | 'charterer', signature: "Capt. Smith" }
+- İlgili signature alanını güncelle
+
+GET /api/nor/:id/pdf
+- NOR'u profesyonel PDF olarak oluştur (pdfkit):
+
+  NOTICE OF READINESS
+  
+  Date: {norTenderedAt}
+  
+  To: {norTenderedTo}
+  
+  Dear Sirs,
+  
+  We hereby give you notice that the vessel {vesselName} ({flag}),
+  arrived at {portName} on {anchorageArrival/berthArrival}
+  and is in all respects ready to {load/discharge} a cargo of
+  {cargoType} ({cargoQuantity}).
+  
+  This Notice of Readiness is tendered at {norTenderedAt}
+  {conditions listesi}
+  
+  Berth: {berthName}
+  
+  Remarks: {remarks}
+  
+  ________________________     ________________________     ________________________
+  Master                       Agent                        Charterer/Receiver
+  {signatureMaster}            {signatureAgent}             {signatureCharterer}
+  
+  Date: {date}                 Date: {date}                 Date: {date}
+
+server/routes.ts'e mount et:
+import norRoutes from './routes/nor.routes';
+app.use('/api/nor', norRoutes);
+
+=== 3. FRONTEND — NOR LIST PAGE ===
+
+client/src/pages/nor.tsx oluştur:
+
+- Üstte: "Notice of Readiness" başlık + "+ Create NOR" butonu
+- Liste tablosu: Vessel, Port, Tendered At, Status, Actions
+- Status badge:
+  * draft: slate
+  * tendered: amber
+  * accepted: green
+  * rejected: red
+- Her satırda: View, PDF, Delete butonları
+- Empty state: "No NOR records yet. Create one from a voyage or standalone."
+
+Create dialog:
+- Voyage select (opsiyonel — seçilince vessel/port otomatik dolsun)
+- Vessel Name, Port Name (voyage yoksa manuel)
+- Master Name, Agent Name, Charterer Name
+- Operation: Loading / Discharging / Both
+- Cargo Type + Quantity
+- Anchorage Arrival: datetime picker
+- Berth Arrival: datetime picker
+- Ready To: checkboxes ["Load", "Discharge", "Receive Cargo"]
+- Conditions: checkboxes:
+  * "Whether in berth or not" (WIBON)
+  * "Whether in free pratique or not" (WIFPON)
+  * "Whether customs cleared or not" (WCCON)
+  * "Whether in port or not" (WIPON)
+
+=== 4. FRONTEND — NOR DETAIL PAGE ===
+
+client/src/pages/nor-detail.tsx oluştur:
+
+Resmi belge görünümü (beyaz arka plan üzerinde):
+
+Üst bar: status badge + aksiyonlar:
+- draft: [Edit] [Tender NOR →]
+- tendered: [Accept ✓] [Reject ✗] (karşı taraf)
+- accepted: [View PDF] [Laytime starts: {datetime}]
+- rejected: [Edit & Re-tender] — rejection reason göster
+
+Belge içeriği:
+- "NOTICE OF READINESS" başlık (formal, centered)
+- Tarih ve alıcı bilgisi
+- NOR metni (standart maritime format):
+  "We hereby give you notice that the vessel [vesselName]..."
+- Conditions listesi (seçilenler tick ile)
+- Arrival times: Anchorage Arrival, Berth Arrival
+- NOR Tendered: datetime
+- NOR Accepted: datetime (kabul edildiyse)
+- Laytime Starts: datetime (hesaplanmış)
+- İmza alanları: 3 kutu (Master, Agent, Charterer)
+  * Her kutu: isim + "Sign" butonu
+  * İmzalanınca: imza text + tarih göster
+- Remarks bölümü
+
+Sağ tarafta bilgi paneli:
+- Vessel bilgileri kartı
+- Port bilgileri kartı
+- Cargo bilgileri kartı
+- İlişkili voyage linki (varsa)
+- İlişkili SOF linki (varsa)
+- İlişkili PDA linki (varsa)
+
+=== 5. ROUTING & NAVIGATION ===
+
+client/src/App.tsx'e ekle:
+import Nor from "@/pages/nor";
+import NorDetail from "@/pages/nor-detail";
+<Route path="/nor" component={Nor} />
+<Route path="/nor/:id" component={NorDetail} />
+
+Sidebar'da Operations altına ekle:
+{ icon: FileCheck, label: "Notice of Readiness", href: "/nor" }
+SOF'un hemen üstüne koy — kronolojik sıra: NOR → SOF → PDA → FDA
+
+=== 6. VOYAGE BAĞLANTISI ===
+
+Voyage detail sayfasına:
+- "Documents" veya "Operations" tab'ında NOR kartı ekle:
+  * NOR yoksa: "Create NOR" butonu
+  * NOR varsa: status badge + tarihler + "View NOR" linki
+- "Create NOR" tıklanınca: voyage bilgileri ile pre-filled NOR oluştur
+
+Voyage'daki kronolojik akış göster:
+NOR Tendered → NOR Accepted → Laytime Starts → SOF Events → Loading/Discharging → SOF Finalized → PDA → FDA → Invoice
+
+=== 7. LAYTIME BAĞLANTISI ===
+
+NOR accepted olduğunda:
+- laytimeStartsAt otomatik hesapla
+- Eğer voyage'a bağlı fixture varsa, laytime calculation'a laytimeStartsAt'ı aktar
+- Fixture detail sayfasında NOR linki göster
+
+=== 8. IMPORTANT ===
+
+- NOR maritime'da yasal bir belgedir — format resmi olmalı
+- "Whether in berth or not" (WIBON) gibi koşullar CP terms'e bağlı
+- NOR tender zamanı laytime hesaplamasının başlangıcını belirler
+- Voyage'a bağlı olabilir ama standalone da oluşturulabilir
+- PDF export resmi belge formatında olmalı (formal İngilizce)
+- Mevcut hiçbir sayfayı veya endpoint'i bozma
+- Dijital imza sadece text — gerçek e-imza değil
