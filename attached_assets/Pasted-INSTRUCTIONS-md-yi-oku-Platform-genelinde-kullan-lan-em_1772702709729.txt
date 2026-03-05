@@ -1,0 +1,430 @@
+INSTRUCTIONS.md'yi oku. Platform genelinde kullanılan email'ler için hazır şablonlar oluştur. Şu an email'ler düz text gönderiliyor — profesyonel HTML template'ler ile değiştir.
+
+=== 1. EMAIL TEMPLATE ENGINE ===
+
+server/email-templates.ts oluştur:
+
+// Base HTML template — tüm emailler bu wrapper'ı kullanır
+function baseTemplate(content: string, footerText?: string): string {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin: 0; padding: 0; background-color: #0B1120; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .card { background-color: #1a2744; border-radius: 12px; padding: 32px; margin: 20px 0; border: 1px solid #2d3a56; }
+    .header { text-align: center; padding: 24px 0; }
+    .logo { font-size: 24px; font-weight: bold; color: #38BDF8; }
+    .logo-icon { font-size: 28px; }
+    h1 { color: #f1f5f9; font-size: 22px; margin: 0 0 8px 0; }
+    h2 { color: #f1f5f9; font-size: 18px; margin: 0 0 8px 0; }
+    p { color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 8px 0; }
+    .btn { display: inline-block; padding: 12px 28px; background-color: #38BDF8; color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; margin: 16px 0; }
+    .btn-secondary { background-color: transparent; border: 1px solid #38BDF8; color: #38BDF8; }
+    .btn-green { background-color: #22C55E; }
+    .btn-red { background-color: #EF4444; }
+    .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #2d3a56; }
+    .info-label { color: #64748b; font-size: 13px; }
+    .info-value { color: #f1f5f9; font-size: 13px; font-weight: 500; }
+    .table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    .table th { text-align: left; padding: 8px; color: #64748b; font-size: 12px; border-bottom: 1px solid #2d3a56; }
+    .table td { padding: 8px; color: #f1f5f9; font-size: 13px; border-bottom: 1px solid #1e293b; }
+    .table .total td { font-weight: bold; border-top: 2px solid #2d3a56; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .badge-green { background-color: rgba(34,197,94,0.15); color: #22C55E; }
+    .badge-amber { background-color: rgba(245,158,11,0.15); color: #F59E0B; }
+    .badge-sky { background-color: rgba(56,189,248,0.15); color: #38BDF8; }
+    .amount { font-size: 28px; font-weight: bold; color: #38BDF8; }
+    .footer { text-align: center; padding: 24px 0; color: #475569; font-size: 12px; }
+    .footer a { color: #38BDF8; text-decoration: none; }
+    .divider { height: 1px; background-color: #2d3a56; margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <span class="logo-icon">⚓</span>
+      <div class="logo">VesselPDA</div>
+    </div>
+    <div class="card">
+      ${content}
+    </div>
+    <div class="footer">
+      <p>${footerText || 'This email was sent by VesselPDA'}</p>
+      <p><a href="https://vesselpda.com">vesselpda.com</a> — Maritime Operations Platform</p>
+      <p>Made with ⚓ in Izmir, Turkey</p>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+=== 2. EMAIL TEMPLATE FONKSİYONLARI ===
+
+Aynı dosyada (server/email-templates.ts):
+
+// PDA Gönderimi
+export function pdaSentTemplate(params: {
+  recipientName: string;
+  vesselName: string;
+  portName: string;
+  referenceNumber: string;
+  totalUsd: number;
+  totalEur: number;
+  senderName: string;
+  senderCompany: string;
+  approveUrl: string;
+  revisionUrl: string;
+  message?: string;
+}): { subject: string; html: string } {
+  const content = `
+    <h1>Proforma Disbursement Account</h1>
+    <p>Dear ${params.recipientName},</p>
+    <p>${params.message || `Please find below the Proforma Disbursement Account for your review.`}</p>
+    
+    <div class="divider"></div>
+    
+    <table style="width:100%">
+      <tr><td class="info-label">Reference</td><td class="info-value">${params.referenceNumber}</td></tr>
+      <tr><td class="info-label">Vessel</td><td class="info-value">${params.vesselName}</td></tr>
+      <tr><td class="info-label">Port</td><td class="info-value">${params.portName}</td></tr>
+    </table>
+    
+    <div style="text-align:center; padding: 20px 0;">
+      <div class="amount">$${params.totalUsd.toLocaleString()}</div>
+      <p style="margin:4px 0">€${params.totalEur.toLocaleString()}</p>
+    </div>
+    
+    <div style="text-align:center">
+      <a href="${params.approveUrl}" class="btn btn-green">✓ Approve PDA</a>
+      &nbsp;&nbsp;
+      <a href="${params.revisionUrl}" class="btn btn-red">Request Revision</a>
+    </div>
+    
+    <div class="divider"></div>
+    <p style="font-size:12px; color:#475569">A PDF copy is attached to this email.</p>
+    <p style="font-size:12px; color:#475569">Sent by ${params.senderName} — ${params.senderCompany}</p>
+  `;
+  return {
+    subject: `PDA for Review: ${params.vesselName} at ${params.portName} [${params.referenceNumber}]`,
+    html: baseTemplate(content),
+  };
+}
+
+// Tender Bildirimi
+export function newTenderTemplate(params: {
+  agentName: string;
+  vesselName: string;
+  portName: string;
+  cargoType: string;
+  cargoQuantity: string;
+  expiryHours: number;
+  tenderUrl: string;
+}): { subject: string; html: string } {
+  const content = `
+    <h1>📢 New Port Call Tender</h1>
+    <p>Dear ${params.agentName},</p>
+    <p>A new tender matching your served ports has been posted.</p>
+    
+    <div class="divider"></div>
+    
+    <table style="width:100%">
+      <tr><td class="info-label">Vessel</td><td class="info-value">${params.vesselName}</td></tr>
+      <tr><td class="info-label">Port</td><td class="info-value">${params.portName}</td></tr>
+      <tr><td class="info-label">Cargo</td><td class="info-value">${params.cargoType} — ${params.cargoQuantity}</td></tr>
+      <tr><td class="info-label">Expires In</td><td class="info-value"><span class="badge badge-amber">${params.expiryHours} hours</span></td></tr>
+    </table>
+    
+    <div style="text-align:center; padding: 16px 0;">
+      <a href="${params.tenderUrl}" class="btn">View Tender & Submit Bid →</a>
+    </div>
+  `;
+  return {
+    subject: `New Tender: ${params.vesselName} at ${params.portName}`,
+    html: baseTemplate(content),
+  };
+}
+
+// Bid Alındı
+export function bidReceivedTemplate(params: {
+  shipownerName: string;
+  agentName: string;
+  agentCompany: string;
+  vesselName: string;
+  portName: string;
+  bidAmount: number;
+  currency: string;
+  tenderUrl: string;
+}): { subject: string; html: string } {
+  const content = `
+    <h1>New Bid Received</h1>
+    <p>Dear ${params.shipownerName},</p>
+    <p>A new bid has been submitted on your tender.</p>
+    
+    <div class="divider"></div>
+    
+    <table style="width:100%">
+      <tr><td class="info-label">Agent</td><td class="info-value">${params.agentName} — ${params.agentCompany}</td></tr>
+      <tr><td class="info-label">Vessel</td><td class="info-value">${params.vesselName}</td></tr>
+      <tr><td class="info-label">Port</td><td class="info-value">${params.portName}</td></tr>
+      <tr><td class="info-label">Bid Amount</td><td class="info-value"><span class="amount" style="font-size:22px">${params.currency} ${params.bidAmount.toLocaleString()}</span></td></tr>
+    </table>
+    
+    <div style="text-align:center; padding: 16px 0;">
+      <a href="${params.tenderUrl}" class="btn">Review Bids →</a>
+    </div>
+  `;
+  return {
+    subject: `New Bid: ${params.agentCompany} for ${params.vesselName}`,
+    html: baseTemplate(content),
+  };
+}
+
+// Nomination
+export function nominationTemplate(params: {
+  agentName: string;
+  shipownerName: string;
+  shipownerCompany: string;
+  vesselName: string;
+  portName: string;
+  nominationUrl: string;
+}): { subject: string; html: string } {
+  const content = `
+    <h1>🤝 You've Been Nominated!</h1>
+    <p>Dear ${params.agentName},</p>
+    <p>You have been nominated as the port agent by ${params.shipownerName} (${params.shipownerCompany}).</p>
+    
+    <div class="divider"></div>
+    
+    <table style="width:100%">
+      <tr><td class="info-label">Vessel</td><td class="info-value">${params.vesselName}</td></tr>
+      <tr><td class="info-label">Port</td><td class="info-value">${params.portName}</td></tr>
+      <tr><td class="info-label">Nominated By</td><td class="info-value">${params.shipownerName}</td></tr>
+    </table>
+    
+    <div style="text-align:center; padding: 16px 0;">
+      <a href="${params.nominationUrl}" class="btn btn-green">Accept Nomination</a>
+      &nbsp;&nbsp;
+      <a href="${params.nominationUrl}" class="btn btn-secondary">View Details</a>
+    </div>
+  `;
+  return {
+    subject: `Agent Nomination: ${params.vesselName} at ${params.portName}`,
+    html: baseTemplate(content),
+  };
+}
+
+// NOR Tendered
+export function norTenderedTemplate(params: {
+  recipientName: string;
+  vesselName: string;
+  portName: string;
+  norTenderedAt: string;
+  masterName: string;
+  norUrl: string;
+}): { subject: string; html: string } {
+  const content = `
+    <h1>📋 Notice of Readiness Tendered</h1>
+    <p>Dear ${params.recipientName},</p>
+    <p>Notice of Readiness has been tendered for the following vessel.</p>
+    
+    <div class="divider"></div>
+    
+    <table style="width:100%">
+      <tr><td class="info-label">Vessel</td><td class="info-value">${params.vesselName}</td></tr>
+      <tr><td class="info-label">Port</td><td class="info-value">${params.portName}</td></tr>
+      <tr><td class="info-label">NOR Tendered At</td><td class="info-value">${params.norTenderedAt}</td></tr>
+      <tr><td class="info-label">Master</td><td class="info-value">${params.masterName}</td></tr>
+    </table>
+    
+    <div style="text-align:center; padding: 16px 0;">
+      <a href="${params.norUrl}" class="btn btn-green">Accept NOR</a>
+      &nbsp;&nbsp;
+      <a href="${params.norUrl}" class="btn btn-red">Reject NOR</a>
+    </div>
+  `;
+  return {
+    subject: `NOR Tendered: ${params.vesselName} at ${params.portName}`,
+    html: baseTemplate(content),
+  };
+}
+
+// Invoice
+export function invoiceCreatedTemplate(params: {
+  recipientName: string;
+  vesselName: string;
+  portName: string;
+  invoiceTitle: string;
+  amount: number;
+  currency: string;
+  dueDate: string;
+  invoiceUrl: string;
+}): { subject: string; html: string } {
+  const content = `
+    <h1>💳 New Invoice</h1>
+    <p>Dear ${params.recipientName},</p>
+    <p>A new invoice has been issued for port disbursement services.</p>
+    
+    <div class="divider"></div>
+    
+    <table style="width:100%">
+      <tr><td class="info-label">Invoice</td><td class="info-value">${params.invoiceTitle}</td></tr>
+      <tr><td class="info-label">Vessel</td><td class="info-value">${params.vesselName}</td></tr>
+      <tr><td class="info-label">Port</td><td class="info-value">${params.portName}</td></tr>
+      <tr><td class="info-label">Due Date</td><td class="info-value"><span class="badge badge-amber">${params.dueDate}</span></td></tr>
+    </table>
+    
+    <div style="text-align:center; padding: 20px 0;">
+      <div class="amount">${params.currency} ${params.amount.toLocaleString()}</div>
+    </div>
+    
+    <div style="text-align:center; padding: 16px 0;">
+      <a href="${params.invoiceUrl}" class="btn">View Invoice →</a>
+    </div>
+  `;
+  return {
+    subject: `Invoice: ${params.invoiceTitle} — ${params.currency} ${params.amount.toLocaleString()}`,
+    html: baseTemplate(content),
+  };
+}
+
+// FDA Ready
+export function fdaReadyTemplate(params: {
+  recipientName: string;
+  vesselName: string;
+  portName: string;
+  referenceNumber: string;
+  estimatedUsd: number;
+  actualUsd: number;
+  variancePercent: number;
+  fdaUrl: string;
+}): { subject: string; html: string } {
+  const varianceColor = params.variancePercent > 0 ? '#EF4444' : '#22C55E';
+  const varianceSign = params.variancePercent > 0 ? '+' : '';
+  const content = `
+    <h1>🧾 Final Disbursement Account Ready</h1>
+    <p>Dear ${params.recipientName},</p>
+    <p>The Final Disbursement Account has been prepared for your review.</p>
+    
+    <div class="divider"></div>
+    
+    <table style="width:100%">
+      <tr><td class="info-label">Reference</td><td class="info-value">${params.referenceNumber}</td></tr>
+      <tr><td class="info-label">Vessel</td><td class="info-value">${params.vesselName}</td></tr>
+      <tr><td class="info-label">Port</td><td class="info-value">${params.portName}</td></tr>
+      <tr><td class="info-label">Estimated</td><td class="info-value">$${params.estimatedUsd.toLocaleString()}</td></tr>
+      <tr><td class="info-label">Actual</td><td class="info-value"><strong>$${params.actualUsd.toLocaleString()}</strong></td></tr>
+      <tr><td class="info-label">Variance</td><td class="info-value" style="color:${varianceColor}">${varianceSign}${params.variancePercent}%</td></tr>
+    </table>
+    
+    <div style="text-align:center; padding: 16px 0;">
+      <a href="${params.fdaUrl}" class="btn">Review FDA →</a>
+    </div>
+  `;
+  return {
+    subject: `FDA Ready: ${params.vesselName} at ${params.portName} [${params.referenceNumber}]`,
+    html: baseTemplate(content),
+  };
+}
+
+// Welcome Email
+export function welcomeTemplate(params: {
+  userName: string;
+  role: string;
+  loginUrl: string;
+}): { subject: string; html: string } {
+  const content = `
+    <h1>Welcome to VesselPDA! 🎉</h1>
+    <p>Dear ${params.userName},</p>
+    <p>Your account has been created successfully. Welcome aboard!</p>
+    
+    <div class="divider"></div>
+    
+    <table style="width:100%">
+      <tr><td class="info-label">Role</td><td class="info-value"><span class="badge badge-sky">${params.role}</span></td></tr>
+    </table>
+    
+    <p>Here's what you can do:</p>
+    <p>📋 Calculate port disbursements instantly</p>
+    <p>📢 Post or bid on port call tenders</p>
+    <p>🗺️ Manage vessel voyages end-to-end</p>
+    <p>📡 Track vessel positions in real-time</p>
+    
+    <div style="text-align:center; padding: 16px 0;">
+      <a href="${params.loginUrl}" class="btn">Go to Dashboard →</a>
+    </div>
+  `;
+  return {
+    subject: `Welcome to VesselPDA, ${params.userName}!`,
+    html: baseTemplate(content),
+  };
+}
+
+=== 3. MEVCUT EMAIL FONKSİYONLARINI GÜNCELLE ===
+
+server/email.ts dosyasındaki mevcut email fonksiyonlarını HTML template'lere geçir:
+
+Her email gönderme fonksiyonunda:
+ESKİ: html: `<p>Plain text email content</p>`
+YENİ: İlgili template fonksiyonunu import edip kullan
+
+Örnek:
+import { pdaSentTemplate, newTenderTemplate, bidReceivedTemplate, nominationTemplate, welcomeTemplate, invoiceCreatedTemplate, norTenderedTemplate, fdaReadyTemplate } from './email-templates';
+
+// sendProformaEmail fonksiyonunda:
+const { subject, html } = pdaSentTemplate({
+  recipientName: recipientName,
+  vesselName: vessel.name,
+  portName: port.name,
+  referenceNumber: proforma.referenceNumber,
+  totalUsd: proforma.totalUsd,
+  totalEur: proforma.totalEur,
+  senderName: user.firstName + ' ' + user.lastName,
+  senderCompany: companyProfile?.companyName || '',
+  approveUrl: `https://vesselpda.com/api/proformas/${proforma.id}/approve?token=${token}`,
+  revisionUrl: `https://vesselpda.com/api/proformas/${proforma.id}/request-revision?token=${token}`,
+  message: customMessage,
+});
+
+await resend.emails.send({
+  from: 'VesselPDA <noreply@vesselpda.com>',
+  to: recipientEmail,
+  subject: subject,
+  html: html,
+});
+
+Aynı pattern'i şu fonksiyonlara uygula:
+- sendNominationEmail → nominationTemplate
+- sendBidReceivedEmail → bidReceivedTemplate
+- sendNewTenderEmail → newTenderTemplate
+- sendContactEmail → basit baseTemplate
+- sendMessageBridgeEmail → basit baseTemplate
+- sendForumReplyEmail → basit baseTemplate
+
+=== 4. EMAIL PREVIEW (ADMIN) ===
+
+Admin panele email template önizleme ekle:
+
+GET /api/admin/email-preview/:template
+- Template adını alır, örnek data ile HTML döner
+- Admin tarayıcıda template'in nasıl göründüğünü görebilir
+
+Admin sayfasına "Email Templates" bölümü:
+- Template listesi (PDA, Tender, Bid, Nomination, NOR, Invoice, FDA, Welcome)
+- Her birinin yanında "Preview" butonu
+- Preview tıklanınca yeni sekmede örnek data ile HTML göster
+
+=== 5. IMPORTANT ===
+
+- Email HTML inline CSS kullanmalı (email client'lar external CSS desteklemez)
+- Koyu tema: maritime renkler (lacivert arka plan, beyaz text)
+- Logo: text-based (⚓ VesselPDA) — resim embed etme
+- Mobile responsive: max-width: 600px
+- CTA butonları büyük ve belirgin
+- Mevcut email gönderme altyapısını (Resend) koru
+- from adresi: 'VesselPDA <noreply@vesselpda.com>' (veya mevcut ne ise)
+- Mevcut çalışan email'leri BOZMA, sadece HTML'i güzelleştir
+- Template fonksiyonları pure function — side effect yok
