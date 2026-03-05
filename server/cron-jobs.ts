@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { pool } from "./db";
 import { getPositionByMmsi } from "./ais-stream";
 import { fetchTCMBRates } from "./exchange-rates";
+import { checkAndSendReminders } from "./payment-reminders";
 
 // ────────────────────────────────────────────────────────────────────────────
 // a) syncWatchlistPositions — Every 5 minutes
@@ -234,6 +235,12 @@ async function cleanOldPositions() {
 // ────────────────────────────────────────────────────────────────────────────
 // Start all cron jobs
 // ────────────────────────────────────────────────────────────────────────────
+async function checkPaymentReminders() {
+  console.log("[cron] checkPaymentReminders: starting...");
+  const result = await checkAndSendReminders();
+  console.log("[cron] checkPaymentReminders: result:", result);
+}
+
 export function startCronJobs() {
   cron.schedule("*/5 * * * *", syncWatchlistPositions);
   cron.schedule("0 8 * * *", checkExpiringCertificates);
@@ -242,8 +249,9 @@ export function startCronJobs() {
   cron.schedule("0 3 * * *", refreshExchangeRates);
   cron.schedule("30 12 * * *", refreshExchangeRates);
   cron.schedule("0 2 * * 0", cleanOldPositions);
+  cron.schedule("0 9 * * *", checkPaymentReminders);
 
-  console.log("[cron] All 7 scheduled jobs registered:");
+  console.log("[cron] All 8 scheduled jobs registered:");
   console.log("[cron]   */5 * * * *  — syncWatchlistPositions");
   console.log("[cron]   0 8 * * *    — checkExpiringCertificates");
   console.log("[cron]   0 0 * * *    — autoCloseTenders");
@@ -251,4 +259,5 @@ export function startCronJobs() {
   console.log("[cron]   0 3 * * *    — refreshExchangeRates (06:00 TRT)");
   console.log("[cron]   30 12 * * *  — refreshExchangeRates (15:30 TRT)");
   console.log("[cron]   0 2 * * 0    — cleanOldPositions");
+  console.log("[cron]   0 9 * * *    — checkPaymentReminders");
 }

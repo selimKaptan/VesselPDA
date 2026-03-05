@@ -18,7 +18,7 @@ import {
 // Replit Resend integration — fetches API key via OAuth connector
 let _connectionSettings: any;
 
-async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: string } | null> {
+export async function getResendCredentials(): Promise<{ apiKey: string; fromEmail: string } | null> {
   const FROM_EMAIL = "noreply@vesselpda.com";
 
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;

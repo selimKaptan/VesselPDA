@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Anchor, Gavel, Star, TrendingUp, ArrowRight, Building2, Navigation, MapPin, FileText, MessageSquare, ShieldCheck, AlertTriangle, Clock, XCircle, Ship, Plus, Zap, BarChart3 } from "lucide-react";
+import { Anchor, Gavel, Star, TrendingUp, ArrowRight, Building2, Navigation, MapPin, FileText, MessageSquare, ShieldCheck, AlertTriangle, Clock, XCircle, Ship, Plus, Zap, BarChart3, Bell } from "lucide-react";
 import { BidWinRateChart, ProformaTrendChart, VoyageTrendChart } from "./dashboard-charts";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -93,6 +93,50 @@ function StatCard({ label, value, loading, icon: Icon, color, href, testId }: {
         </p>
       </Card>
     </Link>
+  );
+}
+
+function PaymentAlertsWidget() {
+  const { data } = useQuery<{ overdueCount: number; overdueTotal: number; upcomingCount: number; upcomingTotal: number }>({
+    queryKey: ["/api/invoices/alerts"],
+  });
+
+  if (!data || (data.overdueCount === 0 && data.upcomingCount === 0)) return null;
+
+  return (
+    <Card className="p-4 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/10" data-testid="card-payment-alerts">
+      <div className="flex items-center gap-2 mb-3">
+        <Bell className="w-4 h-4 text-amber-600" />
+        <h3 className="font-semibold text-sm">Payment Alerts</h3>
+      </div>
+      <div className="space-y-2">
+        {data.overdueCount > 0 && (
+          <div className="flex items-center justify-between bg-red-100 dark:bg-red-950/30 rounded-lg px-3 py-2">
+            <span className="text-xs font-medium text-red-700 dark:text-red-400">
+              {data.overdueCount} overdue invoice{data.overdueCount !== 1 ? "s" : ""}
+            </span>
+            <span className="text-xs font-bold text-red-700 dark:text-red-400">
+              ${data.overdueTotal.toLocaleString()}
+            </span>
+          </div>
+        )}
+        {data.upcomingCount > 0 && (
+          <div className="flex items-center justify-between bg-amber-100 dark:bg-amber-950/30 rounded-lg px-3 py-2">
+            <span className="text-xs font-medium text-amber-700 dark:text-amber-400">
+              {data.upcomingCount} due within 7 days
+            </span>
+            <span className="text-xs font-bold text-amber-700 dark:text-amber-400">
+              ${data.upcomingTotal.toLocaleString()}
+            </span>
+          </div>
+        )}
+      </div>
+      <Link href="/invoices">
+        <Button variant="ghost" size="sm" className="w-full mt-2 h-7 text-xs text-muted-foreground hover:text-foreground" data-testid="link-view-all-invoices">
+          View All Invoices <ArrowRight className="w-3 h-3 ml-1" />
+        </Button>
+      </Link>
+    </Card>
   );
 }
 
@@ -353,6 +397,7 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
 
         {/* Right col: Quick Access */}
         <div className="space-y-5">
+          <PaymentAlertsWidget />
           <RecentActivityCard />
           <Card className="p-5 space-y-3">
             <h2 className="font-serif font-semibold text-sm flex items-center gap-2">

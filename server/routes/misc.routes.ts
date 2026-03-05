@@ -5,7 +5,7 @@ import { isAdmin } from "./shared";
 import { cached, invalidateCache } from "../cache";
 import { insertInvoiceSchema, voyageActivities, invoices } from "@shared/schema";
 import { db } from "../db";
-import { sql as drizzleSql, eq, desc } from "drizzle-orm";
+import { sql as drizzleSql, eq, desc, and, lt, gt, lte, isNotNull } from "drizzle-orm";
 import { emitToUser } from "../socket";
 import { logAction, getClientIp } from "../audit";
 import { logVoyageActivity } from "../voyage-activity";
@@ -56,9 +56,7 @@ router.get("/api/invoices", isAuthenticated, async (req: any, res) => {
 router.post("/api/invoices", isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user?.claims?.sub || req.user?.id;
-    const invoiceParsed = insertInvoiceSchema.partial().safeParse(req.body);
-    if (!invoiceParsed.success) return res.status(400).json({ error: "Invalid input", details: invoiceParsed.error.errors });
-    const { title, amount, currency, dueDate, notes, invoiceType, voyageId, proformaId, linkedProformaId } = req.body;
+    const { title, amount, currency, dueDate, notes, invoiceType, voyageId, proformaId, linkedProformaId, recipientEmail, recipientName } = req.body;
     if (!title || !amount) return res.status(400).json({ message: "title and amount required" });
 
     const invoice = await storage.createInvoice({
@@ -72,6 +70,8 @@ router.post("/api/invoices", isAuthenticated, async (req: any, res) => {
       voyageId: voyageId ? parseInt(voyageId) : null,
       proformaId: proformaId ? parseInt(proformaId) : null,
       linkedProformaId: linkedProformaId ? parseInt(linkedProformaId) : null,
+      recipientEmail: recipientEmail || null,
+      recipientName: recipientName || null,
     });
     logAction(userId, "create", "invoice", invoice.id, { title, amount: parseFloat(amount), currency: currency || "USD", invoiceType: invoiceType || "invoice" }, getClientIp(req));
     
@@ -124,6 +124,84 @@ router.patch("/api/invoices/:id/cancel", isAuthenticated, async (req: any, res) 
     res.json({ success: true });
   } catch {
     res.status(500).json({ message: "Failed to cancel invoice" });
+  }
+});
+
+router.get("/api/invoices/alerts", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const now = new Date();
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const overdueRows = await db
+      .select()
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.createdByUserId, userId),
+          eq(invoices.status, "pending"),
+          isNotNull(invoices.dueDate),
+          lt(invoices.dueDate, now)
+        )
+      );
+
+    const upcomingRows = await db
+      .select()
+      .from(invoices)
+      .where(
+        and(
+          eq(invoices.createdByUserId, userId),
+          eq(invoices.status, "pending"),
+          isNotNull(invoices.dueDate),
+          gt(invoices.dueDate, now),
+          lte(invoices.dueDate, sevenDaysFromNow)
+        )
+      );
+
+    const overdueTotal = overdueRows.reduce((sum, inv) => sum + Number(inv.amount), 0);
+    const upcomingTotal = upcomingRows.reduce((sum, inv) => sum + Number(inv.amount), 0);
+
+    res.json({
+      overdueCount: overdueRows.length,
+      overdueTotal: parseFloat(overdueTotal.toFixed(2)),
+      upcomingCount: upcomingRows.length,
+      upcomingTotal: parseFloat(upcomingTotal.toFixed(2)),
+    });
+  } catch {
+    res.status(500).json({ message: "Failed to fetch invoice alerts" });
+  }
+});
+
+router.post("/api/invoices/:id/send-reminder", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const id = parseInt(req.params.id);
+
+    const [invoice] = await db.select().from(invoices).where(
+      and(eq(invoices.id, id), eq(invoices.createdByUserId, userId))
+    ).limit(1);
+
+    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+    if (!invoice.recipientEmail) return res.status(400).json({ message: "No recipient email on this invoice" });
+    if (invoice.status === "paid" || invoice.status === "cancelled") {
+      return res.status(400).json({ message: "Cannot send reminder for paid/cancelled invoice" });
+    }
+
+    const { sendSingleReminder } = await import("../payment-reminders");
+    await sendSingleReminder({
+      id: invoice.id,
+      title: invoice.title,
+      amount: invoice.amount,
+      currency: invoice.currency,
+      dueDate: invoice.dueDate,
+      recipientEmail: invoice.recipientEmail,
+      recipientName: invoice.recipientName,
+      status: invoice.status,
+    });
+
+    res.json({ message: "Reminder sent", to: invoice.recipientEmail });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || "Failed to send reminder" });
   }
 });
 

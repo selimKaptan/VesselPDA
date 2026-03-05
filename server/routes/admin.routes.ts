@@ -1403,5 +1403,14 @@ router.get("/email-preview/:template", isAuthenticated, async (req: any, res) =>
   }
 });
 
+router.post("/send-reminders", async (_req, res) => {
+  try {
+    const { checkAndSendReminders } = await import("../payment-reminders");
+    const result = await checkAndSendReminders();
+    res.json({ message: "Reminders processed", ...result });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to send reminders" });
+  }
+});
 
 export default router;

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { DollarSign, Plus, CheckCircle2, Clock, XCircle, AlertTriangle, FileText, ChevronDown } from "lucide-react";
+import { DollarSign, Plus, CheckCircle2, Clock, XCircle, AlertTriangle, FileText, ChevronDown, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,24 +35,24 @@ const CURRENCY_FLAGS: Record<string, string> = {
   TRY: "🇹🇷",
 };
 
-function dueDateColor(dueDateStr: string | null, status: string) {
-  if (!dueDateStr || status === "paid" || status === "cancelled") return "";
+function getDueDateBadge(dueDateStr: string | null, status: string): { label: string; className: string } {
+  if (status === "paid") return { label: "PAID", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" };
+  if (status === "cancelled") return { label: "Cancelled", className: "bg-muted text-muted-foreground" };
+  if (!dueDateStr) return { label: "No due date", className: "bg-muted text-muted-foreground" };
   const due = new Date(dueDateStr);
   const now = new Date();
-  if (isPast(due)) return "text-red-600 font-bold";
-  if (isWithinInterval(now, { start: now, end: addDays(now, 7) }) && !isPast(due)) return "text-amber-600";
-  return "text-green-600";
-}
-
-function dueDateLabel(dueDateStr: string | null, status: string) {
-  if (!dueDateStr) return "No due date";
-  if (status === "paid") return "Paid";
-  if (status === "cancelled") return "Cancelled";
-  const due = new Date(dueDateStr);
+  const diffMs = due.getTime() - now.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
   if (isPast(due)) {
-    return `${formatDistanceToNow(due)} overdue`;
+    return { label: `OVERDUE — ${Math.abs(diffDays)}d`, className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" };
   }
-  return `${formatDistanceToNow(due)} remaining`;
+  if (diffDays <= 3) {
+    return { label: `Due in ${diffDays}d`, className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" };
+  }
+  if (diffDays <= 7) {
+    return { label: `Due ${due.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`, className: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" };
+  }
+  return { label: `Due ${due.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`, className: "bg-muted text-muted-foreground" };
 }
 
 export default function Invoices() {
@@ -69,6 +69,8 @@ export default function Invoices() {
     dueDate: "",
     notes: "",
     voyageId: "",
+    recipientName: "",
+    recipientEmail: "",
   });
 
   const { data: invoices = [], isLoading } = useQuery<any[]>({
@@ -87,7 +89,7 @@ export default function Invoices() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       setShowNew(false);
-      setForm({ title: "", invoiceType: "invoice", amount: "", currency: "USD", dueDate: "", notes: "", voyageId: "" });
+      setForm({ title: "", invoiceType: "invoice", amount: "", currency: "USD", dueDate: "", notes: "", voyageId: "", recipientName: "", recipientEmail: "" });
       toast({ title: "Invoice created" });
     },
     onError: () => toast({ title: "Error", description: "Could not create invoice", variant: "destructive" }),
@@ -113,6 +115,17 @@ export default function Invoices() {
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       toast({ title: "Invoice cancelled" });
     },
+  });
+
+  const reminderMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/invoices/${id}/send-reminder`, {});
+      return res.json();
+    },
+    onSuccess: (_, id) => {
+      toast({ title: "Reminder sent", description: "Payment reminder email dispatched." });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message || "Could not send reminder", variant: "destructive" }),
   });
 
   const filtered = invoices.filter((inv: any) => {
@@ -266,16 +279,34 @@ export default function Invoices() {
                       <span className="text-base font-bold">
                         {CURRENCY_FLAGS[inv.currency]} {inv.currency} {Number(inv.amount).toLocaleString("en-GB", { minimumFractionDigits: 2 })}
                       </span>
-                      {inv.dueDate && (
-                        <span className={`text-xs ${dueDateColor(inv.dueDate, inv.status)}`}>
-                          Due: {dueDateLabel(inv.dueDate, inv.status)}
-                        </span>
+                      {(() => {
+                        const badge = getDueDateBadge(inv.dueDate, inv.status);
+                        return (
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${badge.className}`} data-testid={`badge-due-date-${inv.id}`}>
+                            {badge.label}
+                          </span>
+                        );
+                      })()}
+                      {inv.recipientEmail && (
+                        <span className="text-[10px] text-muted-foreground">📧 {inv.recipientEmail}</span>
                       )}
                     </div>
                     {inv.notes && <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{inv.notes}</p>}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  {inv.status === "pending" && inv.recipientEmail && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1 text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                      onClick={() => reminderMutation.mutate(inv.id)}
+                      disabled={reminderMutation.isPending}
+                      data-testid={`button-send-reminder-${inv.id}`}
+                    >
+                      <Bell className="w-3 h-3" /> Remind
+                    </Button>
+                  )}
                   {(inv.status === "pending" || inv.status === "overdue") && (
                     <Button
                       size="sm"
@@ -370,6 +401,27 @@ export default function Invoices() {
                 data-testid="input-invoice-due-date"
               />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Recipient Name <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Input
+                  value={form.recipientName}
+                  onChange={e => setForm(f => ({ ...f, recipientName: e.target.value }))}
+                  placeholder="e.g. John Smith"
+                  data-testid="input-invoice-recipient-name"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Recipient Email <span className="text-muted-foreground text-xs">(reminders)</span></Label>
+                <Input
+                  type="email"
+                  value={form.recipientEmail}
+                  onChange={e => setForm(f => ({ ...f, recipientEmail: e.target.value }))}
+                  placeholder="e.g. john@example.com"
+                  data-testid="input-invoice-recipient-email"
+                />
+              </div>
+            </div>
             <div className="space-y-1.5">
               <Label>Linked Voyage</Label>
               <Select value={form.voyageId} onValueChange={v => setForm(f => ({ ...f, voyageId: v }))}>
@@ -408,6 +460,8 @@ export default function Invoices() {
                 dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
                 notes: form.notes || null,
                 voyageId: form.voyageId && form.voyageId !== "none" ? parseInt(form.voyageId) : null,
+                recipientEmail: form.recipientEmail || null,
+                recipientName: form.recipientName || null,
               })}
               disabled={createMutation.isPending || !form.title.trim() || !form.amount}
               data-testid="button-submit-invoice"

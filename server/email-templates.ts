@@ -746,3 +746,73 @@ export function contactAutoReplyTemplate(params: {
     html: baseTemplate(content),
   };
 }
+
+export function invoiceReminderTemplate(params: {
+  recipientName: string;
+  invoiceTitle: string;
+  amount: number;
+  currency: string;
+  dueDate: string;
+  daysUntilDue: number;
+  invoiceUrl: string;
+}): { subject: string; html: string } {
+  const content = `
+    <h1 style="color:#F59E0B;font-size:20px;margin:0 0 8px 0">⏰ Payment Reminder</h1>
+    <p style="color:#94a3b8;font-size:14px;line-height:1.6;margin:8px 0">Dear ${params.recipientName},</p>
+    <p style="color:#94a3b8;font-size:14px;line-height:1.6;margin:8px 0">This is a friendly reminder that the following invoice is due soon.</p>
+    <div style="text-align:center;padding:16px 0 8px">
+      <div style="display:inline-block;padding:10px 24px;background-color:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:10px">
+        <span style="font-size:15px;font-weight:700;color:#F59E0B">Due in ${params.daysUntilDue} day${params.daysUntilDue !== 1 ? "s" : ""}</span>
+      </div>
+    </div>
+    <hr style="height:1px;background-color:#2d3a56;margin:18px 0;border:none">
+    <table style="width:100%;border-collapse:collapse">
+      ${infoRow("Invoice", params.invoiceTitle)}
+      ${infoRow("Amount", `<span style="font-weight:700;color:#F59E0B">${params.currency} ${params.amount.toLocaleString("en", { minimumFractionDigits: 2 })}</span>`)}
+      ${infoRow("Due Date", `<span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;background-color:rgba(245,158,11,0.15);color:#F59E0B">${params.dueDate}</span>`)}
+    </table>
+    <div style="text-align:center;padding:18px 0 10px">
+      <a href="${params.invoiceUrl}" style="display:inline-block;padding:12px 28px;background-color:#F59E0B;color:#0B1120;text-decoration:none;border-radius:8px;font-weight:700;font-size:14px">Pay Now →</a>
+    </div>
+    <p style="color:#64748b;font-size:12px;margin:12px 0 0">If you have already made payment, please disregard this reminder. For any questions, contact us at <a href="mailto:info@vesselpda.com" style="color:#F59E0B">info@vesselpda.com</a>.</p>
+  `;
+  return {
+    subject: `Payment Reminder: ${params.invoiceTitle} — Due in ${params.daysUntilDue} day${params.daysUntilDue !== 1 ? "s" : ""}`,
+    html: baseTemplate(content),
+  };
+}
+
+export function invoiceOverdueTemplate(params: {
+  recipientName: string;
+  invoiceTitle: string;
+  amount: number;
+  currency: string;
+  dueDate: string;
+  daysOverdue: number;
+  invoiceUrl: string;
+}): { subject: string; html: string } {
+  const content = `
+    <h1 style="color:#EF4444;font-size:20px;margin:0 0 8px 0">🚨 Payment Overdue</h1>
+    <p style="color:#94a3b8;font-size:14px;line-height:1.6;margin:8px 0">Dear ${params.recipientName},</p>
+    <p style="color:#94a3b8;font-size:14px;line-height:1.6;margin:8px 0">Your invoice payment is now overdue. Please arrange payment as soon as possible to avoid any service interruptions.</p>
+    <div style="text-align:center;padding:16px 0 8px">
+      <div style="display:inline-block;padding:10px 24px;background-color:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:10px">
+        <span style="font-size:15px;font-weight:700;color:#EF4444">${params.daysOverdue} day${params.daysOverdue !== 1 ? "s" : ""} past due</span>
+      </div>
+    </div>
+    <hr style="height:1px;background-color:#2d3a56;margin:18px 0;border:none">
+    <table style="width:100%;border-collapse:collapse">
+      ${infoRow("Invoice", params.invoiceTitle)}
+      ${infoRow("Amount", `<span style="font-weight:700;color:#EF4444">${params.currency} ${params.amount.toLocaleString("en", { minimumFractionDigits: 2 })}</span>`)}
+      ${infoRow("Was Due", `<span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;background-color:rgba(239,68,68,0.15);color:#EF4444">${params.dueDate}</span>`)}
+    </table>
+    <div style="text-align:center;padding:18px 0 10px">
+      <a href="${params.invoiceUrl}" style="display:inline-block;padding:12px 28px;background-color:#EF4444;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:700;font-size:14px">Pay Now Immediately →</a>
+    </div>
+    <p style="color:#64748b;font-size:12px;margin:12px 0 0">If you believe this is an error or have already made payment, please contact us immediately at <a href="mailto:info@vesselpda.com" style="color:#EF4444">info@vesselpda.com</a>.</p>
+  `;
+  return {
+    subject: `OVERDUE: ${params.invoiceTitle} — ${params.daysOverdue} day${params.daysOverdue !== 1 ? "s" : ""} past due`,
+    html: baseTemplate(content),
+  };
+}

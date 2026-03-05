@@ -31,6 +31,50 @@ const ROLE_BADGES: Record<string, string> = {
   admin: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
 };
 
+function PaymentRemindersCard() {
+  const { toast } = useToast();
+  const sendRemindersMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/send-reminders", {});
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Reminders processed",
+        description: `Sent ${data.upcomingReminders ?? 0} upcoming, ${data.overdueReminders ?? 0} overdue reminders.`,
+      });
+    },
+    onError: () => toast({ title: "Error", description: "Could not send reminders", variant: "destructive" }),
+  });
+
+  return (
+    <Card className="p-5" data-testid="card-payment-reminders">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Bell className="w-4 h-4 text-amber-500" />
+          <h3 className="font-semibold">Payment Reminders</h3>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 text-xs gap-1.5"
+          onClick={() => sendRemindersMutation.mutate()}
+          disabled={sendRemindersMutation.isPending}
+          data-testid="button-send-reminders"
+        >
+          {sendRemindersMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+          <Bell className="w-3 h-3" />
+          Send Reminders Now
+        </Button>
+      </div>
+      <p className="text-sm text-muted-foreground mt-2">
+        Manually trigger payment reminder emails for upcoming and overdue invoices.
+        The system also runs this automatically every day at 09:00.
+      </p>
+    </Card>
+  );
+}
+
 export default function AdminPanel() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -1734,6 +1778,9 @@ export default function AdminPanel() {
               <p className="text-sm text-muted-foreground">Loading cache statistics…</p>
             )}
           </Card>
+
+          {/* Payment Reminders Card */}
+          <PaymentRemindersCard />
 
           {/* Email Templates Card */}
           <Card className="p-5" data-testid="card-email-templates">

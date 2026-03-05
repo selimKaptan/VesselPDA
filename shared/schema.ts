@@ -870,6 +870,10 @@ export const invoices = pgTable("invoices", {
   notes: text("notes"),
   invoiceType: text("invoice_type").notNull().default("invoice"),
   linkedProformaId: integer("linked_proforma_id"),
+  recipientEmail: varchar("recipient_email"),
+  recipientName: varchar("recipient_name"),
+  reminderSentAt: timestamp("reminder_sent_at"),
+  overdueReminderSentAt: timestamp("overdue_reminder_sent_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
