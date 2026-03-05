@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useTheme } from "@/components/theme-provider";
 import { useLanguage } from "@/lib/i18n";
@@ -27,6 +27,7 @@ import {
   Anchor,
   Search,
   Shield,
+  X,
 } from "lucide-react";
 
 const PLAN_BADGE: Record<string, string> = {
@@ -180,16 +181,34 @@ interface TopBarProps {
 export function TopBar({ user, onMenuClick }: TopBarProps) {
   const { lang, setLang } = useLanguage();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
+        inputRef.current?.focus();
         setSearchOpen(true);
       }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+      if (e.key === "Escape") {
+        setSearchOpen(false);
+        inputRef.current?.blur();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   return (
@@ -210,23 +229,43 @@ export function TopBar({ user, onMenuClick }: TopBarProps) {
         </Link>
       </div>
 
-      {/* Center: global search trigger */}
-      <div className="flex-1 max-w-md mx-auto">
-        <button
-          onClick={() => setSearchOpen(true)}
-          data-testid="button-open-search"
-          className="w-full flex items-center gap-2 bg-slate-800/50 border border-slate-700/40 rounded-full px-4 py-1.5 text-sm text-slate-500 hover:text-slate-300 hover:bg-slate-700/50 hover:border-slate-600/40 transition-colors cursor-pointer"
-        >
-          <Search className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="flex-1 text-left truncate hidden sm:block">Search vessels, ports, proformas...</span>
-          <span className="truncate sm:hidden">Search...</span>
-          <kbd className="hidden sm:flex items-center gap-0.5 text-[10px] bg-slate-700/60 border border-slate-600/50 px-1.5 py-0.5 rounded text-slate-400 ml-auto flex-shrink-0">
-            <span>⌘</span><span>K</span>
-          </kbd>
-        </button>
-      </div>
+      {/* Center: inline search with dropdown */}
+      <div ref={searchRef} className="flex-1 max-w-md mx-auto relative">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Search vessels, ports, proformas..."
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setSearchOpen(true); }}
+            onFocus={() => setSearchOpen(true)}
+            data-testid="button-open-search"
+            autoComplete="off"
+            spellCheck={false}
+            className="w-full bg-slate-800/50 border border-slate-700/40 rounded-full pl-9 pr-12 py-1.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500/50 focus:border-sky-500/50 transition-colors hover:bg-slate-700/40"
+          />
+          {searchQuery ? (
+            <button
+              onClick={() => { setSearchQuery(""); inputRef.current?.focus(); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+              aria-label="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          ) : (
+            <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-0.5 text-[10px] bg-slate-700/60 border border-slate-600/50 px-1.5 py-0.5 rounded text-slate-400 pointer-events-none">
+              <span>⌘</span><span>K</span>
+            </kbd>
+          )}
+        </div>
 
-      <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
+        <GlobalSearch
+          open={searchOpen}
+          query={searchQuery}
+          onClose={() => { setSearchOpen(false); setSearchQuery(""); }}
+        />
+      </div>
 
       {/* Right: lang · theme · bell · user */}
       <div className="flex items-center gap-1 flex-shrink-0">
