@@ -1,0 +1,173 @@
+INSTRUCTIONS.md'yi oku. Üst bar'daki arama kutusu şu an sadece placeholder. Gerçek global search özelliği ekle — vessels, ports, proformas, tenders, voyages, companies hepsinde arayabilsin.
+
+=== 1. BACKEND — SEARCH ENDPOINT ===
+
+server/routes/ içinde uygun modüle veya yeni search.routes.ts oluştur:
+
+GET /api/search?q=xxx&limit=10
+
+Bu endpoint TÜM kaynaklarda arama yapar ve kategorize sonuç döner:
+
+app.get("/api/search", isAuthenticated, async (req: any, res: any, next: any) => {
+  try {
+    const query = (req.query.q as string || '').trim();
+    if (!query || query.length < 2) return res.json({ results: [] });
+    
+    const userId = req.user.claims.sub;
+    const user = await storage.getUser(userId);
+    const limit = parseInt(req.query.limit as string) || 5;
+    const searchTerm = `%${query}%`;
+
+    // Parallel arama — tüm kaynaklar aynı anda
+    const [vessels, ports, proformas, tenders, voyages, companies, forumTopics] = await Promise.all([
+      // Vessels
+      db.select({ id: vesselsTable.id, name: vesselsTable.name, flag: vesselsTable.flag, imoNumber: vesselsTable.imoNumber })
+        .from(vesselsTable)
+        .where(or(
+          ilike(vesselsTable.name, searchTerm),
+          ilike(vesselsTable.imoNumber, searchTerm),
+          ilike(vesselsTable.callSign, searchTerm)
+        ))
+        .limit(limit),
+
+      // Ports
+      db.select({ id: portsTable.id, name: portsTable.name, country: portsTable.country, code: portsTable.code })
+        .from(portsTable)
+        .where(or(
+          ilike(portsTable.name, searchTerm),
+          ilike(portsTable.code, searchTerm),
+          ilike(portsTable.country, searchTerm)
+        ))
+        .limit(limit),
+
+      // Proformas
+      db.select({ id: proformasTable.id, referenceNumber: proformasTable.referenceNumber, totalUsd: proformasTable.totalUsd, status: proformasTable.status })
+        .from(proformasTable)
+        .where(and(
+          user?.userRole === 'admin' ? undefined : eq(proformasTable.userId, userId),
+          ilike(proformasTable.referenceNumber, searchTerm)
+        ))
+        .limit(limit),
+
+      // Tenders
+      db.select({ id: portTendersTable.id, vesselName: portTendersTable.vesselName, status: portTendersTable.status })
+        .from(portTendersTable)
+        .where(ilike(portTendersTable.vesselName, searchTerm))
+        .limit(limit),
+
+      // Voyages
+      db.select({ id: voyagesTable.id, status: voyagesTable.status })
+        .from(voyagesTable)
+        .where(and(
+          user?.userRole === 'admin' ? undefined : or(
+            eq(voyagesTable.userId, userId),
+            eq(voyagesTable.agentUserId, userId)
+          )
+        ))
+        .limit(limit),
+
+      // Companies
+      db.select({ id: companyProfilesTable.id, companyName: companyProfilesTable.companyName, companyType: companyProfilesTable.companyType })
+        .from(companyProfilesTable)
+        .where(and(
+          eq(companyProfilesTable.isApproved, true),
+          ilike(companyProfilesTable.companyName, searchTerm)
+        ))
+        .limit(limit),
+
+      // Forum Topics
+      db.select({ id: forumTopicsTable.id, title: forumTopicsTable.title })
+        .from(forumTopicsTable)
+        .where(ilike(forumTopicsTable.title, searchTerm))
+        .limit(limit),
+    ]);
+
+    // Kategorize et
+    const results = [
+      ...vessels.map(v => ({ type: 'vessel', id: v.id, title: v.name, subtitle: `${v.flag || ''} — IMO: ${v.imoNumber || 'N/A'}`, icon: '🚢', href: '/vessels' })),
+      ...ports.map(p => ({ type: 'port', id: p.id, title: p.name, subtitle: `${p.country || ''} — ${p.code || ''}`, icon: '⚓', href: `/port-info` })),
+      ...proformas.map(p => ({ type: 'proforma', id: p.id, title: p.referenceNumber || `PDA #${p.id}`, subtitle: `$${p.totalUsd || 0} — ${p.status}`, icon: '📋', href: `/proformas/${p.id}` })),
+      ...tenders.map(t => ({ type: 'tender', id: t.id, title: t.vesselName || `Tender #${t.id}`, subtitle: t.status, icon: '📢', href: `/tenders/${t.id}` })),
+      ...companies.map(c => ({ type: 'company', id: c.id, title: c.companyName, subtitle: c.companyType, icon: '🏢', href: `/directory/${c.id}` })),
+      ...forumTopics.map(f => ({ type: 'forum', id: f.id, title: f.title, subtitle: 'Forum Topic', icon: '💬', href: `/forum/${f.id}` })),
+    ];
+
+    res.json({ results, query });
+  } catch (error) { next(error); }
+});
+
+=== 2. FRONTEND — SEARCH COMPONENT ===
+
+client/src/components/global-search.tsx oluştur:
+
+Özellikler:
+- Üst bar'daki arama kutusuna tıklayınca veya Ctrl+K ile açılsın
+- Command palette tarzı: full width overlay dialog
+- Input: otofocus, büyük, placeholder "Search vessels, ports, proformas..."
+- Debounce: 300ms bekle sonra ara (her tuşta API çağırma)
+- Sonuçlar kategoriye göre gruplu:
+  🚢 Vessels
+    MV AEGEAN STAR — Panama — IMO: 9234567
+  ⚓ Ports
+    Iskenderun — Turkey — TRISK
+  📋 Proformas
+    PDA-2026-0042 — $27,340 — approved
+
+- Her sonuç tıklanınca ilgili sayfaya git ve dialog kapat
+- Keyboard navigation: ↑↓ ile seçim, Enter ile git, Esc ile kapat
+- Sonuç yoksa: "No results for '{query}'" mesajı
+- Loading: skeleton shimmer
+- Son aramalar: son 5 aramayı localStorage'da tut ve göster (boş durumda)
+
+UI Tasarım:
+- Overlay: bg-black/50 backdrop-blur
+- Dialog: max-w-xl, bg-slate-900, rounded-xl, border border-slate-700/50
+- Input: text-lg, bg-transparent, border-b border-slate-700
+- Sonuç item: hover:bg-slate-800/50, px-4 py-3, cursor-pointer
+- Kategori başlığı: text-xs uppercase text-slate-500
+- Sağ üstte: "ESC to close" + "Ctrl+K" badge
+
+=== 3. TOP BAR ENTEGRASYONU ===
+
+client/src/components/layout/top-bar.tsx güncelle:
+
+Mevcut arama kutusunu GlobalSearch component'i ile değiştir:
+- Kutucuğa tıklayınca GlobalSearch dialog açılsın
+- Kutu içinde: 🔍 "Search..." + sağda "⌘K" badge
+- Ctrl+K / Cmd+K keyboard shortcut ile de açılsın
+
+=== 4. KEYBOARD SHORTCUT ===
+
+App genelinde keyboard listener ekle:
+- Ctrl+K veya Cmd+K → GlobalSearch aç
+- Escape → GlobalSearch kapat
+
+useEffect(() => {
+  const handler = (e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      setSearchOpen(true);
+    }
+  };
+  window.addEventListener('keydown', handler);
+  return () => window.removeEventListener('keydown', handler);
+}, []);
+
+=== 5. CACHE ===
+
+Search sonuçlarını kısa cache'le (server tarafında):
+import { cached } from '../cache';
+
+const cacheKey = `search:${userId}:${query}`;
+const results = await cached(cacheKey, 'short', async () => { ... });
+
+=== 6. IMPORTANT ===
+
+- Minimum 2 karakter girilmeden arama yapma
+- Debounce 300ms — performans için
+- Role-based: kullanıcı sadece kendi verilerini görsün (admin hariç)
+- Sonuç sayısı: kategori başına max 5, toplam max 20
+- XSS: arama terimini sanitize et
+- Mevcut top-bar yapısını bozma, sadece arama kutusunu güncelle
+- Mobile'da da çalışsın (responsive dialog)
+- Backend'de ilike kullan (case-insensitive)
