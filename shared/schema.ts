@@ -1,7 +1,7 @@
 export * from "./models/auth";
 
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, integer, real, timestamp, jsonb, boolean, serial, index, primaryKey, foreignKey } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, real, timestamp, jsonb, boolean, serial, index, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users, companyProfiles } from "./models/auth";
@@ -1399,13 +1399,7 @@ export const organizationMembers = pgTable("organization_members", {
   joinedAt: timestamp("joined_at").defaultNow(),
   isActive: boolean("is_active").default(true),
   roleId: integer("role_id"),
-}, (t) => ({
-  roleIdFkey: foreignKey({
-    name: "organization_members_role_id_fkey",
-    columns: [t.roleId],
-    foreignColumns: [organizations.id],
-  }).onDelete("set null"),
-}));
+});
 
 export const organizationInvites = pgTable("organization_invites", {
   id: serial("id").primaryKey(),
