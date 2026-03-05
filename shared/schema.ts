@@ -1173,6 +1173,7 @@ export const sofLineItems = pgTable("sof_line_items", {
   remarks: text("remarks"),
   isDeductible: boolean("is_deductible").default(false),
   deductibleHours: real("deductible_hours").default(0),
+  laytimeFactor: integer("laytime_factor").default(100),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });

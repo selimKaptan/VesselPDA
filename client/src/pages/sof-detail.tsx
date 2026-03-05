@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import {
@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -61,14 +60,32 @@ export default function SofDetail() {
   const { toast } = useToast();
 
   const [addEventOpen, setAddEventOpen] = useState(false);
-  const [newEvent, setNewEvent] = useState({
+  const [newEvent, setNewEvent] = useState<{
+    eventType: string;
+    eventName: string;
+    eventDate: string;
+    remarks: string;
+    laytimeFactor: 100 | 50 | 0;
+  }>({
     eventType: "custom",
     eventName: "",
     eventDate: toInputDatetime(new Date().toISOString()),
     remarks: "",
-    isDeductible: false,
-    deductibleHours: 0,
+    laytimeFactor: 100,
   });
+  const [autoAdjusted, setAutoAdjusted] = useState(false);
+
+  const ZERO_FACTOR_EVENTS = ["rain_start", "rain_stop", "breakdown_start", "breakdown_stop"];
+  const HALF_FACTOR_EVENTS = ["shifting_start", "shifting_end"];
+
+  useEffect(() => {
+    const et = newEvent.eventType;
+    let factor: 100 | 50 | 0 = 100;
+    if (ZERO_FACTOR_EVENTS.includes(et)) factor = 0;
+    else if (HALF_FACTOR_EVENTS.includes(et)) factor = 50;
+    setNewEvent(n => ({ ...n, laytimeFactor: factor }));
+    setAutoAdjusted(et !== "custom");
+  }, [newEvent.eventType]);
 
   // Pending edits keyed by event id
   const [editMap, setEditMap] = useState<Record<number, Partial<any>>>({});
@@ -104,7 +121,8 @@ export default function SofDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sof", sofId] });
       setAddEventOpen(false);
-      setNewEvent({ eventType: "custom", eventName: "", eventDate: toInputDatetime(new Date().toISOString()), remarks: "", isDeductible: false, deductibleHours: 0 });
+      setNewEvent({ eventType: "custom", eventName: "", eventDate: toInputDatetime(new Date().toISOString()), remarks: "", laytimeFactor: 100 });
+      setAutoAdjusted(false);
       toast({ title: "Event added" });
     },
   });
@@ -269,15 +287,19 @@ export default function SofDetail() {
                 const isDirty = Object.keys(pending).length > 0;
                 const dateVal = pending.eventDate !== undefined ? pending.eventDate : toInputDatetime(event.eventDate);
                 const remarksVal = pending.remarks !== undefined ? pending.remarks : (event.remarks || "");
-                const deductibleVal = pending.isDeductible !== undefined ? pending.isDeductible : event.isDeductible;
-                const deductHoursVal = pending.deductibleHours !== undefined ? pending.deductibleHours : (event.deductibleHours || 0);
+                const laytimeFactorVal: 100 | 50 | 0 =
+                  (pending.laytimeFactor !== undefined
+                    ? pending.laytimeFactor
+                    : (event.laytimeFactor ?? 100)) as 100 | 50 | 0;
 
                 return (
                   <div key={event.id} className="relative flex gap-4" data-testid={`event-card-${event.id}`}>
                     {/* Circle on timeline */}
                     <div className="flex-shrink-0 w-14 flex flex-col items-center">
                       <div className={`w-3.5 h-3.5 rounded-full mt-4 border-2 z-10 ${
-                        event.isDeductible
+                        (event.laytimeFactor ?? 100) === 0
+                          ? "bg-muted-foreground/40 border-border"
+                          : (event.laytimeFactor ?? 100) === 50
                           ? "bg-amber-400 border-amber-500"
                           : "bg-maritime-primary border-maritime-primary/60"
                       }`} />
@@ -336,30 +358,29 @@ export default function SofDetail() {
 
                       {!isFinalized && (
                         <div className="flex items-center justify-between mt-3 pt-2 border-t border-dashed gap-3 flex-wrap">
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2">
-                              <Checkbox
-                                id={`ded-${event.id}`}
-                                checked={!!deductibleVal}
-                                onCheckedChange={v => patchEdit(event.id, "isDeductible", !!v)}
-                                data-testid={`checkbox-deductible-${event.id}`}
-                              />
-                              <Label htmlFor={`ded-${event.id}`} className="text-xs cursor-pointer">Deductible from laytime</Label>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">Laytime Factor:</span>
+                            <div className="flex rounded-md overflow-hidden border border-border/60">
+                              {([100, 50, 0] as const).map(pct => (
+                                <button
+                                  key={pct}
+                                  type="button"
+                                  onClick={() => patchEdit(event.id, "laytimeFactor", pct)}
+                                  className={`px-2.5 py-1 text-[11px] font-bold transition-colors border-r last:border-r-0 border-border/60 ${
+                                    laytimeFactorVal === pct
+                                      ? pct === 100
+                                        ? "bg-blue-500/80 text-white"
+                                        : pct === 50
+                                        ? "bg-amber-500/80 text-white"
+                                        : "bg-slate-600/80 text-white"
+                                      : "bg-transparent text-muted-foreground hover:bg-muted/40"
+                                  }`}
+                                  data-testid={`button-event-factor-${pct}-${event.id}`}
+                                >
+                                  {pct}%
+                                </button>
+                              ))}
                             </div>
-                            {deductibleVal && (
-                              <div className="flex items-center gap-1.5">
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  step={0.5}
-                                  className="h-7 w-20 text-xs"
-                                  value={deductHoursVal}
-                                  onChange={e => patchEdit(event.id, "deductibleHours", parseFloat(e.target.value) || 0)}
-                                  data-testid={`input-deductible-hours-${event.id}`}
-                                />
-                                <span className="text-xs text-muted-foreground">hrs</span>
-                              </div>
-                            )}
                           </div>
                           {isDirty && (
                             <Button
@@ -375,10 +396,14 @@ export default function SofDetail() {
                         </div>
                       )}
 
-                      {isFinalized && event.isDeductible && (
+                      {isFinalized && (event.laytimeFactor ?? 100) < 100 && (
                         <div className="mt-2 pt-2 border-t border-dashed">
-                          <span className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 font-medium">
-                            ⚠ Deductible — {event.deductibleHours || 0} hrs
+                          <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            (event.laytimeFactor ?? 100) === 0
+                              ? "text-slate-400 bg-slate-500/10"
+                              : "text-amber-400 bg-amber-500/10"
+                          }`}>
+                            {(event.laytimeFactor ?? 100) === 0 ? "0% — Excluded from laytime" : "50% — Half count"}
                           </span>
                         </div>
                       )}
@@ -450,28 +475,42 @@ export default function SofDetail() {
                 placeholder="Optional…"
               />
             </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="new-deductible"
-                checked={newEvent.isDeductible}
-                onCheckedChange={v => setNewEvent(n => ({ ...n, isDeductible: !!v }))}
-                data-testid="checkbox-new-deductible"
-              />
-              <Label htmlFor="new-deductible" className="text-sm cursor-pointer">Deductible from laytime</Label>
-              {newEvent.isDeductible && (
-                <>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={0.5}
-                    className="h-8 w-20 text-sm"
-                    value={newEvent.deductibleHours}
-                    onChange={e => setNewEvent(n => ({ ...n, deductibleHours: parseFloat(e.target.value) || 0 }))}
-                    data-testid="input-new-deductible-hours"
-                  />
-                  <span className="text-sm text-muted-foreground">hrs</span>
-                </>
-              )}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Laytime Factor (To Count)</Label>
+                {autoAdjusted && (
+                  <span className="text-[10px] text-amber-400 font-semibold flex items-center gap-1" data-testid="text-auto-adjusted">
+                    ✨ Auto-adjusted based on event type
+                  </span>
+                )}
+              </div>
+              <div className="flex rounded-lg overflow-hidden border border-border" data-testid="toggle-laytime-factor">
+                {([100, 50, 0] as const).map(pct => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => {
+                      setNewEvent(n => ({ ...n, laytimeFactor: pct }));
+                      setAutoAdjusted(false);
+                    }}
+                    className={`flex-1 py-2 text-xs font-bold transition-colors border-r last:border-r-0 border-border ${
+                      newEvent.laytimeFactor === pct
+                        ? pct === 100
+                          ? "bg-blue-500 text-white"
+                          : pct === 50
+                          ? "bg-amber-500 text-white"
+                          : "bg-slate-600 text-white"
+                        : "bg-transparent text-muted-foreground hover:bg-muted/40"
+                    }`}
+                    data-testid={`button-laytime-factor-${pct}`}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                100% = Full count &middot; 50% = Half count &middot; 0% = Excluded from laytime
+              </p>
             </div>
           </div>
           <DialogFooter>

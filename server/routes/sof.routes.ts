@@ -125,15 +125,17 @@ router.post("/:id/finalize", isAuthenticated, async (req: any, res: any, next: a
 router.post("/:id/events", isAuthenticated, async (req: any, res: any, next: any) => {
   try {
     const sofId = parseInt(req.params.id);
-    const { eventType, eventName, eventDate, remarks, isDeductible, deductibleHours, sortOrder } = req.body;
+    const { eventType, eventName, eventDate, remarks, laytimeFactor, sortOrder } = req.body;
+    const factor = (laytimeFactor !== undefined && laytimeFactor !== null) ? Number(laytimeFactor) : 100;
     const [event] = await db.insert(sofLineItems).values({
       sofId,
       eventType: eventType || "custom",
       eventName: eventName || "Custom Event",
       eventDate: eventDate ? new Date(eventDate) : new Date(),
       remarks: remarks || null,
-      isDeductible: !!isDeductible,
-      deductibleHours: deductibleHours || 0,
+      laytimeFactor: factor,
+      isDeductible: factor < 100,
+      deductibleHours: 0,
       sortOrder: sortOrder || 99,
     }).returning();
     res.json(event);
