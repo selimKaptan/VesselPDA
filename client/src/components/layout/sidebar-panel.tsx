@@ -34,10 +34,17 @@ export function SidebarPanel({ activeCategory }: SidebarPanelProps) {
     staleTime: 60000,
   });
 
+  const { data: voyageInviteBadge } = useQuery<{ count: number }>({
+    queryKey: ["/api/my-voyage-invitations/count"],
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
+  });
+
   const badgeCounts: Record<string, number> = {
     messages: msgBadge?.count || 0,
     nominations: nomBadge?.count || 0,
     tenders: tenderBadge?.count || 0,
+    voyageInvites: voyageInviteBadge?.count || 0,
   };
   const hasExpiring = (certExpiring?.length || 0) > 0;
 

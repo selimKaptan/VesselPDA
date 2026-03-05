@@ -7,7 +7,7 @@ import {
   Sparkles, HelpCircle, Clock, PlayCircle, XCircle, ClipboardList,
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
-  FileCheck,
+  FileCheck, Users2, UserPlus, MoreVertical,
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
@@ -127,7 +127,16 @@ export default function VoyageDetail() {
   const [newTask, setNewTask] = useState("");
   const [chatMessage, setChatMessage] = useState("");
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "financial" | "activity">("operation");
+  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "financial" | "activity" | "participants">("operation");
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [inviteTab, setInviteTab] = useState<"email" | "directory" | "bulk">("email");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("observer");
+  const [inviteServiceType, setInviteServiceType] = useState("");
+  const [inviteMessage, setInviteMessage] = useState("");
+  const [bulkEmails, setBulkEmails] = useState("");
+  const [bulkRole, setBulkRole] = useState("observer");
+  const [directorySearch, setDirectorySearch] = useState("");
   const [showNoteDialog, setShowNoteDialog] = useState(false);
   const [noteTitle, setNoteTitle] = useState("");
   const [noteDesc, setNoteDesc] = useState("");
@@ -503,6 +512,57 @@ export default function VoyageDetail() {
   });
   const activities = activitiesData?.activities || [];
 
+  const { data: collaboratorsData, refetch: refetchCollaborators } = useQuery<{ invitations: any[], participants: any[] }>({
+    queryKey: ["/api/voyages", voyageId, "invitations"],
+    queryFn: () => fetch(`/api/voyages/${voyageId}/invitations`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!voyageId,
+  });
+  const participants = collaboratorsData?.participants ?? [];
+  const pendingInvites = collaboratorsData?.invitations?.filter((i: any) => i.status === "pending") ?? [];
+
+  const sendInviteMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", `/api/voyages/${voyageId}/invite`, data),
+    onSuccess: () => {
+      toast({ title: "Invitation sent" });
+      refetchCollaborators();
+      setShowInviteDialog(false);
+      setInviteEmail(""); setInviteRole("observer"); setInviteServiceType(""); setInviteMessage("");
+    },
+    onError: () => toast({ title: "Failed to send invitation", variant: "destructive" }),
+  });
+
+  const cancelInviteMutation = useMutation({
+    mutationFn: (inviteId: number) => apiRequest("DELETE", `/api/voyages/${voyageId}/invitations/${inviteId}`, {}),
+    onSuccess: () => { toast({ title: "Invitation cancelled" }); refetchCollaborators(); },
+  });
+
+  const resendInviteMutation = useMutation({
+    mutationFn: (inviteId: number) => apiRequest("POST", `/api/voyages/${voyageId}/invitations/${inviteId}/resend`, {}),
+    onSuccess: () => { toast({ title: "Invitation resent" }); refetchCollaborators(); },
+  });
+
+  const removeParticipantMutation = useMutation({
+    mutationFn: (participantId: number) => apiRequest("DELETE", `/api/voyages/${voyageId}/participants/${participantId}`, {}),
+    onSuccess: () => { toast({ title: "Participant removed" }); refetchCollaborators(); },
+  });
+
+  const sendBulkInviteMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", `/api/voyages/${voyageId}/invite-bulk`, data),
+    onSuccess: (res: any) => {
+      res.json().then((d: any) => toast({ title: `${d.sent} invitation${d.sent !== 1 ? "s" : ""} sent` }));
+      refetchCollaborators();
+      setShowInviteDialog(false);
+      setBulkEmails("");
+    },
+    onError: () => toast({ title: "Bulk invite failed", variant: "destructive" }),
+  });
+
+  const { data: directoryResults = [] } = useQuery<any[]>({
+    queryKey: ["/api/directory", directorySearch],
+    queryFn: () => fetch(`/api/directory?search=${encodeURIComponent(directorySearch)}&limit=8`, { credentials: "include" }).then(r => r.json()),
+    enabled: directorySearch.length >= 2,
+  });
+
   const addNoteMutation = useMutation({
     mutationFn: () => apiRequest("POST", `/api/voyages/${voyageId}/activities`, { title: noteTitle, description: noteDesc }),
     onSuccess: () => {
@@ -671,11 +731,12 @@ export default function VoyageDetail() {
       {/* Tab Bar */}
       <div className="flex gap-1 bg-muted/40 p-1 rounded-xl">
         {([
-          { key: "operation", label: "Operation", icon: ClipboardList },
-          { key: "activity",  label: "Activity",  icon: Clock },
-          { key: "documents", label: "Documents", icon: FolderOpen },
-          { key: "comms",     label: "Messages",  icon: MessageCircle },
-          { key: "financial", label: "Financial", icon: DollarSign },
+          { key: "operation",   label: "Operation",  icon: ClipboardList },
+          { key: "activity",    label: "Activity",   icon: Clock },
+          { key: "documents",   label: "Documents",  icon: FolderOpen },
+          { key: "comms",       label: "Messages",   icon: MessageCircle },
+          { key: "financial",   label: "Financial",  icon: DollarSign },
+          { key: "participants", label: "Team",      icon: Users2 },
         ] as const).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -700,6 +761,50 @@ export default function VoyageDetail() {
       {/* ── Tab: Operasyon ─────────────────────────────────────── */}
       {activeTab === "operation" && (
         <div className="space-y-6">
+          {/* Voyage Team widget */}
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-medium text-sm flex items-center gap-2">
+                <Users2 className="w-4 h-4 text-sky-400" />
+                Voyage Team
+                <span className="text-xs text-muted-foreground">({participants.length + 1})</span>
+              </h3>
+              {(isOwner || isAgent) && (
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setActiveTab("participants")}>
+                  <UserPlus className="w-3 h-3 mr-1" /> Invite
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {voyage && (
+                <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full px-3 py-1">
+                  <div className="w-5 h-5 rounded-full bg-amber-600 flex items-center justify-center text-[10px] font-bold text-white">
+                    {voyage.ownerFirstName?.[0] ?? "O"}
+                  </div>
+                  <span className="text-xs font-medium">{`${voyage.ownerFirstName ?? ""} ${voyage.ownerLastName ?? ""}`.trim() || "Owner"}</span>
+                  <span className="text-[10px] text-amber-400/70">Owner</span>
+                </div>
+              )}
+              {participants.slice(0, 5).map((p: any) => (
+                <div key={p.id} className="flex items-center gap-1.5 bg-muted/40 rounded-full px-3 py-1 border border-border/50">
+                  <div className="w-5 h-5 rounded-full bg-slate-600 flex items-center justify-center text-[10px] font-bold text-white uppercase">
+                    {p.firstName?.[0] ?? p.inviteeEmail?.[0] ?? "?"}
+                  </div>
+                  <span className="text-xs font-medium">{`${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() || p.email || "—"}</span>
+                  <span className="text-[10px] text-muted-foreground capitalize">{p.role}</span>
+                </div>
+              ))}
+              {participants.length > 5 && (
+                <button onClick={() => setActiveTab("participants")} className="text-xs text-sky-400 hover:underline">
+                  +{participants.length - 5} more
+                </button>
+              )}
+              {participants.length === 0 && (
+                <p className="text-xs text-muted-foreground italic">No participants yet. Invite agents, providers or surveyors.</p>
+              )}
+            </div>
+          </Card>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Görev Listesi */}
             <Card className="p-5 space-y-4">
@@ -1365,6 +1470,353 @@ export default function VoyageDetail() {
           </Dialog>
         </div>
       )}
+
+      {/* ── Tab: Participants / Team ─────────────────────────── */}
+      {activeTab === "participants" && (
+        <div className="space-y-6" data-testid="tab-content-participants">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-base flex items-center gap-2">
+                <Users2 className="w-4 h-4 text-sky-400" /> Voyage Team
+              </h3>
+              <p className="text-sm text-muted-foreground">{participants.length + 1} member{participants.length !== 0 ? "s" : ""}</p>
+            </div>
+            {(isOwner || isAgent) && (
+              <Button onClick={() => setShowInviteDialog(true)} data-testid="button-invite-participant">
+                <UserPlus className="w-4 h-4 mr-2" /> Invite
+              </Button>
+            )}
+          </div>
+
+          {/* Participants Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="participants-grid">
+            {/* Owner card */}
+            <div className="rounded-xl border bg-card p-4 space-y-3">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-amber-600 flex items-center justify-center text-sm font-bold text-white uppercase">
+                    {voyage?.ownerFirstName?.[0] ?? "O"}
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm">{`${voyage?.ownerFirstName ?? ""} ${voyage?.ownerLastName ?? ""}`.trim() || "Voyage Owner"}</p>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-500 border border-amber-500/30">Owner</span>
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Voyage owner</p>
+            </div>
+
+            {participants.map((p: any) => {
+              const roleColors: Record<string, string> = {
+                agent: "bg-sky-500/15 text-sky-500 border-sky-500/30",
+                provider: "bg-purple-500/15 text-purple-500 border-purple-500/30",
+                surveyor: "bg-amber-500/15 text-amber-500 border-amber-500/30",
+                broker: "bg-green-500/15 text-green-500 border-green-500/30",
+                observer: "bg-slate-500/15 text-slate-400 border-slate-500/30",
+              };
+              const roleColor = roleColors[p.role] ?? roleColors.observer;
+              const name = `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() || p.email || "—";
+              const initials = (p.firstName?.[0] ?? p.email?.[0] ?? "?").toUpperCase();
+              return (
+                <div key={p.id} className="rounded-xl border bg-card p-4 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-sm font-bold text-white uppercase">
+                        {p.profileImageUrl
+                          ? <img src={p.profileImageUrl} alt={name} className="w-10 h-10 rounded-full object-cover" />
+                          : initials}
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{name}</p>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${roleColor} capitalize`}>{p.role}</span>
+                      </div>
+                    </div>
+                    {isOwner && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0"><MoreVertical className="w-3.5 h-3.5" /></Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem className="text-destructive" onClick={() => removeParticipantMutation.mutate(p.id)}>
+                            Remove from voyage
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                  {p.serviceType && <p className="text-xs text-muted-foreground">Service: {p.serviceType}</p>}
+                  <p className="text-xs text-muted-foreground">
+                    Joined {p.respondedAt ? new Date(p.respondedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
+                  </p>
+                  {p.permissions && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {p.permissions.canViewDocuments && <span className="text-[10px] bg-muted/50 px-1.5 py-0.5 rounded text-muted-foreground">Docs</span>}
+                      {p.permissions.canChat && <span className="text-[10px] bg-muted/50 px-1.5 py-0.5 rounded text-muted-foreground">Chat</span>}
+                      {p.permissions.canViewFinancials && <span className="text-[10px] bg-muted/50 px-1.5 py-0.5 rounded text-muted-foreground">Finance</span>}
+                      {p.permissions.canEditChecklist && <span className="text-[10px] bg-muted/50 px-1.5 py-0.5 rounded text-muted-foreground">Tasks</span>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Pending Invitations */}
+          {pendingInvites.length > 0 && (
+            <div>
+              <h4 className="font-medium mb-3 flex items-center gap-2 text-sm">
+                <Clock className="w-4 h-4 text-amber-400" />
+                Pending Invitations
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs border bg-amber-500/15 text-amber-500 border-amber-500/30">{pendingInvites.length}</span>
+              </h4>
+              <div className="rounded-lg border overflow-hidden">
+                <table className="w-full text-sm" data-testid="table-pending-invites">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="text-left p-3 font-medium text-muted-foreground">Invitee</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground">Role</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground hidden md:table-cell">Sent</th>
+                      <th className="text-left p-3 font-medium text-muted-foreground hidden lg:table-cell">Expires</th>
+                      {(isOwner || isAgent) && <th className="p-3" />}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingInvites.map((inv: any) => {
+                      const inviteeLabel = (inv.inviteeEmail ?? (`${inv.firstName ?? ""} ${inv.lastName ?? ""}`.trim() || "—"));
+                      const rColors: Record<string, string> = {
+                        agent: "bg-sky-500/15 text-sky-500 border-sky-500/30",
+                        provider: "bg-purple-500/15 text-purple-500 border-purple-500/30",
+                        surveyor: "bg-amber-500/15 text-amber-500 border-amber-500/30",
+                        broker: "bg-green-500/15 text-green-500 border-green-500/30",
+                        observer: "bg-slate-500/15 text-slate-400 border-slate-500/30",
+                      };
+                      return (
+                        <tr key={inv.id} className="border-b last:border-0 hover:bg-muted/20">
+                          <td className="p-3 font-medium text-sm">{inviteeLabel}</td>
+                          <td className="p-3">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${rColors[inv.role] ?? rColors.observer} capitalize`}>{inv.role}</span>
+                          </td>
+                          <td className="p-3 text-muted-foreground text-xs hidden md:table-cell">
+                            {inv.invitedAt ? new Date(inv.invitedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
+                          </td>
+                          <td className="p-3 text-muted-foreground text-xs hidden lg:table-cell">
+                            {inv.expiresAt ? new Date(inv.expiresAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
+                          </td>
+                          {(isOwner || isAgent) && (
+                            <td className="p-3">
+                              <div className="flex gap-1">
+                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => resendInviteMutation.mutate(inv.id)}>Resend</Button>
+                                <Button variant="ghost" size="sm" className="h-7 text-xs text-red-500 hover:text-red-500" onClick={() => cancelInviteMutation.mutate(inv.id)}>Cancel</Button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {participants.length === 0 && pendingInvites.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              <Users2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm font-medium">No participants yet</p>
+              <p className="text-xs mt-1">Invite agents, providers, or surveyors to collaborate on this voyage.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Voyage Invite Dialog */}
+      <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog} data-testid="dialog-invite-participant">
+        <DialogContent className="max-w-lg" data-testid="dialog-invite-participant">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-4 h-4" /> Invite to Voyage
+            </DialogTitle>
+          </DialogHeader>
+          {/* Invite Tabs */}
+          <div className="flex gap-1 bg-muted/30 p-1 rounded-lg mb-4">
+            {[
+              { key: "email", label: "By Email" },
+              { key: "directory", label: "From Directory" },
+              { key: "bulk", label: "Bulk" },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setInviteTab(key as any)}
+                className={`flex-1 py-1.5 text-sm rounded-md transition-all ${inviteTab === key ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                data-testid={`tab-invite-${key}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {inviteTab === "email" && (
+            <div className="space-y-4">
+              <div>
+                <Label>Email Address *</Label>
+                <Input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={e => setInviteEmail(e.target.value)}
+                  placeholder="colleague@company.com"
+                  data-testid="input-invite-email-field"
+                />
+              </div>
+              <div>
+                <Label>Role *</Label>
+                <Select value={inviteRole} onValueChange={setInviteRole} data-testid="select-invite-role">
+                  <SelectTrigger data-testid="select-invite-role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="agent">Agent</SelectItem>
+                    <SelectItem value="provider">Provider</SelectItem>
+                    <SelectItem value="surveyor">Surveyor</SelectItem>
+                    <SelectItem value="broker">Broker</SelectItem>
+                    <SelectItem value="observer">Observer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {inviteRole === "provider" && (
+                <div>
+                  <Label>Service Type</Label>
+                  <Select value={inviteServiceType} onValueChange={setInviteServiceType}>
+                    <SelectTrigger><SelectValue placeholder="Select service..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="stevedoring">Stevedoring</SelectItem>
+                      <SelectItem value="surveying">Surveying</SelectItem>
+                      <SelectItem value="fumigation">Fumigation</SelectItem>
+                      <SelectItem value="customs">Customs</SelectItem>
+                      <SelectItem value="forwarding">Forwarding</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div>
+                <Label>Personal Message <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Textarea
+                  value={inviteMessage}
+                  onChange={e => setInviteMessage(e.target.value)}
+                  placeholder="Add a personal note to your invitation..."
+                  rows={3}
+                  maxLength={500}
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowInviteDialog(false)}>Cancel</Button>
+                <Button
+                  onClick={() => sendInviteMutation.mutate({ inviteeEmail: inviteEmail, role: inviteRole, serviceType: inviteServiceType || undefined, message: inviteMessage || undefined })}
+                  disabled={!inviteEmail.includes("@") || sendInviteMutation.isPending}
+                  data-testid="button-send-voyage-invite"
+                >
+                  {sendInviteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Send Invitation
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {inviteTab === "directory" && (
+            <div className="space-y-4">
+              <div>
+                <Label>Search Companies</Label>
+                <Input
+                  value={directorySearch}
+                  onChange={e => setDirectorySearch(e.target.value)}
+                  placeholder="Search by company name..."
+                />
+              </div>
+              {directorySearch.length >= 2 && (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {(directoryResults as any[]).map((co: any) => (
+                    <div key={co.id} className="flex items-center gap-3 p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 cursor-pointer" onClick={() => { setInviteEmail(co.email || ""); setDirectorySearch(""); }}>
+                      <div className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center text-xs font-bold">{co.companyName?.[0] ?? "?"}</div>
+                      <div>
+                        <p className="text-sm font-medium">{co.companyName}</p>
+                        <p className="text-xs text-muted-foreground">{co.portName ?? co.city}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {(directoryResults as any[]).length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No results</p>}
+                </div>
+              )}
+              <div>
+                <Label>Role *</Label>
+                <Select value={inviteRole} onValueChange={setInviteRole}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="agent">Agent</SelectItem>
+                    <SelectItem value="provider">Provider</SelectItem>
+                    <SelectItem value="surveyor">Surveyor</SelectItem>
+                    <SelectItem value="broker">Broker</SelectItem>
+                    <SelectItem value="observer">Observer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowInviteDialog(false)}>Cancel</Button>
+                <Button
+                  onClick={() => sendInviteMutation.mutate({ inviteeEmail: inviteEmail, role: inviteRole })}
+                  disabled={!inviteEmail.includes("@") || sendInviteMutation.isPending}
+                  data-testid="button-send-voyage-invite"
+                >
+                  {sendInviteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Send Invitation
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {inviteTab === "bulk" && (
+            <div className="space-y-4" data-testid="tab-invite-bulk">
+              <div>
+                <Label>Email Addresses <span className="text-muted-foreground text-xs">(one per line)</span></Label>
+                <Textarea
+                  value={bulkEmails}
+                  onChange={e => setBulkEmails(e.target.value)}
+                  placeholder={"agent@company.com\nsurveyor@firm.com\nprovider@service.com"}
+                  rows={6}
+                  data-testid="textarea-bulk-emails"
+                />
+                <p className="text-xs text-muted-foreground mt-1">{bulkEmails.split("\n").filter(l => l.trim()).length} emails</p>
+              </div>
+              <div>
+                <Label>Role for all *</Label>
+                <Select value={bulkRole} onValueChange={setBulkRole}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="agent">Agent</SelectItem>
+                    <SelectItem value="provider">Provider</SelectItem>
+                    <SelectItem value="surveyor">Surveyor</SelectItem>
+                    <SelectItem value="broker">Broker</SelectItem>
+                    <SelectItem value="observer">Observer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowInviteDialog(false)}>Cancel</Button>
+                <Button
+                  onClick={() => {
+                    const invitations = bulkEmails.split("\n").filter(l => l.trim()).map(email => ({ email: email.trim(), role: bulkRole }));
+                    sendBulkInviteMutation.mutate({ invitations });
+                  }}
+                  disabled={bulkEmails.trim().length === 0 || sendBulkInviteMutation.isPending}
+                >
+                  {sendBulkInviteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Send All
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Service Request Dialog */}
       <Dialog open={showServiceDialog} onOpenChange={setShowServiceDialog}>

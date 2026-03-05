@@ -25,6 +25,7 @@ import aiRoutes from "./routes/ai.routes";
 import norRoutes from "./routes/nor.routes";
 import vesselScheduleRoutes from "./routes/vessel-schedule.routes";
 import { orgRouter, inviteRouter } from "./routes/organization.routes";
+import { voyageInviteRouter } from "./routes/voyage-invite.routes";
 
 // Root-mounted modules (full /api/... paths preserved inside router)
 import authRoutes from "./routes/auth.routes";
@@ -92,6 +93,7 @@ export async function registerRoutes(
   app.use("/api/vessel-schedule", vesselScheduleRoutes);
   app.use("/api/organizations", orgRouter);
   app.use("/api/invites", inviteRouter);
+  app.use("/api", voyageInviteRouter);
 
   return httpServer;
 }

@@ -14,6 +14,7 @@ import {
   pdaFullTemplate,
   pdaApprovalRequestTemplate,
   orgInviteTemplate,
+  voyageInviteTemplate,
 } from "./email-templates";
 
 // Replit Resend integration — fetches API key via OAuth connector
@@ -517,6 +518,22 @@ export interface ApprovalRequestEmailData {
   totalUsd: number;
   approvalToken: string;
   lineItems: Array<{ description: string; amountUsd?: number; quantity?: number; unit?: string }>;
+}
+
+export async function sendVoyageInviteEmail(
+  to: string,
+  params: Parameters<typeof voyageInviteTemplate>[0]
+): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) { console.warn("[email] No credentials — skipping sendVoyageInviteEmail"); return false; }
+  const resend = new Resend(creds.apiKey);
+  const { subject, html } = voyageInviteTemplate(params);
+  try {
+    const { error } = await resend.emails.send({ from: `VesselPDA <${creds.fromEmail}>`, to: [to], subject, html });
+    if (error) { console.error("[email] sendVoyageInviteEmail error:", error); return false; }
+    console.log(`[email] Voyage invite sent to ${to}`);
+    return true;
+  } catch (err) { console.error("[email] sendVoyageInviteEmail failed:", err); return false; }
 }
 
 export async function sendOrgInviteEmail(

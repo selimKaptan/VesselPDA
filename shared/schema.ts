@@ -446,6 +446,64 @@ export const insertVoyageActivitySchema = z.object({
 export type InsertVoyageActivity = z.infer<typeof insertVoyageActivitySchema>;
 export type VoyageActivity = typeof voyageActivities.$inferSelect;
 
+// ─── VOYAGE COLLABORATORS (INVITATIONS + PARTICIPANTS) ───────────────────────
+
+export interface VoyageParticipantPermissions {
+  canViewDocuments?: boolean;
+  canUploadDocuments?: boolean;
+  canChat?: boolean;
+  canViewFinancials?: boolean;
+  canEditChecklist?: boolean;
+  canViewSOF?: boolean;
+}
+
+export const DEFAULT_PARTICIPANT_PERMISSIONS: Record<string, VoyageParticipantPermissions> = {
+  agent:    { canViewDocuments: true, canUploadDocuments: true, canChat: true, canViewFinancials: true, canEditChecklist: true, canViewSOF: true },
+  provider: { canViewDocuments: true, canUploadDocuments: true, canChat: true, canViewFinancials: false, canEditChecklist: false, canViewSOF: false },
+  surveyor: { canViewDocuments: true, canUploadDocuments: true, canChat: true, canViewFinancials: false, canEditChecklist: false, canViewSOF: true },
+  broker:   { canViewDocuments: true, canUploadDocuments: false, canChat: true, canViewFinancials: true, canEditChecklist: false, canViewSOF: false },
+  observer: { canViewDocuments: true, canUploadDocuments: false, canChat: false, canViewFinancials: false, canEditChecklist: false, canViewSOF: true },
+};
+
+export const voyageCollaborators = pgTable("voyage_collaborators", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  organizationId: integer("organization_id"),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  invitedByUserId: varchar("invited_by_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  inviteeEmail: varchar("invitee_email", { length: 300 }),
+  inviteeCompanyId: integer("invitee_company_id"),
+  role: text("role").notNull().default("observer"),
+  serviceType: varchar("service_type", { length: 100 }),
+  permissions: jsonb("permissions").$type<VoyageParticipantPermissions>().notNull().default({}),
+  status: text("status").notNull().default("pending"),
+  token: varchar("token", { length: 100 }),
+  expiresAt: timestamp("expires_at"),
+  invitedAt: timestamp("invited_at").notNull().defaultNow(),
+  respondedAt: timestamp("responded_at"),
+  declineReason: text("decline_reason"),
+  message: text("message"),
+  notes: text("notes"),
+});
+
+export const voyageCollaboratorRelations = relations(voyageCollaborators, ({ one }) => ({
+  voyage: one(voyages, { fields: [voyageCollaborators.voyageId], references: [voyages.id] }),
+  invitedByUser: one(users, { fields: [voyageCollaborators.invitedByUserId], references: [users.id] }),
+  user: one(users, { fields: [voyageCollaborators.userId], references: [users.id] }),
+}));
+
+export const insertVoyageCollaboratorSchema = z.object({
+  voyageId: z.number().int(),
+  userId: z.string().optional(),
+  inviteeEmail: z.string().email().optional(),
+  inviteeCompanyId: z.number().int().optional(),
+  role: z.string().default("observer"),
+  serviceType: z.string().optional(),
+  message: z.string().optional(),
+});
+
+export type VoyageCollaborator = typeof voyageCollaborators.$inferSelect;
+
 // ─── SERVICE REQUESTS (HİZMET TALEPLERİ) ─────────────────────────────────────
 
 export const serviceRequests = pgTable("service_requests", {

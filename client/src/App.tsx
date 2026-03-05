@@ -37,6 +37,7 @@ import PortInfo from "@/pages/port-info";
 import Settings from "@/pages/settings";
 import Voyages from "@/pages/voyages";
 import VoyageDetail from "@/pages/voyage-detail";
+import VoyageInvitations from "@/pages/voyage-invitations";
 import ServiceRequests from "@/pages/service-requests";
 import ServiceRequestDetail from "@/pages/service-request-detail";
 import Messages from "@/pages/messages";
@@ -99,6 +100,7 @@ function AuthenticatedRouter() {
       <Route path="/service-requests/:id" component={ServiceRequestDetail} />
       <Route path="/messages" component={Messages} />
       <Route path="/messages/:id" component={MessageThread} />
+      <Route path="/voyage-invitations" component={VoyageInvitations} />
       <Route path="/nominations" component={Nominations} />
       <Route path="/sanctions-check" component={SanctionsCheck} />
       <Route path="/vessel-certificates" component={VesselCertificates} />

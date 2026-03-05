@@ -22,6 +22,7 @@ import {
   Mail,
   MessageSquare,
   BellRing,
+  UserPlus,
   Anchor,
   Shield,
   BarChart3,
@@ -34,7 +35,7 @@ import {
   Calendar,
 } from "lucide-react";
 
-export type BadgeSource = "messages" | "nominations" | "tenders" | "certs";
+export type BadgeSource = "messages" | "nominations" | "tenders" | "certs" | "voyageInvites";
 
 export interface NavSubPage {
   label: string;
@@ -133,6 +134,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
       { label: "Messages", url: "/messages", icon: Mail, badge: "messages" },
       { label: "Forum", url: "/forum", icon: MessageSquare },
       { label: "Notifications", url: "/notifications", icon: BellRing },
+      { label: "Voyage Invitations", url: "/voyage-invitations", icon: UserPlus, badge: "voyageInvites" },
     ],
   },
   {
@@ -207,6 +209,7 @@ export const URL_TO_CATEGORY: Record<string, string> = {
   "/messages": "communication",
   "/forum": "communication",
   "/notifications": "communication",
+  "/voyage-invitations": "communication",
   "/port-info": "tools",
   "/sanctions-check": "tools",
   "/company-profile": "tools",

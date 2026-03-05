@@ -817,6 +817,41 @@ export function invoiceOverdueTemplate(params: {
   };
 }
 
+export function voyageInviteTemplate(params: {
+  recipientName: string;
+  inviterName: string;
+  inviterCompany?: string;
+  vesselName: string;
+  portName: string;
+  role: string;
+  serviceType?: string;
+  message?: string;
+  eta?: string;
+  acceptUrl: string;
+  declineUrl?: string;
+}): { subject: string; html: string } {
+  const roleLabel = params.role.charAt(0).toUpperCase() + params.role.slice(1);
+  const subject = `Voyage invitation: ${params.vesselName} at ${params.portName} — VesselPDA`;
+  const content = `
+    <h2 style="font-family:Georgia,serif;font-size:22px;color:#F8FAFC;margin:0 0 6px 0">⚓ Voyage Invitation</h2>
+    <p style="color:#94a3b8;font-size:14px;line-height:1.6;margin:0 0 20px 0">You have been invited to join a maritime voyage as <strong style="color:#F8FAFC">${roleLabel}</strong>.</p>
+    <table style="width:100%;border-collapse:collapse;margin:0 0 20px 0">
+      ${infoRow("Vessel", params.vesselName)}
+      ${infoRow("Port", params.portName)}
+      ${params.eta ? infoRow("ETA", params.eta) : ""}
+      ${infoRow("Invited By", params.inviterCompany ? `${params.inviterName} · ${params.inviterCompany}` : params.inviterName)}
+      ${infoRow("Your Role", `<span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;background-color:rgba(56,189,248,0.15);color:#38BDF8">${roleLabel}</span>`)}
+      ${params.serviceType ? infoRow("Service Type", params.serviceType) : ""}
+    </table>
+    ${params.message ? `<div style="background:#1a2744;border-left:3px solid #38BDF8;padding:12px 16px;border-radius:4px;margin:16px 0;color:#CBD5E1;font-size:14px;font-style:italic;">"${params.message}"</div>` : ""}
+    <div style="text-align:center;padding:16px 0 8px">
+      <a href="${params.acceptUrl}" style="display:inline-block;padding:14px 32px;background-color:#38BDF8;color:#0B1120;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px">Accept Invitation →</a>
+    </div>
+    <p style="color:#64748b;font-size:12px;margin:20px 0 0;text-align:center">This invitation expires in 7 days. If you did not expect this invitation, you can safely ignore it.</p>
+  `;
+  return { subject, html: baseTemplate(content, "VesselPDA Voyage Invitations") };
+}
+
 export function orgInviteTemplate(params: {
   recipientEmail: string;
   organizationName: string;
