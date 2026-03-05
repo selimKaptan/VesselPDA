@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  Scale,
   Map,
   FileText,
   ClipboardList,
@@ -92,6 +93,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
       { label: "Tenders", url: "/tenders", icon: Megaphone, badge: "tenders" },
       { label: "Fixtures", url: "/fixtures", icon: Paperclip },
       { label: "Cargo Positions", url: "/cargo-positions", icon: Package },
+      { label: "Laytime Calculator", url: "/laytime-calculator", icon: Scale },
     ],
   },
   {
@@ -208,6 +210,7 @@ export const URL_TO_CATEGORY: Record<string, string> = {
   "/tenders": "commercial",
   "/fixtures": "commercial",
   "/cargo-positions": "commercial",
+  "/laytime-calculator": "commercial",
   "/vessels": "fleet",
   "/vessel-schedule": "fleet",
   "/vessel-certificates": "fleet",
