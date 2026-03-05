@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../../email";
 import { logAction, getClientIp } from "../../audit";
+import { seedDemoData } from "../../demo-seed";
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
@@ -24,7 +25,7 @@ export function registerAuthRoutes(app: Express): void {
 
   app.post("/api/auth/register", async (req: any, res) => {
     try {
-      const { email, password, firstName, lastName, userRole } = req.body;
+      const { email, password, firstName, lastName, userRole, isDemo } = req.body;
 
       if (!email || !password || !firstName || !lastName) {
         return res.status(400).json({ message: "All fields are required" });
@@ -60,7 +61,7 @@ export function registerAuthRoutes(app: Express): void {
       const token = generateToken();
       const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-      await authStorage.createUser({
+      const newUser = await authStorage.createUser({
         email,
         passwordHash,
         firstName,
@@ -70,6 +71,20 @@ export function registerAuthRoutes(app: Express): void {
         verificationToken: token,
         verificationTokenExpiry: expiry,
       });
+
+      if (isDemo) {
+        await authStorage.markEmailVerified(newUser.id);
+        try {
+          await seedDemoData(newUser.id, userRole || "agent");
+        } catch (e) {
+          console.error("[demo] Seed failed during registration:", e);
+        }
+        req.session.userId = newUser.id;
+        await new Promise<void>((resolve, reject) =>
+          req.session.save((err: any) => (err ? reject(err) : resolve()))
+        );
+        return res.json({ message: "demo_ready" });
+      }
 
       try {
         await sendVerificationEmail(email, firstName, token);

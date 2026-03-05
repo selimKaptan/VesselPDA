@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Ship, Anchor, Building2, Shield, Plus, LayoutDashboard, Handshake, CheckCircle2, Circle, ChevronRight, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -93,6 +94,9 @@ export default function Dashboard() {
   const { user } = useAuth();
   const userRole = (user as any)?.userRole || "shipowner";
   const activeRole = (user as any)?.activeRole || "admin";
+  const [dismissedDemo, setDismissedDemo] = useState(
+    () => localStorage.getItem("dismissedDemoBanner") === "true"
+  );
 
   const isAdmin = userRole === "admin";
   const effectiveRole = isAdmin ? activeRole : userRole;
@@ -207,6 +211,33 @@ export default function Dashboard() {
   return (
     <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
       <PageMeta title="Dashboard | VesselPDA" description="Your maritime operations dashboard — vessels, proformas, tenders, and fleet activity." />
+
+      {/* Demo Mode Banner */}
+      {(user as any)?.isDemoAccount && !dismissedDemo && (
+        <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-4 flex items-center justify-between gap-4" data-testid="banner-demo-account">
+          <div className="flex items-center gap-3">
+            <span className="text-xl flex-shrink-0">🎯</span>
+            <div>
+              <p className="font-semibold text-sky-400 text-sm">Demo Mode</p>
+              <p className="text-xs text-muted-foreground">You're exploring VesselPDA with sample data. Upgrade to unlock all features for your business.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Link href="/pricing">
+              <Button size="sm" className="h-7 text-xs bg-sky-600 hover:bg-sky-700 text-white">
+                Upgrade Plan
+              </Button>
+            </Link>
+            <Button
+              variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground"
+              onClick={() => { setDismissedDemo(true); localStorage.setItem("dismissedDemoBanner", "true"); }}
+              data-testid="button-dismiss-demo-banner"
+            >
+              ✕
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Admin Bootstrap (non-admin users only) */}
       {!isAdmin && bootstrapAdminMutation.isSuccess && (

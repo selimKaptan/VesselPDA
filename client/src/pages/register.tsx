@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Anchor, Ship, Building2, Eye, EyeOff, Mail, Briefcase, ArrowRight, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { PageMeta } from "@/components/page-meta";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
 
 const ROLES = [
   {
@@ -78,6 +79,8 @@ const ICON_STYLES: Record<string, string> = {
 
 export default function Register() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
+  const isDemo = new URLSearchParams(window.location.search).get("demo") === "true";
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedRole, setSelectedRole] = useState<RoleValue | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -93,6 +96,7 @@ export default function Register() {
     mutationFn: async (data: RegisterForm) => {
       const res = await fetch("/api/auth/register", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: data.email,
@@ -100,14 +104,21 @@ export default function Register() {
           firstName: data.firstName,
           lastName: data.lastName,
           userRole: selectedRole,
+          isDemo,
         }),
       });
       const body = await res.json();
       if (!res.ok) throw { status: res.status, ...body };
       return body;
     },
-    onSuccess: (_, variables) => {
-      setRegistered(variables.email);
+    onSuccess: async (data, variables) => {
+      if (data?.message === "demo_ready") {
+        toast({ title: "Demo Ready!", description: "Sample data loaded. Explore all features!" });
+        await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        navigate("/dashboard");
+      } else {
+        setRegistered(variables.email);
+      }
     },
     onError: (err: any) => {
       if (err.status === 409) {
@@ -182,6 +193,17 @@ export default function Register() {
             <h1 className="text-2xl font-bold text-white">VesselPDA</h1>
             <p className="text-blue-200 text-sm">Maritime Platform</p>
           </div>
+
+          {/* Demo Mode Banner */}
+          {isDemo && (
+            <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-4 mb-5 flex items-start gap-3" data-testid="banner-demo-mode">
+              <span className="text-2xl mt-0.5">🎯</span>
+              <div>
+                <p className="font-semibold text-sky-400">Create a free account to explore VesselPDA</p>
+                <p className="text-sm text-white/70 mt-0.5">Sample data will be loaded automatically — 5 vessels, 5 proformas, voyages, invoices and more!</p>
+              </div>
+            </div>
+          )}
 
           {/* Step 1: Role Selection */}
           {step === 1 && (

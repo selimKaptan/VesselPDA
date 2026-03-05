@@ -513,11 +513,14 @@ export default function Landing() {
                       Get Started Free
                     </button>
                   </a>
-                  <a href="/demo">
-                    <button className="w-full sm:w-auto h-12 px-8 rounded-xl text-base font-semibold border border-sky-500/40 text-sky-400 hover:bg-sky-500/10 hover:border-sky-500/60 transition-all duration-200" data-testid="button-hero-demo">
-                      Try Demo
-                    </button>
-                  </a>
+                  <div className="flex flex-col items-center gap-1.5">
+                    <a href="/register?demo=true">
+                      <button className="w-full sm:w-auto h-12 px-8 rounded-xl text-base font-semibold border border-sky-500/40 text-sky-400 hover:bg-sky-500/10 hover:border-sky-500/60 transition-all duration-200" data-testid="button-hero-demo">
+                        Try Demo — Free Account
+                      </button>
+                    </a>
+                    <p className="text-xs text-sky-400/70">Create a free account · Sample data included</p>
+                  </div>
                 </div>
                 <p className="text-xs text-slate-500">No credit card required · Free plan includes 1 PDA</p>
               </div>

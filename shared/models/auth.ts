@@ -34,6 +34,8 @@ export const users = pgTable("users", {
   isSuspended: boolean("is_suspended").notNull().default(false),
   onboardingCompleted: boolean("onboarding_completed").notNull().default(false),
   onboardingStep: integer("onboarding_step").notNull().default(0),
+  demoSeeded: boolean("demo_seeded").notNull().default(false),
+  isDemoAccount: boolean("is_demo_account").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
