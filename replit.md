@@ -30,7 +30,7 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
     - **Notification System**: Real-time in-app notifications.
     - **Internationalization**: TR/EN language toggle (defaulting to English).
     - **Dark Mode**: Full dark/light mode toggle.
-    - **Navigation System**: Top-bar layout with role-based module tabs and a left-side panel for sub-pages.
+    - **Navigation System**: Icon Rail + Expandable Panel layout. Left side has a w-16 icon rail (`icon-rail.tsx`) with 9 category icons (Dashboard, Operations, Commercial, Fleet, Finance, Communication, Tools, Admin, Settings). Clicking a rail icon expands a w-48 `sidebar-panel.tsx` showing sub-pages with live badges (messages/nominations/tenders/expiring certs). A minimal h-12 `top-bar.tsx` (bg-[#080c18]) shows logo, global search UI, lang toggle, dark mode, notifications, and user menu. Navigation config is centralized in `client/src/lib/nav-categories.ts`. The admin category (amber) is only shown to admin users. Active category auto-syncs from the URL. Backup of the previous layout kept as `app-layout-backup.tsx` and `app-sidebar-backup.tsx`.
     - **Admin User Management**: Comprehensive admin panel for user CRUD, KPIs, content management, announcements, financial overview, reports, system settings, and audit logs.
     - **Audit Log System**: Records user actions and system events for accountability.
     - **Vessel Certificate Management**: Tracking and status visualization for vessel certificates.
