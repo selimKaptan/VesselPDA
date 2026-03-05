@@ -20,18 +20,18 @@ function RailButton({
   const isAmber = cat.color === "amber";
 
   const activeClass = isAmber
-    ? "bg-amber-500/15 text-amber-400"
-    : "bg-sky-500/15 text-sky-400";
+    ? "bg-amber-500/15 text-amber-400 shadow-inner shadow-amber-500/10 border border-amber-500/20"
+    : "bg-sky-500/15 text-sky-400 shadow-inner shadow-sky-500/10 border border-sky-500/20";
   const normalClass = isAmber
-    ? "text-amber-600 hover:bg-slate-800 hover:text-amber-300"
-    : "text-slate-500 hover:bg-slate-800 hover:text-white";
+    ? "text-amber-600 hover:bg-slate-800 hover:text-amber-300 hover:scale-105"
+    : "text-slate-500 hover:bg-slate-800 hover:text-white hover:scale-105";
 
   return (
     <button
       onClick={onClick}
       title={cat.label}
       data-testid={`rail-${cat.key}`}
-      className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-colors cursor-pointer flex-shrink-0 ${
+      className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all duration-150 cursor-pointer flex-shrink-0 ${
         isActive ? activeClass : normalClass
       }`}
     >
@@ -51,7 +51,7 @@ export function IconRail({ activeCategory, onCategoryChange, userRole, isAdmin }
   const settingsCat = NAV_CATEGORIES.find((c) => c.key === "settings");
 
   return (
-    <aside className="w-16 flex-shrink-0 bg-[#080c18] border-r border-slate-700/30 hidden md:flex flex-col items-center py-3 gap-1 overflow-y-auto">
+    <aside className="w-16 flex-shrink-0 bg-[#080c18] border-r border-slate-700/30 hidden md:flex flex-col items-center py-3 gap-1 overflow-y-auto sidebar-scroll">
       {topCats.map((cat) => (
         <RailButton
           key={cat.key}

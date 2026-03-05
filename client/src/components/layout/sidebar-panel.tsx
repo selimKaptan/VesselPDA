@@ -61,7 +61,7 @@ export function SidebarPanel({ activeCategory }: SidebarPanelProps) {
   const isAmberCategory = category.color === "amber";
 
   return (
-    <aside className="w-48 flex-shrink-0 bg-[#0a0e1a] border-r border-slate-700/30 hidden md:flex flex-col overflow-y-auto">
+    <aside className="w-48 flex-shrink-0 bg-[#0a0e1a] border-r border-slate-700/30 hidden md:flex flex-col overflow-y-auto sidebar-scroll">
       {/* Category header */}
       <div className="px-4 pt-4 pb-2 flex items-center gap-2">
         <CategoryIcon
@@ -73,6 +73,7 @@ export function SidebarPanel({ activeCategory }: SidebarPanelProps) {
           {category.label}
         </span>
       </div>
+      <div className={`h-px mx-4 mb-1 bg-gradient-to-r ${isAmberCategory ? "from-amber-500/30 via-amber-500/10" : "from-sky-500/30 via-sky-500/10"} to-transparent`} />
 
       {/* Sub-pages */}
       <nav className="flex-1 px-2 pb-3 space-y-0.5">
@@ -89,11 +90,11 @@ export function SidebarPanel({ activeCategory }: SidebarPanelProps) {
             >
               <div
                 data-testid={`subnav-${page.label.toLowerCase().replace(/[\s/()]+/g, "-").replace(/-+$/, "")}`}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer ${
                   active
                     ? isAmberCategory
-                      ? "bg-amber-500/10 text-amber-400 border-r-2 border-amber-400"
-                      : "bg-sky-500/10 text-sky-400 border-r-2 border-sky-400"
+                      ? "bg-amber-500/10 text-amber-400 border-r-2 border-amber-400 shadow-sm shadow-amber-500/10"
+                      : "bg-sky-500/10 text-sky-400 border-r-2 border-sky-400 shadow-sm shadow-sky-500/10"
                     : "text-slate-400 hover:bg-slate-800/30 hover:text-white"
                 }`}
               >

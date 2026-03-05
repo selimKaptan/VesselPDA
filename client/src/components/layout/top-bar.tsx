@@ -91,7 +91,7 @@ function UserMenu({ user }: { user: any }) {
           data-testid="button-user-menu"
           className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-white/10 transition-colors"
         >
-          <Avatar className="w-7 h-7 flex-shrink-0">
+          <Avatar className="w-7 h-7 flex-shrink-0 ring-2 ring-slate-700 hover:ring-sky-500/50 transition-all duration-200">
             <AvatarImage src={user?.profileImageUrl || undefined} />
             <AvatarFallback className="bg-sky-700 text-white text-xs font-bold">{initials}</AvatarFallback>
           </Avatar>
@@ -243,7 +243,7 @@ export function TopBar({ user, onMenuClick }: TopBarProps) {
             data-testid="button-open-search"
             autoComplete="off"
             spellCheck={false}
-            className="w-full bg-slate-800/50 border border-slate-700/40 rounded-full pl-9 pr-12 py-1.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500/50 focus:border-sky-500/50 transition-colors hover:bg-slate-700/40"
+            className="w-full bg-slate-800/50 border border-slate-700/40 rounded-full pl-9 pr-12 py-1.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500/50 focus:bg-slate-800/80 transition-colors hover:bg-slate-700/40"
           />
           {searchQuery ? (
             <button

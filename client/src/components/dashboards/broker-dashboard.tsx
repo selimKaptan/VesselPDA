@@ -70,14 +70,16 @@ function StatCard({ label, value, loading, icon: Icon, color, href, testId }: {
 }) {
   return (
     <Link href={href}>
-      <Card className="p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group relative overflow-hidden" data-testid={testId}
+      <Card className="p-4 hover:shadow-lg hover:shadow-black/25 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group relative overflow-hidden animate-fade-in" data-testid={testId}
         style={{ borderLeft: `3px solid hsl(${color} / 0.5)` }}>
         <div className="absolute top-0 right-0 w-20 h-20 rounded-bl-full opacity-40"
           style={{ background: `hsl(${color} / 0.05)` }} />
         <div className="flex items-start justify-between gap-2">
           <div className="space-y-1.5">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
-            {loading ? <Skeleton className="h-8 w-12" /> : <p className="text-2xl font-bold font-serif">{value}</p>}
+            {loading ? <Skeleton className="h-8 w-12" /> : (
+              <p className={`text-3xl font-bold tracking-tight ${typeof value === 'number' && value === 0 ? 'text-slate-500' : 'dark:bg-gradient-to-r dark:from-white dark:to-slate-300 dark:bg-clip-text dark:text-transparent'}`}>{value}</p>
+            )}
           </div>
           <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
             style={{ background: `hsl(${color} / 0.12)` }}>

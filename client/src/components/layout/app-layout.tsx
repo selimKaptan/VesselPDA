@@ -185,10 +185,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           userRole={effectiveRole}
           isAdmin={isAdmin}
         />
+        <div className="w-px flex-shrink-0 bg-gradient-to-b from-transparent via-slate-700/50 to-transparent self-stretch hidden md:block" />
         <SidebarPanel activeCategory={activeCategory} />
 
         {/* Main content */}
-        <main className="flex-1 overflow-auto pb-16 md:pb-0 bg-[#0B1120]">
+        <main key={location} className="flex-1 overflow-auto pb-16 md:pb-0 bg-[#0B1120] page-fade-in">
           {/* Breadcrumb */}
           {categoryLabel && pageLabel && (
             <div className="flex items-center gap-2 text-xs text-slate-500 px-6 pt-4 pb-0">
