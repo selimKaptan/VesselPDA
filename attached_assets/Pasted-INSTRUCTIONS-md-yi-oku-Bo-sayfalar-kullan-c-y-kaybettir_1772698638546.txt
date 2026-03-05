@@ -1,0 +1,300 @@
+INSTRUCTIONS.md'yi oku. Boş sayfalar kullanıcıyı kaybettiriyor. Her liste sayfasına anlamlı empty state ekle — ne yapması gerektiğini göster, aksiyon butonu ver.
+
+=== EMPTY STATE COMPONENT ===
+
+client/src/components/empty-state.tsx oluştur:
+
+interface EmptyStateProps {
+  icon: string;
+  title: string;
+  description: string;
+  actionLabel?: string;
+  actionHref?: string;
+  onAction?: () => void;
+  secondaryLabel?: string;
+  secondaryHref?: string;
+  tips?: string[];
+}
+
+function EmptyState({ icon, title, description, actionLabel, actionHref, onAction, secondaryLabel, secondaryHref, tips }: EmptyStateProps) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-4">
+      <div className="text-6xl mb-4">{icon}</div>
+      <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
+      <p className="text-sm text-slate-400 text-center max-w-md mb-6">{description}</p>
+      
+      <div className="flex gap-3">
+        {actionLabel && (
+          actionHref ? (
+            <Link href={actionHref}>
+              <Button className="bg-sky-500 hover:bg-sky-600">{actionLabel}</Button>
+            </Link>
+          ) : (
+            <Button onClick={onAction} className="bg-sky-500 hover:bg-sky-600">{actionLabel}</Button>
+          )
+        )}
+        {secondaryLabel && secondaryHref && (
+          <Link href={secondaryHref}>
+            <Button variant="outline">{secondaryLabel}</Button>
+          </Link>
+        )}
+      </div>
+
+      {tips && tips.length > 0 && (
+        <div className="mt-8 bg-slate-800/30 border border-slate-700/30 rounded-xl p-4 max-w-md">
+          <p className="text-xs font-semibold text-slate-300 mb-2">💡 Quick Tips</p>
+          <ul className="space-y-1">
+            {tips.map((tip, i) => (
+              <li key={i} className="text-xs text-slate-400 flex items-start gap-2">
+                <span className="text-sky-400 mt-0.5">•</span>
+                <span>{tip}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+=== HER SAYFA İÇİN EMPTY STATE ===
+
+Şu sayfalarda, data boş olduğunda (items.length === 0) EmptyState component'ini göster:
+
+1. client/src/pages/proformas.tsx:
+   <EmptyState
+     icon="📋"
+     title="No Proformas Yet"
+     description="Create your first Proforma Disbursement Account to calculate port costs for a vessel call."
+     actionLabel="+ Create New PDA"
+     actionHref="/proformas/new"
+     secondaryLabel="Try Quick Estimate"
+     secondaryHref="/proformas/new"
+     tips={[
+       "A PDA estimates all port charges before a vessel arrives",
+       "You need vessel details (GRT, NRT) and port selection",
+       "Tariffs are automatically calculated from our database"
+     ]}
+   />
+
+2. client/src/pages/voyages.tsx:
+   <EmptyState
+     icon="🗺️"
+     title="No Voyages Yet"
+     description="Voyages are created automatically when a tender is nominated, or you can create one manually."
+     actionLabel="+ Create Voyage"
+     onAction={() => setShowCreateDialog(true)}
+     secondaryLabel="Browse Tenders"
+     secondaryHref="/tenders"
+     tips={[
+       "Voyages track a vessel's port call from arrival to departure",
+       "Add checklists, upload documents, and chat with counterparties",
+       "Create a SOF (Statement of Facts) for each voyage"
+     ]}
+   />
+
+3. client/src/pages/tenders.tsx:
+   Shipowner/Broker view:
+   <EmptyState
+     icon="📢"
+     title="No Tenders Posted"
+     description="Create a port call tender to receive competitive bids from verified ship agents."
+     actionLabel="+ Post New Tender"
+     onAction={() => setShowCreateDialog(true)}
+     tips={[
+       "Set your vessel details, port and cargo information",
+       "Agents will submit bids with their proforma estimates",
+       "Select the best bid and nominate the agent"
+     ]}
+   />
+   
+   Agent view:
+   <EmptyState
+     icon="📢"
+     title="No Open Tenders"
+     description="There are no open tenders matching your served ports at the moment. Check back soon!"
+     actionLabel="Update My Ports"
+     actionHref="/company-profile"
+     tips={[
+       "Make sure your served ports are updated in your profile",
+       "You'll be notified when new tenders match your ports",
+       "Build your trust score by completing voyages successfully"
+     ]}
+   />
+
+4. client/src/pages/vessels.tsx:
+   <EmptyState
+     icon="🚢"
+     title="No Vessels Added"
+     description="Add your fleet vessels to quickly create proformas and track their positions."
+     actionLabel="+ Add Vessel"
+     onAction={() => setShowCreateDialog(true)}
+     secondaryLabel="Search by IMO"
+     tips={[
+       "Add vessels by IMO number for automatic detail lookup",
+       "Track vessel certificates and crew information",
+       "Monitor positions with AIS vessel tracking"
+     ]}
+   />
+
+5. client/src/pages/messages.tsx:
+   <EmptyState
+     icon="✉️"
+     title="No Conversations"
+     description="Start a conversation with an agent, shipowner or service provider."
+     actionLabel="Browse Directory"
+     actionHref="/directory"
+     tips={[
+       "Messages are created automatically during tender nominations",
+       "You can also start a conversation from any company profile",
+       "File sharing and @mentions are supported"
+     ]}
+   />
+
+6. client/src/pages/sof.tsx:
+   <EmptyState
+     icon="📝"
+     title="No Statements of Facts"
+     description="Create a SOF to record all events during a vessel's port call — from arrival to departure."
+     actionLabel="+ Create SOF"
+     onAction={() => setShowCreateDialog(true)}
+     secondaryLabel="View Voyages"
+     secondaryHref="/voyages"
+     tips={[
+       "SOF is a chronological record of all port call events",
+       "13 standard events are added automatically",
+       "You can add custom events and mark deductible time",
+       "Export as professional PDF for distribution"
+     ]}
+   />
+
+7. client/src/pages/fda.tsx:
+   <EmptyState
+     icon="🧾"
+     title="No Final Disbursements"
+     description="Create an FDA after a voyage is completed to compare estimated costs against actual expenses."
+     actionLabel="Create from PDA"
+     actionHref="/proformas"
+     tips={[
+       "FDA compares your PDA estimates with actual costs",
+       "Create an FDA from any approved proforma",
+       "Variance is calculated automatically (actual vs estimated)",
+       "Export as PDF for shipowner review"
+     ]}
+   />
+
+8. client/src/pages/fixtures.tsx:
+   <EmptyState
+     icon="📎"
+     title="No Fixtures"
+     description="Record charter party fixtures — vessel, cargo, route, and freight terms."
+     actionLabel="+ New Fixture"
+     onAction={() => setShowCreateDialog(true)}
+     tips={[
+       "Track fixtures with full CP terms and details",
+       "Calculate laytime and demurrage/despatch",
+       "Link fixtures to voyages for complete tracking"
+     ]}
+   />
+
+9. client/src/pages/cargo-positions.tsx:
+   <EmptyState
+     icon="📦"
+     title="No Cargo Positions"
+     description="Post cargo or vessel positions to find matching opportunities."
+     actionLabel="+ Add Position"
+     onAction={() => setShowCreateDialog(true)}
+     tips={[
+       "Post cargo positions to find available vessels",
+       "Post vessel positions to find available cargo",
+       "Set laycan dates and preferred routes"
+     ]}
+   />
+
+10. client/src/pages/invoices.tsx:
+    <EmptyState
+      icon="💳"
+      title="No Invoices"
+      description="Invoices are created from approved FDAs or manually for port services."
+      actionLabel="View FDAs"
+      actionHref="/fda"
+      secondaryLabel="Create Manual Invoice"
+      onAction={() => setShowCreateDialog(true)}
+      tips={[
+        "Invoices are automatically linked to FDAs and voyages",
+        "Track payment status: pending, paid, cancelled",
+        "Payment reminders are sent automatically"
+      ]}
+    />
+
+11. client/src/pages/service-requests.tsx:
+    <EmptyState
+      icon="🔔"
+      title="No Service Requests"
+      description="Request port services like stevedoring, surveying, or fumigation for your vessels."
+      actionLabel="+ New Request"
+      onAction={() => setShowCreateDialog(true)}
+      tips={[
+        "Service providers in the port will receive your request",
+        "Compare offers and select the best provider",
+        "Track service delivery through the platform"
+      ]}
+    />
+
+12. client/src/pages/nominations.tsx:
+    <EmptyState
+      icon="🤝"
+      title="No Nominations"
+      description="Direct nominations allow shipowners to appoint agents without a tender process."
+      actionLabel="Browse Directory"
+      actionHref="/directory"
+      tips={[
+        "Nominate agents directly from the company directory",
+        "Agents receive email and platform notifications",
+        "A voyage and conversation are created upon acceptance"
+      ]}
+    />
+
+13. client/src/pages/vessel-certificates.tsx:
+    <EmptyState
+      icon="📜"
+      title="No Certificates"
+      description="Track vessel certificates and get alerts before they expire."
+      actionLabel="Add Certificate"
+      actionHref="/vessels"
+      tips={[
+        "Add certificates from the vessel detail page",
+        "Set expiry dates for automatic reminders",
+        "Track all certificate types: class, safety, P&I, ISM"
+      ]}
+    />
+
+=== DASHBOARD EMPTY STATE ===
+
+Dashboard'da veri yoksa (yeni kullanıcı), stat kartları yerine getting started checklist göster:
+
+"Getting Started with VesselPDA" checklist:
+☐ Complete your company profile → /company-profile
+☐ Add your first vessel → /vessels  
+☐ Create your first proforma → /proformas/new
+☐ Explore the port directory → /directory
+☐ Join the community forum → /forum
+
+Her item tıklanınca ilgili sayfaya git.
+Tamamlanan itemler yeşil checkmark ile gösterilsin.
+Tamamlama durumunu kontrol et:
+- Company profile var mı?
+- En az 1 vessel var mı?
+- En az 1 proforma var mı?
+
+=== IMPORTANT ===
+
+- EmptyState component'i reusable olsun — her sayfada import et
+- Mevcut data varsa EmptyState gösterme, normal liste göster
+- Kontrol: items && items.length === 0 ise EmptyState
+- Loading durumunda EmptyState değil Skeleton göster
+- Tips bölümü opsiyonel — bazı sayfalarda olmayabilir
+- Mevcut create dialog/modal'ları koru — onAction ile tetikle
+- actionHref Link ile, onAction fonksiyon ile çalışsın
+- Responsive: mobile'da da güzel görünsün
+- Dark tema uyumlu renkler
