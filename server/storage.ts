@@ -54,6 +54,7 @@ import { emitToUser } from "./socket";
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   updateUserRole(userId: string, role: string): Promise<User | undefined>;
+  updateUserOnboarding(userId: string, data: { onboardingCompleted?: boolean; onboardingStep?: number }): Promise<User | undefined>;
   updateActiveRole(userId: string, activeRole: string): Promise<User | undefined>;
   incrementProformaCount(userId: string): Promise<void>;
   updateSubscription(userId: string, plan: string, limit: number): Promise<User | undefined>;
@@ -482,6 +483,14 @@ export class DatabaseStorage implements IStorage {
   async findProformaByToken(token: string): Promise<Proforma | undefined> {
     const [row] = await db.select().from(proformas).where(eq(proformas.approvalToken, token));
     return row;
+  }
+
+  async updateUserOnboarding(userId: string, data: { onboardingCompleted?: boolean; onboardingStep?: number }): Promise<User | undefined> {
+    const [updated] = await db.update(users)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
   }
 
   async updateUserRole(userId: string, role: string): Promise<User | undefined> {

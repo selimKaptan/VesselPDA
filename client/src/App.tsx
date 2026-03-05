@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { useSocket } from "@/hooks/use-socket";
 import { AiChat } from "@/components/ai-chat";
+import { OnboardingWizard } from "@/components/onboarding-wizard";
+import { apiRequest } from "@/lib/queryClient";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import NotFound from "@/pages/not-found";
@@ -159,6 +161,27 @@ function AppContent() {
 
   if (!(user as any).roleConfirmed) {
     return <RoleSelection />;
+  }
+
+  const handleOnboardingDone = async () => {
+    try {
+      await apiRequest("PATCH", "/api/user/onboarding-complete", {});
+    } catch { }
+    queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+  };
+
+  if (!(user as any).onboardingCompleted) {
+    return (
+      <>
+        <AuthenticatedLayout />
+        <AiChat />
+        <OnboardingWizard
+          user={user}
+          onComplete={handleOnboardingDone}
+          onSkip={handleOnboardingDone}
+        />
+      </>
+    );
   }
 
   return (

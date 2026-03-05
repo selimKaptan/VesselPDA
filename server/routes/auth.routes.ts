@@ -85,4 +85,48 @@ router.patch("/api/user/role", isAuthenticated, async (req: any, res) => {
 });
 
 
+router.patch("/api/user/onboarding-complete", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const { companyName } = req.body || {};
+    const updated = await storage.updateUserOnboarding(userId, { onboardingCompleted: true, onboardingStep: 5 });
+    if (companyName) {
+      const existing = await storage.getCompanyProfileByUser(userId);
+      if (!existing) {
+        const user = await storage.getUser(userId);
+        await storage.createCompanyProfile({
+          userId,
+          companyName,
+          companyType: user?.userRole || "agent",
+        });
+      }
+    }
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to complete onboarding" });
+  }
+});
+
+router.patch("/api/user/onboarding-step", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const { step } = req.body;
+    if (typeof step !== "number") return res.status(400).json({ message: "step must be a number" });
+    await storage.updateUserOnboarding(userId, { onboardingStep: step });
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update onboarding step" });
+  }
+});
+
+router.patch("/api/user/onboarding-reset", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    await storage.updateUserOnboarding(userId, { onboardingCompleted: false, onboardingStep: 0 });
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to reset onboarding" });
+  }
+});
+
 export default router;

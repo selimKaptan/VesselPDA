@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle, CheckCircle2, AlertCircle, User, Lock, Mail, Shield, Building2, ShieldCheck, Clock, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle, CheckCircle2, AlertCircle, User, Lock, Mail, Shield, Building2, ShieldCheck, Clock, XCircle, Loader2, Compass } from "lucide-react";
 import type { CompanyProfile } from "@shared/schema";
 
 const AGENT_COMPLETION_FIELDS = [
@@ -48,6 +48,7 @@ export default function Settings() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [restartPending, setRestartPending] = useState(false);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: { firstName: string; lastName: string }) => {
@@ -497,6 +498,44 @@ export default function Settings() {
               {changePasswordMutation.isPending ? "Updating..." : "Update Password"}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Onboarding Tour Card */}
+      <Card data-testid="card-onboarding-tour">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Compass className="w-4 h-4 text-sky-500" />
+            Onboarding Tour
+          </CardTitle>
+          <CardDescription>
+            Re-run the onboarding wizard to explore VesselPDA's features again or update your preferences.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            variant="outline"
+            disabled={restartPending}
+            data-testid="button-restart-tour"
+            onClick={async () => {
+              setRestartPending(true);
+              try {
+                await apiRequest("PATCH", "/api/user/onboarding-reset", {});
+                queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+                toast({ title: "Onboarding tour restarted", description: "The wizard will appear on your next page load." });
+              } catch {
+                toast({ title: "Failed to restart tour", variant: "destructive" });
+              } finally {
+                setRestartPending(false);
+              }
+            }}
+          >
+            {restartPending ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Restarting...</>
+            ) : (
+              <><Compass className="w-4 h-4 mr-2" /> Restart Tour</>
+            )}
+          </Button>
         </CardContent>
       </Card>
     </div>
