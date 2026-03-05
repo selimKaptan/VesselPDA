@@ -1,28 +1,36 @@
-import { Ship, FileText, BarChart3, Shield, Globe, ArrowRight, Waves, Check, Zap, Crown, Star, Building2, User, Activity, Anchor, Users, Briefcase, MessageSquare, ChevronDown, TrendingUp, MapPin, Lock, CheckCircle2, Menu, X } from "lucide-react";
+import {
+  Ship,
+  FileText,
+  BarChart3,
+  Shield,
+  Globe,
+  ArrowRight,
+  Anchor,
+  Check,
+  Star,
+  Building2,
+  User,
+  Activity,
+  Users,
+  MessageSquare,
+  MapPin,
+  Menu,
+  X,
+  Download,
+  Navigation,
+  Zap,
+  BookOpen,
+  ChevronRight,
+} from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { PageMeta } from "@/components/page-meta";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 
 interface ActivityItem {
   type: string;
   message: string;
   timestamp: string;
   icon: string;
-}
-
-function getActivityIcon(type: string) {
-  switch (type) {
-    case "proforma": return <FileText className="w-4 h-4" />;
-    case "vessel": return <Ship className="w-4 h-4" />;
-    case "company": return <Building2 className="w-4 h-4" />;
-    case "user": return <User className="w-4 h-4" />;
-    case "forum": return <MessageSquare className="w-4 h-4" />;
-    default: return <Activity className="w-4 h-4" />;
-  }
 }
 
 function getActivityColor(type: string) {
@@ -33,6 +41,17 @@ function getActivityColor(type: string) {
     case "user": return "from-violet-500/20 to-purple-500/20 text-violet-400 border-violet-500/20";
     case "forum": return "from-rose-500/20 to-pink-500/20 text-rose-400 border-rose-500/20";
     default: return "from-gray-500/20 to-slate-500/20 text-gray-400 border-gray-500/20";
+  }
+}
+
+function getActivityIcon(type: string) {
+  switch (type) {
+    case "proforma": return <FileText className="w-4 h-4" />;
+    case "vessel": return <Ship className="w-4 h-4" />;
+    case "company": return <Building2 className="w-4 h-4" />;
+    case "user": return <User className="w-4 h-4" />;
+    case "forum": return <MessageSquare className="w-4 h-4" />;
+    default: return <Activity className="w-4 h-4" />;
   }
 }
 
@@ -60,29 +79,26 @@ function LiveActivityTicker() {
   const duplicated = [...activities, ...activities, ...activities];
 
   return (
-    <section className="py-14 md:py-20 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-[hsl(var(--maritime-primary)/0.02)] via-[hsl(var(--maritime-primary)/0.05)] to-[hsl(var(--maritime-primary)/0.02)]" />
-
+    <section className="py-16 relative overflow-hidden bg-slate-900/30">
       <div className="max-w-7xl mx-auto px-6 relative mb-8 text-center space-y-2">
         <div className="flex items-center justify-center gap-2.5">
           <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
           </span>
-          <span className="text-xs font-bold text-foreground uppercase tracking-widest">Live Platform Activity</span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-500/12 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold border border-emerald-500/20">LIVE</span>
+          <span className="text-xs font-bold text-white uppercase tracking-widest">Live Platform Activity</span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-500/12 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">LIVE</span>
         </div>
-        <p className="text-xs text-muted-foreground">{activities.length} recent actions from VesselPDA users · refreshes every 30 seconds</p>
+        <p className="text-xs text-slate-400">{activities.length} recent actions from VesselPDA users · refreshes every 30 seconds</p>
       </div>
 
       <div
         className="relative"
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
-        style={{ perspective: "1000px" }}
       >
-        <div className="absolute left-0 top-0 bottom-0 w-32 z-10 bg-gradient-to-r from-background to-transparent pointer-events-none" />
-        <div className="absolute right-0 top-0 bottom-0 w-32 z-10 bg-gradient-to-l from-background to-transparent pointer-events-none" />
+        <div className="absolute left-0 top-0 bottom-0 w-32 z-10 bg-gradient-to-r from-[#0B1120] to-transparent pointer-events-none" />
+        <div className="absolute right-0 top-0 bottom-0 w-32 z-10 bg-gradient-to-l from-[#0B1120] to-transparent pointer-events-none" />
 
         <div
           className="flex gap-4"
@@ -95,24 +111,17 @@ function LiveActivityTicker() {
           {duplicated.map((item, i) => (
             <div
               key={i}
-              className="flex-shrink-0 w-[300px] group"
-              style={{
-                transform: "rotateY(-2deg)",
-                transformStyle: "preserve-3d",
-                transition: "transform 0.3s ease",
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = "rotateY(0deg) scale(1.04) translateZ(16px)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = "rotateY(-2deg)"; }}
+              className="flex-shrink-0 w-[300px]"
               data-testid={`activity-card-${i}`}
             >
-              <div className={`relative rounded-xl border backdrop-blur-sm bg-gradient-to-br ${getActivityColor(item.type)} p-4 h-full shadow-md transition-shadow group-hover:shadow-lg`}>
+              <div className={`relative rounded-xl border backdrop-blur-sm bg-gradient-to-br ${getActivityColor(item.type)} p-4 h-full shadow-md`}>
                 <div className="flex items-start gap-3">
                   <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${getActivityColor(item.type)} flex items-center justify-center flex-shrink-0`}>
                     {getActivityIcon(item.type)}
                   </div>
                   <div className="flex-1 min-w-0 space-y-1">
-                    <p className="text-sm font-medium text-foreground leading-snug line-clamp-2">{item.message}</p>
-                    <p className="text-[11px] text-muted-foreground">{timeAgo(item.timestamp)}</p>
+                    <p className="text-sm font-medium text-white leading-snug line-clamp-2">{item.message}</p>
+                    <p className="text-[11px] text-slate-400">{timeAgo(item.timestamp)}</p>
                   </div>
                 </div>
               </div>
@@ -131,42 +140,256 @@ function LiveActivityTicker() {
   );
 }
 
+const FEATURES = [
+  {
+    icon: <FileText className="w-6 h-6" />,
+    emoji: "📋",
+    title: "Proforma Calculator",
+    description: "Calculate accurate port disbursements using real tariff databases. Support for all major Turkish ports.",
+    color: "from-sky-500/10 to-blue-500/10 border-sky-500/20 text-sky-400",
+  },
+  {
+    icon: <Users className="w-6 h-6" />,
+    emoji: "📢",
+    title: "Port Call Tenders",
+    description: "Create tenders for port calls. Receive bids from verified agents. Select the best offer.",
+    color: "from-violet-500/10 to-purple-500/10 border-violet-500/20 text-violet-400",
+  },
+  {
+    icon: <Navigation className="w-6 h-6" />,
+    emoji: "🗺️",
+    title: "Voyage Management",
+    description: "Track voyages end-to-end. Checklists, documents, chat — all parties on the same page.",
+    color: "from-emerald-500/10 to-teal-500/10 border-emerald-500/20 text-emerald-400",
+  },
+  {
+    icon: <MapPin className="w-6 h-6" />,
+    emoji: "📡",
+    title: "Vessel Tracking",
+    description: "Real-time AIS vessel tracking. Monitor your fleet positions on an interactive map.",
+    color: "from-amber-500/10 to-orange-500/10 border-amber-500/20 text-amber-400",
+  },
+  {
+    icon: <BookOpen className="w-6 h-6" />,
+    emoji: "📝",
+    title: "SOF & FDA",
+    description: "Digital Statement of Facts and Final Disbursement Accounts. Export professional PDFs.",
+    color: "from-rose-500/10 to-pink-500/10 border-rose-500/20 text-rose-400",
+  },
+  {
+    icon: <Building2 className="w-6 h-6" />,
+    emoji: "🏢",
+    title: "Agent Directory",
+    description: "Find verified ship agents by port. Read reviews, check trust scores, nominate directly.",
+    color: "from-cyan-500/10 to-sky-500/10 border-cyan-500/20 text-cyan-400",
+  },
+];
+
+const STEPS = [
+  {
+    num: 1,
+    icon: <MapPin className="w-5 h-5" />,
+    title: "Select Port",
+    description: "Choose your destination port from our comprehensive Turkish ports database.",
+  },
+  {
+    num: 2,
+    icon: <Ship className="w-5 h-5" />,
+    title: "Enter Vessel",
+    description: "Add vessel details or search by IMO number to auto-fill specifications.",
+  },
+  {
+    num: 3,
+    icon: <Zap className="w-5 h-5" />,
+    title: "Calculate",
+    description: "Get instant tariff calculation with live exchange rates applied automatically.",
+  },
+  {
+    num: 4,
+    icon: <Download className="w-5 h-5" />,
+    title: "Download PDF",
+    description: "Save, send or share your professional proforma disbursement account.",
+  },
+];
+
+const TESTIMONIALS = [
+  {
+    quote: "VesselPDA has streamlined our PDA process. What used to take hours now takes minutes. The Turkish port tariff data is spot-on.",
+    author: "M. Yılmaz",
+    role: "Ship Agent",
+    port: "Iskenderun",
+  },
+  {
+    quote: "The tender system helped us find reliable agents for our fleet. We received 4 competitive bids within hours of posting.",
+    author: "K. Demir",
+    role: "Shipowner",
+    port: "Istanbul",
+  },
+  {
+    quote: "The SOF and FDA features are exactly what we needed. PDF export saves us hours of manual formatting every month.",
+    author: "A. Çelik",
+    role: "Ship Agent",
+    port: "Mersin",
+  },
+];
+
+const PLAN_FREE_FEATURES = [
+  "1 Proforma / month",
+  "Vessel tracking (demo)",
+  "Forum access",
+  "Port directory",
+  "Company profile",
+];
+
+const PLAN_STANDARD_FEATURES = [
+  "10 Proformas / month",
+  "Full vessel tracking",
+  "Tender participation",
+  "Voyage management",
+  "PDF export",
+  "Priority listing in directory",
+];
+
+const PLAN_UNLIMITED_FEATURES = [
+  "Unlimited proformas",
+  "Priority support",
+  "API access (coming soon)",
+  "Custom tariff tables",
+  "Team management (coming soon)",
+  "Dedicated account manager",
+];
+
+function PlanFeature({ text, muted }: { text: string; muted?: boolean }) {
+  return (
+    <li className={`flex items-start gap-3 text-sm ${muted ? "text-slate-500" : "text-slate-300"}`}>
+      <Check className={`w-4 h-4 mt-0.5 flex-shrink-0 ${muted ? "text-slate-600" : "text-sky-400"}`} />
+      {text}
+    </li>
+  );
+}
+
+function useScrollY() {
+  const [scrollY, setScrollY] = useState(0);
+  useEffect(() => {
+    const handler = () => setScrollY(window.scrollY);
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
+  return scrollY;
+}
+
+function useAnimateOnScroll() {
+  useEffect(() => {
+    const elements = document.querySelectorAll("[data-animate]");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("animate-in");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+    elements.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+}
+
+function smoothScrollTo(href: string) {
+  if (href.startsWith("#")) {
+    const el = document.querySelector(href);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth" });
+      return true;
+    }
+  }
+  return false;
+}
+
 export default function Landing() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { data: platformStats } = useQuery<{ userCount: number; proformaCount: number; companyCount: number }>({
+  const scrollY = useScrollY();
+  useAnimateOnScroll();
+
+  const { data: platformStats } = useQuery<{
+    userCount: number;
+    proformaCount: number;
+    companyCount: number;
+  }>({
     queryKey: ["/api/stats"],
     staleTime: 5 * 60 * 1000,
   });
 
+  const userCount = platformStats?.userCount ?? 26;
+  const proformaCount = platformStats?.proformaCount ?? 50;
+
+  const navLinks = [
+    { href: "#features", label: "Features" },
+    { href: "#how-it-works", label: "How It Works" },
+    { href: "#pricing", label: "Pricing" },
+    { href: "/directory", label: "Directory" },
+    { href: "/forum", label: "Forum" },
+    { href: "/contact", label: "Contact" },
+  ];
+
+  function handleNavClick(e: React.MouseEvent<HTMLAnchorElement>, href: string) {
+    if (href.startsWith("#")) {
+      e.preventDefault();
+      smoothScrollTo(href);
+      setMobileMenuOpen(false);
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-background">
-      <PageMeta title="VesselPDA - Maritime Platform | Proforma Disbursement Accounts" description="Professional proforma disbursement accounts for ship agents. Instant calculations, maritime directory, and port call tenders for the shipping industry." />
+    <div className="min-h-screen bg-[#0B1120]" style={{ scrollBehavior: "smooth" }}>
+      <PageMeta
+        title="VesselPDA — Proforma Disbursement Account Software for Ship Agents"
+        description="Calculate port disbursements instantly. Manage vessel operations, tenders, voyages and port call costs. The #1 PDA software for Turkish ports."
+      />
 
-      {/* NAV */}
-      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-background/85 border-b border-border/60 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5 flex-shrink-0">
-            <img src="/logo-v2.png" alt="VesselPDA" className="w-8 h-8 rounded-md object-contain" />
-            <span className="font-serif font-bold text-lg tracking-tight">VesselPDA</span>
-          </div>
+      <style>{`
+        [data-animate] {
+          opacity: 0;
+          transform: translateY(20px);
+          transition: opacity 0.7s ease, transform 0.7s ease;
+        }
+        [data-animate].animate-in {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        [data-animate-delay="1"] { transition-delay: 0.1s; }
+        [data-animate-delay="2"] { transition-delay: 0.2s; }
+        [data-animate-delay="3"] { transition-delay: 0.3s; }
+        [data-animate-delay="4"] { transition-delay: 0.4s; }
+        [data-animate-delay="5"] { transition-delay: 0.5s; }
+        [data-animate-delay="6"] { transition-delay: 0.6s; }
+      `}</style>
 
-          {/* Desktop nav links */}
-          <div className="hidden md:flex items-center gap-1">
-            {[
-              { href: "#features", label: "Features" },
-              { href: "#how-it-works", label: "How It Works" },
-              { href: "/directory", label: "Directory" },
-              { href: "/service-ports", label: "Service Ports" },
-              { href: "/forum", label: "Forum" },
-              { href: "#pricing", label: "Pricing" },
-              { href: "/contact", label: "Contact", newTab: true },
-            ].map((item) => (
+      {/* ─── NAV ─── */}
+      <header
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+          scrollY > 20
+            ? "bg-[#080c18]/95 backdrop-blur-md shadow-lg shadow-black/20 border-b border-slate-700/50"
+            : "bg-[#080c18]/80 backdrop-blur-sm border-b border-slate-700/20"
+        }`}
+      >
+        <nav className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+          <a href="/" className="flex items-center gap-2.5 flex-shrink-0" data-testid="nav-logo">
+            <div className="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center">
+              <Anchor className="w-4 h-4 text-sky-400" />
+            </div>
+            <span className="font-bold text-lg text-white tracking-tight">VesselPDA</span>
+          </a>
+
+          <div className="hidden md:flex items-center gap-0.5">
+            {navLinks.map((item) => (
               <a
                 key={item.href}
                 href={item.href}
-                target={(item as any).newTab ? "_blank" : undefined}
-                rel={(item as any).newTab ? "noopener noreferrer" : undefined}
-                className="px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all duration-150"
+                onClick={(e) => handleNavClick(e, item.href)}
+                className="px-3.5 py-1.5 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all duration-150"
                 data-testid={`link-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
               >
                 {item.label}
@@ -175,30 +398,37 @@ export default function Landing() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Desktop auth buttons */}
             <div className="hidden md:flex items-center gap-2">
-              <a href="/demo">
-                <Button size="sm" variant="ghost" className="gap-1.5 text-muted-foreground hover:text-foreground" data-testid="button-try-demo-nav">
-                  Try Demo
-                </Button>
-              </a>
               <a href="/login">
-                <Button size="sm" variant="outline" data-testid="button-login">Log in</Button>
+                <button
+                  className="px-4 py-1.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all duration-150"
+                  data-testid="button-login"
+                >
+                  Log in
+                </button>
               </a>
               <a href="/register">
-                <Button size="sm" className="shadow-sm" data-testid="button-signup">Sign up</Button>
+                <button
+                  className="px-4 py-2 rounded-lg text-sm font-semibold bg-sky-500 hover:bg-sky-400 text-white transition-all duration-150 shadow-sm shadow-sky-500/20"
+                  data-testid="button-signup"
+                >
+                  Get Started
+                </button>
               </a>
             </div>
 
-            {/* Mobile: sign up + hamburger */}
             <a href="/login" className="md:hidden">
-              <Button size="sm" variant="outline" data-testid="button-login-mobile-nav">Log in</Button>
+              <button className="px-3 py-1.5 rounded-lg text-sm text-slate-300 border border-slate-700/50 hover:border-slate-600" data-testid="button-login-mobile">
+                Log in
+              </button>
             </a>
             <a href="/register" className="md:hidden">
-              <Button size="sm" data-testid="button-signup-mobile">Sign up</Button>
+              <button className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-sky-500 text-white" data-testid="button-signup-mobile">
+                Sign up
+              </button>
             </a>
             <button
-              className="md:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
+              className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all"
               onClick={() => setMobileMenuOpen((o) => !o)}
               aria-label="Toggle menu"
               data-testid="button-mobile-menu"
@@ -206,640 +436,527 @@ export default function Landing() {
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
-        </div>
+        </nav>
 
-        {/* Mobile dropdown menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-border/60 bg-background/95 backdrop-blur-md" data-testid="mobile-menu">
+          <div className="md:hidden border-t border-slate-700/30 bg-[#080c18]/98 backdrop-blur-md" data-testid="mobile-menu">
             <div className="max-w-7xl mx-auto px-4 py-3 space-y-0.5">
-              {[
-                { href: "#features", label: "Features" },
-                { href: "#how-it-works", label: "How It Works" },
-                { href: "/directory", label: "Directory" },
-                { href: "/service-ports", label: "Service Ports" },
-                { href: "/forum", label: "Forum" },
-                { href: "#pricing", label: "Pricing" },
-                { href: "/contact", label: "Contact", newTab: true },
-              ].map((item) => (
+              {navLinks.map((item) => (
                 <a
                   key={item.href}
                   href={item.href}
-                  target={(item as any).newTab ? "_blank" : undefined}
-                  rel={(item as any).newTab ? "noopener noreferrer" : undefined}
-                  className="flex items-center px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
-                  onClick={() => setMobileMenuOpen(false)}
+                  onClick={(e) => { handleNavClick(e, item.href); setMobileMenuOpen(false); }}
+                  className="flex items-center px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all"
                   data-testid={`mobile-link-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
                 >
                   {item.label}
                 </a>
               ))}
-              <div className="pt-2 pb-1 border-t border-border/60 mt-1">
-                <a href="/login">
-                  <Button variant="outline" className="w-full" size="sm" data-testid="button-login-mobile">Log in</Button>
-                </a>
-              </div>
             </div>
           </div>
         )}
-      </nav>
+      </header>
 
-      {/* HERO */}
-      <section className="relative pt-28 pb-16 md:pt-44 md:pb-32 overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--maritime-primary)/0.07)] via-background to-[hsl(var(--maritime-accent)/0.05)]" />
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[hsl(var(--maritime-primary)/0.3)] to-transparent" />
-          <div className="absolute -top-24 right-[5%] w-[500px] h-[500px] rounded-full bg-[hsl(var(--maritime-accent)/0.07)] blur-[80px]" />
-          <div className="absolute top-1/2 -left-32 w-[400px] h-[400px] rounded-full bg-[hsl(var(--maritime-primary)/0.06)] blur-[80px]" />
-          <div className="absolute inset-0 opacity-[0.025]" style={{ backgroundImage: "radial-gradient(hsl(var(--maritime-primary)) 1px, transparent 1px)", backgroundSize: "28px 28px" }} />
-        </div>
+      <main>
+        {/* ─── HERO ─── */}
+        <section
+          id="hero"
+          className="relative min-h-screen flex items-center pt-16 overflow-hidden"
+        >
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background:
+                "radial-gradient(ellipse 80% 50% at 50% -20%, rgba(56,189,248,0.12), transparent), radial-gradient(ellipse 40% 40% at 80% 60%, rgba(99,102,241,0.06), transparent)",
+            }}
+          />
+          <div
+            className="absolute inset-0 pointer-events-none opacity-[0.03]"
+            style={{
+              backgroundImage:
+                "repeating-linear-gradient(0deg, transparent, transparent 60px, rgba(148,163,184,0.5) 60px, rgba(148,163,184,0.5) 61px), repeating-linear-gradient(90deg, transparent, transparent 60px, rgba(148,163,184,0.5) 60px, rgba(148,163,184,0.5) 61px)",
+            }}
+          />
 
-        <div className="max-w-7xl mx-auto px-6 relative">
-          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-            <div className="space-y-8">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[hsl(var(--maritime-primary)/0.25)] bg-[hsl(var(--maritime-primary)/0.07)] text-[hsl(var(--maritime-primary))] text-xs font-semibold tracking-wide uppercase">
-                <Ship className="w-3.5 h-3.5" />
-                <span>Professional Maritime Platform</span>
-              </div>
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-20 lg:py-0 w-full">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center min-h-[calc(100vh-4rem)]">
 
-              <div className="space-y-4">
-                <h1 className="font-serif text-4xl md:text-5xl lg:text-[3.5rem] font-bold leading-[1.1] tracking-tight text-foreground">
-                  Instant Proforma<br />
-                  <span className="text-[hsl(var(--maritime-primary))]">Disbursement</span><br />
-                  <span className="text-[hsl(var(--maritime-secondary))]">Accounts</span>
+              {/* Left column */}
+              <div className="space-y-8 lg:py-20">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-xs font-medium">
+                  <span>🚀</span>
+                  <span>Trusted by {userCount}+ maritime professionals</span>
+                </div>
+
+                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight tracking-tight">
+                  Calculate Port{" "}
+                  <br className="hidden sm:block" />
+                  Disbursements{" "}
+                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-cyan-400">
+                    in Seconds
+                  </span>
                 </h1>
-                <p className="text-base md:text-lg text-muted-foreground max-w-md leading-relaxed">
-                  Generate professional port expense estimates in seconds. Built for ship agents, shipowners, and brokers who demand accuracy and speed.
+
+                <p className="text-lg text-slate-400 leading-relaxed max-w-xl">
+                  The all-in-one platform for ship agents, shipowners and brokers.
+                  Manage proformas, tenders, voyages and port operations — all in one place.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <a href="/register">
+                    <button
+                      className="w-full sm:w-auto h-12 px-8 rounded-xl text-base font-bold bg-sky-500 hover:bg-sky-400 text-white transition-all duration-200 shadow-lg shadow-sky-500/25 hover:shadow-sky-400/30 hover:-translate-y-0.5"
+                      data-testid="button-hero-register"
+                    >
+                      Get Started Free
+                    </button>
+                  </a>
+                  <a href="/demo">
+                    <button
+                      className="w-full sm:w-auto h-12 px-8 rounded-xl text-base font-semibold border border-sky-500/40 text-sky-400 hover:bg-sky-500/10 hover:border-sky-500/60 transition-all duration-200"
+                      data-testid="button-hero-demo"
+                    >
+                      Try Demo
+                    </button>
+                  </a>
+                </div>
+
+                <p className="text-xs text-slate-500">
+                  No credit card required · Free plan includes 1 PDA
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <a href="/register">
-                  <Button size="lg" className="gap-2 shadow-md shadow-[hsl(var(--maritime-primary)/0.25)] bg-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-primary)/0.9)]" data-testid="button-get-started">
-                    Get Started Free
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </a>
-                <a href="/demo">
-                  <Button variant="outline" size="lg" className="gap-2 border-border/80 hover:border-[hsl(var(--maritime-primary)/0.4)]" data-testid="button-try-demo-hero">
-                    Try Demo
-                  </Button>
-                </a>
-                <a href="#features">
-                  <Button variant="outline" size="lg" className="gap-2 border-border/80 hover:border-[hsl(var(--maritime-primary)/0.4)]" data-testid="button-learn-more">
-                    See Features
-                  </Button>
-                </a>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-5 pt-1">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <div className="w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 flex items-center justify-center">
-                    <Check className="w-3 h-3 text-emerald-600" />
-                  </div>
-                  <span>Free forever plan</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center">
-                    <Check className="w-3 h-3 text-blue-600" />
-                  </div>
-                  <span>804+ Turkish ports</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <div className="w-5 h-5 rounded-full bg-purple-100 dark:bg-purple-950/40 flex items-center justify-center">
-                    <Check className="w-3 h-3 text-purple-600" />
-                  </div>
-                  <span>No credit card needed</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Hero ship image */}
-            <div className="relative hidden lg:block">
-              <div className="relative rounded-2xl shadow-2xl shadow-[hsl(var(--maritime-primary)/0.25)] overflow-hidden transition-transform duration-500 hover:scale-[1.02]">
-                <div className="absolute inset-0 bg-gradient-to-t from-[hsl(var(--maritime-primary)/0.65)] via-[hsl(var(--maritime-primary)/0.15)] to-transparent z-10" />
-                <img
-                  src="/images/hero-ship.png"
-                  alt="Maritime vessel"
-                  className="w-full h-[420px] object-cover"
-                />
-                <div className="absolute bottom-6 left-6 right-6 z-20">
-                  <div className="backdrop-blur-sm bg-white/10 rounded-xl p-4 border border-white/20">
-                    <div className="flex items-center gap-3 text-white">
-                      <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
-                        <FileText className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-sm">MV BARBARA — Tekirdag Port</p>
-                        <p className="text-xs text-white/70">Proforma generated in 3 seconds</p>
-                      </div>
-                      <Badge className="ml-auto bg-emerald-500/80 text-white border-0 text-[10px]">Live</Badge>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="absolute -bottom-6 -right-6 w-40 h-40 rounded-full bg-[hsl(var(--maritime-accent)/0.15)] blur-3xl pointer-events-none" />
-              <div className="absolute -top-4 -left-4 w-24 h-24 rounded-full bg-[hsl(var(--maritime-secondary)/0.1)] blur-2xl pointer-events-none" />
-            </div>
-          </div>
-
-          {/* Scroll indicator */}
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-8 hidden md:flex flex-col items-center gap-1 text-muted-foreground/50 animate-bounce">
-            <ChevronDown className="w-5 h-5" />
-          </div>
-        </div>
-      </section>
-
-      {/* STATS BAR */}
-      <section className="border-y border-border/60 bg-[hsl(var(--maritime-primary)/0.03)]">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border/60">
-            {[
-              {
-                value: platformStats ? `${platformStats.userCount}+` : "—",
-                label: "Maritime Professionals",
-                icon: Users,
-                color: "var(--maritime-primary)",
-              },
-              {
-                value: platformStats ? `${platformStats.proformaCount}+` : "—",
-                label: "Proformas Generated",
-                icon: FileText,
-                color: "var(--maritime-secondary)",
-              },
-              { value: "804+", label: "Turkish Ports", icon: MapPin, color: "var(--maritime-accent)" },
-              { value: "22", label: "Tariff Line Items", icon: BarChart3, color: "var(--maritime-success)" },
-            ].map((stat, i) => (
-              <div key={i} className="flex items-center gap-3 px-6 py-5">
-                <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `hsl(${stat.color} / 0.1)` }}>
-                  <stat.icon className="w-4 h-4" style={{ color: `hsl(${stat.color})` }} />
-                </div>
-                <div>
-                  <p className="font-serif text-xl font-bold leading-none" style={{ color: `hsl(${stat.color})` }}>{stat.value}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{stat.label}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <LiveActivityTicker />
-
-      {/* FEATURES */}
-      <section id="features" className="py-14 md:py-28 scroll-mt-20">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-10 md:mb-16 space-y-4">
-            <Badge variant="outline" className="px-4 py-1.5 text-xs font-semibold border-[hsl(var(--maritime-primary)/0.3)] text-[hsl(var(--maritime-primary))] uppercase tracking-wide">
-              Platform Features
-            </Badge>
-            <h2 className="font-serif text-3xl md:text-4xl font-bold tracking-tight">
-              Everything You Need for<br className="hidden md:block" /> Port Disbursements
-            </h2>
-            <p className="text-muted-foreground max-w-xl mx-auto text-base md:text-lg leading-relaxed">
-              Streamline your proforma generation process with powerful tools designed for the maritime industry.
-            </p>
-          </div>
-
-          <div className="space-y-5">
-            {/* Hero row — primary features */}
-            <div className="grid md:grid-cols-2 gap-5">
-              {[
-                {
-                  icon: FileText,
-                  title: "Instant Proforma Generation",
-                  desc: "Generate professional proforma disbursement accounts in seconds. Select a port, enter vessel and cargo details, and receive a complete 22-line breakdown using official Turkish tariff rates — ready to print or send as PDF.",
-                  color: "var(--maritime-secondary)",
-                  bg: "from-sky-500/12 to-blue-500/6",
-                  badge: "Core Feature",
-                  stat: "22 line items · official tariff rates · PDF export",
-                },
-                {
-                  icon: BarChart3,
-                  title: "Formula-Based Tariff Calculator",
-                  desc: "The calculation engine mirrors the official Turkish port tariff schedule exactly. GRT/NRT-based scaling, dangerous cargo surcharges, flag and customs categories — every variable accounted for. Not estimates; precise figures.",
-                  color: "var(--maritime-accent)",
-                  bg: "from-cyan-500/12 to-teal-500/6",
-                  badge: "Unique to VesselPDA",
-                  stat: "804 ports · USD / EUR / TRY rates",
-                },
-              ].map((feature, i) => (
-                <Card
-                  key={i}
-                  className="p-7 space-y-5 hover:shadow-xl hover:border-[hsl(var(--maritime-primary)/0.3)] transition-all duration-200 group cursor-default ring-1 ring-border/40"
-                  data-testid={`card-feature-hero-${i}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className={`w-13 h-13 rounded-xl flex items-center justify-center bg-gradient-to-br ${feature.bg} p-3`}>
-                      <feature.icon className="w-6 h-6 transition-transform duration-200 group-hover:scale-110" style={{ color: `hsl(${feature.color})` }} />
-                    </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border flex-shrink-0" style={{ color: `hsl(${feature.color})`, backgroundColor: `hsl(${feature.color} / 0.08)`, borderColor: `hsl(${feature.color} / 0.2)` }}>
-                      {feature.badge}
-                    </span>
-                  </div>
-                  <div>
-                    <h3 className="font-serif font-bold text-lg mb-2">{feature.title}</h3>
-                    <p className="text-muted-foreground text-sm leading-relaxed">{feature.desc}</p>
-                  </div>
-                  <div className="flex items-center gap-2 pt-1">
-                    <div className="h-0.5 w-10 rounded-full transition-all duration-300 group-hover:w-20" style={{ backgroundColor: `hsl(${feature.color} / 0.5)` }} />
-                    <span className="text-xs text-muted-foreground">{feature.stat}</span>
-                  </div>
-                </Card>
-              ))}
-            </div>
-
-            {/* Supporting features — compact */}
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                {
-                  icon: Ship,
-                  title: "Fleet Management",
-                  desc: "Manage all vessels — GRT, NRT, flag, and type — in one place. Saved and reused across every proforma.",
-                  color: "var(--maritime-primary)",
-                  bg: "from-blue-500/10 to-cyan-500/5",
-                },
-                {
-                  icon: Globe,
-                  title: "804+ Turkish Ports",
-                  desc: "Full tariff coverage across every active Turkish commercial port, from major hubs to coastal terminals.",
-                  color: "var(--maritime-success)",
-                  bg: "from-emerald-500/10 to-green-500/5",
-                },
-                {
-                  icon: Users,
-                  title: "Agent Directory",
-                  desc: "Browse ship agents and maritime providers by port, service type, or company name.",
-                  color: "var(--maritime-primary)",
-                  bg: "from-blue-500/10 to-indigo-500/5",
-                },
-                {
-                  icon: Building2,
-                  title: "Company Profiles",
-                  desc: "Agents and providers create public profiles to attract shipowners and brokers.",
-                  color: "var(--maritime-secondary)",
-                  bg: "from-sky-500/10 to-blue-400/5",
-                },
-              ].map((feature, i) => (
-                <Card
-                  key={i}
-                  className="p-5 space-y-3 hover:shadow-md hover:border-[hsl(var(--maritime-primary)/0.2)] transition-all duration-200 group cursor-default"
-                  data-testid={`card-feature-${i}`}
-                >
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center bg-gradient-to-br ${feature.bg}`}>
-                    <feature.icon className="w-4.5 h-4.5 transition-transform duration-200 group-hover:scale-110" style={{ color: `hsl(${feature.color})` }} />
-                  </div>
-                  <div>
-                    <h3 className="font-serif font-semibold text-sm mb-1">{feature.title}</h3>
-                    <p className="text-muted-foreground text-xs leading-relaxed">{feature.desc}</p>
-                  </div>
-                  <div className="h-0.5 w-6 rounded-full transition-all duration-300 group-hover:w-12" style={{ backgroundColor: `hsl(${feature.color} / 0.4)` }} />
-                </Card>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CREDIBILITY STRIP */}
-      <div className="border-y border-border/50 bg-[hsl(var(--maritime-primary)/0.025)] py-7">
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="grid md:grid-cols-3 gap-5 md:gap-8">
-            {[
-              {
-                icon: Shield,
-                label: "Official Rate Data",
-                text: "Calculation engine built directly from official Turkish port tariff schedules — the same tables agents use manually.",
-              },
-              {
-                icon: BarChart3,
-                label: "Formula-Based, Not Estimated",
-                text: "Every line item follows the published formula. GRT/NRT tiers, surcharges, and duty categories are all accounted for precisely.",
-              },
-              {
-                icon: Globe,
-                label: "Complete Turkish Port Coverage",
-                text: "All 804 active Turkish commercial ports loaded with current tariff data, from Bosphorus to Aegean and Black Sea.",
-              },
-            ].map((item, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <item.icon className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-foreground uppercase tracking-wide mb-1">{item.label}</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{item.text}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* HOW IT WORKS */}
-      <section id="how-it-works" className="py-14 md:py-28 scroll-mt-20 bg-gradient-to-b from-[hsl(var(--maritime-primary)/0.03)] to-transparent border-y border-border/40">
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="text-center mb-10 md:mb-16 space-y-4">
-            <Badge variant="outline" className="px-4 py-1.5 text-xs font-semibold border-[hsl(var(--maritime-accent)/0.4)] text-[hsl(var(--maritime-accent))] uppercase tracking-wide">
-              How It Works
-            </Badge>
-            <h2 className="font-serif text-3xl md:text-4xl font-bold tracking-tight">
-              Three Steps to Your Proforma
-            </h2>
-            <p className="text-muted-foreground max-w-xl mx-auto text-base md:text-lg">
-              From vessel details to a finished cost breakdown in under a minute.
-            </p>
-          </div>
-
-          {/* Steps — desktop: horizontal with connector; mobile: vertical */}
-          <div className="relative">
-            {/* Connector line — passes behind circles; circles mask it with bg-background */}
-            <div className="absolute top-7 left-[16.666%] right-[16.666%] h-0.5 bg-gradient-to-r from-[hsl(var(--maritime-primary)/0.35)] via-[hsl(var(--maritime-accent)/0.5)] to-[hsl(var(--maritime-primary)/0.35)] hidden md:block" />
-
-            <div className="grid md:grid-cols-3 gap-4 md:gap-8">
-              {[
-                {
-                  n: 1,
-                  title: "Save Your Vessel",
-                  desc: "Enter GRT, NRT, flag and vessel type once. It stays on file and is ready for every future port call.",
-                  icon: Ship,
-                  color: "var(--maritime-primary)",
-                },
-                {
-                  n: 2,
-                  title: "Pick Port & Cargo",
-                  desc: "Select from 804+ Turkish ports and specify cargo type. Live tariff schedules load automatically — no manual lookup.",
-                  icon: MapPin,
-                  color: "var(--maritime-secondary)",
-                },
-                {
-                  n: 3,
-                  title: "Your Proforma is Ready",
-                  desc: "22 official line items appear instantly, calculated at current tariff rates. Export as PDF and share with owners in seconds.",
-                  icon: FileText,
-                  color: "var(--maritime-accent)",
-                },
-              ].map((item, i) => (
-                <div key={i} className="flex flex-col items-center text-center gap-5" data-testid={`step-${i}`}>
-                  {/* Number circle — sits on top of the connector line */}
+              {/* Right column — floating stat cards */}
+              <div className="hidden lg:flex items-center justify-center relative h-[480px]">
+                <div className="relative w-full max-w-md">
+                  {/* Card 1 — top left */}
                   <div
-                    className="relative z-10 w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 bg-background shadow-md border-2"
-                    style={{ borderColor: `hsl(${item.color} / 0.45)`, boxShadow: `0 0 0 4px hsl(${item.color} / 0.08), 0 4px 12px hsl(${item.color} / 0.18)` }}
+                    className="absolute top-0 left-0 bg-slate-800/80 border border-slate-700/50 rounded-2xl p-5 backdrop-blur-sm shadow-xl w-52"
+                    style={{ transform: "rotate(-2deg)" }}
                   >
-                    <span className="text-xl font-bold" style={{ color: `hsl(${item.color})` }}>{item.n}</span>
-                  </div>
-
-                  {/* Card */}
-                  <Card className="w-full p-6 space-y-3 hover:shadow-md transition-shadow duration-200 border-border/60">
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto"
-                      style={{ background: `hsl(${item.color} / 0.09)` }}
-                    >
-                      <item.icon className="w-5 h-5" style={{ color: `hsl(${item.color})` }} />
+                    <p className="text-3xl font-bold text-white">2,500+</p>
+                    <p className="text-sm text-slate-400 mt-1">Port Tariff Entries</p>
+                    <div className="mt-3 h-1.5 w-full rounded-full bg-slate-700/50">
+                      <div className="h-1.5 w-4/5 rounded-full bg-gradient-to-r from-sky-500 to-cyan-500" />
                     </div>
-                    <h3 className="font-serif font-bold text-base">{item.title}</h3>
-                    <p className="text-muted-foreground text-sm leading-relaxed">{item.desc}</p>
-                  </Card>
+                    <p className="text-xs text-slate-500 mt-1.5">Turkish ports covered</p>
+                  </div>
+
+                  {/* Card 2 — center (larger) */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800/90 border border-sky-500/20 rounded-2xl p-6 backdrop-blur-sm shadow-2xl shadow-sky-500/10 w-60 z-10">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-8 h-8 rounded-lg bg-sky-500/10 flex items-center justify-center">
+                        <BarChart3 className="w-4 h-4 text-sky-400" />
+                      </div>
+                      <span className="text-xs text-slate-400 font-medium">Live Calculation</span>
+                    </div>
+                    <p className="text-4xl font-bold text-white">18+</p>
+                    <p className="text-sm text-slate-400 mt-1">Tariff Categories</p>
+                    <div className="mt-4 space-y-1.5">
+                      {["Port dues", "Pilotage", "Towage", "Agency fees"].map((t) => (
+                        <div key={t} className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+                          <span className="text-xs text-slate-400">{t}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Card 3 — bottom right */}
+                  <div
+                    className="absolute bottom-0 right-0 bg-slate-800/80 border border-slate-700/50 rounded-2xl p-5 backdrop-blur-sm shadow-xl w-52"
+                    style={{ transform: "rotate(2deg)" }}
+                  >
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <span className="text-xs text-emerald-400 font-medium">Live</span>
+                    </div>
+                    <p className="text-xl font-bold text-white">Real-time</p>
+                    <p className="text-sm text-slate-400 mt-0.5">Exchange Rates</p>
+                    <p className="text-xs text-slate-500 mt-3">TCMB · Updated daily</p>
+                  </div>
                 </div>
-              ))}
+              </div>
             </div>
           </div>
+        </section>
 
-          {/* Outcome / completion moment */}
-          <div className="mt-12 flex justify-center">
-            <div className="flex flex-col sm:flex-row items-center gap-4 px-6 py-5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 max-w-lg w-full">
-              <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center flex-shrink-0">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+        {/* ─── SOCIAL PROOF ─── */}
+        <section id="social-proof" className="bg-slate-800/20 border-y border-slate-700/20 py-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p className="text-sm text-slate-400 font-medium">Serving professionals across Turkish ports</p>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {["Mersin", "Istanbul", "Izmir", "Aliağa", "Gemlik", "Iskenderun"].map((port) => (
+                  <span
+                    key={port}
+                    className="px-3 py-1 rounded-full text-xs text-slate-300 bg-slate-700/40 border border-slate-600/30"
+                  >
+                    {port}
+                  </span>
+                ))}
               </div>
-              <div className="text-center sm:text-left flex-1 min-w-0">
-                <p className="font-semibold text-emerald-900 dark:text-emerald-200 text-sm">Your proforma is ready to share</p>
-                <p className="text-emerald-700 dark:text-emerald-400 text-xs mt-0.5">22 line items · Official tariff rates · Instant PDF export</p>
+              <div className="flex items-center gap-4 text-sm text-slate-400">
+                <span className="flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-sky-400" />
+                  <strong className="text-white">{userCount}</strong> users
+                </span>
+                <span className="w-px h-4 bg-slate-700" />
+                <span className="flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-sky-400" />
+                  <strong className="text-white">{proformaCount}+</strong> proformas
+                </span>
               </div>
-              <a href="/register" className="flex-shrink-0">
-                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5" data-testid="button-hiw-cta">
-                  Try It Free <ArrowRight className="w-3.5 h-3.5" />
-                </Button>
-              </a>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* PRICING */}
-      <section id="pricing" className="py-14 md:py-28 scroll-mt-20">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-10 md:mb-16 space-y-4">
-            <Badge variant="outline" className="px-4 py-1.5 text-xs font-semibold border-[hsl(var(--maritime-gold)/0.5)] text-[hsl(var(--maritime-gold))] uppercase tracking-wide" data-testid="badge-pricing">
-              <Star className="w-3 h-3 mr-1.5 inline fill-current" />
-              Pricing Plans
-            </Badge>
-            <h2 className="font-serif text-3xl md:text-4xl font-bold tracking-tight">
-              Choose Your Plan
-            </h2>
-            <p className="text-muted-foreground max-w-xl mx-auto text-base md:text-lg">
-              Start free and scale as your business grows. All plans include access to 800+ Turkish ports.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {/* Free */}
-            <Card className="relative p-0 overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200" data-testid="card-plan-free">
-              <div className="h-1.5 w-full bg-gradient-to-r from-slate-300 to-slate-400" />
-              <div className="p-8 space-y-6">
-                <div className="space-y-3">
-                  <div className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-800/60 flex items-center justify-center">
-                    <Zap className="w-5 h-5 text-slate-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-serif font-bold text-xl">Free</h3>
-                    <p className="text-sm text-muted-foreground mt-0.5">Perfect for getting started</p>
-                  </div>
-                </div>
-                <div className="flex items-baseline gap-1">
-                  <span className="font-serif text-4xl font-bold">$0</span>
-                  <span className="text-muted-foreground text-sm">/forever</span>
-                </div>
-                <ul className="space-y-2.5">
-                  {["1 proforma generation", "1 vessel registration", "All Turkish ports access", "Basic tariff calculations", "PDF export"].map((f, i) => (
-                    <li key={i} className="flex items-start gap-2.5 text-sm">
-                      <div className="w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800/60 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <Check className="w-2.5 h-2.5 text-slate-500" />
-                      </div>
-                      <span className="text-muted-foreground">{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <a href="/register" className="block">
-                  <Button variant="outline" className="w-full border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/40" size="lg" data-testid="button-plan-free">
-                    Get Started Free
-                  </Button>
-                </a>
-              </div>
-            </Card>
-
-            {/* Standard — Most Popular */}
-            <Card className="relative p-0 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-200 shadow-lg shadow-[hsl(var(--maritime-gold)/0.15)] ring-2 ring-[hsl(var(--maritime-gold)/0.4)]" data-testid="card-plan-standard">
-              <div className="h-1.5 w-full bg-gradient-to-r from-[hsl(var(--maritime-gold)/0.8)] to-[hsl(var(--maritime-gold))]" />
-              <div className="absolute top-5 right-5">
-                <Badge className="bg-[hsl(var(--maritime-gold))] text-white text-[10px] font-bold px-2.5 py-0.5 shadow-sm">
-                  MOST POPULAR
-                </Badge>
-              </div>
-              <div className="p-8 space-y-6">
-                <div className="space-y-3">
-                  <div className="w-11 h-11 rounded-xl bg-[hsl(var(--maritime-gold)/0.15)] flex items-center justify-center">
-                    <Ship className="w-5 h-5 text-[hsl(var(--maritime-gold))]" />
-                  </div>
-                  <div>
-                    <h3 className="font-serif font-bold text-xl">Standard</h3>
-                    <p className="text-sm text-muted-foreground mt-0.5">For active ship agents</p>
-                  </div>
-                </div>
-                <div className="flex items-baseline gap-1">
-                  <span className="font-serif text-4xl font-bold">$29</span>
-                  <span className="text-muted-foreground text-sm">/10 proformas</span>
-                </div>
-                <ul className="space-y-2.5">
-                  {["10 proforma generations", "Unlimited vessel registration", "All Turkish ports access", "Advanced tariff calculations", "PDF export & printing", "Priority support"].map((f, i) => (
-                    <li key={i} className="flex items-start gap-2.5 text-sm">
-                      <div className="w-4 h-4 rounded-full bg-[hsl(var(--maritime-gold)/0.15)] flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <Check className="w-2.5 h-2.5 text-[hsl(var(--maritime-gold))]" />
-                      </div>
-                      <span>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <a href="/register" className="block">
-                  <Button className="w-full bg-[hsl(var(--maritime-gold))] hover:bg-[hsl(var(--maritime-gold)/0.9)] text-white shadow-md shadow-[hsl(var(--maritime-gold)/0.3)]" size="lg" data-testid="button-plan-standard">
-                    Choose Standard
-                  </Button>
-                </a>
-              </div>
-            </Card>
-
-            {/* Unlimited */}
-            <Card className="relative p-0 overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 bg-gradient-to-b from-[hsl(var(--maritime-primary)/0.04)] to-transparent" data-testid="card-plan-unlimited">
-              <div className="h-1.5 w-full bg-gradient-to-r from-[hsl(var(--maritime-primary)/0.8)] to-[hsl(var(--maritime-accent))]" />
-              <div className="p-8 space-y-6">
-                <div className="space-y-3">
-                  <div className="w-11 h-11 rounded-xl bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center">
-                    <Crown className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
-                  </div>
-                  <div>
-                    <h3 className="font-serif font-bold text-xl">Unlimited</h3>
-                    <p className="text-sm text-muted-foreground mt-0.5">For large-scale operations</p>
-                  </div>
-                </div>
-                <div className="flex items-baseline gap-1">
-                  <span className="font-serif text-4xl font-bold">$79</span>
-                  <span className="text-muted-foreground text-sm">/month</span>
-                </div>
-                <ul className="space-y-2.5">
-                  {["Unlimited proforma generations", "Unlimited vessel registration", "All Turkish ports access", "Advanced tariff calculations", "PDF export & printing", "Priority support", "Custom branding", "API access"].map((f, i) => (
-                    <li key={i} className="flex items-start gap-2.5 text-sm">
-                      <div className="w-4 h-4 rounded-full bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <Check className="w-2.5 h-2.5 text-[hsl(var(--maritime-primary))]" />
-                      </div>
-                      <span>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <a href="/register" className="block">
-                  <Button variant="outline" className="w-full border-[hsl(var(--maritime-primary)/0.4)] text-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-primary)/0.05)]" size="lg" data-testid="button-plan-unlimited">
-                    Choose Unlimited
-                  </Button>
-                </a>
-              </div>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA BANNER */}
-      <section className="py-14 md:py-24 bg-gradient-to-br from-[hsl(var(--maritime-primary))] via-[hsl(var(--maritime-secondary))] to-[hsl(var(--maritime-primary)/0.9)] relative overflow-hidden">
-        <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: "radial-gradient(white 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
-        <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute -bottom-32 -left-32 w-96 h-96 rounded-full bg-white/5 blur-3xl" />
-        <div className="max-w-4xl mx-auto px-6 text-center relative space-y-7">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/15 text-white text-xs font-semibold uppercase tracking-wider">
-            <Anchor className="w-3.5 h-3.5" />
-            Start Today
-          </div>
-          <h2 className="font-serif text-3xl md:text-4xl font-bold tracking-tight text-white leading-tight">
-            Ready to Streamline Your<br />Port Operations?
-          </h2>
-          <p className="text-white/75 text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
-            Join maritime professionals who trust VesselPDA for accurate and instant proforma generation. Free to start, no credit card required.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-            <a href="/register">
-              <Button size="lg" variant="secondary" className="gap-2 bg-white text-[hsl(var(--maritime-primary))] hover:bg-white/90 shadow-lg font-semibold px-8" data-testid="button-cta-bottom">
-                Get Started Free
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </a>
-          </div>
-          <p className="text-white/50 text-xs pt-1">No credit card required · Free plan available</p>
-        </div>
-      </section>
-
-      {/* FOOTER */}
-      <footer className="border-t bg-card/50">
-        <div className="max-w-7xl mx-auto px-6 py-12">
-          <div className="grid md:grid-cols-4 gap-8 mb-10">
-            <div className="md:col-span-1 space-y-4">
-              <div className="flex items-center gap-2.5">
-                <img src="/logo-v2.png" alt="VesselPDA" className="w-8 h-8 rounded-md object-contain" />
-                <span className="font-serif font-bold text-base tracking-tight">VesselPDA</span>
-              </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Professional maritime platform for ship agents, shipowners, and service providers in Turkey.
+        {/* ─── FEATURES ─── */}
+        <section id="features" className="py-24 bg-[#0B1120]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="text-center mb-16 space-y-4" data-animate>
+              <h2 className="text-3xl sm:text-4xl font-bold text-white">
+                Everything You Need for Port Operations
+              </h2>
+              <p className="text-lg text-slate-400 max-w-2xl mx-auto">
+                From proforma calculation to voyage management
               </p>
             </div>
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Product</p>
-              <ul className="space-y-2">
-                {[
-                  { href: "/directory", label: "Directory" },
-                  { href: "/service-ports", label: "Service Ports" },
-                  { href: "/forum", label: "Forum" },
-                  { href: "/register", label: "Sign Up Free" },
-                ].map((l) => (
-                  <li key={l.label}><a href={l.href} className="text-sm text-muted-foreground hover:text-foreground transition-colors">{l.label}</a></li>
-                ))}
-              </ul>
-            </div>
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Support</p>
-              <ul className="space-y-2">
-                {[
-                  { href: "mailto:info@vesselpda.com", label: "Contact Us" },
-                  { href: "/forum", label: "Community Forum" },
-                  { href: "#pricing", label: "Pricing & Plans" },
-                ].map((l) => (
-                  <li key={l.label}><a href={l.href} className="text-sm text-muted-foreground hover:text-foreground transition-colors">{l.label}</a></li>
-                ))}
-              </ul>
-            </div>
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Coverage</p>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>804+ Turkish Ports</li>
-                <li>22 Tariff Line Items</li>
-                <li>USD / EUR / TRY Rates</li>
-                <li>Real-time Calculations</li>
-              </ul>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {FEATURES.map((f, i) => (
+                <div
+                  key={f.title}
+                  className="bg-slate-800/40 border border-slate-700/40 rounded-2xl p-6 hover:bg-slate-800/70 hover:border-slate-600/60 hover:-translate-y-1 hover:shadow-xl transition-all duration-300 group"
+                  data-animate
+                  data-animate-delay={String(i + 1)}
+                  data-testid={`card-feature-${i}`}
+                >
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${f.color} border flex items-center justify-center mb-4`}>
+                    <span className={f.color.split(" ").pop()}>{f.icon}</span>
+                  </div>
+                  <h3 className="text-base font-semibold text-white mb-2">{f.emoji} {f.title}</h3>
+                  <p className="text-sm text-slate-400 leading-relaxed">{f.description}</p>
+                </div>
+              ))}
             </div>
           </div>
-          <Separator />
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-6">
-            <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} VesselPDA. All rights reserved.</p>
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Lock className="w-3 h-3" />
-              <span>Secure platform for maritime professionals</span>
+        </section>
+
+        {/* ─── HOW IT WORKS ─── */}
+        <section id="how-it-works" className="py-24 bg-slate-900/40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="text-center mb-16 space-y-4" data-animate>
+              <h2 className="text-3xl sm:text-4xl font-bold text-white">
+                Get Your Proforma in 4 Simple Steps
+              </h2>
+              <p className="text-lg text-slate-400">Calculate and send a professional PDA in under 2 minutes</p>
+            </div>
+
+            <div className="relative">
+              <div className="hidden md:block absolute top-6 left-[12.5%] right-[12.5%] h-px bg-gradient-to-r from-transparent via-sky-500/30 to-transparent" />
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                {STEPS.map((step, i) => (
+                  <div
+                    key={step.num}
+                    className="flex flex-col items-center text-center space-y-4"
+                    data-animate
+                    data-animate-delay={String(i + 1)}
+                    data-testid={`step-${step.num}`}
+                  >
+                    <div className="relative">
+                      <div className="w-12 h-12 rounded-full bg-sky-500 text-white font-bold text-xl flex items-center justify-center shadow-lg shadow-sky-500/30">
+                        {step.num}
+                      </div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-slate-800/60 border border-slate-700/40 flex items-center justify-center text-sky-400">
+                      {step.icon}
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold text-white mb-2">{step.title}</h3>
+                      <p className="text-sm text-slate-400 leading-relaxed">{step.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      </footer>
+        </section>
+
+        {/* ─── PRICING ─── */}
+        <section id="pricing" className="py-24 bg-[#0B1120]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="text-center mb-16 space-y-4" data-animate>
+              <h2 className="text-3xl sm:text-4xl font-bold text-white">
+                Simple, Transparent Pricing
+              </h2>
+              <p className="text-lg text-slate-400">Start free, upgrade when you need more</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+              {/* FREE */}
+              <div
+                className="bg-slate-800/40 border border-slate-700/40 rounded-2xl p-8 flex flex-col"
+                data-animate
+                data-animate-delay="1"
+                data-testid="card-plan-free"
+              >
+                <div className="mb-6">
+                  <p className="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-3">Free</p>
+                  <div className="flex items-end gap-1">
+                    <span className="text-4xl font-bold text-white">$0</span>
+                    <span className="text-slate-400 mb-1">/month</span>
+                  </div>
+                  <p className="text-sm text-slate-500 mt-2">Perfect to get started</p>
+                </div>
+                <ul className="space-y-3 flex-1 mb-8">
+                  {PLAN_FREE_FEATURES.map((f) => <PlanFeature key={f} text={f} />)}
+                </ul>
+                <a href="/register">
+                  <button
+                    className="w-full h-11 rounded-xl text-sm font-semibold border border-slate-600/50 text-slate-300 hover:border-slate-500 hover:text-white hover:bg-slate-700/30 transition-all duration-200"
+                    data-testid="button-plan-free"
+                  >
+                    Get Started
+                  </button>
+                </a>
+              </div>
+
+              {/* STANDARD */}
+              <div
+                className="relative bg-sky-950/40 border-2 border-sky-500 rounded-2xl p-8 flex flex-col shadow-xl shadow-sky-500/10"
+                data-animate
+                data-animate-delay="2"
+                data-testid="card-plan-standard"
+              >
+                <div className="absolute -top-3.5 right-6">
+                  <span className="bg-sky-500 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wide shadow-lg">
+                    Most Popular
+                  </span>
+                </div>
+                <div className="mb-6">
+                  <p className="text-sm font-semibold text-sky-400 uppercase tracking-widest mb-3">Standard</p>
+                  <div className="flex items-end gap-1">
+                    <span className="text-4xl font-bold text-sky-400">₺49.90</span>
+                    <span className="text-slate-400 mb-1">/month</span>
+                  </div>
+                  <p className="text-sm text-slate-400 mt-2">For active ship agents</p>
+                </div>
+                <ul className="space-y-3 flex-1 mb-8">
+                  {PLAN_STANDARD_FEATURES.map((f) => <PlanFeature key={f} text={f} />)}
+                </ul>
+                <a href="/register">
+                  <button
+                    className="w-full h-11 rounded-xl text-sm font-bold bg-sky-500 hover:bg-sky-400 text-white transition-all duration-200 shadow-md shadow-sky-500/20"
+                    data-testid="button-plan-standard"
+                  >
+                    Start Free Trial
+                  </button>
+                </a>
+              </div>
+
+              {/* UNLIMITED */}
+              <div
+                className="bg-slate-800/40 border border-slate-700/40 rounded-2xl p-8 flex flex-col"
+                data-animate
+                data-animate-delay="3"
+                data-testid="card-plan-unlimited"
+              >
+                <div className="mb-6">
+                  <p className="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-3">Unlimited</p>
+                  <div className="flex items-end gap-1">
+                    <span className="text-4xl font-bold text-white">₺199.90</span>
+                    <span className="text-slate-400 mb-1">/month</span>
+                  </div>
+                  <p className="text-sm text-slate-500 mt-2">For agencies & fleets</p>
+                </div>
+                <ul className="space-y-3 flex-1 mb-8">
+                  {PLAN_UNLIMITED_FEATURES.map((f) => (
+                    <PlanFeature
+                      key={f}
+                      text={f}
+                      muted={f.includes("coming soon")}
+                    />
+                  ))}
+                </ul>
+                <a href="/contact">
+                  <button
+                    className="w-full h-11 rounded-xl text-sm font-semibold border border-slate-600/50 text-slate-300 hover:border-slate-500 hover:text-white hover:bg-slate-700/30 transition-all duration-200"
+                    data-testid="button-plan-unlimited"
+                  >
+                    Contact Sales
+                  </button>
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ─── TESTIMONIALS ─── */}
+        <section className="py-20 bg-slate-900/40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="text-center mb-14 space-y-3" data-animate>
+              <h2 className="text-3xl sm:text-4xl font-bold text-white">
+                Trusted by Maritime Professionals
+              </h2>
+              <p className="text-slate-400">What our users say about VesselPDA</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {TESTIMONIALS.map((t, i) => (
+                <div
+                  key={i}
+                  className="bg-slate-800/40 border border-slate-700/40 rounded-2xl p-6 flex flex-col gap-4"
+                  data-animate
+                  data-animate-delay={String(i + 1)}
+                  data-testid={`card-testimonial-${i}`}
+                >
+                  <div className="flex gap-0.5">
+                    {Array.from({ length: 5 }).map((_, s) => (
+                      <Star key={s} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                    ))}
+                  </div>
+                  <p className="text-sm text-slate-300 leading-relaxed flex-1">"{t.quote}"</p>
+                  <div>
+                    <p className="text-sm font-semibold text-white">{t.author}</p>
+                    <p className="text-xs text-slate-400">{t.role} · {t.port}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ─── LIVE ACTIVITY ─── */}
+        <LiveActivityTicker />
+
+        {/* ─── CTA ─── */}
+        <section className="py-24 relative overflow-hidden">
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(14,165,233,0.08) 0%, rgba(37,99,235,0.05) 50%, rgba(6,182,212,0.04) 100%)",
+            }}
+          />
+          <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-500/20 to-transparent" />
+
+          <div className="relative max-w-3xl mx-auto px-4 sm:px-6 text-center space-y-8" data-animate>
+            <div className="space-y-4">
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight">
+                Ready to Modernize Your{" "}
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-cyan-400">
+                  Maritime Operations?
+                </span>
+              </h2>
+              <p className="text-lg text-slate-400">
+                Join {userCount}+ professionals already using VesselPDA
+              </p>
+            </div>
+
+            <a href="/register">
+              <button
+                className="h-14 px-12 rounded-xl text-lg font-bold bg-sky-500 hover:bg-sky-400 text-white transition-all duration-200 shadow-xl shadow-sky-500/25 hover:shadow-sky-400/30 hover:-translate-y-0.5 inline-flex items-center gap-2"
+                data-testid="button-cta-register"
+              >
+                Create Free Account
+                <ArrowRight className="w-5 h-5" />
+              </button>
+            </a>
+
+            <p className="text-sm text-slate-500">Free forever · No credit card needed</p>
+          </div>
+        </section>
+
+        {/* ─── FOOTER ─── */}
+        <footer className="bg-[#080c18] border-t border-slate-700/30 pt-14 pb-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
+              {/* Col 1 */}
+              <div className="space-y-4">
+                <a href="/" className="flex items-center gap-2" data-testid="footer-logo">
+                  <div className="w-7 h-7 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center">
+                    <Anchor className="w-3.5 h-3.5 text-sky-400" />
+                  </div>
+                  <span className="font-bold text-white">VesselPDA</span>
+                </a>
+                <p className="text-sm text-slate-400 leading-relaxed">Maritime operations, simplified.</p>
+                <p className="text-xs text-slate-500">© 2026 Barbaros Shipping</p>
+              </div>
+
+              {/* Col 2 — Product */}
+              <div className="space-y-4">
+                <p className="text-xs font-semibold text-slate-300 uppercase tracking-widest">Product</p>
+                <ul className="space-y-2.5">
+                  {[
+                    { label: "Features", href: "#features" },
+                    { label: "Pricing", href: "#pricing", testid: "footer-link-pricing" },
+                    { label: "Directory", href: "/directory", testid: "footer-link-directory" },
+                    { label: "Forum", href: "/forum", testid: "footer-link-forum" },
+                  ].map((l) => (
+                    <li key={l.label}>
+                      <a
+                        href={l.href}
+                        onClick={(e) => handleNavClick(e, l.href)}
+                        className="text-sm text-slate-400 hover:text-white transition-colors"
+                        data-testid={(l as any).testid}
+                      >
+                        {l.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Col 3 — Company */}
+              <div className="space-y-4">
+                <p className="text-xs font-semibold text-slate-300 uppercase tracking-widest">Company</p>
+                <ul className="space-y-2.5">
+                  {[
+                    { label: "About Us", href: "#" },
+                    { label: "Contact", href: "/contact" },
+                    { label: "Blog", href: "#", disabled: true },
+                    { label: "Careers", href: "#", disabled: true },
+                  ].map((l) => (
+                    <li key={l.label}>
+                      {l.disabled ? (
+                        <span className="text-sm text-slate-600 cursor-default flex items-center gap-1.5">
+                          {l.label}
+                          <span className="text-[10px] bg-slate-800 border border-slate-700 rounded px-1 py-0.5 text-slate-500">Soon</span>
+                        </span>
+                      ) : (
+                        <a href={l.href} className="text-sm text-slate-400 hover:text-white transition-colors">
+                          {l.label}
+                        </a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Col 4 — Legal */}
+              <div className="space-y-4">
+                <p className="text-xs font-semibold text-slate-300 uppercase tracking-widest">Legal</p>
+                <ul className="space-y-2.5">
+                  {["Privacy Policy", "Terms of Service", "Cookie Policy"].map((l) => (
+                    <li key={l}>
+                      <a href="#" className="text-sm text-slate-400 hover:text-white transition-colors">{l}</a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-700/30 pt-6 flex items-center justify-center">
+              <p className="text-sm text-slate-500">Made with ⚓ in Izmir, Turkey</p>
+            </div>
+          </div>
+        </footer>
+      </main>
     </div>
   );
 }
