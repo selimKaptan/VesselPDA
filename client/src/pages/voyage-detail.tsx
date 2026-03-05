@@ -7,7 +7,7 @@ import {
   Sparkles, HelpCircle, Clock, PlayCircle, XCircle, ClipboardList,
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
-  FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck,
+  FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings,
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
@@ -627,7 +627,20 @@ export default function VoyageDetail() {
     return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   }
 
-  function getActivityStyle(type: string): { bg: string; text: string; emoji: string } {
+  function formatActivityTime(dt: string | Date): string {
+    const d = new Date(dt);
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday = d.toDateString() === yesterday.toDateString();
+    const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    if (isToday)     return `Today, ${time}`;
+    if (isYesterday) return `Yesterday, ${time}`;
+    return `${d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}, ${time}`;
+  }
+
+  function getActivityStyle(type: string): { bg: string; text: string; emoji: string; isSystem: boolean } {
     const map: Record<string, { bg: string; text: string; emoji: string }> = {
       voyage_created:         { bg: "bg-sky-500/20",     text: "text-sky-400",     emoji: "🗺️" },
       status_changed:         { bg: "bg-amber-500/20",   text: "text-amber-400",   emoji: "🔄" },
@@ -651,7 +664,8 @@ export default function VoyageDetail() {
       nor_tendered:           { bg: "bg-amber-500/20",   text: "text-amber-400",   emoji: "📋" },
       nor_accepted:           { bg: "bg-green-500/20",   text: "text-green-400",   emoji: "✅" },
     };
-    return map[type] || { bg: "bg-slate-500/20", text: "text-slate-400", emoji: "📌" };
+    const base = map[type] || { bg: "bg-slate-500/20", text: "text-slate-400", emoji: "📌" };
+    return { ...base, isSystem: type !== "custom_note" };
   }
 
   if (isLoading) {
@@ -1631,32 +1645,51 @@ export default function VoyageDetail() {
           {/* Timeline */}
           {activities.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              <Clock className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-30" />
               <p className="text-sm">No activity yet. Events will appear here as the voyage progresses.</p>
             </div>
           ) : (
             <div className="relative">
-              <div className="absolute left-5 top-0 bottom-0 w-px bg-slate-700/50" />
-              <div className="space-y-4">
+              <div className="absolute left-[1.125rem] top-0 bottom-0 w-px bg-border/40" />
+              <div className="space-y-3">
                 {activities.map((activity: any) => {
                   const style = getActivityStyle(activity.activityType);
+                  const isSystem = style.isSystem;
+                  const initials = activity.user
+                    ? `${(activity.user.firstName || '')[0] ?? ''}${(activity.user.lastName || '')[0] ?? ''}`.toUpperCase()
+                    : '';
                   return (
-                    <div key={activity.id} className="relative flex gap-4" data-testid={`activity-item-${activity.id}`}>
-                      <div className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-base ${style.bg} ${style.text}`}>
-                        {style.emoji}
-                      </div>
-                      <div className="flex-1 bg-card border border-border rounded-xl p-4 min-w-0">
+                    <div key={activity.id} className="relative flex gap-3.5" data-testid={`activity-item-${activity.id}`}>
+                      {/* Left icon */}
+                      {isSystem ? (
+                        <div className="relative z-10 w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-muted/60 border border-border/50 text-muted-foreground">
+                          <Settings className="w-3.5 h-3.5" />
+                        </div>
+                      ) : (
+                        <div className="relative z-10 w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-blue-500/15 border border-blue-500/25 text-blue-400 text-xs font-bold">
+                          {initials || <MessageCircle className="w-3.5 h-3.5" />}
+                        </div>
+                      )}
+                      {/* Content card */}
+                      <div className={`flex-1 rounded-xl border px-4 py-3 min-w-0 ${
+                        isSystem
+                          ? "bg-card border-border/60"
+                          : "bg-blue-500/5 border-blue-500/15"
+                      }`}>
                         <div className="flex items-start justify-between gap-2">
-                          <span className="text-sm font-semibold truncate">{activity.title}</span>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">{formatTimeAgo(activity.createdAt)}</span>
+                          <span className={`text-sm font-medium leading-snug ${isSystem ? "text-muted-foreground" : "text-foreground"}`}>
+                            {isSystem
+                              ? `System: ${activity.title}`
+                              : `${activity.user?.firstName ?? 'User'} added a note: ${activity.title}`}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground/60 whitespace-nowrap flex-shrink-0 mt-0.5 tabular-nums">
+                            {formatActivityTime(activity.createdAt)}
+                          </span>
                         </div>
                         {activity.description && (
-                          <p className="text-xs text-muted-foreground mt-1">{activity.description}</p>
-                        )}
-                        {activity.user && (
-                          <div className="text-xs text-muted-foreground mt-2">
-                            by {activity.user.firstName} {activity.user.lastName}
-                          </div>
+                          <p className={`text-xs mt-1.5 leading-relaxed ${isSystem ? "text-muted-foreground/70" : "text-foreground/70"}`}>
+                            {activity.description}
+                          </p>
                         )}
                       </div>
                     </div>
