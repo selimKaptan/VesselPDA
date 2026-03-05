@@ -946,3 +946,97 @@ export async function sendMessageBridgeEmail(
     return true;
   } catch (err) { console.error("[email] sendMessageBridgeEmail failed:", err); return false; }
 }
+
+export interface ApprovalRequestEmailData {
+  toEmail: string;
+  subject: string;
+  message: string;
+  referenceNumber: string;
+  vesselName: string;
+  portName: string;
+  totalUsd: number;
+  approvalToken: string;
+  lineItems: Array<{ description: string; amountUsd?: number; quantity?: number; unit?: string }>;
+}
+
+export async function sendApprovalRequestEmail(data: ApprovalRequestEmailData): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) { console.warn("[email] No credentials — skipping sendApprovalRequestEmail"); return false; }
+  const resend = new Resend(creds.apiKey);
+
+  const baseUrl = "https://vesselpda.com";
+  const approveUrl = `${baseUrl}/api/proformas/approve-link?token=${data.approvalToken}&action=approve`;
+  const revisionUrl = `${baseUrl}/api/proformas/approve-link?token=${data.approvalToken}&action=revision`;
+
+  const lineItemRows = data.lineItems.slice(0, 8).map(item =>
+    `<tr style="border-bottom:1px solid #f1f5f9">
+      <td style="padding:7px 12px;font-size:13px;color:#334155">${item.description}</td>
+      <td style="padding:7px 12px;font-size:13px;color:#1e293b;text-align:right;font-family:monospace">$${(item.amountUsd || 0).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+    </tr>`
+  ).join("");
+
+  const html = emailWrapper(`
+    <tr>${emailHeader("PDA Approval Request")}</tr>
+    <tr><td style="padding:32px">
+      <p style="margin:0 0 16px;font-size:18px;font-weight:700;color:#0f172a">Proforma Disbursement Account for Review</p>
+      ${data.message ? `<div style="background:#f0f6ff;border-left:4px solid #003D7A;border-radius:0 8px 8px 0;padding:14px 18px;margin-bottom:20px">
+        <p style="margin:0;color:#1e293b;font-size:14px;line-height:1.7">${data.message}</p>
+      </div>` : ""}
+      <div style="background:#f8fafc;border-radius:8px;padding:16px 20px;margin-bottom:20px">
+        <table style="width:100%;border-collapse:collapse;font-size:14px">
+          <tr><td style="color:#64748b;padding:4px 12px 4px 0">Reference</td><td style="font-weight:600;color:#1e293b">${data.referenceNumber}</td></tr>
+          <tr><td style="color:#64748b;padding:4px 12px 4px 0">Vessel</td><td style="font-weight:600;color:#1e293b">${data.vesselName}</td></tr>
+          <tr><td style="color:#64748b;padding:4px 12px 4px 0">Port</td><td style="font-weight:600;color:#1e293b">${data.portName}</td></tr>
+          <tr><td style="color:#64748b;padding:4px 12px 4px 0">Estimated Total</td><td style="font-weight:700;color:#003D7A;font-size:16px">$${data.totalUsd.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr>
+        </table>
+      </div>
+      ${lineItemRows.length > 0 ? `
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:24px">
+        <thead>
+          <tr style="background:#003D7A">
+            <th style="padding:8px 12px;font-size:11px;color:#fff;text-align:left;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Description</th>
+            <th style="padding:8px 12px;font-size:11px;color:#fff;text-align:right;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Amount (USD)</th>
+          </tr>
+        </thead>
+        <tbody>${lineItemRows}</tbody>
+        <tfoot>
+          <tr style="background:#eff6ff">
+            <td style="padding:9px 12px;font-size:14px;font-weight:700;color:#1e3a5f">Total</td>
+            <td style="padding:9px 12px;font-size:14px;font-weight:700;color:#1e3a5f;text-align:right;font-family:monospace">$${data.totalUsd.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+          </tr>
+        </tfoot>
+      </table>` : ""}
+      <p style="margin:0 0 16px;color:#475569;font-size:14px">Please review the above proforma and take one of the following actions:</p>
+      <table cellpadding="0" cellspacing="0" style="margin-bottom:24px">
+        <tr>
+          <td style="border-radius:8px;background:#16a34a;margin-right:12px">
+            <a href="${approveUrl}" style="display:inline-block;padding:12px 28px;color:#fff;font-size:14px;font-weight:700;text-decoration:none">✓ Approve PDA</a>
+          </td>
+          <td style="width:12px"></td>
+          <td style="border-radius:8px;background:#ea580c">
+            <a href="${revisionUrl}" style="display:inline-block;padding:12px 28px;color:#fff;font-size:14px;font-weight:700;text-decoration:none">↩ Request Revision</a>
+          </td>
+        </tr>
+      </table>
+      <p style="margin:0 0 4px;color:#94a3b8;font-size:11px">Or copy these links into your browser:</p>
+      <p style="margin:0 0 4px;color:#94a3b8;font-size:11px">Approve: ${approveUrl}</p>
+      <p style="margin:0;color:#94a3b8;font-size:11px">Revision: ${revisionUrl}</p>
+      <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0">
+        <p style="margin:0;color:#94a3b8;font-size:12px">You received this because a ship agent sent you a PDA for review via VesselPDA.</p>
+      </div>
+    </td></tr>
+    <tr>${emailFooter()}</tr>
+  `);
+
+  try {
+    const { error } = await resend.emails.send({
+      from: `VesselPDA <${creds.fromEmail}>`,
+      to: [data.toEmail],
+      subject: data.subject,
+      html,
+    });
+    if (error) { console.error("[email] sendApprovalRequestEmail error:", error); return false; }
+    console.log(`[email] Approval request email sent to ${data.toEmail}`);
+    return true;
+  } catch (err) { console.error("[email] sendApprovalRequestEmail failed:", err); return false; }
+}

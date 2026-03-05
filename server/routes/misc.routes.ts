@@ -40,7 +40,12 @@ router.get("/api/invoices", isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user?.claims?.sub || req.user?.id;
     const items = await storage.getInvoicesByUser(userId);
-    res.json(items);
+    const voyageIdFilter = req.query.voyageId ? Number(req.query.voyageId) : null;
+    const proformaIdFilter = req.query.proformaId ? Number(req.query.proformaId) : null;
+    let result = items;
+    if (voyageIdFilter) result = result.filter((i: any) => i.voyageId === voyageIdFilter);
+    if (proformaIdFilter) result = result.filter((i: any) => i.proformaId === proformaIdFilter || i.linkedProformaId === proformaIdFilter);
+    res.json(result);
   } catch {
     res.status(500).json({ message: "Failed to get invoices" });
   }

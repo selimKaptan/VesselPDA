@@ -95,6 +95,8 @@ export const proformas = pgTable("proformas", {
   reviewedBy: varchar("reviewed_by").references(() => users.id),
   revisionNote: text("revision_note"),
   approvalNote: text("approval_note"),
+  approvalToken: varchar("approval_token"),
+  recipientEmail: varchar("recipient_email"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

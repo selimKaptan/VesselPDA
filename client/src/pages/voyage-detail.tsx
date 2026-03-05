@@ -6,7 +6,7 @@ import {
   Plus, Loader2, ChevronDown, Wrench, Fuel, ShoppingCart, Users as UsersIcon,
   Sparkles, HelpCircle, Clock, PlayCircle, XCircle, ClipboardList,
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
-  CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck
+  CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
@@ -126,7 +126,7 @@ export default function VoyageDetail() {
   const [newTask, setNewTask] = useState("");
   const [chatMessage, setChatMessage] = useState("");
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms">("operation");
+  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "financial">("operation");
   const [docFilter, setDocFilter] = useState<string>("all");
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [showServiceDialog, setShowServiceDialog] = useState(false);
@@ -206,6 +206,17 @@ export default function VoyageDetail() {
 
   const { data: docTemplates = [] } = useQuery<any[]>({
     queryKey: ["/api/document-templates"],
+  });
+
+  const { data: voyageInvoices = [] } = useQuery<any[]>({
+    queryKey: ["/api/invoices", "voyage", voyageId],
+    queryFn: async () => {
+      const res = await fetch(`/api/invoices?voyageId=${voyageId}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : (data.invoices ?? []);
+    },
+    enabled: !!voyageId,
   });
 
   useEffect(() => {
@@ -595,6 +606,7 @@ export default function VoyageDetail() {
           { key: "operation", label: "Operation",  icon: ClipboardList },
           { key: "documents", label: "Documents",  icon: FolderOpen },
           { key: "comms",     label: "Messages",   icon: MessageCircle },
+          { key: "financial", label: "Financial",  icon: DollarSign },
         ] as const).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -1067,6 +1079,87 @@ export default function VoyageDetail() {
           </Card>
         );
       })()}
+
+      {/* ── Tab: Financial ──────────────────────────────────────── */}
+      {activeTab === "financial" && (
+        <div className="space-y-5" data-testid="tab-content-financial">
+          {/* Invoices Section */}
+          <Card className="p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                <h2 className="font-semibold text-sm">Invoices</h2>
+                {voyageInvoices.length > 0 && (
+                  <span className="text-xs text-muted-foreground">({voyageInvoices.length})</span>
+                )}
+              </div>
+              <Link href="/invoices">
+                <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" data-testid="button-view-all-invoices">
+                  <ExternalLink className="w-3 h-3" /> View All
+                </Button>
+              </Link>
+            </div>
+
+            {voyageInvoices.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground" data-testid="section-invoices-empty">
+                <DollarSign className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">No invoices for this voyage yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-2" data-testid="section-invoices">
+                {voyageInvoices.map((inv: any) => (
+                  <div key={inv.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors" data-testid={`invoice-row-${inv.id}`}>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{inv.title || `Invoice #${inv.id}`}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {inv.invoiceType || "invoice"} · {inv.currency || "USD"} {Number(inv.amount || 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        inv.status === "paid" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                        : inv.status === "overdue" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                        : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                      }`}>
+                        {inv.status || "pending"}
+                      </span>
+                      <Link href={`/invoices`}>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" data-testid={`button-view-invoice-${inv.id}`}>
+                          <ExternalLink className="w-3 h-3" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* PDA Section */}
+          <Card className="p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                <h2 className="font-semibold text-sm">Proforma Disbursement Accounts</h2>
+              </div>
+              <Link href="/proformas/new">
+                <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" data-testid="button-create-pda">
+                  <Plus className="w-3 h-3" /> Create PDA
+                </Button>
+              </Link>
+            </div>
+            <div className="text-center py-6 text-muted-foreground" data-testid="section-pdas">
+              <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">Create a Proforma Disbursement Account for this voyage.</p>
+              <Link href="/proformas/new">
+                <Button size="sm" variant="default" className="mt-3 gap-1.5" data-testid="button-create-pda-cta">
+                  <Plus className="w-3.5 h-3.5" /> New PDA
+                </Button>
+              </Link>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Service Request Dialog */}
       <Dialog open={showServiceDialog} onOpenChange={setShowServiceDialog}>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Download, Printer, Ship, Globe, FileText, Calendar, Package, Loader2, Mail, Send, RefreshCw, CheckCircle2, XCircle, Clock, AlertTriangle, ChevronRight, ArrowRight } from "lucide-react";
+import { ArrowLeft, Download, Printer, Ship, Globe, FileText, Calendar, Package, Loader2, Mail, Send, RefreshCw, CheckCircle2, XCircle, Clock, AlertTriangle, ChevronRight, ArrowRight, DollarSign, Receipt, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +56,15 @@ export default function ProformaView() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewAction, setReviewAction] = useState<"approve" | "reject" | "request_revision">("approve");
   const [reviewNote, setReviewNote] = useState("");
+  const [sendApprovalOpen, setSendApprovalOpen] = useState(false);
+  const [approvalRecipient, setApprovalRecipient] = useState("");
+  const [approvalSubject, setApprovalSubject] = useState("");
+  const [approvalMessage, setApprovalMessage] = useState("");
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [invoiceTitle, setInvoiceTitle] = useState("");
+  const [invoiceAmount, setInvoiceAmount] = useState("");
+  const [invoiceCurrency, setInvoiceCurrency] = useState("USD");
+  const [invoiceDueDate, setInvoiceDueDate] = useState("");
   const params = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -83,18 +92,39 @@ export default function ProformaView() {
   });
 
   const sendForApprovalMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/proformas/${params.id}/send`);
+    mutationFn: async ({ recipientEmail, subject, message }: { recipientEmail: string; subject: string; message: string }) => {
+      const res = await apiRequest("POST", `/api/proformas/${params.id}/send`, { recipientEmail, subject, message });
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/proformas", params.id] });
       queryClient.invalidateQueries({ queryKey: ["/api/proformas", params.id, "approval-history"] });
-      toast({ title: "Sent for approval", description: "Shipowner will be notified." });
+      setSendApprovalOpen(false);
+      toast({ title: "Sent for approval", description: "The PDA has been marked as sent. An email was sent if recipient address was provided." });
     },
     onError: (err: Error) => {
       toast({ title: "Failed to send", description: err.message, variant: "destructive" });
     },
+  });
+
+  const createInvoiceMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/invoices", {
+        title: invoiceTitle,
+        amount: parseFloat(invoiceAmount),
+        currency: invoiceCurrency,
+        dueDate: invoiceDueDate ? new Date(invoiceDueDate).toISOString() : undefined,
+        proformaId: params.id,
+        invoiceType: "invoice",
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Invoice created", description: "Redirecting to Invoices…" });
+      setInvoiceDialogOpen(false);
+      setLocation("/invoices");
+    },
+    onError: () => toast({ title: "Error", description: "Failed to create invoice.", variant: "destructive" }),
   });
 
   const reviewMutation = useMutation({
@@ -147,6 +177,27 @@ export default function ProformaView() {
     onError: () => toast({ title: "Error", description: "Failed to create FDA.", variant: "destructive" }),
   });
 
+  const { data: linkedFdaList } = useQuery<any[]>({
+    queryKey: ["/api/fda", "proforma", params.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/fda?proformaId=${params.id}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!params.id,
+  });
+
+  const { data: linkedInvoices } = useQuery<any[]>({
+    queryKey: ["/api/invoices", "proforma", params.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/invoices`, { credentials: "include" });
+      if (!res.ok) return [];
+      const all = await res.json();
+      return all.filter((inv: any) => String(inv.proformaId) === String(params.id));
+    },
+    enabled: !!params.id,
+  });
+
   if (isLoading) {
     return (
       <div className="px-3 py-5 max-w-6xl mx-auto space-y-6">
@@ -190,6 +241,27 @@ export default function ProformaView() {
     setEmailOpen(true);
   };
 
+  const openSendApprovalDialog = () => {
+    setApprovalSubject(`PDA for Review: ${proforma.referenceNumber || `#${params.id}`}`);
+    setApprovalMessage("Please review the attached Proforma Disbursement Account and indicate your decision.");
+    setApprovalRecipient((proforma as any).recipientEmail || "");
+    setSendApprovalOpen(true);
+  };
+
+  const openInvoiceDialog = () => {
+    const vesselName = (proforma as any).vessel?.name || "Vessel";
+    const portName = (proforma as any).port?.name || "Port";
+    setInvoiceTitle(`Port Disbursement — ${vesselName} at ${portName}`);
+    setInvoiceAmount(String(proforma.totalUsd || ""));
+    const due = new Date();
+    due.setDate(due.getDate() + 30);
+    setInvoiceDueDate(due.toISOString().split("T")[0]);
+    setInvoiceDialogOpen(true);
+  };
+
+  const linkedFda = linkedFdaList?.[0];
+  const linkedInvoice = linkedInvoices?.[0];
+
   return (
     <div className="p-4 sm:px-3 py-5 max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -210,12 +282,11 @@ export default function ProformaView() {
           {isAgent && (approvalStatus === "draft" || approvalStatus === "revision_requested") && (
             <Button
               size="sm"
-              className={`gap-2 ${approvalStatus === "revision_requested" ? "bg-orange-600 hover:bg-orange-700" : ""}`}
-              onClick={() => sendForApprovalMutation.mutate()}
-              disabled={sendForApprovalMutation.isPending}
+              className={`gap-2 ${approvalStatus === "revision_requested" ? "bg-orange-600 hover:bg-orange-700" : "bg-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-primary)/0.9)]"}`}
+              onClick={openSendApprovalDialog}
               data-testid="button-send-for-approval"
             >
-              {sendForApprovalMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              <Send className="w-4 h-4" />
               <span>{approvalStatus === "revision_requested" ? "Resubmit for Approval" : "Send for Approval"}</span>
             </Button>
           )}
@@ -223,21 +294,62 @@ export default function ProformaView() {
             <Button
               size="sm"
               variant="outline"
-              className="gap-2"
+              className="gap-2 border-amber-400 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30"
               onClick={() => setReviewOpen(true)}
               data-testid="button-review-pda"
             >
               <ChevronRight className="w-4 h-4" /> Review PDA
             </Button>
           )}
-          {(isAgent || isShipownerOrAdmin) && (
+          {approvalStatus === "approved" && (
+            <>
+              {!linkedFda && (
+                <Button
+                  size="sm"
+                  className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                  onClick={() => createFdaMutation.mutate()}
+                  disabled={createFdaMutation.isPending}
+                  data-testid="button-create-fda"
+                >
+                  {createFdaMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                  <span>Create FDA</span>
+                </Button>
+              )}
+              {linkedFda && (
+                <Link href={`/fda/${linkedFda.id}`}>
+                  <Button size="sm" variant="outline" className="gap-2 border-emerald-400 text-emerald-700 dark:text-emerald-400" data-testid="button-view-fda">
+                    <ExternalLink className="w-4 h-4" /> View FDA
+                  </Button>
+                </Link>
+              )}
+              {!linkedInvoice && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={openInvoiceDialog}
+                  data-testid="button-create-invoice"
+                >
+                  <Receipt className="w-4 h-4" /> <span className="hidden sm:inline">Create Invoice</span>
+                </Button>
+              )}
+              {linkedInvoice && (
+                <Link href="/invoices">
+                  <Button size="sm" variant="outline" className="gap-2" data-testid="button-view-invoice">
+                    <Receipt className="w-4 h-4" /> View Invoice
+                  </Button>
+                </Link>
+              )}
+            </>
+          )}
+          {approvalStatus !== "approved" && (isAgent || isShipownerOrAdmin) && !linkedFda && (
             <Button
               variant="outline"
               size="sm"
               className="gap-2 border-maritime-primary/40 text-maritime-primary hover:bg-maritime-primary/5"
               onClick={() => createFdaMutation.mutate()}
               disabled={createFdaMutation.isPending}
-              data-testid="button-create-fda"
+              data-testid="button-create-fda-secondary"
             >
               {createFdaMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
               <span className="hidden sm:inline">Create FDA</span>
@@ -284,12 +396,20 @@ export default function ProformaView() {
       </div>
 
       {/* Approval Status Banner */}
-      <div className={`flex items-center gap-3 p-3 rounded-lg border ${banner.bg}`} data-testid="banner-approval-status">
-        <BannerIcon className={`w-5 h-5 ${banner.text} flex-shrink-0`} />
-        <span className={`text-sm font-medium ${banner.text}`}>{banner.label}</span>
-        {(approvalStatus === "approved" || approvalStatus === "rejected") && approvalNote && (
-          <span className={`text-xs ml-2 ${banner.text} opacity-75`}>— {approvalNote}</span>
-        )}
+      <div className={`flex items-start gap-3 p-3 rounded-lg border ${banner.bg}`} data-testid="banner-approval-status">
+        <BannerIcon className={`w-5 h-5 ${banner.text} flex-shrink-0 mt-0.5`} />
+        <div className="flex-1 min-w-0">
+          <span className={`text-sm font-medium ${banner.text}`}>{banner.label}</span>
+          {approvalStatus === "sent" && (proforma as any).sentAt && (
+            <p className={`text-xs mt-0.5 ${banner.text} opacity-80`}>
+              Sent on {new Date((proforma as any).sentAt).toLocaleDateString("en-GB")}
+              {(proforma as any).recipientEmail && ` · To: ${(proforma as any).recipientEmail}`}
+            </p>
+          )}
+          {(approvalStatus === "approved" || approvalStatus === "rejected") && approvalNote && (
+            <p className={`text-xs mt-0.5 ${banner.text} opacity-80`}>Note: {approvalNote}</p>
+          )}
+        </div>
       </div>
 
       {/* Revision Note Warning */}
@@ -596,6 +716,137 @@ export default function ProformaView() {
             >
               {sendEmailMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Mail className="w-4 h-4 mr-2" />}
               Send Email
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send for Approval Dialog */}
+      <Dialog open={sendApprovalOpen} onOpenChange={setSendApprovalOpen}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-send-approval">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="w-4 h-4" /> Send PDA for Approval
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="approval-recipient">Recipient Email</Label>
+              <Input
+                id="approval-recipient"
+                type="email"
+                placeholder="shipowner@company.com (optional)"
+                value={approvalRecipient}
+                onChange={e => setApprovalRecipient(e.target.value)}
+                data-testid="input-recipient-email"
+              />
+              <p className="text-xs text-muted-foreground">Leave blank to only mark the PDA as sent without emailing.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="approval-subject">Subject</Label>
+              <Input
+                id="approval-subject"
+                value={approvalSubject}
+                onChange={e => setApprovalSubject(e.target.value)}
+                data-testid="input-approval-subject"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="approval-message">Message</Label>
+              <Textarea
+                id="approval-message"
+                value={approvalMessage}
+                onChange={e => setApprovalMessage(e.target.value)}
+                rows={3}
+                data-testid="textarea-approval-message"
+              />
+            </div>
+            {approvalRecipient && (
+              <div className="flex items-start gap-2 p-2.5 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
+                <Mail className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                <span>An approval request email with Approve and Request Revision links will be sent to the recipient.</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSendApprovalOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => sendForApprovalMutation.mutate({ recipientEmail: approvalRecipient, subject: approvalSubject, message: approvalMessage })}
+              disabled={sendForApprovalMutation.isPending}
+              data-testid="button-confirm-send-approval"
+            >
+              {sendForApprovalMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+              Send for Approval
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Invoice Dialog */}
+      <Dialog open={invoiceDialogOpen} onOpenChange={setInvoiceDialogOpen}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-create-invoice">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="w-4 h-4" /> Create Invoice
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="invoice-title">Title *</Label>
+              <Input
+                id="invoice-title"
+                value={invoiceTitle}
+                onChange={e => setInvoiceTitle(e.target.value)}
+                data-testid="input-invoice-title"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="invoice-amount">Amount *</Label>
+                <Input
+                  id="invoice-amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={invoiceAmount}
+                  onChange={e => setInvoiceAmount(e.target.value)}
+                  data-testid="input-invoice-amount"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Currency</Label>
+                <select
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+                  value={invoiceCurrency}
+                  onChange={e => setInvoiceCurrency(e.target.value)}
+                  data-testid="select-invoice-currency"
+                >
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="TRY">TRY</option>
+                </select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="invoice-due-date">Due Date</Label>
+              <Input
+                id="invoice-due-date"
+                type="date"
+                value={invoiceDueDate}
+                onChange={e => setInvoiceDueDate(e.target.value)}
+                data-testid="input-invoice-due-date"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInvoiceDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => createInvoiceMutation.mutate()}
+              disabled={!invoiceTitle || !invoiceAmount || createInvoiceMutation.isPending}
+              data-testid="button-confirm-create-invoice"
+            >
+              {createInvoiceMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Receipt className="w-4 h-4 mr-2" />}
+              Create Invoice
             </Button>
           </DialogFooter>
         </DialogContent>

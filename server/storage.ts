@@ -35,7 +35,7 @@ import {
   type DocumentTemplate, type InsertDocumentTemplate,
   type Invoice, type InsertInvoice,
   type PortAlert, type InsertPortAlert,
-  vessels, ports, tariffCategories, tariffRates, proformas,
+  vessels, ports, tariffCategories, tariffRates, proformas, proformaApprovalLogs,
   forumCategories, forumTopics, forumReplies, forumLikes, forumDislikes,
   portTenders, tenderBids, agentReviews, vesselWatchlist,
   notifications, feedbacks,
@@ -84,8 +84,13 @@ export interface IStorage {
   getProforma(id: number, userId: string): Promise<(Proforma & { vessel?: Vessel; port?: Port }) | undefined>;
   getProformaById(id: number): Promise<(Proforma & { vessel?: Vessel; port?: Port }) | undefined>;
   createProforma(proforma: InsertProforma): Promise<Proforma>;
+  updateProforma(id: number, data: Partial<Proforma>): Promise<Proforma | undefined>;
   duplicateProforma(id: number, userId: string): Promise<Proforma | undefined>;
   deleteProforma(id: number, userId: string): Promise<boolean>;
+  createProformaApprovalLog(data: { proformaId: number; userId: string; action: string; note?: string | null; previousStatus: string; newStatus: string }): Promise<any>;
+  getProformaApprovalLogs(proformaId: number): Promise<any[]>;
+  getProformasByApprovalStatus(approvalStatus: string): Promise<Proforma[]>;
+  findProformaByToken(token: string): Promise<Proforma | undefined>;
 
   getAllVessels(): Promise<Vessel[]>;
   getAllUsers(): Promise<User[]>;
@@ -442,6 +447,11 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
+  async updateProforma(id: number, data: Partial<Proforma>): Promise<Proforma | undefined> {
+    const [row] = await db.update(proformas).set(data as any).where(eq(proformas.id, id)).returning();
+    return row;
+  }
+
   async duplicateProforma(id: number, userId: string): Promise<Proforma | undefined> {
     const [original] = await db.select().from(proformas).where(and(eq(proformas.id, id), eq(proformas.userId, userId)));
     if (!original) return undefined;
@@ -450,6 +460,28 @@ export class DatabaseStorage implements IStorage {
     const newRef = `${referenceNumber}-COPY-${ts}`;
     const [created] = await db.insert(proformas).values({ ...rest, referenceNumber: newRef, status: "draft" }).returning();
     return created;
+  }
+
+  async createProformaApprovalLog(data: { proformaId: number; userId: string; action: string; note?: string | null; previousStatus: string; newStatus: string }): Promise<any> {
+    const [row] = await db.insert(proformaApprovalLogs).values(data as any).returning();
+    return row;
+  }
+
+  async getProformaApprovalLogs(proformaId: number): Promise<any[]> {
+    return db.select().from(proformaApprovalLogs)
+      .where(eq(proformaApprovalLogs.proformaId, proformaId))
+      .orderBy(desc(proformaApprovalLogs.createdAt));
+  }
+
+  async getProformasByApprovalStatus(approvalStatus: string): Promise<Proforma[]> {
+    return db.select().from(proformas)
+      .where(eq(proformas.approvalStatus, approvalStatus))
+      .orderBy(desc(proformas.createdAt));
+  }
+
+  async findProformaByToken(token: string): Promise<Proforma | undefined> {
+    const [row] = await db.select().from(proformas).where(eq(proformas.approvalToken, token));
+    return row;
   }
 
   async updateUserRole(userId: string, role: string): Promise<User | undefined> {

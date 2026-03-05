@@ -7,10 +7,11 @@ import type { ProformaLineItem } from "@shared/schema";
 import { calculateProforma, type CalculationInput } from "../proforma-calculator";
 import { lookupPilotageFee, lookupTugboatFee, lookupMooringFee, lookupBerthingFee, lookupAgencyFee, lookupMarpolFee, lookupLcbFee, lookupSanitaryDuesFee, lookupChamberFreightShareFee, lookupChamberShippingFee, lookupLightDuesFee, lookupMiscExpenses, lookupSupervisionFee, type VesselCategory } from "../tariff-lookup";
 import { pool } from "../db";
-import { sendProformaEmail } from "../email";
+import { sendProformaEmail, sendApprovalRequestEmail } from "../email";
 import { logAction, getClientIp } from "../audit";
 import { generateProformaPdf } from "../proforma-pdf";
 import { getOrFetchRates } from "../exchange-rates";
+import { randomBytes } from "node:crypto";
 
 const router = Router();
 
@@ -26,6 +27,62 @@ router.get("/", isAuthenticated, async (req: any, res: any, next: any) => {
   } catch (error) {
     console.error("[proformas:GET] fetch failed:", error);
     next(error);
+  }
+});
+
+
+router.get("/pending-approval", isAuthenticated, async (req: any, res) => {
+  try {
+    const proformas = await storage.getProformasByApprovalStatus("sent");
+    res.json(proformas);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to get pending approval proformas" });
+  }
+});
+
+
+router.get("/approve-link", async (req: any, res) => {
+  try {
+    const { token, action, note } = req.query as Record<string, string>;
+    if (!token) return res.redirect("/?error=missing_token");
+
+    const proforma = await storage.findProformaByToken(token);
+    if (!proforma) return res.redirect("/?error=invalid_token");
+
+    const prevStatus = proforma.approvalStatus;
+    const newStatus = action === "approve" ? "approved" : "revision_requested";
+    const nowDate = new Date();
+
+    await storage.updateProforma(proforma.id, {
+      approvalStatus: newStatus,
+      reviewedAt: nowDate,
+      ...(action === "approve" ? { approvalNote: note || "Approved via email link" } : { revisionNote: note || "Revision requested via email link" }),
+    });
+
+    await storage.createProformaApprovalLog({
+      proformaId: proforma.id,
+      userId: proforma.userId,
+      action: action === "approve" ? "approve" : "request_revision",
+      note: note || (action === "approve" ? "Approved via email link" : "Revision requested via email link"),
+      previousStatus: prevStatus,
+      newStatus,
+    });
+
+    await storage.createNotification({
+      userId: proforma.userId,
+      type: action === "approve" ? "pda_approved" : "pda_revision_requested",
+      title: action === "approve" ? "PDA Approved" : "PDA Revision Requested",
+      message: action === "approve"
+        ? `PDA ${proforma.referenceNumber} has been approved via email link.`
+        : `A revision has been requested for PDA ${proforma.referenceNumber} via email link.`,
+      link: `/proformas/${proforma.id}`,
+
+    });
+
+    res.redirect(`/proformas/${proforma.id}?approval=${action === "approve" ? "success" : "revision"}`);
+  } catch (error) {
+    console.error("[proformas:approve-link] error:", error);
+    res.redirect("/?error=server_error");
   }
 });
 
@@ -523,6 +580,151 @@ router.post("/:id/send-email", isAuthenticated, async (req: any, res) => {
   } catch (error) {
     console.error("Send proforma email error:", error);
     res.status(500).json({ message: "Failed to send proforma email" });
+  }
+});
+
+
+router.post("/:id/send", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user.claims.sub;
+    const id = parseInt(req.params.id);
+    const { recipientEmail, subject, message } = req.body;
+
+    const proforma = await storage.getProformaById(id);
+    if (!proforma) return res.status(404).json({ message: "Proforma not found" });
+    if (proforma.userId !== userId && !(await isAdmin(req))) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const token = randomBytes(24).toString("hex");
+    const prevStatus = proforma.approvalStatus;
+
+    const updated = await storage.updateProforma(id, {
+      approvalStatus: "sent",
+      sentAt: new Date(),
+      recipientEmail: recipientEmail || null,
+      approvalToken: token,
+    });
+
+    await storage.createProformaApprovalLog({
+      proformaId: id,
+      userId,
+      action: "sent",
+      note: message || "Sent for approval",
+      previousStatus: prevStatus,
+      newStatus: "sent",
+    });
+
+    await storage.createNotification({
+      userId,
+      type: "pda_sent",
+      title: "PDA Sent for Approval",
+      message: `PDA ${proforma.referenceNumber} has been sent for approval.`,
+      link: `/proformas/${id}`,
+
+    });
+
+    if (recipientEmail) {
+      const vessel = proforma.vesselId ? await storage.getVessel(proforma.vesselId, userId) : null;
+      const port = proforma.portId ? await storage.getPort(proforma.portId) : null;
+      await sendApprovalRequestEmail({
+        toEmail: recipientEmail,
+        subject: subject || `PDA for Review: ${proforma.referenceNumber}`,
+        message: message || "Please review the attached Proforma Disbursement Account.",
+        referenceNumber: proforma.referenceNumber || `#${id}`,
+        vesselName: vessel?.name || `Vessel #${proforma.vesselId}`,
+        portName: port?.name || `Port #${proforma.portId}`,
+        totalUsd: proforma.totalUsd || 0,
+        approvalToken: token,
+        lineItems: (proforma.lineItems as any[]) || [],
+      });
+    }
+
+    logAction(userId, "update", "proforma", id, { action: "sent_for_approval", recipientEmail }, getClientIp(req));
+    res.json(updated);
+  } catch (error) {
+    console.error("[proformas:send] error:", error);
+    res.status(500).json({ message: "Failed to send proforma for approval" });
+  }
+});
+
+
+router.post("/:id/review", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user.claims.sub;
+    const id = parseInt(req.params.id);
+    const { action, note } = req.body;
+
+    if (!action || !["approve", "request_revision", "reject"].includes(action)) {
+      return res.status(400).json({ message: "Invalid action. Must be approve, request_revision, or reject" });
+    }
+
+    const proforma = await storage.getProformaById(id);
+    if (!proforma) return res.status(404).json({ message: "Proforma not found" });
+
+    const statusMap: Record<string, string> = {
+      approve: "approved",
+      request_revision: "revision_requested",
+      reject: "rejected",
+    };
+    const newStatus = statusMap[action];
+    const prevStatus = proforma.approvalStatus;
+
+    const updated = await storage.updateProforma(id, {
+      approvalStatus: newStatus,
+      reviewedAt: new Date(),
+      reviewedBy: userId,
+      ...(action === "request_revision" ? { revisionNote: note || null } : {}),
+      ...(action === "approve" ? { approvalNote: note || null } : {}),
+    });
+
+    await storage.createProformaApprovalLog({
+      proformaId: id,
+      userId,
+      action,
+      note: note || null,
+      previousStatus: prevStatus,
+      newStatus,
+    });
+
+    const actionLabel: Record<string, string> = {
+      approve: "approved",
+      request_revision: "revision requested",
+      reject: "rejected",
+    };
+    await storage.createNotification({
+      userId: proforma.userId,
+      type: `pda_${action}`,
+      title: `PDA ${actionLabel[action]}`,
+      message: `PDA ${proforma.referenceNumber} has been ${actionLabel[action]}.${note ? ` Note: ${note}` : ""}`,
+      link: `/proformas/${id}`,
+
+    });
+
+    logAction(userId, action === "approve" ? "approve" : "update", "proforma", id, { action, newStatus }, getClientIp(req));
+    res.json(updated);
+  } catch (error) {
+    console.error("[proformas:review] error:", error);
+    res.status(500).json({ message: "Failed to review proforma" });
+  }
+});
+
+
+router.get("/:id/approval-history", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user.claims.sub;
+    const id = parseInt(req.params.id);
+
+    const proforma = await storage.getProformaById(id);
+    if (!proforma) return res.status(404).json({ message: "Proforma not found" });
+    if (proforma.userId !== userId && !(await isAdmin(req))) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const logs = await storage.getProformaApprovalLogs(id);
+    res.json(logs);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to get approval history" });
   }
 });
 

@@ -183,7 +183,7 @@ export default function Proformas() {
   const approvalStatusBadge = (status: string | null | undefined) => {
     switch (status) {
       case "sent":
-        return <Badge className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800"><Clock className="w-3 h-3 mr-1" />Sent</Badge>;
+        return <Badge className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800"><Clock className="w-3 h-3 mr-1" />Awaiting</Badge>;
       case "under_review":
         return <Badge className="text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800"><Clock className="w-3 h-3 mr-1" />Under Review</Badge>;
       case "revision_requested":
@@ -192,9 +192,47 @@ export default function Proformas() {
         return <Badge className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800"><CheckCircle2 className="w-3 h-3 mr-1" />Approved</Badge>;
       case "rejected":
         return <Badge className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
+      case "completed":
+        return <Badge className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"><CheckCircle2 className="w-3 h-3 mr-1" />Completed</Badge>;
       default:
         return <Badge variant="secondary" className="text-xs">Draft</Badge>;
     }
+  };
+
+  const WorkflowProgress = ({ approvalStatus, id }: { approvalStatus: string; id: number }) => {
+    const steps = [
+      { key: "draft", label: "Draft" },
+      { key: "sent", label: "Sent" },
+      { key: "approved", label: "Appr." },
+      { key: "fda", label: "FDA" },
+      { key: "invoice", label: "Inv." },
+    ];
+    const stepIndex: Record<string, number> = {
+      draft: 0, sent: 1, under_review: 1, revision_requested: 1, rejected: 1,
+      approved: 2, completed: 4,
+    };
+    const active = stepIndex[approvalStatus] ?? 0;
+    const isRevision = approvalStatus === "revision_requested";
+    const isRejected = approvalStatus === "rejected";
+    return (
+      <div className="flex items-center gap-0.5 mt-1" data-testid={`workflow-progress-${id}`}>
+        {steps.map((step, i) => {
+          const isDone = i < active;
+          const isActive = i === active;
+          const dotCls = isDone
+            ? "w-2 h-2 rounded-full bg-emerald-500"
+            : isActive
+            ? `w-2 h-2 rounded-full animate-pulse ${isRevision || isRejected ? "bg-red-500" : "bg-sky-500"}`
+            : "w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600";
+          return (
+            <div key={step.key} className="flex items-center gap-0.5">
+              <div className={dotCls} title={step.label} />
+              {i < steps.length - 1 && <div className="w-3 h-px bg-slate-300 dark:bg-slate-600" />}
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   const finalDaMutation = useMutation({
@@ -450,6 +488,7 @@ export default function Proformas() {
                   <TableCell className="font-semibold">${pda.totalUsd?.toLocaleString()}</TableCell>
                   <TableCell className="hidden md:table-cell">
                     {approvalStatusBadge((pda as any).approvalStatus)}
+                    <WorkflowProgress approvalStatus={(pda as any).approvalStatus || "draft"} id={pda.id} />
                   </TableCell>
                   <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
                     {pda.createdAt ? new Date(pda.createdAt).toLocaleDateString("en-GB") : "-"}

@@ -13,8 +13,12 @@ router.get("/", isAuthenticated, async (req: any, res: any, next: any) => {
   try {
     const userId = req.user.claims.sub;
     const user = await storage.getUser(userId);
+    const proformaId = req.query.proformaId ? parseInt(req.query.proformaId as string) : null;
+
     let fdas;
-    if (user?.userRole === "admin") {
+    if (proformaId) {
+      fdas = await db.select().from(fdaAccounts).where(eq(fdaAccounts.proformaId, proformaId)).orderBy(desc(fdaAccounts.createdAt));
+    } else if (user?.userRole === "admin") {
       fdas = await db.select().from(fdaAccounts).orderBy(desc(fdaAccounts.createdAt));
     } else {
       fdas = await db.select().from(fdaAccounts).where(eq(fdaAccounts.userId, userId)).orderBy(desc(fdaAccounts.createdAt));
