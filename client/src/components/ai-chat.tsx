@@ -101,10 +101,10 @@ export function AiChat() {
         <div
           data-testid="panel-ai-chat"
           className={cn(
-            "bg-background flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200",
+            "bg-slate-900/90 backdrop-blur-md flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200",
             isMobile
               ? "w-full h-full rounded-none shadow-none border-0"
-              : "w-80 h-[440px] rounded-2xl shadow-2xl border border-border"
+              : "w-80 h-[440px] rounded-2xl shadow-2xl border border-slate-700/60"
           )}
         >
           <div className="flex items-center justify-between px-4 py-3 bg-[#003D7A] dark:bg-[#002855] text-white shrink-0">
@@ -143,8 +143,8 @@ export function AiChat() {
                   className={cn(
                     "max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words",
                     msg.role === "user"
-                      ? "bg-[#003D7A] text-white rounded-br-sm"
-                      : "bg-muted text-foreground rounded-bl-sm"
+                      ? "bg-sky-500/20 border border-sky-500/30 text-sky-100 rounded-br-sm"
+                      : "bg-slate-800/60 border border-slate-700/40 text-slate-200 rounded-bl-sm"
                   )}
                 >
                   {msg.content}
@@ -157,7 +157,7 @@ export function AiChat() {
                 <div className="w-6 h-6 rounded-full bg-[#003D7A] flex items-center justify-center shrink-0 mr-2 mt-0.5">
                   <Bot className="w-3.5 h-3.5 text-white" />
                 </div>
-                <div className="bg-muted rounded-2xl rounded-bl-sm px-4 py-3">
+                <div className="bg-slate-800/60 border border-slate-700/40 rounded-2xl rounded-bl-sm px-4 py-3">
                   <div className="flex gap-1 items-center h-4">
                     <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:0ms]" />
                     <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:150ms]" />

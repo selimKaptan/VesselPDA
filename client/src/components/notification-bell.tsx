@@ -94,10 +94,10 @@ export function NotificationBell() {
       {open && (
         <div
           data-testid="panel-notifications"
-          className="absolute right-0 top-11 z-50 w-80 max-h-[480px] flex flex-col bg-background border border-border rounded-xl shadow-xl overflow-hidden"
+          className="absolute right-0 top-11 z-50 w-80 max-h-[480px] flex flex-col bg-slate-900/85 backdrop-blur-md border border-slate-700/60 rounded-xl shadow-2xl shadow-black/60 overflow-hidden"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/40">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/40 bg-slate-800/40">
             <span className="text-sm font-semibold text-foreground">Notifications</span>
             <div className="flex items-center gap-2">
               {unreadCount > 0 && (
@@ -133,8 +133,8 @@ export function NotificationBell() {
                   key={n.id}
                   data-testid={`notification-item-${n.id}`}
                   onClick={() => handleNotificationClick(n)}
-                  className={`flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0 ${
-                    !n.isRead ? "bg-blue-50/60 dark:bg-blue-950/20" : ""
+                  className={`flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-slate-800/60 transition-colors border-b border-slate-700/30 last:border-0 ${
+                    !n.isRead ? "border-l-2 border-sky-500 bg-sky-500/5" : ""
                   }`}
                 >
                   <div className="mt-0.5 flex-shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center">
