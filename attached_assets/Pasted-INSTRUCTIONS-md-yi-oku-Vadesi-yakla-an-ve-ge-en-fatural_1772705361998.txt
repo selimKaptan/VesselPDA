@@ -1,0 +1,293 @@
+INSTRUCTIONS.md'yi oku. Vadesi yaklaşan ve geçen faturalar için otomatik email hatırlatma sistemi ekle.
+
+=== 1. DATABASE ===
+
+shared/schema.ts'de invoices tablosuna ekle (yoksa):
+- dueDate: timestamp
+- reminderSentAt: timestamp
+- overdueReminderSentAt: timestamp
+- recipientEmail: varchar
+- recipientName: varchar
+
+npx drizzle-kit push
+
+=== 2. REMINDER SERVICE ===
+
+server/payment-reminders.ts oluştur:
+
+import { db } from './db';
+import { invoices } from '../shared/schema';
+import { and, eq, lt, gt, isNull, lte } from 'drizzle-orm';
+import { invoiceCreatedTemplate } from './email-templates';
+
+// Hatırlatma email template'leri
+function reminderTemplate(params: {
+  recipientName: string;
+  invoiceTitle: string;
+  amount: number;
+  currency: string;
+  dueDate: string;
+  daysUntilDue: number;
+  invoiceUrl: string;
+}): { subject: string; html: string } {
+  // email-templates.ts'deki baseTemplate'i kullan
+  // Sarı/amber tonunda "Payment Reminder" temalı email
+  // "Your invoice is due in X days" mesajı
+  // Büyük "Pay Now" butonu
+  // Invoice detayları tablosu
+  return { subject: `Payment Reminder: ${params.invoiceTitle} — Due in ${params.daysUntilDue} days`, html: '...' };
+}
+
+function overdueTemplate(params: {
+  recipientName: string;
+  invoiceTitle: string;
+  amount: number;
+  currency: string;
+  dueDate: string;
+  daysOverdue: number;
+  invoiceUrl: string;
+}): { subject: string; html: string } {
+  // Kırmızı tonunda "Payment Overdue" temalı email
+  // "Your invoice is X days overdue" mesajı
+  // Büyük "Pay Now" butonu
+  return { subject: `OVERDUE: ${params.invoiceTitle} — ${params.daysOverdue} days past due`, html: '...' };
+}
+
+// Bu template'leri email-templates.ts'deki baseTemplate wrapper ile oluştur
+// Hatırlatma: amber/sarı tema
+// Gecikmiş: kırmızı tema
+
+export async function checkAndSendReminders() {
+  const now = new Date();
+  const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+  try {
+    // 1. Vadesi 3 gün içinde olan, henüz hatırlatma gönderilmemiş faturalar
+    const upcomingInvoices = await db.select().from(invoices).where(
+      and(
+        eq(invoices.status, 'pending'),
+        lte(invoices.dueDate, threeDaysFromNow),
+        gt(invoices.dueDate, now),
+        isNull(invoices.reminderSentAt)
+      )
+    );
+
+    for (const invoice of upcomingInvoices) {
+      if (!invoice.recipientEmail) continue;
+      
+      const daysUntilDue = Math.ceil((new Date(invoice.dueDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Email gönder
+      const { subject, html } = reminderTemplate({
+        recipientName: invoice.recipientName || 'Dear Sir/Madam',
+        invoiceTitle: invoice.title,
+        amount: Number(invoice.amount),
+        currency: invoice.currency || 'USD',
+        dueDate: new Date(invoice.dueDate).toLocaleDateString('en-GB'),
+        daysUntilDue,
+        invoiceUrl: `https://vesselpda.com/invoices`,
+      });
+
+      try {
+        await sendEmail({ to: invoice.recipientEmail, subject, html });
+        await db.update(invoices).set({ reminderSentAt: now }).where(eq(invoices.id, invoice.id));
+        console.log(`Reminder sent for invoice ${invoice.id}`);
+      } catch (e) {
+        console.error(`Failed to send reminder for invoice ${invoice.id}:`, e);
+      }
+    }
+
+    // 2. Vadesi geçmiş, henüz overdue hatırlatma gönderilmemiş faturalar
+    const overdueInvoices = await db.select().from(invoices).where(
+      and(
+        eq(invoices.status, 'pending'),
+        lt(invoices.dueDate, now),
+        isNull(invoices.overdueReminderSentAt)
+      )
+    );
+
+    for (const invoice of overdueInvoices) {
+      if (!invoice.recipientEmail) continue;
+      
+      const daysOverdue = Math.ceil((now.getTime() - new Date(invoice.dueDate).getTime()) / (1000 * 60 * 60 * 24));
+      
+      const { subject, html } = overdueTemplate({
+        recipientName: invoice.recipientName || 'Dear Sir/Madam',
+        invoiceTitle: invoice.title,
+        amount: Number(invoice.amount),
+        currency: invoice.currency || 'USD',
+        dueDate: new Date(invoice.dueDate).toLocaleDateString('en-GB'),
+        daysOverdue,
+        invoiceUrl: `https://vesselpda.com/invoices`,
+      });
+
+      try {
+        await sendEmail({ to: invoice.recipientEmail, subject, html });
+        await db.update(invoices).set({ overdueReminderSentAt: now }).where(eq(invoices.id, invoice.id));
+        
+        // Platform notification da oluştur
+        await storage.createNotification({
+          userId: invoice.userId,
+          type: 'invoice_overdue',
+          title: 'Invoice Overdue',
+          message: `Invoice "${invoice.title}" is ${daysOverdue} days overdue`,
+          link: '/invoices',
+        });
+        
+        console.log(`Overdue reminder sent for invoice ${invoice.id}`);
+      } catch (e) {
+        console.error(`Failed to send overdue reminder for invoice ${invoice.id}:`, e);
+      }
+    }
+
+    // 3. 7 gün geçmiş overdue'lara tekrar hatırlatma (haftalık)
+    const weeklyOverdue = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const longOverdueInvoices = await db.select().from(invoices).where(
+      and(
+        eq(invoices.status, 'pending'),
+        lt(invoices.dueDate, now),
+        lt(invoices.overdueReminderSentAt, weeklyOverdue)
+      )
+    );
+
+    for (const invoice of longOverdueInvoices) {
+      if (!invoice.recipientEmail) continue;
+      const daysOverdue = Math.ceil((now.getTime() - new Date(invoice.dueDate).getTime()) / (1000 * 60 * 60 * 24));
+      
+      const { subject, html } = overdueTemplate({
+        recipientName: invoice.recipientName || 'Dear Sir/Madam',
+        invoiceTitle: invoice.title,
+        amount: Number(invoice.amount),
+        currency: invoice.currency || 'USD',
+        dueDate: new Date(invoice.dueDate).toLocaleDateString('en-GB'),
+        daysOverdue,
+        invoiceUrl: `https://vesselpda.com/invoices`,
+      });
+
+      try {
+        await sendEmail({ to: invoice.recipientEmail, subject, html });
+        await db.update(invoices).set({ overdueReminderSentAt: now }).where(eq(invoices.id, invoice.id));
+      } catch (e) {
+        console.error(`Failed to send weekly overdue reminder:`, e);
+      }
+    }
+
+    return {
+      upcomingReminders: upcomingInvoices.length,
+      overdueReminders: overdueInvoices.length,
+      weeklyReminders: longOverdueInvoices.length,
+    };
+  } catch (error) {
+    console.error('Payment reminder check failed:', error);
+    return { error: error.message };
+  }
+}
+
+// sendEmail helper — mevcut Resend altyapısını kullan
+async function sendEmail(params: { to: string; subject: string; html: string }) {
+  // server/email.ts'deki mevcut resend instance'ını kullan
+  const { Resend } = require('resend');
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  await resend.emails.send({
+    from: 'VesselPDA <noreply@vesselpda.com>',
+    to: params.to,
+    subject: params.subject,
+    html: params.html,
+  });
+}
+
+=== 3. CRON JOB / SCHEDULED CHECK ===
+
+server/index.ts'e ekle:
+
+import { checkAndSendReminders } from './payment-reminders';
+
+// Her gün sabah 09:00'da hatırlatma kontrolü
+// setInterval ile basit cron (production'da proper cron job kullanılabilir)
+function startReminderScheduler() {
+  // İlk çalıştırma: 1 dakika sonra
+  setTimeout(async () => {
+    console.log('Running initial payment reminder check...');
+    const result = await checkAndSendReminders();
+    console.log('Reminder check result:', result);
+  }, 60000);
+
+  // Sonra her 24 saatte bir
+  setInterval(async () => {
+    console.log('Running scheduled payment reminder check...');
+    const result = await checkAndSendReminders();
+    console.log('Reminder check result:', result);
+  }, 24 * 60 * 60 * 1000);
+}
+
+// Server başlatıldıktan sonra çağır:
+startReminderScheduler();
+
+=== 4. MANUAL TRIGGER (ADMIN) ===
+
+admin.routes.ts'e ekle:
+
+POST /api/admin/send-reminders
+- Admin only
+- checkAndSendReminders() çağır
+- Sonucu döndür
+
+Admin panelde "Send Payment Reminders" butonu ekle:
+- Tıklanınca POST /api/admin/send-reminders
+- Sonuç toast ile göster: "Sent X upcoming, Y overdue reminders"
+
+=== 5. INVOICE FORM GÜNCELLE ===
+
+Invoice oluşturma formuna ekle:
+- Due Date: date picker (zorunlu)
+- Recipient Email: email input (opsiyonel — hatırlatma göndermek için)
+- Recipient Name: text input
+
+Invoice listesinde:
+- Due Date sütunu ekle
+- Renk kodlama:
+  * Vadesi geçmiş: kırmızı badge "OVERDUE — X days"
+  * Vadesi 3 gün içinde: amber badge "Due in X days"
+  * Vadesi uzak: yeşil badge "Due {date}"
+  * Ödendi: yeşil "PAID" badge
+
+Invoice detayda:
+- Due date göster
+- Overdue ise kırmızı uyarı banner
+- "Send Reminder Now" butonu (manuel tek invoice için)
+
+=== 6. DASHBOARD WIDGET ===
+
+Finance veya genel dashboard'a "Payment Alerts" kartı ekle:
+
+<Card title="Payment Alerts" icon="⚠️">
+  {overdueInvoices.length > 0 && (
+    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-3">
+      <span className="text-red-400 font-bold">{overdueCount} Overdue</span>
+      <span className="text-red-400/70 text-sm ml-2">Total: ${overdueTotal}</span>
+    </div>
+  )}
+  {upcomingInvoices.length > 0 && (
+    <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+      <span className="text-amber-400 font-bold">{upcomingCount} Due Soon</span>
+      <span className="text-amber-400/70 text-sm ml-2">Within 7 days</span>
+    </div>
+  )}
+  <Link href="/invoices">View All Invoices →</Link>
+</Card>
+
+GET /api/invoices/alerts endpoint'i ekle:
+- Overdue count + total
+- Due within 7 days count + total
+
+=== 7. IMPORTANT ===
+
+- Email hatırlatma sadece recipientEmail dolu olan faturalara gönderilir
+- Aynı faturaya günde 1'den fazla hatırlatma gitmez
+- Overdue: haftalık tekrar (7 günde bir)
+- Ödenen faturalara (status: paid) hatırlatma gitmez
+- İptal edilen faturalara (status: cancelled) hatırlatma gitmez
+- setInterval basit çözüm — production'da node-cron veya external scheduler kullanılabilir
+- Email gönderme hatası ana servisi durdurmaz (try-catch)
+- Mevcut invoice endpoint'lerini bozma
+- reminderTemplate ve overdueTemplate'i email-templates.ts'deki baseTemplate ile oluştur
