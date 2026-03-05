@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Users, Ship, FileText, Building2, TrendingUp, Gavel, ArrowRight, Shield, MessageSquare, Activity, Navigation, CheckCircle2 } from "lucide-react";
+import { AiSmartDropMini } from "@/components/ai-smart-drop";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -170,6 +171,16 @@ export function AdminDashboard({ adminStats }: { adminStats: any }) {
                 </Button>
               </Link>
             </div>
+          </Card>
+
+          <Card className="p-4 space-y-3 mt-4" data-testid="card-ai-smart-drop-widget">
+            <div className="flex items-center justify-between">
+              <h2 className="font-serif font-semibold text-sm">AI Smart Drop</h2>
+              <Link href="/ai-smart-drop">
+                <span className="text-xs text-sky-500 hover:text-sky-400 cursor-pointer">View history →</span>
+              </Link>
+            </div>
+            <AiSmartDropMini />
           </Card>
         </div>
       </div>

@@ -28,6 +28,7 @@ import {
   BarChart3,
   Users,
   HardDrive,
+  Wand2,
   Settings,
   Crown,
   UserCheck,
@@ -146,6 +147,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     icon: Wrench,
     color: "sky",
     subPages: [
+      { label: "AI Smart Drop", url: "/ai-smart-drop", icon: Wand2 },
       { label: "Port Info", url: "/port-info", icon: Anchor },
       { label: "Sanctions Check", url: "/sanctions-check", icon: Shield },
       { label: "Company Profile", url: "/company-profile", icon: Building2 },
@@ -213,6 +215,7 @@ export const URL_TO_CATEGORY: Record<string, string> = {
   "/forum": "communication",
   "/notifications": "communication",
   "/voyage-invitations": "communication",
+  "/ai-smart-drop": "tools",
   "/port-info": "tools",
   "/sanctions-check": "tools",
   "/company-profile": "tools",

@@ -1815,3 +1815,18 @@ export const otherServices = pgTable("other_services", {
   notes: text("notes"),
   updatedAt: timestamp("updated_at"),
 });
+
+export const aiAnalysisHistory = pgTable("ai_analysis_history", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  fileName: varchar("file_name", { length: 300 }),
+  fileType: varchar("file_type", { length: 50 }),
+  detectedEvent: varchar("detected_event", { length: 50 }),
+  confidence: real("confidence"),
+  summary: text("summary"),
+  fullAnalysis: jsonb("full_analysis"),
+  actionTaken: varchar("action_taken", { length: 50 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type AiAnalysisEntry = typeof aiAnalysisHistory.$inferSelect;

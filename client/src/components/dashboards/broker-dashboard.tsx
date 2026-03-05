@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { Handshake, Gavel, Package, TrendingUp, ArrowRight, Plus, BarChart3, Ship, Clock, FileText } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { AiSmartDropMini } from "@/components/ai-smart-drop";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -247,6 +248,16 @@ export function BrokerDashboard({ user }: { user: any }) {
                 <Badge variant="outline" className="text-[10px]">View Live</Badge>
               </div>
             </Link>
+          </Card>
+
+          <Card className="p-4 space-y-3" data-testid="card-ai-smart-drop-widget">
+            <div className="flex items-center justify-between">
+              <h2 className="font-serif font-semibold text-sm">AI Smart Drop</h2>
+              <Link href="/ai-smart-drop">
+                <span className="text-xs text-sky-500 hover:text-sky-400 cursor-pointer">View history →</span>
+              </Link>
+            </div>
+            <AiSmartDropMini />
           </Card>
         </div>
       </div>

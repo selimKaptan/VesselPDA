@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Building2, ArrowRight, Star, Phone, Mail, Globe, MapPin, Activity, MessageSquare, Crown, ShieldCheck, AlertTriangle, Clock, XCircle, Wrench, FileText, Anchor } from "lucide-react";
+import { AiSmartDropMini } from "@/components/ai-smart-drop";
 import { StatusDistributionChart } from "./dashboard-charts";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -319,6 +320,16 @@ export function ProviderDashboard({ user, myProfile }: { user: any; myProfile?: 
                 </Link>
               ))}
             </div>
+          </Card>
+
+          <Card className="p-4 space-y-3" data-testid="card-ai-smart-drop-widget">
+            <div className="flex items-center justify-between">
+              <h2 className="font-serif font-semibold text-sm">AI Smart Drop</h2>
+              <Link href="/ai-smart-drop">
+                <span className="text-xs text-sky-500 hover:text-sky-400 cursor-pointer">View history →</span>
+              </Link>
+            </div>
+            <AiSmartDropMini />
           </Card>
         </div>
       </div>

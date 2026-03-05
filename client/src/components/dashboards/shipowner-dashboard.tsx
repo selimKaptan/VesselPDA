@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Vessel, Proforma } from "@shared/schema";
 import { ProformaTrendChart, TenderTrendChart, VoyageTrendChart, StatusDistributionChart } from "./dashboard-charts";
+import { AiSmartDropMini } from "@/components/ai-smart-drop";
 
 function formatCountdown(etaStr: string): { text: string; className: string } {
   const diff = new Date(etaStr).getTime() - Date.now();
@@ -377,6 +378,16 @@ export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, p
                 </Link>
               ))}
             </div>
+          </Card>
+
+          <Card className="p-4 space-y-3" data-testid="card-ai-smart-drop-widget">
+            <div className="flex items-center justify-between">
+              <h2 className="font-serif font-semibold text-sm">AI Smart Drop</h2>
+              <Link href="/ai-smart-drop">
+                <span className="text-xs text-sky-500 hover:text-sky-400 cursor-pointer">View history →</span>
+              </Link>
+            </div>
+            <AiSmartDropMini />
           </Card>
         </div>
       </div>

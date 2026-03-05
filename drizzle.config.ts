@@ -34,5 +34,6 @@ export default defineConfig({
     "custom_tariff_entries", "misc_expenses", "chamber_freight_share",
     "harbour_master_dues", "sanitary_dues", "vts_fees",
     "port_authority_fees", "other_services",
+    "ai_analysis_history",
   ],
 });
