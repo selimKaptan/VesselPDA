@@ -1,0 +1,116 @@
+INSTRUCTIONS.md'yi oku. Global Search şu an ekranın ortasında overlay modal olarak açılıyor. Bunu değiştir — üst bar'daki arama kutusunun hemen altında dropdown olarak açılsın.
+
+client/src/components/global-search.tsx ve client/src/components/layout/top-bar.tsx güncelle:
+
+ŞU ANKİ DAVRANIŞ (YANLIŞ):
+- Ctrl+K veya arama kutusuna tıklayınca full screen overlay + ortada dialog açılıyor
+
+İSTENEN DAVRANIŞ (DOĞRU):
+- Arama kutusuna tıklayınca veya yazmaya başlayınca, kutunun hemen altında dropdown açılsın
+- Dropdown, arama kutusunun genişliğinde (veya biraz daha geniş) olsun
+- Sayfa kararmASIN — sadece dropdown ve hafif shadow
+- Dropdown dışına tıklayınca kapansın
+- Ctrl+K ile arama kutusuna focus olsun, dropdown otomatik açılsın
+
+TASARIM:
+
+Üst bar'daki arama kutusu (mevcut):
+- Position: relative (parent container)
+
+Dropdown (yeni):
+- Position: absolute, top: 100% (kutunun hemen altı), left: 0
+- Width: arama kutusunun genişliği veya min-w-[500px]
+- Max height: max-h-[400px] overflow-y-auto
+- Background: bg-slate-900 border border-slate-700/50 rounded-xl
+- Shadow: shadow-2xl shadow-black/50
+- Z-index: z-50
+
+Dropdown içeriği:
+- Input zaten üst bar'da — dropdown sadece sonuçları gösterir
+- 2 karakterden az yazılmışsa: "Type at least 2 characters" (mevcut)
+- Sonuçlar gelince: kategorize liste
+  🚢 Vessels
+    MV AEGEAN STAR — Panama
+    MV BARBAROS — Turkey
+  ⚓ Ports  
+    Iskenderun — Turkey
+  📋 Proformas
+    PDA-2026-0001 — $25,640
+- Her item: hover:bg-slate-800/50, cursor-pointer
+- Keyboard: ↑↓ navigate, Enter select, Esc close
+- Alt kısım: "↑↓ navigate  ↵ open  ESC close  ⌘K to focus"
+
+KODLAMA:
+
+// top-bar.tsx içinde:
+const [searchOpen, setSearchOpen] = useState(false);
+const [searchQuery, setSearchQuery] = useState('');
+const searchRef = useRef<HTMLDivElement>(null);
+
+// Dışına tıklayınca kapat
+useEffect(() => {
+  function handleClickOutside(e: MouseEvent) {
+    if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+      setSearchOpen(false);
+    }
+  }
+  document.addEventListener('mousedown', handleClickOutside);
+  return () => document.removeEventListener('mousedown', handleClickOutside);
+}, []);
+
+// Ctrl+K
+useEffect(() => {
+  function handleKeyDown(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      inputRef.current?.focus();
+      setSearchOpen(true);
+    }
+    if (e.key === 'Escape') {
+      setSearchOpen(false);
+      inputRef.current?.blur();
+    }
+  }
+  window.addEventListener('keydown', handleKeyDown);
+  return () => window.removeEventListener('keydown', handleKeyDown);
+}, []);
+
+// JSX:
+<div ref={searchRef} className="relative">
+  {/* Arama kutusu */}
+  <div className="relative">
+    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+    <input
+      ref={inputRef}
+      type="text"
+      placeholder="Search vessels, ports, proformas..."
+      value={searchQuery}
+      onChange={(e) => { setSearchQuery(e.target.value); setSearchOpen(true); }}
+      onFocus={() => setSearchOpen(true)}
+      className="w-72 bg-slate-800/50 border border-slate-700/50 rounded-lg pl-9 pr-12 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50"
+    />
+    <kbd className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 bg-slate-700/50 px-1.5 py-0.5 rounded">⌘K</kbd>
+  </div>
+  
+  {/* Dropdown sonuçlar */}
+  {searchOpen && (
+    <div className="absolute top-full left-0 right-0 mt-2 min-w-[500px] max-h-[400px] overflow-y-auto bg-slate-900 border border-slate-700/50 rounded-xl shadow-2xl shadow-black/50 z-50">
+      <SearchResults query={searchQuery} onSelect={() => { setSearchOpen(false); setSearchQuery(''); }} />
+    </div>
+  )}
+</div>
+
+- Full screen overlay modal'ı tamamen kaldır
+- Mevcut SearchResults component'ini dropdown içine taşı
+- Sonuç tıklanınca: sayfaya git + dropdown kapat + query temizle
+- Boş query'de recent searches göster (varsa)
+- Loading state: küçük spinner
+- Mevcut keyboard navigation (↑↓ Enter Esc) koru
+
+IMPORTANT:
+- Overlay/modal KALDIR, sadece dropdown
+- Dropdown üst bar'ın altında, arama kutusuna bağlı
+- Sayfanın geri kalanı kararmayacak
+- z-50 ile diğer elementlerin üstünde
+- Mobile'da dropdown full width olsun
+- Mevcut arama API endpoint'ini değiştirme
