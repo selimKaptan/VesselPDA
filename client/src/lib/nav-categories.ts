@@ -114,6 +114,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     icon: Receipt,
     color: "sky",
     subPages: [
+      { label: "DA Comparison", url: "/da-comparison", icon: BarChart3 },
       { label: "Final Disbursement", url: "/fda", icon: Receipt, isNew: true },
       { label: "Invoices", url: "/invoices", icon: CreditCard },
       { label: "Pricing & Plans", url: "/pricing", icon: Gem },
@@ -195,6 +196,7 @@ export const URL_TO_CATEGORY: Record<string, string> = {
   "/vessels": "fleet",
   "/vessel-certificates": "fleet",
   "/vessel-track": "fleet",
+  "/da-comparison": "finance",
   "/fda": "finance",
   "/invoices": "finance",
   "/pricing": "finance",

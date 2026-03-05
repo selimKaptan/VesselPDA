@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Download, Printer, Ship, Globe, FileText, Calendar, Package, Loader2, Mail, Send, RefreshCw, CheckCircle2, XCircle, Clock, AlertTriangle, ChevronRight, ArrowRight, DollarSign, Receipt, ExternalLink } from "lucide-react";
+import { ArrowLeft, Download, Printer, Ship, Globe, FileText, Calendar, Package, Loader2, Mail, Send, RefreshCw, CheckCircle2, XCircle, Clock, AlertTriangle, ChevronRight, ArrowRight, DollarSign, Receipt, ExternalLink, BarChart3 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -316,11 +316,18 @@ export default function ProformaView() {
                 </Button>
               )}
               {linkedFda && (
-                <Link href={`/fda/${linkedFda.id}`}>
-                  <Button size="sm" variant="outline" className="gap-2 border-emerald-400 text-emerald-700 dark:text-emerald-400" data-testid="button-view-fda">
-                    <ExternalLink className="w-4 h-4" /> View FDA
-                  </Button>
-                </Link>
+                <>
+                  <Link href={`/fda/${linkedFda.id}`}>
+                    <Button size="sm" variant="outline" className="gap-2 border-emerald-400 text-emerald-700 dark:text-emerald-400" data-testid="button-view-fda">
+                      <ExternalLink className="w-4 h-4" /> View FDA
+                    </Button>
+                  </Link>
+                  <Link href={`/da-comparison/${params.id}`}>
+                    <Button size="sm" variant="outline" className="gap-2" data-testid="button-da-comparison">
+                      <BarChart3 className="w-4 h-4" /> DA Comparison
+                    </Button>
+                  </Link>
+                </>
               )}
               {!linkedInvoice && (
                 <Button

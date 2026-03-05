@@ -54,6 +54,7 @@ import Fda from "@/pages/fda";
 import FdaDetail from "@/pages/fda-detail";
 import Nor from "@/pages/nor";
 import NorDetail from "@/pages/nor-detail";
+import DaComparison from "@/pages/da-comparison";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -109,6 +110,8 @@ function AuthenticatedRouter() {
       <Route path="/sof/:id" component={SofDetail} />
       <Route path="/fda" component={Fda} />
       <Route path="/fda/:id" component={FdaDetail} />
+      <Route path="/da-comparison" component={DaComparison} />
+      <Route path="/da-comparison/:proformaId" component={DaComparison} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -20,6 +20,7 @@ import nominationRoutes from "./routes/nomination.routes";
 import marketRoutes from "./routes/market.routes";
 import sofRoutes from "./routes/sof.routes";
 import fdaRoutes from "./routes/fda.routes";
+import daComparisonRoutes from "./routes/da-comparison.routes";
 import aiRoutes from "./routes/ai.routes";
 import norRoutes from "./routes/nor.routes";
 
@@ -83,6 +84,7 @@ export async function registerRoutes(
   app.use("/api/market", marketRoutes);
   app.use("/api/sof", sofRoutes);
   app.use("/api/fda", fdaRoutes);
+  app.use("/api/da-comparison", daComparisonRoutes);
   app.use("/api/nor", norRoutes);
   app.use("/api/ai", aiRoutes);
 

@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import {
   ArrowLeft, Download, CheckCircle2, Loader2, Calculator,
-  TrendingUp, TrendingDown, Minus, Plus, Trash2, Save, ArrowUpDown
+  TrendingUp, TrendingDown, Minus, Plus, Trash2, Save, ArrowUpDown, BarChart3
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -201,6 +201,13 @@ export default function FdaDetail() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {fda.proformaId && (
+              <Link href={`/da-comparison/${fda.proformaId}`}>
+                <Button variant="outline" className="gap-2" size="sm" data-testid="button-compare-pda">
+                  <BarChart3 className="h-4 w-4" /> Compare with PDA
+                </Button>
+              </Link>
+            )}
             {!isApproved && (
               <Button
                 variant="outline"

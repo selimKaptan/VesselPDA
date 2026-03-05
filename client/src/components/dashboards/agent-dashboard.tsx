@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Anchor, Gavel, Star, TrendingUp, ArrowRight, Building2, Navigation, MapPin, FileText, MessageSquare, ShieldCheck, AlertTriangle, Clock, XCircle, Ship, Plus, Zap } from "lucide-react";
+import { Anchor, Gavel, Star, TrendingUp, ArrowRight, Building2, Navigation, MapPin, FileText, MessageSquare, ShieldCheck, AlertTriangle, Clock, XCircle, Ship, Plus, Zap, BarChart3 } from "lucide-react";
 import { BidWinRateChart, ProformaTrendChart, VoyageTrendChart } from "./dashboard-charts";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -96,6 +96,41 @@ function StatCard({ label, value, loading, icon: Icon, color, href, testId }: {
   );
 }
 
+function AccuracyWidget() {
+  const { data } = useQuery<{ averageAccuracy: number | null; totalComparisons: number }>({
+    queryKey: ["/api/da-comparison/history"],
+    select: (d: any) => ({ averageAccuracy: d.averageAccuracy, totalComparisons: d.totalComparisons }),
+  });
+
+  if (!data || !data.totalComparisons) return null;
+
+  const score = data.averageAccuracy ?? 0;
+  const color = score >= 95 ? "text-emerald-600 dark:text-emerald-400"
+    : score >= 90 ? "text-amber-600 dark:text-amber-400"
+    : "text-red-600 dark:text-red-400";
+  const bg = score >= 95 ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800"
+    : score >= 90 ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800"
+    : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800";
+
+  return (
+    <Link href="/da-comparison">
+      <Card className={`p-4 cursor-pointer hover:shadow-md transition-shadow ${bg}`} data-testid="card-accuracy-score">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-white/60 dark:bg-black/20">
+            <BarChart3 className={`w-5 h-5 ${color}`} />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Estimation Accuracy</p>
+            <p className={`text-2xl font-bold ${color}`}>{score.toFixed(1)}%</p>
+            <p className="text-xs text-muted-foreground">Based on {data.totalComparisons} disbursement{data.totalComparisons !== 1 ? "s" : ""}</p>
+          </div>
+          <ArrowRight className="w-4 h-4 text-muted-foreground ml-auto" />
+        </div>
+      </Card>
+    </Link>
+  );
+}
+
 export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificationsData }: {
   user: any; tenders: any[]; myBidsData: any; myProfile?: CompanyProfile | null; notificationsData: any;
 }) {
@@ -181,6 +216,7 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
         <StatCard label="Approved Proformas" value={proformasLoading ? "…" : approvedProformas} loading={proformasLoading} icon={Anchor} color="142 71% 35%" href="/proformas" testId="stat-approved-proformas" />
         <StatCard label="Messages" value={unreadMessages > 0 ? unreadMessages : "0"} icon={MessageSquare} color="38 92% 40%" href="/messages" testId="stat-messages" />
       </div>
+      <AccuracyWidget />
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
