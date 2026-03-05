@@ -21,6 +21,7 @@ import marketRoutes from "./routes/market.routes";
 import sofRoutes from "./routes/sof.routes";
 import fdaRoutes from "./routes/fda.routes";
 import aiRoutes from "./routes/ai.routes";
+import norRoutes from "./routes/nor.routes";
 
 // Root-mounted modules (full /api/... paths preserved inside router)
 import authRoutes from "./routes/auth.routes";
@@ -82,6 +83,7 @@ export async function registerRoutes(
   app.use("/api/market", marketRoutes);
   app.use("/api/sof", sofRoutes);
   app.use("/api/fda", fdaRoutes);
+  app.use("/api/nor", norRoutes);
   app.use("/api/ai", aiRoutes);
 
   return httpServer;

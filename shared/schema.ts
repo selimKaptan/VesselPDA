@@ -1182,3 +1182,72 @@ export const fdaRelations = relations(fdaAccounts, ({ one }) => ({
 export const insertFdaSchema = createInsertSchema(fdaAccounts).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertFda = z.infer<typeof insertFdaSchema>;
 export type Fda = typeof fdaAccounts.$inferSelect;
+
+// ─── NOTICE OF READINESS ──────────────────────────────────────────────────────
+
+export const noticeOfReadiness = pgTable("notice_of_readiness", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "cascade" }),
+  vesselId: integer("vessel_id").references(() => vessels.id),
+  portId: integer("port_id").references(() => ports.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  vesselName: varchar("vessel_name", { length: 200 }),
+  portName: varchar("port_name", { length: 200 }),
+  masterName: varchar("master_name", { length: 200 }),
+  agentName: varchar("agent_name", { length: 200 }),
+  chartererName: varchar("charterer_name", { length: 200 }),
+  cargoType: varchar("cargo_type", { length: 200 }),
+  cargoQuantity: varchar("cargo_quantity", { length: 100 }),
+  operation: varchar("operation", { length: 50 }),
+  anchorageArrival: timestamp("anchorage_arrival"),
+  berthArrival: timestamp("berth_arrival"),
+  norTenderedAt: timestamp("nor_tendered_at"),
+  norTenderedTo: varchar("nor_tendered_to", { length: 300 }),
+  norAcceptedAt: timestamp("nor_accepted_at"),
+  norAcceptedBy: varchar("nor_accepted_by", { length: 200 }),
+  laytimeStartsAt: timestamp("laytime_starts_at"),
+  readyTo: jsonb("ready_to").$type<string[]>(),
+  conditions: jsonb("conditions").$type<string[]>(),
+  berthName: varchar("berth_name", { length: 200 }),
+  remarks: text("remarks"),
+  status: varchar("status", { length: 20 }).default("draft"),
+  rejectionReason: text("rejection_reason"),
+  signatureMaster: text("signature_master"),
+  signatureAgent: text("signature_agent"),
+  signatureCharterer: text("signature_charterer"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertNorSchema = z.object({
+  voyageId: z.number().int().optional().nullable(),
+  vesselId: z.number().int().optional().nullable(),
+  portId: z.number().int().optional().nullable(),
+  userId: z.string(),
+  vesselName: z.string().max(200).optional().nullable(),
+  portName: z.string().max(200).optional().nullable(),
+  masterName: z.string().max(200).optional().nullable(),
+  agentName: z.string().max(200).optional().nullable(),
+  chartererName: z.string().max(200).optional().nullable(),
+  cargoType: z.string().max(200).optional().nullable(),
+  cargoQuantity: z.string().max(100).optional().nullable(),
+  operation: z.string().max(50).optional().nullable(),
+  anchorageArrival: z.coerce.date().optional().nullable(),
+  berthArrival: z.coerce.date().optional().nullable(),
+  norTenderedAt: z.coerce.date().optional().nullable(),
+  norTenderedTo: z.string().max(300).optional().nullable(),
+  norAcceptedAt: z.coerce.date().optional().nullable(),
+  norAcceptedBy: z.string().max(200).optional().nullable(),
+  laytimeStartsAt: z.coerce.date().optional().nullable(),
+  readyTo: z.array(z.string()).optional().nullable(),
+  conditions: z.array(z.string()).optional().nullable(),
+  berthName: z.string().max(200).optional().nullable(),
+  remarks: z.string().optional().nullable(),
+  status: z.string().max(20).optional().nullable(),
+  rejectionReason: z.string().optional().nullable(),
+  signatureMaster: z.string().optional().nullable(),
+  signatureAgent: z.string().optional().nullable(),
+  signatureCharterer: z.string().optional().nullable(),
+});
+export type InsertNor = z.infer<typeof insertNorSchema>;
+export type Nor = typeof noticeOfReadiness.$inferSelect;

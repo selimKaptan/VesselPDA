@@ -20,6 +20,7 @@ function RecentActivityCard() {
       pda_created: "📋", pda_approved: "📋", fda_created: "🧾", fda_approved: "🧾",
       invoice_created: "💳", invoice_paid: "💰", nomination_sent: "🤝",
       review_submitted: "⭐", custom_note: "📌",
+      nor_tendered: "📋", nor_accepted: "✅",
     };
     return map[type] || "📌";
   }

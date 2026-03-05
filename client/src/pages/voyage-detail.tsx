@@ -6,7 +6,8 @@ import {
   Plus, Loader2, ChevronDown, Wrench, Fuel, ShoppingCart, Users as UsersIcon,
   Sparkles, HelpCircle, Clock, PlayCircle, XCircle, ClipboardList,
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
-  CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink
+  CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
+  FileCheck,
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
@@ -206,6 +207,16 @@ export default function VoyageDetail() {
     },
     enabled: !!voyageId,
   });
+
+  const { data: voyageNors = [] } = useQuery<any[]>({
+    queryKey: ["/api/nor", "voyage", voyageId],
+    queryFn: async () => {
+      const res = await fetch(`/api/nor?voyageId=${voyageId}`);
+      return res.ok ? res.json() : [];
+    },
+    enabled: !!voyageId,
+  });
+  const activeNor = (voyageNors as any[])[0];
 
   const { data: docTemplates = [] } = useQuery<any[]>({
     queryKey: ["/api/document-templates"],
@@ -534,6 +545,8 @@ export default function VoyageDetail() {
       nomination_sent:        { bg: "bg-sky-500/20",     text: "text-sky-400",     emoji: "🤝" },
       review_submitted:       { bg: "bg-yellow-500/20",  text: "text-yellow-400",  emoji: "⭐" },
       custom_note:            { bg: "bg-violet-500/20",  text: "text-violet-400",  emoji: "📌" },
+      nor_tendered:           { bg: "bg-amber-500/20",   text: "text-amber-400",   emoji: "📋" },
+      nor_accepted:           { bg: "bg-green-500/20",   text: "text-green-400",   emoji: "✅" },
     };
     return map[type] || { bg: "bg-slate-500/20", text: "text-slate-400", emoji: "📌" };
   }
@@ -770,6 +783,58 @@ export default function VoyageDetail() {
               </div>
             </Card>
           </div>
+
+          {/* NOR Card */}
+          <Card className="p-5 space-y-3" data-testid="card-nor-status">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileCheck className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                <h2 className="font-semibold text-sm">Notice of Readiness</h2>
+              </div>
+              {!activeNor ? (
+                <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" asChild>
+                  <Link href={`/nor?voyageId=${voyageId}`}>
+                    <Plus className="w-3 h-3" /> Create NOR
+                  </Link>
+                </Button>
+              ) : (
+                <Link href={`/nor/${activeNor.id}`}>
+                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs">View NOR →</Button>
+                </Link>
+              )}
+            </div>
+            {!activeNor ? (
+              <p className="text-xs text-muted-foreground text-center py-2">
+                No Notice of Readiness created for this voyage yet.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Status</span>
+                  <Badge className={
+                    activeNor.status === "accepted" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                    activeNor.status === "tendered" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                    activeNor.status === "rejected" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                    "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                  }>{activeNor.status}</Badge>
+                </div>
+                {activeNor.norTenderedAt && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Tendered</span>
+                    <span>{new Date(activeNor.norTenderedAt).toLocaleString("en-GB")}</span>
+                  </div>
+                )}
+                {activeNor.laytimeStartsAt && (
+                  <div className="flex justify-between text-xs font-medium">
+                    <span className="text-muted-foreground">Laytime Starts</span>
+                    <span className="text-emerald-600 dark:text-emerald-400">
+                      {new Date(activeNor.laytimeStartsAt).toLocaleString("en-GB")}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
 
           {/* Liman Koşulları */}
           <div className="space-y-2">

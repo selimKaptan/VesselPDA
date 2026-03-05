@@ -52,6 +52,8 @@ import Sof from "@/pages/sof";
 import SofDetail from "@/pages/sof-detail";
 import Fda from "@/pages/fda";
 import FdaDetail from "@/pages/fda-detail";
+import Nor from "@/pages/nor";
+import NorDetail from "@/pages/nor-detail";
 import { LanguageProvider } from "@/lib/i18n";
 import LoginPage from "@/pages/login";
 import RegisterPage from "@/pages/register";
@@ -101,6 +103,8 @@ function AuthenticatedRouter() {
       <Route path="/market-data" component={MarketData} />
       <Route path="/invoices" component={Invoices} />
       <Route path="/pda-review" component={PdaReview} />
+      <Route path="/nor" component={Nor} />
+      <Route path="/nor/:id" component={NorDetail} />
       <Route path="/sof" component={Sof} />
       <Route path="/sof/:id" component={SofDetail} />
       <Route path="/fda" component={Fda} />
