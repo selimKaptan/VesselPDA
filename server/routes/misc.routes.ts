@@ -3,11 +3,12 @@ import { storage } from "../storage";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { isAdmin } from "./shared";
 import { cached, invalidateCache } from "../cache";
-import { insertInvoiceSchema } from "@shared/schema";
+import { insertInvoiceSchema, voyageActivities, invoices } from "@shared/schema";
 import { db } from "../db";
 import { sql as drizzleSql, eq, desc } from "drizzle-orm";
 import { emitToUser } from "../socket";
 import { logAction, getClientIp } from "../audit";
+import { logVoyageActivity } from "../voyage-activity";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -73,6 +74,16 @@ router.post("/api/invoices", isAuthenticated, async (req: any, res) => {
       linkedProformaId: linkedProformaId ? parseInt(linkedProformaId) : null,
     });
     logAction(userId, "create", "invoice", invoice.id, { title, amount: parseFloat(amount), currency: currency || "USD", invoiceType: invoiceType || "invoice" }, getClientIp(req));
+    
+    if (voyageId) {
+      logVoyageActivity({ 
+        voyageId: parseInt(voyageId), 
+        userId, 
+        activityType: 'invoice_created', 
+        title: `Invoice created: ${amount} ${currency || 'USD'}` 
+      });
+    }
+
     res.status(201).json(invoice);
   } catch {
     res.status(500).json({ message: "Failed to create invoice" });
@@ -84,8 +95,20 @@ router.patch("/api/invoices/:id/pay", isAuthenticated, async (req: any, res) => 
   try {
     const id = parseInt(req.params.id);
     const { paidAt } = req.body;
+    const userId = req.user?.claims?.sub || req.user?.id;
     await storage.updateInvoiceStatus(id, "paid", paidAt ? new Date(paidAt) : new Date());
-    logAction(req.user?.claims?.sub || req.user?.id, "pay", "invoice", id, { status: "paid" }, getClientIp(req));
+    logAction(userId, "pay", "invoice", id, { status: "paid" }, getClientIp(req));
+    
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id)).limit(1);
+    if (invoice && invoice.voyageId) {
+      logVoyageActivity({ 
+        voyageId: invoice.voyageId, 
+        userId, 
+        activityType: 'invoice_paid', 
+        title: 'Invoice paid' 
+      });
+    }
+
     res.json({ success: true });
   } catch {
     res.status(500).json({ message: "Failed to mark invoice paid" });
@@ -104,6 +127,29 @@ router.patch("/api/invoices/:id/cancel", isAuthenticated, async (req: any, res) 
   }
 });
 
+
+router.get("/api/user/recent-activity", isAuthenticated, async (req: any, res: any) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
+    const activities = await db
+      .select({
+        id: voyageActivities.id,
+        voyageId: voyageActivities.voyageId,
+        activityType: voyageActivities.activityType,
+        title: voyageActivities.title,
+        createdAt: voyageActivities.createdAt,
+      })
+      .from(voyageActivities)
+      .where(eq(voyageActivities.userId, userId))
+      .orderBy(desc(voyageActivities.createdAt))
+      .limit(limit);
+    res.json({ activities });
+  } catch (error) {
+    console.error("recent-activity error:", error);
+    res.status(500).json({ message: "Failed to fetch recent activity" });
+  }
+});
 
 router.get("/api/port-alerts", async (req, res) => {
   try {

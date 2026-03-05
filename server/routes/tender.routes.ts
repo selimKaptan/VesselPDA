@@ -7,6 +7,7 @@ import { insertPortTenderSchema, insertTenderBidSchema } from "@shared/schema";
 import { sendBidReceivedEmail, sendBidSelectedEmail, sendNewTenderEmail, sendNominationEmail } from "../email";
 import { emitToUser, emitToConversation, emitToVoyage } from "../socket";
 import { logAction, getClientIp } from "../audit";
+import { logVoyageActivity } from "../voyage-activity";
 import { db, pool } from "../db";
 import { sql as drizzleSql, eq, desc } from "drizzle-orm";
 import multer from "multer";
@@ -427,6 +428,15 @@ router.post("/:id/nominate", isAuthenticated, async (req: any, res) => {
         voyage.id
       );
       autoConversationId = conversation.id;
+
+      if (autoVoyageId) {
+        logVoyageActivity({ 
+          voyageId: autoVoyageId, 
+          userId, 
+          activityType: 'nomination_sent', 
+          title: 'Agent nominated for port call' 
+        });
+      }
 
       // Notify agent about the new conversation
       await storage.createNotification({

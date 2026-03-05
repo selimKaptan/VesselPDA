@@ -405,6 +405,7 @@ export const voyageRelations = relations(voyages, ({ one, many }) => ({
   tender: one(portTenders, { fields: [voyages.tenderId], references: [portTenders.id] }),
   checklists: many(voyageChecklists),
   serviceRequests: many(serviceRequests),
+  activities: many(voyageActivities),
 }));
 
 export const voyageChecklists = pgTable("voyage_checklists", {
@@ -420,6 +421,30 @@ export const voyageChecklists = pgTable("voyage_checklists", {
 export const voyageChecklistRelations = relations(voyageChecklists, ({ one }) => ({
   voyage: one(voyages, { fields: [voyageChecklists.voyageId], references: [voyages.id] }),
 }));
+
+// ─── VOYAGE ACTIVITIES (ACTIVITY TIMELINE) ───────────────────────────────────
+
+export const voyageActivities = pgTable("voyage_activities", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id),
+  activityType: varchar("activity_type", { length: 50 }).notNull(),
+  title: varchar("title", { length: 300 }).notNull(),
+  description: text("description"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertVoyageActivitySchema = z.object({
+  voyageId: z.number().int(),
+  userId: z.string().optional().nullable(),
+  activityType: z.string().max(50),
+  title: z.string().max(300),
+  description: z.string().optional().nullable(),
+  metadata: z.record(z.any()).optional().nullable(),
+});
+export type InsertVoyageActivity = z.infer<typeof insertVoyageActivitySchema>;
+export type VoyageActivity = typeof voyageActivities.$inferSelect;
 
 // ─── SERVICE REQUESTS (HİZMET TALEPLERİ) ─────────────────────────────────────
 

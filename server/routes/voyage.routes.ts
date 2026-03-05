@@ -7,8 +7,11 @@ import { insertVoyageSchema } from "@shared/schema";
 import { emitToUser, emitToVoyage } from "../socket";
 import { logAction, getClientIp } from "../audit";
 import { db } from "../db";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import multer from "multer";
+import { logVoyageActivity } from "../voyage-activity";
+import { voyageActivities } from "@shared/schema";
+import { users } from "@shared/models/auth";
 import path from "path";
 import fs from "fs";
 
@@ -37,6 +40,7 @@ router.post("/", isAuthenticated, async (req: any, res: any, next: any) => {
     if (data.etd) data.etd = new Date(data.etd);
     const voyage = await storage.createVoyage(data);
     logAction(userId, "create", "voyage", voyage.id, { portId: voyage.portId, vesselName: voyage.vesselName, status: voyage.status }, getClientIp(req));
+    logVoyageActivity({ voyageId: voyage.id, userId, activityType: 'voyage_created', title: 'Voyage created', description: voyage.purposeOfCall ? `Purpose: ${voyage.purposeOfCall}` : undefined });
     res.json(voyage);
   } catch (error) {
     console.error("[voyages:POST] create failed:", error);
@@ -44,6 +48,52 @@ router.post("/", isAuthenticated, async (req: any, res: any, next: any) => {
   }
 });
 
+
+router.get("/:id/activities", isAuthenticated, async (req: any, res: any, next: any) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+    const offset = parseInt(req.query.offset as string) || 0;
+    const activities = await db
+      .select({
+        id: voyageActivities.id,
+        voyageId: voyageActivities.voyageId,
+        activityType: voyageActivities.activityType,
+        title: voyageActivities.title,
+        description: voyageActivities.description,
+        metadata: voyageActivities.metadata,
+        createdAt: voyageActivities.createdAt,
+        user: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+        }
+      })
+      .from(voyageActivities)
+      .leftJoin(users, eq(users.id, voyageActivities.userId))
+      .where(eq(voyageActivities.voyageId, voyageId))
+      .orderBy(desc(voyageActivities.createdAt))
+      .limit(limit)
+      .offset(offset);
+    res.json({ activities, total: activities.length });
+  } catch (error) { next(error); }
+});
+
+router.post("/:id/activities", isAuthenticated, async (req: any, res: any, next: any) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const { title, description } = req.body;
+    if (!title?.trim()) return res.status(400).json({ message: "title required" });
+    const [activity] = await db.insert(voyageActivities).values({
+      voyageId, userId,
+      activityType: 'custom_note',
+      title: title.trim(),
+      description: description?.trim() || null,
+    }).returning();
+    res.status(201).json(activity);
+  } catch (error) { next(error); }
+});
 
 router.get("/:id", isAuthenticated, async (req: any, res) => {
   try {
@@ -86,6 +136,13 @@ router.patch("/:id", isAuthenticated, async (req: any, res) => {
 
     const updated = await storage.updateVoyage(id, updateData);
 
+    if (updateData.status && updateData.status !== existing.status) {
+      logVoyageActivity({ voyageId: id, userId, activityType: 'status_changed', title: `Status changed to ${updateData.status}` });
+    }
+    if (etaChanged) {
+      logVoyageActivity({ voyageId: id, userId, activityType: 'eta_updated', title: `ETA updated to ${updateData.eta ? new Date(updateData.eta).toLocaleDateString('en-GB') : 'cancelled'}` });
+    }
+
     if (etaChanged && existing.agentUserId && existing.agentUserId !== userId) {
       const oldEtaFmt = existing.eta ? new Date(existing.eta).toLocaleDateString("en-GB") : "not set";
       const newEtaFmt = updateData.eta ? new Date(updateData.eta).toLocaleDateString("en-GB") : "cancelled";
@@ -125,6 +182,7 @@ router.patch("/:id/status", isAuthenticated, async (req: any, res) => {
     if (!voyage) return res.status(404).json({ message: "Voyage not found" });
     const uid = req.user?.claims?.sub || req.user?.id;
     logAction(uid, "update", "voyage", id, { newStatus: status }, getClientIp(req));
+    logVoyageActivity({ voyageId: id, userId: uid, activityType: 'status_changed', title: `Status changed to ${status}` });
     res.json(voyage);
   } catch (error) {
     res.status(500).json({ message: "Failed to update voyage status" });
@@ -136,6 +194,8 @@ router.post("/:id/checklist", isAuthenticated, async (req: any, res) => {
   try {
     const voyageId = parseInt(req.params.id);
     const item = await storage.createChecklistItem({ ...req.body, voyageId });
+    const userId = req.user?.claims?.sub || req.user?.id;
+    logVoyageActivity({ voyageId, userId, activityType: 'checklist_added', title: `Checklist item added: ${req.body.title}` });
     res.json(item);
   } catch (error) {
     res.status(500).json({ message: "Failed to add checklist item" });
@@ -149,6 +209,10 @@ router.patch("/:id/checklist/:itemId", isAuthenticated, async (req: any, res) =>
     const itemId = parseInt(req.params.itemId);
     const item = await storage.toggleChecklistItem(itemId, voyageId);
     if (!item) return res.status(404).json({ message: "Item not found" });
+    if (item.isCompleted) {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      logVoyageActivity({ voyageId, userId, activityType: 'checklist_completed', title: `Completed: ${item.title}` });
+    }
     res.json(item);
   } catch (error) {
     res.status(500).json({ message: "Failed to toggle checklist item" });
@@ -207,6 +271,8 @@ router.post("/:id/documents", isAuthenticated, async (req: any, res) => {
       notes: notes || null,
       uploadedByUserId: req.user.claims.sub,
     });
+    const userId = req.user?.claims?.sub || req.user?.id;
+    logVoyageActivity({ voyageId, userId, activityType: 'document_uploaded', title: `Document uploaded: ${req.body.name || 'file'}` });
     res.status(201).json(doc);
   } catch (error) {
     res.status(500).json({ message: "Failed to upload document" });
@@ -262,6 +328,7 @@ router.post("/:id/chat", isAuthenticated, async (req: any, res) => {
       senderId: userId,
       content: content.trim(),
     });
+    logVoyageActivity({ voyageId, userId, activityType: 'chat_message', title: `Message from ${req.user?.firstName || 'User'}`, description: typeof content === 'string' ? content.substring(0, 100) : undefined });
     emitToVoyage(voyageId, "voyage:chat:new", {
       id: msg.id,
       voyageId,
@@ -304,6 +371,7 @@ router.post("/:id/reviews", isAuthenticated, async (req: any, res) => {
       rating: parseInt(rating),
       comment: comment || null,
     });
+    logVoyageActivity({ voyageId, userId: reviewerUserId, activityType: 'review_submitted', title: `Review submitted: ${rating}/5` });
     res.status(201).json(review);
   } catch (error) {
     res.status(500).json({ message: "Failed to create review" });
@@ -417,7 +485,10 @@ router.post("/:id/documents/:docId/sign", isAuthenticated, async (req: any, res)
     if (voyage.userId !== userId && voyage.agentUserId !== userId) {
       return res.status(403).json({ message: "Unauthorized" });
     }
+    const docs = await storage.getVoyageDocuments(voyageId);
+    const doc = docs.find((d: any) => d.id === docId);
     await storage.signVoyageDocument(docId, signatureText, new Date());
+    logVoyageActivity({ voyageId, userId, activityType: 'document_signed', title: `Document signed: ${doc?.name || 'document'}` });
     res.json({ success: true });
   } catch {
     res.status(500).json({ message: "Failed to sign document" });
@@ -438,6 +509,7 @@ router.post("/:id/documents/:docId/new-version", isAuthenticated, async (req: an
     if (!parentDoc) return res.status(404).json({ message: "Document not found" });
 
     const newDoc = await storage.createNewDocumentVersion(parentDoc, { name: name || parentDoc.name, fileBase64, notes, uploadedByUserId: userId });
+    logVoyageActivity({ voyageId, userId, activityType: 'document_uploaded', title: `New version uploaded: ${newDoc.name}` });
     res.status(201).json(newDoc);
   } catch {
     res.status(500).json({ message: "Failed to create new version" });

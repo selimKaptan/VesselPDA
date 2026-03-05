@@ -6,6 +6,7 @@ import { db } from "../db";
 import { sql as drizzleSql, eq, desc } from "drizzle-orm";
 import { fdaAccounts, type FdaLineItem } from "@shared/schema";
 import { logAction } from "../audit";
+import { logVoyageActivity } from "../voyage-activity";
 
 const router = Router();
 
@@ -93,6 +94,16 @@ router.post("/", isAuthenticated, async (req: any, res: any, next: any) => {
       bankDetails,
       status: "draft",
     }).returning();
+
+    if (voyageId) {
+      logVoyageActivity({ 
+        voyageId, 
+        userId, 
+        activityType: 'fda_created', 
+        title: `FDA created: ${fda.referenceNumber || 'FDA-' + fda.id}` 
+      });
+    }
+
     res.json(fda);
   } catch (error) { next(error); }
 });
@@ -158,6 +169,16 @@ router.post("/:id/approve", isAuthenticated, async (req: any, res: any, next: an
       approvedAt: new Date(),
       updatedAt: new Date(),
     }).where(eq(fdaAccounts.id, fdaId)).returning();
+
+    if (updated.voyageId) {
+      logVoyageActivity({ 
+        voyageId: updated.voyageId, 
+        userId, 
+        activityType: 'fda_approved', 
+        title: 'FDA approved' 
+      });
+    }
+
     res.json(updated);
   } catch (error) { next(error); }
 });

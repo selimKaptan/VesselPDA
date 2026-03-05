@@ -6,6 +6,62 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
+function RecentActivityCard() {
+  const { data } = useQuery<{ activities: any[] }>({
+    queryKey: ["/api/user/recent-activity"],
+  });
+  const activities = data?.activities || [];
+
+  function getActivityEmoji(type: string): string {
+    const map: Record<string, string> = {
+      voyage_created: "🗺️", status_changed: "🔄", eta_updated: "🕐",
+      document_uploaded: "📄", document_signed: "✍️", checklist_completed: "✅",
+      chat_message: "💬", sof_created: "📝", sof_finalized: "📝",
+      pda_created: "📋", pda_approved: "📋", fda_created: "🧾", fda_approved: "🧾",
+      invoice_created: "💳", invoice_paid: "💰", nomination_sent: "🤝",
+      review_submitted: "⭐", custom_note: "📌",
+    };
+    return map[type] || "📌";
+  }
+
+  function timeAgo(dt: string) {
+    const diff = Date.now() - new Date(dt).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return new Date(dt).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  }
+
+  return (
+    <Card className="p-5 space-y-3" data-testid="card-recent-activity-feed">
+      <div className="flex items-center gap-2">
+        <Clock className="w-4 h-4 text-muted-foreground/60" />
+        <h3 className="font-semibold text-sm">Recent Activity</h3>
+      </div>
+      {activities.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-4">No recent activity</p>
+      ) : (
+        <div className="space-y-1">
+          {activities.map((a: any) => (
+            <div key={a.id} className="flex items-center gap-3 py-2 border-b border-border/50 last:border-0" data-testid={`feed-item-${a.id}`}>
+              <span className="text-base flex-shrink-0">{getActivityEmoji(a.activityType)}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm truncate">{a.title}</p>
+                <p className="text-xs text-muted-foreground">{timeAgo(a.createdAt)}</p>
+              </div>
+              <Link href={`/voyages/${a.voyageId}`}>
+                <span className="text-xs text-sky-400 hover:underline flex-shrink-0 cursor-pointer">View →</span>
+              </Link>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function StatCard({ label, value, loading, icon: Icon, color, href, testId }: {
   label: string; value: React.ReactNode; loading?: boolean;
   icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
@@ -147,7 +203,8 @@ export function BrokerDashboard({ user }: { user: any }) {
         </div>
 
         {/* Right: Quick Access */}
-        <div>
+        <div className="space-y-6">
+          <RecentActivityCard />
           <Card className="p-5 space-y-3">
             <h2 className="font-serif font-semibold text-base">Quick Access</h2>
             <div className="space-y-1.5">

@@ -6,6 +6,7 @@ import { db } from "../db";
 import { sql as drizzleSql, eq, desc } from "drizzle-orm";
 import { statementOfFacts, sofLineItems, insertSofSchema } from "@shared/schema";
 import { logAction } from "../audit";
+import { logVoyageActivity } from "../voyage-activity";
 
 const router = Router();
 
@@ -30,6 +31,16 @@ router.post("/", isAuthenticated, async (req: any, res: any, next: any) => {
     const parsed = insertSofSchema.safeParse({ ...req.body, userId });
     if (!parsed.success) return res.status(400).json({ error: "Invalid input", details: parsed.error.errors });
     const [sof] = await db.insert(statementOfFacts).values(parsed.data).returning();
+    
+    if (req.body.voyageId) {
+      logVoyageActivity({ 
+        voyageId: parseInt(req.body.voyageId), 
+        userId, 
+        activityType: 'sof_created', 
+        title: 'Statement of Facts created' 
+      });
+    }
+
     const defaultEvents = [
       { eventType: "vessel_arrived",     eventName: "Vessel Arrived at Port",            sortOrder: 1 },
       { eventType: "nor_tendered",        eventName: "NOR Tendered",                      sortOrder: 2 },
@@ -93,7 +104,18 @@ router.delete("/:id", isAuthenticated, async (req: any, res: any, next: any) => 
 router.post("/:id/finalize", isAuthenticated, async (req: any, res: any, next: any) => {
   try {
     const sofId = parseInt(req.params.id);
+    const userId = req.user.claims.sub;
     const [updated] = await db.update(statementOfFacts).set({ status: "finalized", finalizedAt: new Date(), updatedAt: new Date() }).where(eq(statementOfFacts.id, sofId)).returning();
+    
+    if (updated.voyageId) {
+      logVoyageActivity({ 
+        voyageId: updated.voyageId, 
+        userId, 
+        activityType: 'sof_finalized', 
+        title: 'Statement of Facts finalized' 
+      });
+    }
+    
     res.json(updated);
   } catch (error) { next(error); }
 });

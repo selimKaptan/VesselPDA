@@ -126,7 +126,10 @@ export default function VoyageDetail() {
   const [newTask, setNewTask] = useState("");
   const [chatMessage, setChatMessage] = useState("");
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "financial">("operation");
+  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "financial" | "activity">("operation");
+  const [showNoteDialog, setShowNoteDialog] = useState(false);
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteDesc, setNoteDesc] = useState("");
   const [docFilter, setDocFilter] = useState<string>("all");
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [showServiceDialog, setShowServiceDialog] = useState(false);
@@ -483,6 +486,58 @@ export default function VoyageDetail() {
     if (href) window.open(href, "_blank");
   }
 
+  const { data: activitiesData } = useQuery<{ activities: any[], total: number }>({
+    queryKey: ["/api/voyages", voyageId, "activities"],
+    enabled: activeTab === "activity",
+  });
+  const activities = activitiesData?.activities || [];
+
+  const addNoteMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/voyages/${voyageId}/activities`, { title: noteTitle, description: noteDesc }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "activities"] });
+      setShowNoteDialog(false);
+      setNoteTitle(""); setNoteDesc("");
+    }
+  });
+
+  function formatTimeAgo(dt: string | Date) {
+    const d = new Date(dt);
+    const diff = Date.now() - d.getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins} min ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} hour${hrs > 1 ? 's' : ''} ago`;
+    if (hrs < 48) return "Yesterday";
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  }
+
+  function getActivityStyle(type: string): { bg: string; text: string; emoji: string } {
+    const map: Record<string, { bg: string; text: string; emoji: string }> = {
+      voyage_created:         { bg: "bg-sky-500/20",     text: "text-sky-400",     emoji: "🗺️" },
+      status_changed:         { bg: "bg-amber-500/20",   text: "text-amber-400",   emoji: "🔄" },
+      eta_updated:            { bg: "bg-blue-500/20",    text: "text-blue-400",    emoji: "🕐" },
+      document_uploaded:      { bg: "bg-purple-500/20",  text: "text-purple-400",  emoji: "📄" },
+      document_signed:        { bg: "bg-green-500/20",   text: "text-green-400",   emoji: "✍️" },
+      checklist_added:        { bg: "bg-slate-500/20",   text: "text-slate-400",   emoji: "☐" },
+      checklist_completed:    { bg: "bg-green-500/20",   text: "text-green-400",   emoji: "✅" },
+      chat_message:           { bg: "bg-slate-500/20",   text: "text-slate-400",   emoji: "💬" },
+      sof_created:            { bg: "bg-cyan-500/20",    text: "text-cyan-400",    emoji: "📝" },
+      sof_finalized:          { bg: "bg-cyan-500/20",    text: "text-cyan-400",    emoji: "📝" },
+      pda_created:            { bg: "bg-sky-500/20",     text: "text-sky-400",     emoji: "📋" },
+      pda_approved:           { bg: "bg-green-500/20",   text: "text-green-400",   emoji: "📋" },
+      fda_created:            { bg: "bg-amber-500/20",   text: "text-amber-400",   emoji: "🧾" },
+      fda_approved:           { bg: "bg-green-500/20",   text: "text-green-400",   emoji: "🧾" },
+      invoice_created:        { bg: "bg-emerald-500/20", text: "text-emerald-400", emoji: "💳" },
+      invoice_paid:           { bg: "bg-green-500/20",   text: "text-green-400",   emoji: "💰" },
+      nomination_sent:        { bg: "bg-sky-500/20",     text: "text-sky-400",     emoji: "🤝" },
+      review_submitted:       { bg: "bg-yellow-500/20",  text: "text-yellow-400",  emoji: "⭐" },
+      custom_note:            { bg: "bg-violet-500/20",  text: "text-violet-400",  emoji: "📌" },
+    };
+    return map[type] || { bg: "bg-slate-500/20", text: "text-slate-400", emoji: "📌" };
+  }
+
   if (isLoading) {
     return (
       <div className="px-3 py-5 space-y-4 max-w-6xl mx-auto">
@@ -603,10 +658,11 @@ export default function VoyageDetail() {
       {/* Tab Bar */}
       <div className="flex gap-1 bg-muted/40 p-1 rounded-xl">
         {([
-          { key: "operation", label: "Operation",  icon: ClipboardList },
-          { key: "documents", label: "Documents",  icon: FolderOpen },
-          { key: "comms",     label: "Messages",   icon: MessageCircle },
-          { key: "financial", label: "Financial",  icon: DollarSign },
+          { key: "operation", label: "Operation", icon: ClipboardList },
+          { key: "activity",  label: "Activity",  icon: Clock },
+          { key: "documents", label: "Documents", icon: FolderOpen },
+          { key: "comms",     label: "Messages",  icon: MessageCircle },
+          { key: "financial", label: "Financial", icon: DollarSign },
         ] as const).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -1158,6 +1214,90 @@ export default function VoyageDetail() {
               </Link>
             </div>
           </Card>
+        </div>
+      )}
+
+      {/* ── Tab: Activity Timeline ─────────────────────────────── */}
+      {activeTab === "activity" && (
+        <div className="space-y-4" data-testid="tab-content-activity">
+          {/* Header with Add Note button */}
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-sm flex items-center gap-2">
+              <Clock className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              Activity Timeline
+            </h2>
+            <Button size="sm" variant="outline" onClick={() => setShowNoteDialog(true)} data-testid="button-add-note">
+              <Plus className="w-3.5 h-3.5 mr-1" /> Add Note
+            </Button>
+          </div>
+
+          {/* Timeline */}
+          {activities.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Clock className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">No activity yet. Events will appear here as the voyage progresses.</p>
+            </div>
+          ) : (
+            <div className="relative">
+              <div className="absolute left-5 top-0 bottom-0 w-px bg-slate-700/50" />
+              <div className="space-y-4">
+                {activities.map((activity: any) => {
+                  const style = getActivityStyle(activity.activityType);
+                  return (
+                    <div key={activity.id} className="relative flex gap-4" data-testid={`activity-item-${activity.id}`}>
+                      <div className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-base ${style.bg} ${style.text}`}>
+                        {style.emoji}
+                      </div>
+                      <div className="flex-1 bg-card border border-border rounded-xl p-4 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-sm font-semibold truncate">{activity.title}</span>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">{formatTimeAgo(activity.createdAt)}</span>
+                        </div>
+                        {activity.description && (
+                          <p className="text-xs text-muted-foreground mt-1">{activity.description}</p>
+                        )}
+                        {activity.user && (
+                          <div className="text-xs text-muted-foreground mt-2">
+                            by {activity.user.firstName} {activity.user.lastName}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Load More */}
+          {activities.length >= 50 && (
+            <div className="text-center">
+              <Button variant="ghost" size="sm">Load More</Button>
+            </div>
+          )}
+
+          {/* Add Note Dialog */}
+          <Dialog open={showNoteDialog} onOpenChange={setShowNoteDialog}>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Add Activity Note</DialogTitle></DialogHeader>
+              <div className="space-y-3 py-2">
+                <div>
+                  <Label>Title</Label>
+                  <Input value={noteTitle} onChange={e => setNoteTitle(e.target.value)} placeholder="Brief description..." data-testid="input-note-title" />
+                </div>
+                <div>
+                  <Label>Details (optional)</Label>
+                  <Textarea value={noteDesc} onChange={e => setNoteDesc(e.target.value)} placeholder="Additional details..." rows={3} data-testid="input-note-desc" />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowNoteDialog(false)}>Cancel</Button>
+                <Button onClick={() => addNoteMutation.mutate()} disabled={!noteTitle.trim() || addNoteMutation.isPending} data-testid="button-save-note">
+                  {addNoteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Note"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
 
