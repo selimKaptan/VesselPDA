@@ -1,0 +1,198 @@
+INSTRUCTIONS.md'yi oku. Vessel Schedule Calendar ekle — gemilerin geçmiş ve gelecek liman uğraklarını takvim görünümünde göster. Fleet yönetimi için kritik.
+
+=== 1. API ENDPOINT ===
+
+server/routes/ içinde uygun modüle ekle:
+
+GET /api/vessel-schedule?vesselId=X&from=2026-01-01&to=2026-12-31
+- isAuthenticated
+- Belirli geminin veya tüm filonun voyage'larını takvim formatında döndür
+- vesselId opsiyonel — yoksa tüm kullanıcının gemilerini göster
+- from/to tarih aralığı opsiyonel — varsayılan: son 3 ay + gelecek 3 ay
+
+Response:
+{
+  events: [
+    {
+      id: voyageId,
+      vesselId: 1,
+      vesselName: "MV AEGEAN STAR",
+      portName: "Iskenderun",
+      portCode: "TRISK",
+      operation: "discharging",
+      status: "completed", // planned, in_progress, completed, cancelled
+      eta: "2026-02-15T08:00:00",
+      etd: "2026-02-19T14:00:00",
+      durationDays: 4,
+      cargoType: "Grain",
+      agentName: "Barbaros Shipping",
+      color: "#38BDF8", // status bazlı renk
+      hasNor: true,
+      hasSof: true,
+      hasPda: true,
+      hasFda: false,
+    },
+    ...
+  ],
+  vessels: [
+    { id: 1, name: "MV AEGEAN STAR", flag: "Panama", color: "#38BDF8" },
+    { id: 2, name: "MV BARBAROS", flag: "Turkey", color: "#22C55E" },
+  ]
+}
+
+Logic:
+- voyages tablosundan eta, etd, status, vesselId ile çek
+- İlişkili vessel, port bilgilerini join et
+- NOR, SOF, PDA, FDA var mı kontrol et (boolean)
+- Her gemiye farklı renk ata
+
+GET /api/vessel-schedule/timeline?vesselId=X
+- Tek geminin tüm port call geçmişi
+- Kronolojik: en eskiden en yeniye
+- Her uğrak: port, tarih, süre, operasyon, durum
+
+=== 2. FRONTEND — CALENDAR PAGE ===
+
+client/src/pages/vessel-schedule.tsx oluştur:
+
+Sayfa 3 görünüm modunda çalışır (toggle):
+
+--- MODE 1: MONTH VIEW (Aylık Takvim) ---
+
+Üstte:
+- Ay navigasyonu: ← February 2026 →
+- Görünüm toggle: [Month] [Timeline] [List]
+- Vessel filtre: "All Vessels" dropdown veya multi-select
+- "+ Add Port Call" butonu
+
+7 sütunlu takvim grid (Mon-Sun):
+- Her gün hücresi: tarih numarası + o güne denk gelen voyage'lar
+- Voyage bar: yatay çubuk, ETA'dan ETD'ye uzanır
+  * Birden fazla güne yayılabilir (multi-day bar)
+  * Renk: gemiye göre (her gemi farklı renk)
+  * İçinde: vessel name kısaltma + port code
+  * Hover'da tooltip: tüm detaylar
+  * Tıklanınca: /voyages/:id'ye git
+
+Status renkleri:
+- planned: sky-500/30 border-sky-500
+- in_progress: amber-500/30 border-amber-500 (pulse animasyonu)
+- completed: green-500/30 border-green-500
+- cancelled: slate-500/30 border-slate-500 line-through
+
+Bugünün hücresi: ring-2 ring-sky-400 ile vurgulu
+
+--- MODE 2: TIMELINE VIEW (Gantt benzeri) ---
+
+Sol sütun: Gemi isimleri (sabit)
+Üst: Tarih çubuğu (scrollable)
+Ana alan: Yatay Gantt barları
+
+Her gemi bir satır:
+- Yatay bar: ETA → ETD süresi
+- Bar rengi: status'e göre
+- Bar içinde: port name + operation
+- Barlar arası boşluk: denizde geçen süre (transit)
+- Tıklanınca: voyage detay
+
+Bugün çizgisi: dikey kırmızı çizgi (bugünün pozisyonu)
+Zoom: hafta / ay / 3 ay toggle
+
+--- MODE 3: LIST VIEW ---
+
+Basit tablo:
+Vessel | Port | Operation | ETA | ETD | Duration | Status | Documents
+- Documents sütunu: NOR ✓ SOF ✓ PDA ✓ FDA ✗ ikonları
+- Sıralama: ETA'ya göre
+- Filtre: vessel, status, tarih aralığı
+
+=== 3. CALENDAR EVENT CARD (Tooltip/Popover) ===
+
+Takvimde bir voyage'a tıklayınca veya hover'da:
+
+Popover card:
+- Üstte: 🚢 MV AEGEAN STAR — Panama
+- Port: ⚓ Iskenderun (TRISK)
+- Operation: 📦 Discharging — Grain, 3001 MT
+- ETA: 15 Feb 2026 08:00
+- ETD: 19 Feb 2026 14:00
+- Duration: 4 days
+- Status badge
+- Agent: Barbaros Shipping
+- Document status: NOR ✓ SOF ✓ PDA ✓ FDA ✗
+- Aksiyon butonları: [View Voyage] [Create PDA] [Create SOF]
+
+=== 4. QUICK ADD PORT CALL ===
+
+"+ Add Port Call" butonu tıklanınca dialog:
+
+- Vessel: select (kullanıcının gemileri)
+- Port: search select
+- Operation: Loading/Discharging/Transit/Bunkering
+- ETA: datetime picker
+- ETD: datetime picker
+- Cargo Type: text (opsiyonel)
+- Notes: textarea (opsiyonel)
+
+Submit → POST /api/voyages ile yeni voyage oluştur
+Takvim otomatik güncelle
+
+=== 5. VESSEL DETAIL'A TIMELINE EKLE ===
+
+Mevcut vessel detay veya vessels sayfasına:
+- Her geminin yanında "Schedule" butonu → /vessel-schedule?vesselId=X
+- Veya vessel kartının altında mini timeline (son 3 + gelecek 3 uğrak)
+
+Mini timeline:
+[Constanta 12 Feb] → [Iskenderun 15 Feb] → [Mersin 22 Feb] → [Piraeus 28 Feb]
+Yatay çizgi üzerinde noktalar, aktif uğrak vurgulu
+
+=== 6. DASHBOARD WIDGET ===
+
+Dashboard'a "Upcoming Port Calls" widget:
+- Gelecek 7 gündeki uğraklar listesi
+- Vessel, Port, ETA, countdown (2 days, 5 hours)
+- "View Schedule →" linki
+
+GET /api/vessel-schedule/upcoming?days=7
+- Yaklaşan port call'lar
+
+=== 7. ROUTING & NAVIGATION ===
+
+client/src/App.tsx'e ekle:
+import VesselSchedule from "@/pages/vessel-schedule";
+<Route path="/vessel-schedule" component={VesselSchedule} />
+
+Sidebar'da Fleet altına ekle:
+{ icon: Calendar, label: "Vessel Schedule", href: "/vessel-schedule" }
+Vessels ile Vessel Tracking arasına koy.
+
+=== 8. RENK SİSTEMİ ===
+
+Her gemiye benzersiz renk atama:
+const VESSEL_COLORS = [
+  '#38BDF8', // sky
+  '#22C55E', // green
+  '#F59E0B', // amber
+  '#8B5CF6', // purple
+  '#EC4899', // pink
+  '#EF4444', // red
+  '#14B8A6', // teal
+  '#F97316', // orange
+];
+
+Gemi index'ine göre renk: VESSEL_COLORS[vesselIndex % VESSEL_COLORS.length]
+
+=== 9. IMPORTANT ===
+
+- Takvim tamamen frontend'de render edilsin (HTML/CSS grid, Recharts değil)
+- Month view: CSS grid 7 sütun x 5-6 satır
+- Timeline view: overflow-x-auto ile yatay scroll
+- Multi-day barlar: CSS grid-column span ile
+- Responsive: mobile'da sadece List view göster, Month ve Timeline gizle
+- Veri yoksa empty state: "No port calls scheduled. Add your first port call."
+- Mevcut voyages verisi kullanılsın — yeni tablo gerek yok
+- Takvim hücreleri tıklanabilir — o güne yeni port call ekle
+- Backend'de date range filtreleme performanslı olsun (index kullan)
+- Mevcut sayfaları bozma
+- Bugünün tarihi vurgulu olsun
