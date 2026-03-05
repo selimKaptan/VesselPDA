@@ -876,3 +876,107 @@ export function orgInviteTemplate(params: {
   `;
   return { subject, html: baseTemplate(content, "VesselPDA Team Management") };
 }
+
+// ─── CARGO OPERATIONS REPORT ──────────────────────────────────────────────────
+
+export function cargoReportTemplate(params: {
+  vesselName: string;
+  portName: string;
+  purposeOfCall: string;
+  totalMt: number;
+  handledMt: number;
+  remainingMt: number;
+  handledPct: number;
+  etcFormatted: string | null;
+  activeReceiverNames: string | null;
+  recentLogs: Array<{
+    periodLabel: string;
+    receiverNames: string;
+    amountMt: number;
+    truckCount: number;
+    logType: string;
+    remarks: string;
+  }>;
+  sentAt: string;
+}): { html: string; subject: string } {
+  const subject = `[Cargo Report] ${params.vesselName} @ ${params.portName} — ${params.handledPct}% Handled`;
+
+  const activeBadge = params.activeReceiverNames
+    ? `<div style="margin:0 0 20px 0;padding:10px 16px;background-color:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);border-radius:8px;display:flex;align-items:center;gap:10px">
+        <span style="display:inline-block;width:8px;height:8px;background-color:#22C55E;border-radius:50%;flex-shrink:0"></span>
+        <span style="color:#22C55E;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase">
+          Currently ${params.purposeOfCall}: ${params.activeReceiverNames}
+        </span>
+       </div>`
+    : "";
+
+  const progressBar = `
+    <div style="margin:0 0 6px 0">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <span style="color:#94a3b8;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Progress</span>
+        <span style="color:#22C55E;font-size:12px;font-weight:700">${params.handledPct}% Handled</span>
+      </div>
+      <div style="width:100%;height:12px;background-color:#1e2d4a;border-radius:6px;border:1px solid #2d3a56;overflow:hidden">
+        <div style="width:${params.handledPct}%;height:100%;background-color:#22C55E;border-radius:6px;min-width:${params.handledPct > 0 ? 4 : 0}px"></div>
+      </div>
+    </div>`;
+
+  const summaryTable = `
+    <h2 style="color:#f1f5f9;font-size:15px;font-weight:700;margin:20px 0 10px 0;padding-bottom:6px;border-bottom:1px solid #2d3a56">Cargo Summary</h2>
+    <table style="width:100%;border-collapse:collapse">
+      ${infoRow("Total Cargo", `${params.totalMt.toLocaleString()} MT`)}
+      ${infoRow("Handled", `${params.handledMt.toLocaleString()} MT (${params.handledPct}%)`)}
+      ${infoRow("Remaining", `${params.remainingMt.toLocaleString()} MT`)}
+      ${infoRow("Est. Completion (ETC)", params.etcFormatted || "—")}
+    </table>`;
+
+  const logRows = params.recentLogs.map(l => {
+    const isDelay = l.logType === "delay";
+    const isTruckWait = isDelay && l.remarks.toLowerCase().includes("waiting_for_trucks");
+    const rowBg = (isDelay || isTruckWait) ? "background-color:rgba(245,158,11,0.12);" : "";
+    const remarkDisplay = isTruckWait ? "Waiting for Trucks/Tankers" : (l.remarks || "—");
+    const handledDisplay = isDelay
+      ? `<span style="color:#F59E0B;font-size:12px">${remarkDisplay}</span>`
+      : `<span style="color:#22C55E;font-weight:600">${l.amountMt.toLocaleString()} MT</span>${l.truckCount > 0 ? `<br><span style="color:#64748b;font-size:11px">(${l.truckCount} Trucks)</span>` : ""}`;
+    const typeLabel = isDelay
+      ? `<span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;background-color:rgba(245,158,11,0.15);color:#F59E0B">DELAY</span>`
+      : `<span style="display:inline-block;padding:1px 7px;border-radius:10px;font-size:10px;font-weight:600;background-color:rgba(34,197,94,0.12);color:#22C55E">OP</span>`;
+    return `<tr style="${rowBg}">
+      <td style="padding:8px 6px;border-bottom:1px solid #1e2d4a;color:#94a3b8;font-size:11px;white-space:nowrap">${l.periodLabel}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid #1e2d4a;color:#f1f5f9;font-size:12px">${l.receiverNames || "—"}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid #1e2d4a;text-align:right;font-size:12px">${handledDisplay}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid #1e2d4a;text-align:center">${typeLabel}</td>
+    </tr>`;
+  }).join("");
+
+  const logsTable = params.recentLogs.length > 0 ? `
+    <h2 style="color:#f1f5f9;font-size:15px;font-weight:700;margin:22px 0 10px 0;padding-bottom:6px;border-bottom:1px solid #2d3a56">Recent Operations (Last ${params.recentLogs.length})</h2>
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="border-bottom:1px solid #2d3a56">
+          <th style="text-align:left;padding:6px 6px 8px;color:#475569;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Period</th>
+          <th style="text-align:left;padding:6px 6px 8px;color:#475569;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Receiver</th>
+          <th style="text-align:right;padding:6px 6px 8px;color:#475569;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Handled</th>
+          <th style="text-align:center;padding:6px 6px 8px;color:#475569;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Type</th>
+        </tr>
+      </thead>
+      <tbody>${logRows}</tbody>
+    </table>` : "";
+
+  const content = `
+    <div style="margin-bottom:6px">
+      <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:#38BDF8">Cargo Operations Report</span>
+    </div>
+    <h1 style="color:#f8fafc;font-size:22px;font-weight:700;margin:0 0 2px 0">${params.vesselName}</h1>
+    <p style="color:#64748b;font-size:14px;margin:0 0 20px 0">⚓ ${params.portName} &nbsp;·&nbsp; ${params.purposeOfCall}</p>
+
+    ${activeBadge}
+    ${progressBar}
+    ${summaryTable}
+    ${logsTable}
+
+    <p style="color:#475569;font-size:11px;margin:22px 0 0 0;text-align:right">Report generated: ${params.sentAt}</p>
+  `;
+
+  return { subject, html: baseTemplate(content, `Cargo Operations Report — ${params.vesselName}`) };
+}

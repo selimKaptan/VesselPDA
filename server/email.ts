@@ -15,7 +15,13 @@ import {
   pdaApprovalRequestTemplate,
   orgInviteTemplate,
   voyageInviteTemplate,
+  cargoReportTemplate,
 } from "./email-templates";
+import { db } from "./db";
+import { eq, asc } from "drizzle-orm";
+import { voyageCargoLogs, voyageCargoReceivers, voyages } from "@shared/schema";
+import { vessels } from "@shared/schema";
+import { ports } from "@shared/schema";
 
 // Replit Resend integration — fetches API key via OAuth connector
 let _connectionSettings: any;
@@ -575,4 +581,117 @@ export async function sendApprovalRequestEmail(data: ApprovalRequestEmailData): 
     console.log(`[email] Approval request email sent to ${data.toEmail}`);
     return true;
   } catch (err) { console.error("[email] sendApprovalRequestEmail failed:", err); return false; }
+}
+
+// ─── CARGO REPORT EMAIL ───────────────────────────────────────────────────────
+
+export async function sendCargoReportEmail(data: { toEmail: string; voyageId: number }): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) { console.warn("[email] No credentials — skipping sendCargoReportEmail"); return false; }
+
+  try {
+    // Fetch voyage
+    const [voyage] = await db.select().from(voyages).where(eq(voyages.id, data.voyageId));
+    if (!voyage) { console.warn("[email] Voyage not found:", data.voyageId); return false; }
+
+    // Fetch vessel and port names
+    const vesselName = voyage.vesselId
+      ? ((await db.select({ name: vessels.name }).from(vessels).where(eq(vessels.id, voyage.vesselId)))[0]?.name ?? "Unknown Vessel")
+      : "Unknown Vessel";
+    const portName = (await db.select({ name: ports.name }).from(ports).where(eq(ports.id, voyage.portId)))[0]?.name ?? "Unknown Port";
+
+    // Fetch receivers
+    const receiversList = await db.select().from(voyageCargoReceivers).where(eq(voyageCargoReceivers.voyageId, data.voyageId));
+    const receiverMap: Record<number, string> = Object.fromEntries(receiversList.map(r => [r.id, r.name]));
+
+    // Fetch logs
+    const logs = await db.select().from(voyageCargoLogs)
+      .where(eq(voyageCargoLogs.voyageId, data.voyageId))
+      .orderBy(asc(voyageCargoLogs.createdAt));
+
+    // Compute totals
+    const totalMt = voyage.cargoTotalMt ?? 0;
+    const handledMt = logs.filter(l => l.logType !== "delay").reduce((s, l) => s + (l.amountHandled ?? 0), 0);
+    const remainingMt = Math.max(0, totalMt - handledMt);
+    const handledPct = totalMt > 0 ? Math.round((handledMt / totalMt) * 100) : 0;
+
+    // ETC
+    const totalHours = logs.reduce((s, l) => {
+      if (!l.fromTime || !l.toTime) return s;
+      return s + (new Date(l.toTime).getTime() - new Date(l.fromTime).getTime()) / 3_600_000;
+    }, 0);
+    const avgRatePerDay = totalHours > 0 ? (handledMt / totalHours) * 24 : 0;
+    let etcFormatted: string | null = null;
+    if (avgRatePerDay > 0 && remainingMt > 0) {
+      const etcDate = new Date(Date.now() + (remainingMt / avgRatePerDay) * 86_400_000);
+      etcFormatted = etcDate.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+        + ", " + etcDate.toUTCString().slice(17, 22) + " UTC";
+    }
+
+    // Group logs by batchId for active receiver detection
+    const batchMap = new Map<string, typeof logs>();
+    logs.forEach(l => {
+      const key = l.batchId || String(l.id);
+      if (!batchMap.has(key)) batchMap.set(key, []);
+      batchMap.get(key)!.push(l);
+    });
+    const groupedLogs = Array.from(batchMap.values());
+    const lastBatch = groupedLogs.length > 0 ? groupedLogs[groupedLogs.length - 1] : null;
+    const activeReceiverNames = lastBatch
+      ? lastBatch.filter(l => l.receiverId && l.logType !== "delay")
+          .map(l => receiverMap[l.receiverId!] || "")
+          .filter(Boolean).join(" & ") || null
+      : null;
+
+    // Recent logs (last 5 batches)
+    const recentGroups = groupedLogs.slice(-5);
+    const fmtDT = (dt: Date | null) => dt
+      ? new Date(dt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) + " " +
+        new Date(dt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+      : "—";
+    const recentLogs = recentGroups.map(batch => {
+      const rep = batch[0];
+      const batchMt = batch.reduce((s, l) => s + (l.amountHandled ?? 0), 0);
+      const batchTrucks = batch.reduce((s, l) => s + (l.truckCount ?? 0), 0);
+      const receiverNames = batch.filter(l => l.receiverId).map(l => receiverMap[l.receiverId!] || "").filter(Boolean).join(", ");
+      const periodLabel = rep.fromTime && rep.toTime
+        ? `${fmtDT(rep.fromTime)} → ${fmtDT(rep.toTime).split(" ")[1]}`
+        : fmtDT(rep.logDate);
+      return {
+        periodLabel,
+        receiverNames,
+        amountMt: batchMt,
+        truckCount: batchTrucks,
+        logType: rep.logType ?? "operation",
+        remarks: rep.remarks ?? "",
+      };
+    });
+
+    const sentAt = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+      + ", " + new Date().toUTCString().slice(17, 22) + " UTC";
+
+    const { html, subject } = cargoReportTemplate({
+      vesselName, portName,
+      purposeOfCall: voyage.purposeOfCall,
+      totalMt, handledMt, remainingMt, handledPct,
+      etcFormatted,
+      activeReceiverNames,
+      recentLogs,
+      sentAt,
+    });
+
+    const resend = new Resend(creds.apiKey);
+    const { error } = await resend.emails.send({
+      from: `VesselPDA <${creds.fromEmail}>`,
+      to: [data.toEmail],
+      subject,
+      html,
+    });
+    if (error) { console.error("[email] sendCargoReportEmail error:", error); return false; }
+    console.log(`[email] Cargo report sent to ${data.toEmail} for voyage ${data.voyageId}`);
+    return true;
+  } catch (err) {
+    console.error("[email] sendCargoReportEmail failed:", err);
+    return false;
+  }
 }

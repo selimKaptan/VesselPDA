@@ -8,7 +8,7 @@ import {
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
   FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings, Archive, X,
-  TrendingUp, TrendingDown, AlertTriangle,
+  TrendingUp, TrendingDown, AlertTriangle, Mail,
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
@@ -179,6 +179,8 @@ export default function VoyageDetail() {
     fromTime: string; toTime: string; logType: string; remarks: string; delayReason: string; delayNotes: string;
     receiverEntries: Record<number, { amount: string; trucks: string }>;
   }>({ fromTime: "", toTime: "", logType: "operation", remarks: "", delayReason: "", delayNotes: "", receiverEntries: {} });
+  const [showCargoReportDialog, setShowCargoReportDialog] = useState(false);
+  const [reportEmail, setReportEmail] = useState("");
   const [showAddReceiverDialog, setShowAddReceiverDialog] = useState(false);
   const [receiverForm, setReceiverForm] = useState({ name: "", allocatedMt: 0 });
   const [docFilter, setDocFilter] = useState<string>("all");
@@ -642,6 +644,15 @@ export default function VoyageDetail() {
   const deleteBatchMutation = useMutation({
     mutationFn: (batchId: string) => apiRequest("DELETE", `/api/voyages/${voyageId}/cargo-logs/batch/${batchId}`, {}),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-logs"] }),
+  });
+
+  const sendCargoReportMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/voyages/${voyageId}/send-cargo-report`, { toEmail: reportEmail }),
+    onSuccess: () => {
+      setShowCargoReportDialog(false);
+      toast({ title: "Report sent", description: `Cargo report sent to ${reportEmail}` });
+    },
+    onError: () => toast({ title: "Failed to send report", variant: "destructive" }),
   });
 
   const addReceiverMutation = useMutation({
@@ -1674,9 +1685,14 @@ export default function VoyageDetail() {
                 <h3 className="font-semibold text-sm flex items-center gap-2">
                   <ClipboardList className="w-4 h-4 text-[hsl(var(--maritime-primary))]" /> Operation Logs
                 </h3>
-                <Button size="sm" onClick={() => setShowAddLogDialog(true)} data-testid="button-add-cargo-log">
-                  <Plus className="w-3.5 h-3.5 mr-1" /> Add Log
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setShowCargoReportDialog(true)} data-testid="button-send-cargo-report">
+                    <Mail className="w-3.5 h-3.5 mr-1" /> Send Report
+                  </Button>
+                  <Button size="sm" onClick={() => setShowAddLogDialog(true)} data-testid="button-add-cargo-log">
+                    <Plus className="w-3.5 h-3.5 mr-1" /> Add Log
+                  </Button>
+                </div>
               </div>
 
               {groupedLogs.length === 0 ? (
@@ -1987,6 +2003,41 @@ export default function VoyageDetail() {
                 </Dialog>
               );
             })()}
+
+            {/* ── Send Cargo Report Dialog ─────────── */}
+            <Dialog open={showCargoReportDialog} onOpenChange={setShowCargoReportDialog}>
+              <DialogContent className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>Send Cargo Report</DialogTitle>
+                  <DialogDescription>
+                    A live cargo operations summary will be emailed to the recipient.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-2">
+                  <div>
+                    <Label className="text-xs">Recipient Email *</Label>
+                    <Input
+                      type="email"
+                      value={reportEmail}
+                      onChange={e => setReportEmail(e.target.value)}
+                      placeholder="captain@example.com"
+                      data-testid="input-report-email"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowCargoReportDialog(false)}>Cancel</Button>
+                  <Button
+                    onClick={() => sendCargoReportMutation.mutate()}
+                    disabled={!reportEmail.includes("@") || sendCargoReportMutation.isPending}
+                    data-testid="button-confirm-send-report"
+                  >
+                    {sendCargoReportMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                    Send Report
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* ── Add Receiver Dialog ───────────────── */}
             <Dialog open={showAddReceiverDialog} onOpenChange={v => { setShowAddReceiverDialog(v); if (!v) setReceiverForm({ name: "", allocatedMt: 0 }); }}>

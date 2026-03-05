@@ -643,6 +643,23 @@ router.delete("/:id/cargo-logs/batch/:batchId", isAuthenticated, async (req: any
   }
 });
 
+router.post("/:id/send-cargo-report", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const { toEmail } = req.body;
+    if (!toEmail || !String(toEmail).includes("@")) {
+      return res.status(400).json({ message: "Valid toEmail required" });
+    }
+    const { sendCargoReportEmail } = await import("../email");
+    const ok = await sendCargoReportEmail({ toEmail: String(toEmail), voyageId });
+    if (!ok) return res.status(500).json({ message: "Failed to send report email" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("send-cargo-report error:", err);
+    res.status(500).json({ message: "Failed to send cargo report" });
+  }
+});
+
 router.patch("/:id/cargo-total", isAuthenticated, async (req: any, res) => {
   try {
     const { cargoTotalMt } = req.body;
