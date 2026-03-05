@@ -1474,7 +1474,7 @@ export default function VoyageDetail() {
           ? (new Date(logForm.toTime).getTime() - new Date(logForm.fromTime).getTime()) / 3_600_000
           : 0;
         const periodRate = periodHours > 0 && logForm.amountHandled > 0
-          ? Math.round((logForm.amountHandled / periodHours) * 24)
+          ? parseFloat((logForm.amountHandled / periodHours).toFixed(1))
           : 0;
 
         return (
@@ -1680,12 +1680,12 @@ export default function VoyageDetail() {
                         const logHours = log.fromTime && log.toTime
                           ? (new Date(log.toTime).getTime() - new Date(log.fromTime).getTime()) / 3_600_000
                           : 0;
-                        const logRate = logHours > 0 ? Math.round((log.amountHandled / logHours) * 24) : null;
+                        const logRate = logHours > 0 ? parseFloat((log.amountHandled / logHours).toFixed(1)) : null;
                         const prevLog = idx > 0 ? cargoLogs[idx - 1] : null;
                         const prevLogHours = prevLog?.fromTime && prevLog?.toTime
                           ? (new Date(prevLog.toTime).getTime() - new Date(prevLog.fromTime).getTime()) / 3_600_000
                           : 0;
-                        const prevLogRate = prevLogHours > 0 ? Math.round((prevLog.amountHandled / prevLogHours) * 24) : 0;
+                        const prevLogRate = prevLogHours > 0 ? parseFloat((prevLog.amountHandled / prevLogHours).toFixed(1)) : 0;
                         const rateTrend = logRate && prevLogRate > 0
                           ? (logRate > prevLogRate ? "up" : logRate < prevLogRate ? "down" : "flat")
                           : null;
@@ -1728,7 +1728,7 @@ export default function VoyageDetail() {
                                 <span className={`flex items-center justify-end gap-1 ${rateTrend === "up" ? "text-green-400" : rateTrend === "down" ? "text-red-400" : "text-sky-300"}`}>
                                   {rateTrend === "up" && <TrendingUp className="w-3 h-3" />}
                                   {rateTrend === "down" && <TrendingDown className="w-3 h-3" />}
-                                  {logRate.toLocaleString()} MT/D
+                                  {logRate.toLocaleString()} MT/H
                                 </span>
                               ) : "—"}
                             </td>
@@ -1811,7 +1811,7 @@ export default function VoyageDetail() {
                       data-testid="input-log-amount" />
                     {periodRate > 0 && (
                       <p className="mt-1.5 text-xs text-amber-400 font-medium">
-                        ✨ Rate for this period: {periodRate.toLocaleString()} MT/Day
+                        ✨ Rate for this period: {periodRate.toLocaleString()} MT/H
                       </p>
                     )}
                   </div>
