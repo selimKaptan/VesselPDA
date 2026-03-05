@@ -1,0 +1,244 @@
+INSTRUCTIONS.md'yi oku. Landing page'i profesyonel bir maritime SaaS ürün sayfası olarak yeniden tasarla. Amaç: Google'dan gelen ship agent/shipowner'ları kayıt ettirmek.
+
+ÖNCELİKLE: Mevcut client/src/pages/landing.tsx dosyasını landing-backup.tsx olarak yedekle.
+
+=== SEO — HEAD META TAGS ===
+
+client/index.html dosyasında <head> içine ekle:
+
+<title>VesselPDA — Proforma Disbursement Account Software for Ship Agents</title>
+<meta name="description" content="Calculate port disbursements instantly. Manage vessel operations, tenders, voyages and port call costs. The #1 PDA software for Turkish ports." />
+<meta name="keywords" content="proforma disbursement account, PDA software, ship agent software, port cost calculator, vessel operations, maritime software, Turkish port tariffs, disbursement account, shipping agent tools" />
+<meta name="author" content="VesselPDA by Barbaros Shipping" />
+<link rel="canonical" href="https://vesselpda.com" />
+
+<!-- Open Graph -->
+<meta property="og:title" content="VesselPDA — Maritime Disbursement & Operations Platform" />
+<meta property="og:description" content="Calculate port costs, manage vessel operations, and streamline maritime workflows. Free to start." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://vesselpda.com" />
+<meta property="og:image" content="https://vesselpda.com/og-image.png" />
+<meta property="og:site_name" content="VesselPDA" />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="VesselPDA — PDA Software for Ship Agents" />
+<meta name="twitter:description" content="Calculate port disbursements instantly. Free to start." />
+
+<!-- Robots -->
+<meta name="robots" content="index, follow" />
+
+<!-- Structured Data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "VesselPDA",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "description": "Maritime proforma disbursement account software for ship agents and shipowners",
+  "url": "https://vesselpda.com",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD",
+    "description": "Free plan available"
+  },
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "4.8",
+    "ratingCount": "26"
+  }
+}
+</script>
+
+=== LANDING PAGE TASARIMI ===
+
+client/src/pages/landing.tsx yeniden yaz:
+
+SECTION 1 — HERO (İlk Ekran, full viewport)
+
+Arka plan: Koyu lacivert gradient + hafif deniz/liman görseli overlay (CSS gradient ile)
+Sol taraf (%60):
+- Üstte küçük badge: "🚀 Trusted by 26+ maritime professionals"
+- Başlık (h1, çok büyük, bold):
+  "Calculate Port Disbursements in Seconds"
+- Alt başlık (h2, slate-400):
+  "The all-in-one platform for ship agents, shipowners and brokers. Manage proformas, tenders, voyages and port operations — all in one place."
+- 2 buton yan yana:
+  * "Get Started Free" → /register (büyük, sky-500, primary)
+  * "Try Demo" → /demo (outline, border-sky-500)
+- Altında küçük text: "No credit card required. Free plan includes 1 PDA."
+
+Sağ taraf (%40):
+- Dashboard ekran görüntüsü mockup (CSS ile card benzeri görünüm oluştur)
+- Veya 3 floating stat kartı:
+  * "2,500+ Port Tariffs" 
+  * "18+ Tariff Categories"
+  * "Real-time Exchange Rates"
+
+SECTION 2 — TRUSTED BY / SOCIAL PROOF
+
+Gri arka plan şeridi:
+- "Serving professionals across Turkish ports"
+- Liman logoları/isimleri: Iskenderun, Mersin, Istanbul, Izmir, Aliaga, Gemlik
+- Veya "26 registered users | 50+ proformas generated | 10+ ports covered"
+
+SECTION 3 — FEATURES (3x2 grid)
+
+Başlık: "Everything You Need for Port Operations"
+Alt başlık: "From proforma calculation to voyage management"
+
+6 Feature kartı (ikon + başlık + açıklama):
+
+1. 📋 Proforma Calculator
+   "Calculate accurate port disbursements using real tariff databases. Support for all Turkish ports."
+
+2. 📢 Port Call Tenders  
+   "Create tenders for port calls. Receive bids from verified agents. Select the best offer."
+
+3. 🗺️ Voyage Management
+   "Track voyages end-to-end. Checklists, documents, chat — all parties on the same page."
+
+4. 📡 Vessel Tracking
+   "Real-time AIS vessel tracking. Monitor your fleet positions on an interactive map."
+
+5. 📝 SOF & FDA
+   "Digital Statement of Facts and Final Disbursement Accounts. Export professional PDFs."
+
+6. 🏢 Agent Directory
+   "Find verified ship agents by port. Read reviews, check trust scores, nominate directly."
+
+Her kart: bg-slate-800/50, border, rounded-xl, hover'da hafif scale + glow
+
+SECTION 4 — HOW IT WORKS (4 Step)
+
+Başlık: "Get Your Proforma in 4 Simple Steps"
+
+Yatay timeline (numaralı):
+1. "Select Port" — Choose your destination port
+2. "Enter Vessel" — Add vessel details or search by IMO
+3. "Calculate" — Get instant tariff calculation
+4. "Download PDF" — Save, send or share your PDA
+
+Her step: numara yuvarlağı + ikon + başlık + açıklama
+Steps arası bağlantı çizgileri
+
+SECTION 5 — PRICING (3 Plan)
+
+Başlık: "Simple, Transparent Pricing"
+Alt başlık: "Start free, upgrade when you need more"
+
+3 Plan kartı yan yana:
+
+FREE:
+- Fiyat: $0/month
+- 1 Proforma/month
+- Vessel tracking (demo)
+- Forum access
+- Port directory
+- Buton: "Get Started" → /register
+
+STANDARD:
+- Fiyat: ₺49.90/month (veya $4.99)
+- "POPULAR" badge
+- 10 Proformas/month
+- Full vessel tracking
+- Tender participation
+- Voyage management
+- PDF export
+- Buton: "Start Free Trial" → /register
+- Border: sky-500 (vurgulu)
+
+UNLIMITED:
+- Fiyat: ₺199.90/month (veya $19.99)
+- Unlimited proformas
+- Priority support
+- API access (coming soon)
+- Custom tariff tables
+- Team management (coming soon)
+- Buton: "Contact Sales" → /contact
+
+SECTION 6 — TESTIMONIALS (Opsiyonel)
+
+2-3 testimonial kartı (şimdilik placeholder):
+- "VesselPDA has streamlined our PDA process. What used to take hours now takes minutes." — Ship Agent, Iskenderun
+- "The tender system helped us find reliable agents for our fleet." — Shipowner, Istanbul
+
+SECTION 7 — CTA (Call to Action)
+
+Gradient arka plan (sky-500 → blue-600):
+- Başlık: "Ready to Modernize Your Maritime Operations?"
+- Alt başlık: "Join 26+ professionals already using VesselPDA"
+- Büyük buton: "Create Free Account" → /register
+- Küçük text: "Free forever. No credit card needed."
+
+SECTION 8 — FOOTER
+
+4 sütunlu footer:
+
+Sütun 1 — VesselPDA:
+- Logo + tagline: "Maritime operations, simplified."
+- © 2026 Barbaros Shipping
+
+Sütun 2 — Product:
+- Features
+- Pricing → /pricing
+- Directory → /directory
+- Forum → /forum
+
+Sütun 3 — Company:
+- About Us
+- Contact → /contact
+- Blog (coming soon)
+- Careers (coming soon)
+
+Sütun 4 — Legal:
+- Privacy Policy
+- Terms of Service
+- Cookie Policy
+
+Alt kısım: "Made with ⚓ in Izmir, Turkey"
+
+=== TOP NAVİGASYON (Landing için ayrı) ===
+
+Landing page'de farklı bir üst bar kullan (uygulamanın Icon Rail'i değil):
+
+- Sol: ⚓ VesselPDA logo
+- Orta: Features | Pricing | Directory | Forum | Contact (anchor linkler)
+- Sağ: "Login" (text buton) + "Get Started" (sky-500 buton)
+- Scroll'da sticky + arka plan blur
+
+=== TASARIM KURALLARI ===
+
+1. Profesyonel SaaS landing page (Stripe, Linear, Vercel kalitesinde)
+2. Dark tema: bg-[#0B1120] ana arka plan
+3. Section'lar arası alternating arka plan (hafif ton farkı)
+4. Büyük başlıklar: text-4xl md:text-5xl lg:text-6xl
+5. Alt başlıklar: text-lg text-slate-400
+6. CTA butonlar: minimum 48px yükseklik, bold
+7. Feature kartları: hover'da translateY(-2px) + shadow
+8. Smooth scroll: her section'a id ver, nav'daki linkler smooth scroll yapsın
+9. Responsive: mobile'da tek sütun, tablet'te 2, desktop'ta 3
+10. Animasyon: section'lar viewport'a girince fade-in (intersection observer veya CSS)
+11. Performans: resim kullanma, CSS gradient + shapes ile oluştur
+
+=== SEO ===
+
+1. H1 sadece 1 tane: ana hero başlığı
+2. H2: her section başlığı
+3. Alt text: tüm görsellerde (CSS shape'ler hariç)
+4. Semantic HTML: <header>, <nav>, <main>, <section>, <footer>
+5. Internal linkler: /directory, /forum, /pricing, /contact
+6. Page speed: resim yükleme, gereksiz JS yok
+
+=== IMPORTANT ===
+
+1. Mevcut landing.tsx'i landing-backup.tsx olarak yedekle
+2. PublicDirectoryPage routes'unda landing component'i aynı kalmalı (App.tsx'e dokunma)
+3. Sadece landing.tsx dosyasını yeniden yaz
+4. Backend'e HİÇBİR değişiklik yapma
+5. Login/Register butonları mevcut auth route'lara yönlensin
+6. Directory ve Forum linkleri mevcut sayfalara gitsin
+7. Smooth scroll için behavior: 'smooth' kullan
+8. Mobile first: tüm layout'lar mobile'dan başlasın
