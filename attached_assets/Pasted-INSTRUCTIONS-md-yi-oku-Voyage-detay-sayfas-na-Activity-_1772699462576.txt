@@ -1,0 +1,196 @@
+INSTRUCTIONS.md'yi oku. Voyage detay sayfasına Activity Timeline ekle — voyage'daki tüm olayları kronolojik olarak göster. Ayrıca kullanıcının kendi recent activity feed'ini dashboard'a ekle.
+
+=== 1. VOYAGE ACTIVITY LOG TABLOSU ===
+
+shared/schema.ts'e ekle:
+
+export const voyageActivities = pgTable("voyage_activities", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id),
+  activityType: varchar("activity_type", { length: 50 }).notNull(),
+  title: varchar("title", { length: 300 }).notNull(),
+  description: text("description"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// activityType values:
+// voyage_created, status_changed, eta_updated, etd_updated,
+// document_uploaded, document_signed, checklist_added, checklist_completed,
+// chat_message, sof_created, sof_finalized, pda_created, pda_approved,
+// fda_created, fda_approved, invoice_created, invoice_paid,
+// nomination_sent, nomination_accepted, appointment_created,
+// service_request_created, service_offer_selected, custom_note
+
+export const voyageActivityRelations = relations(voyageActivities, ({ one }) => ({
+  voyage: one(voyages, { fields: [voyageActivities.voyageId], references: [voyages.id] }),
+  user: one(users, { fields: [voyageActivities.userId], references: [users.id] }),
+}));
+
+export const insertVoyageActivitySchema = createInsertSchema(voyageActivities).omit({ id: true, createdAt: true });
+
+npx drizzle-kit push
+
+=== 2. ACTIVITY LOGGING HELPER ===
+
+server/voyage-activity.ts oluştur:
+
+import { db } from './db';
+import { voyageActivities } from '../shared/schema';
+
+export async function logVoyageActivity(params: {
+  voyageId: number;
+  userId?: string;
+  activityType: string;
+  title: string;
+  description?: string;
+  metadata?: any;
+}) {
+  try {
+    await db.insert(voyageActivities).values(params);
+  } catch (e) {
+    console.error('Failed to log voyage activity:', e);
+  }
+}
+
+=== 3. ACTIVITY LOG ENTEGRASYONU ===
+
+Mevcut voyage ile ilgili TÜM endpoint'lerde activity log ekle:
+
+voyage.routes.ts:
+- POST /api/voyages → logVoyageActivity({ voyageId, userId, activityType: 'voyage_created', title: 'Voyage created' })
+- PATCH /api/voyages/:id → status değiştiyse: activityType: 'status_changed', title: `Status changed to ${newStatus}`
+- PATCH /api/voyages/:id → ETA değiştiyse: activityType: 'eta_updated', title: `ETA updated to ${newEta}`
+- POST /api/voyages/:id/checklist → activityType: 'checklist_added', title: `Checklist item added: ${title}`
+- PATCH /api/voyages/:id/checklist/:itemId → isCompleted true ise: activityType: 'checklist_completed', title: `Completed: ${title}`
+- POST /api/voyages/:id/documents → activityType: 'document_uploaded', title: `Document uploaded: ${name}`
+- POST /api/voyages/:id/documents/:docId/sign → activityType: 'document_signed', title: `Document signed: ${name}`
+- POST /api/voyages/:id/chat → activityType: 'chat_message', title: `Message from ${userName}`
+- POST /api/voyages/:id/reviews → activityType: 'review_submitted', title: `Review submitted: ${rating}/5`
+
+sof.routes.ts:
+- POST /api/sof (eğer voyageId varsa) → activityType: 'sof_created', title: 'Statement of Facts created'
+- POST /api/sof/:id/finalize → activityType: 'sof_finalized', title: 'SOF finalized'
+
+proforma.routes.ts:
+- POST /api/proformas (eğer voyageId ile bağlıysa) → activityType: 'pda_created', title: `PDA created: ${refNumber}`
+- POST /api/proformas/:id/approve → activityType: 'pda_approved', title: 'PDA approved'
+
+fda.routes.ts:
+- POST /api/fda (eğer voyageId varsa) → activityType: 'fda_created', title: `FDA created: ${refNumber}`
+- POST /api/fda/:id/approve → activityType: 'fda_approved', title: 'FDA approved'
+
+invoice routes:
+- POST /api/invoices (eğer voyageId varsa) → activityType: 'invoice_created', title: `Invoice created: ${amount} ${currency}`
+- PATCH /api/invoices/:id/pay → activityType: 'invoice_paid', title: 'Invoice paid'
+
+nomination routes:
+- POST /api/tenders/:id/nominate → activityType: 'nomination_sent', title: 'Agent nominated'
+
+=== 4. ACTIVITY TIMELINE API ===
+
+GET /api/voyages/:id/activities
+- isAuthenticated
+- voyageId'ye göre tüm aktiviteleri çek
+- createdAt DESC sırala
+- User bilgisi ile join (firstName, lastName)
+- Response: { activities: [...], total: number }
+
+GET /api/user/recent-activity?limit=20
+- isAuthenticated
+- Kullanıcının tüm voyage'larındaki son aktiviteleri çek
+- Veya kullanıcının yaptığı tüm aktiviteleri çek
+- Dashboard'da gösterilecek
+
+=== 5. VOYAGE DETAIL — TIMELINE TAB ===
+
+client/src/pages/voyage-detail.tsx'e yeni "Activity" tab ekle:
+
+Mevcut tab'lar arasına (Overview, Documents, Chat, vb.) "Activity" tab ekle.
+
+Activity tab içeriği — dikey timeline:
+
+<div className="relative">
+  {/* Dikey çizgi */}
+  <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-slate-700/50" />
+  
+  {activities.map(activity => (
+    <div className="relative flex gap-4 pb-6">
+      {/* Nokta */}
+      <div className={`relative z-10 w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${getActivityColor(activity.activityType)}`}>
+        {getActivityIcon(activity.activityType)}
+      </div>
+      
+      {/* İçerik */}
+      <div className="flex-1 bg-slate-800/30 border border-slate-700/30 rounded-xl p-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold text-white">{activity.title}</span>
+          <span className="text-xs text-slate-500">{formatTimeAgo(activity.createdAt)}</span>
+        </div>
+        {activity.description && (
+          <p className="text-xs text-slate-400 mt-1">{activity.description}</p>
+        )}
+        <div className="text-xs text-slate-500 mt-2">
+          by {activity.user?.firstName} {activity.user?.lastName}
+        </div>
+      </div>
+    </div>
+  ))}
+</div>
+
+Activity type renkleri ve ikonları:
+- voyage_created: bg-sky-500/20 text-sky-400, 🗺️
+- status_changed: bg-amber-500/20 text-amber-400, 🔄
+- eta_updated: bg-blue-500/20 text-blue-400, 🕐
+- document_uploaded: bg-purple-500/20 text-purple-400, 📄
+- document_signed: bg-green-500/20 text-green-400, ✍️
+- checklist_completed: bg-green-500/20 text-green-400, ✅
+- chat_message: bg-slate-500/20 text-slate-400, 💬
+- sof_created: bg-cyan-500/20 text-cyan-400, 📝
+- sof_finalized: bg-cyan-500/20 text-cyan-400, 📝✓
+- pda_created: bg-sky-500/20 text-sky-400, 📋
+- pda_approved: bg-green-500/20 text-green-400, 📋✓
+- fda_created: bg-amber-500/20 text-amber-400, 🧾
+- invoice_created: bg-emerald-500/20 text-emerald-400, 💳
+- invoice_paid: bg-green-500/20 text-green-400, 💰
+
+"Add Note" butonu timeline'ın üstünde:
+- Custom not ekleme: activityType: 'custom_note'
+- Dialog: title + description textarea
+- POST /api/voyages/:id/activities
+
+=== 6. DASHBOARD — RECENT ACTIVITY WIDGET ===
+
+Her role'ün dashboard'ına "Recent Activity" kartı ekle:
+
+<Card title="Recent Activity" icon="📰">
+  {recentActivities.map(activity => (
+    <div className="flex items-center gap-3 py-2 border-b border-slate-800/50">
+      <span className="text-lg">{getActivityIcon(activity.activityType)}</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-white truncate">{activity.title}</p>
+        <p className="text-xs text-slate-500">{formatTimeAgo(activity.createdAt)}</p>
+      </div>
+      <Link href={`/voyages/${activity.voyageId}`}>
+        <span className="text-xs text-sky-400 hover:underline">View →</span>
+      </Link>
+    </div>
+  ))}
+  {recentActivities.length === 0 && (
+    <p className="text-sm text-slate-500 py-4 text-center">No recent activity</p>
+  )}
+</Card>
+
+GET /api/user/recent-activity?limit=10 ile çek.
+
+=== 7. IMPORTANT ===
+
+- logVoyageActivity async fire-and-forget — ana işlemi bloklamaz
+- Activity log YAZMA hatası ana işlemi durdurmaz (try-catch)
+- Mevcut endpoint'lerin response'larını DEĞİŞTİRME, sadece activity log ekle
+- Timeline sadece voyage-detail sayfasında, ama recent activity dashboard'da
+- Pagination: ilk 50 activity göster, "Load More" butonu
+- Mobile'da timeline responsive olsun
+- formatTimeAgo: "2 min ago", "1 hour ago", "Yesterday", "3 Mar"
+- npx drizzle-kit push ile tablo oluştur
