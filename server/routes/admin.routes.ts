@@ -10,6 +10,7 @@ import { geocodeStats } from "../geocode-ports";
 import { loadSanctionsList } from "../sanctions";
 import { getOrFetchRates } from "../exchange-rates";
 import { cached, invalidateCache, invalidateCacheByPrefix, clearAllCache, getCacheStats } from "../cache";
+import * as emailTemplates from "../email-templates";
 
 const router = Router();
 
@@ -1218,6 +1219,187 @@ router.post("/cache-clear", isAuthenticated, async (req: any, res) => {
     res.json({ success: true, message: "All caches cleared" });
   } catch (error) {
     res.status(500).json({ message: "Failed to clear cache" });
+  }
+});
+
+router.get("/email-preview/:template", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    const BASE = "https://vesselpda.com";
+    const now = new Date();
+    const templates: Record<string, { subject: string; html: string }> = {
+      pda: emailTemplates.pdaSentTemplate({
+        recipientName: "John Smith",
+        vesselName: "MV Barbaros",
+        portName: "Izmir",
+        referenceNumber: "PDA-2026-001",
+        totalUsd: 24500,
+        totalEur: 22150,
+        senderName: "Selim Yılmaz",
+        senderCompany: "Barbaros Shipping Agency",
+        approveUrl: `${BASE}/proformas/1`,
+        revisionUrl: `${BASE}/proformas/1`,
+        message: "Please find the proforma for your upcoming port call at Izmir.",
+      }),
+      "pda-full": emailTemplates.pdaFullTemplate({
+        toEmail: "owner@example.com",
+        subject: "PDA — MV Barbaros at Izmir [PDA-2026-001]",
+        message: "Kindly review and approve the attached proforma disbursement account.",
+        referenceNumber: "PDA-2026-001",
+        vesselName: "MV Barbaros",
+        portName: "Izmir",
+        purposeOfCall: "Loading Steel Coils",
+        totalUsd: 24500,
+        totalEur: 22150,
+        exchangeRate: 1.107,
+        lineItems: [
+          { description: "Port Dues", amountUsd: 8200 },
+          { description: "Pilotage (In/Out)", amountUsd: 3400 },
+          { description: "Mooring / Unmooring", amountUsd: 1800 },
+          { description: "Agency Fee", amountUsd: 2500 },
+          { description: "Miscellaneous", amountUsd: 600 },
+        ],
+        bankDetails: {
+          bankName: "Türkiye İş Bankası",
+          swiftCode: "ISBKTRIS",
+          usdIban: "TR12 0006 4000 0011 2345 6789 01",
+          eurIban: "TR12 0006 4000 0011 2345 6789 02",
+          beneficiary: "Barbaros Shipping Agency Ltd.",
+        },
+        createdAt: now.toISOString(),
+        toCompany: "Example Shipowners Inc.",
+      }),
+      "approval-request": emailTemplates.pdaApprovalRequestTemplate({
+        toEmail: "owner@example.com",
+        subject: "Action Required: PDA Approval — MV Barbaros at Izmir",
+        message: "Please review and approve or request revision for this Proforma Disbursement Account.",
+        referenceNumber: "PDA-2026-001",
+        vesselName: "MV Barbaros",
+        portName: "Izmir",
+        totalUsd: 24500,
+        approvalToken: "example-token-abc123",
+        lineItems: [
+          { description: "Port Dues", amountUsd: 8200 },
+          { description: "Pilotage", amountUsd: 3400 },
+          { description: "Agency Fee", amountUsd: 2500 },
+        ],
+      }),
+      tender: emailTemplates.newTenderTemplate({
+        agentName: "Ahmet Kaya",
+        vesselName: "MV Barbaros",
+        portName: "Izmir",
+        cargoType: "Steel Coils",
+        cargoQuantity: "10,000 MT",
+        expiryHours: 24,
+        tenderUrl: `${BASE}/tenders/1`,
+      }),
+      "bid-received": emailTemplates.bidReceivedTemplate({
+        shipownerName: "George Papadopoulos",
+        agentName: "Ahmet Kaya",
+        agentCompany: "Barbaros Agency",
+        vesselName: "MV Barbaros",
+        portName: "Izmir",
+        bidAmount: 22000,
+        currency: "USD",
+        tenderUrl: `${BASE}/tenders/1`,
+      }),
+      "bid-selected": emailTemplates.bidSelectedTemplate({
+        agentName: "Ahmet Kaya",
+        agentCompany: "Barbaros Agency",
+        vesselName: "MV Barbaros",
+        portName: "Izmir",
+        tenderUrl: `${BASE}/tenders/1`,
+      }),
+      nomination: emailTemplates.nominationTemplate({
+        agentName: "Ahmet Kaya",
+        agentCompanyName: "Barbaros Agency",
+        portName: "Izmir",
+        vesselName: "MV Barbaros",
+        flag: "Turkey",
+        grt: 28500,
+        nrt: 12300,
+        cargoType: "Steel Coils",
+        cargoQuantity: "10,000 MT",
+        shipownerName: "George Papadopoulos",
+        nominationUrl: `${BASE}/nominations/1`,
+      }),
+      "nomination-response": emailTemplates.nominationResponseTemplate({
+        nominatorName: "George Papadopoulos",
+        agentCompanyName: "Barbaros Agency",
+        status: "accepted",
+        portName: "Izmir",
+        vesselName: "MV Barbaros",
+        notes: "Please send the vessel particulars and cargo manifest 48 hours prior to arrival.",
+      }),
+      nor: emailTemplates.norTenderedTemplate({
+        recipientName: "Izmir Port Authority",
+        vesselName: "MV Barbaros",
+        portName: "Izmir",
+        norTenderedAt: now.toLocaleString("en-GB"),
+        masterName: "Capt. Mehmet Yıldız",
+        norUrl: `${BASE}/nor/1`,
+      }),
+      invoice: emailTemplates.invoiceCreatedTemplate({
+        recipientName: "John Smith",
+        vesselName: "MV Barbaros",
+        portName: "Izmir",
+        invoiceTitle: "INV-2026-001 — Port Disbursements",
+        amount: 24500,
+        currency: "USD",
+        dueDate: "15 Mar 2026",
+        invoiceUrl: `${BASE}/invoices/1`,
+      }),
+      fda: emailTemplates.fdaReadyTemplate({
+        recipientName: "John Smith",
+        vesselName: "MV Barbaros",
+        portName: "Izmir",
+        referenceNumber: "FDA-2026-001",
+        estimatedUsd: 24500,
+        actualUsd: 23800,
+        variancePercent: -2.9,
+        fdaUrl: `${BASE}/fda/1`,
+      }),
+      welcome: emailTemplates.welcomeTemplate({
+        userName: "Ahmet Kaya",
+        role: "Agent",
+        loginUrl: `${BASE}/login`,
+      }),
+      verification: emailTemplates.verificationTemplate({
+        firstName: "Ahmet",
+        verifyUrl: `${BASE}/verify-email?token=example-token-123`,
+      }),
+      "password-reset": emailTemplates.passwordResetTemplate({
+        firstName: "Ahmet",
+        resetUrl: `${BASE}/reset-password?token=example-token-456`,
+      }),
+      "forum-reply": emailTemplates.forumReplyTemplate({
+        toName: "Ahmet Kaya",
+        topicTitle: "Best practices for Turkish port agency operations",
+        topicId: 1,
+        replyAuthor: "Selim Yılmaz",
+        replyPreview: "Great point about the agency fees — in Izmir the standard practice is to include pilotage in the proforma...",
+      }),
+      "message-bridge": emailTemplates.messageBridgeTemplate({
+        toName: "John Smith",
+        senderName: "Ahmet Kaya",
+        content: "Please review the attached proforma for MV Barbaros port call at Izmir. Let me know if you have any questions.",
+        fileName: undefined,
+      }),
+      contact: emailTemplates.contactAdminTemplate({
+        name: "John Smith",
+        email: "john@example.com",
+        subject: "Inquiry about vessel tracking subscription",
+        message: "Hello, I'd like to learn more about the Standard subscription and what vessel tracking features it includes for Turkish waters.",
+      }),
+    };
+    const tpl = templates[req.params.template];
+    if (!tpl) {
+      return res.status(404).json({ message: "Template not found", available: Object.keys(templates) });
+    }
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(tpl.html);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to render email preview" });
   }
 });
 

@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock, Ban, UserCheck, MessageSquarePlus, Bug, Lightbulb, MessageCircle, MailCheck, ShieldCheck, ShieldX, Fuel, Plus, Edit2, Trash2, Loader2, MapPin, AlertTriangle, UserPlus, Activity, Megaphone, Settings, Database, Zap, Bell, Globe, ChevronRight, Wrench, Calendar, Eye, RotateCcw, CheckSquare, Server } from "lucide-react";
+import { Shield, Users, Ship, FileText, Building2, Search, BarChart3, TrendingUp, Target, Gavel, CheckCircle, XCircle, Clock, Ban, UserCheck, MessageSquarePlus, Bug, Lightbulb, MessageCircle, MailCheck, ShieldCheck, ShieldX, Fuel, Plus, Edit2, Trash2, Loader2, MapPin, AlertTriangle, UserPlus, Activity, Megaphone, Settings, Database, Zap, Bell, Globe, ChevronRight, Wrench, Calendar, Eye, RotateCcw, CheckSquare, Server, Mail } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1733,6 +1733,51 @@ export default function AdminPanel() {
             ) : (
               <p className="text-sm text-muted-foreground">Loading cache statistics…</p>
             )}
+          </Card>
+
+          {/* Email Templates Card */}
+          <Card className="p-5" data-testid="card-email-templates">
+            <div className="flex items-center gap-2 mb-3">
+              <Mail className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+              <h3 className="font-semibold">Email Templates</h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Preview the HTML email templates sent by the platform. Click Preview to open in a new tab.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {[
+                { key: "pda",                label: "PDA Summary" },
+                { key: "pda-full",           label: "Full PDA (with line items)" },
+                { key: "approval-request",   label: "PDA Approval Request" },
+                { key: "tender",             label: "New Tender Notification" },
+                { key: "bid-received",       label: "Bid Received" },
+                { key: "bid-selected",       label: "Bid Selected" },
+                { key: "nomination",         label: "Agent Nomination" },
+                { key: "nomination-response",label: "Nomination Response" },
+                { key: "nor",                label: "NOR Tendered" },
+                { key: "invoice",            label: "Invoice Created" },
+                { key: "fda",                label: "FDA Ready" },
+                { key: "welcome",            label: "Welcome Email" },
+                { key: "verification",       label: "Email Verification" },
+                { key: "password-reset",     label: "Password Reset" },
+                { key: "forum-reply",        label: "Forum Reply" },
+                { key: "message-bridge",     label: "Message Bridge" },
+                { key: "contact",            label: "Contact Form (Admin)" },
+              ].map(t => (
+                <div key={t.key} className="flex items-center justify-between border rounded-lg p-3">
+                  <span className="text-sm">{t.label}</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={() => window.open(`/api/admin/email-preview/${t.key}`, "_blank")}
+                    data-testid={`button-preview-email-${t.key}`}
+                  >
+                    Preview
+                  </Button>
+                </div>
+              ))}
+            </div>
           </Card>
         </TabsContent>
 
