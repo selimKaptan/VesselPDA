@@ -32,6 +32,7 @@ import notificationRoutes from "./routes/notification.routes";
 import messageRoutes from "./routes/message.routes";
 import commercialRoutes from "./routes/commercial.routes";
 import miscRoutes from "./routes/misc.routes";
+import searchRoutes from "./routes/search.routes";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -66,6 +67,7 @@ export async function registerRoutes(
   app.use(messageRoutes);     // /api/messages/*, /api/conversations/*
   app.use(commercialRoutes);  // /api/fixtures, /api/laytime, /api/cargo-positions
   app.use(miscRoutes);        // /api/invoices, /api/document-templates, /api/port-alerts, /api/certificates
+  app.use(searchRoutes);      // /api/search
 
   // ─── Prefix-mounted (paths stripped inside router) ────────────────────────
   app.use("/api/vessels", vesselRoutes);

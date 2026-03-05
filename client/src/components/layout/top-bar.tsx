@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { useTheme } from "@/components/theme-provider";
 import { useLanguage } from "@/lib/i18n";
@@ -6,6 +6,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { NotificationBell } from "@/components/notification-bell";
+import { GlobalSearch } from "@/components/global-search";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -178,6 +179,18 @@ interface TopBarProps {
 
 export function TopBar({ user, onMenuClick }: TopBarProps) {
   const { lang, setLang } = useLanguage();
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   return (
     <header className="h-12 flex-shrink-0 flex items-center px-3 gap-3 bg-[#080c18] border-b border-slate-700/50 z-30">
@@ -197,14 +210,23 @@ export function TopBar({ user, onMenuClick }: TopBarProps) {
         </Link>
       </div>
 
-      {/* Center: search bar (UI only) */}
+      {/* Center: global search trigger */}
       <div className="flex-1 max-w-md mx-auto">
-        <div className="flex items-center gap-2 bg-slate-800/50 border border-slate-700/40 rounded-full px-4 py-1.5 text-sm text-slate-500 cursor-text">
+        <button
+          onClick={() => setSearchOpen(true)}
+          data-testid="button-open-search"
+          className="w-full flex items-center gap-2 bg-slate-800/50 border border-slate-700/40 rounded-full px-4 py-1.5 text-sm text-slate-500 hover:text-slate-300 hover:bg-slate-700/50 hover:border-slate-600/40 transition-colors cursor-pointer"
+        >
           <Search className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="truncate hidden sm:block">Search vessels, ports, proformas...</span>
+          <span className="flex-1 text-left truncate hidden sm:block">Search vessels, ports, proformas...</span>
           <span className="truncate sm:hidden">Search...</span>
-        </div>
+          <kbd className="hidden sm:flex items-center gap-0.5 text-[10px] bg-slate-700/60 border border-slate-600/50 px-1.5 py-0.5 rounded text-slate-400 ml-auto flex-shrink-0">
+            <span>⌘</span><span>K</span>
+          </kbd>
+        </button>
       </div>
+
+      <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
 
       {/* Right: lang · theme · bell · user */}
       <div className="flex items-center gap-1 flex-shrink-0">
