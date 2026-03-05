@@ -1,4 +1,6 @@
 import PDFDocument from "pdfkit";
+import fs from "fs";
+import path from "path";
 import type { ProformaLineItem, BankDetails } from "@shared/schema";
 
 interface ProformaPdfOptions {
@@ -11,7 +13,6 @@ interface ProformaPdfOptions {
 const COL_LEFT = 50;
 const COL_RIGHT = 310;
 const PAGE_RIGHT = 545;
-const PAGE_WIDTH = 595.28;
 
 function hline(doc: InstanceType<typeof PDFDocument>, y?: number) {
   const lineY = y ?? doc.y;
@@ -19,273 +20,351 @@ function hline(doc: InstanceType<typeof PDFDocument>, y?: number) {
   doc.strokeColor("black").lineWidth(1);
 }
 
-export function generateProformaPdf(options: ProformaPdfOptions): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const { proforma, companyProfile, port, vessel } = options;
-    const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
-    const chunks: Buffer[] = [];
+async function addLogoToPdf(doc: any, companyProfile: any): Promise<void> {
+  if (!companyProfile?.logoUrl) return;
+  try {
+    let logoBuffer: Buffer | null = null;
+    const logoUrl: string = companyProfile.logoUrl;
 
-    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
-    doc.on("error", reject);
+    if (logoUrl.startsWith("data:image")) {
+      const base64Data = logoUrl.split(",")[1];
+      if (base64Data) logoBuffer = Buffer.from(base64Data, "base64");
+    } else if (logoUrl.startsWith("/uploads/")) {
+      const fullPath = path.join(process.cwd(), logoUrl);
+      if (fs.existsSync(fullPath)) {
+        logoBuffer = fs.readFileSync(fullPath);
+      }
+    } else if (logoUrl.startsWith("http")) {
+      const response = await fetch(logoUrl);
+      const arrayBuffer = await response.arrayBuffer();
+      logoBuffer = Buffer.from(arrayBuffer);
+    }
 
-    // ─── HEADER BAR ────────────────────────────────────────────────────────────
-    doc.rect(COL_LEFT, 40, PAGE_RIGHT - COL_LEFT, 28).fill("#1e3a5f");
+    if (logoBuffer) {
+      doc.image(logoBuffer, COL_LEFT, 40, { fit: [80, 50] });
+    }
+  } catch (e) {
+    console.error("[PDF] Failed to add logo:", e);
+  }
+}
+
+export async function addPdfHeader(
+  doc: any,
+  companyProfile: any,
+  title?: string
+): Promise<void> {
+  await addLogoToPdf(doc, companyProfile);
+
+  if (companyProfile) {
+    doc
+      .fontSize(9)
+      .font("Helvetica-Bold")
+      .fillColor("#1e3a5f")
+      .text(companyProfile.companyName || "", 300, 40, { width: 245, align: "right" });
+    doc.font("Helvetica").fillColor("#555").fontSize(7.5);
+    if (companyProfile.address)
+      doc.text(companyProfile.address, 300, doc.y + 1, { width: 245, align: "right" });
+    if (companyProfile.phone)
+      doc.text(`Tel: ${companyProfile.phone}`, 300, doc.y + 1, { width: 245, align: "right" });
+    if (companyProfile.email)
+      doc.text(`Email: ${companyProfile.email}`, 300, doc.y + 1, { width: 245, align: "right" });
+    if (companyProfile.taxNumber)
+      doc.text(`Tax No: ${companyProfile.taxNumber}`, 300, doc.y + 1, { width: 245, align: "right" });
+    if (companyProfile.mtoRegistrationNumber)
+      doc.text(`MTO Reg: ${companyProfile.mtoRegistrationNumber}`, 300, doc.y + 1, { width: 245, align: "right" });
+  }
+
+  doc.fillColor("black");
+  doc.y = Math.max(doc.y, 95);
+  doc.moveDown(0.3);
+
+  doc
+    .moveTo(COL_LEFT, doc.y)
+    .lineTo(PAGE_RIGHT, doc.y)
+    .lineWidth(1.5)
+    .strokeColor("#1e293b")
+    .stroke();
+  doc.strokeColor("black").lineWidth(1);
+  doc.moveDown(0.5);
+
+  if (title) {
+    const titleY = doc.y;
+    doc.rect(COL_LEFT, titleY, PAGE_RIGHT - COL_LEFT, 22).fill("#1e3a5f");
     doc
       .fillColor("white")
-      .fontSize(13)
+      .fontSize(11)
       .font("Helvetica-Bold")
-      .text("PROFORMA DISBURSEMENT ACCOUNT", COL_LEFT + 6, 48, {
+      .text(title, COL_LEFT + 6, titleY + 6, {
         width: PAGE_RIGHT - COL_LEFT - 12,
         align: "center",
       });
     doc.fillColor("black");
-    doc.y = 76;
-    doc.moveDown(0.6);
-
-    // ─── COMPANY INFO (right) & REFERENCE/DATE (left) ─────────────────────────
-    const headerY = doc.y;
-
-    if (companyProfile) {
-      doc
-        .fontSize(8)
-        .font("Helvetica-Bold")
-        .fillColor("#1e3a5f")
-        .text(companyProfile.companyName || "VesselPDA Agent", COL_RIGHT, headerY, {
-          width: PAGE_RIGHT - COL_RIGHT,
-          align: "right",
-        });
-      doc
-        .font("Helvetica")
-        .fillColor("#555")
-        .fontSize(7.5)
-        .text(companyProfile.address || "", COL_RIGHT, doc.y, { width: PAGE_RIGHT - COL_RIGHT, align: "right" });
-      if (companyProfile.phone)
-        doc.text(`Tel: ${companyProfile.phone}`, COL_RIGHT, doc.y, { width: PAGE_RIGHT - COL_RIGHT, align: "right" });
-      if (companyProfile.email)
-        doc.text(`Email: ${companyProfile.email}`, COL_RIGHT, doc.y, { width: PAGE_RIGHT - COL_RIGHT, align: "right" });
-    }
-
-    const refDateY = headerY;
-    doc
-      .fontSize(9)
-      .font("Helvetica-Bold")
-      .fillColor("black")
-      .text(`Reference: ${proforma.referenceNumber || "N/A"}`, COL_LEFT, refDateY, { width: 220 });
-    doc
-      .fontSize(8.5)
-      .font("Helvetica")
-      .fillColor("#333")
-      .text(
-        `Date: ${proforma.createdAt ? new Date(proforma.createdAt).toLocaleDateString("en-GB") : new Date().toLocaleDateString("en-GB")}`,
-        COL_LEFT,
-        doc.y + 2,
-        { width: 220 }
-      );
-    if (proforma.status)
-      doc.text(`Status: ${String(proforma.status).toUpperCase()}`, COL_LEFT, doc.y + 2, { width: 220 });
-
-    doc.y = Math.max(doc.y, (companyProfile ? 130 : headerY + 30));
-    doc.moveDown(0.8);
-    hline(doc);
-    doc.moveDown(0.7);
-
-    // ─── VESSEL & PORT SIDE-BY-SIDE ───────────────────────────────────────────
-    const infoY = doc.y;
-
-    doc.fontSize(8).font("Helvetica-Bold").fillColor("#1e3a5f").text("VESSEL DETAILS", COL_LEFT, infoY);
-    doc.fontSize(8).font("Helvetica-Bold").fillColor("#1e3a5f").text("PORT DETAILS", COL_RIGHT, infoY);
-
-    const v = vessel || {};
-    const p = port || {};
-    const vRows = [
-      ["Name", v.name || proforma.vesselName || "N/A"],
-      ["Flag", v.flag || "N/A"],
-      ["GRT", v.grt ? String(v.grt) : "N/A"],
-      ["NRT", v.nrt ? String(v.nrt) : "N/A"],
-      ["DWT", v.dwt ? String(v.dwt) : "N/A"],
-      ["LOA", v.loa ? `${v.loa} m` : "N/A"],
-      ["IMO", v.imoNumber || "N/A"],
-    ];
-    const pRows = [
-      ["Port", p.name || "N/A"],
-      ["Country", p.country || "Turkey"],
-      ["Code", p.unlocode || p.code || "N/A"],
-      ["Purpose", proforma.purposeOfCall || "N/A"],
-    ];
-
-    let leftY = infoY + 14;
-    doc.fillColor("black").fontSize(8).font("Helvetica");
-    for (const [label, val] of vRows) {
-      doc.fillColor("#666").text(`${label}:`, COL_LEFT, leftY, { width: 40, continued: true });
-      doc.fillColor("black").text(` ${val}`, { width: 200 });
-      leftY += 13;
-    }
-
-    let rightY = infoY + 14;
-    for (const [label, val] of pRows) {
-      doc.fillColor("#666").text(`${label}:`, COL_RIGHT, rightY, { width: 45, continued: true });
-      doc.fillColor("black").text(` ${val}`, { width: 185 });
-      rightY += 13;
-    }
-
-    doc.y = Math.max(leftY, rightY) + 6;
+    doc.y = titleY + 26;
     doc.moveDown(0.4);
-    hline(doc);
-    doc.moveDown(0.6);
+  }
+}
 
-    // ─── LINE ITEMS TABLE ──────────────────────────────────────────────────────
-    const tableHeaderY = doc.y;
-    doc
-      .rect(COL_LEFT, tableHeaderY, PAGE_RIGHT - COL_LEFT, 16)
-      .fill("#e8edf4");
+export function addPdfFooter(doc: any, companyProfile: any): void {
+  try {
+    const range = doc.bufferedPageRange();
+    for (let i = range.start; i < range.start + range.count; i++) {
+      doc.switchToPage(i);
+      const footerY = 775;
+      doc
+        .moveTo(COL_LEFT, footerY)
+        .lineTo(PAGE_RIGHT, footerY)
+        .lineWidth(0.3)
+        .strokeColor("#cbd5e1")
+        .stroke();
+      doc.strokeColor("black").lineWidth(1);
+      doc.fillColor("#94a3b8").fontSize(6.5).font("Helvetica");
+      doc.text(
+        "This document is a disbursement account. Actual costs may vary depending on port conditions and regulations.",
+        COL_LEFT,
+        footerY + 4,
+        { width: PAGE_RIGHT - COL_LEFT, align: "center" }
+      );
+      if (companyProfile?.companyName) {
+        doc.text(
+          `Prepared by ${companyProfile.companyName}`,
+          COL_LEFT,
+          doc.y + 1,
+          { width: PAGE_RIGHT - COL_LEFT, align: "center" }
+        );
+      }
+      doc.text(
+        `Generated by VesselPDA \u2014 ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}  |  Page ${i - range.start + 1} of ${range.count}`,
+        COL_LEFT,
+        doc.y + 1,
+        { width: PAGE_RIGHT - COL_LEFT, align: "center" }
+      );
+      doc.fillColor("black");
+    }
+  } catch (e) {
+    console.error("[PDF] Failed to add footer:", e);
+  }
+}
+
+export async function generateProformaPdf(options: ProformaPdfOptions): Promise<Buffer> {
+  const { proforma, companyProfile, port, vessel } = options;
+
+  const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
+  const chunks: Buffer[] = [];
+
+  const streamDone = new Promise<Buffer>((resolve, reject) => {
+    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+  });
+
+  await addPdfHeader(doc, companyProfile, "PROFORMA DISBURSEMENT ACCOUNT");
+
+  const refDateY = doc.y;
+  doc
+    .fontSize(9)
+    .font("Helvetica-Bold")
+    .fillColor("black")
+    .text(`Reference: ${proforma.referenceNumber || "N/A"}`, COL_LEFT, refDateY, { width: 220 });
+  doc
+    .fontSize(8.5)
+    .font("Helvetica")
+    .fillColor("#333")
+    .text(
+      `Date: ${proforma.createdAt ? new Date(proforma.createdAt).toLocaleDateString("en-GB") : new Date().toLocaleDateString("en-GB")}`,
+      COL_LEFT,
+      doc.y + 2,
+      { width: 220 }
+    );
+  if (proforma.status)
+    doc.text(`Status: ${String(proforma.status).toUpperCase()}`, COL_LEFT, doc.y + 2, { width: 220 });
+
+  doc.y = Math.max(doc.y, refDateY + 28);
+  doc.moveDown(0.8);
+  hline(doc);
+  doc.moveDown(0.7);
+
+  const infoY = doc.y;
+  doc.fontSize(8).font("Helvetica-Bold").fillColor("#1e3a5f").text("VESSEL DETAILS", COL_LEFT, infoY);
+  doc.fontSize(8).font("Helvetica-Bold").fillColor("#1e3a5f").text("PORT DETAILS", COL_RIGHT, infoY);
+
+  const v = vessel || {};
+  const p = port || {};
+  const vRows: [string, string][] = [
+    ["Name", v.name || proforma.vesselName || "N/A"],
+    ["Flag", v.flag || "N/A"],
+    ["GRT", v.grt ? String(v.grt) : "N/A"],
+    ["NRT", v.nrt ? String(v.nrt) : "N/A"],
+    ["DWT", v.dwt ? String(v.dwt) : "N/A"],
+    ["LOA", v.loa ? `${v.loa} m` : "N/A"],
+    ["IMO", v.imoNumber || "N/A"],
+  ];
+  const pRows: [string, string][] = [
+    ["Port", p.name || "N/A"],
+    ["Country", p.country || "Turkey"],
+    ["Code", p.unlocode || p.code || "N/A"],
+    ["Purpose", proforma.purposeOfCall || "N/A"],
+  ];
+
+  let leftY = infoY + 14;
+  doc.fillColor("black").fontSize(8).font("Helvetica");
+  for (const [label, val] of vRows) {
+    doc.fillColor("#666").text(`${label}:`, COL_LEFT, leftY, { width: 40, continued: true });
+    doc.fillColor("black").text(` ${val}`, { width: 200 });
+    leftY += 13;
+  }
+
+  let rightY = infoY + 14;
+  for (const [label, val] of pRows) {
+    doc.fillColor("#666").text(`${label}:`, COL_RIGHT, rightY, { width: 45, continued: true });
+    doc.fillColor("black").text(` ${val}`, { width: 185 });
+    rightY += 13;
+  }
+
+  doc.y = Math.max(leftY, rightY) + 6;
+  doc.moveDown(0.4);
+  hline(doc);
+  doc.moveDown(0.6);
+
+  const tableHeaderY = doc.y;
+  doc.rect(COL_LEFT, tableHeaderY, PAGE_RIGHT - COL_LEFT, 16).fill("#e8edf4");
+  doc
+    .fillColor("#1e3a5f")
+    .fontSize(8.5)
+    .font("Helvetica-Bold")
+    .text("DESCRIPTION", COL_LEFT + 4, tableHeaderY + 4, { width: 280 });
+  doc.text("USD", COL_LEFT + 290, tableHeaderY + 4, { width: 70, align: "right" });
+  doc.text("EUR", COL_LEFT + 370, tableHeaderY + 4, { width: 75, align: "right" });
+
+  doc.y = tableHeaderY + 20;
+  doc.fillColor("black").fontSize(8.5).font("Helvetica");
+
+  const lineItems: ProformaLineItem[] = Array.isArray(proforma.lineItems) ? proforma.lineItems : [];
+  let rowAlt = false;
+
+  for (const item of lineItems) {
+    if (doc.y > 700) {
+      doc.addPage();
+      doc.y = 50;
+    }
+    const rowY = doc.y;
+    const descHeight = doc.heightOfString(item.description || "", { width: 275 });
+    const rowHeight = Math.max(descHeight + 6, 16);
+
+    if (rowAlt) {
+      doc.rect(COL_LEFT, rowY, PAGE_RIGHT - COL_LEFT, rowHeight).fill("#f7f9fc");
+    }
+    rowAlt = !rowAlt;
+
+    doc.fillColor("#222").font("Helvetica");
+    doc.text(item.description || "", COL_LEFT + 4, rowY + 3, { width: 275 });
+
+    const usdStr = typeof item.amountUsd === "number" ? `$ ${item.amountUsd.toFixed(2)}` : "-";
+    const eurStr = typeof item.amountEur === "number" ? `\u20ac ${item.amountEur.toFixed(2)}` : "-";
+    doc.text(usdStr, COL_LEFT + 290, rowY + 3, { width: 70, align: "right" });
+    doc.text(eurStr, COL_LEFT + 370, rowY + 3, { width: 75, align: "right" });
+
+    doc.y = rowY + rowHeight;
+  }
+
+  doc.moveDown(0.4);
+  hline(doc);
+  doc.moveDown(0.4);
+
+  const totalY = doc.y;
+  doc.rect(COL_LEFT, totalY, PAGE_RIGHT - COL_LEFT, 20).fill("#1e3a5f");
+  doc
+    .fillColor("white")
+    .fontSize(10)
+    .font("Helvetica-Bold")
+    .text("TOTAL ESTIMATED COST", COL_LEFT + 4, totalY + 5, { width: 240 });
+
+  const totalUsd = proforma.totalUsd != null ? `$ ${Number(proforma.totalUsd).toFixed(2)}` : "-";
+  const totalEur = proforma.totalEur != null ? `\u20ac ${Number(proforma.totalEur).toFixed(2)}` : "-";
+  doc.text(totalUsd, COL_LEFT + 290, totalY + 5, { width: 70, align: "right" });
+  doc.text(totalEur, COL_LEFT + 370, totalY + 5, { width: 75, align: "right" });
+
+  doc.fillColor("black");
+  doc.y = totalY + 24;
+  doc.moveDown(0.5);
+
+  doc
+    .fontSize(7.5)
+    .font("Helvetica")
+    .fillColor("#555")
+    .text(`Exchange Rate: 1 USD = ${proforma.exchangeRate ?? "N/A"} TRY`, COL_LEFT, doc.y);
+  doc.fillColor("black");
+
+  let effectiveBankDetails = proforma.bankDetails;
+  if (!effectiveBankDetails && companyProfile) {
+    const cp = companyProfile;
+    const hasBankInfo = cp.bankName || cp.bankIban || cp.bankSwift;
+    if (hasBankInfo) {
+      effectiveBankDetails = {
+        bankName: cp.bankName || "",
+        beneficiary: cp.bankAccountName || cp.companyName || "",
+        usdIban: cp.bankIban || "",
+        eurIban: cp.bankIban || "",
+        swiftCode: cp.bankSwift || "",
+        branch: cp.bankBranchName || "",
+      };
+    }
+  }
+
+  if (effectiveBankDetails) {
+    doc.moveDown(1);
+    hline(doc);
+    doc.moveDown(0.5);
+    const bankY = doc.y;
+    doc.rect(COL_LEFT, bankY, PAGE_RIGHT - COL_LEFT, 14).fill("#e8edf4");
     doc
       .fillColor("#1e3a5f")
       .fontSize(8.5)
       .font("Helvetica-Bold")
-      .text("DESCRIPTION", COL_LEFT + 4, tableHeaderY + 4, { width: 280 });
-    doc.text("USD", COL_LEFT + 290, tableHeaderY + 4, { width: 70, align: "right" });
-    doc.text("EUR", COL_LEFT + 370, tableHeaderY + 4, { width: 75, align: "right" });
+      .text("BANK DETAILS", COL_LEFT + 4, bankY + 3);
+    doc.y = bankY + 18;
+    doc.fillColor("black");
 
-    doc.y = tableHeaderY + 20;
-    doc.fillColor("black").fontSize(8.5).font("Helvetica");
-
-    const lineItems: ProformaLineItem[] = Array.isArray(proforma.lineItems) ? proforma.lineItems : [];
-    let rowAlt = false;
-
-    for (const item of lineItems) {
-      if (doc.y > 720) {
-        doc.addPage();
-        doc.y = 50;
-      }
-      const rowY = doc.y;
-      const descHeight = doc.heightOfString(item.description || "", { width: 275 });
-      const rowHeight = Math.max(descHeight + 6, 16);
-
-      if (rowAlt) {
-        doc.rect(COL_LEFT, rowY, PAGE_RIGHT - COL_LEFT, rowHeight).fill("#f7f9fc");
-      }
-      rowAlt = !rowAlt;
-
-      doc.fillColor("#222").font("Helvetica");
-      doc.text(item.description || "", COL_LEFT + 4, rowY + 3, { width: 275 });
-
-      const usdStr = typeof item.amountUsd === "number" ? item.amountUsd.toFixed(2) : "-";
-      const eurStr = typeof item.amountEur === "number" ? item.amountEur.toFixed(2) : "-";
-      doc.text(usdStr, COL_LEFT + 290, rowY + 3, { width: 70, align: "right" });
-      doc.text(eurStr, COL_LEFT + 370, rowY + 3, { width: 75, align: "right" });
-
-      doc.y = rowY + rowHeight;
+    let bank: BankDetails;
+    try {
+      bank =
+        typeof effectiveBankDetails === "string"
+          ? JSON.parse(effectiveBankDetails)
+          : effectiveBankDetails;
+    } catch {
+      bank = {} as BankDetails;
     }
 
-    // ─── TOTALS ────────────────────────────────────────────────────────────────
-    doc.moveDown(0.4);
-    hline(doc);
-    doc.moveDown(0.4);
+    doc.fontSize(8).font("Helvetica").fillColor("#333");
+    const bankRows: [string, string][] = [
+      ["Bank", bank.bankName || ""],
+      ["Beneficiary", bank.beneficiary || ""],
+      ["USD IBAN", bank.usdIban || ""],
+      ["EUR IBAN", bank.eurIban || ""],
+      ["SWIFT / BIC", bank.swiftCode || ""],
+      ["Branch", bank.branch || ""],
+    ];
+    for (const [label, val] of bankRows) {
+      if (!val) continue;
+      doc
+        .text(`${label}: `, COL_LEFT + 4, doc.y, { continued: true })
+        .font("Helvetica-Bold")
+        .text(val);
+      doc.font("Helvetica");
+      doc.moveDown(0.25);
+    }
+  }
 
-    const totalY = doc.y;
-    doc.rect(COL_LEFT, totalY, PAGE_RIGHT - COL_LEFT, 20).fill("#1e3a5f");
+  if (proforma.notes) {
+    doc.moveDown(0.8);
+    doc.fontSize(8.5).font("Helvetica-Bold").fillColor("#1e3a5f").text("NOTES", COL_LEFT);
     doc
-      .fillColor("white")
-      .fontSize(10)
-      .font("Helvetica-Bold")
-      .text("TOTAL ESTIMATED COST", COL_LEFT + 4, totalY + 5, { width: 240 });
-
-    const totalUsd = proforma.totalUsd != null ? `$ ${Number(proforma.totalUsd).toFixed(2)}` : "-";
-    const totalEur = proforma.totalEur != null ? `€ ${Number(proforma.totalEur).toFixed(2)}` : "-";
-    doc.text(totalUsd, COL_LEFT + 290, totalY + 5, { width: 70, align: "right" });
-    doc.text(totalEur, COL_LEFT + 370, totalY + 5, { width: 75, align: "right" });
-
-    doc.fillColor("black");
-    doc.y = totalY + 24;
-    doc.moveDown(0.5);
-
-    // Exchange rate
-    doc
-      .fontSize(7.5)
+      .fontSize(8)
       .font("Helvetica")
-      .fillColor("#555")
-      .text(
-        `Exchange Rate: 1 USD = ${proforma.exchangeRate ?? "N/A"} TRY`,
-        COL_LEFT,
-        doc.y
-      );
-    doc.fillColor("black");
+      .fillColor("#333")
+      .text(proforma.notes, COL_LEFT, doc.y + 2, { width: PAGE_RIGHT - COL_LEFT });
+  }
 
-    // ─── BANK DETAILS ──────────────────────────────────────────────────────────
-    if (proforma.bankDetails) {
-      doc.moveDown(1);
-      hline(doc);
-      doc.moveDown(0.5);
-      const bankY = doc.y;
-      doc.rect(COL_LEFT, bankY, PAGE_RIGHT - COL_LEFT, 14).fill("#e8edf4");
-      doc
-        .fillColor("#1e3a5f")
-        .fontSize(8.5)
-        .font("Helvetica-Bold")
-        .text("BANK DETAILS", COL_LEFT + 4, bankY + 3);
-      doc.y = bankY + 18;
-      doc.fillColor("black");
-
-      let bank: BankDetails;
-      try {
-        bank = typeof proforma.bankDetails === "string" ? JSON.parse(proforma.bankDetails) : proforma.bankDetails;
-      } catch {
-        bank = {} as BankDetails;
-      }
-
-      doc.fontSize(8).font("Helvetica").fillColor("#333");
-      const bankRows: [string, string][] = [
-        ["Bank", bank.bankName || ""],
-        ["Beneficiary", bank.beneficiary || ""],
-        ["USD IBAN", bank.usdIban || ""],
-        ["EUR IBAN", bank.eurIban || ""],
-        ["SWIFT / BIC", bank.swiftCode || ""],
-        ["Branch", bank.branch || ""],
-      ];
-      for (const [label, val] of bankRows) {
-        if (!val) continue;
-        doc.text(`${label}: `, COL_LEFT + 4, doc.y, { continued: true }).font("Helvetica-Bold").text(val);
-        doc.font("Helvetica");
-        doc.moveDown(0.25);
-      }
-    }
-
-    // ─── NOTES ─────────────────────────────────────────────────────────────────
-    if (proforma.notes) {
-      doc.moveDown(0.8);
-      doc
-        .fontSize(8.5)
-        .font("Helvetica-Bold")
-        .fillColor("#1e3a5f")
-        .text("NOTES", COL_LEFT);
-      doc
-        .fontSize(8)
-        .font("Helvetica")
-        .fillColor("#333")
-        .text(proforma.notes, COL_LEFT, doc.y + 2, { width: PAGE_RIGHT - COL_LEFT });
-    }
-
-    // ─── FOOTER ────────────────────────────────────────────────────────────────
-    const range = doc.bufferedPageRange();
-    for (let i = range.start; i < range.start + range.count; i++) {
-      doc.switchToPage(i);
-      doc
-        .fontSize(6.5)
-        .font("Helvetica")
-        .fillColor("#aaa")
-        .text(
-          "This is a proforma disbursement account. Actual costs may vary depending on port conditions and regulations.",
-          COL_LEFT,
-          800,
-          { width: PAGE_RIGHT - COL_LEFT, align: "center" }
-        )
-        .text(
-          `Generated by VesselPDA — ${new Date().toISOString().split("T")[0]}  |  Page ${i - range.start + 1} of ${range.count}`,
-          { align: "center" }
-        );
-    }
-
-    doc.end();
-  });
+  addPdfFooter(doc, companyProfile);
+  doc.end();
+  return streamDone;
 }

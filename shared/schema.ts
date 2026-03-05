@@ -1335,8 +1335,40 @@ export const DEFAULT_ORG_PERMISSIONS: Record<string, OrgPermissions> = {
   viewer:  { canCreateProforma: false, canApproveProforma: false, canCreateTender: false, canManageVoyages: false, canManageVessels: false, canViewFinance: false, canManageTeam: false, canSendMessages: false },
 };
 
+export const chamberOfShippingFees = pgTable("chamber_of_shipping_fees", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id"),
+  serviceType: varchar("service_type"),
+  vesselCategory: varchar("vessel_category"),
+  gtMin: integer("gt_min"),
+  gtMax: integer("gt_max"),
+  fee: real("fee"),
+  flagCategory: varchar("flag_category"),
+  currency: varchar("currency"),
+  validYear: integer("valid_year"),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const lightDues = pgTable("light_dues", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id"),
+  serviceType: varchar("service_type"),
+  vesselCategory: varchar("vessel_category"),
+  gtMin: integer("gt_min"),
+  gtMax: integer("gt_max"),
+  fee: real("fee"),
+  currency: varchar("currency"),
+  validYear: integer("valid_year"),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  serviceDesc: varchar("service_desc"),
+  rateUpTo800: real("rate_up_to_800"),
+  rateAbove800: real("rate_above_800"),
+});
+
 export const organizations = pgTable("organizations", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  id: serial("id").primaryKey(),
   name: text("name").notNull(),
   slug: text("slug"),
   type: text("type").default("other"),
@@ -1355,7 +1387,7 @@ export const organizations = pgTable("organizations", {
 });
 
 export const organizationMembers = pgTable("organization_members", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   role: text("role").notNull().default("member"),
@@ -1366,10 +1398,11 @@ export const organizationMembers = pgTable("organization_members", {
   invitedBy: varchar("invited_by").references(() => users.id),
   joinedAt: timestamp("joined_at").defaultNow(),
   isActive: boolean("is_active").default(true),
+  roleId: integer("role_id"),
 });
 
 export const organizationInvites = pgTable("organization_invites", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   invitedEmail: text("invited_email").notNull(),
   invitedByUserId: varchar("invited_by_user_id").notNull().references(() => users.id),
@@ -1536,3 +1569,249 @@ export const q88Relations = relations(vesselQ88, ({ one }) => ({
 export const insertQ88Schema = createInsertSchema(vesselQ88).omit({ id: true, createdAt: true });
 export type VesselQ88 = typeof vesselQ88.$inferSelect;
 export type InsertVesselQ88 = z.infer<typeof insertQ88Schema>;
+
+// ==================== TARIFF TABLES (production-managed, raw SQL seeded) ====================
+
+export const pilotageTariffs = pgTable("pilotage_tariffs", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  serviceType: varchar("service_type"),
+  vesselCategory: varchar("vessel_category"),
+  grtMin: integer("grt_min"),
+  grtMax: integer("grt_max"),
+  baseFee: real("base_fee"),
+  per1000Grt: real("per_1000_grt"),
+  currency: varchar("currency").default("USD"),
+  validYear: integer("valid_year").default(2026),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const externalPilotageTariffs = pgTable("external_pilotage_tariffs", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  serviceDescription: text("service_description"),
+  grtUpTo1000: real("grt_up_to_1000"),
+  perAdditional1000Grt: real("per_additional_1000_grt"),
+  currency: varchar("currency").default("USD"),
+  validYear: integer("valid_year").default(2026),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const agencyFees = pgTable("agency_fees", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  tariffNo: varchar("tariff_no"),
+  serviceType: varchar("service_type"),
+  ntMin: integer("nt_min"),
+  ntMax: integer("nt_max"),
+  fee: real("fee"),
+  per1000Nt: real("per_1000_nt"),
+  currency: varchar("currency").default("EUR"),
+  validYear: integer("valid_year").default(2026),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const marpolTariffs = pgTable("marpol_tariffs", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  grtMin: integer("grt_min"),
+  grtMax: integer("grt_max"),
+  marpolEk1Included: real("marpol_ek1_included"),
+  marpolEk4Included: real("marpol_ek4_included"),
+  marpolEk5Included: real("marpol_ek5_included"),
+  fixedFee: real("fixed_fee"),
+  weekdayEk1Rate: real("weekday_ek1_rate"),
+  weekdayEk4Rate: real("weekday_ek4_rate"),
+  weekdayEk5Rate: real("weekday_ek5_rate"),
+  weekendEk1Rate: real("weekend_ek1_rate"),
+  weekendEk4Rate: real("weekend_ek4_rate"),
+  weekendEk5Rate: real("weekend_ek5_rate"),
+  currency: varchar("currency").default("EUR"),
+  validYear: integer("valid_year").default(2026),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const lcbTariffs = pgTable("lcb_tariffs", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  nrtMin: integer("nrt_min"),
+  nrtMax: integer("nrt_max"),
+  amount: real("amount"),
+  currency: varchar("currency").default("TRY"),
+  validYear: integer("valid_year").default(2026),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const tonnageTariffs = pgTable("tonnage_tariffs", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  nrtMin: integer("nrt_min"),
+  nrtMax: integer("nrt_max"),
+  ithalat: real("ithalat"),
+  ihracat: real("ihracat"),
+  currency: varchar("currency").default("TRY"),
+  validYear: integer("valid_year").default(2026),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const cargoHandlingTariffs = pgTable("cargo_handling_tariffs", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  cargoType: varchar("cargo_type"),
+  operation: varchar("operation"),
+  rate: real("rate"),
+  unit: varchar("unit"),
+  currency: varchar("currency").default("USD"),
+  validYear: integer("valid_year").default(2026),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const berthingTariffs = pgTable("berthing_tariffs", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  gtMin: integer("gt_min"),
+  gtMax: integer("gt_max"),
+  intlForeignFlag: real("intl_foreign_flag"),
+  intlTurkishFlag: real("intl_turkish_flag"),
+  cabotgeTurkish: real("cabotage_turkish"),
+  currency: varchar("currency").default("USD"),
+  validYear: integer("valid_year").default(2026),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const supervisionFees = pgTable("supervision_fees", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  category: varchar("category"),
+  cargoType: varchar("cargo_type"),
+  quantityRange: varchar("quantity_range"),
+  rate: real("rate"),
+  unit: varchar("unit"),
+  currency: varchar("currency").default("EUR"),
+  notes: text("notes"),
+  validYear: integer("valid_year").default(2026),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const customTariffSections = pgTable("custom_tariff_sections", {
+  id: serial("id").primaryKey(),
+  label: varchar("label").notNull(),
+  defaultCurrency: varchar("default_currency").default("USD"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const customTariffEntries = pgTable("custom_tariff_entries", {
+  id: serial("id").primaryKey(),
+  sectionId: integer("section_id").notNull().references(() => customTariffSections.id, { onDelete: "cascade" }),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  serviceName: varchar("service_name"),
+  fee: real("fee"),
+  unit: varchar("unit"),
+  currency: varchar("currency").default("USD"),
+  validYear: integer("valid_year").default(2026),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const miscExpenses = pgTable("misc_expenses", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  expenseType: text("expense_type").notNull(),
+  feeUsd: real("fee_usd").notNull().default(0),
+  currency: text("currency").notNull().default("USD"),
+  validYear: integer("valid_year").default(2026),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const chamberFreightShare = pgTable("chamber_freight_share", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  cargoMin: integer("cargo_min"),
+  cargoMax: integer("cargo_max"),
+  fee: real("fee"),
+  flagCategory: varchar("flag_category").default("foreign"),
+  currency: varchar("currency").default("USD"),
+  validYear: integer("valid_year").default(2026),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const harbourMasterDues = pgTable("harbour_master_dues", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  serviceType: varchar("service_type"),
+  vesselCategory: varchar("vessel_category"),
+  grtMin: integer("grt_min"),
+  grtMax: integer("grt_max"),
+  fee: real("fee"),
+  currency: varchar("currency").default("TRY"),
+  validYear: integer("valid_year").default(2026),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const sanitaryDues = pgTable("sanitary_dues", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  nrtRate: real("nrt_rate"),
+  currency: varchar("currency").default("TRY"),
+  validYear: integer("valid_year").default(2026),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const vtsFees = pgTable("vts_fees", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  serviceName: varchar("service_name"),
+  fee: real("fee"),
+  unit: varchar("unit"),
+  currency: varchar("currency").default("USD"),
+  validYear: integer("valid_year").default(2026),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at"),
+});
+
+export const portAuthorityFees = pgTable("port_authority_fees", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  serviceType: varchar("service_type"),
+  vesselCategory: varchar("vessel_category"),
+  grtMin: integer("grt_min"),
+  grtMax: integer("grt_max"),
+  amount: real("amount"),
+  currency: varchar("currency").default("USD"),
+  validYear: integer("valid_year").default(2026),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at"),
+  feeName: varchar("fee_name"),
+  feeNo: varchar("fee_no"),
+  min: real("min"),
+  max: real("max"),
+  sizeMin: real("size_min"),
+  sizeMax: real("size_max"),
+  unit: varchar("unit"),
+  multiplierRule: text("multiplier_rule"),
+});
+
+export const otherServices = pgTable("other_services", {
+  id: serial("id").primaryKey(),
+  portId: integer("port_id").references(() => ports.id, { onDelete: "set null" }),
+  serviceName: varchar("service_name"),
+  fee: real("fee"),
+  unit: varchar("unit"),
+  currency: varchar("currency").default("USD"),
+  validYear: integer("valid_year").default(2026),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at"),
+});
