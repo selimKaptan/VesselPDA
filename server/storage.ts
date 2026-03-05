@@ -48,7 +48,7 @@ import {
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
-import { eq, and, lte, gte, or, isNull, desc, asc, sql, count, countDistinct, ilike } from "drizzle-orm";
+import { eq, and, lte, gte, or, isNull, desc, asc, sql, count, countDistinct, ilike, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { emitToUser } from "./socket";
 
@@ -219,6 +219,7 @@ export interface IStorage {
   getExpiringCertificates(userId: string, daysAhead: number): Promise<VesselCertificate[]>;
 
   getVesselCrew(vesselId: number): Promise<VesselCrew[]>;
+  getCrewRoster(userId: string): Promise<(VesselCrew & { vesselName: string })[]>;
   createVesselCrewMember(data: InsertVesselCrew): Promise<VesselCrew>;
   updateVesselCrewMember(id: number, data: Partial<InsertVesselCrew>): Promise<VesselCrew | undefined>;
   deleteVesselCrewMember(id: number): Promise<boolean>;
@@ -1851,6 +1852,44 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(vesselCrew.createdAt));
   }
 
+  async getCrewRoster(userId: string): Promise<(VesselCrew & { vesselName: string })[]> {
+    const userVessels = await db.select({ id: vessels.id }).from(vessels).where(eq(vessels.userId, userId));
+    if (!userVessels.length) return [];
+    const vesselIds = userVessels.map(v => v.id);
+    const rows = await db.select({
+      id: vesselCrew.id,
+      vesselId: vesselCrew.vesselId,
+      userId: vesselCrew.userId,
+      firstName: vesselCrew.firstName,
+      lastName: vesselCrew.lastName,
+      rank: vesselCrew.rank,
+      nationality: vesselCrew.nationality,
+      contractEndDate: vesselCrew.contractEndDate,
+      passportNumber: vesselCrew.passportNumber,
+      passportExpiry: vesselCrew.passportExpiry,
+      seamansBookNumber: vesselCrew.seamansBookNumber,
+      seamansBookExpiry: vesselCrew.seamansBookExpiry,
+      passportFileBase64: vesselCrew.passportFileBase64,
+      passportFileName: vesselCrew.passportFileName,
+      passportFileUrl: vesselCrew.passportFileUrl,
+      seamansBookFileBase64: vesselCrew.seamansBookFileBase64,
+      seamansBookFileName: vesselCrew.seamansBookFileName,
+      seamansBookFileUrl: vesselCrew.seamansBookFileUrl,
+      medicalFitnessExpiry: vesselCrew.medicalFitnessExpiry,
+      medicalFitnessFileBase64: vesselCrew.medicalFitnessFileBase64,
+      medicalFitnessFileName: vesselCrew.medicalFitnessFileName,
+      medicalFitnessFileUrl: vesselCrew.medicalFitnessFileUrl,
+      status: vesselCrew.status,
+      createdAt: vesselCrew.createdAt,
+      vesselName: vessels.name,
+    })
+    .from(vesselCrew)
+    .innerJoin(vessels, eq(vesselCrew.vesselId, vessels.id))
+    .where(inArray(vesselCrew.vesselId, vesselIds))
+    .orderBy(asc(vessels.name), asc(vesselCrew.createdAt));
+    return rows as any;
+  }
+
   async createVesselCrewMember(data: InsertVesselCrew): Promise<VesselCrew> {
     const toDate = (v: any) => v ? new Date(v) : null;
     const [row] = await db.insert(vesselCrew).values({
@@ -1858,6 +1897,7 @@ export class DatabaseStorage implements IStorage {
       contractEndDate: toDate(data.contractEndDate) as any,
       passportExpiry: toDate(data.passportExpiry) as any,
       seamansBookExpiry: toDate(data.seamansBookExpiry) as any,
+      medicalFitnessExpiry: toDate((data as any).medicalFitnessExpiry) as any,
     }).returning();
     return row;
   }
@@ -1868,6 +1908,7 @@ export class DatabaseStorage implements IStorage {
     if (data.contractEndDate !== undefined) updateData.contractEndDate = toDate(data.contractEndDate);
     if (data.passportExpiry !== undefined) updateData.passportExpiry = toDate(data.passportExpiry);
     if (data.seamansBookExpiry !== undefined) updateData.seamansBookExpiry = toDate(data.seamansBookExpiry);
+    if ((data as any).medicalFitnessExpiry !== undefined) updateData.medicalFitnessExpiry = toDate((data as any).medicalFitnessExpiry);
     const [row] = await db.update(vesselCrew).set(updateData).where(eq(vesselCrew.id, id)).returning();
     return row;
   }

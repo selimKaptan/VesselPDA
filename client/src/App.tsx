@@ -67,6 +67,7 @@ import ResetPasswordPage from "@/pages/reset-password";
 import DemoPage from "@/pages/demo";
 import Team from "@/pages/team";
 import AiSmartDropPage from "@/pages/ai-smart-drop";
+import CrewRoster from "@/pages/crew-roster";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -122,6 +123,7 @@ function AuthenticatedRouter() {
       <Route path="/da-comparison/:proformaId" component={DaComparison} />
       <Route path="/team" component={Team} />
       <Route path="/ai-smart-drop" component={AiSmartDropPage} />
+      <Route path="/crew-roster" component={CrewRoster} />
       <Route component={NotFound} />
     </Switch>
   );

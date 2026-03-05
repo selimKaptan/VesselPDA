@@ -10,8 +10,9 @@ import {
   LayoutGrid, Map as MapIcon,
   ShieldCheck, Pencil, AlertTriangle, CheckCircle2, Clock,
   ChevronLeft, Download, Upload, Eye, X,
-  Layers,
+  Layers, Users2,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -776,12 +777,12 @@ export default function Vessels() {
   const [certDownloadingAll, setCertDownloadingAll] = useState(false);
 
   // Crew state
-  const defaultCrewForm = { firstName: "", lastName: "", rank: "", nationality: "", contractEndDate: "", passportNumber: "", passportExpiry: "", seamansBookNumber: "", seamansBookExpiry: "" };
+  const defaultCrewForm = { firstName: "", lastName: "", rank: "", nationality: "", contractEndDate: "", passportNumber: "", passportExpiry: "", seamansBookNumber: "", seamansBookExpiry: "", medicalFitnessExpiry: "", status: "on_board" };
   const [crewDialogOpen, setCrewDialogOpen] = useState(false);
   const [editCrewMember, setEditCrewMember] = useState<any>(null);
   const [crewDeleteTarget, setCrewDeleteTarget] = useState<{ id: number; vesselId: number } | null>(null);
   const [crewForm, setCrewForm] = useState({ ...defaultCrewForm });
-  const [crewFileUploading, setCrewFileUploading] = useState<{ id: number; field: "passport" | "seamansBook" } | null>(null);
+  const [crewFileUploading, setCrewFileUploading] = useState<{ id: number; field: "passport" | "seamansBook" | "medicalFitness" } | null>(null);
   const [location] = useLocation();
 
   useEffect(() => {
@@ -968,10 +969,12 @@ export default function Vessels() {
     }
   };
 
-  const handleCrewFileRemove = async (member: any, field: "passport" | "seamansBook") => {
+  const handleCrewFileRemove = async (member: any, field: "passport" | "seamansBook" | "medicalFitness") => {
     const payload = field === "passport"
       ? { passportFileBase64: null, passportFileName: null }
-      : { seamansBookFileBase64: null, seamansBookFileName: null };
+      : field === "seamansBook"
+      ? { seamansBookFileBase64: null, seamansBookFileName: null }
+      : { medicalFitnessFileBase64: null, medicalFitnessFileName: null };
     await apiRequest("PATCH", `/api/vessels/${member.vesselId}/crew/${member.id}`, payload);
     queryClient.invalidateQueries({ queryKey: ["/api/vessels", member.vesselId, "crew"] });
     toast({ title: "File removed" });
@@ -999,6 +1002,8 @@ export default function Vessels() {
         seamansBookNumber: crewForm.seamansBookNumber || null,
         rank: crewForm.rank || null,
         nationality: crewForm.nationality || null,
+        medicalFitnessExpiry: (crewForm as any).medicalFitnessExpiry || null,
+        status: (crewForm as any).status || "on_board",
       };
       if (editCrewMember?.id) {
         return apiRequest("PATCH", `/api/vessels/${editCrewMember.vesselId}/crew/${editCrewMember.id}`, payload);
@@ -1735,8 +1740,31 @@ export default function Vessels() {
                           variant="outline"
                           className="gap-1"
                           onClick={() => {
+                            if (!vesselCrewList.length) return;
+                            const fmtCSV = (v: any) => v ? String(v).replace(/,/g, ";") : "";
+                            const fmt = (dt: any) => dt ? new Date(dt).toLocaleDateString("en-GB") : "";
+                            const header = "Name,Rank,Nationality,Status,Contract End,Passport No,Passport Exp,Seaman Book No,Book Exp,Medical Fitness Exp";
+                            const rows = vesselCrewList.map((m: any) =>
+                              [fmtCSV(`${m.firstName} ${m.lastName}`), fmtCSV(m.rank), fmtCSV(m.nationality), fmtCSV(m.status === "on_leave" ? "On Leave" : "On Board"), fmt(m.contractEndDate), fmtCSV(m.passportNumber), fmt(m.passportExpiry), fmtCSV(m.seamansBookNumber), fmt(m.seamansBookExpiry), fmt(m.medicalFitnessExpiry)].join(",")
+                            );
+                            const csv = [header, ...rows].join("\n");
+                            const a = document.createElement("a");
+                            a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+                            a.download = `crew_export_${v.name || "vessel"}_${new Date().toISOString().slice(0, 10)}.csv`;
+                            a.click();
+                          }}
+                          data-testid="button-export-crew-docs"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          Export All Docs
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1"
+                          onClick={() => {
                             setEditCrewMember({ vesselId: v.id, id: null });
-                            setCrewForm({ firstName: "", lastName: "", rank: "", nationality: "", contractEndDate: "", passportNumber: "", passportExpiry: "", seamansBookNumber: "", seamansBookExpiry: "" });
+                            setCrewForm({ ...defaultCrewForm } as any);
                             setCrewDialogOpen(true);
                           }}
                           data-testid="button-add-crew"
@@ -1765,21 +1793,37 @@ export default function Vessels() {
                           if (d < warn30) return "warning";
                           return "ok";
                         };
+                        const daysDiff = (dt: string) => Math.round((new Date(dt).getTime() - Date.now()) / 86400000);
                         const expCell = (dt: string | null, no?: string | null) => {
                           const s = dateStatus(dt);
                           if (!dt && !no) return <span className="text-muted-foreground/40">—</span>;
                           const dateStr = dt ? fmtDate(dt) : "—";
                           const noStr = no ? <span className="block text-[10px] text-muted-foreground/60">{no}</span> : null;
-                          if (s === "expired") return <span className="text-red-600 dark:text-red-400 font-medium">{dateStr}<span className="ml-1 text-[10px]">✕</span>{noStr}</span>;
-                          if (s === "warning") return <span className="text-amber-600 dark:text-amber-400 font-medium">{dateStr}<span className="ml-1 text-[10px]">⚠</span>{noStr}</span>;
+                          if (s === "expired") return (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-red-600 dark:text-red-400 font-medium cursor-default">{dateStr}<span className="ml-1 text-[10px]">✕</span>{noStr}</span>
+                              </TooltipTrigger>
+                              <TooltipContent>Expired {Math.abs(daysDiff(dt!))} days ago</TooltipContent>
+                            </Tooltip>
+                          );
+                          if (s === "warning") return (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-amber-600 dark:text-amber-400 font-medium cursor-default">{dateStr}<span className="ml-1 text-[10px]">⚠</span>{noStr}</span>
+                              </TooltipTrigger>
+                              <TooltipContent>Expires in {daysDiff(dt!)} days</TooltipContent>
+                            </Tooltip>
+                          );
                           return <span className="text-foreground">{dateStr}{noStr}</span>;
                         };
                         return (
+                          <TooltipProvider>
                           <div className="overflow-x-auto rounded-xl border">
                             <table className="w-full text-xs">
                               <thead>
                                 <tr className="bg-muted/40 border-b">
-                                  {["#", "Name", "Rank", "Nationality", "Contract End", "Passport Exp", "Passport Doc", "Seaman's Book Exp", "Seaman's Book Doc", ""].map((h) => (
+                                  {["#", "Name", "Rank", "Nationality", "Contract End", "Passport Exp", "Passport Doc", "Seaman's Book Exp", "Seaman's Book Doc", "Medical Fitness Exp", "Medical Fitness Doc", ""].map((h) => (
                                     <th key={h} className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
                                       {h}
                                     </th>
@@ -1897,6 +1941,50 @@ export default function Vessels() {
                                       }
                                     </td>
                                     <td className="px-3 py-2.5">
+                                      {expCell(member.medicalFitnessExpiry, null)}
+                                    </td>
+                                    <td className="px-3 py-2.5">
+                                      {crewFileUploading && crewFileUploading.id === member.id && crewFileUploading.field === "medicalFitness"
+                                        ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                                        : (member.medicalFitnessFileBase64 || member.medicalFitnessFileUrl)
+                                          ? <div className="flex items-center gap-0.5">
+                                              <Button size="icon" variant="ghost" className="h-6 w-6 text-green-600 dark:text-green-400" title={`Preview: ${member.medicalFitnessFileName || "medical_fitness.pdf"}`}
+                                                onClick={() => window.open(member.medicalFitnessFileBase64 || member.medicalFitnessFileUrl, "_blank")}
+                                                data-testid={`button-preview-medicalfitness-${member.id}`}>
+                                                <Eye className="w-3 h-3" />
+                                              </Button>
+                                              <Button size="icon" variant="ghost" className="h-6 w-6 text-green-600 dark:text-green-400" title="Download"
+                                                onClick={() => { const a = document.createElement("a"); a.href = member.medicalFitnessFileBase64 || member.medicalFitnessFileUrl; a.download = member.medicalFitnessFileName || "medical_fitness.pdf"; a.click(); }}
+                                                data-testid={`button-download-medicalfitness-${member.id}`}>
+                                                <Download className="w-3 h-3" />
+                                              </Button>
+                                              <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground/60 hover:text-destructive" title="Remove file"
+                                                onClick={() => handleCrewFileRemove({ ...member, vesselId: v.id }, "medicalFitness")}
+                                                data-testid={`button-remove-medicalfitness-${member.id}`}>
+                                                <X className="w-3 h-3" />
+                                              </Button>
+                                            </div>
+                                          : <label className="cursor-pointer inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/40 hover:text-primary hover:bg-accent transition-colors" title="Upload medical fitness PDF" data-testid={`button-upload-medicalfitness-${member.id}`}>
+                                              <input type="file" accept=".pdf,application/pdf" className="hidden" onChange={async (e) => {
+                                                const file = e.target.files?.[0]; if (!file) return;
+                                                setCrewFileUploading({ id: member.id, field: "medicalFitness" });
+                                                try {
+                                                  const reader = new FileReader();
+                                                  reader.onload = async () => {
+                                                    await apiRequest("PATCH", `/api/vessels/${v.id}/crew/${member.id}`, { medicalFitnessFileBase64: reader.result, medicalFitnessFileName: file.name });
+                                                    queryClient.invalidateQueries({ queryKey: ["/api/vessels", v.id, "crew"] });
+                                                    toast({ title: "Medical Fitness doc uploaded" });
+                                                    setCrewFileUploading(null);
+                                                  };
+                                                  reader.readAsDataURL(file);
+                                                } catch { toast({ title: "Upload failed", variant: "destructive" }); setCrewFileUploading(null); }
+                                                e.target.value = "";
+                                              }} />
+                                              <Upload className="w-3 h-3" />
+                                            </label>
+                                      }
+                                    </td>
+                                    <td className="px-3 py-2.5">
                                       <div className="flex items-center gap-0.5">
                                         <Button
                                           size="icon" variant="ghost" className="h-6 w-6"
@@ -1912,7 +2000,9 @@ export default function Vessels() {
                                               passportExpiry: member.passportExpiry ? member.passportExpiry.substring(0, 10) : "",
                                               seamansBookNumber: member.seamansBookNumber || "",
                                               seamansBookExpiry: member.seamansBookExpiry ? member.seamansBookExpiry.substring(0, 10) : "",
-                                            });
+                                              medicalFitnessExpiry: member.medicalFitnessExpiry ? member.medicalFitnessExpiry.substring(0, 10) : "",
+                                              status: member.status || "on_board",
+                                            } as any);
                                             setCrewDialogOpen(true);
                                           }}
                                           data-testid={`button-edit-crew-${member.id}`}
@@ -1933,6 +2023,7 @@ export default function Vessels() {
                               </tbody>
                             </table>
                           </div>
+                          </TooltipProvider>
                         );
                       })()}
                     </div>
@@ -2155,6 +2246,27 @@ export default function Vessels() {
                   onChange={e => setCrewForm(f => ({ ...f, seamansBookExpiry: e.target.value }))}
                   data-testid="input-crew-seaman-expiry"
                 />
+              </div>
+              <div>
+                <Label>Medical Fitness Expiry</Label>
+                <Input
+                  type="date"
+                  value={(crewForm as any).medicalFitnessExpiry || ""}
+                  onChange={e => setCrewForm(f => ({ ...f, medicalFitnessExpiry: e.target.value } as any))}
+                  data-testid="input-crew-medical-expiry"
+                />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select value={(crewForm as any).status || "on_board"} onValueChange={v => setCrewForm(f => ({ ...f, status: v } as any))}>
+                  <SelectTrigger data-testid="select-crew-status">
+                    <SelectValue placeholder="Select status..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="on_board">On Board</SelectItem>
+                    <SelectItem value="on_leave">On Leave</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

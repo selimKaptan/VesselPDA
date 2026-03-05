@@ -220,6 +220,17 @@ router.delete("/:vesselId/certificates/:id", isAuthenticated, async (req: any, r
 });
 
 
+router.get("/crew-roster", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const roster = await storage.getCrewRoster(userId);
+    res.json(roster);
+  } catch {
+    res.status(500).json({ message: "Failed to fetch crew roster" });
+  }
+});
+
+
 router.get("/:vesselId/crew", isAuthenticated, async (req: any, res) => {
   try {
     const vesselId = parseInt(req.params.vesselId);
@@ -235,7 +246,7 @@ router.post("/:vesselId/crew", isAuthenticated, async (req: any, res) => {
   try {
     const vesselId = parseInt(req.params.vesselId);
     const userId = req.user?.claims?.sub || req.user?.id;
-    const { passportFileBase64, seamansBookFileBase64, ...crewData } = req.body;
+    const { passportFileBase64, seamansBookFileBase64, medicalFitnessFileBase64, ...crewData } = req.body;
 
     // Save passport and seaman book files to filesystem
     let passportFileUrl: string | null = null;
@@ -258,6 +269,16 @@ router.post("/:vesselId/crew", isAuthenticated, async (req: any, res) => {
       }
     }
 
+    let medicalFitnessFileUrl: string | null = null;
+    let medicalBase64ToStore: string | null = null;
+    if (medicalFitnessFileBase64) {
+      try {
+        medicalFitnessFileUrl = saveBase64File(medicalFitnessFileBase64, "crew");
+      } catch {
+        medicalBase64ToStore = medicalFitnessFileBase64;
+      }
+    }
+
     const member = await storage.createVesselCrewMember({
       ...crewData,
       vesselId,
@@ -266,7 +287,9 @@ router.post("/:vesselId/crew", isAuthenticated, async (req: any, res) => {
       passportFileUrl,
       seamansBookFileBase64: seamansBase64ToStore,
       seamansBookFileUrl,
-    });
+      medicalFitnessFileBase64: medicalBase64ToStore,
+      medicalFitnessFileUrl,
+    } as any);
     res.status(201).json(member);
   } catch {
     res.status(500).json({ message: "Failed to create crew member" });
@@ -277,7 +300,23 @@ router.post("/:vesselId/crew", isAuthenticated, async (req: any, res) => {
 router.patch("/:vesselId/crew/:id", isAuthenticated, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
-    const updated = await storage.updateVesselCrewMember(id, req.body);
+    const vesselId = parseInt(req.params.vesselId);
+    const { passportFileBase64, seamansBookFileBase64, medicalFitnessFileBase64, ...patchData } = req.body;
+
+    if (passportFileBase64) {
+      try { patchData.passportFileUrl = saveBase64File(passportFileBase64, "crew"); }
+      catch { patchData.passportFileBase64 = passportFileBase64; }
+    }
+    if (seamansBookFileBase64) {
+      try { patchData.seamansBookFileUrl = saveBase64File(seamansBookFileBase64, "crew"); }
+      catch { patchData.seamansBookFileBase64 = seamansBookFileBase64; }
+    }
+    if (medicalFitnessFileBase64) {
+      try { patchData.medicalFitnessFileUrl = saveBase64File(medicalFitnessFileBase64, "crew"); }
+      catch { patchData.medicalFitnessFileBase64 = medicalFitnessFileBase64; }
+    }
+
+    const updated = await storage.updateVesselCrewMember(id, patchData);
     res.json(updated);
   } catch {
     res.status(500).json({ message: "Failed to update crew member" });

@@ -991,6 +991,11 @@ export const vesselCrew = pgTable("vessel_crew", {
   seamansBookFileBase64: text("seamans_book_file_base64"),
   seamansBookFileName: text("seamans_book_file_name"),
   seamansBookFileUrl: text("seamans_book_file_url"),
+  medicalFitnessExpiry: timestamp("medical_fitness_expiry"),
+  medicalFitnessFileBase64: text("medical_fitness_file_base64"),
+  medicalFitnessFileName: text("medical_fitness_file_name"),
+  medicalFitnessFileUrl: text("medical_fitness_file_url"),
+  status: text("status").default("on_board"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
