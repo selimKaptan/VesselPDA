@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Anchor, Gavel, Star, TrendingUp, ArrowRight, Building2, Navigation, MapPin, FileText, MessageSquare, ShieldCheck, AlertTriangle, Clock, XCircle, Ship, Plus, Zap, BarChart3, Bell } from "lucide-react";
+import { Anchor, Gavel, Star, TrendingUp, ArrowRight, Building2, Navigation, MapPin, FileText, MessageSquare, ShieldCheck, AlertTriangle, Clock, XCircle, Ship, Plus, Zap, BarChart3, Bell, Calendar } from "lucide-react";
 import { BidWinRateChart, ProformaTrendChart, VoyageTrendChart } from "./dashboard-charts";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -93,6 +93,57 @@ function StatCard({ label, value, loading, icon: Icon, color, href, testId }: {
         </p>
       </Card>
     </Link>
+  );
+}
+
+function formatCountdown(etaStr: string): { text: string; className: string } {
+  const diff = new Date(etaStr).getTime() - Date.now();
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  if (hours < 0) return { text: "Departed", className: "text-slate-400" };
+  if (hours < 1) return { text: "Soon", className: "text-red-500 font-bold" };
+  if (hours < 24) return { text: "Today", className: "text-red-500 font-bold" };
+  if (hours < 48) return { text: "Tomorrow", className: "text-amber-500 font-semibold" };
+  const days = Math.round(hours / 24);
+  return { text: `in ${days}d`, className: "text-muted-foreground" };
+}
+
+function UpcomingPortCallsWidget() {
+  const { data } = useQuery<any[]>({ queryKey: ["/api/vessel-schedule/upcoming"] });
+  if (!data || data.length === 0) return null;
+  return (
+    <Card className="p-4 space-y-3" data-testid="card-upcoming-port-calls">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+          <h3 className="font-semibold text-sm">Upcoming Port Calls</h3>
+        </div>
+        <Link href="/vessel-schedule">
+          <span className="text-xs text-sky-400 hover:underline cursor-pointer">View Schedule →</span>
+        </Link>
+      </div>
+      <div className="space-y-2">
+        {data.slice(0, 5).map((item: any) => {
+          const countdown = formatCountdown(item.eta);
+          return (
+            <Link key={item.id} href={`/voyages/${item.id}`}>
+              <div className="flex items-center gap-3 py-1.5 hover:bg-muted/40 rounded-lg px-1 transition-colors cursor-pointer">
+                <Anchor className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{item.vesselName}</p>
+                  <p className="text-xs text-muted-foreground truncate">{item.portName} · {item.operation}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-xs text-muted-foreground">
+                    {item.eta ? new Date(item.eta).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
+                  </p>
+                  <p className={`text-xs ${countdown.className}`}>{countdown.text}</p>
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 
@@ -397,6 +448,7 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
 
         {/* Right col: Quick Access */}
         <div className="space-y-5">
+          <UpcomingPortCallsWidget />
           <PaymentAlertsWidget />
           <RecentActivityCard />
           <Card className="p-5 space-y-3">

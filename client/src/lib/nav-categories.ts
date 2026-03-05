@@ -31,6 +31,7 @@ import {
   Crown,
   UserCheck,
   Wrench,
+  Calendar,
 } from "lucide-react";
 
 export type BadgeSource = "messages" | "nominations" | "tenders" | "certs";
@@ -103,6 +104,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     color: "sky",
     subPages: [
       { label: "Vessels", url: "/vessels", icon: Ship },
+      { label: "Vessel Schedule", url: "/vessel-schedule", icon: Calendar },
       { label: "Certificates", url: "/vessel-certificates", icon: ScrollText, badge: "certs" },
       { label: "Vessel Tracking", url: "/vessel-track", icon: Navigation },
     ],
@@ -194,6 +196,7 @@ export const URL_TO_CATEGORY: Record<string, string> = {
   "/market-data": "commercial",
   "/directory": "commercial",
   "/vessels": "fleet",
+  "/vessel-schedule": "fleet",
   "/vessel-certificates": "fleet",
   "/vessel-track": "fleet",
   "/da-comparison": "finance",

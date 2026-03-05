@@ -23,6 +23,7 @@ import fdaRoutes from "./routes/fda.routes";
 import daComparisonRoutes from "./routes/da-comparison.routes";
 import aiRoutes from "./routes/ai.routes";
 import norRoutes from "./routes/nor.routes";
+import vesselScheduleRoutes from "./routes/vessel-schedule.routes";
 
 // Root-mounted modules (full /api/... paths preserved inside router)
 import authRoutes from "./routes/auth.routes";
@@ -87,6 +88,7 @@ export async function registerRoutes(
   app.use("/api/da-comparison", daComparisonRoutes);
   app.use("/api/nor", norRoutes);
   app.use("/api/ai", aiRoutes);
+  app.use("/api/vessel-schedule", vesselScheduleRoutes);
 
   return httpServer;
 }
