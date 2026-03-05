@@ -452,6 +452,7 @@ export const voyageCargoLogs = pgTable("voyage_cargo_logs", {
   receiverId: integer("receiver_id").references(() => voyageCargoReceivers.id, { onDelete: "set null" }),
   amountHandled: real("amount_handled").notNull(),
   cumulativeTotal: real("cumulative_total"),
+  logType: text("log_type").default("operation"),
   remarks: text("remarks"),
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),

@@ -572,7 +572,7 @@ router.post("/:id/cargo-logs", isAuthenticated, async (req: any, res) => {
   try {
     const voyageId = parseInt(req.params.id);
     const userId = req.user?.claims?.sub || req.user?.id;
-    const { logDate, shift, fromTime, toTime, receiverId, amountHandled, cumulativeTotal, remarks } = req.body;
+    const { logDate, shift, fromTime, toTime, receiverId, amountHandled, cumulativeTotal, remarks, logType } = req.body;
     if (amountHandled == null) return res.status(400).json({ message: "amountHandled required" });
     const [log] = await db.insert(voyageCargoLogs).values({
       voyageId,
@@ -583,6 +583,7 @@ router.post("/:id/cargo-logs", isAuthenticated, async (req: any, res) => {
       receiverId: receiverId ? Number(receiverId) : undefined,
       amountHandled: Number(amountHandled),
       cumulativeTotal: cumulativeTotal != null ? Number(cumulativeTotal) : undefined,
+      logType: logType || "operation",
       remarks: remarks || null,
       createdBy: userId,
     }).returning();

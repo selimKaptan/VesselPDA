@@ -8,6 +8,7 @@ import {
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
   FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings, Archive, X,
+  TrendingUp, TrendingDown, AlertTriangle,
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
@@ -174,7 +175,7 @@ export default function VoyageDetail() {
   const [noteTitle, setNoteTitle] = useState("");
   const [noteDesc, setNoteDesc] = useState("");
   const [showAddLogDialog, setShowAddLogDialog] = useState(false);
-  const [logForm, setLogForm] = useState({ fromTime: "", toTime: "", amountHandled: 0, remarks: "", receiverId: "" });
+  const [logForm, setLogForm] = useState({ fromTime: "", toTime: "", amountHandled: 0, remarks: "", receiverId: "", logType: "operation" });
   const [showAddReceiverDialog, setShowAddReceiverDialog] = useState(false);
   const [receiverForm, setReceiverForm] = useState({ name: "", allocatedMt: 0 });
   const [docFilter, setDocFilter] = useState<string>("all");
@@ -606,11 +607,12 @@ export default function VoyageDetail() {
       amountHandled: Number(logForm.amountHandled),
       receiverId: logForm.receiverId ? Number(logForm.receiverId) : undefined,
       remarks: logForm.remarks,
+      logType: logForm.logType,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-logs"] });
       setShowAddLogDialog(false);
-      setLogForm({ fromTime: "", toTime: "", amountHandled: 0, remarks: "", receiverId: "" });
+      setLogForm({ fromTime: "", toTime: "", amountHandled: 0, remarks: "", receiverId: "", logType: "operation" });
       toast({ title: "Log added" });
     },
   });
@@ -1431,10 +1433,43 @@ export default function VoyageDetail() {
           return s + hours;
         }, 0);
         const avgRate = totalLogged > 0 ? Math.round((handledMt / totalLogged) * 24) : 0;
-        const etcDate = avgRate > 0 && remainingMt > 0
-          ? new Date(Date.now() + (remainingMt / avgRate) * 86_400_000).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-          : "—";
         const RECEIVER_COLORS = ["from-sky-500 to-blue-400", "from-violet-500 to-purple-400", "from-emerald-500 to-teal-400", "from-orange-500 to-amber-400", "from-rose-500 to-pink-400"];
+        const BADGE_COLORS = [
+          "bg-sky-500/15 text-sky-400 border-sky-500/25",
+          "bg-violet-500/15 text-violet-400 border-violet-500/25",
+          "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
+          "bg-orange-500/15 text-orange-400 border-orange-500/25",
+          "bg-rose-500/15 text-rose-400 border-rose-500/25",
+        ];
+        const receiverIndexMap: Record<number, number> = Object.fromEntries(receivers.map((r: any, i: number) => [r.id, i]));
+
+        // ETC as timestamp for time + countdown
+        const etcTs = avgRate > 0 && remainingMt > 0
+          ? new Date(Date.now() + (remainingMt / avgRate) * 86_400_000)
+          : null;
+        const etcFormatted = etcTs
+          ? etcTs.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+          : null;
+        const etcTime = etcTs
+          ? etcTs.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+          : null;
+        const etcCountdown = (() => {
+          if (!etcTs) return null;
+          const diffMs = etcTs.getTime() - Date.now();
+          if (diffMs <= 0) return "imminent";
+          const totalMins = Math.round(diffMs / 60_000);
+          const h = Math.floor(totalMins / 60);
+          const m = totalMins % 60;
+          return h > 0 ? `in ~${h}h ${m}m` : `in ~${m}m`;
+        })();
+
+        // Active receiver (from most recent log)
+        const lastLog = cargoLogs.length > 0 ? cargoLogs[cargoLogs.length - 1] : null;
+        const activeReceiverName = lastLog?.receiverId
+          ? receivers.find((r: any) => r.id === lastLog.receiverId)?.name ?? null
+          : null;
+
+        // Modal period rate
         const periodHours = logForm.fromTime && logForm.toTime
           ? (new Date(logForm.toTime).getTime() - new Date(logForm.fromTime).getTime()) / 3_600_000
           : 0;
@@ -1455,6 +1490,22 @@ export default function VoyageDetail() {
                   <span className="text-xs text-amber-400">Set total cargo below to begin tracking</span>
                 )}
               </div>
+
+              {/* Active Status Banner */}
+              {lastLog && (
+                <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-green-500/40 bg-green-500/[0.08]">
+                  <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse flex-shrink-0" />
+                  <span className="text-xs font-bold text-green-400 uppercase tracking-widest">
+                    Currently {voyage?.purposeOfCall ?? "Operating"}
+                    {activeReceiverName ? `: ${activeReceiverName}` : ""}
+                  </span>
+                  {lastLog.fromTime && (
+                    <span className="ml-auto text-[10px] text-green-400/60 whitespace-nowrap">
+                      Since {new Date(lastLog.fromTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* Stat row */}
               <div className="flex flex-wrap items-baseline gap-6 text-sm">
@@ -1488,6 +1539,14 @@ export default function VoyageDetail() {
                       const rHandled = cargoLogs.filter((l: any) => l.receiverId === r.id).reduce((s: number, l: any) => s + (l.amountHandled || 0), 0);
                       const rPct = r.allocatedMt > 0 ? Math.min(100, Math.round((rHandled / r.allocatedMt) * 100)) : 0;
                       const color = RECEIVER_COLORS[idx % RECEIVER_COLORS.length];
+                      const rRemaining = Math.max(0, r.allocatedMt - rHandled);
+                      const rEtcTs = avgRate > 0 && rRemaining > 0
+                        ? new Date(Date.now() + (rRemaining / avgRate) * 86_400_000)
+                        : null;
+                      const rEtcStr = rEtcTs
+                        ? rEtcTs.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) + " " +
+                          rEtcTs.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+                        : null;
                       return (
                         <div key={r.id} className="space-y-1" data-testid={`receiver-row-${r.id}`}>
                           <div className="flex items-center justify-between text-xs">
@@ -1512,6 +1571,9 @@ export default function VoyageDetail() {
                             <div className={`h-full rounded-full bg-gradient-to-r ${color} transition-all duration-700`}
                               style={{ width: `${rPct}%` }} />
                           </div>
+                          {rEtcStr && rPct < 100 && (
+                            <p className="text-[10px] text-muted-foreground/60">Est: {rEtcStr}</p>
+                          )}
                         </div>
                       );
                     })}
@@ -1545,9 +1607,21 @@ export default function VoyageDetail() {
                 <p className="text-2xl font-bold">{avgRate > 0 ? `${avgRate.toLocaleString()} MT` : "—"}</p>
                 <p className="text-xs text-muted-foreground">per day (based on timed periods)</p>
               </div>
-              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1">
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1.5">
                 <p className="text-[11px] text-amber-400 font-semibold uppercase tracking-wide">Est. Completion (ETC)</p>
-                <p className="text-2xl font-bold text-amber-300">{etcDate}</p>
+                {etcFormatted ? (
+                  <>
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <span className="text-lg font-bold text-amber-300">{etcFormatted}</span>
+                      <span className="text-xl font-extrabold text-amber-200 tabular-nums">{etcTime}</span>
+                    </div>
+                    {etcCountdown && (
+                      <p className="text-xs font-semibold text-amber-400/80">{etcCountdown}</p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-2xl font-bold text-amber-300">—</p>
+                )}
                 <p className="text-xs text-muted-foreground">based on current avg rate</p>
               </div>
               <div className="rounded-xl border border-border/60 bg-card p-4 space-y-1">
@@ -1596,14 +1670,25 @@ export default function VoyageDetail() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/30">
-                      {cargoLogs.map((log: any) => {
+                      {cargoLogs.map((log: any, idx: number) => {
+                        const isDelay = log.logType === "delay";
                         const fmtDT = (dt: string) => new Date(dt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) + " " + new Date(dt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
                         const fmtTime = (dt: string) => new Date(dt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-                        const logReceiverName = receivers.find((r: any) => r.id === log.receiverId)?.name;
+                        const receiverIdx = log.receiverId != null ? (receiverIndexMap[log.receiverId] ?? 0) : -1;
+                        const logReceiverName = log.receiverId != null ? receivers.find((r: any) => r.id === log.receiverId)?.name : null;
+                        const badgeColor = receiverIdx >= 0 ? BADGE_COLORS[receiverIdx % BADGE_COLORS.length] : "";
                         const logHours = log.fromTime && log.toTime
                           ? (new Date(log.toTime).getTime() - new Date(log.fromTime).getTime()) / 3_600_000
                           : 0;
                         const logRate = logHours > 0 ? Math.round((log.amountHandled / logHours) * 24) : null;
+                        const prevLog = idx > 0 ? cargoLogs[idx - 1] : null;
+                        const prevLogHours = prevLog?.fromTime && prevLog?.toTime
+                          ? (new Date(prevLog.toTime).getTime() - new Date(prevLog.fromTime).getTime()) / 3_600_000
+                          : 0;
+                        const prevLogRate = prevLogHours > 0 ? Math.round((prevLog.amountHandled / prevLogHours) * 24) : 0;
+                        const rateTrend = logRate && prevLogRate > 0
+                          ? (logRate > prevLogRate ? "up" : logRate < prevLogRate ? "down" : "flat")
+                          : null;
                         const periodLabel = log.fromTime && log.toTime
                           ? `${fmtDT(log.fromTime)} → ${fmtTime(log.toTime)}`
                           : log.logDate
@@ -1611,27 +1696,48 @@ export default function VoyageDetail() {
                           : "—";
 
                         return (
-                          <tr key={log.id} className="hover:bg-muted/20 transition-colors" data-testid={`row-cargo-log-${log.id}`}>
-                            <td className="py-2.5 pr-4 text-xs whitespace-nowrap">{periodLabel}</td>
+                          <tr key={log.id}
+                            className={`transition-colors ${isDelay ? "bg-red-900/20 hover:bg-red-900/30" : "hover:bg-muted/20"}`}
+                            data-testid={`row-cargo-log-${log.id}`}>
+                            <td className="py-2.5 pr-4 text-xs whitespace-nowrap">
+                              <div className="flex items-center gap-1.5">
+                                {isDelay && <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />}
+                                <span>{periodLabel}</span>
+                              </div>
+                            </td>
                             <td className="py-2.5 pr-4">
                               {logReceiverName ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badgeColor}`}>
                                   {logReceiverName}
                                 </span>
                               ) : (
                                 <span className="text-xs text-muted-foreground">General</span>
                               )}
                             </td>
-                            <td className="text-right py-2.5 pr-4 font-mono font-semibold text-green-400 whitespace-nowrap">
-                              {log.amountHandled?.toLocaleString()}
+                            <td className="text-right py-2.5 pr-4 font-mono font-semibold whitespace-nowrap">
+                              {isDelay ? (
+                                <span className="text-amber-400 text-xs font-semibold">
+                                  DELAY: {log.remarks || "Stoppage"}
+                                </span>
+                              ) : (
+                                <span className="text-green-400">{log.amountHandled?.toLocaleString()}</span>
+                              )}
                             </td>
-                            <td className="text-right py-2.5 pr-4 font-mono text-xs text-sky-300 whitespace-nowrap">
-                              {logRate ? `${logRate.toLocaleString()} MT/D` : "—"}
+                            <td className="text-right py-2.5 pr-4 font-mono text-xs whitespace-nowrap">
+                              {logRate && !isDelay ? (
+                                <span className={`flex items-center justify-end gap-1 ${rateTrend === "up" ? "text-green-400" : rateTrend === "down" ? "text-red-400" : "text-sky-300"}`}>
+                                  {rateTrend === "up" && <TrendingUp className="w-3 h-3" />}
+                                  {rateTrend === "down" && <TrendingDown className="w-3 h-3" />}
+                                  {logRate.toLocaleString()} MT/D
+                                </span>
+                              ) : "—"}
                             </td>
                             <td className="text-right py-2.5 pr-4 font-mono text-muted-foreground text-xs">
                               {log.cumulativeTotal ? log.cumulativeTotal.toLocaleString() : "—"}
                             </td>
-                            <td className="py-2.5 pr-4 text-muted-foreground text-xs max-w-[160px] truncate">{log.remarks || "—"}</td>
+                            <td className="py-2.5 pr-4 text-muted-foreground text-xs max-w-[140px] truncate">
+                              {isDelay ? "" : (log.remarks || "—")}
+                            </td>
                             <td className="py-2.5 text-right">
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive"
                                 onClick={() => deleteCargoLogMutation.mutate(log.id)}
@@ -1649,10 +1755,21 @@ export default function VoyageDetail() {
             </Card>
 
             {/* ── Add Operation Log Dialog ─────────── */}
-            <Dialog open={showAddLogDialog} onOpenChange={v => { setShowAddLogDialog(v); if (!v) setLogForm({ fromTime: "", toTime: "", amountHandled: 0, remarks: "", receiverId: "" }); }}>
+            <Dialog open={showAddLogDialog} onOpenChange={v => { setShowAddLogDialog(v); if (!v) setLogForm({ fromTime: "", toTime: "", amountHandled: 0, remarks: "", receiverId: "", logType: "operation" }); }}>
               <DialogContent className="max-w-md">
                 <DialogHeader><DialogTitle>Add Operation Log</DialogTitle></DialogHeader>
                 <div className="space-y-3 py-2">
+                  {/* Log Type */}
+                  <div>
+                    <Label className="text-xs">Log Type</Label>
+                    <Select value={logForm.logType} onValueChange={v => setLogForm(f => ({ ...f, logType: v }))}>
+                      <SelectTrigger className="h-9 text-xs" data-testid="select-log-type"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="operation">Operation (Cargo Handling)</SelectItem>
+                        <SelectItem value="delay">Delay / Stoppage</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   {/* From / To datetime */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
