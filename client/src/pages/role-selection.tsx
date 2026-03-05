@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { Ship, Building2, ArrowRight, Anchor } from "lucide-react";
+import { Ship, Building2, ArrowRight, Anchor, Compass } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -31,6 +31,14 @@ const ROLES = [
     color: "var(--maritime-accent)",
     features: ["Create company profile", "Appear in directory", "Advertise services to shipowners"],
   },
+  {
+    value: "master",
+    title: "Ship Master / Captain",
+    description: "I am the master of a vessel and need to track port operations, sign NOR, view certificates and communicate from the bridge.",
+    icon: Compass,
+    color: "210 70% 40%",
+    features: ["Track your vessel's port calls", "Sign NOR & review SOF", "View vessel certificates", "AI document drop from bridge"],
+  },
 ];
 
 export default function RoleSelection() {
@@ -53,7 +61,7 @@ export default function RoleSelection() {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
-      <div className="max-w-4xl w-full space-y-8">
+      <div className="max-w-5xl w-full space-y-8">
         <div className="text-center space-y-3">
           <img src="/logo-v2.png" alt="VesselPDA" className="w-14 h-14 rounded-lg mx-auto object-contain" />
           <h1 className="font-serif text-3xl font-bold tracking-tight" data-testid="text-role-selection-title">
@@ -67,7 +75,7 @@ export default function RoleSelection() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {ROLES.map((role) => (
             <Card
               key={role.value}

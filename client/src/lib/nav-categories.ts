@@ -185,6 +185,7 @@ export const ROLE_CATEGORIES: Record<string, string[]> = {
   agent: ["dashboard", "operations", "commercial", "finance", "communication", "tools", "settings"],
   broker: ["dashboard", "commercial", "operations", "communication", "tools", "settings"],
   provider: ["dashboard", "operations", "communication", "tools", "settings"],
+  master: ["dashboard", "operations", "fleet", "communication", "tools", "settings"],
 };
 
 export const URL_TO_CATEGORY: Record<string, string> = {

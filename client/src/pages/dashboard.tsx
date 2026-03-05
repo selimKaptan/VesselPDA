@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Ship, Anchor, Building2, Shield, Plus, LayoutDashboard, Handshake, CheckCircle2, Circle, ChevronRight, Zap } from "lucide-react";
+import { Ship, Anchor, Building2, Shield, Plus, LayoutDashboard, Handshake, CheckCircle2, Circle, ChevronRight, Zap, Compass } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -16,6 +16,7 @@ import { AgentDashboard } from "@/components/dashboards/agent-dashboard";
 import { ProviderDashboard } from "@/components/dashboards/provider-dashboard";
 import { AdminDashboard } from "@/components/dashboards/admin-dashboard";
 import { BrokerDashboard } from "@/components/dashboards/broker-dashboard";
+import { MasterDashboard } from "@/components/dashboards/master-dashboard";
 
 function GettingStartedChecklist({ vessels, proformas, myProfile }: { vessels: Vessel[] | undefined; proformas: Proforma[] | undefined; myProfile: any }) {
   const hasProfile = !!myProfile && (!!myProfile.companyName || !!myProfile.email);
@@ -71,6 +72,7 @@ const ROLE_LABELS: Record<string, string> = {
   agent: "Ship Agent",
   broker: "Ship Broker",
   provider: "Service Provider",
+  master: "Ship Master",
   admin: "Administrator",
 };
 
@@ -79,6 +81,7 @@ const ROLE_SUBTITLES: Record<string, string> = {
   agent: "Track tenders, submit bids, and manage your performance.",
   broker: "Manage fixtures, cargo positions, and market intelligence.",
   provider: "Build your profile and grow your directory presence.",
+  master: "Bridge Operations Center — port calls, NOR, certificates.",
   admin: "Full system access — users, vessels, proformas, and analytics.",
 };
 
@@ -88,6 +91,7 @@ const ADMIN_ROLES = [
   { value: "agent", label: "Agent", icon: Anchor, color: "hsl(var(--maritime-secondary))" },
   { value: "broker", label: "Broker", icon: Handshake, color: "hsl(270, 70%, 50%)" },
   { value: "provider", label: "Provider", icon: Building2, color: "hsl(var(--maritime-accent))" },
+  { value: "master", label: "Master", icon: Compass, color: "hsl(210, 70%, 40%)" },
 ];
 
 export default function Dashboard() {
@@ -135,11 +139,11 @@ export default function Dashboard() {
 
   const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({
     queryKey: ["/api/vessels"],
-    enabled: effectiveRole === "shipowner" || isAdmin,
+    enabled: effectiveRole === "shipowner" || effectiveRole === "master" || isAdmin,
   });
   const { data: proformas, isLoading: proformasLoading } = useQuery<Proforma[]>({
     queryKey: ["/api/proformas"],
-    enabled: effectiveRole !== "provider" || isAdmin,
+    enabled: effectiveRole !== "provider" && effectiveRole !== "master" || isAdmin,
   });
   const { data: myProfile } = useQuery<CompanyProfile | null>({
     queryKey: ["/api/company-profile/me"],
@@ -278,7 +282,7 @@ export default function Dashboard() {
             {ROLE_SUBTITLES[effectiveRole] || ROLE_SUBTITLES.shipowner}
           </p>
         </div>
-        {effectiveRole !== "provider" && effectiveRole !== "broker" && (
+        {effectiveRole !== "provider" && effectiveRole !== "broker" && effectiveRole !== "master" && (
           <Link href="/proformas/new">
             <Button size="sm" className="gap-2 shrink-0 shadow-sm bg-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-primary)/0.9)] text-white" data-testid="button-new-proforma-header">
               <Plus className="w-4 h-4" /> New Proforma
@@ -377,6 +381,24 @@ export default function Dashboard() {
             user={user}
             myProfile={myProfile}
           />
+          {isAdmin && (
+            <>
+              <Separator className="my-2" />
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className="w-4 h-4 text-red-500" />
+                <span className="text-xs font-bold uppercase tracking-widest text-red-500">Admin Panel</span>
+              </div>
+              <AdminDashboard adminStats={adminStats} />
+              {adminRoleSwitcher}
+            </>
+          )}
+        </>
+      )}
+
+      {/* ── Master view ── */}
+      {effectiveRole === "master" && (
+        <>
+          <MasterDashboard user={user} />
           {isAdmin && (
             <>
               <Separator className="my-2" />

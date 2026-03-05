@@ -9,7 +9,7 @@ const router = Router();
 router.post("/api/demo/login", authLimiter, async (req: any, res) => {
   try {
     const { role } = req.body;
-    const validRoles = ["agent", "shipowner", "broker", "provider"];
+    const validRoles = ["agent", "shipowner", "broker", "provider", "master"];
     if (!role || !validRoles.includes(role)) {
       return res.status(400).json({ message: "Invalid demo role" });
     }
@@ -70,8 +70,8 @@ router.patch("/api/user/role", isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user.claims.sub;
     const { role } = req.body;
-    if (!["shipowner", "agent", "provider", "admin"].includes(role)) {
-      return res.status(400).json({ message: "Invalid role. Choose: shipowner, agent, or provider" });
+    if (!["shipowner", "agent", "provider", "broker", "master"].includes(role)) {
+      return res.status(400).json({ message: "Invalid role. Choose: shipowner, agent, provider, broker, or master" });
     }
     const user = await storage.getUser(userId);
     if (user && user.roleConfirmed) {

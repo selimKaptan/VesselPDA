@@ -247,6 +247,33 @@ function Step1({ user, companyName, setCompanyName, servedPorts, setServedPorts,
     </div>
   );
 
+  if (role === "master") return (
+    <div className="space-y-5" data-testid="onboarding-step-1">
+      <div className="text-center space-y-1">
+        <div className="text-4xl mb-2">🧭</div>
+        <h2 className="text-xl font-bold font-serif">Set Up Your Bridge Profile</h2>
+        <p className="text-muted-foreground text-sm">Link your vessel to start tracking port calls from the bridge.</p>
+      </div>
+      <div className="space-y-2">
+        <Label>Your name / rank</Label>
+        <Input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="e.g. Capt. John Smith" />
+      </div>
+      <div className="space-y-3 p-4 border border-dashed border-border rounded-xl bg-muted/20">
+        <Label className="text-muted-foreground text-xs uppercase tracking-wide">Your vessel (optional)</Label>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Vessel name</Label>
+            <Input value={vesselName} onChange={e => setVesselName(e.target.value)} placeholder="e.g. MV Bosphorus Star" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">IMO number</Label>
+            <Input value={vesselImo} onChange={e => setVesselImo(e.target.value)} placeholder="e.g. 9123456" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-5" data-testid="onboarding-step-1">
       <div className="text-center space-y-1">
@@ -339,6 +366,11 @@ function Step3({ user, onAction }: { user: any; onAction: () => void }) {
       emoji: "⚙️", heading: "Explore your admin dashboard",
       desc: "Manage users, content, and platform settings from the admin panel.",
       label: "Go to Admin", href: "/admin",
+    },
+    master: {
+      emoji: "🧭", heading: "Find your vessel",
+      desc: "Search for your vessel to start tracking port calls, certificates and bridge communications.",
+      label: "Go to Vessels", href: "/vessels",
     },
   };
   const cta = ctaMap[role] || ctaMap.shipowner;

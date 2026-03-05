@@ -38,8 +38,8 @@ router.patch("/active-role", isAuthenticated, async (req: any, res) => {
       return res.status(403).json({ message: "Admin access required" });
     }
     const { activeRole } = req.body;
-    if (!["shipowner", "agent", "provider", "broker", "admin"].includes(activeRole)) {
-      return res.status(400).json({ message: "Invalid role. Choose: shipowner, agent, broker, provider, or admin" });
+    if (!["shipowner", "agent", "provider", "broker", "master", "admin"].includes(activeRole)) {
+      return res.status(400).json({ message: "Invalid role. Choose: shipowner, agent, broker, provider, master, or admin" });
     }
     const updated = await storage.updateActiveRole(userId, activeRole);
     res.json(updated);
@@ -409,7 +409,7 @@ router.get("/reports/user-growth", isAuthenticated, async (req: any, res) => {
         GROUP BY user_role
       `);
       const list: any[] = (rows as any).rows ?? (rows as any);
-      const byRole: any = { shipowner: 0, agent: 0, provider: 0, broker: 0, admin: 0 };
+      const byRole: any = { shipowner: 0, agent: 0, provider: 0, broker: 0, master: 0, admin: 0 };
       let total = 0;
       for (const r of list) { byRole[r.user_role] = (byRole[r.user_role] || 0) + parseInt(r.cnt); total += parseInt(r.cnt); }
       return { month: m.label, total, ...byRole };
@@ -497,7 +497,7 @@ router.patch("/users/:id/role", isAuthenticated, async (req: any, res) => {
   try {
     if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
     const { userRole } = req.body;
-    if (!["shipowner", "agent", "provider", "broker"].includes(userRole)) return res.status(400).json({ message: "Invalid role" });
+    if (!["shipowner", "agent", "provider", "broker", "master"].includes(userRole)) return res.status(400).json({ message: "Invalid role" });
     await db.execute(drizzleSql`UPDATE users SET user_role = ${userRole}, active_role = ${userRole} WHERE id = ${req.params.id}`);
     const allUsers = await storage.getAllUsers();
     const updated = allUsers.find((u: any) => u.id === req.params.id);

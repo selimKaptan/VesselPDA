@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Anchor, Ship, Handshake, Wrench, ArrowRight, Loader2 } from "lucide-react";
+import { Anchor, Ship, Handshake, Wrench, ArrowRight, Loader2, Compass } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +52,17 @@ const DEMO_ROLES = [
     iconBg: "bg-orange-100 dark:bg-orange-900/30",
     iconColor: "text-orange-600 dark:text-orange-400",
     badgeClass: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  },
+  {
+    role: "master",
+    label: "Ship Master",
+    icon: Compass,
+    color: "sky",
+    description: "Track your vessel's port calls from the bridge, sign NOR, view certificates, and drop bridge emails for AI analysis.",
+    colorClasses: "border-sky-200 bg-sky-50/50 dark:border-sky-800 dark:bg-sky-950/20",
+    iconBg: "bg-sky-100 dark:bg-sky-900/30",
+    iconColor: "text-sky-600 dark:text-sky-400",
+    badgeClass: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400",
   },
 ];
 
