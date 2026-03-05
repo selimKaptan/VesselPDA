@@ -1,0 +1,297 @@
+INSTRUCTIONS.md'yi oku. Kurumsal kullanıcı yönetimi ekle — şirketler birden fazla kullanıcıya sahip olabilsin, roller ve yetkiler yönetilsin.
+
+=== 1. DATABASE ===
+
+shared/schema.ts'e ekle:
+
+// Organizasyon / Şirket
+export const organizations = pgTable("organizations", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  name: varchar("name", { length: 200 }).notNull(),
+  companyProfileId: integer("company_profile_id").references(() => companyProfiles.id),
+  ownerId: varchar("owner_id").notNull().references(() => users.id), // şirketi oluşturan kişi
+  logoUrl: text("logo_url"),
+  industry: varchar("industry", { length: 50 }), // shipping, agency, brokerage, services
+  maxMembers: integer("max_members").default(5), // plana göre
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Organizasyon Üyeleri
+export const organizationMembers = pgTable("organization_members", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  orgRole: varchar("org_role", { length: 20 }).notNull().default("member"),
+  // orgRole: owner, admin, manager, member, viewer
+  department: varchar("department", { length: 100 }),
+  title: varchar("title", { length: 100 }),
+  permissions: jsonb("permissions").$type<OrgPermissions>().default({}),
+  invitedBy: varchar("invited_by").references(() => users.id),
+  joinedAt: timestamp("joined_at").defaultNow(),
+  isActive: boolean("is_active").default(true),
+});
+
+// Davet Sistemi
+export const organizationInvites = pgTable("organization_invites", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  email: varchar("email", { length: 300 }).notNull(),
+  orgRole: varchar("org_role", { length: 20 }).default("member"),
+  invitedBy: varchar("invited_by").notNull().references(() => users.id),
+  token: varchar("token", { length: 100 }).notNull(),
+  status: varchar("status", { length: 20 }).default("pending"), // pending, accepted, expired, cancelled
+  expiresAt: timestamp("expires_at").notNull(),
+  acceptedAt: timestamp("accepted_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Permission types
+export interface OrgPermissions {
+  canCreateProforma?: boolean;
+  canApproveProforma?: boolean;
+  canCreateTender?: boolean;
+  canManageVoyages?: boolean;
+  canManageVessels?: boolean;
+  canViewFinance?: boolean;
+  canManageTeam?: boolean;
+  canSendMessages?: boolean;
+}
+
+// Default permissions by role
+// owner: tüm yetkiler
+// admin: tüm yetkiler (takım yönetimi dahil)
+// manager: proforma, tender, voyage, vessel, mesaj (takım yönetimi hariç)
+// member: proforma, voyage, mesaj (oluşturma sınırlı)
+// viewer: sadece görüntüleme
+
+export const orgRelations = relations(organizations, ({ one, many }) => ({
+  owner: one(users, { fields: [organizations.ownerId], references: [users.id] }),
+  companyProfile: one(companyProfiles, { fields: [organizations.companyProfileId], references: [companyProfiles.id] }),
+  members: many(organizationMembers),
+  invites: many(organizationInvites),
+}));
+
+export const orgMemberRelations = relations(organizationMembers, ({ one }) => ({
+  organization: one(organizations, { fields: [organizationMembers.organizationId], references: [organizations.id] }),
+  user: one(users, { fields: [organizationMembers.userId], references: [users.id] }),
+}));
+
+export const insertOrgSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true });
+export const insertOrgMemberSchema = createInsertSchema(organizationMembers).omit({ id: true, joinedAt: true });
+export const insertOrgInviteSchema = createInsertSchema(organizationInvites).omit({ id: true, createdAt: true });
+
+npx drizzle-kit push
+
+=== 2. API ENDPOINTS ===
+
+server/routes/organization.routes.ts oluştur:
+
+// Organizasyon CRUD
+GET /api/organizations/my
+- Kullanıcının ait olduğu organizasyonlar
+- Hem owner olduğu hem member olduğu
+
+POST /api/organizations
+- Yeni organizasyon oluştur
+- Owner otomatik olarak oluşturan kişi
+- Company profile varsa bağla
+- Response: organization + ilk member (owner)
+
+GET /api/organizations/:id
+- Organizasyon detayı + üyeler + bekleyen davetler
+- Sadece üyeler görebilir
+
+PATCH /api/organizations/:id
+- Organizasyon bilgilerini güncelle
+- Sadece owner ve admin
+
+DELETE /api/organizations/:id
+- Organizasyonu sil
+- Sadece owner
+
+// Üye Yönetimi
+GET /api/organizations/:id/members
+- Üye listesi: isim, email, rol, department, katılım tarihi, aktif mi
+- Sadece üyeler görebilir
+
+POST /api/organizations/:id/invite
+- Email ile davet gönder
+- Body: { email, orgRole, department?, title? }
+- Token üret (crypto.randomUUID)
+- Expiry: 7 gün
+- Email gönder (davet template)
+- Sadece owner, admin, manager
+
+PATCH /api/organizations/:id/members/:memberId
+- Üye rolünü veya bilgilerini güncelle
+- Body: { orgRole?, department?, title?, permissions?, isActive? }
+- Owner kendini düşüremez
+- Sadece owner ve admin
+
+DELETE /api/organizations/:id/members/:memberId
+- Üyeyi çıkar
+- Owner çıkarılamaz
+- Kendi kendini çıkarabilir (ayrılma)
+- Sadece owner, admin veya kendisi
+
+POST /api/organizations/:id/members/:memberId/deactivate
+- Üyeyi deaktive et (silmeden)
+- isActive: false
+
+// Davet Yönetimi
+GET /api/organizations/:id/invites
+- Bekleyen davetler listesi
+- Sadece owner, admin, manager
+
+POST /api/invites/:token/accept
+- Daveti kabul et (public — token ile auth)
+- Kullanıcı kayıtlıysa: üye olarak ekle
+- Kayıtlı değilse: register sayfasına yönlendir (token parametresiyle)
+- invite status: accepted, acceptedAt: now()
+
+POST /api/invites/:token/decline
+- Daveti reddet
+- Status: expired
+
+DELETE /api/organizations/:id/invites/:inviteId
+- Daveti iptal et
+- Sadece owner, admin
+
+POST /api/organizations/:id/invites/:inviteId/resend
+- Davet emailini tekrar gönder
+- Yeni token üret, yeni expiry
+
+// Organizasyon bazlı veri erişimi
+GET /api/organizations/:id/proformas
+- Organizasyondaki TÜM üyelerin proformaları
+- Yetki: canViewFinance veya owner/admin
+
+GET /api/organizations/:id/voyages
+- Organizasyondaki tüm voyage'lar
+
+GET /api/organizations/:id/vessels
+- Organizasyonun gemileri
+
+GET /api/organizations/:id/stats
+- Organizasyon istatistikleri: üye sayısı, proforma sayısı, toplam PDA değeri, aktif voyage'lar
+
+server/routes.ts'e mount et:
+import orgRoutes from './routes/organization.routes';
+app.use('/api/organizations', orgRoutes);
+
+=== 3. DAVET EMAIL TEMPLATE ===
+
+server/email-templates.ts'e ekle:
+
+export function orgInviteTemplate(params: {
+  recipientEmail: string;
+  organizationName: string;
+  inviterName: string;
+  role: string;
+  acceptUrl: string;
+}): { subject: string; html: string } {
+  // baseTemplate kullan
+  // "You've been invited to join {orgName} on VesselPDA"
+  // Inviter name, role bilgisi
+  // Büyük "Accept Invitation" butonu
+  // "This invite expires in 7 days"
+}
+
+=== 4. FRONTEND — TEAM MANAGEMENT PAGE ===
+
+client/src/pages/team.tsx oluştur:
+
+Üstte: Organizasyon bilgi kartı
+- Şirket adı, logo, üye sayısı / max üye
+- "Edit Organization" butonu (owner/admin)
+
+Tab 1: "Members" (Üyeler)
+- Tablo: Avatar, Name, Email, Role, Department, Joined, Status, Actions
+- Role badge renkleri:
+  * owner: amber
+  * admin: sky
+  * manager: purple
+  * member: slate
+  * viewer: gray
+- Actions: Edit Role, Deactivate, Remove
+- Deaktif üyeler gri/soluk gösterilsin
+
+Tab 2: "Invitations" (Davetler)
+- Bekleyen davetler: email, role, gönderen, gönderim tarihi, expiry
+- Actions: Resend, Cancel
+- Kabul edilenler: yeşil badge
+- Expired: kırmızı badge
+
+Tab 3: "Permissions" (Yetki Matrisi)
+- Tablo: üye isimleri (satırlar) x yetkiler (sütunlar)
+- Yetkiler: Create PDA, Approve PDA, Create Tender, Manage Voyages, Manage Vessels, View Finance, Manage Team, Send Messages
+- Her hücre: toggle/checkbox
+- Role değişince default permissions otomatik ayarlansın
+
+Üstte: "+ Invite Member" butonu
+Invite dialog:
+- Email input
+- Role select: Admin, Manager, Member, Viewer
+- Department input (opsiyonel)
+- Title input (opsiyonel)
+- [Cancel] [Send Invitation]
+- Başarılı: toast + invite listesine ekle
+
+=== 5. ORGANIZATION SETUP FLOW ===
+
+İlk kez team sayfasına gelen kullanıcı için:
+
+Eğer organizasyonu yoksa:
+"Create Your Organization" kartı:
+- Organization Name (company profile'dan otomatik doldur)
+- Industry: Shipping Agency, Shipowner, Brokerage, Service Provider
+- [Create Organization] butonu
+
+Oluşturulduktan sonra: invite ekranına yönlendir
+
+=== 6. SIDEBAR & NAVİGASYON ===
+
+Settings veya ayrı kategori altında:
+{ icon: Users, label: "Team Management", href: "/team" }
+
+Sadece organization owner, admin veya manager görebilsin.
+Viewer ve member göremez (veya sadece üye listesini görür).
+
+client/src/App.tsx'e ekle:
+import Team from "@/pages/team";
+<Route path="/team" component={Team} />
+
+=== 7. ORGANIZATION CONTEXT ===
+
+Kullanıcı bir organizasyona ait olduğunda:
+- Proforma, voyage, tender oluştururken organizationId otomatik eklensin
+- Aynı organizasyondaki üyeler birbirlerinin verilerini görebilsin
+- Dashboard'da organizasyon geneli istatistikler gösterilsin
+- Mesajlarda organizasyon üyeleri arasında hızlı iletişim
+
+users tablosuna ekle (yoksa):
+- organizationId: integer referansı
+- organizationRole: varchar
+
+=== 8. PLAN BAZLI LİMİTLER ===
+
+- Free: 1 kullanıcı (organizasyon yok)
+- Standard: 5 üye max
+- Unlimited: 50 üye max
+
+Davet gönderilirken kontrol:
+if (memberCount >= organization.maxMembers) {
+  return res.status(403).json({ error: "Member limit reached. Upgrade your plan." });
+}
+
+=== 9. IMPORTANT ===
+
+- Organization opsiyonel — tek kullanıcılar organizasyonsuz da çalışabilir
+- Mevcut tek kullanıcılı yapıyı BOZMA
+- Organization owner tüm yetkilere sahip, değiştirilemez
+- Davet token'ı 7 gün geçerli, sonra expire olur
+- Bir kullanıcı birden fazla organizasyona üye olabilir (ama aktif olarak biriyle çalışır)
+- Permission check middleware: checkOrgPermission('canCreateProforma')
+- Mevcut isAuthenticated middleware'i ile uyumlu çalışsın
+- npx drizzle-kit push ile tabloları oluştur
