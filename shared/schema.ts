@@ -1794,6 +1794,14 @@ export const portAuthorityFees = pgTable("port_authority_fees", {
   validYear: integer("valid_year").default(2026),
   notes: text("notes"),
   updatedAt: timestamp("updated_at"),
+  feeName: varchar("fee_name"),
+  feeNo: varchar("fee_no"),
+  min: real("min"),
+  max: real("max"),
+  sizeMin: real("size_min"),
+  sizeMax: real("size_max"),
+  unit: varchar("unit"),
+  multiplierRule: text("multiplier_rule"),
 });
 
 export const otherServices = pgTable("other_services", {
