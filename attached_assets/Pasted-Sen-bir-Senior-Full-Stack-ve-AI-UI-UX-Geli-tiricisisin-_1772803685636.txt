@@ -1,0 +1,25 @@
+Sen bir Senior Full-Stack ve AI UI/UX Geliştiricisisin. Mevcut 'Crew Change' (Personel Değişimi) ekranımızı, yapay zeka destekli bir 'Smart Logistics Dashboard'a dönüştürüyoruz.
+
+Mevcut Dark Mode (slate-900) tasarım dilini koruyarak ekran mimarisini şu 3 ana bileşenle (Grid Layout) YENİDEN DÜZENLE:
+
+1. 🪄 AI DROP ZONE (SİHİRLİ SÜRÜKLE-BIRAK ALANI) - [ÜST KISIM / FULL WIDTH]:
+- Sayfanın en üstüne, dikkat çekici ama zarif bir 'Drag & Drop' alanı ekle (w-full, border-2 border-dashed border-slate-600 hover:border-blue-500, bg-slate-800/30 hover:bg-slate-800/50, rounded-xl, p-6).
+- İçine parlayan bir AI/Sparkle ikonu ve şu metni koy: 
+  "✨ Drop Crew List Email (.eml, PDF, or Text) here. AI will auto-extract names, passports, and flights."
+- Kullanıcı bir dosya sürüklediğinde alanın kenarları mavi parlasın (glowing effect / ring-blue-500).
+
+2. PERSONEL PANO ALANI - [SOL VE ORTA SÜTUNLAR - col-span-2]:
+- Orta alanı 2 sütuna böl: 'ON-SIGNERS' ve 'OFF-SIGNERS'. 
+- Daha önce tasarladığımız o detaylı personel kartlarını (Bento Box) bu sütunların içinde listelemeye devam et.
+
+3. 🕵️ ACTIVITY & AUDIT LOG (DEĞİŞİKLİK KAYDI) - [SAĞ SÜTUN - col-span-1]:
+- Ekranın en sağına, tüm değişikliklerin saniye saniye yazıldığı dikey bir 'Activity Log' paneli (bg-slate-800/40, border-slate-700, rounded-lg, h-full, p-4) ekle.
+- Başlığı: "Activity & Audit Log" olsun.
+- İçine ince bir sol çizgiyle (border-l border-slate-700) inen şık bir dikey zaman çizelgesi (Timeline) koy. 
+- Örnek Log Satırları (Küçük fontlar text-xs ve text-slate-400 ile):
+  * [Avatar İkonu] "10:45 AM - AI extracted 4 On-signers and 3 Off-signers from 'CrewList_March.pdf'."
+  * [Avatar İkonu] "11:20 AM - Alican updated Capt. John Doe's flight from TK10 to TK25." (Değişen veriyi sarı/turuncu renkle vurgula).
+  * [Avatar İkonu] "11:25 AM - System auto-generated 'Shore Pass Forms' for 7 crew members."
+
+Tasarım Kuralı:
+Log ekranı çok kalabalıklaşacağı için, log kutusuna dikey kaydırma (overflow-y-auto) özelliği ver ve yüksekliğini personel sütunlarıyla eşitle. AI Drop Zone kısmı ise çok davetkar ve fütüristik durmalı.
