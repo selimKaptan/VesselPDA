@@ -10,7 +10,7 @@ import { db } from "../db";
 import { eq, desc, asc, inArray } from "drizzle-orm";
 import multer from "multer";
 import { logVoyageActivity } from "../voyage-activity";
-import { voyageActivities, voyageCargoLogs, voyageCargoReceivers, voyages } from "@shared/schema";
+import { voyageActivities, voyageCargoLogs, voyageCargoReceivers, voyages, voyageContacts } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import path from "path";
 import fs from "fs";
@@ -646,17 +646,102 @@ router.delete("/:id/cargo-logs/batch/:batchId", isAuthenticated, async (req: any
 router.post("/:id/send-cargo-report", isAuthenticated, async (req: any, res) => {
   try {
     const voyageId = parseInt(req.params.id);
-    const { toEmail } = req.body;
-    if (!toEmail || !String(toEmail).includes("@")) {
-      return res.status(400).json({ message: "Valid toEmail required" });
-    }
+    const { toEmails } = req.body;
+    const emails: string[] = Array.isArray(toEmails) ? toEmails.filter((e: string) => String(e).includes("@")) : [];
+    if (emails.length === 0) return res.status(400).json({ message: "At least one valid email required" });
     const { sendCargoReportEmail } = await import("../email");
-    const ok = await sendCargoReportEmail({ toEmail: String(toEmail), voyageId });
+    const ok = await sendCargoReportEmail({ toEmails: emails, voyageId });
     if (!ok) return res.status(500).json({ message: "Failed to send report email" });
     res.json({ ok: true });
   } catch (err) {
     console.error("send-cargo-report error:", err);
     res.status(500).json({ message: "Failed to send cargo report" });
+  }
+});
+
+// ─── VOYAGE CONTACTS CRUD ─────────────────────────────────────────────────────
+
+router.get("/:id/contacts", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const list = await db.select().from(voyageContacts)
+      .where(eq(voyageContacts.voyageId, voyageId))
+      .orderBy(asc(voyageContacts.createdAt));
+    res.json(list);
+  } catch {
+    res.status(500).json({ message: "Failed to fetch contacts" });
+  }
+});
+
+router.post("/:id/contacts", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const { email, name, role, includeInDailyReports } = req.body;
+    if (!email || !String(email).includes("@")) return res.status(400).json({ message: "Valid email required" });
+    const [contact] = await db.insert(voyageContacts).values({
+      voyageId,
+      email: String(email).trim().toLowerCase(),
+      name: name ? String(name).trim() : null,
+      role: role || "other",
+      includeInDailyReports: includeInDailyReports !== false,
+    }).returning();
+    res.json(contact);
+  } catch {
+    res.status(500).json({ message: "Failed to add contact" });
+  }
+});
+
+router.post("/:id/contacts/bulk", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const { emails: rawText } = req.body;
+    if (!rawText) return res.status(400).json({ message: "emails text required" });
+
+    const parsed = String(rawText)
+      .split(/[,;\n\r]+/)
+      .map(s => s.trim().toLowerCase())
+      .filter(s => s.includes("@") && s.includes("."));
+    const unique = [...new Set(parsed)];
+
+    const existing = await db.select({ email: voyageContacts.email })
+      .from(voyageContacts).where(eq(voyageContacts.voyageId, voyageId));
+    const existingSet = new Set(existing.map(e => e.email));
+
+    const toInsert = unique.filter(e => !existingSet.has(e));
+    if (toInsert.length === 0) return res.json({ inserted: 0, skipped: unique.length });
+
+    const inserted = await db.insert(voyageContacts).values(
+      toInsert.map(email => ({ voyageId, email, role: "other", includeInDailyReports: true }))
+    ).returning();
+    res.json({ inserted: inserted.length, skipped: unique.length - inserted.length, contacts: inserted });
+  } catch (err) {
+    console.error("bulk contacts error:", err);
+    res.status(500).json({ message: "Failed to bulk import contacts" });
+  }
+});
+
+router.patch("/:id/contacts/:contactId", isAuthenticated, async (req: any, res) => {
+  try {
+    const contactId = parseInt(req.params.contactId);
+    const { role, includeInDailyReports, name, email } = req.body;
+    const updates: Record<string, unknown> = {};
+    if (role !== undefined) updates.role = role;
+    if (includeInDailyReports !== undefined) updates.includeInDailyReports = includeInDailyReports;
+    if (name !== undefined) updates.name = name ? String(name).trim() : null;
+    if (email !== undefined && String(email).includes("@")) updates.email = String(email).trim().toLowerCase();
+    const [updated] = await db.update(voyageContacts).set(updates).where(eq(voyageContacts.id, contactId)).returning();
+    res.json(updated);
+  } catch {
+    res.status(500).json({ message: "Failed to update contact" });
+  }
+});
+
+router.delete("/:id/contacts/:contactId", isAuthenticated, async (req: any, res) => {
+  try {
+    await db.delete(voyageContacts).where(eq(voyageContacts.id, parseInt(req.params.contactId)));
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ message: "Failed to delete contact" });
   }
 });
 

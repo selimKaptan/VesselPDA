@@ -585,7 +585,7 @@ export async function sendApprovalRequestEmail(data: ApprovalRequestEmailData): 
 
 // ─── CARGO REPORT EMAIL ───────────────────────────────────────────────────────
 
-export async function sendCargoReportEmail(data: { toEmail: string; voyageId: number }): Promise<boolean> {
+export async function sendCargoReportEmail(data: { toEmails: string[]; voyageId: number }): Promise<boolean> {
   const creds = await getResendCredentials();
   if (!creds) { console.warn("[email] No credentials — skipping sendCargoReportEmail"); return false; }
 
@@ -683,12 +683,12 @@ export async function sendCargoReportEmail(data: { toEmail: string; voyageId: nu
     const resend = new Resend(creds.apiKey);
     const { error } = await resend.emails.send({
       from: `VesselPDA <${creds.fromEmail}>`,
-      to: [data.toEmail],
+      to: data.toEmails,
       subject,
       html,
     });
     if (error) { console.error("[email] sendCargoReportEmail error:", error); return false; }
-    console.log(`[email] Cargo report sent to ${data.toEmail} for voyage ${data.voyageId}`);
+    console.log(`[email] Cargo report sent to ${data.toEmails.join(", ")} for voyage ${data.voyageId}`);
     return true;
   } catch (err) {
     console.error("[email] sendCargoReportEmail failed:", err);

@@ -19,6 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -161,7 +163,7 @@ export default function VoyageDetail() {
   const [newTask, setNewTask] = useState("");
   const [chatMessage, setChatMessage] = useState("");
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "financial" | "activity" | "participants" | "cargo_ops">("operation");
+  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "financial" | "activity" | "participants" | "cargo_ops" | "contacts">("operation");
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [inviteTab, setInviteTab] = useState<"email" | "directory" | "bulk">("email");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -181,6 +183,12 @@ export default function VoyageDetail() {
   }>({ fromTime: "", toTime: "", logType: "operation", remarks: "", delayReason: "", delayNotes: "", receiverEntries: {} });
   const [showCargoReportDialog, setShowCargoReportDialog] = useState(false);
   const [reportEmail, setReportEmail] = useState("");
+  const [reportSelectedEmails, setReportSelectedEmails] = useState<string[]>([]);
+  const [reportManualEmail, setReportManualEmail] = useState("");
+  const [contactBulkText, setContactBulkText] = useState("");
+  const [newContactEmail, setNewContactEmail] = useState("");
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactRole, setNewContactRole] = useState("other");
   const [showAddReceiverDialog, setShowAddReceiverDialog] = useState(false);
   const [receiverForm, setReceiverForm] = useState({ name: "", allocatedMt: 0 });
   const [docFilter, setDocFilter] = useState<string>("all");
@@ -605,6 +613,12 @@ export default function VoyageDetail() {
     enabled: activeTab === "cargo_ops",
   });
 
+  const { data: voyageContactsList = [] } = useQuery<any[]>({
+    queryKey: ["/api/voyages", voyageId, "contacts"],
+    queryFn: () => fetch(`/api/voyages/${voyageId}/contacts`, { credentials: "include" }).then(r => r.json()),
+    enabled: activeTab === "contacts" || showCargoReportDialog,
+  });
+
   const addCargoLogMutation = useMutation({
     mutationFn: () => {
       const fromIso = logForm.fromTime ? new Date(logForm.fromTime).toISOString() : undefined;
@@ -647,12 +661,46 @@ export default function VoyageDetail() {
   });
 
   const sendCargoReportMutation = useMutation({
-    mutationFn: () => apiRequest("POST", `/api/voyages/${voyageId}/send-cargo-report`, { toEmail: reportEmail }),
-    onSuccess: () => {
+    mutationFn: (toEmails: string[]) => apiRequest("POST", `/api/voyages/${voyageId}/send-cargo-report`, { toEmails }),
+    onSuccess: (_data, toEmails) => {
       setShowCargoReportDialog(false);
-      toast({ title: "Report sent", description: `Cargo report sent to ${reportEmail}` });
+      setReportSelectedEmails([]);
+      setReportManualEmail("");
+      toast({ title: "Report sent", description: `Cargo report sent to ${toEmails.length} recipient(s)` });
     },
     onError: () => toast({ title: "Failed to send report", variant: "destructive" }),
+  });
+
+  const addContactMutation = useMutation({
+    mutationFn: (data: { email: string; name?: string; role?: string }) =>
+      apiRequest("POST", `/api/voyages/${voyageId}/contacts`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "contacts"] });
+      setNewContactEmail(""); setNewContactName(""); setNewContactRole("other");
+      toast({ title: "Contact added" });
+    },
+    onError: () => toast({ title: "Failed to add contact", variant: "destructive" }),
+  });
+
+  const bulkImportContactsMutation = useMutation({
+    mutationFn: (emails: string) => apiRequest("POST", `/api/voyages/${voyageId}/contacts/bulk`, { emails }),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "contacts"] });
+      setContactBulkText("");
+      toast({ title: `${data.inserted} contact(s) added`, description: data.skipped > 0 ? `${data.skipped} duplicate(s) skipped` : undefined });
+    },
+    onError: () => toast({ title: "Bulk import failed", variant: "destructive" }),
+  });
+
+  const updateContactMutation = useMutation({
+    mutationFn: ({ contactId, updates }: { contactId: number; updates: Record<string, unknown> }) =>
+      apiRequest("PATCH", `/api/voyages/${voyageId}/contacts/${contactId}`, updates),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "contacts"] }),
+  });
+
+  const deleteContactMutation = useMutation({
+    mutationFn: (contactId: number) => apiRequest("DELETE", `/api/voyages/${voyageId}/contacts/${contactId}`, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "contacts"] }),
   });
 
   const addReceiverMutation = useMutation({
@@ -1054,6 +1102,7 @@ export default function VoyageDetail() {
           { key: "comms",       label: "Messages",   icon: MessageCircle },
           { key: "financial",   label: "Financial",  icon: DollarSign },
           { key: "participants", label: "Team",      icon: Users2 },
+          { key: "contacts",    label: "Contacts",  icon: Mail },
         ] as const).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -2005,39 +2054,115 @@ export default function VoyageDetail() {
             })()}
 
             {/* ── Send Cargo Report Dialog ─────────── */}
-            <Dialog open={showCargoReportDialog} onOpenChange={setShowCargoReportDialog}>
-              <DialogContent className="max-w-sm">
-                <DialogHeader>
-                  <DialogTitle>Send Cargo Report</DialogTitle>
-                  <DialogDescription>
-                    A live cargo operations summary will be emailed to the recipient.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-3 py-2">
-                  <div>
-                    <Label className="text-xs">Recipient Email *</Label>
-                    <Input
-                      type="email"
-                      value={reportEmail}
-                      onChange={e => setReportEmail(e.target.value)}
-                      placeholder="captain@example.com"
-                      data-testid="input-report-email"
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setShowCargoReportDialog(false)}>Cancel</Button>
-                  <Button
-                    onClick={() => sendCargoReportMutation.mutate()}
-                    disabled={!reportEmail.includes("@") || sendCargoReportMutation.isPending}
-                    data-testid="button-confirm-send-report"
-                  >
-                    {sendCargoReportMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                    Send Report
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            {(() => {
+              const autoContacts = voyageContactsList.filter((c: any) =>
+                ["owner", "charterer", "receiver"].includes(c.role) && c.includeInDailyReports
+              );
+              const manualEmailValid = reportManualEmail.includes("@");
+              const finalEmails = [
+                ...reportSelectedEmails,
+                ...(manualEmailValid ? [reportManualEmail.trim().toLowerCase()] : []),
+              ].filter((e, i, arr) => arr.indexOf(e) === i);
+
+              return (
+                <Dialog open={showCargoReportDialog} onOpenChange={open => {
+                  setShowCargoReportDialog(open);
+                  if (open) {
+                    setReportSelectedEmails(autoContacts.map((c: any) => c.email));
+                    setReportManualEmail("");
+                  }
+                }}>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <Mail className="w-4 h-4" /> Send Cargo Report
+                      </DialogTitle>
+                      <DialogDescription>
+                        A live cargo operations summary will be emailed to selected recipients.
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-1">
+                      {/* Auto-suggested recipients */}
+                      {autoContacts.length > 0 ? (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-2">Recipients from Contacts (Owner / Charterer / Receiver):</p>
+                          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                            {autoContacts.map((c: any) => {
+                              const ROLE_LABEL: Record<string, string> = { owner: "Owner", charterer: "Charterer", receiver: "Receiver" };
+                              const isChecked = reportSelectedEmails.includes(c.email);
+                              return (
+                                <label key={c.id} className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${isChecked ? "border-sky-500/50 bg-sky-500/5" : "border-muted bg-muted/20"}`} data-testid={`label-recipient-${c.id}`}>
+                                  <Checkbox
+                                    checked={isChecked}
+                                    onCheckedChange={checked => {
+                                      setReportSelectedEmails(prev =>
+                                        checked ? [...prev, c.email] : prev.filter(e => e !== c.email)
+                                      );
+                                    }}
+                                    data-testid={`checkbox-recipient-${c.id}`}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{c.email}</p>
+                                    {c.name && <p className="text-xs text-muted-foreground truncate">{c.name}</p>}
+                                  </div>
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted/50 text-muted-foreground border shrink-0">
+                                    {ROLE_LABEL[c.role] ?? c.role}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-dashed p-4 text-center text-muted-foreground text-xs">
+                          <Mail className="w-5 h-5 mx-auto mb-1.5 opacity-30" />
+                          No Owner / Charterer / Receiver contacts with Daily Reports enabled.{" "}
+                          <button className="text-sky-400 underline underline-offset-2" onClick={() => { setShowCargoReportDialog(false); setActiveTab("contacts"); }}>
+                            Go to Contacts
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Manual email addition */}
+                      <div>
+                        <Label className="text-xs">Add Another Recipient (optional)</Label>
+                        <Input
+                          type="email"
+                          value={reportManualEmail}
+                          onChange={e => setReportManualEmail(e.target.value)}
+                          placeholder="additional@example.com"
+                          className="mt-1"
+                          data-testid="input-report-email"
+                        />
+                      </div>
+
+                      {/* Summary */}
+                      {finalEmails.length > 0 && (
+                        <div className="rounded-lg bg-sky-500/10 border border-sky-500/20 p-3 text-xs text-sky-300">
+                          <p className="font-semibold mb-1">Report will be sent to {finalEmails.length} address{finalEmails.length > 1 ? "es" : ""}:</p>
+                          <ul className="list-disc list-inside space-y-0.5 text-sky-400/80">
+                            {finalEmails.map(e => <li key={e}>{e}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowCargoReportDialog(false)}>Cancel</Button>
+                      <Button
+                        onClick={() => sendCargoReportMutation.mutate(finalEmails)}
+                        disabled={finalEmails.length === 0 || sendCargoReportMutation.isPending}
+                        data-testid="button-confirm-send-report"
+                      >
+                        {sendCargoReportMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                        Send to {finalEmails.length} Recipient{finalEmails.length !== 1 ? "s" : ""}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              );
+            })()}
 
             {/* ── Add Receiver Dialog ───────────────── */}
             <Dialog open={showAddReceiverDialog} onOpenChange={v => { setShowAddReceiverDialog(v); if (!v) setReceiverForm({ name: "", allocatedMt: 0 }); }}>
@@ -2639,6 +2764,163 @@ export default function VoyageDetail() {
               <p className="text-xs mt-1">Invite agents, providers, or surveyors to collaborate on this voyage.</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Tab: Contacts ──────────────────────────────────────── */}
+      {activeTab === "contacts" && (
+        <div className="space-y-5" data-testid="tab-content-contacts">
+
+          {/* Bulk Paste Section */}
+          <Card className="p-5">
+            <h3 className="font-semibold text-sm flex items-center gap-2 mb-3">
+              <Mail className="w-4 h-4 text-sky-400" />
+              Bulk Import
+            </h3>
+            <p className="text-xs text-muted-foreground mb-3">Paste multiple email addresses (separated by comma, semicolon, or newline). The system will parse and add them automatically.</p>
+            <Textarea
+              value={contactBulkText}
+              onChange={e => setContactBulkText(e.target.value)}
+              placeholder="owner@example.com, charterer@shipping.com; receiver@port.com"
+              rows={4}
+              className="mb-3 font-mono text-xs"
+              data-testid="textarea-bulk-contacts"
+            />
+            <Button
+              onClick={() => bulkImportContactsMutation.mutate(contactBulkText)}
+              disabled={!contactBulkText.trim() || bulkImportContactsMutation.isPending}
+              data-testid="button-bulk-import"
+              size="sm"
+            >
+              {bulkImportContactsMutation.isPending && <Loader2 className="w-3 h-3 animate-spin mr-2" />}
+              Import Contacts
+            </Button>
+          </Card>
+
+          {/* Contact List */}
+          <Card className="p-5">
+            <h3 className="font-semibold text-sm flex items-center gap-2 mb-4">
+              <Users2 className="w-4 h-4 text-sky-400" />
+              Contact List
+              <span className="text-xs text-muted-foreground font-normal">({voyageContactsList.length})</span>
+            </h3>
+
+            {voyageContactsList.length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground">
+                <Mail className="w-7 h-7 mx-auto mb-2 opacity-25" />
+                <p className="text-sm font-medium">No contacts yet</p>
+                <p className="text-xs mt-1">Use bulk import above or add individually below.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {/* Role color map */}
+                {voyageContactsList.map((c: any) => {
+                  const ROLE_BADGE: Record<string, string> = {
+                    owner: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+                    charterer: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+                    receiver: "bg-green-500/15 text-green-400 border-green-500/30",
+                    sub_agent: "bg-violet-500/15 text-violet-400 border-violet-500/30",
+                    other: "bg-muted/50 text-muted-foreground border-muted",
+                  };
+                  const roleColor = ROLE_BADGE[c.role] ?? ROLE_BADGE.other;
+                  const initials = (c.name || c.email).slice(0, 2).toUpperCase();
+                  return (
+                    <div key={c.id} className="flex items-center gap-3 p-3 rounded-lg border bg-card/50 hover:bg-card transition-colors" data-testid={`contact-row-${c.id}`}>
+                      <div className="w-8 h-8 rounded-full bg-sky-700 flex items-center justify-center text-[11px] font-bold text-white shrink-0">
+                        {initials}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate" data-testid={`contact-email-${c.id}`}>{c.email}</p>
+                        {c.name && <p className="text-xs text-muted-foreground truncate">{c.name}</p>}
+                      </div>
+
+                      {/* Role Select */}
+                      <Select
+                        value={c.role}
+                        onValueChange={val => updateContactMutation.mutate({ contactId: c.id, updates: { role: val } })}
+                      >
+                        <SelectTrigger className="w-32 h-7 text-xs" data-testid={`select-role-${c.id}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="owner">Owner</SelectItem>
+                          <SelectItem value="charterer">Charterer</SelectItem>
+                          <SelectItem value="receiver">Receiver</SelectItem>
+                          <SelectItem value="sub_agent">Sub-Agent</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      {/* Daily Reports Toggle */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Switch
+                          checked={c.includeInDailyReports}
+                          onCheckedChange={val => updateContactMutation.mutate({ contactId: c.id, updates: { includeInDailyReports: val } })}
+                          data-testid={`switch-daily-${c.id}`}
+                        />
+                        <span className="text-[10px] text-muted-foreground hidden sm:block">Daily</span>
+                      </div>
+
+                      {/* Delete */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-red-400"
+                        onClick={() => deleteContactMutation.mutate(c.id)}
+                        data-testid={`button-delete-contact-${c.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Add Single Contact Form */}
+            <div className="mt-5 pt-4 border-t space-y-3">
+              <p className="text-xs font-medium text-muted-foreground">Add Contact Manually</p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Input
+                  type="email"
+                  placeholder="Email address *"
+                  value={newContactEmail}
+                  onChange={e => setNewContactEmail(e.target.value)}
+                  className="flex-1 h-8 text-xs"
+                  data-testid="input-new-contact-email"
+                />
+                <Input
+                  placeholder="Display name (optional)"
+                  value={newContactName}
+                  onChange={e => setNewContactName(e.target.value)}
+                  className="flex-1 h-8 text-xs"
+                  data-testid="input-new-contact-name"
+                />
+                <Select value={newContactRole} onValueChange={setNewContactRole}>
+                  <SelectTrigger className="w-32 h-8 text-xs" data-testid="select-new-contact-role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="owner">Owner</SelectItem>
+                    <SelectItem value="charterer">Charterer</SelectItem>
+                    <SelectItem value="receiver">Receiver</SelectItem>
+                    <SelectItem value="sub_agent">Sub-Agent</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  className="h-8 shrink-0"
+                  onClick={() => addContactMutation.mutate({ email: newContactEmail, name: newContactName || undefined, role: newContactRole })}
+                  disabled={!newContactEmail.includes("@") || addContactMutation.isPending}
+                  data-testid="button-add-contact"
+                >
+                  {addContactMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                  <span className="ml-1">Add</span>
+                </Button>
+              </div>
+            </div>
+          </Card>
         </div>
       )}
 

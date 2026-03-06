@@ -37,5 +37,6 @@ export default defineConfig({
     "ai_analysis_history",
     "voyage_cargo_logs",
     "voyage_cargo_receivers",
+    "voyage_contacts",
   ],
 });

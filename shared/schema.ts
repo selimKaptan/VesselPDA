@@ -1883,3 +1883,19 @@ export const aiAnalysisHistory = pgTable("ai_analysis_history", {
 });
 
 export type AiAnalysisEntry = typeof aiAnalysisHistory.$inferSelect;
+
+// ─── VOYAGE CONTACTS ─────────────────────────────────────────────────────────
+
+export const voyageContacts = pgTable("voyage_contacts", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  email: varchar("email", { length: 255 }).notNull(),
+  name: varchar("name", { length: 255 }),
+  role: varchar("role", { length: 20 }).default("other").notNull(),
+  includeInDailyReports: boolean("include_in_daily_reports").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertVoyageContactSchema = createInsertSchema(voyageContacts).omit({ id: true, createdAt: true });
+export type InsertVoyageContact = z.infer<typeof insertVoyageContactSchema>;
+export type VoyageContact = typeof voyageContacts.$inferSelect;
