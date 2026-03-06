@@ -24,6 +24,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { PageMeta } from "@/components/page-meta";
 import { useQuery } from "@tanstack/react-query";
 
@@ -488,118 +489,177 @@ export default function Landing() {
 
               {/* Left */}
               <div className="space-y-8">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-xs font-medium">
-                  <span>🚀</span>
-                  <span>Trusted by {userCount}+ maritime professionals</span>
-                </div>
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0 }}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-xs font-medium"
+                >
+                  <span>🔍</span>
+                  <span>For Shipowners &amp; Brokers · Zero Hidden Costs</span>
+                </motion.div>
 
-                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight tracking-tight">
-                  Calculate Port{" "}
-                  <br className="hidden sm:block" />
-                  Disbursements{" "}
-                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-sky-400 to-cyan-400">
-                    in Seconds
+                <motion.h1
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.1 }}
+                  className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight tracking-tight"
+                >
+                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-sky-400 to-cyan-400">
+                    Stop flying blind
                   </span>
-                </h1>
+                  <br />
+                  <span>during port calls.</span>
+                </motion.h1>
 
-                <p className="text-lg text-slate-400 leading-relaxed max-w-xl">
-                  The all-in-one platform for ship agents, shipowners and brokers.
-                  Manage proformas, tenders, voyages and port operations — all in one place.
-                </p>
+                <motion.p
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.25 }}
+                  className="text-lg text-slate-400 leading-relaxed max-w-xl"
+                >
+                  Get total transparency and zero hidden costs. Audit agency PDAs automatically, track live cargo operations, and download instant SOFs. Bring your agents into the ultimate Shipowner &amp; Broker workspace.
+                </motion.p>
 
-                <div className="flex flex-col sm:flex-row gap-3">
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.4 }}
+                  className="flex flex-col sm:flex-row gap-3"
+                >
                   <a href="/register">
                     <button className="w-full sm:w-auto h-12 px-8 rounded-xl text-base font-bold bg-sky-500 hover:bg-sky-400 text-white transition-all duration-200 shadow-lg shadow-sky-500/25 hover:-translate-y-0.5" data-testid="button-hero-register">
-                      Get Started Free
+                      Claim Your Owner Workspace
                     </button>
                   </a>
-                  <div className="flex flex-col items-center gap-1.5">
-                    <a href="/register?demo=true">
-                      <button className="w-full sm:w-auto h-12 px-8 rounded-xl text-base font-semibold border border-sky-500/40 text-sky-400 hover:bg-sky-500/10 hover:border-sky-500/60 transition-all duration-200" data-testid="button-hero-demo">
-                        Try Demo — Free Account
-                      </button>
-                    </a>
-                    <p className="text-xs text-sky-400/70">Create a free account · Sample data included</p>
-                  </div>
-                </div>
+                  <a href="/register">
+                    <button className="w-full sm:w-auto h-12 px-8 rounded-xl text-base font-semibold border border-sky-500/40 text-sky-400 hover:bg-sky-500/10 hover:border-sky-500/60 transition-all duration-200" data-testid="button-hero-invite-agent">
+                      Invite Your Agent
+                    </button>
+                  </a>
+                </motion.div>
                 <p className="text-xs text-slate-500">No credit card required · Free plan includes 1 PDA</p>
               </div>
 
-              {/* Right — PDA Document Mockup */}
+              {/* Right — Bento Box Glass Cards */}
               <div className="hidden lg:flex items-center justify-center">
-                <div className="relative">
-                  {/* PDF Ready badge */}
-                  <div className="absolute -top-3 -right-3 z-20 bg-emerald-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-lg shadow-emerald-500/30 flex items-center gap-1">
-                    <span>✓</span> PDF Ready
-                  </div>
+                <div className="relative w-[380px] h-[420px]" data-testid="hero-bento-cards">
 
-                  {/* PDA card */}
-                  <div
-                    className="bg-slate-800/90 border border-slate-700/40 rounded-2xl shadow-2xl shadow-sky-500/10 overflow-hidden w-[340px]"
-                    style={{ transform: "rotate(-2deg)" }}
-                    data-testid="hero-pda-mockup"
+                  {/* Card 1 — Live Discharge Progress (top-left, behind) */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.94, y: -8 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ duration: 0.55, delay: 0.3 }}
+                    className="absolute top-0 left-0 z-10 w-[290px] backdrop-blur-md bg-slate-800/60 border border-slate-700/50 rounded-2xl shadow-xl p-5"
+                    data-testid="hero-card-discharge"
                   >
-                    {/* Header */}
-                    <div className="bg-gradient-to-r from-sky-600 to-blue-700 px-5 py-3">
-                      <p className="text-[10px] font-bold text-white uppercase tracking-widest">Proforma Disbursement Account</p>
-                      <p className="text-[10px] text-white/70 mt-0.5">VesselPDA · Generated in 2 seconds</p>
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                      </span>
+                      <p className="text-xs font-bold text-white tracking-wide uppercase">Live Discharge Progress</p>
                     </div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-400">MV NORTH STAR · Mersin</span>
+                      <span className="text-sm font-bold text-emerald-400">82%</span>
+                    </div>
+                    <div className="w-full h-2.5 rounded-full bg-slate-700/60 overflow-hidden mb-4">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: "82%" }}
+                        transition={{ duration: 1.2, delay: 0.8, ease: "easeOut" }}
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-300 font-medium flex items-center gap-1.5">
+                        <span className="text-slate-500">ETC:</span> 12:00 PM
+                      </span>
+                      <span className="text-slate-400">42 Trucks Logged</span>
+                    </div>
+                  </motion.div>
 
-                    {/* Vessel info */}
-                    <div className="px-5 py-3 bg-slate-900/40 border-b border-slate-700/30">
-                      <div className="grid grid-cols-2 gap-y-1">
+                  {/* Card 2 — Audited Smart PDA (center, most prominent) */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.94 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.6, delay: 0.5 }}
+                    className="absolute top-[110px] left-[44px] z-20 w-[320px] backdrop-blur-md bg-gradient-to-br from-sky-500/10 to-slate-800/70 border border-slate-600/60 ring-1 ring-sky-500/25 rounded-2xl shadow-2xl shadow-sky-500/10 p-5"
+                    data-testid="hero-card-pda"
+                  >
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="text-base">⚡</span>
+                      <p className="text-xs font-bold text-sky-400 tracking-wide uppercase">Audited Smart PDA</p>
+                    </div>
+                    <div className="flex items-end justify-between mb-4">
+                      <div>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-0.5">Mersin Port Dues</p>
+                        <p className="text-2xl font-bold text-sky-300 font-mono">$9,775</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] text-slate-500 mb-0.5">vs. estimate</p>
+                        <p className="text-xs font-semibold text-emerald-400">On Budget</p>
+                      </div>
+                    </div>
+                    <div className="rounded-xl bg-amber-500/15 border border-amber-500/35 px-3 py-2.5">
+                      <div className="flex items-start gap-2">
+                        <span className="text-amber-400 text-sm mt-0.5">✓</span>
                         <div>
-                          <p className="text-[9px] text-slate-500 uppercase tracking-wide">Vessel</p>
-                          <p className="text-xs font-semibold text-white">MV NORTH STAR</p>
-                        </div>
-                        <div>
-                          <p className="text-[9px] text-slate-500 uppercase tracking-wide">IMO</p>
-                          <p className="text-xs text-slate-300 font-mono">9812345</p>
-                        </div>
-                        <div>
-                          <p className="text-[9px] text-slate-500 uppercase tracking-wide">Port</p>
-                          <p className="text-xs font-semibold text-white">Mersin</p>
-                        </div>
-                        <div>
-                          <p className="text-[9px] text-slate-500 uppercase tracking-wide">GRT</p>
-                          <p className="text-xs text-slate-300 font-mono">8,500</p>
+                          <p className="text-[11px] font-bold text-amber-300">100% Tariff Match</p>
+                          <p className="text-[10px] text-amber-400/70 mt-0.5">IMO Surcharge Verified</p>
                         </div>
                       </div>
                     </div>
+                  </motion.div>
 
-                    {/* Line items */}
-                    <div className="px-5 py-3 space-y-1.5">
-                      {[
-                        { label: "Port Dues", amount: "$3,825" },
-                        { label: "Pilotage", amount: "$980" },
-                        { label: "Towage", amount: "$2,100" },
-                        { label: "Mooring", amount: "$450" },
-                        { label: "Agency Fee", amount: "$1,800" },
-                        { label: "Miscellaneous", amount: "$620" },
-                      ].map((row) => (
-                        <div key={row.label} className="flex items-center justify-between">
-                          <span className="text-[11px] text-slate-400">{row.label}</span>
-                          <span className="text-[11px] text-slate-300 font-mono">{row.amount}</span>
-                        </div>
-                      ))}
+                  {/* Card 3 — Instant SOF (bottom-right, behind) */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.94, y: 8 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ duration: 0.55, delay: 0.7 }}
+                    className="absolute bottom-0 right-0 z-10 w-[290px] backdrop-blur-md bg-slate-800/60 border border-slate-700/50 rounded-2xl shadow-xl p-5"
+                    data-testid="hero-card-sof"
+                  >
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-base">📄</span>
+                      <p className="text-xs font-bold text-white tracking-wide uppercase">Instant SOF</p>
                     </div>
-
-                    {/* Total */}
-                    <div className="mx-5 mb-3 rounded-xl bg-sky-500/10 border border-sky-500/20 px-4 py-2.5 flex items-center justify-between">
-                      <span className="text-xs font-bold text-white">TOTAL USD</span>
-                      <span className="text-base font-bold text-sky-400 font-mono">$9,775</span>
-                    </div>
-
-                    {/* Footer */}
-                    <div className="px-5 py-2.5 bg-slate-900/50 flex items-center justify-between border-t border-slate-700/20">
-                      <span className="text-[10px] text-slate-400">1 USD = 32.45 ₺</span>
-                      <span className="text-[10px] text-emerald-400 flex items-center gap-1">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                        TCMB Live Rate
+                        Ready to Sign
                       </span>
                     </div>
-                  </div>
+                    <p className="text-[11px] text-slate-500">Generated from live logs · 23 events recorded</p>
+                  </motion.div>
+
                 </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ─── TRUST METRICS BAND ─── */}
+        <section className="py-10 border-b border-slate-800/60 bg-slate-900/40">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-8 sm:gap-16" data-animate>
+              <div className="flex flex-col items-center gap-2 text-center">
+                <span className="text-3xl">🛡️</span>
+                <p className="text-sm font-semibold text-slate-200">100% Audited Tariffs</p>
+                <p className="text-xs text-slate-500 max-w-[140px]">Every fee verified against official port authority tables</p>
+              </div>
+              <div className="hidden sm:block w-px h-10 bg-slate-700/50" />
+              <div className="flex flex-col items-center gap-2 text-center">
+                <span className="text-3xl">⏱️</span>
+                <p className="text-sm font-semibold text-slate-200">Real-Time Cargo ETA/ETC</p>
+                <p className="text-xs text-slate-500 max-w-[140px]">Live discharge progress with truck-by-truck logging</p>
+              </div>
+              <div className="hidden sm:block w-px h-10 bg-slate-700/50" />
+              <div className="flex flex-col items-center gap-2 text-center">
+                <span className="text-3xl">🤝</span>
+                <p className="text-sm font-semibold text-slate-200">Dispute-Free Automations</p>
+                <p className="text-xs text-slate-500 max-w-[140px]">Auto-generated SOFs eliminate he-said/she-said disputes</p>
               </div>
             </div>
           </div>
