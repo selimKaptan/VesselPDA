@@ -1154,7 +1154,7 @@ export default function VoyageDetail() {
           { key: "financial",   label: "Financial",  icon: DollarSign },
           { key: "participants", label: "Team",      icon: Users2 },
           { key: "contacts",    label: "Contacts",  icon: Mail },
-        ] as const).filter(({ key }) => !(key === "cargo_ops" && voyage?.purposeOfCall === "Husbandry")).map(({ key, label, icon: Icon }) => (
+        ] as const).filter(({ key }) => !(key === "cargo_ops" && (voyage?.purposeOfCall === "Husbandry" || voyage?.purposeOfCall === "Crew Change"))).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
@@ -1179,19 +1179,34 @@ export default function VoyageDetail() {
       {activeTab === "operation" && (
         <div className="space-y-6">
 
-          {/* ── Husbandry: Amber Badge ── */}
-          {voyage.purposeOfCall === "Husbandry" && (
-            <div className="flex items-center gap-3 px-4 py-3.5 bg-amber-900/20 border border-amber-500/30 rounded-xl" data-testid="husbandry-badge">
-              <span className="text-xl flex-shrink-0">🟡</span>
+          {/* ── Husbandry / Crew Change: Operation Badge ── */}
+          {(voyage.purposeOfCall === "Husbandry" || voyage.purposeOfCall === "Crew Change") && (
+            <div
+              className={`flex items-center gap-3 px-4 py-3.5 rounded-xl ${
+                voyage.purposeOfCall === "Crew Change"
+                  ? "bg-cyan-900/20 border border-cyan-500/30"
+                  : "bg-amber-900/20 border border-amber-500/30"
+              }`}
+              data-testid="husbandry-badge"
+            >
+              <span className="text-xl flex-shrink-0">
+                {voyage.purposeOfCall === "Crew Change" ? "🔵" : "🟡"}
+              </span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-amber-400">Husbandry &amp; Protecting Agency Only</p>
-                <p className="text-xs text-amber-400/60 mt-0.5">Cargo operations are not applicable for this voyage type. Managing crew change, services and port logistics below.</p>
+                <p className={`text-sm font-bold ${voyage.purposeOfCall === "Crew Change" ? "text-cyan-400" : "text-amber-400"}`}>
+                  {voyage.purposeOfCall === "Crew Change" ? "Crew Change Operation" : "Husbandry & Protecting Agency Only"}
+                </p>
+                <p className={`text-xs mt-0.5 ${voyage.purposeOfCall === "Crew Change" ? "text-cyan-400/60" : "text-amber-400/60"}`}>
+                  {voyage.purposeOfCall === "Crew Change"
+                    ? "Crew sign-on/off logistics management. Cargo operations are not applicable for this voyage type."
+                    : "Cargo operations are not applicable for this voyage type. Managing crew change, services and port logistics below."}
+                </p>
               </div>
             </div>
           )}
 
-          {/* ── Husbandry: Logistics Control Tower ── */}
-          {voyage.purposeOfCall === "Husbandry" && (
+          {/* ── Husbandry / Crew Change: Logistics Control Tower ── */}
+          {(voyage.purposeOfCall === "Husbandry" || voyage.purposeOfCall === "Crew Change") && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" data-testid="husbandry-control-tower">
 
               {/* LEFT: Crew Logistics Board — col-span-2 */}
@@ -1478,8 +1493,8 @@ export default function VoyageDetail() {
             </DialogContent>
           </Dialog>
 
-          {/* ── Standard Port Ops (hidden for Husbandry) ── */}
-          {voyage.purposeOfCall !== "Husbandry" && (<>
+          {/* ── Standard Port Ops (hidden for Husbandry & Crew Change) ── */}
+          {voyage.purposeOfCall !== "Husbandry" && voyage.purposeOfCall !== "Crew Change" && (<>
           {/* ── MAIN 3-COLUMN GRID ── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* LEFT: Live Port Call Workflow (col-span-2) */}
