@@ -31,6 +31,7 @@ export interface CalculationInput {
   dbFiscalFee?: number;
   dbCommunicationFee?: number;
   dbVtsFee?: number;
+  dbHarbourMasterFee?: number;
   dbCustomsFee?: number;
   dbChamberDtoFee?: number;
   dbAnchoragePerDay?: number;
@@ -188,14 +189,13 @@ function calcSanitary(input: CalculationInput): number {
 }
 
 function calcHarbourMaster(input: CalculationInput): number {
-  if (input.dbLcbFee != null && input.dbLcbFee > 0) return input.dbLcbFee;
+  if (input.dbHarbourMasterFee != null && input.dbHarbourMasterFee > 0) return input.dbHarbourMasterFee;
   const { nrt, usdTryRate } = input;
   const lcbRow = vlookup(nrt, SANITARY_LCB_TABLE, "minNrt");
   const lcb = lcbRow.rateTL / usdTryRate;
   const overtimeRow = vlookup(nrt, OVERTIME_LCB_TABLE, "minNrt");
   const overtimeLcb = overtimeRow.rateTL / usdTryRate;
-  const ordino = (overtimeLcb / 2) + (5.71 / usdTryRate);
-  return lcb + overtimeLcb + 2 * ordino;
+  return lcb + overtimeLcb;
 }
 
 

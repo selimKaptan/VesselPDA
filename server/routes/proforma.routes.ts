@@ -5,7 +5,7 @@ import { isAdmin, calculateLimiter } from "./shared";
 import { insertProformaSchema } from "@shared/schema";
 import type { ProformaLineItem } from "@shared/schema";
 import { calculateProforma, type CalculationInput } from "../proforma-calculator";
-import { lookupPilotageFee, lookupTugboatFee, lookupMooringFee, lookupBerthingFee, lookupAgencyFee, lookupMarpolFee, lookupLcbFee, lookupSanitaryDuesFee, lookupChamberFreightShareFee, lookupChamberShippingFee, lookupLightDuesFee, lookupMiscExpenses, lookupSupervisionFee, type VesselCategory, type VesselSubCat } from "../tariff-lookup";
+import { lookupPilotageFee, lookupTugboatFee, lookupMooringFee, lookupBerthingFee, lookupAgencyFee, lookupMarpolFee, lookupLcbFee, lookupSanitaryDuesFee, lookupChamberFreightShareFee, lookupChamberShippingFee, lookupLightDuesFee, lookupMiscExpenses, lookupSupervisionFee, lookupVtsFee, lookupHarbourMasterDues, type VesselCategory, type VesselSubCat } from "../tariff-lookup";
 
 import { pool } from "../db";
 import { sendProformaEmail, sendApprovalRequestEmail } from "../email";
@@ -255,7 +255,7 @@ router.post("/calculate", isAuthenticated, calculateLimiter, async (req: any, re
 
     const vesselSubCat = getVesselSubCat((vessel as any).vesselType || req.body.vesselSubType);
 
-    const [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues, chamberFreightShare, chamberShipping, lightDues, misc, supervision] = await Promise.all([
+    const [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues, chamberFreightShare, chamberShipping, lightDues, misc, supervision, vts, harbourMaster] = await Promise.all([
       lookupPilotageFee(pool, portIdNum, grt, vesselCat, dangerous, vesselSubCat),
       lookupTugboatFee(pool, portIdNum, grt, vesselCat, dangerous, vesselSubCat),
       lookupMooringFee(pool, portIdNum, grt, dangerous, flagCat === "cabotage"),
@@ -269,6 +269,8 @@ router.post("/calculate", isAuthenticated, calculateLimiter, async (req: any, re
       lookupLightDuesFee(pool, portIdNum, nrt, vesselCat),
       lookupMiscExpenses(pool, portIdNum),
       lookupSupervisionFee(pool, portIdNum, cargoTypeRaw || "", cargoQtyNum, vesselCat, eurUsdParity),
+      lookupVtsFee(pool, portIdNum, nrt, vesselCat),
+      lookupHarbourMasterDues(pool, portIdNum, nrt, usdRate),
     ]);
 
     const calcInput: CalculationInput = {
@@ -303,7 +305,8 @@ router.post("/calculate", isAuthenticated, calculateLimiter, async (req: any, re
       dbTransportationFee: misc['transportation'],
       dbFiscalFee: misc['fiscal'],
       dbCommunicationFee: misc['communication'],
-      dbVtsFee: misc['vts'],
+      dbVtsFee: vts.fee || misc['vts'],
+      dbHarbourMasterFee: harbourMaster.fee || undefined,
       dbCustomsFee: misc['customs'],
       dbChamberDtoFee: chamberShipping.fee || misc['chamber_dto'],
       dbAnchoragePerDay: misc['anchorage'],
@@ -311,7 +314,7 @@ router.post("/calculate", isAuthenticated, calculateLimiter, async (req: any, re
     };
 
     const result = calculateProforma(calcInput);
-    const dbSources = [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues, chamberFreightShare, lightDues, supervision];
+    const dbSources = [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues, chamberFreightShare, lightDues, supervision, vts, harbourMaster];
     const tariffSource = dbSources.some(r => r.source === "database") ? "database" : "estimate";
 
     res.json({
@@ -410,7 +413,7 @@ router.post("/quick-estimate", isAuthenticated, calculateLimiter, async (req: an
     const vesselSubCat = getVesselSubCat((vessel as any).vesselType);
 
     const cargoQtyQuick = Number(cargoQuantity) || 5000;
-    const [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues, chamberFreightShare, chamberShippingQuick, lightDues, misc, supervision] = await Promise.all([
+    const [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues, chamberFreightShare, chamberShippingQuick, lightDues, misc, supervision, vts, harbourMaster] = await Promise.all([
       lookupPilotageFee(pool, portIdNum, grt, vesselCat, dangerous, vesselSubCat),
       lookupTugboatFee(pool, portIdNum, grt, vesselCat, dangerous, vesselSubCat),
       lookupMooringFee(pool, portIdNum, grt, dangerous, isCabotage),
@@ -424,9 +427,11 @@ router.post("/quick-estimate", isAuthenticated, calculateLimiter, async (req: an
       lookupLightDuesFee(pool, portIdNum, nrt, vesselCat),
       lookupMiscExpenses(pool, portIdNum),
       lookupSupervisionFee(pool, portIdNum, cargoType || "", cargoQtyQuick, vesselCat, eurUsdParity),
+      lookupVtsFee(pool, portIdNum, nrt, vesselCat),
+      lookupHarbourMasterDues(pool, portIdNum, nrt, usdTryRate),
     ]);
 
-    const dbSources = [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues, chamberFreightShare, chamberShippingQuick, lightDues, supervision];
+    const dbSources = [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues, chamberFreightShare, chamberShippingQuick, lightDues, supervision, vts, harbourMaster];
     const anyFromDb = dbSources.some(r => r.source === "database");
     const tariffSource = anyFromDb ? "database" : "estimate";
 
@@ -469,7 +474,8 @@ router.post("/quick-estimate", isAuthenticated, calculateLimiter, async (req: an
       dbTransportationFee: misc['transportation'],
       dbFiscalFee: misc['fiscal'],
       dbCommunicationFee: misc['communication'],
-      dbVtsFee: misc['vts'],
+      dbVtsFee: vts.fee || misc['vts'],
+      dbHarbourMasterFee: harbourMaster.fee || undefined,
       dbCustomsFee: misc['customs'],
       dbChamberDtoFee: chamberShippingQuick.fee || misc['chamber_dto'],
       dbAnchoragePerDay: misc['anchorage'],

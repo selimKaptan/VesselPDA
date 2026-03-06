@@ -1836,6 +1836,9 @@ export const vtsFees = pgTable("vts_fees", {
   validYear: integer("valid_year").default(2026),
   notes: text("notes"),
   updatedAt: timestamp("updated_at"),
+  nrtMin: integer("nrt_min"),
+  nrtMax: integer("nrt_max"),
+  flagCategory: varchar("flag_category"),
 });
 
 export const portAuthorityFees = pgTable("port_authority_fees", {

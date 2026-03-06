@@ -357,18 +357,20 @@ const CATEGORIES: CategoryDef[] = [
     key: "harbour_master_dues",
     label: "Harbour Master Dues",
     icon: Anchor,
-    defaultCurrency: "USD",
+    defaultCurrency: "TRY",
     columns: [
-      { key: "gt_min", label: "GT Min", type: "number" },
-      { key: "gt_max", label: "GT Max", type: "number" },
-      { key: "fee", label: "Fee", type: "number" },
+      { key: "service_type", label: "Sub-Service" },
+      { key: "grt_min", label: "NRT Min", type: "number" },
+      { key: "grt_max", label: "NRT Max", type: "number" },
+      { key: "fee", label: "Fee (TRY)", type: "number" },
       { key: "currency", label: "CCY", type: "currency" },
       { key: "valid_year", label: "Year", type: "year" },
     ],
     formFields: [
-      { key: "gt_min", label: "GT Min", type: "number" },
-      { key: "gt_max", label: "GT Max", type: "number" },
-      { key: "fee", label: "Fee", type: "number" },
+      { key: "service_type", label: "Sub-Service (seaworthiness / port_clearance / roadworthiness_lcb / overtime_lcb)", type: "text" },
+      { key: "grt_min", label: "NRT Min", type: "number" },
+      { key: "grt_max", label: "NRT Max", type: "number" },
+      { key: "fee", label: "Fee (TRY)", type: "number" },
       { key: "currency", label: "Currency", type: "currency" },
       { key: "valid_year", label: "Valid Year", type: "year" },
       { key: "notes", label: "Notes", type: "textarea" },
@@ -397,15 +399,19 @@ const CATEGORIES: CategoryDef[] = [
     icon: Radio,
     defaultCurrency: "USD",
     columns: [
-      { key: "service_name", label: "Service Name" },
-      { key: "fee", label: "Fee", type: "number" },
+      { key: "flag_category", label: "Flag Category" },
+      { key: "nrt_min", label: "NRT Min", type: "number" },
+      { key: "nrt_max", label: "NRT Max", type: "number" },
+      { key: "fee", label: "Fee (USD)", type: "number" },
       { key: "unit", label: "Unit" },
       { key: "currency", label: "CCY", type: "currency" },
       { key: "valid_year", label: "Year", type: "year" },
     ],
     formFields: [
-      { key: "service_name", label: "Service Name", type: "text" },
-      { key: "fee", label: "Fee", type: "number" },
+      { key: "flag_category", label: "Flag Category (foreign_commercial / turkish_intl / turkish_cabotage)", type: "text" },
+      { key: "nrt_min", label: "NRT Min", type: "number" },
+      { key: "nrt_max", label: "NRT Max (leave empty for open-ended)", type: "number" },
+      { key: "fee", label: "Fee (USD)", type: "number" },
       { key: "unit", label: "Unit (per call / per vessel / etc.)", type: "text" },
       { key: "currency", label: "Currency", type: "currency" },
       { key: "valid_year", label: "Valid Year", type: "year" },
@@ -873,9 +879,11 @@ function CategorySection({
       } else if (cat.key === "chamber_freight_share") {
         Object.assign(payload, { flag_category: alan1 || "foreign", cargo_min: numOrNull(rMin), cargo_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "harbour_master_dues") {
-        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+        Object.assign(payload, { service_type: alan1, grt_min: numOrNull(rMin), grt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "sanitary_dues") {
         Object.assign(payload, { nrt_rate: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+      } else if (cat.key === "vts_fees") {
+        Object.assign(payload, { flag_category: alan1, nrt_min: numOrNull(rMin), nrt_max: numOrNull(rMax), fee: numOrNull(f1), unit: alan2, currency, valid_year: parseInt(year), notes });
       }
 
       try {
@@ -1114,6 +1122,64 @@ function CategorySection({
           </div>
           <p className="text-[10px] text-muted-foreground mt-1.5">
             Formula parameters (Flat Fee, +1000 GT Rate, GT Threshold) are stored in the row below and drive these calculations automatically.
+          </p>
+        </div>
+      )}
+
+      {/* ── Harbour Master Dues Formula Summary ── */}
+      {open && cat.key === "harbour_master_dues" && (
+        <div className="border-t px-4 py-3 bg-amber-50 dark:bg-amber-950/30" data-testid="harbour-master-formula-card">
+          <div className="flex items-start gap-2 mb-2">
+            <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+            <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+              4 Alt Hizmetin Toplamı — Proforma hesaplamada otomatik uygulanır
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border border-amber-200 dark:border-amber-800 rounded-lg overflow-hidden">
+              <thead>
+                <tr className="bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200">
+                  <th className="px-3 py-2 text-left font-semibold">Sub-Service</th>
+                  <th className="px-3 py-2 text-left font-semibold">Türkçe Adı</th>
+                  <th className="px-3 py-2 text-center font-semibold">Çarpan</th>
+                  <th className="px-3 py-2 text-right font-semibold">Örnek NRT 1,000 (TRY)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-t border-amber-200 dark:border-amber-800 bg-white/60 dark:bg-amber-950/20">
+                  <td className="px-3 py-2 font-mono text-amber-700 dark:text-amber-300">seaworthiness (A)</td>
+                  <td className="px-3 py-2 text-foreground">Denize Elverişlilik</td>
+                  <td className="px-3 py-2 text-center font-semibold">× 1</td>
+                  <td className="px-3 py-2 text-right">9,000 TRY</td>
+                </tr>
+                <tr className="border-t border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30">
+                  <td className="px-3 py-2 font-mono text-amber-700 dark:text-amber-300">port_clearance (B)</td>
+                  <td className="px-3 py-2 text-foreground">Liman Çıkış Belgesi</td>
+                  <td className="px-3 py-2 text-center font-semibold text-amber-600 dark:text-amber-400">× 2</td>
+                  <td className="px-3 py-2 text-right">500 × 2 = 1,000 TRY</td>
+                </tr>
+                <tr className="border-t border-amber-200 dark:border-amber-800 bg-white/60 dark:bg-amber-950/20">
+                  <td className="px-3 py-2 font-mono text-amber-700 dark:text-amber-300">roadworthiness_lcb (C)</td>
+                  <td className="px-3 py-2 text-foreground">Yola Elverişlilik LÇB</td>
+                  <td className="px-3 py-2 text-center font-semibold">× 1</td>
+                  <td className="px-3 py-2 text-right">3,424 TRY</td>
+                </tr>
+                <tr className="border-t border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30">
+                  <td className="px-3 py-2 font-mono text-amber-700 dark:text-amber-300">overtime_lcb (D)</td>
+                  <td className="px-3 py-2 text-foreground">Mesai Dışı LÇB</td>
+                  <td className="px-3 py-2 text-center font-semibold">× 1</td>
+                  <td className="px-3 py-2 text-right">628 TRY</td>
+                </tr>
+                <tr className="border-t-2 border-amber-400 dark:border-amber-600 bg-amber-100/70 dark:bg-amber-900/40 font-semibold">
+                  <td className="px-3 py-2 text-amber-800 dark:text-amber-200" colSpan={2}>Toplam = A + 2×B + C + D</td>
+                  <td className="px-3 py-2 text-center text-amber-800 dark:text-amber-200">÷ USD/TRY</td>
+                  <td className="px-3 py-2 text-right text-green-600 dark:text-green-400">14,052 TRY → USD</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1.5">
+            Her sub-service tipi NRT aralıklarına göre TRY ücret içerir. Proforma hesaplamada güncel USD/TRY kuru ile USD'ye çevrilir.
           </p>
         </div>
       )}
@@ -1892,9 +1958,11 @@ export default function TariffManagement() {
       } else if (tableKey === "chamber_freight_share") {
         Object.assign(payload, { flag_category: alan1 || "foreign", cargo_min: numOrNull(rMin), cargo_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "harbour_master_dues") {
-        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+        Object.assign(payload, { service_type: alan1, grt_min: numOrNull(rMin), grt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "sanitary_dues") {
         Object.assign(payload, { nrt_rate: numOrNull(f1), currency, valid_year: parseInt(year), notes });
+      } else if (tableKey === "vts_fees") {
+        Object.assign(payload, { flag_category: alan1, nrt_min: numOrNull(rMin), nrt_max: numOrNull(rMax), fee: numOrNull(f1), unit: alan2, currency, valid_year: parseInt(year), notes });
       }
 
       try {

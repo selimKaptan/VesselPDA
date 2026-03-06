@@ -465,6 +465,73 @@ export async function lookupSupervisionFee(
   }
 }
 
+export async function lookupVtsFee(
+  pool: Pool,
+  portId: number,
+  nrt: number,
+  vesselCategory: VesselCategory
+): Promise<LookupResult> {
+  try {
+    const flagCatMap: Record<VesselCategory, string> = {
+      foreign_intl: "foreign_commercial",
+      turkish_intl: "turkish_intl",
+      turkish_cabotage: "turkish_cabotage",
+    };
+    const flagCat = flagCatMap[vesselCategory];
+    const result = await pool.query(
+      `SELECT fee FROM vts_fees
+       WHERE flag_category = $1
+         AND nrt_min IS NOT NULL
+         AND nrt_min <= $2
+         AND (nrt_max IS NULL OR nrt_max >= $2)
+         AND (port_id = $3 OR port_id IS NULL)
+       ORDER BY (CASE WHEN port_id = $3 THEN 0 ELSE 1 END), nrt_min DESC
+       LIMIT 1`,
+      [flagCat, nrt, portId]
+    );
+    if (!result.rows.length) return { fee: 0, source: "fallback" };
+    const fee = parseFloat(result.rows[0].fee || "0");
+    return fee ? { fee, source: "database" } : { fee: 0, source: "fallback" };
+  } catch {
+    return { fee: 0, source: "fallback" };
+  }
+}
+
+export async function lookupHarbourMasterDues(
+  pool: Pool,
+  portId: number,
+  nrt: number,
+  usdTryRate: number
+): Promise<LookupResult> {
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT ON (service_type) service_type, fee
+       FROM harbour_master_dues
+       WHERE service_type IN ('seaworthiness','port_clearance','roadworthiness_lcb','overtime_lcb')
+         AND grt_min <= $1
+         AND (grt_max IS NULL OR grt_max >= $1)
+         AND (port_id = $2 OR port_id IS NULL)
+       ORDER BY service_type, (CASE WHEN port_id = $2 THEN 0 ELSE 1 END), grt_min DESC`,
+      [nrt, portId]
+    );
+    if (!result.rows.length) return { fee: 0, source: "fallback" };
+    const feeMap: Record<string, number> = {};
+    for (const row of result.rows) {
+      feeMap[row.service_type] = parseFloat(row.fee || "0");
+    }
+    const feeA = feeMap["seaworthiness"] ?? 0;
+    const feeB = feeMap["port_clearance"] ?? 0;
+    const feeC = feeMap["roadworthiness_lcb"] ?? 0;
+    const feeD = feeMap["overtime_lcb"] ?? 0;
+    const totalTry = feeA + (2 * feeB) + feeC + feeD;
+    if (!totalTry || usdTryRate <= 0) return { fee: 0, source: "fallback" };
+    const totalUsd = Math.round((totalTry / usdTryRate) * 100) / 100;
+    return { fee: totalUsd, source: "database" };
+  } catch {
+    return { fee: 0, source: "fallback" };
+  }
+}
+
 export async function lookupMiscExpenses(
   pool: Pool,
   portId: number
