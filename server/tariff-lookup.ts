@@ -17,6 +17,15 @@ function getTugboatServiceType(vesselCategory: VesselCategory): string {
   return "romorkör_uluslararasi";
 }
 
+export type VesselSubCat = "container" | "passenger_ropax" | "cargo";
+
+function getTariffVesselCategory(vesselCategory: VesselCategory, vesselSubCat?: VesselSubCat): string {
+  if (vesselCategory === "turkish_cabotage") return "calisan_gemiler";
+  if (vesselSubCat === "container") return "konteyner";
+  if (vesselSubCat === "passenger_ropax") return "yolcu_feribot_roro_car_carrier";
+  return "diger_yuk";
+}
+
 function getBerthingColumn(vesselCategory: VesselCategory): string {
   if (vesselCategory === "foreign_intl") return "intl_foreign_flag";
   if (vesselCategory === "turkish_intl") return "intl_turkish_flag";
@@ -28,16 +37,18 @@ export async function lookupPilotageFee(
   portId: number,
   grt: number,
   vesselCategory: VesselCategory,
-  isDangerous: boolean
+  isDangerous: boolean,
+  vesselSubCat?: VesselSubCat
 ): Promise<LookupResult> {
   try {
     const serviceType = getPilotageServiceType(vesselCategory);
+    const tariffVesselCat = getTariffVesselCategory(vesselCategory, vesselSubCat);
     const result = await pool.query(
       `SELECT base_fee, per_1000_grt FROM pilotage_tariffs
-       WHERE (port_id = $1 OR port_id IS NULL) AND service_type = $2 AND vessel_category = 'diger_yuk'
-       AND grt_min <= $3
+       WHERE (port_id = $1 OR port_id IS NULL) AND service_type = $2 AND vessel_category = $3
+       AND grt_min <= $4
        ORDER BY (CASE WHEN port_id = $1 THEN 0 ELSE 1 END), grt_min DESC LIMIT 1`,
-      [portId, serviceType, grt]
+      [portId, serviceType, tariffVesselCat, grt]
     );
     if (result.rows.length === 0) return { fee: 0, source: "fallback" };
     const baseFee = parseFloat(result.rows[0].base_fee);
@@ -57,16 +68,18 @@ export async function lookupTugboatFee(
   portId: number,
   grt: number,
   vesselCategory: VesselCategory,
-  isDangerous: boolean
+  isDangerous: boolean,
+  vesselSubCat?: VesselSubCat
 ): Promise<LookupResult> {
   try {
     const serviceType = getTugboatServiceType(vesselCategory);
+    const tariffVesselCat = getTariffVesselCategory(vesselCategory, vesselSubCat);
     const result = await pool.query(
       `SELECT base_fee, per_1000_grt FROM pilotage_tariffs
-       WHERE (port_id = $1 OR port_id IS NULL) AND service_type = $2 AND vessel_category = 'diger_yuk'
-       AND grt_min <= $3
+       WHERE (port_id = $1 OR port_id IS NULL) AND service_type = $2 AND vessel_category = $3
+       AND grt_min <= $4
        ORDER BY (CASE WHEN port_id = $1 THEN 0 ELSE 1 END), grt_min DESC LIMIT 1`,
-      [portId, serviceType, grt]
+      [portId, serviceType, tariffVesselCat, grt]
     );
     if (result.rows.length === 0) return { fee: 0, source: "fallback" };
     const baseFee = parseFloat(result.rows[0].base_fee);
@@ -86,15 +99,18 @@ export async function lookupMooringFee(
   pool: Pool,
   portId: number,
   grt: number,
-  isDangerous: boolean
+  isDangerous: boolean,
+  isCabotage?: boolean
 ): Promise<LookupResult> {
   try {
+    const serviceType = isCabotage ? "palamar_kabotaj" : "palamar_uluslararasi";
+    const vesselCat = isCabotage ? "calisan_gemiler" : "diger_tum";
     const result = await pool.query(
       `SELECT base_fee, per_1000_grt FROM pilotage_tariffs
-       WHERE (port_id = $1 OR port_id IS NULL) AND service_type = 'palamar_kabotaj_yeni' AND vessel_category = 'diger_tum'
-       AND grt_min <= $2
+       WHERE (port_id = $1 OR port_id IS NULL) AND service_type = $2 AND vessel_category = $3
+       AND grt_min <= $4
        ORDER BY (CASE WHEN port_id = $1 THEN 0 ELSE 1 END), grt_min DESC LIMIT 1`,
-      [portId, grt]
+      [portId, serviceType, vesselCat, grt]
     );
     if (result.rows.length === 0) return { fee: 0, source: "fallback" };
     const baseFee = parseFloat(result.rows[0].base_fee);

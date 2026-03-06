@@ -1630,6 +1630,17 @@ export default function TariffManagement() {
     onError: () => toast({ title: "Error", description: "Failed to create section", variant: "destructive" }),
   });
 
+  const verifyTariffsMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/tariff-seed-verify"),
+    onSuccess: (data: any) => {
+      toast({
+        title: data.status === "seeded" ? "Tarifeler Güncellendi" : "✓ Tarifeler Doğrulandı",
+        description: data.message,
+      });
+    },
+    onError: () => toast({ title: "Hata", description: "Tarife doğrulaması başarısız", variant: "destructive" }),
+  });
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -1991,6 +2002,21 @@ export default function TariffManagement() {
             >
               <FolderPlus className="w-3.5 h-3.5" /> New Section
             </Button>
+            {userRole === "admin" && (
+              <Button
+                variant="outline" size="sm"
+                className="gap-1.5 text-xs h-8 border-green-500/50 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30"
+                onClick={() => verifyTariffsMutation.mutate()}
+                disabled={verifyTariffsMutation.isPending}
+                data-testid="button-verify-tariffs"
+              >
+                {verifyTariffsMutation.isPending
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <ShieldCheck className="w-3.5 h-3.5" />
+                }
+                Tarifeleri Doğrula
+              </Button>
+            )}
           </div>
         </div>
       </div>

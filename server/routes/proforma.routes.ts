@@ -5,7 +5,8 @@ import { isAdmin, calculateLimiter } from "./shared";
 import { insertProformaSchema } from "@shared/schema";
 import type { ProformaLineItem } from "@shared/schema";
 import { calculateProforma, type CalculationInput } from "../proforma-calculator";
-import { lookupPilotageFee, lookupTugboatFee, lookupMooringFee, lookupBerthingFee, lookupAgencyFee, lookupMarpolFee, lookupLcbFee, lookupSanitaryDuesFee, lookupChamberFreightShareFee, lookupChamberShippingFee, lookupLightDuesFee, lookupMiscExpenses, lookupSupervisionFee, type VesselCategory } from "../tariff-lookup";
+import { lookupPilotageFee, lookupTugboatFee, lookupMooringFee, lookupBerthingFee, lookupAgencyFee, lookupMarpolFee, lookupLcbFee, lookupSanitaryDuesFee, lookupChamberFreightShareFee, lookupChamberShippingFee, lookupLightDuesFee, lookupMiscExpenses, lookupSupervisionFee, type VesselCategory, type VesselSubCat } from "../tariff-lookup";
+
 import { pool } from "../db";
 import { sendProformaEmail, sendApprovalRequestEmail } from "../email";
 import { logAction, getClientIp } from "../audit";
@@ -14,6 +15,14 @@ import { getOrFetchRates } from "../exchange-rates";
 import { randomBytes } from "node:crypto";
 
 const router = Router();
+
+// ─── VESSEL SUB-CATEGORY HELPER ───────────────────────────────────────────────
+function getVesselSubCat(vesselType?: string): VesselSubCat {
+  const t = (vesselType || "").toLowerCase().replace(/[-_ ]/g, "");
+  if (t === "container" || t === "containership") return "container";
+  if (["passenger", "roro", "ropax", "ferry", "carcarrier", "ropaxferry"].some(k => t.includes(k))) return "passenger_ropax";
+  return "cargo";
+}
 
 // ─── GROUPED BREAKDOWN HELPER ─────────────────────────────────────────────────
 const CATEGORY_ORDER = ["Port Navigation", "Port Dues", "Regulatory", "Chamber & Official", "Disbursement", "Supervision", "Agency"];
@@ -244,10 +253,12 @@ router.post("/calculate", isAuthenticated, calculateLimiter, async (req: any, re
     else if (flagCat === "cabotage") vesselCat = "turkish_cabotage";
     else vesselCat = "turkish_intl";
 
+    const vesselSubCat = getVesselSubCat((vessel as any).vesselType || req.body.vesselSubType);
+
     const [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues, chamberFreightShare, chamberShipping, lightDues, misc, supervision] = await Promise.all([
-      lookupPilotageFee(pool, portIdNum, grt, vesselCat, dangerous),
-      lookupTugboatFee(pool, portIdNum, grt, vesselCat, dangerous),
-      lookupMooringFee(pool, portIdNum, grt, dangerous),
+      lookupPilotageFee(pool, portIdNum, grt, vesselCat, dangerous, vesselSubCat),
+      lookupTugboatFee(pool, portIdNum, grt, vesselCat, dangerous, vesselSubCat),
+      lookupMooringFee(pool, portIdNum, grt, dangerous, flagCat === "cabotage"),
       lookupBerthingFee(pool, portIdNum, grt, vesselCat, berthDaysNum),
       lookupAgencyFee(pool, portIdNum, nrt, eurUsdParity),
       lookupMarpolFee(pool, portIdNum, grt, eurUsdParity),
@@ -396,11 +407,13 @@ router.post("/quick-estimate", isAuthenticated, calculateLimiter, async (req: an
     const dangerous = isDangerousCargo === true || isDangerousCargo === "true";
     const portIdNum = Number(portId);
 
+    const vesselSubCat = getVesselSubCat((vessel as any).vesselType);
+
     const cargoQtyQuick = Number(cargoQuantity) || 5000;
     const [pilotage, tugboat, mooring, berthing, agency, marpol, lcb, sanitaryDues, chamberFreightShare, chamberShippingQuick, lightDues, misc, supervision] = await Promise.all([
-      lookupPilotageFee(pool, portIdNum, grt, vesselCat, dangerous),
-      lookupTugboatFee(pool, portIdNum, grt, vesselCat, dangerous),
-      lookupMooringFee(pool, portIdNum, grt, dangerous),
+      lookupPilotageFee(pool, portIdNum, grt, vesselCat, dangerous, vesselSubCat),
+      lookupTugboatFee(pool, portIdNum, grt, vesselCat, dangerous, vesselSubCat),
+      lookupMooringFee(pool, portIdNum, grt, dangerous, isCabotage),
       lookupBerthingFee(pool, portIdNum, grt, vesselCat, berthDays),
       lookupAgencyFee(pool, portIdNum, nrt, eurUsdParity),
       lookupMarpolFee(pool, portIdNum, grt, eurUsdParity),

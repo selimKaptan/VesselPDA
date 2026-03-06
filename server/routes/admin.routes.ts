@@ -1413,4 +1413,69 @@ router.post("/send-reminders", async (_req, res) => {
   }
 });
 
+// ── Tariff Seed Verify ───────────────────────────────────────────────────────
+router.post("/tariff-seed-verify", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user.claims.sub;
+    const user = await storage.getUser(userId);
+    const APPROVED_ADMINS = ["selim@barbarosshipping.com"];
+    if (!user || !APPROVED_ADMINS.includes(user.email || "")) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const client = await pool.connect();
+    try {
+      const { rows: existing } = await client.query(
+        "SELECT service_type, vessel_category FROM pilotage_tariffs WHERE port_id IS NULL"
+      );
+
+      const REQUIRED_ROWS: { serviceType: string; vesselCategory: string; baseFee: number; per1000Grt: number }[] = [
+        { serviceType: "kabotaj",               vesselCategory: "calisan_gemiler",                baseFee: 71.87,  per1000Grt: 25.67 },
+        { serviceType: "uluslararasi",           vesselCategory: "yolcu_feribot_roro_car_carrier", baseFee: 116.00, per1000Grt: 46.00 },
+        { serviceType: "uluslararasi",           vesselCategory: "konteyner",                      baseFee: 153.00, per1000Grt: 65.00 },
+        { serviceType: "uluslararasi",           vesselCategory: "diger_yuk",                      baseFee: 202.27, per1000Grt: 83.17 },
+        { serviceType: "romorkör_kabotaj",       vesselCategory: "calisan_gemiler",                baseFee: 122.18, per1000Grt: 25.67 },
+        { serviceType: "romorkör_uluslararasi",  vesselCategory: "yolcu_feribot_roro_car_carrier", baseFee: 224.00, per1000Grt: 40.00 },
+        { serviceType: "romorkör_uluslararasi",  vesselCategory: "konteyner",                      baseFee: 299.00, per1000Grt: 56.00 },
+        { serviceType: "romorkör_uluslararasi",  vesselCategory: "diger_yuk",                      baseFee: 382.99, per1000Grt: 71.87 },
+        { serviceType: "palamar_kabotaj",        vesselCategory: "calisan_gemiler",                baseFee: 11.29,  per1000Grt: 6.16  },
+        { serviceType: "palamar_uluslararasi",   vesselCategory: "diger_tum",                      baseFee: 22.58,  per1000Grt: 11.29 },
+      ];
+
+      const existingSet = new Set(existing.map((r: any) => `${r.service_type}|${r.vessel_category}`));
+      let inserted = 0;
+
+      for (const row of REQUIRED_ROWS) {
+        const key = `${row.serviceType}|${row.vesselCategory}`;
+        if (!existingSet.has(key)) {
+          await client.query(
+            `INSERT INTO pilotage_tariffs (port_id, service_type, vessel_category, grt_min, grt_max, base_fee, per_1000_grt, currency, valid_year, notes)
+             VALUES (NULL, $1, $2, 0, 999999, $3, $4, 'USD', 2026, 'Official 2026 tariff — auto-seeded')`,
+            [row.serviceType, row.vesselCategory, row.baseFee, row.per1000Grt]
+          );
+          inserted++;
+        }
+      }
+
+      const { rows: finalCount } = await client.query(
+        "SELECT COUNT(*)::int AS cnt FROM pilotage_tariffs WHERE port_id IS NULL"
+      );
+
+      res.json({
+        status: inserted > 0 ? "seeded" : "ok",
+        message: inserted > 0
+          ? `${inserted} eksik tarife kaydı eklendi. Toplam: ${finalCount[0].cnt} global kayıt.`
+          : `${finalCount[0].cnt} global tarife kaydı doğrulandı — tüm kayıtlar mevcut.`,
+        count: finalCount[0].cnt,
+        inserted,
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error("Tariff seed verify error:", error);
+    res.status(500).json({ message: "Failed to verify tariff seed" });
+  }
+});
+
 export default router;
