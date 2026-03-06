@@ -42,6 +42,7 @@ export interface CalculatedLineItem {
   amountUsd: number;
   amountEur: number;
   notes?: string;
+  category?: string;
 }
 
 export interface CalculationResult {
@@ -311,13 +312,14 @@ export function calculateProforma(input: CalculationInput): CalculationResult {
   const { eurUsdParity } = input;
   const lineItems: CalculatedLineItem[] = [];
 
-  function addItem(description: string, amountUsd: number, notes?: string) {
+  function addItem(description: string, amountUsd: number, notesOrCategory?: string, category?: string) {
     if (amountUsd > 0) {
       lineItems.push({
         description,
         amountUsd: Math.round(amountUsd * 100) / 100,
         amountEur: Math.round((amountUsd / eurUsdParity) * 100) / 100,
-        notes,
+        notes: category ? notesOrCategory : undefined,
+        category: category ?? notesOrCategory,
       });
     }
   }
@@ -325,58 +327,69 @@ export function calculateProforma(input: CalculationInput): CalculationResult {
   addItem(
     "Pilotage",
     calcPilotage(input),
-    "50% overtime will applicable on National/Religious holidays & Sundays"
+    "50% overtime will applicable on National/Religious holidays & Sundays",
+    "Port Navigation"
   );
 
   addItem(
     input.grt > 5000 ? "Tugboats ×2 (GRT > 5,000 — mandatory 2nd tug)" : "Tugboats",
     calcTugboat(input),
-    "50% overtime will applicable on National/Religious holidays & Sundays"
+    "50% overtime will applicable on National/Religious holidays & Sundays",
+    "Port Navigation"
   );
-
-  addItem("Wharfage / Quay Dues", calcWharfage(input));
 
   addItem(
     "Mooring Boat",
     calcMooring(input),
-    "50% overtime will applicable on National/Religious holidays & Sundays"
+    "50% overtime will applicable on National/Religious holidays & Sundays",
+    "Port Navigation"
   );
 
-  addItem("Garbage", calcGarbage(input), "Compulsory charge");
+  addItem("Wharfage / Quay Dues", calcWharfage(input), undefined, "Port Dues");
 
-  addItem("Harbour Master Dues", calcHarbourMaster(input));
+  addItem("Garbage", calcGarbage(input), "Compulsory charge", "Port Dues");
 
-  addItem("Sanitary Dues", calcSanitary(input));
+  addItem("Harbour Master Dues", calcHarbourMaster(input), undefined, "Port Dues");
 
-  addItem("Light Dues", calcLightDues(input));
+  addItem("Sanitary Dues", calcSanitary(input), undefined, "Port Dues");
 
-  addItem("VTS Fee", calcVts(input));
+  addItem("Light Dues", calcLightDues(input), undefined, "Regulatory");
 
-  addItem("Customs Overtime", calcCustomsOvertime(input));
+  addItem("VTS Fee", calcVts(input), undefined, "Regulatory");
+
+  addItem("Customs Overtime", calcCustomsOvertime(input), undefined, "Regulatory");
 
   addItem(
     `Anchorage Dues${input.anchorageDays > 0 ? ` (${input.anchorageDays} days)` : ""}`,
-    calcAnchorageDues(input)
+    calcAnchorageDues(input),
+    undefined,
+    "Regulatory"
   );
 
-  addItem("Chamber of Shipping Fee", calcChamberOfShipping(input));
+  addItem("Chamber of Shipping Fee", calcChamberOfShipping(input), undefined, "Chamber & Official");
 
-  addItem("Chamber of Shipping Share on Freight", calcChamberFreightShare(input));
+  addItem("Chamber of Shipping Share on Freight", calcChamberFreightShare(input), undefined, "Chamber & Official");
 
-  addItem("Motorboat Exp.", input.dbMotorboatFee ?? 500);
-  addItem("Facilities & Other Exp.", input.dbFacilitiesFee ?? 550);
-  addItem("Transportation Exp.", input.dbTransportationFee ?? 500);
-  addItem("Fiscal & Notary Exp.", input.dbFiscalFee ?? 250);
-  addItem("Communication & Copy & Stamp Exp.", input.dbCommunicationFee ?? 250);
+  addItem("Motorboat Exp.", input.dbMotorboatFee ?? 500, undefined, "Disbursement");
+  addItem("Facilities & Other Exp.", input.dbFacilitiesFee ?? 550, undefined, "Disbursement");
+  addItem("Transportation Exp.", input.dbTransportationFee ?? 500, undefined, "Disbursement");
+  addItem("Fiscal & Notary Exp.", input.dbFiscalFee ?? 250, undefined, "Disbursement");
+  addItem("Communication & Copy & Stamp Exp.", input.dbCommunicationFee ?? 250, undefined, "Disbursement");
 
-  addItem("Supervision Fee", calcSupervision(input), input.flagCategory === "cabotage" ? "Not applicable for cabotage voyages." : "As per official tariff.");
+  addItem(
+    "Supervision Fee",
+    calcSupervision(input),
+    input.flagCategory === "cabotage" ? "Not applicable for cabotage voyages." : "As per official tariff.",
+    "Supervision"
+  );
 
   addItem(
     "Agency Fee",
     calcAgencyFee(input),
     input.flagCategory === "cabotage"
       ? "As per official tariff. Basic fee covers up to 7 days. +20% for each additional 5 days. 50% discount applied for cabotage voyages."
-      : "As per official tariff. Basic fee covers up to 7 days. +20% for each additional 5 days."
+      : "As per official tariff. Basic fee covers up to 7 days. +20% for each additional 5 days.",
+    "Agency"
   );
 
   const totalUsd = Math.round(lineItems.reduce((sum, item) => sum + item.amountUsd, 0) * 100) / 100;

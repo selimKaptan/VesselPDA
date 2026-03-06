@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { FileText, Ship, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Package, AlertTriangle, ChevronsUpDown, Check, MapPin, RefreshCw, Zap, Waves, PenLine, List, Landmark } from "lucide-react";
+import { FileText, Ship, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Package, AlertTriangle, ChevronsUpDown, Check, MapPin, RefreshCw, Zap, Waves, PenLine, List, Landmark, Download, BarChart3, Navigation, Building2, ShieldCheck, Layers, Receipt, Award } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,6 +116,14 @@ export default function ProformaNew() {
   const [totalEur, setTotalEur] = useState<number>(0);
   const [eurUsdParity, setEurUsdParity] = useState<number>(1.178);
 
+  type GroupedBreakdownItem = {
+    category: string;
+    items: { description: string; amountUsd: number; amountEur: number; notes?: string }[];
+    subtotalUsd: number;
+    subtotalEur: number;
+    pct: number;
+  };
+
   // Quick estimate
   const [quickEstimate, setQuickEstimate] = useState<{
     lineItems: ProformaLineItem[];
@@ -124,7 +132,11 @@ export default function ProformaNew() {
     vesselName: string;
     portName: string;
     exchangeRates: { usdTry: number; eurTry: number; eurUsd: number };
+    groupedBreakdown?: GroupedBreakdownItem[];
+    tariffSource?: string;
+    portTariffName?: string;
   } | null>(null);
+  const [calculatedGroupedBreakdown, setCalculatedGroupedBreakdown] = useState<GroupedBreakdownItem[]>([]);
   const [quickEstimateLoading, setQuickEstimateLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -230,11 +242,12 @@ export default function ProformaNew() {
       const res = await apiRequest("POST", "/api/proformas/calculate", params);
       return res.json();
     },
-    onSuccess: (data: { lineItems: ProformaLineItem[]; totalUsd: number; totalEur: number; eurUsdParity: number }) => {
+    onSuccess: (data: { lineItems: ProformaLineItem[]; totalUsd: number; totalEur: number; eurUsdParity: number; groupedBreakdown?: GroupedBreakdownItem[] }) => {
       setCalculatedItems(data.lineItems);
       setTotalUsd(data.totalUsd);
       setTotalEur(data.totalEur);
       if (data.eurUsdParity) setEurUsdParity(data.eurUsdParity);
+      if (data.groupedBreakdown) setCalculatedGroupedBreakdown(data.groupedBreakdown);
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
@@ -886,48 +899,180 @@ export default function ProformaNew() {
 
           {/* Quick cost preview */}
           {vesselReady && selectedPort && !calculatedItems && (
-            <Card className="overflow-hidden border-blue-200 dark:border-blue-800" data-testid="panel-quick-estimate">
+            <Card className="overflow-hidden border-blue-200 dark:border-blue-800 shadow-[0_0_0_1px_rgba(59,130,246,0.15),0_4px_24px_rgba(59,130,246,0.08)]" data-testid="panel-quick-estimate">
+              {/* Header */}
               <div className="flex items-center gap-2 px-4 py-3 bg-blue-50/80 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900">
                 <Zap className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 <h3 className="font-semibold text-sm text-blue-800 dark:text-blue-300">Quick Cost Preview</h3>
                 {quickEstimateLoading && <Loader2 className="w-3 h-3 animate-spin text-blue-500 ml-auto" data-testid="spinner-estimating" />}
+                {quickEstimate && !quickEstimateLoading && (
+                  <span className="ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 uppercase tracking-wide">
+                    {quickEstimate.tariffSource === "database" ? "DB Tariff" : "Estimate"}
+                  </span>
+                )}
               </div>
-              <div className="p-4 space-y-3">
-                {quickEstimateLoading && !quickEstimate ? (
-                  <p className="text-xs text-center text-muted-foreground py-4">Estimating...</p>
-                ) : quickEstimate ? (
-                  <>
-                    <div className="text-center py-2">
-                      <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-1">Estimated Total</p>
-                      <p className="text-3xl font-bold font-serif text-blue-700 dark:text-blue-300" data-testid="text-estimate-total">
-                        ~${quickEstimate.totalUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                      </p>
-                      <p className="text-sm text-muted-foreground font-mono mt-0.5">
-                        ~€{quickEstimate.totalEur.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                      </p>
+
+              {quickEstimateLoading && !quickEstimate ? (
+                /* Loading skeleton */
+                <div className="p-4 space-y-2 animate-pulse">
+                  {[80, 60, 90, 50, 70].map((w, i) => (
+                    <div key={i} className="flex justify-between items-center">
+                      <div className={`h-2.5 bg-blue-100 dark:bg-blue-900/40 rounded`} style={{ width: `${w}%` }} />
+                      <div className="h-2.5 bg-blue-100 dark:bg-blue-900/40 rounded w-16" />
                     </div>
-                    <div className="text-xs text-muted-foreground border-t pt-3 space-y-0.5">
-                      <p>TCMB: 1 USD = {quickEstimate.exchangeRates.usdTry} TRY</p>
-                      <p className="italic text-[10px]">Preliminary estimate — click Calculate for full breakdown.</p>
-                    </div>
+                  ))}
+                </div>
+              ) : quickEstimate ? (
+                <>
+                  {/* Summary badges */}
+                  <div className="flex items-center gap-2 px-4 py-2.5 border-b border-blue-50 dark:border-blue-900/50 bg-gradient-to-r from-blue-50/40 to-transparent dark:from-blue-950/20">
+                    <Ship className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                    <span className="text-[11px] font-medium text-blue-700 dark:text-blue-300 truncate">{quickEstimate.vesselName}</span>
+                    <span className="text-[11px] text-blue-300 dark:text-blue-700 mx-0.5">•</span>
+                    <Anchor className="w-3 h-3 text-blue-400 shrink-0" />
+                    <span className="text-[11px] text-blue-600 dark:text-blue-400 truncate">{quickEstimate.portName}</span>
+                    <span className="ml-auto text-sm font-bold text-blue-700 dark:text-blue-200 font-mono whitespace-nowrap" data-testid="text-estimate-total">
+                      ~${quickEstimate.totalUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+
+                  {/* Two-column body */}
+                  {(() => {
+                    const CATEGORY_COLORS: Record<string, { border: string; bg: string; bar: string; text: string; icon: typeof Navigation }> = {
+                      "Port Navigation": { border: "border-sky-500", bg: "bg-sky-50 dark:bg-sky-950/30", bar: "bg-sky-500", text: "text-sky-700 dark:text-sky-300", icon: Navigation },
+                      "Port Dues":       { border: "border-blue-500", bg: "bg-blue-50 dark:bg-blue-950/30", bar: "bg-blue-500", text: "text-blue-700 dark:text-blue-300", icon: Layers },
+                      "Regulatory":      { border: "border-violet-500", bg: "bg-violet-50 dark:bg-violet-950/30", bar: "bg-violet-500", text: "text-violet-700 dark:text-violet-300", icon: ShieldCheck },
+                      "Chamber & Official": { border: "border-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-950/30", bar: "bg-indigo-500", text: "text-indigo-700 dark:text-indigo-300", icon: Building2 },
+                      "Disbursement":    { border: "border-slate-500", bg: "bg-slate-50 dark:bg-slate-900/30", bar: "bg-slate-500", text: "text-slate-700 dark:text-slate-300", icon: Receipt },
+                      "Agency":          { border: "border-teal-500", bg: "bg-teal-50 dark:bg-teal-950/30", bar: "bg-teal-500", text: "text-teal-700 dark:text-teal-300", icon: Award },
+                      "Supervision":     { border: "border-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/30", bar: "bg-emerald-500", text: "text-emerald-700 dark:text-emerald-300", icon: BarChart3 },
+                    };
+                    const DEFAULT_COLOR = { border: "border-gray-400", bg: "bg-gray-50 dark:bg-gray-900/30", bar: "bg-gray-400", text: "text-gray-700 dark:text-gray-300", icon: FileText };
+                    const grouped = quickEstimate.groupedBreakdown ?? [];
+                    return (
+                      <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-blue-100 dark:divide-blue-900/40">
+
+                        {/* LEFT — Line Items table */}
+                        <div className="flex-1 min-w-0 p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1">
+                            <List className="w-3 h-3" /> Line Items
+                          </p>
+                          <div className="space-y-1.5" data-testid="table-grouped-items">
+                            {grouped.map((group, gi) => {
+                              const color = CATEGORY_COLORS[group.category] ?? DEFAULT_COLOR;
+                              return (
+                                <div key={gi} className={`rounded-md overflow-hidden border-l-4 ${color.border}`}>
+                                  {/* Category header */}
+                                  <div className={`flex items-center justify-between px-2 py-1 ${color.bg}`}>
+                                    <span className={`text-[10px] font-bold uppercase tracking-wide ${color.text}`}>{group.category}</span>
+                                    <span className={`text-[10px] font-bold font-mono ${color.text}`}>${group.subtotalUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                  </div>
+                                  {/* Items */}
+                                  {group.items.map((item, ii) => (
+                                    <div key={ii} className="flex items-center justify-between px-2 py-0.5 hover:bg-blue-50/30 dark:hover:bg-blue-950/20">
+                                      <span className="text-[10px] text-muted-foreground truncate pr-2" style={{ maxWidth: "58%" }}>{item.description}</span>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <span className="text-[10px] font-mono text-foreground">${item.amountUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                        <span className="text-[9px] font-mono text-muted-foreground">€{item.amountEur.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })}
+                            {/* Total footer */}
+                            <div className="flex items-center justify-between px-2 py-1.5 mt-1 border-t border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-950/20 rounded-b-md">
+                              <span className="text-[10px] font-bold text-blue-800 dark:text-blue-200 uppercase tracking-wide">Total Port Expenses</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-bold font-mono text-blue-700 dark:text-blue-300">${quickEstimate.totalUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                <span className="text-[10px] font-mono text-muted-foreground">€{quickEstimate.totalEur.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* RIGHT — Cost Breakdown progress bars */}
+                        <div className="md:w-52 shrink-0 p-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1">
+                            <BarChart3 className="w-3 h-3" /> Cost Breakdown
+                          </p>
+                          <div className="space-y-2">
+                            {grouped.map((group, gi) => {
+                              const color = CATEGORY_COLORS[group.category] ?? DEFAULT_COLOR;
+                              return (
+                                <div key={gi} data-testid={`div-breakdown-category-${gi}`}>
+                                  <div className="flex items-center justify-between mb-0.5">
+                                    <span className="text-[10px] text-muted-foreground truncate" style={{ maxWidth: "65%" }}>{group.category}</span>
+                                    <span className="text-[10px] font-mono font-semibold text-foreground">{group.pct}%</span>
+                                  </div>
+                                  <div className="w-full h-2 bg-blue-100 dark:bg-blue-900/30 rounded-full overflow-hidden">
+                                    <div
+                                      data-testid={`progress-category-${gi}`}
+                                      className={`h-full rounded-full transition-all duration-500 ${color.bar}`}
+                                      style={{ width: `${group.pct}%` }}
+                                    />
+                                  </div>
+                                  <p className="text-[9px] font-mono text-muted-foreground mt-0.5 text-right">${group.subtotalUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* Totals */}
+                          <div className="mt-3 pt-2 border-t border-blue-100 dark:border-blue-900/40 space-y-0.5">
+                            <div className="flex justify-between items-baseline">
+                              <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Total</span>
+                              <span className="text-sm font-bold font-mono text-blue-700 dark:text-blue-300">${quickEstimate.totalUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            </div>
+                            <div className="flex justify-between items-baseline">
+                              <span className="text-[9px] text-muted-foreground">EUR</span>
+                              <span className="text-[11px] font-mono text-muted-foreground">€{quickEstimate.totalEur.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            </div>
+                            <p className="text-[9px] text-muted-foreground pt-1">TCMB: 1 USD = {quickEstimate.exchangeRates.usdTry} TRY</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Action buttons */}
+                  <div className="flex gap-2 px-4 py-3 border-t border-blue-100 dark:border-blue-900/50 bg-blue-50/30 dark:bg-blue-950/10">
                     <Button
                       size="sm"
                       variant="outline"
-                      className="w-full gap-2 text-xs border-blue-300 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                      className="flex-1 gap-2 text-xs border-blue-300 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30"
                       onClick={() => {
                         setCalculatedItems(quickEstimate.lineItems);
                         setTotalUsd(quickEstimate.totalUsd);
                         setTotalEur(quickEstimate.totalEur);
                         setEurUsdParity(quickEstimate.exchangeRates.eurUsd);
+                        if (quickEstimate.groupedBreakdown) setCalculatedGroupedBreakdown(quickEstimate.groupedBreakdown);
                       }}
                       data-testid="button-load-estimate"
                     >
                       <Calculator className="w-3.5 h-3.5" />
                       Load as Proforma
                     </Button>
-                  </>
-                ) : null}
-              </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="gap-1.5 text-xs text-blue-600 hover:bg-blue-100/50 dark:text-blue-400 dark:hover:bg-blue-900/30"
+                      onClick={() => {
+                        import("@/lib/proforma-summary").then(({ generateProformaSummaryPdf }) => {
+                          generateProformaSummaryPdf(quickEstimate as any);
+                        });
+                      }}
+                      data-testid="button-export-summary"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Export
+                    </Button>
+                  </div>
+
+                  <div className="px-4 pb-2">
+                    <p className="text-[9px] text-muted-foreground italic">Preliminary estimate — click Calculate for full breakdown.</p>
+                  </div>
+                </>
+              ) : null}
             </Card>
           )}
 

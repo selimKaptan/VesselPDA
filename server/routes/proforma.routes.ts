@@ -15,6 +15,45 @@ import { randomBytes } from "node:crypto";
 
 const router = Router();
 
+// ─── GROUPED BREAKDOWN HELPER ─────────────────────────────────────────────────
+const CATEGORY_ORDER = ["Port Navigation", "Port Dues", "Regulatory", "Chamber & Official", "Disbursement", "Supervision", "Agency"];
+
+function buildGroupedBreakdown(lineItems: { description: string; amountUsd: number; amountEur: number; notes?: string; category?: string }[], totalUsd: number) {
+  const map = new Map<string, { items: typeof lineItems; subtotalUsd: number; subtotalEur: number }>();
+  for (const item of lineItems) {
+    const cat = item.category || "Other";
+    if (!map.has(cat)) map.set(cat, { items: [], subtotalUsd: 0, subtotalEur: 0 });
+    const g = map.get(cat)!;
+    g.items.push(item);
+    g.subtotalUsd += item.amountUsd;
+    g.subtotalEur += item.amountEur ?? 0;
+  }
+  const result = [];
+  for (const cat of CATEGORY_ORDER) {
+    if (map.has(cat)) {
+      const g = map.get(cat)!;
+      result.push({
+        category: cat,
+        items: g.items,
+        subtotalUsd: Math.round(g.subtotalUsd * 100) / 100,
+        subtotalEur: Math.round(g.subtotalEur * 100) / 100,
+        pct: totalUsd > 0 ? Math.round((g.subtotalUsd / totalUsd) * 1000) / 10 : 0,
+      });
+      map.delete(cat);
+    }
+  }
+  for (const [cat, g] of map.entries()) {
+    result.push({
+      category: cat,
+      items: g.items,
+      subtotalUsd: Math.round(g.subtotalUsd * 100) / 100,
+      subtotalEur: Math.round(g.subtotalEur * 100) / 100,
+      pct: totalUsd > 0 ? Math.round((g.subtotalUsd / totalUsd) * 1000) / 10 : 0,
+    });
+  }
+  return result;
+}
+
 router.get("/", isAuthenticated, async (req: any, res: any, next: any) => {
   try {
     const userId = req.user.claims.sub;
@@ -270,6 +309,7 @@ router.post("/calculate", isAuthenticated, calculateLimiter, async (req: any, re
       totalEur: result.totalEur,
       eurUsdParity: Math.round(eurUsdParity * 1000000) / 1000000,
       tariffSource,
+      groupedBreakdown: buildGroupedBreakdown(result.lineItems, result.totalUsd),
     });
   } catch (error) {
     console.error("Calculate error:", error);
@@ -438,6 +478,7 @@ router.post("/quick-estimate", isAuthenticated, calculateLimiter, async (req: an
       tariffSource,
       portTariffName,
       vesselCategory: vesselCat,
+      groupedBreakdown: buildGroupedBreakdown(result.lineItems, result.totalUsd),
       tariffDetails: {
         pilotage: pilotage.source,
         tugboat: tugboat.source,

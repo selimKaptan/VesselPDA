@@ -129,6 +129,7 @@ export interface ProformaLineItem {
   amountUsd: number;
   amountEur?: number;
   notes?: string;
+  category?: string;
 }
 
 export interface BankDetails {
