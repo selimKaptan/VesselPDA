@@ -8,7 +8,7 @@ import {
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
   FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings, Archive, X,
-  TrendingUp, TrendingDown, AlertTriangle, Mail, Plane, LogIn, LogOut,
+  TrendingUp, TrendingDown, AlertTriangle, Mail, Plane, LogIn, LogOut, Maximize2,
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
@@ -266,6 +266,8 @@ export default function VoyageDetail() {
   const [crewSlideForm, setCrewSlideForm] = useState<CrewSlideFormType>(EMPTY_CREW_SLIDE_FORM);
   const [slideFormTimeline, setSlideFormTimeline] = useState<CrewTimelineStep[]>([]);
   const [crewFilterMode, setCrewFilterMode] = useState<"all" | "action" | "ready">("all");
+  const [isHotelPanelOpen, setIsHotelPanelOpen] = useState(false);
+  const [inlineEdit, setInlineEdit] = useState<{ crewId: number; field: "flight" | "flightEta"; val: string } | null>(null);
 
   // ── Smart Rule Engine helpers ─────────────────────────────────────────────
   const timeToMins = (t: string): number => {
@@ -1833,10 +1835,10 @@ export default function VoyageDetail() {
 
           {/* ── Husbandry / Crew Change: Logistics Control Tower ── */}
           {(voyage.purposeOfCall === "Husbandry" || voyage.purposeOfCall === "Crew Change") && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" data-testid="husbandry-control-tower">
+            <div className="flex items-start gap-5" data-testid="husbandry-control-tower">
 
-              {/* LEFT: Crew Logistics Board — col-span-2 */}
-              <div className="lg:col-span-2 rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 space-y-4" data-testid="husbandry-crew-board">
+              {/* LEFT: Crew Logistics Board — grows to fill available space */}
+              <div className="flex-1 min-w-0 rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 space-y-4" data-testid="husbandry-crew-board">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
@@ -1848,6 +1850,24 @@ export default function VoyageDetail() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* 🏨 Hotels & Logistics toggle */}
+                    <button
+                      onClick={() => setIsHotelPanelOpen(v => !v)}
+                      className={`flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-semibold border transition-all ${
+                        isHotelPanelOpen
+                          ? "bg-indigo-600/25 border-indigo-500/60 text-indigo-200"
+                          : "bg-slate-700/40 border-slate-600/50 text-slate-400 hover:text-slate-200 hover:border-slate-500"
+                      }`}
+                      data-testid="button-toggle-hotel-panel"
+                    >
+                      <span>🏨</span>
+                      <span className="hidden sm:inline">Hotels & Logistics</span>
+                      {crewSigners.filter(c => c.requiresHotel).length > 0 && (
+                        <span className="inline-flex items-center justify-center w-4 h-4 text-[9px] font-bold rounded-full bg-indigo-500 text-white flex-shrink-0">
+                          {crewSigners.filter(c => c.requiresHotel).length}
+                        </span>
+                      )}
+                    </button>
                     <button
                       onClick={() => setIsCommandPaletteOpen(true)}
                       className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-semibold bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/35 text-indigo-300 hover:text-indigo-200 transition-all"
@@ -1944,14 +1964,15 @@ export default function VoyageDetail() {
                         ? "border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.15)] hover:border-amber-500/70"
                         : "border-slate-700 hover:border-slate-600";
 
+                    const openSlideOver = () => { setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); };
+
                     return (
                       <div
                         key={crew.id}
-                        className={`group rounded-xl border bg-slate-800 transition-all duration-200 p-3 space-y-2.5 cursor-pointer ${cardBorder}`}
-                        onClick={() => { setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
+                        className={`group rounded-xl border bg-slate-800 transition-all duration-200 p-3 space-y-2.5 ${cardBorder}`}
                         data-testid={`crew-card-${accent === "emerald" ? "on" : "off"}-${crew.id}`}
                       >
-                        {/* ── HEADER: Avatar | Name + Rank | Flag | Status | Remove ── */}
+                        {/* ── HEADER: Avatar | Name + Rank | Flag | Status | Expand | Remove ── */}
                         <div className="flex items-center gap-2">
                           <div className={`w-8 h-8 rounded-full ${accentColors.avatar} flex items-center justify-center text-[12px] font-bold flex-shrink-0`}>
                             {crew.name[0]}
@@ -1983,6 +2004,14 @@ export default function VoyageDetail() {
                             </div>
                           )}
                           <button
+                            className="p-1 text-slate-600 hover:text-blue-400 transition-colors flex-shrink-0"
+                            onClick={e => { e.stopPropagation(); openSlideOver(); }}
+                            data-testid={`button-expand-crew-${crew.id}`}
+                            title="Open details"
+                          >
+                            <Maximize2 className="w-3 h-3" />
+                          </button>
+                          <button
                             className="p-1 text-slate-600 hover:text-rose-400 transition-colors flex-shrink-0"
                             onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.filter(c => c.id !== crew.id)); }}
                             data-testid={`button-remove-crew-${crew.id}`}
@@ -1991,32 +2020,74 @@ export default function VoyageDetail() {
                           </button>
                         </div>
 
-                        {/* ── VISA & CLEARANCE ROW: 3 badges ── */}
+                        {/* ── VISA & CLEARANCE ROW: 3 micro-popover badges ── */}
                         <div className="flex flex-wrap gap-1" data-testid={`crew-visa-row-${crew.id}`}>
-                          {/* Visa Req badge */}
-                          <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 ${
-                            crew.visaRequired
-                              ? "text-rose-400 bg-rose-900/20 border-rose-500/50"
-                              : "text-emerald-400 bg-emerald-900/20 border-emerald-500/50"
-                          }`}>
-                            Visa Req: {crew.visaRequired ? "Yes" : "No"}
-                          </span>
-                          {/* e-Visa badge */}
-                          <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 ${
-                            crew.eVisaStatus === "approved" ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" :
-                            crew.eVisaStatus === "pending"  ? "text-amber-400 bg-amber-900/20 border-amber-500/50"      :
-                                                              "text-slate-500 bg-slate-700/40 border-slate-600/50"
-                          }`}>
-                            {crew.eVisaStatus === "approved" ? "✅ e-Visa" : crew.eVisaStatus === "pending" ? "⏳ e-Visa" : "e-Visa: N/A"}
-                          </span>
-                          {/* OTB badge */}
-                          <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 ${
-                            crew.okToBoard === "confirmed" ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" :
-                            crew.okToBoard === "sent"      ? "text-sky-400 bg-sky-900/20 border-sky-500/50"            :
-                                                            "text-slate-500 bg-slate-700/40 border-slate-600/50"
-                          }`}>
-                            {crew.okToBoard === "confirmed" ? "✓ OTB Confirmed" : crew.okToBoard === "sent" ? "✈️ OTB Sent" : "OTB: Pending"}
-                          </span>
+                          {/* Visa Req — DropdownMenu */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+                              <button className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-opacity ${
+                                crew.visaRequired
+                                  ? "text-rose-400 bg-rose-900/20 border-rose-500/50"
+                                  : "text-emerald-400 bg-emerald-900/20 border-emerald-500/50"
+                              }`} data-testid={`badge-visa-${crew.id}`}>
+                                Visa Req: {crew.visaRequired ? "Yes" : "No"}
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="bg-slate-800 border-slate-700 text-slate-200 min-w-[170px] p-1">
+                              <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, visaRequired: false })); }}>
+                                ✓ No Visa Required
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, visaRequired: true })); }}>
+                                ⚠ Visa Required
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          {/* e-Visa — DropdownMenu */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+                              <button className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-opacity ${
+                                crew.eVisaStatus === "approved" ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" :
+                                crew.eVisaStatus === "pending"  ? "text-amber-400 bg-amber-900/20 border-amber-500/50"      :
+                                                                  "text-slate-500 bg-slate-700/40 border-slate-600/50"
+                              }`} data-testid={`badge-evisa-${crew.id}`}>
+                                {crew.eVisaStatus === "approved" ? "✅ e-Visa" : crew.eVisaStatus === "pending" ? "⏳ e-Visa" : "e-Visa: N/A"}
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="bg-slate-800 border-slate-700 text-slate-200 min-w-[170px] p-1">
+                              <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, eVisaStatus: "n/a" })); }}>
+                                e-Visa: N/A
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, eVisaStatus: "pending" })); }}>
+                                ⏳ Pending
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, eVisaStatus: "approved" })); }}>
+                                ✅ Approved
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          {/* OTB — DropdownMenu */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+                              <button className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-opacity ${
+                                crew.okToBoard === "confirmed" ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" :
+                                crew.okToBoard === "sent"      ? "text-sky-400 bg-sky-900/20 border-sky-500/50"            :
+                                                                "text-slate-500 bg-slate-700/40 border-slate-600/50"
+                              }`} data-testid={`badge-otb-${crew.id}`}>
+                                {crew.okToBoard === "confirmed" ? "✓ OTB Confirmed" : crew.okToBoard === "sent" ? "✈️ OTB Sent" : "OTB: Pending"}
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="bg-slate-800 border-slate-700 text-slate-200 min-w-[170px] p-1">
+                              <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, okToBoard: "pending" })); }}>
+                                OTB: Pending
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, okToBoard: "sent" })); }}>
+                                ✈️ Sent to Airline
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, okToBoard: "confirmed" })); }}>
+                                ✓ OTB Confirmed
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
 
                         {/* ── HOTEL STATUS BADGE / PENDING WARNING ── */}
@@ -2033,7 +2104,7 @@ export default function VoyageDetail() {
                               {(hotelWarn || hotelPending) && !hasHotelInfo && (
                                 <button
                                   className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[9px] font-semibold border bg-amber-950/40 border-amber-500/35 text-amber-300 hover:bg-amber-950/60 transition-colors text-left"
-                                  onClick={e => { e.stopPropagation(); setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
+                                  onClick={e => { e.stopPropagation(); openSlideOver(); }}
                                   data-testid={`warning-hotel-pending-${crew.id}`}
                                 >
                                   <span>🏨</span>
@@ -2060,12 +2131,52 @@ export default function VoyageDetail() {
                           );
                         })()}
 
-                        {/* ── FLIGHT ROW ── */}
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                        {/* ── FLIGHT ROW (inline editable) ── */}
+                        <div className="flex items-center gap-1 text-[11px] text-slate-400" onClick={e => e.stopPropagation()}>
                           <span>✈️</span>
-                          <span className="font-semibold text-slate-300">{crew.flight || "—"}</span>
-                          <span className="text-slate-600">·</span>
-                          <span className="text-slate-400">ETA {crew.flightEta || "—"}</span>
+                          {inlineEdit?.crewId === crew.id && inlineEdit?.field === "flight" ? (
+                            <input
+                              autoFocus
+                              value={inlineEdit.val}
+                              onChange={e => setInlineEdit(v => v ? { ...v, val: e.target.value } : v)}
+                              onBlur={() => { setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, flight: inlineEdit.val })); setInlineEdit(null); }}
+                              onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }}
+                              className="w-20 h-5 text-[11px] font-semibold bg-slate-700 border border-blue-500/70 rounded px-1.5 text-slate-100 outline-none"
+                              data-testid={`inline-edit-flight-${crew.id}`}
+                            />
+                          ) : (
+                            <span
+                              className="group/fedit inline-flex items-center gap-1 cursor-pointer hover:bg-slate-700/60 hover:text-slate-200 rounded px-1 py-0.5 transition-colors font-semibold text-slate-300"
+                              onClick={() => setInlineEdit({ crewId: crew.id, field: "flight", val: crew.flight || "" })}
+                              data-testid={`text-flight-${crew.id}`}
+                            >
+                              {crew.flight || "—"}
+                              <Pen className="w-2 h-2 opacity-0 group-hover/fedit:opacity-60 transition-opacity flex-shrink-0" />
+                            </span>
+                          )}
+                          <span className="text-slate-600 mx-0.5">·</span>
+                          <span className="text-slate-600 text-[10px]">ETA</span>
+                          {inlineEdit?.crewId === crew.id && inlineEdit?.field === "flightEta" ? (
+                            <input
+                              autoFocus
+                              value={inlineEdit.val}
+                              onChange={e => setInlineEdit(v => v ? { ...v, val: e.target.value } : v)}
+                              onBlur={() => { setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, flightEta: inlineEdit.val })); setInlineEdit(null); }}
+                              onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }}
+                              className="w-16 h-5 text-[11px] font-mono bg-slate-700 border border-blue-500/70 rounded px-1.5 text-slate-100 outline-none"
+                              placeholder="HH:MM"
+                              data-testid={`inline-edit-flighteta-${crew.id}`}
+                            />
+                          ) : (
+                            <span
+                              className="group/etaedit inline-flex items-center gap-1 cursor-pointer hover:bg-slate-700/60 hover:text-slate-200 rounded px-1 py-0.5 transition-colors font-mono"
+                              onClick={() => setInlineEdit({ crewId: crew.id, field: "flightEta", val: crew.flightEta || "" })}
+                              data-testid={`text-flighteta-${crew.id}`}
+                            >
+                              {crew.flightEta || "—"}
+                              <Pen className="w-2 h-2 opacity-0 group-hover/etaedit:opacity-60 transition-opacity flex-shrink-0" />
+                            </span>
+                          )}
                           {crew.flightDelayed && (
                             <span className="ml-auto inline-flex items-center text-[9px] font-bold text-rose-400 bg-rose-900/40 border border-rose-500/30 rounded-full px-1.5 py-0.5">
                               ⚠ Delayed
@@ -2109,7 +2220,6 @@ export default function VoyageDetail() {
                           )}
                         </div>
                         {/* ── Details hint ── */}
-                        <p className="text-right text-[9px] text-slate-700 group-hover:text-slate-500 transition-colors select-none">Details →</p>
                       </div>
                     );
                   };
@@ -2178,10 +2288,18 @@ export default function VoyageDetail() {
                 })()}
               </div>
 
-              {/* RIGHT: Hotel Hub (Crew Change) OR Service Boat & Deliveries (Husbandry) */}
-              {voyage.purposeOfCall === "Crew Change" ? (
-                /* ── 🏨 Hotel & Accommodation Hub ── */
-                <div className="rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 flex flex-col gap-4" style={{ minHeight: "360px" }} data-testid="hotel-hub-panel">
+              {/* RIGHT: Hotel Hub (Crew Change — collapsible) OR Service Boat & Deliveries (Husbandry) */}
+              <AnimatePresence>
+                {isHotelPanelOpen && voyage.purposeOfCall === "Crew Change" && (
+                  <motion.div
+                    key="hotel-panel"
+                    initial={{ width: 0, opacity: 0 }}
+                    animate={{ width: 310, opacity: 1 }}
+                    exit={{ width: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="flex-shrink-0 overflow-hidden"
+                  >
+                    <div className="w-[310px] rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 flex flex-col gap-4" style={{ minHeight: "360px" }} data-testid="hotel-hub-panel">
                   {/* Header */}
                   <div className="flex items-center justify-between flex-shrink-0">
                     <div className="flex items-center gap-2.5">
@@ -2281,10 +2399,14 @@ export default function VoyageDetail() {
                       })
                     )}
                   </div>
-                </div>
-              ) : (
-              /* ── Service Boat & Deliveries (Husbandry) ── */
-              <div className="rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 space-y-4" data-testid="husbandry-timeline">
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* RIGHT: Service Boat & Deliveries (Husbandry — always visible) */}
+              {voyage.purposeOfCall === "Husbandry" && (
+              <div className="w-[310px] rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 space-y-4" data-testid="husbandry-timeline">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg bg-sky-500/15 border border-sky-500/30 flex items-center justify-center">
