@@ -204,6 +204,32 @@ export default function VoyageDetail() {
   const [generatingCount, setGeneratingCount] = useState(0);
   const [loadingTemplateId, setLoadingTemplateId] = useState<string | null>(null);
   const [reviewForm, setReviewForm] = useState({ rating: 0, comment: "" });
+
+  // ── Husbandry: Crew Logistics Board ────────────────────────────────────────
+  const [crewSigners, setCrewSigners] = useState<{
+    id: number; name: string; rank: string; side: "on" | "off";
+    flight: string; flightEta: string; flightDelayed: boolean;
+    visaCleared: boolean; transferStatus: string;
+  }[]>([
+    { id: 1, name: "Ahmet Yılmaz",  rank: "Chief Officer",  side: "on",  flight: "TK2320", flightEta: "14:30", flightDelayed: false, visaCleared: true,  transferStatus: "En route to Port"    },
+    { id: 2, name: "Mehmet Demir",  rank: "2nd Engineer",   side: "on",  flight: "PC1145", flightEta: "16:00", flightDelayed: true,  visaCleared: false, transferStatus: "At Hotel"             },
+    { id: 3, name: "Ali Öztürk",    rank: "Chief Engineer", side: "off", flight: "TK2321", flightEta: "17:00", flightDelayed: false, visaCleared: true,  transferStatus: "At Port"              },
+    { id: 4, name: "Hasan Çelik",   rank: "AB Sailor",      side: "off", flight: "PC1146", flightEta: "18:30", flightDelayed: false, visaCleared: true,  transferStatus: "En route to Airport" },
+  ]);
+  const [hubTimeline, setHubTimeline] = useState([
+    { id: 1, time: "10:00", emoji: "📦", title: "Spare Parts Customs Clearance",       status: "in_progress" },
+    { id: 2, time: "14:00", emoji: "🚐", title: "Crew Transfer from Airport to Port",  status: "upcoming"    },
+    { id: 3, time: "15:30", emoji: "🚤", title: "Launch Boat (Servis Motoru) to Vessel", status: "upcoming"  },
+    { id: 4, time: "16:00", emoji: "🥩", title: "Provisions Delivery Alongside",        status: "upcoming"   },
+  ]);
+  const [editingTimelineId, setEditingTimelineId] = useState<number | null>(null);
+  const [timelineEditVal, setTimelineEditVal]     = useState("");
+  const [showAddCrewDialog, setShowAddCrewDialog] = useState(false);
+  const [addCrewForm, setAddCrewForm] = useState<{
+    name: string; rank: string; side: "on" | "off";
+    flight: string; flightEta: string; flightDelayed: boolean;
+    visaCleared: boolean; transferStatus: string;
+  }>({ name: "", rank: "", side: "on", flight: "", flightEta: "", flightDelayed: false, visaCleared: false, transferStatus: "En route to Port" });
   const [showApptForm, setShowApptForm] = useState(false);
   const [apptForm, setApptForm] = useState({ appointmentType: "pilot", scheduledAt: "", notes: "" });
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
@@ -1128,7 +1154,7 @@ export default function VoyageDetail() {
           { key: "financial",   label: "Financial",  icon: DollarSign },
           { key: "participants", label: "Team",      icon: Users2 },
           { key: "contacts",    label: "Contacts",  icon: Mail },
-        ] as const).map(({ key, label, icon: Icon }) => (
+        ] as const).filter(({ key }) => !(key === "cargo_ops" && voyage?.purposeOfCall === "Husbandry")).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
@@ -1152,6 +1178,308 @@ export default function VoyageDetail() {
       {/* ── Tab: Operasyon ─────────────────────────────────────── */}
       {activeTab === "operation" && (
         <div className="space-y-6">
+
+          {/* ── Husbandry: Amber Badge ── */}
+          {voyage.purposeOfCall === "Husbandry" && (
+            <div className="flex items-center gap-3 px-4 py-3.5 bg-amber-900/20 border border-amber-500/30 rounded-xl" data-testid="husbandry-badge">
+              <span className="text-xl flex-shrink-0">🟡</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-amber-400">Husbandry &amp; Protecting Agency Only</p>
+                <p className="text-xs text-amber-400/60 mt-0.5">Cargo operations are not applicable for this voyage type. Managing crew change, services and port logistics below.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Husbandry: Logistics Control Tower ── */}
+          {voyage.purposeOfCall === "Husbandry" && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" data-testid="husbandry-control-tower">
+
+              {/* LEFT: Crew Logistics Board — col-span-2 */}
+              <div className="lg:col-span-2 rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 space-y-4" data-testid="husbandry-crew-board">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
+                      <UsersIcon className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <div>
+                      <h2 className="font-bold text-sm text-slate-50">Crew Logistics Board</h2>
+                      <p className="text-xs text-slate-500">Real-time crew change tracking</p>
+                    </div>
+                  </div>
+                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 border-slate-600 text-slate-300 hover:bg-slate-700/50" onClick={() => setShowAddCrewDialog(true)} data-testid="button-add-crew">
+                    <Plus className="w-3 h-3" /> Add Crew
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  {/* ON-SIGNERS */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-2 pb-2 border-b border-emerald-500/20">
+                      <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">On-Signers</span>
+                      <span className="text-[10px] text-slate-500 ml-auto bg-emerald-900/30 border border-emerald-700/30 rounded-full px-2 py-0.5">
+                        {crewSigners.filter(c => c.side === "on").length} joining
+                      </span>
+                    </div>
+                    {crewSigners.filter(c => c.side === "on").map(crew => (
+                      <div key={crew.id} className="rounded-lg border border-slate-700 bg-slate-700/20 hover:bg-slate-700/30 transition-colors p-3 space-y-1.5" data-testid={`crew-card-on-${crew.id}`}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-[11px] font-bold text-emerald-400 flex-shrink-0">
+                            {crew.name[0]}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-slate-100 truncate">{crew.name}</p>
+                            <p className="text-[10px] text-slate-500">{crew.rank}</p>
+                          </div>
+                          <button className="p-1 text-slate-600 hover:text-rose-400 transition-colors" onClick={() => setCrewSigners(cs => cs.filter(c => c.id !== crew.id))} data-testid={`button-remove-crew-${crew.id}`}>
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                          <span>✈️</span>
+                          <span className="font-medium text-slate-300">{crew.flight || "—"}</span>
+                          <span className="text-slate-600">·</span>
+                          <span>ETA {crew.flightEta || "—"}</span>
+                          {crew.flightDelayed && (
+                            <span className="ml-auto inline-flex items-center text-[9px] font-bold text-rose-400 bg-rose-900/40 border border-rose-500/30 rounded-full px-1.5 py-0.5">Delayed</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                          <span>🛂</span>
+                          <span>Visa / OTB:</span>
+                          <span className={`ml-1 inline-flex items-center text-[9px] font-bold rounded-full px-1.5 py-0.5 ${crew.visaCleared ? "text-emerald-400 bg-emerald-900/40 border border-emerald-500/30" : "text-rose-400 bg-rose-900/40 border border-rose-500/30"}`}>
+                            {crew.visaCleared ? "✓ Cleared" : "⚠ Pending"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                          <span>🚐</span>
+                          <span className="truncate">{crew.transferStatus || "—"}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {crewSigners.filter(c => c.side === "on").length === 0 && (
+                      <p className="text-xs text-slate-600 text-center py-4 italic">No on-signers added yet.</p>
+                    )}
+                  </div>
+
+                  {/* OFF-SIGNERS */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-2 pb-2 border-b border-rose-500/20">
+                      <div className="w-2 h-2 rounded-full bg-rose-400" />
+                      <span className="text-xs font-bold text-rose-400 uppercase tracking-widest">Off-Signers</span>
+                      <span className="text-[10px] text-slate-500 ml-auto bg-rose-900/30 border border-rose-700/30 rounded-full px-2 py-0.5">
+                        {crewSigners.filter(c => c.side === "off").length} departing
+                      </span>
+                    </div>
+                    {crewSigners.filter(c => c.side === "off").map(crew => (
+                      <div key={crew.id} className="rounded-lg border border-slate-700 bg-slate-700/20 hover:bg-slate-700/30 transition-colors p-3 space-y-1.5" data-testid={`crew-card-off-${crew.id}`}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-[11px] font-bold text-rose-400 flex-shrink-0">
+                            {crew.name[0]}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-slate-100 truncate">{crew.name}</p>
+                            <p className="text-[10px] text-slate-500">{crew.rank}</p>
+                          </div>
+                          <button className="p-1 text-slate-600 hover:text-rose-400 transition-colors" onClick={() => setCrewSigners(cs => cs.filter(c => c.id !== crew.id))} data-testid={`button-remove-crew-${crew.id}`}>
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                          <span>✈️</span>
+                          <span className="font-medium text-slate-300">{crew.flight || "—"}</span>
+                          <span className="text-slate-600">·</span>
+                          <span>ETA {crew.flightEta || "—"}</span>
+                          {crew.flightDelayed && (
+                            <span className="ml-auto inline-flex items-center text-[9px] font-bold text-rose-400 bg-rose-900/40 border border-rose-500/30 rounded-full px-1.5 py-0.5">Delayed</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                          <span>🛂</span>
+                          <span>Visa / OTB:</span>
+                          <span className={`ml-1 inline-flex items-center text-[9px] font-bold rounded-full px-1.5 py-0.5 ${crew.visaCleared ? "text-emerald-400 bg-emerald-900/40 border border-emerald-500/30" : "text-rose-400 bg-rose-900/40 border border-rose-500/30"}`}>
+                            {crew.visaCleared ? "✓ Cleared" : "⚠ Pending"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                          <span>🚐</span>
+                          <span className="truncate">{crew.transferStatus || "—"}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {crewSigners.filter(c => c.side === "off").length === 0 && (
+                      <p className="text-xs text-slate-600 text-center py-4 italic">No off-signers added yet.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT: Service Boat & Deliveries — col-span-1 */}
+              <div className="rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 space-y-4" data-testid="husbandry-timeline">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-sky-500/15 border border-sky-500/30 flex items-center justify-center">
+                      <Clock className="w-4 h-4 text-sky-400" />
+                    </div>
+                    <div>
+                      <h2 className="font-bold text-sm text-slate-50">Service Boat &amp; Deliveries</h2>
+                      <p className="text-xs text-slate-500">Logistics schedule</p>
+                    </div>
+                  </div>
+                  <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-slate-400 hover:text-slate-200"
+                    onClick={() => {
+                      const maxId = Math.max(0, ...hubTimeline.map(s => s.id));
+                      setHubTimeline(tl => [...tl, { id: maxId + 1, time: "00:00", emoji: "📋", title: "New Service Step", status: "upcoming" }]);
+                    }}
+                    data-testid="button-add-timeline-step"
+                  >
+                    <Plus className="w-3 h-3 mr-1" /> Add
+                  </Button>
+                </div>
+
+                {/* Vertical Stepper */}
+                <div className="space-y-0">
+                  {hubTimeline.map((step, idx) => {
+                    const isLast       = idx === hubTimeline.length - 1;
+                    const isInProgress = step.status === "in_progress";
+                    const isDone       = step.status === "done";
+                    const isEditing    = editingTimelineId === step.id;
+                    return (
+                      <div key={step.id} className="flex gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 z-10 ${
+                            isDone       ? "bg-emerald-500/20 border-2 border-emerald-500/60" :
+                            isInProgress ? "bg-amber-500/20 border-2 border-amber-500 animate-pulse" :
+                                           "bg-slate-700/60 border-2 border-slate-600/40"
+                          }`}>
+                            {isDone
+                              ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                              : <span className={`text-base ${isInProgress ? "text-amber-300" : "text-slate-500"}`}>{step.emoji}</span>
+                            }
+                          </div>
+                          {!isLast && (
+                            <div className={`w-0.5 flex-1 mt-1 mb-1 min-h-[20px] rounded-full ${isDone ? "bg-emerald-500/30" : isInProgress ? "bg-amber-500/20" : "bg-slate-700/40"}`} />
+                          )}
+                        </div>
+                        <div className={`flex-1 min-w-0 ${isLast ? "pb-0" : "pb-5"}`}>
+                          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                className="text-xs bg-slate-700 border border-amber-500/60 rounded px-2 py-0.5 w-16 text-slate-50 focus:outline-none tabular-nums"
+                                value={timelineEditVal}
+                                onChange={e => setTimelineEditVal(e.target.value)}
+                                onBlur={() => { setHubTimeline(tl => tl.map(s => s.id === step.id ? { ...s, time: timelineEditVal } : s)); setEditingTimelineId(null); }}
+                                onKeyDown={e => { if (e.key === "Enter") { setHubTimeline(tl => tl.map(s => s.id === step.id ? { ...s, time: timelineEditVal } : s)); setEditingTimelineId(null); } if (e.key === "Escape") setEditingTimelineId(null); }}
+                                autoFocus
+                              />
+                            ) : (
+                              <span className={`text-xs font-bold tabular-nums ${isInProgress ? "text-amber-300" : isDone ? "text-slate-500" : "text-slate-300"}`}>{step.time}</span>
+                            )}
+                            <button
+                              className="p-0.5 text-slate-600 hover:text-amber-400 transition-colors"
+                              onClick={() => { setEditingTimelineId(step.id); setTimelineEditVal(step.time); }}
+                              data-testid={`button-edit-timeline-${step.id}`}
+                              title="Edit time"
+                            >
+                              <Pen className="w-3 h-3" />
+                            </button>
+                            <button
+                              className={`ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full border transition-colors ${
+                                isDone       ? "text-emerald-400 bg-emerald-900/30 border-emerald-700/40 hover:bg-emerald-900/50" :
+                                isInProgress ? "text-amber-400 bg-amber-900/30 border-amber-700/40 hover:bg-amber-900/50" :
+                                               "text-slate-500 bg-slate-700/40 border-slate-600/40 hover:bg-slate-700/60"
+                              }`}
+                              onClick={() => setHubTimeline(tl => tl.map(s => {
+                                if (s.id !== step.id) return s;
+                                const cycle: Record<string, string> = { upcoming: "in_progress", in_progress: "done", done: "upcoming" };
+                                return { ...s, status: cycle[s.status] || "upcoming" };
+                              }))}
+                              data-testid={`button-cycle-status-${step.id}`}
+                            >
+                              {isDone ? "✓ Done" : isInProgress ? "● Active" : "○ Upcoming"}
+                            </button>
+                          </div>
+                          <p className={`text-xs leading-relaxed ${isDone ? "text-slate-600" : isInProgress ? "text-slate-300 font-medium" : "text-slate-500"}`}>{step.title}</p>
+                          {isInProgress && (
+                            <div className="mt-1.5 inline-flex items-center gap-1.5 bg-amber-900/25 border border-amber-500/25 rounded-md px-2 py-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                              <span className="text-[10px] text-amber-300 font-semibold">In Progress</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* ── Add Crew Member Dialog ── */}
+          <Dialog open={showAddCrewDialog} onOpenChange={setShowAddCrewDialog}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Add Crew Member</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3 pt-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Full Name</Label>
+                    <Input className="h-8 text-xs mt-1" placeholder="John Smith" value={addCrewForm.name} onChange={e => setAddCrewForm(f => ({ ...f, name: e.target.value }))} data-testid="input-crew-name" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Rank / Position</Label>
+                    <Input className="h-8 text-xs mt-1" placeholder="Chief Officer" value={addCrewForm.rank} onChange={e => setAddCrewForm(f => ({ ...f, rank: e.target.value }))} data-testid="input-crew-rank" />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs">Sign Direction</Label>
+                  <div className="flex gap-2 mt-1">
+                    <button onClick={() => setAddCrewForm(f => ({ ...f, side: "on" }))} className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${addCrewForm.side === "on" ? "bg-emerald-900/40 border-emerald-500/50 text-emerald-400" : "bg-muted/30 border-border text-muted-foreground"}`} data-testid="btn-side-on">On-Signer</button>
+                    <button onClick={() => setAddCrewForm(f => ({ ...f, side: "off" }))} className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${addCrewForm.side === "off" ? "bg-rose-900/40 border-rose-500/50 text-rose-400" : "bg-muted/30 border-border text-muted-foreground"}`} data-testid="btn-side-off">Off-Signer</button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Flight No.</Label>
+                    <Input className="h-8 text-xs mt-1" placeholder="TK2320" value={addCrewForm.flight} onChange={e => setAddCrewForm(f => ({ ...f, flight: e.target.value }))} data-testid="input-crew-flight" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">ETA</Label>
+                    <Input className="h-8 text-xs mt-1" placeholder="14:30" value={addCrewForm.flightEta} onChange={e => setAddCrewForm(f => ({ ...f, flightEta: e.target.value }))} data-testid="input-crew-flighteta" />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs">Transfer Status</Label>
+                  <Input className="h-8 text-xs mt-1" placeholder="En route to Port" value={addCrewForm.transferStatus} onChange={e => setAddCrewForm(f => ({ ...f, transferStatus: e.target.value }))} data-testid="input-crew-transfer" />
+                </div>
+                <div className="flex items-center gap-5">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={addCrewForm.flightDelayed} onChange={e => setAddCrewForm(f => ({ ...f, flightDelayed: e.target.checked }))} className="accent-rose-500" data-testid="check-crew-delayed" />
+                    <span className="text-xs text-rose-400">Flight Delayed</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={addCrewForm.visaCleared} onChange={e => setAddCrewForm(f => ({ ...f, visaCleared: e.target.checked }))} className="accent-emerald-500" data-testid="check-crew-visa" />
+                    <span className="text-xs text-emerald-400">Visa Cleared</span>
+                  </label>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" size="sm" onClick={() => setShowAddCrewDialog(false)}>Cancel</Button>
+                <Button size="sm" onClick={() => {
+                  if (!addCrewForm.name.trim()) return;
+                  setCrewSigners(cs => [...cs, { ...addCrewForm, id: Date.now() }]);
+                  setAddCrewForm({ name: "", rank: "", side: "on", flight: "", flightEta: "", flightDelayed: false, visaCleared: false, transferStatus: "En route to Port" });
+                  setShowAddCrewDialog(false);
+                }} data-testid="button-confirm-add-crew">Add Crew Member</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* ── Standard Port Ops (hidden for Husbandry) ── */}
+          {voyage.purposeOfCall !== "Husbandry" && (<>
           {/* ── MAIN 3-COLUMN GRID ── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* LEFT: Live Port Call Workflow (col-span-2) */}
@@ -1590,6 +1918,7 @@ export default function VoyageDetail() {
               </div>
             </Card>
           )}
+          </>)}
         </div>
       )}
 

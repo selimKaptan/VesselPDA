@@ -34,7 +34,7 @@ const PORT_CALL_STAGE: Record<string, { label: string; dot: string; text: string
   cancelled: { label: "Cancelled",   dot: "bg-red-400",    text: "text-red-400"    },
 };
 
-const PURPOSE_OPTIONS = ["Loading", "Discharging", "Transit", "Bunkering", "Repair", "Crew Change", "Inspection"];
+const PURPOSE_OPTIONS = ["Loading", "Discharging", "Transit", "Bunkering", "Repair", "Crew Change", "Inspection", "Husbandry"];
 
 const FLAG_EMOJI: Record<string, string> = {
   "Turkey": "🇹🇷", "Malta": "🇲🇹", "Panama": "🇵🇦", "Liberia": "🇱🇷",
