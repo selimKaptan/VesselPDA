@@ -4,7 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { registerRoutes } from "./routes";
-import { serveStatic } from "./static";
+import { serveStaticFiles, serveSpaFallback } from "./static";
 import { createServer } from "http";
 import { storage } from "./storage";
 import bcrypt from "bcryptjs";
@@ -29,8 +29,8 @@ const corsOptions: cors.CorsOptions = {
 
 app.use(cors(corsOptions));
 
-// CHANGE 1: Health endpoint BEFORE helmet so it's never blocked
 app.get("/api/health", (_req, res) => res.status(200).json({ status: "ok" }));
+app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -190,7 +190,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// CHANGE 2: Listen BEFORE the async IIFE so the process is ready immediately
+// In production, register express.static HERE (synchronously, before routes)
+// so the "/" health check immediately gets 200 (index.html) from the very
+// first request. The SPA catch-all is registered later (after API routes)
+// to avoid swallowing /api/* paths.
+if (process.env.NODE_ENV === "production") {
+  serveStaticFiles(app);
+}
+
 const port = parseInt(process.env.PORT || "5000", 10);
 httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
   console.log("Server listening on port " + port);
@@ -213,7 +220,7 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
   });
 
   if (process.env.NODE_ENV === "production") {
-    serveStatic(app);
+    serveSpaFallback(app);
   } else {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
