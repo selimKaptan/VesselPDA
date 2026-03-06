@@ -381,7 +381,10 @@ export default function Voyages() {
           {filteredVoyages.map((v: any) => {
             const s = STATUS_CONFIG[v.status] || STATUS_CONFIG.planned;
             const Icon = s.icon;
-            const ps = PURPOSE_STYLE[v.purposeOfCall] || DEFAULT_PURPOSE_STYLE;
+            const rawPs = PURPOSE_STYLE[v.purposeOfCall] || DEFAULT_PURPOSE_STYLE;
+            const ps = v.status?.toLowerCase() === "cancelled"
+              ? { ...rawPs, bg: "bg-slate-800/60", border: "border-slate-600/30", text: "text-slate-500", icon: "⬛" }
+              : rawPs;
             return (
               <Link key={v.id} href={`/voyages/${v.id}`}>
                 <Card className="p-0 overflow-hidden hover:shadow-lg hover:shadow-black/30 transition-all cursor-pointer border border-slate-700/60 hover:border-slate-500/60 group bg-slate-800/60" data-testid={`card-voyage-${v.id}`}>

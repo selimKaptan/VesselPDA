@@ -29,6 +29,9 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
 import { AnimatePresence, motion } from "framer-motion";
+import { DndContext, DragOverlay, useDraggable, useDroppable, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/hooks/use-auth";
 import { useSocket } from "@/hooks/use-socket";
 import type { Port } from "@shared/schema";
@@ -144,6 +147,20 @@ function StarRatingInput({ value, onChange }: { value: number; onChange: (v: num
           />
         </button>
       ))}
+    </div>
+  );
+}
+
+type AiSuggestion = { crewId: number; field: string; label: string; newVal: any; oldVal: any };
+
+function DraggableCrewCard({ id, children }: { id: number; children: import("react").ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: String(id) });
+  const style = transform
+    ? { transform: CSS.Translate.toString(transform), zIndex: 999, position: "relative" as const }
+    : undefined;
+  return (
+    <div ref={setNodeRef} style={style} className={isDragging ? "opacity-60" : undefined} {...attributes} {...listeners}>
+      {children}
     </div>
   );
 }
@@ -268,6 +285,16 @@ export default function VoyageDetail() {
   const [crewFilterMode, setCrewFilterMode] = useState<"all" | "action" | "ready">("all");
   const [isHotelPanelOpen, setIsHotelPanelOpen] = useState(false);
   const [inlineEdit, setInlineEdit] = useState<{ crewId: number; field: "flight" | "flightEta"; val: string } | null>(null);
+
+  // ── Drag & Drop ─────────────────────────────────────────────────────────
+  const [activeDragId, setActiveDragId] = useState<number | null>(null);
+  const [dragQuickBook, setDragQuickBook] = useState<{ crewId: number; crewName: string; crewRank: string } | null>(null);
+  const [dragQuickHotelForm, setDragQuickHotelForm] = useState({ hotelName: "", checkIn: "", checkOut: "" });
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const { setNodeRef: setHotelDropRef, isOver: isHotelDragOver } = useDroppable({ id: "hotel-drop-zone" });
+
+  // ── AI Human-in-the-Loop ─────────────────────────────────────────────────
+  const [aiPendingSuggestions, setAiPendingSuggestions] = useState<AiSuggestion[]>([]);
 
   // ── Smart Rule Engine helpers ─────────────────────────────────────────────
   const timeToMins = (t: string): number => {
@@ -472,7 +499,7 @@ export default function VoyageDetail() {
       return { updatedCount, logLines };
     }
 
-    // ── MODE 2: Natural language — update existing crew fields ───────────────
+    // ── MODE 2: Natural language — stage suggestions for human approval ──────
     const matchName = (crew: (typeof crewSigners)[0]) =>
       crew.name.toLowerCase().split(/\s+/).some(p => p.length > 2 && lower.includes(p));
 
@@ -480,17 +507,15 @@ export default function VoyageDetail() {
     const timeRx   = /(?:arrives?|etd?|departs?|at|time)[:\s]+(\d{1,2}:\d{2})/i;
     const timeRx2  = /\b(\d{1,2}:\d{2})\b/;
 
-    const newList = crewSigners.map(crew => {
-      if (!matchName(crew)) return crew;
+    const pendingSuggestions: AiSuggestion[] = [];
 
-      const changes: { field: string; from: string; to: string }[] = [];
-      const next = { ...crew };
+    crewSigners.forEach(crew => {
+      if (!matchName(crew)) return;
 
       // flight number
       const flights = [...text.matchAll(new RegExp(flightRx.source, "gi"))].map(m => m[1].toUpperCase());
       if (flights.length > 0 && flights[0] !== crew.flight) {
-        changes.push({ field: "flight", from: crew.flight || "(none)", to: flights[0] });
-        next.flight = flights[0];
+        pendingSuggestions.push({ crewId: crew.id, field: "flight", label: `Flight → ${flights[0]}`, newVal: flights[0], oldVal: crew.flight || "" });
       }
 
       // ETA / time
@@ -498,55 +523,46 @@ export default function VoyageDetail() {
       if (timeMatch) {
         const newTime = timeMatch[timeMatch.length - 1];
         if (newTime !== crew.flightEta) {
-          changes.push({ field: "ETA", from: crew.flightEta || "—", to: newTime });
-          next.flightEta = newTime;
+          pendingSuggestions.push({ crewId: crew.id, field: "flightEta", label: `ETA → ${newTime}`, newVal: newTime, oldVal: crew.flightEta || "" });
         }
       }
 
       // delayed
       if (/\bdelay(ed)?\b/i.test(text) && !crew.flightDelayed) {
-        changes.push({ field: "status", from: "On time", to: "Delayed" });
-        next.flightDelayed = true;
+        pendingSuggestions.push({ crewId: crew.id, field: "flightDelayed", label: "Mark as Delayed", newVal: true, oldVal: false });
       } else if (/\b(not delayed|on.?time|recovered|rescheduled)\b/i.test(text) && crew.flightDelayed) {
-        changes.push({ field: "status", from: "Delayed", to: "On time" });
-        next.flightDelayed = false;
+        pendingSuggestions.push({ crewId: crew.id, field: "flightDelayed", label: "Remove Delay", newVal: false, oldVal: true });
       }
 
       // e-visa
       if (/e.?visa.*(approved|confirmed|ok)\b/i.test(text) && crew.eVisaStatus !== "approved") {
-        changes.push({ field: "e-Visa", from: crew.eVisaStatus, to: "approved" });
-        next.eVisaStatus = "approved";
+        pendingSuggestions.push({ crewId: crew.id, field: "eVisaStatus", label: "e-Visa → Approved", newVal: "approved", oldVal: crew.eVisaStatus });
       } else if (/e.?visa.*(pending|applied|submitted)\b/i.test(text) && crew.eVisaStatus !== "pending") {
-        changes.push({ field: "e-Visa", from: crew.eVisaStatus, to: "pending" });
-        next.eVisaStatus = "pending";
+        pendingSuggestions.push({ crewId: crew.id, field: "eVisaStatus", label: "e-Visa → Pending", newVal: "pending", oldVal: crew.eVisaStatus });
       }
 
       // visa required
       if (/(no visa|visa not required|visa free)\b/i.test(text) && crew.visaRequired) {
-        changes.push({ field: "visa", from: "required", to: "not required" });
-        next.visaRequired = false;
+        pendingSuggestions.push({ crewId: crew.id, field: "visaRequired", label: "Visa: Not Required", newVal: false, oldVal: true });
       } else if (/(visa required|needs visa|requires visa)\b/i.test(text) && !crew.visaRequired) {
-        changes.push({ field: "visa", from: "not required", to: "required" });
-        next.visaRequired = true;
+        pendingSuggestions.push({ crewId: crew.id, field: "visaRequired", label: "Visa: Required", newVal: true, oldVal: false });
       }
 
       // OTB
       if (/(ok to board|otb confirmed|board confirmed)\b/i.test(text) && crew.okToBoard !== "confirmed") {
-        changes.push({ field: "OTB", from: crew.okToBoard, to: "confirmed" });
-        next.okToBoard = "confirmed";
+        pendingSuggestions.push({ crewId: crew.id, field: "okToBoard", label: "OTB → Confirmed", newVal: "confirmed", oldVal: crew.okToBoard });
       } else if (/(sent to airline|otb sent)\b/i.test(text) && crew.okToBoard !== "sent") {
-        changes.push({ field: "OTB", from: crew.okToBoard, to: "sent" });
-        next.okToBoard = "sent";
+        pendingSuggestions.push({ crewId: crew.id, field: "okToBoard", label: "OTB → Sent", newVal: "sent", oldVal: crew.okToBoard });
       }
 
-      if (changes.length === 0) return crew;
-      const summary = changes.map(c => `${c.field}: ${c.from} → ${c.to}`).join(", ");
-      logLines.push(`${crew.name}: ${summary}`);
-      return next;
+      const crewSuggestions = pendingSuggestions.filter(s => s.crewId === crew.id);
+      if (crewSuggestions.length > 0) {
+        logLines.push(`${crew.name}: ${crewSuggestions.map(s => s.label).join(", ")}`);
+      }
     });
 
-    const updatedCount = logLines.length;
-    if (updatedCount > 0) setCrewSigners(newList);
+    const updatedCount = pendingSuggestions.length;
+    if (updatedCount > 0) setAiPendingSuggestions(prev => [...prev, ...pendingSuggestions]);
     return { updatedCount, logLines };
   };
 
@@ -566,7 +582,7 @@ export default function VoyageDetail() {
           addActivityLog(`AI updated: ${line}`, "AI", arrowMatch?.[1]);
         });
         toast({
-          title: `✅ AI Updated ${updatedCount} Crew Member${updatedCount > 1 ? "s" : ""}`,
+          title: `✨ AI Suggested ${updatedCount} Change${updatedCount > 1 ? "s" : ""} — Review & Approve`,
           description: logLines.join(" · ").slice(0, 120),
         });
       } else {
@@ -577,6 +593,19 @@ export default function VoyageDetail() {
         });
       }
     }, 900);
+  };
+
+  // ── DnD onDragEnd handler ─────────────────────────────────────────────────
+  const handleCrewDragEnd = (event: DragEndEvent) => {
+    setActiveDragId(null);
+    if (event.over?.id === "hotel-drop-zone") {
+      const crew = crewSigners.find(c => c.id === Number(event.active.id));
+      if (crew) {
+        setDragQuickBook({ crewId: crew.id, crewName: crew.name, crewRank: crew.rank });
+        setDragQuickHotelForm({ hotelName: crew.hotelName || "", checkIn: crew.hotelCheckIn || "", checkOut: crew.hotelCheckOut || "" });
+        if (!isHotelPanelOpen) setIsHotelPanelOpen(true);
+      }
+    }
   };
 
   // ── handleAiFileDrop: shared file drop handler ─────────────────────────────
@@ -1533,7 +1562,7 @@ export default function VoyageDetail() {
                       data-testid="button-command-palette-process"
                     >
                       {crewAiParsing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                      🚀 Process with AI
+                      ✨ Suggest Changes
                     </button>
                   </div>
                 </div>
@@ -1835,11 +1864,16 @@ export default function VoyageDetail() {
 
           {/* ── Husbandry / Crew Change: Logistics Control Tower ── */}
           {(voyage.purposeOfCall === "Husbandry" || voyage.purposeOfCall === "Crew Change") && (
-            <div className="flex items-start gap-5" data-testid="husbandry-control-tower">
+            <DndContext sensors={dndSensors} onDragStart={e => setActiveDragId(Number(e.active.id))} onDragEnd={handleCrewDragEnd}>
+            <div className="relative flex items-start gap-5" data-testid="husbandry-control-tower">
 
               {/* LEFT: Crew Logistics Board — grows to fill available space */}
-              <div className="flex-1 min-w-0 rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 space-y-4" data-testid="husbandry-crew-board">
-                <div className="flex items-center justify-between">
+              <div className="relative flex-1 min-w-0 rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 space-y-4" data-testid="husbandry-crew-board">
+                {/* ── T003 Spotlight Overlay ── */}
+                {crewFilterMode === "action" && (
+                  <div className="absolute inset-0 z-10 rounded-xl bg-slate-950/65 backdrop-blur-[2px] pointer-events-none" />
+                )}
+                <div className="relative z-20 flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center">
                       <UsersIcon className="w-4 h-4 text-amber-400" />
@@ -1884,7 +1918,7 @@ export default function VoyageDetail() {
                 </div>
 
                 {/* ── Active Rules Banner ── */}
-                <div className="flex items-start gap-2.5 bg-slate-800/40 border border-slate-700/50 rounded-md py-2 px-4 text-xs text-slate-400" data-testid="crew-rules-banner">
+                <div className="relative z-20 flex items-start gap-2.5 bg-slate-800/40 border border-slate-700/50 rounded-md py-2 px-4 text-xs text-slate-400" data-testid="crew-rules-banner">
                   <span className="text-sm leading-none mt-0.5 flex-shrink-0">🤖</span>
                   <div className="space-y-0.5">
                     <span className="font-semibold text-slate-300">Active AI Rules: </span>
@@ -1907,7 +1941,7 @@ export default function VoyageDetail() {
                     { mode: "ready",  label: "✅ Ready",                                   testId: "filter-ready"           },
                   ];
                   return (
-                    <div className="flex items-center gap-1.5" data-testid="crew-filter-bar">
+                    <div className="relative z-20 flex items-center gap-1.5" data-testid="crew-filter-bar">
                       {filterDefs.map(({ mode, label, testId }) => (
                         <button
                           key={mode}
@@ -1966,10 +2000,14 @@ export default function VoyageDetail() {
 
                     const openSlideOver = () => { setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); };
 
+                    const cardSuggestions = aiPendingSuggestions.filter(s => s.crewId === crew.id);
+                    const spotlightZ = crewFilterMode === "action" ? (operationalWarns.length > 0 ? "relative z-20" : "") : "";
+                    const aiGlow = cardSuggestions.length > 0 ? "ring-2 ring-blue-500/50 shadow-[0_0_16px_rgba(59,130,246,0.25)]" : "";
+
                     return (
+                      <DraggableCrewCard key={crew.id} id={crew.id}>
                       <div
-                        key={crew.id}
-                        className={`group rounded-xl border bg-slate-800 transition-all duration-200 p-3 space-y-2.5 ${cardBorder}`}
+                        className={`group rounded-xl border bg-slate-800 transition-all duration-200 p-3 space-y-2.5 ${cardBorder} ${spotlightZ} ${aiGlow}`}
                         data-testid={`crew-card-${accent === "emerald" ? "on" : "off"}-${crew.id}`}
                       >
                         {/* ── HEADER: Avatar | Name + Rank | Flag | Status | Expand | Remove ── */}
@@ -2219,8 +2257,32 @@ export default function VoyageDetail() {
                             </button>
                           )}
                         </div>
-                        {/* ── Details hint ── */}
+                        {/* ── AI Pending Suggestions ── */}
+                        {cardSuggestions.length > 0 && (
+                          <div className="space-y-1" onClick={e => e.stopPropagation()}>
+                            {cardSuggestions.map(suggestion => (
+                              <div key={`${suggestion.crewId}-${suggestion.field}`} className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-950/50 border border-blue-500/40 text-[9px]">
+                                <span className="text-blue-300 font-semibold flex-shrink-0">✨ AI:</span>
+                                <span className="text-blue-100 font-bold flex-1 truncate">{suggestion.label}</span>
+                                <button
+                                  className="text-emerald-400 hover:text-emerald-300 font-bold px-1.5 py-0.5 rounded hover:bg-emerald-900/30 transition-colors flex-shrink-0"
+                                  onClick={() => {
+                                    setCrewSigners(cs => cs.map(c => c.id !== suggestion.crewId ? c : { ...c, [suggestion.field]: suggestion.newVal }));
+                                    setAiPendingSuggestions(prev => prev.filter(s => !(s.crewId === suggestion.crewId && s.field === suggestion.field)));
+                                  }}
+                                  data-testid={`button-ai-accept-${crew.id}-${suggestion.field}`}
+                                >✓</button>
+                                <button
+                                  className="text-rose-400 hover:text-rose-300 font-bold px-1.5 py-0.5 rounded hover:bg-rose-900/30 transition-colors flex-shrink-0"
+                                  onClick={() => setAiPendingSuggestions(prev => prev.filter(s => !(s.crewId === suggestion.crewId && s.field === suggestion.field)))}
+                                  data-testid={`button-ai-reject-${crew.id}-${suggestion.field}`}
+                                >✕</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
+                      </DraggableCrewCard>
                     );
                   };
 
@@ -2228,7 +2290,7 @@ export default function VoyageDetail() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       {/* ON-SIGNERS */}
                       <div className="space-y-2.5">
-                        <div className="flex items-center gap-2 pb-2 border-b border-emerald-500/20">
+                        <div className="relative z-20 flex items-center gap-2 pb-2 border-b border-emerald-500/20">
                           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                           <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">On-Signers</span>
                           <span className="text-[10px] text-slate-500 bg-emerald-900/30 border border-emerald-700/30 rounded-full px-2 py-0.5">
@@ -2257,7 +2319,7 @@ export default function VoyageDetail() {
 
                       {/* OFF-SIGNERS */}
                       <div className="space-y-2.5">
-                        <div className="flex items-center gap-2 pb-2 border-b border-rose-500/20">
+                        <div className="relative z-20 flex items-center gap-2 pb-2 border-b border-rose-500/20">
                           <div className="w-2 h-2 rounded-full bg-rose-400" />
                           <span className="text-xs font-bold text-rose-400 uppercase tracking-widest">Off-Signers</span>
                           <span className="text-[10px] text-slate-500 bg-rose-900/30 border border-rose-700/30 rounded-full px-2 py-0.5">
@@ -2299,7 +2361,12 @@ export default function VoyageDetail() {
                     transition={{ duration: 0.3, ease: "easeInOut" }}
                     className="flex-shrink-0 overflow-hidden"
                   >
-                    <div className="w-[310px] rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 flex flex-col gap-4" style={{ minHeight: "360px" }} data-testid="hotel-hub-panel">
+                    <div ref={setHotelDropRef} className={`w-[310px] rounded-xl border bg-slate-800/40 backdrop-blur-sm p-5 flex flex-col gap-4 transition-all duration-200 ${isHotelDragOver ? "border-blue-400/60 bg-blue-950/20 shadow-[0_0_24px_rgba(59,130,246,0.25)]" : "border-slate-700"}`} style={{ minHeight: "360px" }} data-testid="hotel-hub-panel">
+                      {isHotelDragOver && (
+                        <div className="absolute top-3 left-0 right-0 flex justify-center pointer-events-none z-20">
+                          <span className="text-[10px] font-bold text-blue-300 bg-blue-950/80 border border-blue-500/50 rounded-full px-3 py-1">🏨 Drop to assign hotel</span>
+                        </div>
+                      )}
                   {/* Header */}
                   <div className="flex items-center justify-between flex-shrink-0">
                     <div className="flex items-center gap-2.5">
@@ -2506,8 +2573,89 @@ export default function VoyageDetail() {
               </div>
               )}
 
+              {/* ── DragOverlay: ghost card while dragging ── */}
+              <DragOverlay dropAnimation={null}>
+                {activeDragId !== null && (() => {
+                  const dragging = crewSigners.find(c => c.id === activeDragId);
+                  if (!dragging) return null;
+                  return (
+                    <div className="rounded-xl border border-blue-500/60 bg-slate-800 shadow-[0_0_20px_rgba(59,130,246,0.4)] p-3 flex items-center gap-2 w-[200px] opacity-90 cursor-grabbing">
+                      <div className="w-7 h-7 rounded-full bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-[11px] font-bold text-blue-300 flex-shrink-0">
+                        {dragging.name[0]}
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-100">{dragging.name}</p>
+                        <p className="text-[9px] text-slate-500">{dragging.rank} · ✈️ {dragging.flight || "—"}</p>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </DragOverlay>
             </div>
+            </DndContext>
           )}
+
+          {/* ── Quick Hotel Booking Dialog (after DnD drop onto hotel panel) ── */}
+          <Dialog open={dragQuickBook !== null} onOpenChange={open => { if (!open) setDragQuickBook(null); }}>
+            <DialogContent className="bg-slate-900 border-slate-700 text-slate-100 max-w-sm" data-testid="dialog-quick-hotel-booking">
+              <DialogHeader>
+                <DialogTitle className="text-base font-bold flex items-center gap-2">
+                  <span>🏨</span>
+                  <span>Assign Hotel — {dragQuickBook?.crewName}</span>
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Hotel Name</label>
+                  <input
+                    className="w-full h-8 text-sm bg-slate-800 border border-slate-600 rounded-md px-3 text-slate-100 outline-none focus:border-blue-500/70"
+                    placeholder="e.g. Grand Hotel Istanbul"
+                    value={dragQuickHotelForm.hotelName}
+                    onChange={e => setDragQuickHotelForm(f => ({ ...f, hotelName: e.target.value }))}
+                    data-testid="input-quickbook-hotel-name"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="text-xs text-slate-400 mb-1 block">Check-In</label>
+                    <input type="date" className="w-full h-8 text-sm bg-slate-800 border border-slate-600 rounded-md px-2 text-slate-100 outline-none focus:border-blue-500/70"
+                      value={dragQuickHotelForm.checkIn}
+                      onChange={e => setDragQuickHotelForm(f => ({ ...f, checkIn: e.target.value }))}
+                      data-testid="input-quickbook-checkin" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-slate-400 mb-1 block">Check-Out</label>
+                    <input type="date" className="w-full h-8 text-sm bg-slate-800 border border-slate-600 rounded-md px-2 text-slate-100 outline-none focus:border-blue-500/70"
+                      value={dragQuickHotelForm.checkOut}
+                      onChange={e => setDragQuickHotelForm(f => ({ ...f, checkOut: e.target.value }))}
+                      data-testid="input-quickbook-checkout" />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="ghost" className="text-slate-400" onClick={() => setDragQuickBook(null)}>Cancel</Button>
+                <Button className="bg-indigo-600 hover:bg-indigo-500 text-white" data-testid="button-quickbook-assign"
+                  onClick={() => {
+                    if (dragQuickBook) {
+                      setCrewSigners(cs => cs.map(c => c.id !== dragQuickBook.crewId ? c : {
+                        ...c,
+                        requiresHotel: true,
+                        hotelName: dragQuickHotelForm.hotelName,
+                        hotelCheckIn: dragQuickHotelForm.checkIn,
+                        hotelCheckOut: dragQuickHotelForm.checkOut,
+                        hotelStatus: "reserved",
+                      }));
+                      addActivityLog(`Hotel "${dragQuickHotelForm.hotelName}" assigned to ${dragQuickBook.crewName} via drag & drop.`, "Agent");
+                      toast({ title: "🏨 Hotel Assigned", description: `${dragQuickBook.crewName} → ${dragQuickHotelForm.hotelName}` });
+                      setDragQuickBook(null);
+                    }
+                  }}
+                >
+                  Assign Hotel
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* ── Crew Member Slide-Over Panel ── */}
           <Sheet open={showCrewPanel} onOpenChange={setShowCrewPanel}>
