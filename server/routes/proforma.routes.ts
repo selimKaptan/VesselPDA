@@ -333,7 +333,7 @@ router.post("/quick-estimate", isAuthenticated, calculateLimiter, async (req: an
   try {
     const {
       vesselId, portId,
-      berthStayDays = 3, anchorageDays = 0,
+      berthStayDays = 1, anchorageDays = 0,
       cargoQuantity = 5000, isDangerousCargo = false,
       purposeOfCall = "Discharging",
       cargoType = "",

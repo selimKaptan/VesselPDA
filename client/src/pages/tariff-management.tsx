@@ -166,18 +166,18 @@ const CATEGORIES: CategoryDef[] = [
     columns: [
       { key: "gt_min", label: "GT Min", type: "number" },
       { key: "gt_max", label: "GT Max", type: "number" },
-      { key: "intl_foreign_flag", label: "Foreign Flag / Day", type: "number" },
-      { key: "intl_turkish_flag", label: "Turkish Flag Intl. / Day", type: "number" },
-      { key: "cabotage_turkish", label: "Cabotage Turkish / Day", type: "number" },
+      { key: "gt_threshold", label: "GT Threshold", type: "number" },
+      { key: "intl_foreign_flag", label: "Flat Fee (≤ Threshold)", type: "number" },
+      { key: "per_1000_gt", label: "+1000 GT Rate", type: "number" },
       { key: "currency", label: "CCY", type: "currency" },
       { key: "valid_year", label: "Year", type: "year" },
     ],
     formFields: [
       { key: "gt_min", label: "GT Min", type: "number" },
       { key: "gt_max", label: "GT Max", type: "number" },
-      { key: "intl_foreign_flag", label: "Foreign Flag (Daily)", type: "number" },
-      { key: "intl_turkish_flag", label: "Turkish Flag Intl. (Daily)", type: "number" },
-      { key: "cabotage_turkish", label: "Cabotage Turkish (Daily)", type: "number" },
+      { key: "gt_threshold", label: "GT Threshold (flat fee up to)", type: "number" },
+      { key: "intl_foreign_flag", label: "Flat Fee (USD, for GT ≤ threshold)", type: "number" },
+      { key: "per_1000_gt", label: "Rate per 1,000 GT (for GT > threshold)", type: "number" },
       { key: "currency", label: "Currency", type: "currency" },
       { key: "valid_year", label: "Valid Year", type: "year" },
       { key: "notes", label: "Notes", type: "textarea" },
@@ -855,7 +855,7 @@ function CategorySection({
       if (cat.key === "pilotage_tariffs") {
         Object.assign(payload, { service_type: alan1, vessel_category: alan2, grt_min: numOrNull(rMin), grt_max: numOrNull(rMax), base_fee: numOrNull(f1), per_1000_grt: numOrNull(f2), currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "berthing_tariffs") {
-        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), intl_foreign_flag: numOrNull(f1), intl_turkish_flag: numOrNull(f2), cabotage_turkish: numOrNull(f3), currency, valid_year: parseInt(year), notes });
+        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), intl_foreign_flag: numOrNull(f1), per_1000_gt: numOrNull(f2), gt_threshold: numOrNull(f3) ? parseInt(f3) : null, currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "agency_fees") {
         Object.assign(payload, { tariff_no: alan2, service_type: alan1, nt_min: numOrNull(rMin), nt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (cat.key === "marpol_tariffs") {
@@ -1067,6 +1067,56 @@ function CategorySection({
             : <ChevronDown className="w-4 h-4 text-muted-foreground ml-1" />}
         </div>
       </button>
+
+      {/* ── Berthing Formula Summary ── */}
+      {open && cat.key === "berthing_tariffs" && (
+        <div className="border-t px-4 py-3 bg-blue-50 dark:bg-blue-950/30">
+          <div className="flex items-start gap-2 mb-2">
+            <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+            <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+              Formula-Based Daily Rates — multiplied by Days in Port
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border border-blue-200 dark:border-blue-800 rounded-lg overflow-hidden">
+              <thead>
+                <tr className="bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200">
+                  <th className="px-3 py-2 text-left font-semibold">Service Type</th>
+                  <th className="px-3 py-2 text-left font-semibold">Formula</th>
+                  <th className="px-3 py-2 text-right font-semibold">Example (GT = 2,000)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-t border-blue-200 dark:border-blue-800 bg-white/60 dark:bg-blue-950/20">
+                  <td className="px-3 py-2 font-medium text-foreground">International Berthing (Foreign Flag)</td>
+                  <td className="px-3 py-2 font-mono text-blue-700 dark:text-blue-300">
+                    GT ≤ 500 → $10 flat<br />
+                    GT &gt; 500 → ⌈GT ÷ 1,000⌉ × $25
+                  </td>
+                  <td className="px-3 py-2 text-right font-semibold text-foreground">⌈2000÷1000⌉ × 25 = <span className="text-green-600 dark:text-green-400">$50 / day</span></td>
+                </tr>
+                <tr className="border-t border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/30">
+                  <td className="px-3 py-2 font-medium text-foreground">International Berthing (Turkish Flag)</td>
+                  <td className="px-3 py-2 font-mono text-blue-700 dark:text-blue-300">
+                    Foreign Fee × 0.75 → ⌈result⌉
+                  </td>
+                  <td className="px-3 py-2 text-right font-semibold text-foreground">⌈50 × 0.75⌉ = <span className="text-green-600 dark:text-green-400">$38 / day</span></td>
+                </tr>
+                <tr className="border-t border-blue-200 dark:border-blue-800 bg-white/60 dark:bg-blue-950/20">
+                  <td className="px-3 py-2 font-medium text-foreground">Cabotage Berthing (Kabotaj)</td>
+                  <td className="px-3 py-2 font-mono text-blue-700 dark:text-blue-300">
+                    Foreign Fee × 0.50 → ⌈result⌉
+                  </td>
+                  <td className="px-3 py-2 text-right font-semibold text-foreground">⌈50 × 0.50⌉ = <span className="text-green-600 dark:text-green-400">$25 / day</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1.5">
+            Formula parameters (Flat Fee, +1000 GT Rate, GT Threshold) are stored in the row below and drive these calculations automatically.
+          </p>
+        </div>
+      )}
 
       {/* ── Table ── */}
       {open && (
@@ -1824,7 +1874,7 @@ export default function TariffManagement() {
       if (tableKey === "pilotage_tariffs") {
         Object.assign(payload, { service_type: alan1, vessel_category: alan2, grt_min: numOrNull(rMin), grt_max: numOrNull(rMax), base_fee: numOrNull(f1), per_1000_grt: numOrNull(f2), currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "berthing_tariffs") {
-        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), intl_foreign_flag: numOrNull(f1), intl_turkish_flag: numOrNull(f2), cabotage_turkish: numOrNull(f3), currency, valid_year: parseInt(year), notes });
+        Object.assign(payload, { gt_min: numOrNull(rMin), gt_max: numOrNull(rMax), intl_foreign_flag: numOrNull(f1), per_1000_gt: numOrNull(f2), gt_threshold: numOrNull(f3) ? parseInt(f3) : null, currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "agency_fees") {
         Object.assign(payload, { tariff_no: alan2, service_type: alan1, nt_min: numOrNull(rMin), nt_max: numOrNull(rMax), fee: numOrNull(f1), currency, valid_year: parseInt(year), notes });
       } else if (tableKey === "marpol_tariffs") {

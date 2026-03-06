@@ -133,16 +133,37 @@ export async function lookupBerthingFee(
   berthDays: number
 ): Promise<LookupResult> {
   try {
-    const column = getBerthingColumn(vesselCategory);
     const result = await pool.query(
-      `SELECT ${column} as daily_rate FROM berthing_tariffs
-       WHERE (port_id = $1 OR port_id IS NULL) AND gt_min <= $2
+      `SELECT intl_foreign_flag, intl_turkish_flag, cabotage_turkish, per_1000_gt, gt_threshold
+       FROM berthing_tariffs
+       WHERE (port_id = $1 OR port_id IS NULL) AND (gt_min IS NULL OR gt_min <= $2)
        ORDER BY (CASE WHEN port_id = $1 THEN 0 ELSE 1 END), gt_min DESC LIMIT 1`,
       [portId, gt]
     );
     if (result.rows.length === 0) return { fee: 0, source: "fallback" };
-    const dailyRate = parseFloat(result.rows[0].daily_rate || "0");
-    if (!dailyRate) return { fee: 0, source: "fallback" };
+    const row = result.rows[0];
+
+    let dailyRate: number;
+
+    if (row.per_1000_gt != null) {
+      const threshold = row.gt_threshold ?? 500;
+      const flatFee = parseFloat(row.intl_foreign_flag ?? 10);
+      const per1000Rate = parseFloat(row.per_1000_gt);
+      const foreignDaily = gt <= threshold
+        ? flatFee
+        : Math.ceil(gt / 1000) * per1000Rate;
+      const turkishDaily = Math.ceil(foreignDaily * 0.75);
+      const cabotageDaily = Math.ceil(foreignDaily * 0.50);
+
+      if (vesselCategory === "turkish_intl") dailyRate = turkishDaily;
+      else if (vesselCategory === "turkish_cabotage") dailyRate = cabotageDaily;
+      else dailyRate = foreignDaily;
+    } else {
+      const column = getBerthingColumn(vesselCategory);
+      dailyRate = parseFloat((row as any)[column] || "0");
+      if (!dailyRate) return { fee: 0, source: "fallback" };
+    }
+
     return { fee: Math.round(dailyRate * berthDays * 100) / 100, source: "database" };
   } catch {
     return { fee: 0, source: "fallback" };

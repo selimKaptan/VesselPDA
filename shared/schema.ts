@@ -1735,6 +1735,8 @@ export const berthingTariffs = pgTable("berthing_tariffs", {
   intlForeignFlag: real("intl_foreign_flag"),
   intlTurkishFlag: real("intl_turkish_flag"),
   cabotgeTurkish: real("cabotage_turkish"),
+  perThousandGt: real("per_1000_gt"),
+  gtThreshold: integer("gt_threshold").default(500),
   currency: varchar("currency").default("USD"),
   validYear: integer("valid_year").default(2026),
   notes: text("notes"),

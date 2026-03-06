@@ -774,7 +774,7 @@ router.get("/port-alerts", isAuthenticated, async (req: any, res) => {
 const ALLOWED_TARIFF_TABLES: Record<string, { label: string; feeFields: string[] }> = {
   pilotage_tariffs: { label: "Pilotage Fees", feeFields: ["base_fee", "per_1000_grt"] },
   external_pilotage_tariffs: { label: "External Pilotage", feeFields: ["grt_up_to_1000", "per_additional_1000_grt"] },
-  berthing_tariffs: { label: "Berthing Fees", feeFields: ["intl_foreign_flag", "intl_turkish_flag", "cabotage_turkish"] },
+  berthing_tariffs: { label: "Berthing Fees", feeFields: ["intl_foreign_flag", "per_1000_gt", "gt_threshold"] },
   agency_fees: { label: "Agency Fees", feeFields: ["fee"] },
   marpol_tariffs: { label: "MARPOL Waste Fees", feeFields: ["fixed_fee", "weekday_ek1_rate", "weekday_ek4_rate", "weekday_ek5_rate"] },
   port_authority_fees: { label: "Port Authority Fees", feeFields: ["amount"] },
@@ -1461,11 +1461,24 @@ router.post("/tariff-seed-verify", isAuthenticated, async (req: any, res) => {
         "SELECT COUNT(*)::int AS cnt FROM pilotage_tariffs WHERE port_id IS NULL"
       );
 
+      const { rows: berthingExisting } = await client.query(
+        "SELECT id FROM berthing_tariffs WHERE port_id IS NULL LIMIT 1"
+      );
+      if (berthingExisting.length === 0) {
+        await client.query(
+          `INSERT INTO berthing_tariffs
+             (port_id, gt_min, gt_max, intl_foreign_flag, per_1000_gt, gt_threshold, currency, valid_year, notes, updated_at)
+           VALUES (NULL, 0, 999999, 10, 25, 500, 'USD', 2026,
+             'Resmi 2026 — GT ≤ 500: $10 sabit; GT > 500: ⌈GT/1000⌉ × 25 USD. Turkish Flag: ×0.75 ⌈↑⌉. Kabotaj: ×0.50 ⌈↑⌉.', NOW())`
+        );
+        inserted++;
+      }
+
       res.json({
         status: inserted > 0 ? "seeded" : "ok",
         message: inserted > 0
-          ? `${inserted} eksik tarife kaydı eklendi. Toplam: ${finalCount[0].cnt} global kayıt.`
-          : `${finalCount[0].cnt} global tarife kaydı doğrulandı — tüm kayıtlar mevcut.`,
+          ? `${inserted} eksik tarife kaydı eklendi (pilotaj + barınma). Pilotaj: ${finalCount[0].cnt} global kayıt.`
+          : `${finalCount[0].cnt} pilotaj + 1 barınma kaydı doğrulandı — tüm kayıtlar mevcut.`,
         count: finalCount[0].cnt,
         inserted,
       });
