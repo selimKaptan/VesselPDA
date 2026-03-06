@@ -1,0 +1,44 @@
+Sen bir Senior UI/UX Geliştiricisisin. Mevcut 'Voyages' sayfasındaki 'Operation' sekmesinin (tab) içeriğini, denizcilik operasyonlarının gerçek zamanlı takip edildiği premium bir 'Canlı Komuta Merkezine' dönüştürüyoruz.
+
+ÖNEMLİ KURAL: Sayfanın en üstündeki yatay ilerleme çubuğunu (Pre-Arrival -> Anchorage vs.), Voyage özet kartlarını (Port, ETA, ETD) ve sekme menüsünü (Operation, Cargo Ops, Activity...) KESİNLİKLE KORU. Sadece sekmelerin altındaki içerik alanını (Task List vb. olduğu yeri) değiştir.
+
+Lütfen aşağıdaki güncellemeleri yap:
+
+1. SAYFA DÜZENİ (GRID LAYOUT):
+Sekmelerin altındaki içerik alanını 3 sütunlu bir CSS Grid yap: `grid grid-cols-1 lg:grid-cols-3 gap-6`.
+
+2. SOL SÜTUN (THE HEART: LIVE PORT CALL WORKFLOW - col-span-2):
+Mevcut standart 'Task List' kutusunu tamamen sil. Yerine, sol tarafın tamamını (span-2) kaplayacak 'Live Port Call Workflow' (Canlı Liman İş Akışı) kartını ekle. Arka planı 'bg-slate-800/40', kenarlığı 'border-slate-700' ve 'backdrop-blur' özellikli olsun. İçine şu dikey zaman çizelgesini (Vertical Stepper) çiz:
+
+  - Adım 1: 📡 Arrival Declared (Tamamlandı)
+    Metin: "Vessel arrival officially declared to Port Authority."
+    UI: Yeşil tik, sağda "07:00 LT" etiketi.
+
+  - Adım 2: 🛃 Customs Arrival Control (Tamamlandı)
+    Metin: "Customs inward clearance completed."
+    UI: Yeşil ikon, altında şık yeşil rozet: "✅ Arrival Approved & Customs Cleared (08:15 LT)".
+
+  - Adım 3: ⚓ Berthing Clearance (Aktif Adım - Yanıp Sönüyor)
+    Metin: "Berthing ordino granted by Harbour Master. Valid for 24h."
+    UI: İkonu turuncu (bg-amber-500) yap ve 'animate-pulse' ver. Altına dikkat çekici bir geri sayım kutusu (bg-amber-900/30, border-amber-500, p-2, rounded) ekle: "⏳ STRICT DEADLINE: Must berth before Tomorrow, 14:30 (18h remaining)".
+
+  - Adım 4: ⏱️ NOR Tendered (Bekliyor)
+    Metin: "Notice of Readiness will be tendered." (İkon: Saat/Zil)
+
+  - Adım 5: 🛬 Vessel Berthed (Bekliyor)
+    Metin: "Waiting to be safely moored alongside."
+
+  - Adım 6: 📋 Survey Controls (Bekliyor)
+    Metin: "Initial draft and bunker surveys." (İkon: Büyüteç/Pano)
+
+  - Adım 7: 🏗️ Cargo Operations (Bekliyor)
+    Metin: "Waiting for survey completion."
+
+3. SAĞ SÜTUN (DESTEKLEYİCİ MODÜLLER - col-span-1):
+Mevcut diğer kutuları daha derli toplu bir şekilde üst üste (flex-col gap-6) sağ sütuna yerleştir:
+  - Üstte: 'Voyage Team' kutusu (Mevcut tasarımı koru, genişliğini sütuna uydur).
+  - Ortada: 'Service Requests' kutusu.
+  - Altta: Sayfanın altındaki 'Notice of Readiness' oluşturma/özet kutusunu buraya taşı.
+
+Tasarım Kuralı:
+Sol taraftaki Workflow çizelgesi sayfanın ana odak noktası olmalıdır. Tamamlanan adımlar 'text-slate-400', aktif adım vurgulu (text-slate-50) ve bekleyen adımlar soluk (text-slate-500) olmalıdır. Çizgiler ve rozetler Dark Mode (slate-900) ile %100 uyumlu olmalıdır.
