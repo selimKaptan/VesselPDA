@@ -1,0 +1,250 @@
+INSTRUCTIONS.md'yi oku. ACIL FIX: Son yapılan "Auto-Document Generator" değişikliği mevcut voyage documents yapısını bozdu. Düzelt.
+
+=== ÖNCELİK 1: MEVCUT YAPININ GERİ YÜKLENMESİ ===
+
+1. Önce mevcut voyage-detail.tsx dosyasındaki Documents tab'ını kontrol et.
+2. Eğer backup dosyası varsa (voyage-detail-backup.tsx) ondan Documents tab kısmını geri al.
+3. Backup yoksa şu yapıyı restore et:
+
+Documents tab'ın MEVCUT çalışan yapısı şu olmalı:
+- Voyage'a yüklenmiş dokümanlar listesi (GET /api/voyages/:id/documents)
+- Vault'tan otomatik iliştirilmiş belgeler (GET /api/voyages/:voyageId/vault-documents)
+- Her doküman: isim, tip, tarih, boyut, Download/Preview/Delete butonları
+- "+ Upload Document" butonu
+- "Create from Template" butonu
+
+BU YAPIYI BOZMA. Auto-Document Generator'ı bunun ÜSTÜNE ekle, değiştirme.
+
+=== ÖNCELİK 2: AUTO-DOCUMENT GENERATOR DOĞRU ŞEKİLDE EKLE ===
+
+Documents tab'ın içine 2 bölüm yap:
+
+BÖLÜM 1 — Mevcut Dokümanlar (OLDUĞU GİBİ KALSIN):
+- Uploaded documents listesi
+- Vault auto-attached documents
+- Upload + Template butonları
+
+BÖLÜM 2 — Port Formalities Auto-Generator (YENİ, ALTTA):
+
+Başlık: "⚡ Port Formalities — Auto-Generate"
+Alt başlık: "Generate official port documents pre-filled with vessel data"
+
+Üstte: Vessel Context Card (sadece okunur bilgi):
+<div className="bg-slate-800/30 border border-slate-700/30 rounded-xl p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+  <div><span className="text-xs text-slate-500">Vessel</span><p className="text-sm text-white font-semibold">{voyage.vesselName}</p></div>
+  <div><span className="text-xs text-slate-500">IMO</span><p className="text-sm text-white">{vessel.imoNumber}</p></div>
+  <div><span className="text-xs text-slate-500">Port</span><p className="text-sm text-white">{voyage.portName}</p></div>
+  <div><span className="text-xs text-slate-500">ETA</span><p className="text-sm text-white">{formatDate(voyage.eta)}</p></div>
+</div>
+
+Sağ üst: "🚀 Generate All (5 Forms)" butonu
+- bg-sky-500 hover:bg-sky-600 shadow-lg shadow-sky-500/25
+- Tıklayınca 5 PDF'i sırayla üretir, hepsini zip olarak indirir veya tek tek indirir
+- Loading state: "Generating 3/5..." progress
+
+Template kartları (3 sütun grid):
+Her kart: bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 hover:border-slate-600 transition-all
+
+const PORT_TEMPLATES = [
+  { id: "berth_petition", icon: "📄", title: "Liman Başkanlığı Yanaşma Dilekçesi", titleEn: "Harbour Master Berthing Petition" },
+  { id: "police_form", icon: "🛂", title: "Deniz Polisi Geliş/Gidiş Formu", titleEn: "Maritime Police Arrival/Departure" },
+  { id: "coastguard_decl", icon: "🛟", title: "Kıyı Emniyeti Deklarasyonu", titleEn: "Coastguard Declaration" },
+  { id: "tcdd_watch", icon: "👷", title: "TCDD Posta/Vardiya Talepnamesi", titleEn: "TCDD Watch/Shift Request" },
+  { id: "shore_pass", icon: "⚓", title: "Shore Pass", titleEn: "Personnel Permission Card" },
+];
+
+Her kart içeriği:
+- Sol: büyük ikon
+- Orta: Türkçe başlık (bold) + İngilizce alt başlık (slate-400)
+- Sağ: "Generate PDF" butonu (küçük, outline)
+- Kart altı: "Pre-filled with vessel data" küçük text
+
+=== ÖNCELİK 3: PDF ÜRETME BACKEND ===
+
+Mevcut PDF template endpoint'ini kontrol et. Eğer yoksa veya bozulmuşsa:
+
+POST /api/voyages/:voyageId/generate-port-document
+- isAuthenticated
+- Body: { templateId: "berth_petition" | "police_form" | "coastguard_decl" | "tcdd_watch" | "shore_pass" }
+- Voyage'dan vessel bilgilerini çek (name, IMO, flag, GRT, port, ETA, ETD, purpose)
+
+PDF oluşturma (pdfkit):
+
+function generatePortDocument(templateId, voyageData, vesselData) {
+  const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  
+  // Header
+  doc.fontSize(8).fillColor('#94a3b8')
+    .text('VesselPDA · Auto-Generated Port Document · Confidential', { align: 'center' });
+  doc.moveDown(2);
+  
+  // Template-specific title
+  const templates = {
+    berth_petition: { tr: 'Liman Başkanlığı Yanaşma Dilekçesi', en: 'Harbour Master Berthing Petition' },
+    police_form: { tr: 'Deniz Polisi Geliş/Gidiş Formu', en: 'Maritime Police Arrival/Departure' },
+    coastguard_decl: { tr: 'Kıyı Emniyeti Deklarasyonu', en: 'Turkish Coastguard Declaration' },
+    tcdd_watch: { tr: 'TCDD Posta/Vardiya Talepnamesi', en: 'TCDD Watch/Shift Request' },
+    shore_pass: { tr: 'Shore Pass', en: 'Personnel Permission Card' },
+  };
+  
+  const template = templates[templateId];
+  
+  doc.fontSize(18).font('Helvetica-Bold').fillColor('#000000')
+    .text(template.tr, { align: 'center' });
+  doc.fontSize(12).font('Helvetica').fillColor('#64748b')
+    .text(template.en, { align: 'center' });
+  doc.moveDown(2);
+  
+  // Vessel Particulars Box
+  doc.fontSize(11).font('Helvetica-Bold').fillColor('#000000')
+    .text('VESSEL PARTICULARS (Auto-Filled)');
+  doc.moveDown(0.5);
+  
+  doc.fontSize(10).font('Helvetica');
+  const fields = [
+    ['Vessel Name / Gemi Adı', vesselData.name],
+    ['IMO Number', vesselData.imoNumber || 'N/A'],
+    ['Flag / Bayrak', vesselData.flag || 'N/A'],
+    ['GRT / Gross Tonnage', vesselData.grt ? `${vesselData.grt} GT` : 'N/A'],
+    ['NRT / Net Tonnage', vesselData.nrt ? `${vesselData.nrt} NT` : 'N/A'],
+    ['DWT', vesselData.dwt ? `${vesselData.dwt} MT` : 'N/A'],
+    ['LOA', vesselData.loa ? `${vesselData.loa} m` : 'N/A'],
+    ['Port / Liman', voyageData.portName || 'N/A'],
+    ['Purpose of Call / Geliş Sebebi', voyageData.purposeOfCall || 'N/A'],
+    ['ETA', voyageData.eta ? new Date(voyageData.eta).toLocaleString('tr-TR') : 'N/A'],
+    ['ETD', voyageData.etd ? new Date(voyageData.etd).toLocaleString('tr-TR') : 'N/A'],
+  ];
+  
+  // Cargo bilgileri (varsa)
+  if (voyageData.cargoType) {
+    fields.push(['Cargo Type / Yük Cinsi', voyageData.cargoType]);
+  }
+  if (voyageData.cargoQuantity) {
+    fields.push(['Cargo Quantity / Yük Miktarı', `${voyageData.cargoQuantity} MT`]);
+  }
+  
+  // Master bilgisi (varsa)
+  // Agent bilgisi
+  
+  fields.forEach(([label, value]) => {
+    doc.font('Helvetica-Bold').text(`${label}: `, { continued: true });
+    doc.font('Helvetica').text(String(value));
+  });
+  
+  doc.moveDown(2);
+  
+  // Template-specific sections
+  if (templateId === 'berth_petition') {
+    doc.font('Helvetica-Bold').text('TALEP / REQUEST');
+    doc.moveDown(0.5);
+    doc.font('Helvetica').text(
+      `Yukarıda bilgileri verilen gemimizin ${voyageData.portName || '...'} limanına yanaşması için gereğini arz ederiz.`
+    );
+    doc.moveDown(0.5);
+    doc.text(
+      `We hereby request berthing permission for the above-mentioned vessel at ${voyageData.portName || '...'} port.`
+    );
+  }
+  
+  if (templateId === 'police_form') {
+    doc.font('Helvetica-Bold').text('MÜRETTEBAT BİLGİSİ / CREW INFORMATION');
+    doc.moveDown(0.5);
+    doc.font('Helvetica');
+    doc.text('Toplam Mürettebat / Total Crew: ____');
+    doc.text('Transit Yolcu / Transit Passengers: ____');
+    doc.text('Kaçak / Stowaways: None');
+  }
+  
+  if (templateId === 'coastguard_decl') {
+    doc.font('Helvetica-Bold').text('BEYAN / DECLARATION');
+    doc.moveDown(0.5);
+    doc.font('Helvetica');
+    doc.text('Gemimizde yasadışı herhangi bir durum bulunmadığını beyan ederiz.');
+    doc.text('We declare that there is no illegal situation on board our vessel.');
+  }
+  
+  if (templateId === 'tcdd_watch') {
+    doc.font('Helvetica-Bold').text('TALEP EDİLEN HİZMET / REQUESTED SERVICE');
+    doc.moveDown(0.5);
+    doc.font('Helvetica');
+    doc.text('Posta Sayısı / Number of Watches: ____');
+    doc.text('Başlangıç / Start: ____');
+    doc.text('Bitiş / End: ____');
+  }
+  
+  if (templateId === 'shore_pass') {
+    doc.font('Helvetica-Bold').text('İZİN VERİLEN PERSONEL / PERMITTED PERSONNEL');
+    doc.moveDown(0.5);
+    doc.font('Helvetica');
+    // Boş tablo — elle doldurulacak
+    for (let i = 1; i <= 10; i++) {
+      doc.text(`${i}. Ad Soyad: ________________  Görevi: ________________  Pasaport No: ________________`);
+    }
+  }
+  
+  doc.moveDown(3);
+  
+  // İmza alanları
+  doc.font('Helvetica-Bold').text('DECLARATIONS / BEYANLAR');
+  doc.moveDown(0.5);
+  doc.font('Helvetica').fontSize(9);
+  doc.text('The undersigned hereby declares that the above information is true and correct.');
+  doc.text('Aşağıda imzalayan, yukarıdaki bilgilerin doğru ve eksiksiz olduğunu beyan eder.');
+  
+  doc.moveDown(3);
+  
+  // İmza kutuları
+  const sigY = doc.y;
+  doc.font('Helvetica-Bold').fontSize(9);
+  doc.text('Ship Agent Signature', 50, sigY, { width: 200, align: 'center' });
+  doc.text('Port Authority Stamp', 300, sigY, { width: 200, align: 'center' });
+  doc.text('Acente İmzası', 50, sigY + 12, { width: 200, align: 'center' });
+  doc.text('Liman Başkanlığı Mühür', 300, sigY + 12, { width: 200, align: 'center' });
+  
+  // İmza çizgileri
+  doc.moveTo(70, sigY - 5).lineTo(230, sigY - 5).stroke();
+  doc.moveTo(320, sigY - 5).lineTo(480, sigY - 5).stroke();
+  
+  // Footer
+  doc.fontSize(7).fillColor('#94a3b8');
+  doc.text(`Auto-generated by VesselPDA · ${new Date().toLocaleDateString('en-GB')} · Template ID: ${templateId}`, 50, 770, { align: 'center', width: 495 });
+  doc.text(`Vessel: ${vesselData.name} · Port: ${voyageData.portName}`, 50, 780, { align: 'center', width: 495 });
+  
+  return doc;
+}
+
+POST /api/voyages/:voyageId/generate-all-documents
+- 5 template'i sırayla üret
+- Her birini voyage documents'a kaydet
+- Response: { documents: [{ id, name, templateId, fileUrl }] }
+
+=== ÖNCELİK 4: TÜRKÇE KARAKTER DÜZELTMESİ ===
+
+PDF'lerde Türkçe karakterler bozuk çıkıyorsa (ı, ş, ğ, ü, ö, ç):
+- pdfkit varsayılan Helvetica fontu Türkçe karakterleri destekler
+- Eğer bozuksa: encoding ayarı kontrol et
+- String'lerde doğru Türkçe karakterler kullanıldığından emin ol
+- Ş yerine S, ğ yerine g yazılmış mı kontrol et
+
+=== ÖNCELİK 5: MEVCUT DÖKÜMAN İŞLEVSELLİĞİ KONTROLÜ ===
+
+Şunların hala çalıştığını doğrula:
+1. GET /api/voyages/:id/documents → mevcut dokümanlar listesi geliyor mu?
+2. POST /api/voyages/:id/documents → doküman upload çalışıyor mu?
+3. DELETE /api/voyages/:id/documents/:docId → silme çalışıyor mu?
+4. POST /api/voyages/:id/documents/from-template → template'den oluşturma çalışıyor mu?
+5. POST /api/voyages/:id/documents/:docId/sign → imzalama çalışıyor mu?
+
+Çalışmıyorsa geri yükle. MEVCUT FONKSİYONELLİK HER ZAMAN ÖNCELİKLİ.
+
+=== IMPORTANT ===
+
+- MEVCUT documents tab yapısını BOZMA — üstüne ekle
+- Auto-generator ayrı bölüm olarak Documents tab'ın ALTINA ekle
+- PDF template'ler pdfkit ile server-side üretilsin
+- Türkçe karakterler doğru render edilsin
+- Generate edilen PDF'ler voyage documents'a otomatik kaydedilsin
+- "Generate All" butonu sırayla 5 PDF üretsin, progress göstersin
+- Mevcut upload, delete, sign işlevleri çalışmaya devam etsin
+- Her template'in İngilizce ve Türkçe başlığı olsun (dual language)
+- Vessel bilgileri voyage'dan otomatik çekilsin — kullanıcı elle doldurmayacak
