@@ -33,11 +33,12 @@ router.get("/", isAuthenticated, async (req: any, res: any, next: any) => {
 router.post("/", isAuthenticated, async (req: any, res: any, next: any) => {
   try {
     const userId = req.user?.claims?.sub || req.user?.id;
-    const voyageParsed = insertVoyageSchema.partial().safeParse(req.body);
+    const body = { ...req.body };
+    if (body.eta) body.eta = new Date(body.eta);
+    if (body.etd) body.etd = new Date(body.etd);
+    const voyageParsed = insertVoyageSchema.partial().safeParse(body);
     if (!voyageParsed.success) return res.status(400).json({ error: "Invalid input", details: voyageParsed.error.errors });
-    const data = { ...req.body, userId };
-    if (data.eta) data.eta = new Date(data.eta);
-    if (data.etd) data.etd = new Date(data.etd);
+    const data = { ...body, userId };
     const voyage = await storage.createVoyage(data);
     logAction(userId, "create", "voyage", voyage.id, { portId: voyage.portId, vesselName: voyage.vesselName, status: voyage.status }, getClientIp(req));
     logVoyageActivity({ voyageId: voyage.id, userId, activityType: 'voyage_created', title: 'Voyage created', description: voyage.purposeOfCall ? `Purpose: ${voyage.purposeOfCall}` : undefined });
