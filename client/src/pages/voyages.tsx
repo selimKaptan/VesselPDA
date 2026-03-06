@@ -19,11 +19,23 @@ import { Link } from "wouter";
 import type { Vessel, Port } from "@shared/schema";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
-  planned:   { label: "Planned",    color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",   icon: Clock },
-  active:    { label: "Active",     color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", icon: PlayCircle },
-  completed: { label: "Completed",  color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",       icon: CheckCircle2 },
-  cancelled: { label: "Cancelled",  color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",        icon: XCircle },
+  planned:   { label: "Planned",    color: "bg-blue-900/30 text-blue-400 border border-blue-500/30",    icon: Clock },
+  active:    { label: "Active",     color: "bg-green-900/30 text-green-400 border border-green-500/30", icon: PlayCircle },
+  completed: { label: "Completed",  color: "bg-slate-700/50 text-slate-400 border border-slate-600/30", icon: CheckCircle2 },
+  cancelled: { label: "Cancelled",  color: "bg-red-900/30 text-red-400 border border-red-500/30",       icon: XCircle },
 };
+
+const PURPOSE_STYLE: Record<string, { bg: string; text: string; border: string; icon: string; label: string; pill: string; pillActive: string }> = {
+  "Crew Change": { bg: "bg-purple-900/50", text: "text-purple-300", border: "border-purple-500/20", icon: "🟣", label: "CREW CHANGE",  pill: "border-purple-500/40 text-purple-300 hover:bg-purple-900/40", pillActive: "bg-purple-900/50 border-purple-400/60 text-purple-200 ring-1 ring-purple-400/30" },
+  "Husbandry":   { bg: "bg-purple-900/50", text: "text-purple-300", border: "border-purple-500/20", icon: "🟣", label: "HUSBANDRY",    pill: "border-purple-500/40 text-purple-300 hover:bg-purple-900/40", pillActive: "bg-purple-900/50 border-purple-400/60 text-purple-200 ring-1 ring-purple-400/30" },
+  "Loading":     { bg: "bg-emerald-900/50", text: "text-emerald-300", border: "border-emerald-500/20", icon: "🟢", label: "LOADING",    pill: "border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/40", pillActive: "bg-emerald-900/50 border-emerald-400/60 text-emerald-200 ring-1 ring-emerald-400/30" },
+  "Discharging": { bg: "bg-orange-900/50", text: "text-orange-300", border: "border-orange-500/20", icon: "🟠", label: "DISCHARGING",  pill: "border-orange-500/40 text-orange-300 hover:bg-orange-900/40", pillActive: "bg-orange-900/50 border-orange-400/60 text-orange-200 ring-1 ring-orange-400/30" },
+  "Transit":     { bg: "bg-blue-900/50",   text: "text-blue-300",   border: "border-blue-500/20",   icon: "🔵", label: "TRANSIT",      pill: "border-blue-500/40 text-blue-300 hover:bg-blue-900/40",     pillActive: "bg-blue-900/50 border-blue-400/60 text-blue-200 ring-1 ring-blue-400/30" },
+  "Bunkering":   { bg: "bg-blue-900/50",   text: "text-blue-300",   border: "border-blue-500/20",   icon: "🔵", label: "BUNKERING",    pill: "border-blue-500/40 text-blue-300 hover:bg-blue-900/40",     pillActive: "bg-blue-900/50 border-blue-400/60 text-blue-200 ring-1 ring-blue-400/30" },
+  "Repair":      { bg: "bg-blue-900/50",   text: "text-blue-300",   border: "border-blue-500/20",   icon: "🔵", label: "REPAIR",       pill: "border-blue-500/40 text-blue-300 hover:bg-blue-900/40",     pillActive: "bg-blue-900/50 border-blue-400/60 text-blue-200 ring-1 ring-blue-400/30" },
+  "Inspection":  { bg: "bg-blue-900/50",   text: "text-blue-300",   border: "border-blue-500/20",   icon: "🔵", label: "INSPECTION",   pill: "border-blue-500/40 text-blue-300 hover:bg-blue-900/40",     pillActive: "bg-blue-900/50 border-blue-400/60 text-blue-200 ring-1 ring-blue-400/30" },
+};
+const DEFAULT_PURPOSE_STYLE = { bg: "bg-blue-900/50", text: "text-blue-300", border: "border-blue-500/20", icon: "🔵", label: "OPERATION", pill: "border-blue-500/40 text-blue-300 hover:bg-blue-900/40", pillActive: "bg-blue-900/50 border-blue-400/60 text-blue-200 ring-1 ring-blue-400/30" };
 
 // Port call operational stage — derived from voyage.status
 // If a dedicated portCallStage field is added to the voyage table in the future, extend this config
@@ -152,6 +164,8 @@ export default function Voyages() {
   const [lookupError, setLookupError] = useState("");
   const [vesselInfo, setVesselInfo] = useState<VesselInfo | null>(null);
 
+  const [activeFilter, setActiveFilter] = useState<string>("all");
+
   const role = (user as any)?.activeRole || (user as any)?.userRole || "shipowner";
 
   const { data: voyageList, isLoading } = useQuery<any[]>({
@@ -254,10 +268,41 @@ export default function Voyages() {
     onError: () => toast({ title: "Error", description: "Failed to create voyage", variant: "destructive" }),
   });
 
+  // ── Filtering logic ──────────────────────────────────────────────────────
+  const now = new Date();
+  const next24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  const filteredVoyages = (voyageList ?? []).filter((v: any) => {
+    if (activeFilter === "all") return true;
+    if (activeFilter === "next24h") {
+      if (!v.eta) return false;
+      const eta = new Date(v.eta);
+      return eta >= now && eta <= next24h;
+    }
+    return v.purposeOfCall === activeFilter;
+  });
+
+  // Build unique pill options from actual data
+  const purposeCounts: Record<string, number> = {};
+  (voyageList ?? []).forEach((v: any) => {
+    const p = v.purposeOfCall || "Other";
+    purposeCounts[p] = (purposeCounts[p] || 0) + 1;
+  });
+  const next24hCount = (voyageList ?? []).filter((v: any) => {
+    if (!v.eta) return false;
+    const eta = new Date(v.eta);
+    return eta >= now && eta <= next24h;
+  }).length;
+
+  const PILL_ORDER = ["Loading", "Discharging", "Crew Change", "Husbandry", "Transit", "Bunkering", "Repair", "Inspection"];
+  const activePurposes = PILL_ORDER.filter(p => purposeCounts[p]);
+  const otherPurposes = Object.keys(purposeCounts).filter(p => !PILL_ORDER.includes(p));
+
   return (
-    <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
+    <div className="px-3 py-5 space-y-5 max-w-7xl mx-auto">
       <PageMeta title="Voyages | VesselPDA" description="Voyage and operations management" />
 
+      {/* ── Page Header ── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-voyages-title">Voyages</h1>
@@ -270,71 +315,156 @@ export default function Voyages() {
         )}
       </div>
 
+      {/* ── Smart Filter Bar ── */}
+      {!isLoading && voyageList && voyageList.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap" data-testid="filter-bar-voyages">
+          {/* All Voyages */}
+          <button
+            onClick={() => setActiveFilter("all")}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+              activeFilter === "all"
+                ? "bg-slate-600 border-slate-500 text-slate-100 ring-1 ring-slate-400/30"
+                : "bg-slate-800/60 border-slate-700 text-slate-400 hover:bg-slate-700/60 hover:text-slate-300"
+            }`}
+            data-testid="filter-pill-all"
+          >
+            <Anchor className="w-3 h-3" />
+            All Voyages
+            <span className="ml-0.5 opacity-70">({voyageList.length})</span>
+          </button>
+
+          {/* Purpose pills */}
+          {[...activePurposes, ...otherPurposes].map(purpose => {
+            const ps = PURPOSE_STYLE[purpose] || DEFAULT_PURPOSE_STYLE;
+            const isActive = activeFilter === purpose;
+            return (
+              <button
+                key={purpose}
+                onClick={() => setActiveFilter(purpose)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                  isActive ? ps.pillActive : `bg-slate-800/40 ${ps.pill}`
+                }`}
+                data-testid={`filter-pill-${purpose.toLowerCase().replace(/\s+/g, "-")}`}
+              >
+                <span className="text-[11px] leading-none">{ps.icon}</span>
+                {purpose}
+                <span className="ml-0.5 opacity-70">({purposeCounts[purpose]})</span>
+              </button>
+            );
+          })}
+
+          {/* Next 24h */}
+          {next24hCount > 0 && (
+            <button
+              onClick={() => setActiveFilter("next24h")}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                activeFilter === "next24h"
+                  ? "bg-amber-900/60 border-amber-400/60 text-amber-200 ring-1 ring-amber-400/30"
+                  : "bg-slate-800/40 border-amber-500/30 text-amber-400 hover:bg-amber-900/30"
+              }`}
+              data-testid="filter-pill-next24h"
+            >
+              <Clock className="w-3 h-3" />
+              Next 24h
+              <span className="ml-0.5 opacity-70">({next24hCount})</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-40" />)}
+          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-44" />)}
         </div>
-      ) : voyageList && voyageList.length > 0 ? (
+      ) : filteredVoyages.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {voyageList.map((v: any) => {
+          {filteredVoyages.map((v: any) => {
             const s = STATUS_CONFIG[v.status] || STATUS_CONFIG.planned;
             const Icon = s.icon;
+            const ps = PURPOSE_STYLE[v.purposeOfCall] || DEFAULT_PURPOSE_STYLE;
             return (
               <Link key={v.id} href={`/voyages/${v.id}`}>
-                <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer border hover:border-primary/30 group" data-testid={`card-voyage-${v.id}`}>
-                  <div className="flex items-start justify-between gap-2 mb-3">
+                <Card className="p-0 overflow-hidden hover:shadow-lg hover:shadow-black/30 transition-all cursor-pointer border border-slate-700/60 hover:border-slate-500/60 group bg-slate-800/60" data-testid={`card-voyage-${v.id}`}>
+
+                  {/* ── Colour-Coded Header Strip ── */}
+                  <div className={`${ps.bg} px-4 py-2.5 flex items-center justify-between border-b ${ps.border}`}>
                     <div className="flex items-center gap-2">
-                      <div className="w-9 h-9 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0">
-                        <Ship className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-sm leading-tight">{v.vesselName || "Gemi Belirtilmedi"}</p>
-                        <p className="text-xs text-muted-foreground">{v.purposeOfCall}</p>
-                      </div>
+                      <span className="text-sm leading-none">{ps.icon}</span>
+                      <span className={`text-[10px] font-bold tracking-widest uppercase ${ps.text}`}>{ps.label} OPERATION</span>
                     </div>
                     <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${s.color}`}>
-                      <Icon className="w-3 h-3" />{s.label}
+                      <Icon className="w-2.5 h-2.5" />{s.label}
                     </span>
                   </div>
 
-                  <div className="space-y-1.5 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="truncate">{v.portName || `Port #${v.portId}`}</span>
+                  {/* ── Card Body ── */}
+                  <div className="p-4 space-y-3">
+                    {/* Vessel name + IMO */}
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-lg bg-slate-700/60 border border-slate-600/50 flex items-center justify-center flex-shrink-0">
+                        <Ship className="w-4 h-4 text-slate-400" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm text-slate-100 leading-tight truncate">{v.vesselName || "Vessel TBN"}</p>
+                        {v.imoNumber && (
+                          <span className="font-mono text-[10px] text-slate-500">IMO {v.imoNumber}</span>
+                        )}
+                      </div>
                     </div>
-                    {v.eta && (
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span>ETA: {new Date(v.eta).toLocaleDateString("tr-TR")}</span>
-                      </div>
-                    )}
-                    {v.imoNumber && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded">IMO {v.imoNumber}</span>
-                      </div>
-                    )}
-                  </div>
 
-                  {/* Port call operational stage badge */}
-                  {(() => {
-                    const stage = PORT_CALL_STAGE[v.status] || PORT_CALL_STAGE.planned;
-                    return (
-                      <div className="flex items-center justify-between pt-1.5 border-t border-dashed border-border/50 mt-1.5">
-                        <div className="flex items-center gap-1.5" data-testid={`badge-stage-${v.id}`}>
-                          <span className={`inline-flex h-1.5 w-1.5 rounded-full ${stage.dot}`} />
-                          <span className={`text-[11px] font-semibold ${stage.text}`}>{stage.label}</span>
-                        </div>
-                        <div className="flex items-center text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                          <span className="text-xs font-medium">Detaylar</span>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </div>
+                    {/* Port + ETA row */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                        <MapPin className="w-3.5 h-3.5 flex-shrink-0 text-slate-500" />
+                        <span className="truncate font-medium text-slate-300">{v.portName || `Port #${v.portId}`}</span>
                       </div>
-                    );
-                  })()}
+                      {v.eta && (
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                          <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>ETA: <span className="text-slate-400 font-medium">{new Date(v.eta).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span></span>
+                          {/* Urgency indicator */}
+                          {(() => {
+                            const eta = new Date(v.eta);
+                            if (eta >= now && eta <= next24h) {
+                              return <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-400 bg-amber-900/30 border border-amber-500/30 rounded-full px-1.5 py-0.5 ml-1">⏰ &lt;24h</span>;
+                            }
+                            return null;
+                          })()}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Port call stage + arrow */}
+                    {(() => {
+                      const stage = PORT_CALL_STAGE[v.status] || PORT_CALL_STAGE.planned;
+                      return (
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-700/50" data-testid={`badge-stage-${v.id}`}>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`inline-flex h-1.5 w-1.5 rounded-full ${stage.dot}`} />
+                            <span className={`text-[11px] font-semibold ${stage.text}`}>{stage.label}</span>
+                          </div>
+                          <div className="flex items-center gap-0.5 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span className="text-[11px] font-medium">Open</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </Card>
               </Link>
             );
           })}
+        </div>
+      ) : voyageList && voyageList.length > 0 ? (
+        /* Active filter returns no results */
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-12 h-12 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center mb-3">
+            <Ship className="w-6 h-6 text-slate-600" />
+          </div>
+          <p className="text-sm font-semibold text-slate-400">No voyages match this filter</p>
+          <p className="text-xs text-slate-600 mt-1">Try a different category or clear the filter</p>
+          <button onClick={() => setActiveFilter("all")} className="mt-3 text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2">Show all voyages</button>
         </div>
       ) : (
         <EmptyState
