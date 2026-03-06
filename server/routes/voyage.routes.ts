@@ -1116,18 +1116,24 @@ router.post("/:id/generate-port-document", isAuthenticated, async (req: any, res
 
     const pdfBuffer = Buffer.concat(chunks);
     const safeName = `${templateId}_${(gemi).replace(/\s+/g, "_")}_${Date.now()}.pdf`;
+    const pdfBase64 = pdfBuffer.toString("base64");
 
     try {
-      const uploadsDir = path.join(process.cwd(), "uploads", "documents");
-      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-      fs.writeFileSync(path.join(uploadsDir, safeName), pdfBuffer);
-      const fileUrl = `/uploads/documents/${safeName}`;
+      let fileUrl = "";
+      try {
+        const uploadsDir = path.join(process.cwd(), "uploads", "documents");
+        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+        fs.writeFileSync(path.join(uploadsDir, safeName), pdfBuffer);
+        fileUrl = `/uploads/documents/${safeName}`;
+      } catch (fsErr) {
+        console.warn("[generate-port-document] filesystem save failed (ephemeral env?), continuing with base64 only:", fsErr);
+      }
       await storage.createVoyageDocument({
         voyageId,
         name: `${tmpl.tr} — ${gemi}`,
         docType: "port_clearance",
-        fileBase64: null,
-        fileUrl,
+        fileBase64: pdfBase64,
+        fileUrl: fileUrl || null,
         fileName: safeName,
         fileSize: pdfBuffer.length,
         notes: `Auto-generated port form (${tmpl.en})`,
@@ -1141,7 +1147,9 @@ router.post("/:id/generate-port-document", isAuthenticated, async (req: any, res
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${safeName}"`);
-    res.send(pdfBuffer);
+    res.setHeader("Content-Length", pdfBuffer.length);
+    res.setHeader("Content-Encoding", "identity");
+    res.end(pdfBuffer);
   } catch (err) {
     console.error("[generate-port-document] error:", err);
     res.status(500).json({ message: "Failed to generate port document" });

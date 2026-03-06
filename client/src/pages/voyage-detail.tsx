@@ -557,12 +557,24 @@ export default function VoyageDetail() {
   }
 
   function downloadDoc(doc: any) {
-    const href = doc.fileUrl || doc.fileBase64;
-    if (!href) return;
-    const a = document.createElement("a");
-    a.href = href;
-    a.download = doc.fileName || doc.name;
-    a.click();
+    if (doc.fileBase64) {
+      const b64 = doc.fileBase64.includes(",") ? doc.fileBase64.split(",")[1] : doc.fileBase64;
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = doc.fileName || doc.name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else if (doc.fileUrl) {
+      const a = document.createElement("a");
+      a.href = doc.fileUrl;
+      a.download = doc.fileName || doc.name;
+      a.click();
+    }
   }
 
   async function handleDownloadAllZip() {
@@ -594,8 +606,18 @@ export default function VoyageDetail() {
   }
 
   function previewDoc(doc: any) {
-    const href = doc.fileUrl || doc.fileBase64;
-    if (href) window.open(href, "_blank");
+    if (doc.fileBase64) {
+      const b64 = doc.fileBase64.includes(",") ? doc.fileBase64.split(",")[1] : doc.fileBase64;
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } else if (doc.fileUrl) {
+      window.open(doc.fileUrl, "_blank");
+    }
   }
 
   const { data: activitiesData } = useQuery<{ activities: any[], total: number }>({
