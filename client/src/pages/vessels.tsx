@@ -1549,24 +1549,6 @@ export default function Vessels() {
                         </div>
                       </div>
 
-                      {/* ── Action Buttons ── */}
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="flex-1 gap-1.5 h-9"
-                          onClick={() => { setSelectedVessel(null); setEditingVessel(v); }}>
-                          <Edit2 className="w-3.5 h-3.5" /> Edit
-                        </Button>
-                        <Link href={`/proformas/new?vesselId=${v.id}`} className="flex-1">
-                          <Button size="sm" variant="outline"
-                            className="w-full gap-1.5 h-9 border-[hsl(var(--maritime-primary)/0.4)] text-[hsl(var(--maritime-primary))]">
-                            <FileText className="w-3.5 h-3.5" /> New PDA
-                          </Button>
-                        </Link>
-                        <Link href={`/voyages?vesselId=${v.id}`} className="flex-1">
-                          <Button size="sm" className="w-full gap-1.5 h-9">
-                            <Plus className="w-3.5 h-3.5" /> New Voyage
-                          </Button>
-                        </Link>
-                      </div>
                     </div>
                   )}
 
@@ -2124,6 +2106,28 @@ export default function Vessels() {
                     </div>
                   )}
                 </div>
+
+              {/* ── Sticky Footer Actions ── */}
+              <div className="flex-shrink-0 border-t p-4 flex gap-2 bg-background">
+                <Button size="sm" variant="outline" className="flex-1 gap-1.5 h-9"
+                  onClick={() => { setSelectedVessel(null); setEditingVessel(v); }}
+                  data-testid="button-vessel-action-edit">
+                  <Edit2 className="w-3.5 h-3.5" /> Edit
+                </Button>
+                <Link href={`/proformas/new?vesselId=${v.id}`} className="flex-1">
+                  <Button size="sm" variant="outline"
+                    className="w-full gap-1.5 h-9 border-[hsl(var(--maritime-primary)/0.4)] text-[hsl(var(--maritime-primary))]"
+                    data-testid="button-vessel-action-pda">
+                    <FileText className="w-3.5 h-3.5" /> New PDA
+                  </Button>
+                </Link>
+                <Link href={`/voyages?vesselId=${v.id}`} className="flex-1">
+                  <Button size="sm" className="w-full gap-1.5 h-9"
+                    data-testid="button-vessel-action-voyage">
+                    <Plus className="w-3.5 h-3.5" /> New Voyage
+                  </Button>
+                </Link>
+              </div>
             </div>
           );
         })()}
@@ -2169,7 +2173,7 @@ export default function Vessels() {
 
       {/* ── Certificate Add/Edit Dialog ───────────────────────────────────── */}
       <Dialog open={certDialogOpen} onOpenChange={setCertDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-primary" />
@@ -2400,7 +2404,7 @@ export default function Vessels() {
 
       {/* ── Fleet Create / Edit Dialog ──────────────────────────────────── */}
       <Dialog open={showFleetDialog} onOpenChange={(open) => { if (!open) { setShowFleetDialog(false); setEditingFleet(null); } }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Layers className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
