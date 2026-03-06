@@ -486,7 +486,7 @@ router.post("/:id/generate-port-document", isAuthenticated, async (req: any, res
 
     const PDFDocumentModule = await import("pdfkit");
     const PDFDocument = (PDFDocumentModule as any).default || PDFDocumentModule;
-    const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
+    const doc = new PDFDocument({ size: "A4", margin: 0, bufferPages: true });
     const chunks: Buffer[] = [];
     doc.on("data", (c: Buffer) => chunks.push(c));
 
@@ -647,9 +647,7 @@ router.post("/:id/generate-port-document", isAuthenticated, async (req: any, res
         doc.fontSize(12).font("Helvetica-Bold").text("YANASMA MEKTUBU", { align: "center" });
         doc.moveDown(1.5);
         doc.fontSize(9).font("Helvetica");
-        doc.font("Helvetica").text(`        ACENTELIGIMIZE BAGLI  ${bayrak}  BAYRAKLI  ${gemi}  ISIMLI GEMIMIZIN`, 50, doc.y, { width: 490 });
-        doc.text(`        ${eta}  GUNU SAAT`, { continued: true });
-        doc.text(`        'DA IZMIR LIMANINA YANASTIRILMASINI EMIR VE MUSADELERINIZE ARZ EDERIZ.`);
+        doc.font("Helvetica").text(`        ACENTELIGIMIZE BAGLI  ${bayrak}  BAYRAKLI  ${gemi}  ISIMLI GEMIMIZIN\n        ${eta}  GUNU SAAT      'DA IZMIR LIMANINA YANASTIRILMASINI EMIR VE MUSADELERINIZE ARZ EDERIZ.`, 50, doc.y, { width: 490 });
         doc.moveDown(2);
         doc.fontSize(9).font("Helvetica-Bold").text("BAS:", 50);
         doc.text("KIC:", 50, doc.y + 14);
@@ -669,9 +667,7 @@ router.post("/:id/generate-port-document", isAuthenticated, async (req: any, res
         doc.fontSize(12).font("Helvetica-Bold").text("KALKIS MEKTUBU", { align: "center" });
         doc.moveDown(1.5);
         doc.fontSize(9).font("Helvetica");
-        doc.font("Helvetica").text(`        ACENTELIGIMIZE BAGLI  ${bayrak}  BAYRAKLI  ${gemi}  ISIMLI GEMIMIZIN`, 50, doc.y, { width: 490 });
-        doc.text(`        ${etd === "..." ? "..." : etd}  GUNU SAAT`);
-        doc.text("        DA IZMIR LIMANINDAN KALDIRILMASINI EMIR VE MUSADELERINIZE ARZ.");
+        doc.font("Helvetica").text(`        ACENTELIGIMIZE BAGLI  ${bayrak}  BAYRAKLI  ${gemi}  ISIMLI GEMIMIZIN\n        ${etd === "..." ? "..." : etd}  GUNU SAAT      'DA IZMIR LIMANINDAN KALDIRILMASINI EMIR VE MUSADELERINIZE ARZ.`, 50, doc.y, { width: 490 });
         doc.moveDown(2);
         doc.fontSize(9).font("Helvetica-Bold").text("RIHTIM NO:", 50);
         doc.text("BAS:", 50, doc.y + 14);
@@ -722,14 +718,14 @@ router.post("/:id/generate-port-document", isAuthenticated, async (req: any, res
           const val = (h === "KILAVUZLUK" || h === "ROMORKÖR" || h === "PALAMAR") ? "EVET" : "HAYIR";
           doc.font("Helvetica").text(val, 50 + i * 95, hizmetY + 14);
         });
-        doc.moveDown(3);
-        doc.fontSize(8).font("Helvetica")
-          .text("Yukarida yazili hizmetler hususunda gerekli depozitonu alinmasini istedigimiz hizmetlerin verilmesini, Liman Hizmetleri Tarifesi hukumleri ile Liman ve Iskelelerinin dair Tuzuk, Yonetmelik, Talimat ve Sair .mevzuatini tatbikin Ingiltere Birllesik Kralligi Standart Cekme Sartlari (UNDER U.K. TOWAGE CONTRACT CONITIONS) 'nin tatbikini gunun 24 saat devam edebilecek calisma saatlerine uymay, Limaninin yukleme-bosaltma kapasitesine gore vasita bulundurmayi, aksi takdirde Isletmenizin kendi kapasitesine uygun yukleme-bosaltmayi temin hususunda alacagi tedbirleri kabul ve bunlara ait bilcumle ucret ve masraflari odemeyi, idarece zaruret goruldugu hallerde gemi ve vasitanin yukleme-bosaltma yerlerinin degistirilmesine Liman is imkan ve kapasitesi ve bu bakimdan alinacak her turlu tedbire uymay, Bogaz gecis acentelerinin bildirilmesi halinde, geminin Bogaz gecisinden dogan ve KIYI EMNIYETI GENEL MUDURLUGU (KEGIM)' nin tahakkuk ettirdigi her turlu borc odemeyit aahhut ederiz.", { width: 495 });
-        doc.moveDown(1.5);
-        doc.fontSize(9).font("Helvetica").text("DEPOZITO : ________________ TL", 50);
-        hline(doc.y + 20);
-        doc.font("Helvetica-Bold").fontSize(8).text("KASE - IMZA", 380, doc.y + 25);
-        doc.text("ACENTASI ve DONATANI", 370, doc.y + 12);
+        // Body paragraph — anchored at absolute y=490 to prevent pushing signature area off-page
+        doc.fontSize(7.5).font("Helvetica")
+          .text("Yukarida yazili hizmetler hususunda gerekli depozitonu alinmasini istedigimiz hizmetlerin verilmesini, Liman Hizmetleri Tarifesi hukumleri ile Liman ve Iskelelerinin dair Tuzuk, Yonetmelik, Talimat ve Sair mevzuatini tatbikin, Ingiltere Birllesik Kralligi Standart Cekme Sartlari (UNDER U.K. TOWAGE CONTRACT CONDITIONS) nin tatbikini, gunun 24 saat devam edebilecek calisma saatlerine uymay, limanin yukleme-bosaltma kapasitesine gore vasita bulundurmayi, aksi takdirde Isletmenizin kendi kapasitesine uygun yukleme-bosaltmayi temin hususunda alacagi tedbirleri kabul ve bunlara ait bilcumle ucret ve masraflari odemeyi, idarece zaruret goruldugu hallerde gemi ve vasitanin yukleme-bosaltma yerlerinin degistirilmesine Liman is imkan ve kapasitesi bakimindan alinacak her turlu tedbire uymay, Bogaz gecis acentelerinin bildirilmesi halinde geminin Bogaz gecisinden dogan ve KIYI EMNIYETI GENEL MUDURLUGU (KEGIM) nin tahakkuk ettirdigi her turlu borc odemeyi taahhut ederiz.", 50, 490, { width: 495 });
+        // DEPOZITO + KASE-IMZA anchored absolutely at y=670/690 (Rule 4: bottom anchoring)
+        doc.fontSize(9).font("Helvetica").text("DEPOZITO : ________________ TL", 50, 670);
+        hline(688);
+        doc.font("Helvetica-Bold").fontSize(8).text("KASE - IMZA", 380, 692);
+        doc.text("ACENTASI ve DONATANI", 366, 704);
 
       // =====================================================================
       } else if (templateId === "arrival_decl") {
@@ -799,7 +795,7 @@ router.post("/:id/generate-port-document", isAuthenticated, async (req: any, res
         const ddY = doc.y;
         ddFields.forEach(([tr2, en2, val], i) => {
           const ry = ddY + i * 20;
-          if (ry > 700) return;
+          if (ry > 720) return;
           doc.font("Helvetica-Bold").fontSize(8).text(tr2, 50, ry);
           doc.font("Helvetica").fontSize(7).fillColor("#555555").text(en2, 50, ry + 9);
           doc.fillColor("#000000").fontSize(9).text(`: ${val}`, 280, ry, { width: 260 });
@@ -837,16 +833,15 @@ router.post("/:id/generate-port-document", isAuthenticated, async (req: any, res
         });
         doc.moveDown(1);
         doc.fontSize(8).text("Yukarida belirtilen sartlarin yerine getirilmedigi taktirde 5682/20 sayili Pasaport Kanunu ve 6458/12-2b sayili Yabancilar ve Uluslararasi Koruma Kanununa Muhalefetten sorumular hakkinda adli ve idari islem yapilacaginin tarafimiza teblig edildigini konu hakkinda bilgi sahibi oldugumu kabul ve tebellug ederim.", 50, doc.y, { width: 495 });
-        doc.moveDown(1);
-        doc.text("TEBLIG TARIHI", 50, doc.y, { continued: true });
-        doc.text("TEBLIG EDEN", 320, doc.y);
-        doc.moveDown(3);
-        doc.font("Helvetica-Bold").text("GEMI ACENTESI", 50, doc.y);
-        doc.font("Helvetica").text("Agent", 50, doc.y + 10);
-        doc.font("Helvetica-Bold").text("GEMI KAPTANI", 320, doc.y);
-        doc.font("Helvetica").text("Master", 320, doc.y + 10);
-        doc.text(gemi, 320, doc.y + 22);
-        doc.text("...", 320, doc.y + 12);
+        // Signature block anchored absolutely at y=680 (Rule 4: bottom anchoring)
+        doc.fontSize(8).font("Helvetica").text("TEBLIG TARIHI", 50, 680);
+        doc.text("TEBLIG EDEN", 320, 680);
+        doc.font("Helvetica-Bold").text("GEMI ACENTESI", 50, 710);
+        doc.font("Helvetica").text("Agent", 50, 722);
+        doc.font("Helvetica-Bold").text("GEMI KAPTANI", 320, 710);
+        doc.font("Helvetica").text("Master", 320, 722);
+        doc.text(gemi, 320, 736);
+        doc.text("...", 320, 748);
 
       // =====================================================================
       } else if (templateId === "power_of_attorney") {
@@ -869,13 +864,10 @@ router.post("/:id/generate-port-document", isAuthenticated, async (req: any, res
         doc.moveDown(1);
         doc.fontSize(9).font("Helvetica");
         doc.text(`I have appointed ${ACENTE_ADI.split(" ")[0]} DENIZCILIK TUR. SAN. VE TIC. LTD. STI. flagged ${bayrak} which does not any agency agreement and relationship with the forwarder Ship owner of the vessel ${gemi} Beloning to ${(v as any).ownerName || "..."} Owners, registered at ${(v as any).portOfRegistry || "..."} on which I'm serving as captain, by reason of it's call to Aliaga, Dikili and Izmir Port in the transactions to be made at the port and customs office Coast Health and Police Directorates Turkish Repuplic State Railways and Port Management and Turkish Maritime Administration Co. Inc. (Turkiye denizcilik isl.) and formalities related with the delivery or the load to the consignee me, and to sign all sorts of documants related with the above mentioned formalities, to pay the coasts incurred to present the ship manifest to the customs, to issue delivery orders in return of the bills of lading to be present by the cargo owners to sign the bill of lading on my behalf while loading to be authorized also to authorize others with full or partial power to do transactions written above`, { width: 495 });
-        doc.moveDown(1);
-        doc.font("Helvetica-Bold").text("Master of the ", 50, doc.y, { continued: true });
-        doc.text(gemi, { continued: true });
-        doc.text("  vessel  CAPTAIN ...", { continued: false });
-        doc.moveDown(0.5);
-        doc.font("Helvetica").text(`In the office of ${ACENTE_ADI.split(" ")[0]} DENIZCILIK NAKLIYAT,GEMICILIK SAN.VE IC.LTD.STI.`);
-        doc.text(`${ACENTE_ADRES}`);
+        // Signature block anchored absolutely at y=710 (Rule 4: bottom anchoring)
+        doc.font("Helvetica-Bold").fontSize(9).text(`Master of the ${gemi}  vessel  CAPTAIN  ...`, 50, 710, { width: 495 });
+        doc.font("Helvetica").text(`In the office of ${ACENTE_ADI.split(" ")[0]} DENIZCILIK NAKLIYAT, GEMICILIK SAN.VE TIC.LTD.STI.`, 50, 724, { width: 495 });
+        doc.text(`${ACENTE_ADRES}`, 50, 738, { width: 495 });
 
       // =====================================================================
       } else if (templateId === "tcdd_m10") {
@@ -951,34 +943,43 @@ router.post("/:id/generate-port-document", isAuthenticated, async (req: any, res
       } else if (templateId === "tcdd_watch_table") {
         doc.fontSize(10).font("Helvetica-Bold").text("TURKIYE T.C.D.D. ISLETMELERI", 50, 50);
         doc.text("Izmir Isletmesi", 50, 66);
-        doc.moveDown(2.5);
-        // Main table border
-        const tX = 50, tW = 495, tTop = doc.y;
-        doc.rect(tX, tTop, tW, 320).stroke();
-        // Left column header: BOSALTMA YAPAN VAPURUN
-        doc.fontSize(8).font("Helvetica-Bold").text("BOSALTMA YAPAN VAPURUN", tX + 2, tTop + 5, { width: 160, align: "center" });
-        doc.moveTo(tX + 165, tTop).lineTo(tX + 165, tTop + 320).stroke();
-        // Middle: YUKLEME YAPAN VAPURUN
-        doc.text("YUKLEME YAPAN VAPURUN", tX + 167, tTop + 5, { width: 160, align: "center" });
-        doc.moveTo(tX + 330, tTop).lineTo(tX + 330, tTop + 320).stroke();
-        // Right: NOT
-        doc.text("NOT", tX + 332, tTop + 5, { width: 160, align: "center" });
-        // Subheaders row
+        // Main table — anchored at absolute y=95 (Rule 1: absolute sizing)
+        const tX = 50, tW = 495, tTop = 95;
+        doc.rect(tX, tTop, tW, 310).stroke();
+        // Three main columns: BOSALTMA (0-165), YUKLEME (165-330), NOT (330-495)
+        doc.fontSize(8).font("Helvetica-Bold")
+          .text("BOSALTMA YAPAN VAPURUN", tX + 2, tTop + 5, { width: 161, align: "center" });
+        doc.moveTo(tX + 165, tTop).lineTo(tX + 165, tTop + 310).stroke();
+        doc.text("YUKLEME YAPAN VAPURUN", tX + 167, tTop + 5, { width: 161, align: "center" });
+        doc.moveTo(tX + 330, tTop).lineTo(tX + 330, tTop + 310).stroke();
+        doc.text("NOT", tX + 332, tTop + 5, { width: 163, align: "center" });
+        // Sub-header row at tTop+22
         const subY = tTop + 22;
         doc.moveTo(tX, subY).lineTo(tX + tW, subY).stroke();
-        // Left sub columns
-        ["Isim ve Bandirasi", "Mevki/Bolge", "Istenilen Amele Postasi D e n i z", "Istenecek Amele postasi Deniz"].forEach((h, i) => {
-          doc.fontSize(6.5).font("Helvetica-Bold").text(h, tX + i * 41 + 2, subY + 2, { width: 38 });
-          if (i < 3) doc.moveTo(tX + (i+1) * 41, subY).lineTo(tX + (i+1) * 41, tTop + 320).stroke();
+        // Left (BOSALTMA) 4 sub-cols — each 41pt wide within 165pt
+        // Sub-col separators at tX+41, tX+82, tX+123
+        const subLabels = ["Isim ve\nBandirasi", "Mevki/\nBolge", "Istenilen\nAmele\nPostasi", "Istenecek\nAmele\nPostasi"];
+        subLabels.forEach((h, i) => {
+          doc.fontSize(6.5).font("Helvetica-Bold").text(h, tX + i * 41 + 2, subY + 2, { width: 38, lineBreak: true });
+          if (i < 3) doc.moveTo(tX + (i + 1) * 41, subY).lineTo(tX + (i + 1) * 41, tTop + 310).stroke();
         });
-        // Fill data in left sub-col
-        doc.fontSize(8).font("Helvetica").text(gemi, tX + 2, subY + 35, { width: 39 });
-        doc.text(bayrak, tX + 2, subY + 55, { width: 39 });
-        doc.text((v as any).cargoType || "...", tX + 2, subY + 75, { width: 39 });
-        doc.text("ALS", tX + 84, subY + 45, { width: 39 });
-        // Footer note
-        doc.fontSize(8).font("Helvetica").text(`${today} tarihinde bosaltmasi icin istenilen amele postalarinin gonderilmesini rica ederiz.`, tX + 2, tTop + 255, { width: 280 });
-        doc.font("Helvetica-Bold").text(ACENTE_YETKILI, tX + 2, tTop + 290);
+        // Right (YUKLEME) 4 sub-cols — same layout starting at tX+165
+        subLabels.forEach((h, i) => {
+          doc.fontSize(6.5).font("Helvetica-Bold").text(h, tX + 165 + i * 41 + 2, subY + 2, { width: 38, lineBreak: true });
+          if (i < 3) doc.moveTo(tX + 165 + (i + 1) * 41, subY).lineTo(tX + 165 + (i + 1) * 41, tTop + 310).stroke();
+        });
+        // Data row — absolute y=subY+50 (Rule 1)
+        const dataY = subY + 50;
+        doc.fontSize(8).font("Helvetica");
+        // BOSALTMA col0 (Isim/Bandira): gemi name + flag
+        doc.text(gemi, tX + 2, dataY, { width: 39 });
+        doc.text(bayrak, tX + 2, dataY + 22, { width: 39 });
+        // BOSALTMA col1 (Mevki/Bolge): berth location
+        doc.text((v as any).berthName || "ALS", tX + 43, dataY, { width: 38 });
+        // Footer note — anchored at absolute y (Rule 4)
+        doc.fontSize(8).font("Helvetica")
+          .text(`${today} tarihinde bosaltmasi icin istenilen amele postalarinin gonderilmesini rica ederiz.`, tX + 2, tTop + 240, { width: 280 });
+        doc.font("Helvetica-Bold").text(ACENTE_YETKILI, tX + 2, tTop + 275);
 
       // =====================================================================
       } else if (templateId === "port_arrival") {
@@ -1068,22 +1069,23 @@ router.post("/:id/generate-port-document", isAuthenticated, async (req: any, res
           spY += 20;
         });
         // Crew list box
-        const crewBoxY = spY + 5;
-        doc.rect(50, crewBoxY, 245, 370).stroke();
-        doc.rect(295, crewBoxY, 250, 370).stroke();
+        // crewBoxY locked to absolute y=320 (Rule 1 + Rule 4 — deterministic, not flow-based)
+        const crewBoxY = 320;
+        doc.rect(50, crewBoxY, 245, 350).stroke();
+        doc.rect(295, crewBoxY, 250, 350).stroke();
         doc.fontSize(8).font("Helvetica-Bold")
           .text("KART TALEBINDE BULUNAN PERSONEL ISIMLERI", 52, crewBoxY + 10, { width: 241 });
         doc.fontSize(7).font("Helvetica")
           .text("(NAME OF THE CREW MEMBERS TO WHOM", 52, crewBoxY + 35, { width: 241 });
-        for (let i = 1; i <= 27; i++) {
+        for (let i = 1; i <= 26; i++) {
           const lineY = crewBoxY + 10 + i * 13;
-          if (lineY > crewBoxY + 360) break;
+          if (lineY > crewBoxY + 342) break;
           doc.fontSize(8).text(`${i}`, 298, lineY);
           doc.moveTo(310, lineY + 8).lineTo(540, lineY + 8).strokeColor("#cccccc").lineWidth(0.3).stroke();
           doc.strokeColor("#000000").lineWidth(1);
         }
-        // Bottom section
-        const botY = crewBoxY + 380;
+        // Bottom section anchored absolutely (Rule 4: bottom anchoring — y=680 keeps sigs above y=828 footer)
+        const botY = 680;
         doc.fontSize(7.5).font("Helvetica")
           .text("YUKARIDAKI BILGILERIN DOGRULIGUNU TAAHHUT EDER, ISIMLERI BILDIRILEN GEMI PERSONELI NE LIMAN SEHRI IZIN BELGESI VERILMESI HUSUSUNDA (I COMFIRM THAT ABOVE DETAILED INFORMATIONS ARE CORRECT AND KINDLY REGUEST TO DELIVER US SHORE PASS FOR VISITING CITY)", 50, botY, { width: 495 });
         doc.text(today, 430, botY + 35);
@@ -1095,18 +1097,18 @@ router.post("/:id/generate-port-document", isAuthenticated, async (req: any, res
         doc.rect(295, botY + 95, 250, 25).stroke();
         doc.fontSize(7.5).text("ADI SOYADI (NAME, SURNAME)", 52, botY + 97, { width: 196 });
         doc.text("ADI SOYADI (NAME, SURNAME)", 297, botY + 97, { width: 246 });
-        doc.rect(50, botY + 120, 200, 25).stroke();
-        doc.rect(295, botY + 120, 250, 25).stroke();
+        doc.rect(50, botY + 120, 200, 20).stroke();
+        doc.rect(295, botY + 120, 250, 20).stroke();
         doc.text("ACENTE KASEI (AGENCY STAMP)", 52, botY + 122, { width: 196 });
         doc.text("IMZA KASE (SHIP STAMP, SIGNATURE)", 297, botY + 122, { width: 246 });
       }
 
-      // Apply footer to all pages
+      // Apply footer to all pages (safe y=820 — below selimFooter at y=823, above page bottom 841.89)
       const range = doc.bufferedPageRange();
       for (let p = 0; p < range.count; p++) {
         doc.switchToPage(range.start + p);
         doc.fontSize(6).fillColor("#888888")
-          .text(`Auto-generated by VesselPDA · ${today} · ${tmpl.tr}`, 50, 835, { align: "center", width: 495, lineBreak: false });
+          .text(`Auto-generated by VesselPDA · ${today} · ${tmpl.tr}`, 50, 828, { align: "center", width: 495, lineBreak: false });
       }
 
       doc.end();
