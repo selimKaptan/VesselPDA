@@ -208,6 +208,8 @@ export default function VoyageDetail() {
 
   // ── Husbandry: Crew Logistics Board ────────────────────────────────────────
   type CrewTimelineStep = { id: number; icon: string; label: string; time: string };
+  type CrewDoc = { name: string; dataUrl: string };
+  type CrewDocs = { passport: CrewDoc | null; seamansBook: CrewDoc | null; medicalCert: CrewDoc | null };
   type CrewSigner = {
     id: number; name: string; rank: string; side: "on" | "off";
     nationality: string;
@@ -218,8 +220,9 @@ export default function VoyageDetail() {
     okToBoard: "pending" | "sent" | "confirmed";
     arrivalStatus: "pending" | "arrived" | "departed";
     timeline: CrewTimelineStep[];
+    docs: CrewDocs;
   };
-  type CrewSlideFormType = Omit<CrewSigner, "id" | "timeline" | "arrivalStatus">;
+  type CrewSlideFormType = Omit<CrewSigner, "id" | "timeline" | "arrivalStatus" | "docs">;
   const ON_TIMELINE_DEFAULT: CrewTimelineStep[] = [
     { id: 1, icon: "✈️", label: "Arrival Flight", time: "" },
     { id: 2, icon: "🚐", label: "Airport → Port", time: "" },
@@ -231,12 +234,13 @@ export default function VoyageDetail() {
     { id: 3, icon: "🚐", label: "Port → Airport",  time: "" },
     { id: 4, icon: "✈️", label: "Flight",           time: "" },
   ];
+  const EMPTY_CREW_DOCS: CrewDocs = { passport: null, seamansBook: null, medicalCert: null };
   const EMPTY_CREW_SLIDE_FORM: CrewSlideFormType = { name: "", rank: "", side: "on", nationality: "", passportNo: "", flight: "", flightEta: "", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a", okToBoard: "pending" };
   const [crewSigners, setCrewSigners] = useState<CrewSigner[]>([
-    { id: 1, name: "Ahmet Yılmaz",  rank: "Chief Officer",  side: "on",  nationality: "TUR", passportNo: "TR12345678", flight: "TK2320", flightEta: "14:30", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "confirmed", arrivalStatus: "pending",  timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"13:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"15:00" }, { id:3, icon:"🚤", label:"Embark", time:"16:30" }] },
-    { id: 2, name: "Mehmet Demir",  rank: "2nd Engineer",   side: "on",  nationality: "TUR", passportNo: "TR87654321", flight: "PC1145", flightEta: "16:00", flightDelayed: true,  visaRequired: true,  eVisaStatus: "pending",  okToBoard: "pending",   arrivalStatus: "pending",  timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"15:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"17:00" }, { id:3, icon:"🚤", label:"Embark", time:"18:30" }] },
-    { id: 3, name: "Ali Öztürk",    rank: "Chief Engineer", side: "off", nationality: "TUR", passportNo: "TR11223344", flight: "TK2321", flightEta: "17:00", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "sent",      arrivalStatus: "pending",  timeline: [{ id:1, icon:"🚤", label:"Disembark", time:"14:30" }, { id:2, icon:"🛂", label:"Customs / Police", time:"15:15" }, { id:3, icon:"🚐", label:"Port → Airport", time:"16:00" }, { id:4, icon:"✈️", label:"Flight", time:"19:45" }] },
-    { id: 4, name: "Hasan Çelik",   rank: "AB Sailor",      side: "off", nationality: "TUR", passportNo: "TR44332211", flight: "PC1146", flightEta: "18:30", flightDelayed: false, visaRequired: true,  eVisaStatus: "approved", okToBoard: "confirmed", arrivalStatus: "departed", timeline: [{ id:1, icon:"🚤", label:"Disembark", time:"15:00" }, { id:2, icon:"🛂", label:"Customs / Police", time:"15:45" }, { id:3, icon:"🚐", label:"Port → Airport", time:"16:30" }, { id:4, icon:"✈️", label:"Flight", time:"20:15" }] },
+    { id: 1, name: "Ahmet Yılmaz",  rank: "Chief Officer",  side: "on",  nationality: "TUR", passportNo: "TR12345678", flight: "TK2320", flightEta: "14:30", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "confirmed", arrivalStatus: "pending",  docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"13:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"15:00" }, { id:3, icon:"🚤", label:"Embark", time:"16:30" }] },
+    { id: 2, name: "Mehmet Demir",  rank: "2nd Engineer",   side: "on",  nationality: "TUR", passportNo: "TR87654321", flight: "PC1145", flightEta: "16:00", flightDelayed: true,  visaRequired: true,  eVisaStatus: "pending",  okToBoard: "pending",   arrivalStatus: "pending",  docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"15:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"17:00" }, { id:3, icon:"🚤", label:"Embark", time:"18:30" }] },
+    { id: 3, name: "Ali Öztürk",    rank: "Chief Engineer", side: "off", nationality: "TUR", passportNo: "TR11223344", flight: "TK2321", flightEta: "17:00", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "sent",      arrivalStatus: "pending",  docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"🚤", label:"Disembark", time:"14:30" }, { id:2, icon:"🛂", label:"Customs / Police", time:"15:15" }, { id:3, icon:"🚐", label:"Port → Airport", time:"16:00" }, { id:4, icon:"✈️", label:"Flight", time:"19:45" }] },
+    { id: 4, name: "Hasan Çelik",   rank: "AB Sailor",      side: "off", nationality: "TUR", passportNo: "TR44332211", flight: "PC1146", flightEta: "18:30", flightDelayed: false, visaRequired: true,  eVisaStatus: "approved", okToBoard: "confirmed", arrivalStatus: "departed", docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"🚤", label:"Disembark", time:"15:00" }, { id:2, icon:"🛂", label:"Customs / Police", time:"15:45" }, { id:3, icon:"🚐", label:"Port → Airport", time:"16:30" }, { id:4, icon:"✈️", label:"Flight", time:"20:15" }] },
   ]);
   const [hubTimeline, setHubTimeline] = useState([
     { id: 1, time: "10:00", emoji: "📦", title: "Spare Parts Customs Clearance",       status: "in_progress" },
@@ -253,9 +257,10 @@ export default function VoyageDetail() {
   const [editingCrewId, setEditingCrewId] = useState<number | null>(null);
   const [crewSlideForm, setCrewSlideForm] = useState<CrewSlideFormType>(EMPTY_CREW_SLIDE_FORM);
 
-  // ── AI Drop Zone ───────────────────────────────────────────────────────────
+  // ── AI Drop Zone (Hybrid) ──────────────────────────────────────────────────
   const [isDragOverCrewZone, setIsDragOverCrewZone] = useState(false);
   const [crewAiParsing, setCrewAiParsing] = useState(false);
+  const [crewAiText, setCrewAiText] = useState("");
 
   // ── Activity & Audit Log ───────────────────────────────────────────────────
   type ActivityLogEntry = { id: number; time: string; actor: "AI" | "Agent" | "System"; message: string; highlight?: string };
@@ -1244,17 +1249,18 @@ export default function VoyageDetail() {
             </div>
           )}
 
-          {/* ── Crew Change: AI Drop Zone ── */}
+          {/* ── Crew Change: AI Hybrid Input Box ── */}
           {voyage.purposeOfCall === "Crew Change" && (
             <div
-              className={`relative w-full rounded-xl border-2 border-dashed transition-all duration-200 cursor-pointer select-none overflow-hidden ${
+              className={`relative w-full rounded-xl border-2 border-dashed transition-all duration-300 overflow-hidden ${
                 isDragOverCrewZone
-                  ? "border-blue-500 bg-slate-800/60 ring-2 ring-blue-500/30 shadow-[0_0_28px_rgba(59,130,246,0.22)]"
-                  : "border-slate-600 bg-slate-800/30 hover:border-slate-500 hover:bg-slate-800/50"
+                  ? "border-blue-500 bg-slate-800/70 ring-2 ring-blue-500/30 shadow-[0_0_32px_rgba(59,130,246,0.25)]"
+                  : crewAiText
+                  ? "border-blue-500/50 bg-slate-800/50"
+                  : "border-slate-600 bg-slate-800/30 hover:border-slate-500 hover:bg-slate-800/45"
               }`}
-              style={{ padding: "22px 24px" }}
               onDragOver={e => { e.preventDefault(); setIsDragOverCrewZone(true); }}
-              onDragLeave={() => setIsDragOverCrewZone(false)}
+              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOverCrewZone(false); }}
               onDrop={e => {
                 e.preventDefault();
                 setIsDragOverCrewZone(false);
@@ -1263,49 +1269,75 @@ export default function VoyageDetail() {
                 setCrewAiParsing(true);
                 setTimeout(() => {
                   setCrewAiParsing(false);
-                  const count = 4;
                   addActivityLog(`AI extracted 2 On-signers and 2 Off-signers from '${file.name}'.`, "AI");
-                  toast({ title: "AI Extraction Complete", description: `Extracted ${count} crew members from ${file.name}` });
+                  toast({ title: "AI Extraction Complete", description: `Extracted 4 crew members from ${file.name}` });
                 }, 1800);
               }}
               data-testid="crew-ai-dropzone"
             >
-              {/* Glow pulse overlay when dragging */}
+              {/* Glow overlay when dragging */}
               {isDragOverCrewZone && (
-                <div className="absolute inset-0 pointer-events-none rounded-xl bg-blue-500/5 animate-pulse" />
+                <div className="absolute inset-0 pointer-events-none bg-blue-500/5 animate-pulse" />
               )}
-              <div className="flex items-center gap-5">
-                <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
-                  isDragOverCrewZone ? "bg-blue-500/20 border border-blue-400/40" : "bg-slate-700/60 border border-slate-600/50"
+
+              {/* Top bar: icon + label */}
+              <div className="flex items-center gap-2.5 px-4 pt-3.5 pb-2">
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
+                  isDragOverCrewZone ? "bg-blue-500/25 border border-blue-400/50" : "bg-slate-700/70 border border-slate-600/50"
                 }`}>
                   {crewAiParsing
-                    ? <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
-                    : <Sparkles className={`w-6 h-6 transition-colors ${isDragOverCrewZone ? "text-blue-400 animate-pulse" : "text-slate-400"}`} />
+                    ? <Loader2 className="w-3.5 h-3.5 text-blue-400 animate-spin" />
+                    : <Sparkles className={`w-3.5 h-3.5 ${isDragOverCrewZone || crewAiText ? "text-blue-400" : "text-slate-400"}`} />
                   }
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-semibold transition-colors ${isDragOverCrewZone ? "text-blue-300" : "text-slate-200"}`}>
-                    {crewAiParsing
-                      ? "✨ AI is parsing crew list…"
-                      : isDragOverCrewZone
-                      ? "✨ Release to extract crew data"
-                      : "✨ Drop Crew List Email (.eml, PDF, or Text) here"}
-                  </p>
-                  <p className={`text-xs mt-0.5 transition-colors ${isDragOverCrewZone ? "text-blue-400/70" : "text-slate-500"}`}>
-                    {crewAiParsing
-                      ? "Extracting names, passport numbers, and flight details…"
-                      : "AI will auto-extract names, passports, and flights"}
-                  </p>
+                <span className={`text-xs font-semibold tracking-wide transition-colors ${isDragOverCrewZone ? "text-blue-300" : crewAiText ? "text-blue-400" : "text-slate-400"}`}>
+                  {crewAiParsing ? "✨ AI is processing…" : isDragOverCrewZone ? "✨ Release to extract crew data" : "✨ AI Crew Input"}
+                </span>
+                <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-md border text-slate-500 bg-slate-700/40 border-slate-600/40">
+                  AI POWERED
+                </span>
+              </div>
+
+              {/* Textarea */}
+              <textarea
+                className="w-full bg-transparent outline-none resize-none text-sm text-slate-200 placeholder:text-slate-600 px-4 pb-3 leading-relaxed"
+                style={{ minHeight: "72px" }}
+                placeholder={"✨ Drop email files (.eml, PDF) here, OR paste text/WhatsApp messages to let AI update crew details...\n\nExample: \"Ahmet's flight changed to TK2321, arrives 17:00\""}
+                value={crewAiText}
+                onChange={e => setCrewAiText(e.target.value)}
+                disabled={crewAiParsing}
+                data-testid="textarea-crew-ai-input"
+              />
+
+              {/* Bottom bar: formats + process button */}
+              <div className="flex items-center justify-between px-4 pb-3.5 pt-1 border-t border-slate-700/40">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[".eml", "PDF", "Text", "WhatsApp"].map(fmt => (
+                    <span key={fmt} className="text-[10px] text-slate-600 bg-slate-700/40 border border-slate-700/60 rounded px-1.5 py-0.5">{fmt}</span>
+                  ))}
                 </div>
-                {!crewAiParsing && (
-                  <div className={`flex-shrink-0 text-[10px] font-bold px-2.5 py-1.5 rounded-lg border transition-colors ${
-                    isDragOverCrewZone
-                      ? "text-blue-400 bg-blue-900/30 border-blue-500/40"
-                      : "text-slate-500 bg-slate-700/40 border-slate-600/40"
-                  }`}>
-                    AI POWERED
-                  </div>
-                )}
+                <button
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    crewAiText.trim() && !crewAiParsing
+                      ? "bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_14px_rgba(59,130,246,0.4)] hover:shadow-[0_0_20px_rgba(59,130,246,0.55)]"
+                      : "bg-slate-700/50 text-slate-600 cursor-not-allowed border border-slate-600/40"
+                  }`}
+                  disabled={!crewAiText.trim() || crewAiParsing}
+                  onClick={() => {
+                    if (!crewAiText.trim()) return;
+                    setCrewAiParsing(true);
+                    setTimeout(() => {
+                      setCrewAiParsing(false);
+                      addActivityLog(`AI processed text input: "${crewAiText.slice(0, 60)}${crewAiText.length > 60 ? "…" : ""}"`, "AI");
+                      toast({ title: "AI Processing Complete", description: "Crew details updated from text input." });
+                      setCrewAiText("");
+                    }, 1600);
+                  }}
+                  data-testid="button-crew-ai-process"
+                >
+                  {crewAiParsing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                  🚀 Ask AI to Process
+                </button>
               </div>
             </div>
           )}
@@ -1412,6 +1444,72 @@ export default function VoyageDetail() {
                             {crew.okToBoard === "confirmed" ? "✓ OTB Confirmed" : crew.okToBoard === "sent" ? "✈️ OTB Sent" : "OTB: Pending"}
                           </span>
                         </div>
+
+                        {/* ── QUICK DOCUMENT ACCESS ── */}
+                        {(() => {
+                          const docDefs: { key: keyof CrewDocs; icon: string; label: string }[] = [
+                            { key: "passport",    icon: "🛂", label: "Passport"     },
+                            { key: "seamansBook", icon: "📘", label: "Seaman's Book" },
+                            { key: "medicalCert", icon: "🩺", label: "Medical Cert"  },
+                          ];
+                          return (
+                            <div className="flex items-center gap-1.5 mt-1 pt-1.5 border-t border-slate-700/50 flex-wrap" data-testid={`crew-docs-row-${crew.id}`}>
+                              {docDefs.map(({ key, icon, label }) => {
+                                const doc = crew.docs[key];
+                                return (
+                                  <label
+                                    key={key}
+                                    title={doc ? `Open ${label}` : `Upload ${label}`}
+                                    className={`relative flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors select-none ${
+                                      doc
+                                        ? "bg-slate-800 border border-blue-500/40 text-blue-300 hover:bg-slate-700 hover:border-blue-400/60"
+                                        : "bg-slate-800/50 border border-dashed border-slate-600/50 text-slate-600 hover:border-slate-500 hover:text-slate-500"
+                                    }`}
+                                    onClick={e => {
+                                      if (doc) {
+                                        e.preventDefault();
+                                        const a = document.createElement("a");
+                                        a.href = doc.dataUrl;
+                                        a.download = doc.name;
+                                        a.target = "_blank";
+                                        a.click();
+                                      }
+                                    }}
+                                    data-testid={`crew-doc-${crew.id}-${key}`}
+                                  >
+                                    <span className="leading-none">{icon}</span>
+                                    <span>{label}</span>
+                                    {doc && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 ml-0.5 flex-shrink-0" />}
+                                    {!doc && (
+                                      <input
+                                        type="file"
+                                        accept=".pdf,.jpg,.jpeg,.png"
+                                        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                                        onClick={e => e.stopPropagation()}
+                                        onChange={e => {
+                                          const file = e.target.files?.[0];
+                                          if (!file) return;
+                                          const reader = new FileReader();
+                                          reader.onload = () => {
+                                            setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : {
+                                              ...c,
+                                              docs: { ...c.docs, [key]: { name: file.name, dataUrl: reader.result as string } },
+                                            }));
+                                            addActivityLog(`${crew.name}: ${label} uploaded.`, "Agent");
+                                            toast({ title: "Document Uploaded", description: `${label} for ${crew.name} saved.` });
+                                          };
+                                          reader.readAsDataURL(file);
+                                          e.target.value = "";
+                                        }}
+                                        data-testid={`input-doc-upload-${crew.id}-${key}`}
+                                      />
+                                    )}
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
 
                         {/* ── FLIGHT ROW ── */}
                         <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
@@ -1837,6 +1935,75 @@ export default function VoyageDetail() {
                   </div>
                 </div>
 
+                {/* Section 5: Documents */}
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Documents</p>
+                  <div className="space-y-2">
+                    {([
+                      { key: "passport" as const,    icon: "🛂", label: "Passport"      },
+                      { key: "seamansBook" as const, icon: "📘", label: "Seaman's Book"  },
+                      { key: "medicalCert" as const, icon: "🩺", label: "Medical Cert"   },
+                    ] as { key: keyof CrewDocs; icon: string; label: string }[]).map(({ key, icon, label }) => {
+                      const existingDoc = crewPanelMode === "edit" && editingCrewId !== null
+                        ? crewSigners.find(c => c.id === editingCrewId)?.docs[key] ?? null
+                        : null;
+                      return (
+                        <div key={key} className="flex items-center gap-2.5">
+                          <span className="text-base leading-none flex-shrink-0">{icon}</span>
+                          <span className="text-xs text-slate-400 w-24 flex-shrink-0">{label}</span>
+                          {existingDoc ? (
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span className="text-xs text-blue-300 truncate flex-1 min-w-0">{existingDoc.name}</span>
+                              <button
+                                className="text-[10px] text-slate-400 hover:text-blue-400 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded px-2 py-0.5 transition-colors flex-shrink-0"
+                                onClick={() => { const a = document.createElement("a"); a.href = existingDoc.dataUrl; a.download = existingDoc.name; a.click(); }}
+                                type="button"
+                              >
+                                ↓ View
+                              </button>
+                              <button
+                                className="text-[10px] text-slate-500 hover:text-rose-400 transition-colors flex-shrink-0"
+                                title="Remove"
+                                type="button"
+                                onClick={() => {
+                                  if (editingCrewId !== null) setCrewSigners(cs => cs.map(c => c.id !== editingCrewId ? c : { ...c, docs: { ...c.docs, [key]: null } }));
+                                }}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 border border-dashed border-slate-600 text-xs text-slate-500 cursor-pointer hover:border-slate-500 hover:text-slate-400 transition-colors">
+                              <Upload className="w-3 h-3 flex-shrink-0" />
+                              <span>Upload {label}</span>
+                              <input
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                className="hidden"
+                                onChange={e => {
+                                  const file = e.target.files?.[0];
+                                  if (!file || editingCrewId === null) return;
+                                  const reader = new FileReader();
+                                  reader.onload = () => {
+                                    setCrewSigners(cs => cs.map(c => c.id !== editingCrewId ? c : { ...c, docs: { ...c.docs, [key]: { name: file.name, dataUrl: reader.result as string } } }));
+                                    addActivityLog(`${crewSigners.find(c => c.id === editingCrewId)?.name ?? "Crew"}: ${label} uploaded.`, "Agent");
+                                    toast({ title: "Document Uploaded", description: `${label} saved.` });
+                                  };
+                                  reader.readAsDataURL(file);
+                                  e.target.value = "";
+                                }}
+                              />
+                            </label>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {crewPanelMode !== "edit" && (
+                    <p className="text-[10px] text-slate-600 mt-2 italic">Documents can be uploaded after saving the crew member.</p>
+                  )}
+                </div>
+
               </div>
 
               {/* Sticky Footer */}
@@ -1861,7 +2028,7 @@ export default function VoyageDetail() {
                     } else {
                       const side = crewPanelMode === "add_off" ? "off" : "on";
                       const defaultTimeline = side === "on" ? ON_TIMELINE_DEFAULT.map(s => ({ ...s })) : OFF_TIMELINE_DEFAULT.map(s => ({ ...s }));
-                      setCrewSigners(cs => [...cs, { ...crewSlideForm, side, id: Date.now(), arrivalStatus: "pending", timeline: defaultTimeline }]);
+                      setCrewSigners(cs => [...cs, { ...crewSlideForm, side, id: Date.now(), arrivalStatus: "pending", docs: EMPTY_CREW_DOCS, timeline: defaultTimeline }]);
                       addActivityLog(`New ${side === "on" ? "On" : "Off"}-signer added: ${crewSlideForm.name}, ${crewSlideForm.rank || "N/A"}.`, "Agent");
                     }
                     setShowCrewPanel(false);
