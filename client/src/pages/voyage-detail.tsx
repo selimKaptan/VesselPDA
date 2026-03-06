@@ -252,6 +252,23 @@ export default function VoyageDetail() {
   const [crewPanelMode, setCrewPanelMode] = useState<"add_on" | "add_off" | "edit">("add_on");
   const [editingCrewId, setEditingCrewId] = useState<number | null>(null);
   const [crewSlideForm, setCrewSlideForm] = useState<CrewSlideFormType>(EMPTY_CREW_SLIDE_FORM);
+
+  // ── AI Drop Zone ───────────────────────────────────────────────────────────
+  const [isDragOverCrewZone, setIsDragOverCrewZone] = useState(false);
+  const [crewAiParsing, setCrewAiParsing] = useState(false);
+
+  // ── Activity & Audit Log ───────────────────────────────────────────────────
+  type ActivityLogEntry = { id: number; time: string; actor: "AI" | "Agent" | "System"; message: string; highlight?: string };
+  const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([
+    { id: 3, time: "11:25 AM", actor: "System",  message: "Auto-generated 'Shore Pass Forms' for 7 crew members." },
+    { id: 2, time: "11:20 AM", actor: "Agent",   message: "Updated Capt. Ahmet Yılmaz's flight from TK10 to TK2320.", highlight: "TK10 → TK2320" },
+    { id: 1, time: "10:45 AM", actor: "AI",      message: "AI extracted 2 On-signers and 2 Off-signers from 'CrewList_March.pdf'." },
+  ]);
+  const addActivityLog = (message: string, actor: ActivityLogEntry["actor"], highlight?: string) => {
+    const now = new Date();
+    const time = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    setActivityLog(prev => [{ id: Date.now(), time, actor, message, highlight }, ...prev]);
+  };
   const [showApptForm, setShowApptForm] = useState(false);
   const [apptForm, setApptForm] = useState({ appointmentType: "pilot", scheduledAt: "", notes: "" });
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
@@ -1227,6 +1244,72 @@ export default function VoyageDetail() {
             </div>
           )}
 
+          {/* ── Crew Change: AI Drop Zone ── */}
+          {voyage.purposeOfCall === "Crew Change" && (
+            <div
+              className={`relative w-full rounded-xl border-2 border-dashed transition-all duration-200 cursor-pointer select-none overflow-hidden ${
+                isDragOverCrewZone
+                  ? "border-blue-500 bg-slate-800/60 ring-2 ring-blue-500/30 shadow-[0_0_28px_rgba(59,130,246,0.22)]"
+                  : "border-slate-600 bg-slate-800/30 hover:border-slate-500 hover:bg-slate-800/50"
+              }`}
+              style={{ padding: "22px 24px" }}
+              onDragOver={e => { e.preventDefault(); setIsDragOverCrewZone(true); }}
+              onDragLeave={() => setIsDragOverCrewZone(false)}
+              onDrop={e => {
+                e.preventDefault();
+                setIsDragOverCrewZone(false);
+                const file = e.dataTransfer.files?.[0];
+                if (!file) return;
+                setCrewAiParsing(true);
+                setTimeout(() => {
+                  setCrewAiParsing(false);
+                  const count = 4;
+                  addActivityLog(`AI extracted 2 On-signers and 2 Off-signers from '${file.name}'.`, "AI");
+                  toast({ title: "AI Extraction Complete", description: `Extracted ${count} crew members from ${file.name}` });
+                }, 1800);
+              }}
+              data-testid="crew-ai-dropzone"
+            >
+              {/* Glow pulse overlay when dragging */}
+              {isDragOverCrewZone && (
+                <div className="absolute inset-0 pointer-events-none rounded-xl bg-blue-500/5 animate-pulse" />
+              )}
+              <div className="flex items-center gap-5">
+                <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
+                  isDragOverCrewZone ? "bg-blue-500/20 border border-blue-400/40" : "bg-slate-700/60 border border-slate-600/50"
+                }`}>
+                  {crewAiParsing
+                    ? <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+                    : <Sparkles className={`w-6 h-6 transition-colors ${isDragOverCrewZone ? "text-blue-400 animate-pulse" : "text-slate-400"}`} />
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-semibold transition-colors ${isDragOverCrewZone ? "text-blue-300" : "text-slate-200"}`}>
+                    {crewAiParsing
+                      ? "✨ AI is parsing crew list…"
+                      : isDragOverCrewZone
+                      ? "✨ Release to extract crew data"
+                      : "✨ Drop Crew List Email (.eml, PDF, or Text) here"}
+                  </p>
+                  <p className={`text-xs mt-0.5 transition-colors ${isDragOverCrewZone ? "text-blue-400/70" : "text-slate-500"}`}>
+                    {crewAiParsing
+                      ? "Extracting names, passport numbers, and flight details…"
+                      : "AI will auto-extract names, passports, and flights"}
+                  </p>
+                </div>
+                {!crewAiParsing && (
+                  <div className={`flex-shrink-0 text-[10px] font-bold px-2.5 py-1.5 rounded-lg border transition-colors ${
+                    isDragOverCrewZone
+                      ? "text-blue-400 bg-blue-900/30 border-blue-500/40"
+                      : "text-slate-500 bg-slate-700/40 border-slate-600/40"
+                  }`}>
+                    AI POWERED
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ── Husbandry / Crew Change: Logistics Control Tower ── */}
           {(voyage.purposeOfCall === "Husbandry" || voyage.purposeOfCall === "Crew Change") && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" data-testid="husbandry-control-tower">
@@ -1405,7 +1488,7 @@ export default function VoyageDetail() {
                                   ? "border-emerald-500/50 text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30"
                                   : "border-slate-600 text-slate-400 hover:text-emerald-400 hover:border-emerald-500/40 hover:bg-emerald-900/10"
                               }`}
-                              onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, arrivalStatus: c.arrivalStatus === "arrived" ? "pending" : "arrived" })); }}
+                              onClick={e => { e.stopPropagation(); const next = crew.arrivalStatus === "arrived" ? "pending" : "arrived"; setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, arrivalStatus: next })); if (next === "arrived") addActivityLog(`${crew.name} (${crew.rank}) marked as Arrived.`, "Agent"); }}
                               data-testid={`button-mark-arrived-${crew.id}`}
                             >
                               <LogIn className="w-3 h-3" /> {crew.arrivalStatus === "arrived" ? "✓ Arrived" : "Mark Arrived"}
@@ -1417,7 +1500,7 @@ export default function VoyageDetail() {
                                   ? "border-rose-500/50 text-rose-400 bg-rose-900/20 hover:bg-rose-900/30"
                                   : "border-slate-600 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 hover:bg-rose-900/10"
                               }`}
-                              onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, arrivalStatus: c.arrivalStatus === "departed" ? "pending" : "departed" })); }}
+                              onClick={e => { e.stopPropagation(); const next = crew.arrivalStatus === "departed" ? "pending" : "departed"; setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, arrivalStatus: next })); if (next === "departed") addActivityLog(`${crew.name} (${crew.rank}) marked as Departed.`, "Agent"); }}
                               data-testid={`button-mark-departed-${crew.id}`}
                             >
                               <LogOut className="w-3 h-3" /> {crew.arrivalStatus === "departed" ? "✓ Departed" : "Mark Departed"}
@@ -1492,7 +1575,58 @@ export default function VoyageDetail() {
                 })()}
               </div>
 
-              {/* RIGHT: Service Boat & Deliveries — col-span-1 */}
+              {/* RIGHT: Activity Log (Crew Change) OR Service Boat & Deliveries (Husbandry) */}
+              {voyage.purposeOfCall === "Crew Change" ? (
+                /* ── Activity & Audit Log ── */
+                <div className="rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 flex flex-col" style={{ minHeight: "360px" }} data-testid="activity-audit-log">
+                  <div className="flex items-center gap-2.5 mb-4 flex-shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-violet-500/15 border border-violet-500/30 flex items-center justify-center">
+                      <ClipboardList className="w-4 h-4 text-violet-400" />
+                    </div>
+                    <div>
+                      <h2 className="font-bold text-sm text-slate-50">Activity &amp; Audit Log</h2>
+                      <p className="text-xs text-slate-500">Live change tracking</p>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto pr-1 space-y-0" data-testid="activity-log-entries">
+                    {activityLog.length === 0 ? (
+                      <p className="text-xs text-slate-600 italic text-center py-8">No activity yet. Actions will appear here.</p>
+                    ) : (
+                      <div className="border-l border-slate-700 ml-3 pl-4 space-y-4">
+                        {activityLog.map(entry => {
+                          const actorColor = entry.actor === "AI" ? "bg-blue-500/20 border-blue-400/40 text-blue-300" : entry.actor === "System" ? "bg-violet-500/20 border-violet-400/40 text-violet-300" : "bg-slate-600/40 border-slate-500/40 text-slate-300";
+                          const actorInitial = entry.actor === "AI" ? "✦" : entry.actor === "System" ? "⚙" : "A";
+                          const parts = entry.highlight ? entry.message.split(entry.highlight) : null;
+                          return (
+                            <div key={entry.id} className="relative" data-testid={`log-entry-${entry.id}`}>
+                              {/* dot on the timeline */}
+                              <div className="absolute -left-[23px] top-1 w-3 h-3 rounded-full bg-slate-700 border-2 border-slate-600 flex-shrink-0" />
+                              <div className="flex items-start gap-2">
+                                <div className={`flex-shrink-0 w-5 h-5 rounded-full border text-[9px] font-bold flex items-center justify-center ${actorColor}`}>
+                                  {actorInitial}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs text-slate-400 leading-relaxed">
+                                    {parts ? (
+                                      <>
+                                        {parts[0]}
+                                        <span className="text-amber-400 font-semibold">{entry.highlight}</span>
+                                        {parts[1]}
+                                      </>
+                                    ) : entry.message}
+                                  </p>
+                                  <p className="text-[10px] text-slate-600 mt-0.5 font-mono">{entry.time}</p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+              /* ── Service Boat & Deliveries (Husbandry) ── */
               <div className="rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 space-y-4" data-testid="husbandry-timeline">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
@@ -1591,6 +1725,7 @@ export default function VoyageDetail() {
                   })}
                 </div>
               </div>
+              )}
 
             </div>
           )}
@@ -1714,11 +1849,20 @@ export default function VoyageDetail() {
                   onClick={() => {
                     if (!crewSlideForm.name.trim()) return;
                     if (crewPanelMode === "edit" && editingCrewId !== null) {
+                      const existing = crewSigners.find(c => c.id === editingCrewId);
                       setCrewSigners(cs => cs.map(c => c.id !== editingCrewId ? c : { ...c, ...crewSlideForm }));
+                      if (existing && existing.flight !== crewSlideForm.flight && crewSlideForm.flight) {
+                        const fromFlight = existing.flight || "(none)";
+                        const toFlight   = crewSlideForm.flight;
+                        addActivityLog(`Flight updated for ${crewSlideForm.name}: ${fromFlight} → ${toFlight}.`, "Agent", `${fromFlight} → ${toFlight}`);
+                      } else if (existing) {
+                        addActivityLog(`${crewSlideForm.name} crew details updated.`, "Agent");
+                      }
                     } else {
                       const side = crewPanelMode === "add_off" ? "off" : "on";
                       const defaultTimeline = side === "on" ? ON_TIMELINE_DEFAULT.map(s => ({ ...s })) : OFF_TIMELINE_DEFAULT.map(s => ({ ...s }));
                       setCrewSigners(cs => [...cs, { ...crewSlideForm, side, id: Date.now(), arrivalStatus: "pending", timeline: defaultTimeline }]);
+                      addActivityLog(`New ${side === "on" ? "On" : "Off"}-signer added: ${crewSlideForm.name}, ${crewSlideForm.rank || "N/A"}.`, "Agent");
                     }
                     setShowCrewPanel(false);
                     setCrewSlideForm(EMPTY_CREW_SLIDE_FORM);
