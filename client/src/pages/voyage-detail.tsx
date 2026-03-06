@@ -272,13 +272,104 @@ export default function VoyageDetail() {
   const addActivityLog = (message: string, actor: ActivityLogEntry["actor"], highlight?: string) => {
     const now = new Date();
     const time = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-    setActivityLog(prev => [{ id: Date.now(), time, actor, message, highlight }, ...prev]);
+    // Use random suffix to guarantee unique ID even when called multiple times per millisecond
+    const id = Date.now() * 1000 + Math.floor(Math.random() * 1000);
+    setActivityLog(prev => [{ id, time, actor, message, highlight }, ...prev]);
   };
 
   // ── AI Text Parser — real state updater ────────────────────────────────────
   const parseAndApplyAIText = (text: string) => {
     const lower = text.toLowerCase();
+    const logLines: string[] = [];
 
+    // ── MODE 1: Structured crew list (SIGN ON / SIGN OFF table) ─────────────
+    if (/SIGN[\s_-]*ON/i.test(text) || /SIGN[\s_-]*OFF/i.test(text)) {
+      const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+      let currentSide: "on" | "off" | null = null;
+      let headerCols: string[] = [];
+      const updateList = [...crewSigners];
+      const toAdd: (typeof crewSigners)[0][] = [];
+
+      const titleCase = (s: string) =>
+        s.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+
+      for (const line of lines) {
+        if (/SIGN[\s_-]*ON/i.test(line) && !/SIGN[\s_-]*OFF/i.test(line)) {
+          currentSide = "on"; headerCols = []; continue;
+        }
+        if (/SIGN[\s_-]*OFF/i.test(line)) {
+          currentSide = "off"; headerCols = []; continue;
+        }
+        if (!currentSide) continue;
+
+        // Split by tab, pipe, or 2+ spaces
+        const cols = line.split(/\t|\s{2,}|\|/).map(c => c.trim()).filter(c => c.length > 0);
+        if (cols.length < 2) continue;
+
+        // Detect header row (contains CREW NAME, NAME, RANK)
+        if (!headerCols.length && cols.some(c => /^(crew[\s_]?name|name)$/i.test(c))) {
+          headerCols = cols.map(c => c.toLowerCase().replace(/[\s_']+/g, "_"));
+          continue;
+        }
+        if (!headerCols.length) continue;
+
+        // Map columns to keys
+        const row: Record<string, string> = {};
+        headerCols.forEach((h, i) => { if (cols[i]) row[h] = cols[i]; });
+
+        const rawName  = row["crew_name"] || row["name"] || "";
+        const rank     = titleCase(row["rank"] || "");
+        const nat      = titleCase(row["nationality"] || "");
+        const passport = row["passport"] || "";
+
+        if (!rawName || rawName.length < 3) continue;
+        const name = titleCase(rawName);
+
+        // Match existing crew by normalized full name or first token
+        const token0 = rawName.toLowerCase().split(/\s+/)[0];
+        const existsIdx = updateList.findIndex(c =>
+          c.name.toLowerCase().replace(/\s+/g, "") === rawName.toLowerCase().replace(/\s+/g, "") ||
+          c.name.toLowerCase().split(/\s+/)[0] === token0
+        );
+
+        if (existsIdx >= 0) {
+          const old = updateList[existsIdx];
+          const fieldChanges: string[] = [];
+          if (passport && passport !== old.passportNo) fieldChanges.push(`passport: ${old.passportNo || "—"} → ${passport}`);
+          if (nat && nat !== old.nationality)           fieldChanges.push(`nationality: ${old.nationality || "—"} → ${nat}`);
+          if (rank && rank !== old.rank)                fieldChanges.push(`rank: ${old.rank || "—"} → ${rank}`);
+          if (fieldChanges.length) {
+            updateList[existsIdx] = { ...old, passportNo: passport || old.passportNo, nationality: nat || old.nationality, rank: rank || old.rank };
+            logLines.push(`Updated ${name}: ${fieldChanges.join(", ")}`);
+          }
+        } else {
+          toAdd.push({
+            id: Date.now() + toAdd.length + 1,
+            name,
+            rank,
+            side: currentSide,
+            nationality: nat,
+            passportNo: passport,
+            flight: "",
+            flightEta: "",
+            flightDelayed: false,
+            visaRequired: false,
+            eVisaStatus: "n/a",
+            okToBoard: "pending",
+            arrivalStatus: "expected",
+            timeline: [],
+            docs: { passport: null, seamansBook: null, medicalCert: null },
+          });
+          logLines.push(`AI added ${currentSide === "on" ? "ON-SIGNER" : "OFF-SIGNER"}: ${name}${rank ? ` (${rank})` : ""}${nat ? `, ${nat}` : ""}`);
+        }
+      }
+
+      const updatedCount = logLines.length;
+      if (updatedCount > 0) setCrewSigners([...updateList, ...toAdd]);
+      return { updatedCount, logLines };
+    }
+
+    // ── MODE 2: Natural language — update existing crew fields ───────────────
     const matchName = (crew: (typeof crewSigners)[0]) =>
       crew.name.toLowerCase().split(/\s+/).some(p => p.length > 2 && lower.includes(p));
 
@@ -286,8 +377,6 @@ export default function VoyageDetail() {
     const timeRx   = /(?:arrives?|etd?|departs?|at|time)[:\s]+(\d{1,2}:\d{2})/i;
     const timeRx2  = /\b(\d{1,2}:\d{2})\b/;
 
-    // Compute new list + change summary synchronously (no async closure issue)
-    const logLines: string[] = [];
     const newList = crewSigners.map(crew => {
       if (!matchName(crew)) return crew;
 
@@ -348,13 +437,11 @@ export default function VoyageDetail() {
       }
 
       if (changes.length === 0) return crew;
-
       const summary = changes.map(c => `${c.field}: ${c.from} → ${c.to}`).join(", ");
       logLines.push(`${crew.name}: ${summary}`);
       return next;
     });
 
-    // Apply to state only if something changed
     const updatedCount = logLines.length;
     if (updatedCount > 0) setCrewSigners(newList);
     return { updatedCount, logLines };
@@ -1352,12 +1439,26 @@ export default function VoyageDetail() {
                 setIsDragOverCrewZone(false);
                 const file = e.dataTransfer.files?.[0];
                 if (!file) return;
-                setCrewAiParsing(true);
-                setTimeout(() => {
-                  setCrewAiParsing(false);
-                  addActivityLog(`AI extracted 2 On-signers and 2 Off-signers from '${file.name}'.`, "AI");
-                  toast({ title: "AI Extraction Complete", description: `Extracted 4 crew members from ${file.name}` });
-                }, 1800);
+
+                // Images cannot be text-parsed — show a placeholder hint
+                if (file.type.startsWith("image/")) {
+                  setCrewAiText(`[Image: ${file.name}]\n\nPlease paste the crew list text from this image, or type your update below.`);
+                  toast({ title: `📎 ${file.name} staged`, description: "Add or edit the text above, then click 🚀 Ask AI to Process." });
+                  return;
+                }
+
+                // For text-readable files (.eml, .txt, .csv, .pdf) — read as text and stage
+                const reader = new FileReader();
+                reader.onload = ev => {
+                  const content = (ev.target?.result as string) || "";
+                  // Trim to 5000 chars to keep the textarea manageable
+                  setCrewAiText(content.trim().slice(0, 5000));
+                  toast({ title: `📎 ${file.name} loaded`, description: "Review the content, then click 🚀 Ask AI to Process." });
+                };
+                reader.onerror = () => {
+                  toast({ title: "Could not read file", description: "Try copying the text and pasting it directly.", variant: "destructive" });
+                };
+                reader.readAsText(file);
               }}
               data-testid="crew-ai-dropzone"
             >
