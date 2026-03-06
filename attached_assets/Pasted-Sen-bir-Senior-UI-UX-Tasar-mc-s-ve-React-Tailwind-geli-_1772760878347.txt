@@ -1,0 +1,29 @@
+Sen bir Senior UI/UX Tasarımcısı ve React/Tailwind geliştiricisisin. Mevcut Landing Page (Açılış Sayfası) Hero Section tasarımımızı, "Acente Hesaplayıcısı" vizyonundan çıkarıp "Armatörler ve Brokerlar İçin Şeffaf Liman Denetim Merkezi" vizyonuna geçiriyoruz.
+
+MEVCUT RENK PALETİMİZİ KESİNLİKLE KORU: 
+Arka plan 'slate-900', metinler 'slate-50' ve 'slate-400', vurgular ve butonlar 'blue-500' ile 'sky-400' tonlarında olmalı. Dark mode SaaS estetiğini koru.
+
+Lütfen Hero Section'ı şu şekilde yeniden kodla:
+
+1. SOL TARAF (METİN VE ÇAĞRI - COPYWRITING):
+- H1 Başlığı: "Stop flying blind during port calls." (Limanlardaki kör uçuşa son verin.) 'Stop flying blind' kısmına dikkat çekici mavi bir text-gradient ver.
+- Alt Başlık (p): "Get total transparency and zero hidden costs. Audit agency PDAs automatically, track live cargo operations, and download instant SOFs. Bring your agents into the ultimate Shipowner & Broker workspace."
+- Butonlar: 
+  * Primary Buton (Mavi): "Claim Your Owner Workspace"
+  * Secondary Buton (Outline/Transparan): "Invite Your Agent"
+
+2. SAĞ TARAF (GÖRSEL KURGU - THE GLASS BOX UI):
+- Sağ taraftaki eski "Calculate Port Disbursements" fatura tablosunu tamamen kaldır.
+- Yerine hafif şeffaf, blur efektli (backdrop-blur, glassmorphism) ve border-slate-800 çerçeveli 3 adet üst üste binen modern kart (Bento Box) tasarla:
+  
+  * KART 1 (Üst - Operasyon): Başlık "🟢 Live Discharge Progress". İçinde %82 dolmuş yeşil bir progress bar, "ETC: 12:00 PM" ve "42 Trucks Logged" yazsın.
+  * KART 2 (Orta - Finansal Denetim - En Vurgulu Kart): Başlık "⚡ Audited Smart PDA". Altında "Mersin Port Dues: $9,775" yazsın. Yanında parlak turuncu/sarı bir rozetle "✓ 100% Tariff Match (IMO Surcharge Verified)" ibaresi olsun. Armatöre acenteyi denetlediğimizi göstersin.
+  * KART 3 (Alt - Broker): Başlık "📄 Instant SOF". İçinde "Ready to Sign - Generated from live logs" yazsın.
+
+3. ALT BANT (GÜVEN - TRUST METRICS):
+Hero section'ın hemen altına yan yana 3 küçük özellik ikonu ve metni ekle (text-slate-400 renginde):
+- 🛡️ 100% Audited Tariffs
+- ⏱️ Real-Time Cargo ETA/ETC
+- 🤝 Dispute-Free Automations
+
+Lütfen tüm bu yapıyı modern animasyonlar (framer-motion veya tailwind transition) kullanarak, premium bir B2B SaaS ürünü gibi kodla.
