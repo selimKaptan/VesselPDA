@@ -1,0 +1,21 @@
+Sen bir Senior Frontend Mimarı ve UX Uzmanısın. 'Crew Logistics Board' ve 'Voyages' ekranlarımızı, sıradan bir tablodan çıkarıp üst düzey etkileşimli (Interactive) bir SaaS platformuna dönüştürüyoruz. 
+
+Lütfen projeye şu 4 İleri Seviye (Advanced) UX özelliğini entegre et:
+
+1. SÜRÜKLE-BIRAK (DRAG & DROP) OTEL REZERVASYONU:
+- Ekranın sol/orta kısmındaki Personel Kartlarını (Crew Cards) 'Sürüklenebilir' (Draggable) yap. (React için dnd-kit veya framer-motion drag kullanabilirsin).
+- Sağdaki 'Hotels & Logistics' yan panelini 'Bırakılabilir Alan' (Droppable Zone) yap.
+- Etkileşim: Kullanıcı bir personeli tutup sağdaki otel panelinin üzerine sürüklediğinde panel hafifçe parlasın (Drop zone highlight). Personel oraya bırakıldığında, anında o kişi için minik bir 'Otel Giriş/Çıkış Saati' seçme kutucuğu açılsın.
+
+2. YAPAY ZEKA "İNSAN ONAYI" (AI Human-in-the-Loop Verification):
+- AI Dropzone'a (veya Global Paste ile) WhatsApp metni girildiğinde, sistem veriyi anında KAYDETMESİN.
+- Bunun yerine, değişikliğin yapılacağı kartın üzerinde o alanı (Örn: Uçuş Saati) neon mavi (border-blue-500, shadow-blue-500/50) ile parlat.
+- Üzerinde veya yanında küçük bir Tooltip/Baloncuk çıkar: "✨ AI Suggestion: Update to 17:00" ve yanına minik [✓ Accept] [✕ Reject] butonları koy. Kullanıcı onaylamadan veri değişmesin.
+
+3. SPOTLIGHT FOCUS (Kritik Durum Odak Modu):
+- Üstteki '⚠️ Action Required' (Eylem Gerektirenler) filtresine tıklandığında ekran sadece filtreleme yapmasın, 'Spotlight' (Sahne Işığı) moduna geçsin.
+- Ekranın arka planına ve sorunsuz olan (Ready) personellerin üzerine yarı saydam, karanlık bir overlay (backdrop-blur-sm, bg-slate-950/60) çöksün.
+- SADECE müdahale gerektiren (Otel bekleyen, Vizesi olmayan) kartlar öne çıksın (z-index: 50) ve çerçeveleri belirgin şekilde (turuncu/kırmızı glow) parlasın.
+
+4. VOYAGES EKRANI RENK DÜZELTMESİ (Micro-Fix):
+- 'Voyages' ekranında durumu 'Cancelled' (İptal) olan gemi kartlarının (Örn: MV IZMIR EXPRESS) üst şerit (header) rengini yeşil/renkli bırakma. İptal durumunu yansıtacak şekilde nötr, soluk griye (bg-slate-700/50, text-slate-400) çevir.
