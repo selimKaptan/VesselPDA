@@ -274,6 +274,92 @@ export default function VoyageDetail() {
     const time = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
     setActivityLog(prev => [{ id: Date.now(), time, actor, message, highlight }, ...prev]);
   };
+
+  // ── AI Text Parser — real state updater ────────────────────────────────────
+  const parseAndApplyAIText = (text: string) => {
+    const lower = text.toLowerCase();
+
+    const matchName = (crew: (typeof crewSigners)[0]) =>
+      crew.name.toLowerCase().split(/\s+/).some(p => p.length > 2 && lower.includes(p));
+
+    const flightRx = /\b([A-Z]{2}\d{3,4})\b/gi;
+    const timeRx   = /(?:arrives?|etd?|departs?|at|time)[:\s]+(\d{1,2}:\d{2})/i;
+    const timeRx2  = /\b(\d{1,2}:\d{2})\b/;
+
+    // Compute new list + change summary synchronously (no async closure issue)
+    const logLines: string[] = [];
+    const newList = crewSigners.map(crew => {
+      if (!matchName(crew)) return crew;
+
+      const changes: { field: string; from: string; to: string }[] = [];
+      const next = { ...crew };
+
+      // flight number
+      const flights = [...text.matchAll(new RegExp(flightRx.source, "gi"))].map(m => m[1].toUpperCase());
+      if (flights.length > 0 && flights[0] !== crew.flight) {
+        changes.push({ field: "flight", from: crew.flight || "(none)", to: flights[0] });
+        next.flight = flights[0];
+      }
+
+      // ETA / time
+      const timeMatch = timeRx.exec(text) ?? timeRx2.exec(text);
+      if (timeMatch) {
+        const newTime = timeMatch[timeMatch.length - 1];
+        if (newTime !== crew.flightEta) {
+          changes.push({ field: "ETA", from: crew.flightEta || "—", to: newTime });
+          next.flightEta = newTime;
+        }
+      }
+
+      // delayed
+      if (/\bdelay(ed)?\b/i.test(text) && !crew.flightDelayed) {
+        changes.push({ field: "status", from: "On time", to: "Delayed" });
+        next.flightDelayed = true;
+      } else if (/\b(not delayed|on.?time|recovered|rescheduled)\b/i.test(text) && crew.flightDelayed) {
+        changes.push({ field: "status", from: "Delayed", to: "On time" });
+        next.flightDelayed = false;
+      }
+
+      // e-visa
+      if (/e.?visa.*(approved|confirmed|ok)\b/i.test(text) && crew.eVisaStatus !== "approved") {
+        changes.push({ field: "e-Visa", from: crew.eVisaStatus, to: "approved" });
+        next.eVisaStatus = "approved";
+      } else if (/e.?visa.*(pending|applied|submitted)\b/i.test(text) && crew.eVisaStatus !== "pending") {
+        changes.push({ field: "e-Visa", from: crew.eVisaStatus, to: "pending" });
+        next.eVisaStatus = "pending";
+      }
+
+      // visa required
+      if (/(no visa|visa not required|visa free)\b/i.test(text) && crew.visaRequired) {
+        changes.push({ field: "visa", from: "required", to: "not required" });
+        next.visaRequired = false;
+      } else if (/(visa required|needs visa|requires visa)\b/i.test(text) && !crew.visaRequired) {
+        changes.push({ field: "visa", from: "not required", to: "required" });
+        next.visaRequired = true;
+      }
+
+      // OTB
+      if (/(ok to board|otb confirmed|board confirmed)\b/i.test(text) && crew.okToBoard !== "confirmed") {
+        changes.push({ field: "OTB", from: crew.okToBoard, to: "confirmed" });
+        next.okToBoard = "confirmed";
+      } else if (/(sent to airline|otb sent)\b/i.test(text) && crew.okToBoard !== "sent") {
+        changes.push({ field: "OTB", from: crew.okToBoard, to: "sent" });
+        next.okToBoard = "sent";
+      }
+
+      if (changes.length === 0) return crew;
+
+      const summary = changes.map(c => `${c.field}: ${c.from} → ${c.to}`).join(", ");
+      logLines.push(`${crew.name}: ${summary}`);
+      return next;
+    });
+
+    // Apply to state only if something changed
+    const updatedCount = logLines.length;
+    if (updatedCount > 0) setCrewSigners(newList);
+    return { updatedCount, logLines };
+  };
+
   const [showApptForm, setShowApptForm] = useState(false);
   const [apptForm, setApptForm] = useState({ appointmentType: "pilot", scheduledAt: "", notes: "" });
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
@@ -1324,14 +1410,32 @@ export default function VoyageDetail() {
                   }`}
                   disabled={!crewAiText.trim() || crewAiParsing}
                   onClick={() => {
-                    if (!crewAiText.trim()) return;
+                    const txt = crewAiText.trim();
+                    if (!txt) return;
                     setCrewAiParsing(true);
+                    // Small delay to show the "processing" animation, then apply
                     setTimeout(() => {
+                      const { updatedCount, logLines } = parseAndApplyAIText(txt);
                       setCrewAiParsing(false);
-                      addActivityLog(`AI processed text input: "${crewAiText.slice(0, 60)}${crewAiText.length > 60 ? "…" : ""}"`, "AI");
-                      toast({ title: "AI Processing Complete", description: "Crew details updated from text input." });
+                      if (updatedCount > 0) {
+                        logLines.forEach(line => {
+                          // Detect "X → Y" to set as highlight
+                          const arrowMatch = line.match(/(\S+ → \S+)/);
+                          addActivityLog(`AI updated: ${line}`, "AI", arrowMatch?.[1]);
+                        });
+                        toast({
+                          title: `✅ AI Updated ${updatedCount} Crew Member${updatedCount > 1 ? "s" : ""}`,
+                          description: logLines.join(" · ").slice(0, 120),
+                        });
+                      } else {
+                        toast({
+                          title: "No matching crew found",
+                          description: "AI could not match any crew member name from the text. Try including the crew member's name.",
+                          variant: "destructive",
+                        });
+                      }
                       setCrewAiText("");
-                    }, 1600);
+                    }, 900);
                   }}
                   data-testid="button-crew-ai-process"
                 >
