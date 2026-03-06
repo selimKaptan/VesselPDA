@@ -425,6 +425,207 @@ router.delete("/:voyageId/appointments/:id", isAuthenticated, async (req: any, r
 });
 
 
+router.post("/:id/generate-port-document", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const voyageId = parseInt(req.params.id);
+    const { templateId } = req.body;
+
+    const VALID_TEMPLATES = ["berth_petition", "police_form", "coastguard_decl", "tcdd_watch", "shore_pass"] as const;
+    if (!templateId || !VALID_TEMPLATES.includes(templateId)) {
+      return res.status(400).json({ message: "Invalid templateId" });
+    }
+
+    const voyage = await storage.getVoyageById(voyageId);
+    if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+
+    const TEMPLATE_META: Record<string, { tr: string; en: string }> = {
+      berth_petition:   { tr: "Liman Baskanligi Yanasma Dilekçesi",    en: "Harbour Master Berthing Petition" },
+      police_form:      { tr: "Deniz Polisi Gelis/Gidis Formu",        en: "Maritime Police Arrival/Departure" },
+      coastguard_decl:  { tr: "Kiyi Emniyeti Deklarasyonu",            en: "Turkish Coastguard Declaration" },
+      tcdd_watch:       { tr: "TCDD Posta/Vardiya Talepnamesi",         en: "TCDD Watch/Shift Request" },
+      shore_pass:       { tr: "Shore Pass",                             en: "Personnel Permission Card" },
+    };
+    const tmpl = TEMPLATE_META[templateId];
+
+    const fmt = (d?: string | Date | null) => d ? new Date(d).toLocaleString("tr-TR") : "N/A";
+
+    const PDFDocumentModule = await import("pdfkit");
+    const PDFDocument = (PDFDocumentModule as any).default || PDFDocumentModule;
+
+    const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
+    const chunks: Buffer[] = [];
+    doc.on("data", (c: Buffer) => chunks.push(c));
+
+    await new Promise<void>((resolve) => {
+      doc.on("end", resolve);
+
+      // ── Header ──────────────────────────────────────────────────────
+      doc.rect(0, 0, 595.28, 80).fill("#0f172a");
+      doc.fontSize(7).fillColor("#94a3b8")
+        .text("VesselPDA · Auto-Generated Port Document · Confidential", 50, 18, { align: "center", width: 495.28 });
+      doc.fontSize(17).font("Helvetica-Bold").fillColor("#ffffff")
+        .text(tmpl.tr, 50, 32, { align: "center", width: 495.28 });
+      doc.fontSize(10).font("Helvetica").fillColor("#60a5fa")
+        .text(tmpl.en, 50, 56, { align: "center", width: 495.28 });
+
+      // ── Vessel Particulars ───────────────────────────────────────────
+      doc.moveDown(3);
+      doc.fontSize(11).font("Helvetica-Bold").fillColor("#000000")
+        .text("VESSEL PARTICULARS (Auto-Filled)");
+      doc.moveTo(50, doc.y + 3).lineTo(545.28, doc.y + 3).strokeColor("#e2e8f0").stroke();
+      doc.moveDown(0.8);
+
+      const fields: [string, string][] = [
+        ["Vessel Name / Gemi Adi:",        voyage.vesselName || "N/A"],
+        ["IMO Number:",                    voyage.imoNumber || "N/A"],
+        ["Flag / Bayrak:",                 voyage.flag || "N/A"],
+        ["GRT / Gross Tonnage:",           voyage.grt ? `${voyage.grt} GT` : "N/A"],
+        ["Port / Liman:",                  voyage.portName || "N/A"],
+        ["Purpose of Call / Gelis Sebebi:",voyage.purposeOfCall || "N/A"],
+        ["ETA:",                           fmt(voyage.eta)],
+        ["ETD:",                           fmt(voyage.etd)],
+      ];
+      if ((voyage as any).cargoType)     fields.push(["Cargo Type / Yuk Cinsi:",    String((voyage as any).cargoType)]);
+      if ((voyage as any).cargoQuantity) fields.push(["Cargo Qty / Yuk Miktari:",   `${(voyage as any).cargoQuantity} MT`]);
+
+      doc.fontSize(10);
+      fields.forEach(([label, value], i) => {
+        if (i % 2 === 0) {
+          doc.rect(48, doc.y - 3, 499.28, 16).fill("#f8fafc");
+        }
+        const y = doc.y;
+        doc.font("Helvetica-Bold").fillColor("#475569").text(label, 52, y, { continued: true, width: 200 });
+        doc.font("Helvetica").fillColor("#0f172a").text(value, { width: 280 });
+      });
+
+      doc.moveDown(1.5);
+
+      // ── Template-specific content ────────────────────────────────────
+      doc.fontSize(11).font("Helvetica-Bold").fillColor("#000000");
+      if (templateId === "berth_petition") {
+        doc.text("TALEP / REQUEST");
+        doc.moveTo(50, doc.y + 2).lineTo(545.28, doc.y + 2).strokeColor("#e2e8f0").stroke();
+        doc.moveDown(0.6);
+        doc.fontSize(10).font("Helvetica").fillColor("#0f172a");
+        doc.text(`Yukarida bilgileri verilen gemimizin ${voyage.portName || "..."} limanina yanasma izni icin gereginizi arz ederiz.`);
+        doc.moveDown(0.4);
+        doc.text(`We hereby request berthing permission for the above-mentioned vessel at ${voyage.portName || "..."} port.`);
+      } else if (templateId === "police_form") {
+        doc.text("MURETTEBAT BILGISI / CREW INFORMATION");
+        doc.moveTo(50, doc.y + 2).lineTo(545.28, doc.y + 2).strokeColor("#e2e8f0").stroke();
+        doc.moveDown(0.6);
+        doc.fontSize(10).font("Helvetica").fillColor("#0f172a");
+        doc.text("Toplam Murettebat / Total Crew: ________________");
+        doc.text("Transit Yolcu / Transit Passengers: ________________");
+        doc.text("Kacak / Stowaways: None / Yok");
+        doc.moveDown(0.4);
+        doc.text("Geminin son 10 limani / Last 10 ports of call:");
+        for (let i = 1; i <= 5; i++) {
+          doc.text(`  ${i}. Port: ____________________  Date: ____________`);
+        }
+      } else if (templateId === "coastguard_decl") {
+        doc.text("BEYAN / DECLARATION");
+        doc.moveTo(50, doc.y + 2).lineTo(545.28, doc.y + 2).strokeColor("#e2e8f0").stroke();
+        doc.moveDown(0.6);
+        doc.fontSize(10).font("Helvetica").fillColor("#0f172a");
+        doc.text("Gemimizde yasadisi herhangi bir durum bulunmadigini beyan ederiz.");
+        doc.moveDown(0.3);
+        doc.text("We declare that there is no illegal situation on board our vessel.");
+        doc.moveDown(0.3);
+        doc.text("Tehlikeli madde / Dangerous goods: None / Yok");
+        doc.text("Silah / Weapons: None / Yok");
+        doc.text("Uyusturucu / Narcotics: None / Yok");
+      } else if (templateId === "tcdd_watch") {
+        doc.text("TALEP EDILEN HIZMET / REQUESTED SERVICE");
+        doc.moveTo(50, doc.y + 2).lineTo(545.28, doc.y + 2).strokeColor("#e2e8f0").stroke();
+        doc.moveDown(0.6);
+        doc.fontSize(10).font("Helvetica").fillColor("#0f172a");
+        doc.text("Posta Sayisi / Number of Watches: ________________");
+        doc.text("Baslangic Tarihi / Start Date: ________________");
+        doc.text("Bitis Tarihi / End Date: ________________");
+        doc.text("Vardiya Baslangici / Shift Start: ________________");
+        doc.text("Vardiya Bitisi / Shift End: ________________");
+        doc.text("Hizmet Turu / Service Type: ________________");
+      } else if (templateId === "shore_pass") {
+        doc.text("IZIN VERILEN PERSONEL / PERMITTED PERSONNEL");
+        doc.moveTo(50, doc.y + 2).lineTo(545.28, doc.y + 2).strokeColor("#e2e8f0").stroke();
+        doc.moveDown(0.6);
+        doc.fontSize(10).font("Helvetica").fillColor("#0f172a");
+        for (let i = 1; i <= 10; i++) {
+          doc.text(`${i}.  Ad Soyad: ________________________  Gorevi: ________________  Pasaport No: ________________`);
+        }
+      }
+
+      doc.moveDown(2.5);
+
+      // ── Signature section ────────────────────────────────────────────
+      doc.fontSize(11).font("Helvetica-Bold").fillColor("#000000").text("DECLARATIONS / BEYANLAR");
+      doc.moveTo(50, doc.y + 2).lineTo(545.28, doc.y + 2).strokeColor("#e2e8f0").stroke();
+      doc.moveDown(0.6);
+      doc.fontSize(9).font("Helvetica").fillColor("#475569");
+      doc.text("The undersigned hereby declares that the above information is true and correct.");
+      doc.text("Asagida imzalayan, yukaridaki bilgilerin dogru ve eksiksiz oldugunu beyan eder.");
+
+      doc.moveDown(2.5);
+      const sigY = doc.y;
+      doc.moveTo(70, sigY).lineTo(230, sigY).strokeColor("#94a3b8").stroke();
+      doc.moveTo(315, sigY).lineTo(475, sigY).strokeColor("#94a3b8").stroke();
+      doc.fontSize(8).font("Helvetica-Bold").fillColor("#475569");
+      doc.text("Ship Agent / Acente", 70, sigY + 5, { width: 160, align: "center" });
+      doc.text("Port Authority / Liman Baskanligi", 315, sigY + 5, { width: 160, align: "center" });
+
+      // ── Footer ───────────────────────────────────────────────────────
+      const range = doc.bufferedPageRange();
+      for (let i = 0; i < range.count; i++) {
+        doc.switchToPage(range.start + i);
+        doc.fontSize(7).fillColor("#94a3b8");
+        doc.text(
+          `Auto-generated by VesselPDA · ${new Date().toLocaleDateString("en-GB")} · Template: ${templateId}   |   Vessel: ${voyage.vesselName || "—"} · Port: ${voyage.portName || "—"}`,
+          50, 815, { align: "center", width: 495.28 }
+        );
+      }
+
+      doc.end();
+    });
+
+    const pdfBuffer = Buffer.concat(chunks);
+    const safeName = `${templateId}_${(voyage.vesselName || "vessel").replace(/\s+/g, "_")}_${Date.now()}.pdf`;
+
+    // Save to disk & voyage documents
+    try {
+      const uploadsDir = path.join(process.cwd(), "uploads", "documents");
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const filePath = path.join(uploadsDir, safeName);
+      fs.writeFileSync(filePath, pdfBuffer);
+      const fileUrl = `/uploads/documents/${safeName}`;
+      await storage.createVoyageDocument({
+        voyageId,
+        name: `${tmpl.tr} — ${voyage.vesselName || "Vessel"}`,
+        docType: "port_clearance",
+        fileBase64: null,
+        fileUrl,
+        fileName: safeName,
+        fileSize: pdfBuffer.length,
+        notes: `Auto-generated port form (${tmpl.en})`,
+        uploadedByUserId: userId,
+        version: 1,
+        templateId: null,
+      } as any);
+    } catch (saveErr) {
+      console.error("[generate-port-document] save error:", saveErr);
+    }
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${safeName}"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error("[generate-port-document] error:", err);
+    res.status(500).json({ message: "Failed to generate port document" });
+  }
+});
+
+
 router.post("/:id/documents/from-template", isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user?.claims?.sub || req.user?.id;
