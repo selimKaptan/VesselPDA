@@ -241,4 +241,65 @@ router.get("/history", isAuthenticated, async (req: any, res) => {
   }
 });
 
+// ── POST /api/ai/extract-crew-image ────────────────────────────────────────
+// Accepts a base64-encoded image, uses Claude Vision to extract a crew list
+// Returns: { text: string } — raw extracted table text ready for parseAndApplyAIText
+router.post("/extract-crew-image", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.id || req.user?.claims?.sub;
+    if (!checkParseRateLimit(userId)) {
+      return res.status(429).json({ message: "Rate limit exceeded. Try again in a minute." });
+    }
+
+    const { imageData, mimeType } = req.body;
+    if (!imageData || !mimeType) {
+      return res.status(400).json({ message: "imageData and mimeType are required" });
+    }
+
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 2048,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: { type: "base64", media_type: mimeType, data: imageData },
+            },
+            {
+              type: "text",
+              text: `This is a maritime crew change list (email screenshot or table). 
+Extract the crew data and format it as plain text with the following structure EXACTLY:
+
+SIGN ON
+CREW NAME  RANK  NATIONALITY  DOB  POB  PASSPORT  ISSUE DATE  EXPIRY DATE  SEAMAN BOOK
+[row1 values separated by two spaces]
+[row2 values...]
+
+SIGN OFF
+CREW NAME  RANK  NATIONALITY  DOB  POB  PASSPORT  ISSUE DATE  EXPIRY DATE  SEAMAN BOOK
+[row1 values separated by two spaces]
+[row2 values...]
+
+Rules:
+- Use exactly two spaces between column values
+- If a section (SIGN ON or SIGN OFF) has no crew, omit that section
+- Use N/A for missing values
+- Keep names in UPPER CASE as they appear
+- Output ONLY the formatted table, no explanation`,
+            },
+          ],
+        },
+      ],
+    });
+
+    const text = response.content[0]?.type === "text" ? response.content[0].text.trim() : "";
+    res.json({ text });
+  } catch (err: any) {
+    console.error("[extract-crew-image]", err.message);
+    res.status(500).json({ message: "AI image extraction failed" });
+  }
+});
+
 export default router;

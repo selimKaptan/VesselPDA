@@ -1440,10 +1440,33 @@ export default function VoyageDetail() {
                 const file = e.dataTransfer.files?.[0];
                 if (!file) return;
 
-                // Images cannot be text-parsed — show a placeholder hint
+                // Images → send to Claude Vision endpoint, then auto-process
                 if (file.type.startsWith("image/")) {
-                  setCrewAiText(`[Image: ${file.name}]\n\nPlease paste the crew list text from this image, or type your update below.`);
-                  toast({ title: `📎 ${file.name} staged`, description: "Add or edit the text above, then click 🚀 Ask AI to Process." });
+                  setCrewAiParsing(true);
+                  const reader2 = new FileReader();
+                  reader2.onload = async ev => {
+                    try {
+                      const dataUrl = ev.target?.result as string;
+                      const base64 = dataUrl.split(",")[1];
+                      const mimeType = file.type as "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+                      const resp = await fetch("/api/ai/extract-crew-image", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ imageData: base64, mimeType }),
+                      });
+                      if (!resp.ok) throw new Error(await resp.text());
+                      const { text: extracted } = await resp.json();
+                      if (!extracted) throw new Error("No text extracted");
+                      // Stage into textarea so user can review before processing
+                      setCrewAiText(extracted);
+                      setCrewAiParsing(false);
+                      toast({ title: `🔍 Extracted from ${file.name}`, description: "AI extracted the crew list. Review below, then click 🚀 Ask AI to Process." });
+                    } catch (err: any) {
+                      setCrewAiParsing(false);
+                      toast({ title: "Image extraction failed", description: err.message || "Could not read crew data from image.", variant: "destructive" });
+                    }
+                  };
+                  reader2.readAsDataURL(file);
                   return;
                 }
 
@@ -2066,7 +2089,54 @@ export default function VoyageDetail() {
                     </div>
                     <div>
                       <Label className="text-xs text-slate-400">Rank / Position</Label>
-                      <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="Chief Officer" value={crewSlideForm.rank} onChange={e => setCrewSlideForm(f => ({ ...f, rank: e.target.value }))} data-testid="input-crew-rank" />
+                      <select
+                        className="w-full h-9 text-sm mt-1 bg-slate-800 border border-slate-700 rounded-md px-2 text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={crewSlideForm.rank}
+                        onChange={e => setCrewSlideForm(f => ({ ...f, rank: e.target.value }))}
+                        data-testid="select-crew-rank"
+                      >
+                        <option value="">— Select Rank —</option>
+                        <optgroup label="Deck Officers">
+                          <option>Master</option>
+                          <option>Chief Officer</option>
+                          <option>2nd Officer</option>
+                          <option>3rd Officer</option>
+                          <option>Deck Cadet</option>
+                        </optgroup>
+                        <optgroup label="Engine Officers">
+                          <option>Chief Engineer</option>
+                          <option>2nd Engineer</option>
+                          <option>3rd Engineer</option>
+                          <option>4th Engineer</option>
+                          <option>Electrical Engineer / ETO</option>
+                          <option>Engine Cadet</option>
+                        </optgroup>
+                        <optgroup label="Deck Ratings">
+                          <option>Bosun</option>
+                          <option>AB Sailor</option>
+                          <option>OS (Ordinary Seaman)</option>
+                          <option>Deck Fitter</option>
+                        </optgroup>
+                        <optgroup label="Engine Ratings">
+                          <option>Oiler</option>
+                          <option>Motorman</option>
+                          <option>Wiper</option>
+                          <option>Engine Fitter</option>
+                          <option>Pumpman</option>
+                        </optgroup>
+                        <optgroup label="Catering">
+                          <option>Chief Cook</option>
+                          <option>Cook</option>
+                          <option>Messman / Steward</option>
+                        </optgroup>
+                        <optgroup label="Other">
+                          <option>Radio Officer</option>
+                          <option>Doctor</option>
+                          <option>Security Officer</option>
+                          <option>Third Officer</option>
+                          <option>Offr on Watch (OOW)</option>
+                        </optgroup>
+                      </select>
                     </div>
                   </div>
                 </div>
