@@ -280,16 +280,32 @@ export default function VoyageDetail() {
     const mm = String(total % 60).padStart(2, "0");
     return `${hh}:${mm}`;
   };
-  // Compute per-crew card warnings (Rule 1 & 2) for display on cards
-  const getCrewWarnings = (crew: CrewSigner, vesselEtdStr?: string): string[] => {
+  // Compute per-crew card warnings (Rule 1–4) for display on cards
+  // Rule 1: on-signer flight after vessel ETD (critical)
+  // Rule 2: off-signer <5h disembark gap (operational)
+  // Rule 3: on-signer flight arrives >6h before vessel ETA → hotel required
+  // Rule 4: off-signer flight departs >12h after vessel ETD → hotel required
+  const getCrewWarnings = (crew: CrewSigner, vesselEtdStr?: string, vesselEtaStr?: string): string[] => {
     const warns: string[] = [];
     const flightMins = timeToMins(crew.flightEta);
-    if (crew.side === "on" && vesselEtdStr) {
-      const etdMins = timeToMins(vesselEtdStr);
-      if (flightMins >= 0 && etdMins >= 0 && flightMins > etdMins)
-        warns.push("⚠️ Critical: Flight arrives after Vessel ETD!");
+
+    if (crew.side === "on") {
+      // Rule 1: flight arrives after vessel departure
+      if (vesselEtdStr) {
+        const etdMins = timeToMins(vesselEtdStr);
+        if (flightMins >= 0 && etdMins >= 0 && flightMins > etdMins)
+          warns.push("⚠️ Critical: Flight arrives after Vessel ETD!");
+      }
+      // Rule 3: flight arrives >6h before vessel ETA → hotel required
+      if (vesselEtaStr) {
+        const etaMins = timeToMins(vesselEtaStr);
+        if (flightMins >= 0 && etaMins >= 0 && etaMins - flightMins > 360)
+          warns.push("🏨 Hotel Required: >6h wait before Vessel ETA.");
+      }
     }
+
     if (crew.side === "off") {
+      // Rule 2: <5h between disembark and departure flight
       const disembarkStep = crew.timeline.find(s => /disembark/i.test(s.label));
       const disembarkMins = timeToMins(disembarkStep?.time ?? "");
       if (flightMins >= 0 && disembarkMins >= 0) {
@@ -298,9 +314,24 @@ export default function VoyageDetail() {
           : (1440 - disembarkMins) + flightMins;
         if (gap < 300) warns.push("⚠️ Warning: Minimum 5 hours required for disembarkation & transfer.");
       }
+      // Rule 4: flight departs >12h after vessel ETD → hotel required
+      if (vesselEtdStr) {
+        const etdMins = timeToMins(vesselEtdStr);
+        if (flightMins >= 0 && etdMins >= 0) {
+          const waitMins = flightMins >= etdMins
+            ? flightMins - etdMins
+            : (1440 - etdMins) + flightMins;
+          if (waitMins > 720)
+            warns.push("🏨 Hotel Required: >12h wait after Vessel ETD.");
+        }
+      }
     }
+
     return warns;
   };
+
+  // Helper: does a warning string indicate a hotel requirement rule?
+  const isHotelWarning = (w: string) => w.startsWith("🏨 Hotel Required");
 
   // ── AI Drop Zone / Command Palette ────────────────────────────────────────
   const [isGlobalDragging, setIsGlobalDragging] = useState(false);
@@ -344,6 +375,7 @@ export default function VoyageDetail() {
     setCrewSlideForm(f => ({ ...f, hotelPickupTime: pickup }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [crewSlideForm.requiresHotel, crewSlideForm.flightEta]);
+
 
   // ── AI Text Parser — real state updater ────────────────────────────────────
   const parseAndApplyAIText = (text: string) => {
@@ -668,6 +700,51 @@ export default function VoyageDetail() {
       return res.json();
     },
   });
+  // ── Auto-set requiresHotel on crewSigners when voyage ETA/ETD loaded ───────
+  useEffect(() => {
+    if (!voyage) return;
+    const vesselEtaTime = voyage.eta ? new Date(voyage.eta).toTimeString().substring(0, 5) : "";
+    const vesselEtdTime = voyage.etd ? new Date(voyage.etd).toTimeString().substring(0, 5) : "";
+    setCrewSigners(prev => prev.map(crew => {
+      if (crew.requiresHotel) return crew;
+      const fMins = timeToMins(crew.flightEta);
+      let shouldHaveHotel = false;
+      if (crew.side === "on" && vesselEtaTime) {
+        const etaMins = timeToMins(vesselEtaTime);
+        if (fMins >= 0 && etaMins >= 0 && etaMins - fMins > 360) shouldHaveHotel = true;
+      }
+      if (crew.side === "off" && vesselEtdTime) {
+        const etdMins = timeToMins(vesselEtdTime);
+        if (fMins >= 0 && etdMins >= 0) {
+          const waitMins = fMins >= etdMins ? fMins - etdMins : (1440 - etdMins) + fMins;
+          if (waitMins > 720) shouldHaveHotel = true;
+        }
+      }
+      return shouldHaveHotel ? { ...crew, requiresHotel: true } : crew;
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voyage?.eta, voyage?.etd]);
+
+  // ── Auto-set requiresHotel in slide-over form when hotel rule triggers ─────
+  useEffect(() => {
+    if (crewSlideForm.requiresHotel || !crewSlideForm.flightEta || !voyage) return;
+    const vesselEtaTime = voyage.eta ? new Date(voyage.eta).toTimeString().substring(0, 5) : "";
+    const vesselEtdTime = voyage.etd ? new Date(voyage.etd).toTimeString().substring(0, 5) : "";
+    const fMins = timeToMins(crewSlideForm.flightEta);
+    if (crewSlideForm.side === "on" && vesselEtaTime) {
+      const etaMins = timeToMins(vesselEtaTime);
+      if (fMins >= 0 && etaMins >= 0 && etaMins - fMins > 360)
+        setCrewSlideForm(f => ({ ...f, requiresHotel: true }));
+    }
+    if (crewSlideForm.side === "off" && vesselEtdTime) {
+      const etdMins = timeToMins(vesselEtdTime);
+      if (fMins >= 0 && etdMins >= 0) {
+        const waitMins = fMins >= etdMins ? fMins - etdMins : (1440 - etdMins) + fMins;
+        if (waitMins > 720) setCrewSlideForm(f => ({ ...f, requiresHotel: true }));
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crewSlideForm.flightEta, crewSlideForm.side, crewSlideForm.requiresHotel]);
 
   const { data: docs = [], isLoading: docsLoading } = useQuery<any[]>({
     queryKey: ["/api/voyages", voyageId, "documents"],
@@ -1785,6 +1862,16 @@ export default function VoyageDetail() {
                   </div>
                 </div>
 
+                {/* ── Active Rules Banner ── */}
+                <div className="flex items-start gap-2.5 bg-slate-800/40 border border-slate-700/50 rounded-md py-2 px-4 text-xs text-slate-400" data-testid="crew-rules-banner">
+                  <span className="text-sm leading-none mt-0.5 flex-shrink-0">🤖</span>
+                  <div className="space-y-0.5">
+                    <span className="font-semibold text-slate-300">Active AI Rules: </span>
+                    <span className="inline-block">• On-Signers: Hotel required if flight arrives &gt;6h before Vessel ETA.&nbsp;&nbsp;</span>
+                    <span className="inline-block">• Off-Signers: Hotel required if flight departs &gt;12h after Vessel ETD.</span>
+                  </div>
+                </div>
+
                 {/* ── Rich Data Card helpers ── */}
                 {(() => {
                   const flagMap: Record<string, string> = {
@@ -1867,31 +1954,56 @@ export default function VoyageDetail() {
                           </span>
                         </div>
 
-                        {/* ── HOTEL STATUS BADGE ── */}
-                        {crew.requiresHotel && (
-                          <div className="flex">
-                            <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 ${
-                              crew.hotelStatus === "checked-in"  ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" :
-                              crew.hotelStatus === "checked-out" ? "text-sky-400 bg-sky-900/20 border-sky-500/50"             :
-                              crew.hotelStatus === "reserved"    ? "text-blue-400 bg-blue-900/20 border-blue-500/50"          :
-                                                                   "text-slate-400 bg-slate-700/40 border-slate-600/50"
-                            }`} data-testid={`badge-hotel-${crew.id}`}>
-                              {crew.hotelStatus === "checked-in"  ? `🛏️ At Hotel${crew.hotelName ? `: ${crew.hotelName}` : ""}` :
-                               crew.hotelStatus === "checked-out" ? "🧳 Checked-Out" :
-                               crew.hotelStatus === "reserved"    ? `🔖 ${crew.hotelName || "Hotel Reserved"}` :
-                                                                    "🏨 Needs Hotel"}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* ── SMART RULE ENGINE WARNINGS (on card) ── */}
+                        {/* ── HOTEL STATUS BADGE / PENDING WARNING ── */}
                         {(() => {
                           const vesselEtdTime = voyage.etd ? new Date(voyage.etd).toTimeString().substring(0, 5) : "";
-                          const warns = getCrewWarnings(crew, vesselEtdTime);
-                          if (!warns.length) return null;
+                          const vesselEtaTime = voyage.eta ? new Date(voyage.eta).toTimeString().substring(0, 5) : "";
+                          const allWarns = getCrewWarnings(crew, vesselEtdTime, vesselEtaTime);
+                          const hotelWarn = allWarns.find(isHotelWarning);
+                          const hotelPending = crew.requiresHotel && !crew.hotelName;
+                          const hasHotelInfo = crew.requiresHotel && crew.hotelName;
+                          return (
+                            <>
+                              {/* Yellow pending banner — shows when hotel required but not yet set */}
+                              {(hotelWarn || hotelPending) && !hasHotelInfo && (
+                                <button
+                                  className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[9px] font-semibold border bg-amber-950/40 border-amber-500/35 text-amber-300 hover:bg-amber-950/60 transition-colors text-left"
+                                  onClick={e => { e.stopPropagation(); setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
+                                  data-testid={`warning-hotel-pending-${crew.id}`}
+                                >
+                                  <span>🏨</span>
+                                  <span className="flex-1 min-w-0">{hotelWarn ? hotelWarn.replace("🏨 Hotel Required: ", "Hotel Required — ") : "Hotel Required"} · Tap to add hotel</span>
+                                </button>
+                              )}
+                              {/* Green badge — hotel info entered */}
+                              {hasHotelInfo && (
+                                <div className="flex">
+                                  <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 ${
+                                    crew.hotelStatus === "checked-in"  ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" :
+                                    crew.hotelStatus === "checked-out" ? "text-sky-400 bg-sky-900/20 border-sky-500/50"             :
+                                    crew.hotelStatus === "reserved"    ? "text-blue-400 bg-blue-900/20 border-blue-500/50"          :
+                                                                         "text-emerald-400 bg-emerald-900/20 border-emerald-500/50"
+                                  }`} data-testid={`badge-hotel-${crew.id}`}>
+                                    {crew.hotelStatus === "checked-in"  ? `🛏️ At Hotel: ${crew.hotelName}` :
+                                     crew.hotelStatus === "checked-out" ? `🧳 Checked-Out: ${crew.hotelName}` :
+                                     crew.hotelStatus === "reserved"    ? `🔖 Reserved: ${crew.hotelName}` :
+                                                                          `🏨 Hotel: ${crew.hotelName}`}
+                                  </span>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+
+                        {/* ── SMART RULE ENGINE WARNINGS (operational only — not hotel) ── */}
+                        {(() => {
+                          const vesselEtdTime = voyage.etd ? new Date(voyage.etd).toTimeString().substring(0, 5) : "";
+                          const vesselEtaTime = voyage.eta ? new Date(voyage.eta).toTimeString().substring(0, 5) : "";
+                          const operationalWarns = getCrewWarnings(crew, vesselEtdTime, vesselEtaTime).filter(w => !isHotelWarning(w));
+                          if (!operationalWarns.length) return null;
                           return (
                             <div className="space-y-1" data-testid={`crew-warnings-${crew.id}`}>
-                              {warns.map((w, i) => (
+                              {operationalWarns.map((w, i) => (
                                 <div key={i} className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[9px] font-semibold border ${w.includes("Critical") ? "bg-red-950/40 border-red-500/30 text-red-400" : "bg-amber-950/40 border-amber-500/30 text-amber-400"}`}>
                                   <span>{w.includes("Critical") ? "🚨" : "⚠️"}</span>
                                   <span>{w.replace("⚠️ ", "")}</span>
@@ -2641,6 +2753,38 @@ export default function VoyageDetail() {
 
                   {crewSlideForm.requiresHotel && (
                     <div className="space-y-3 rounded-xl border border-indigo-500/20 bg-indigo-900/10 p-3">
+                      {/* Hotel rule warning banner — shows if rule triggered and no hotel name yet */}
+                      {(() => {
+                        const vesselEtdTime = voyage?.etd ? new Date(voyage.etd).toTimeString().substring(0, 5) : "";
+                        const vesselEtaTime = voyage?.eta ? new Date(voyage.eta).toTimeString().substring(0, 5) : "";
+                        const fMins = timeToMins(crewSlideForm.flightEta);
+                        const isOff = crewSlideForm.side === "off";
+                        let hotelRuleMsg = "";
+                        if (!isOff && vesselEtaTime) {
+                          const etaMins = timeToMins(vesselEtaTime);
+                          if (fMins >= 0 && etaMins >= 0 && etaMins - fMins > 360)
+                            hotelRuleMsg = `>6h wait before Vessel ETA (${vesselEtaTime}).`;
+                        }
+                        if (isOff && vesselEtdTime) {
+                          const etdMins = timeToMins(vesselEtdTime);
+                          if (fMins >= 0 && etdMins >= 0) {
+                            const waitMins = fMins >= etdMins ? fMins - etdMins : (1440 - etdMins) + fMins;
+                            if (waitMins > 720)
+                              hotelRuleMsg = `>12h wait after Vessel ETD (${vesselEtdTime}).`;
+                          }
+                        }
+                        if (!hotelRuleMsg || crewSlideForm.hotelName) return null;
+                        return (
+                          <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-950/40 border border-amber-500/40 text-xs text-amber-300" data-testid="warning-hotel-rule-slide">
+                            <span className="text-sm leading-none mt-0.5 flex-shrink-0">⚠️</span>
+                            <div>
+                              <p className="font-bold text-amber-200">Hotel Required by Smart Rule</p>
+                              <p className="text-[10px] text-amber-400/70 mt-0.5">{hotelRuleMsg} Please enter hotel details below.</p>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {/* Hotel name */}
                       <div>
                         <Label className="text-xs text-slate-400">Hotel Name</Label>
