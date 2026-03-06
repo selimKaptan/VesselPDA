@@ -8,7 +8,7 @@ import {
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
   FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings, Archive, X,
-  TrendingUp, TrendingDown, AlertTriangle, Mail,
+  TrendingUp, TrendingDown, AlertTriangle, Mail, Plane, LogIn, LogOut,
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetDescription } from "@/components/ui/sheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
@@ -210,12 +211,15 @@ export default function VoyageDetail() {
   type CrewSigner = {
     id: number; name: string; rank: string; side: "on" | "off";
     nationality: string;
+    passportNo: string;
     flight: string; flightEta: string; flightDelayed: boolean;
     visaRequired: boolean;
     eVisaStatus: "pending" | "approved" | "n/a";
     okToBoard: "pending" | "sent" | "confirmed";
+    arrivalStatus: "pending" | "arrived" | "departed";
     timeline: CrewTimelineStep[];
   };
+  type CrewSlideFormType = Omit<CrewSigner, "id" | "timeline" | "arrivalStatus">;
   const ON_TIMELINE_DEFAULT: CrewTimelineStep[] = [
     { id: 1, icon: "✈️", label: "Arrival Flight", time: "" },
     { id: 2, icon: "🚐", label: "Airport → Port", time: "" },
@@ -227,11 +231,12 @@ export default function VoyageDetail() {
     { id: 3, icon: "🚐", label: "Port → Airport",  time: "" },
     { id: 4, icon: "✈️", label: "Flight",           time: "" },
   ];
+  const EMPTY_CREW_SLIDE_FORM: CrewSlideFormType = { name: "", rank: "", side: "on", nationality: "", passportNo: "", flight: "", flightEta: "", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a", okToBoard: "pending" };
   const [crewSigners, setCrewSigners] = useState<CrewSigner[]>([
-    { id: 1, name: "Ahmet Yılmaz",  rank: "Chief Officer",  side: "on",  nationality: "TUR", flight: "TK2320", flightEta: "14:30", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "confirmed", timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"13:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"15:00" }, { id:3, icon:"🚤", label:"Embark", time:"16:30" }] },
-    { id: 2, name: "Mehmet Demir",  rank: "2nd Engineer",   side: "on",  nationality: "TUR", flight: "PC1145", flightEta: "16:00", flightDelayed: true,  visaRequired: true,  eVisaStatus: "pending",  okToBoard: "pending",   timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"15:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"17:00" }, { id:3, icon:"🚤", label:"Embark", time:"18:30" }] },
-    { id: 3, name: "Ali Öztürk",    rank: "Chief Engineer", side: "off", nationality: "TUR", flight: "TK2321", flightEta: "17:00", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "sent",      timeline: [{ id:1, icon:"🚤", label:"Disembark", time:"14:30" }, { id:2, icon:"🛂", label:"Customs / Police", time:"15:15" }, { id:3, icon:"🚐", label:"Port → Airport", time:"16:00" }, { id:4, icon:"✈️", label:"Flight", time:"19:45" }] },
-    { id: 4, name: "Hasan Çelik",   rank: "AB Sailor",      side: "off", nationality: "TUR", flight: "PC1146", flightEta: "18:30", flightDelayed: false, visaRequired: true,  eVisaStatus: "approved", okToBoard: "confirmed", timeline: [{ id:1, icon:"🚤", label:"Disembark", time:"15:00" }, { id:2, icon:"🛂", label:"Customs / Police", time:"15:45" }, { id:3, icon:"🚐", label:"Port → Airport", time:"16:30" }, { id:4, icon:"✈️", label:"Flight", time:"20:15" }] },
+    { id: 1, name: "Ahmet Yılmaz",  rank: "Chief Officer",  side: "on",  nationality: "TUR", passportNo: "TR12345678", flight: "TK2320", flightEta: "14:30", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "confirmed", arrivalStatus: "pending",  timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"13:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"15:00" }, { id:3, icon:"🚤", label:"Embark", time:"16:30" }] },
+    { id: 2, name: "Mehmet Demir",  rank: "2nd Engineer",   side: "on",  nationality: "TUR", passportNo: "TR87654321", flight: "PC1145", flightEta: "16:00", flightDelayed: true,  visaRequired: true,  eVisaStatus: "pending",  okToBoard: "pending",   arrivalStatus: "pending",  timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"15:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"17:00" }, { id:3, icon:"🚤", label:"Embark", time:"18:30" }] },
+    { id: 3, name: "Ali Öztürk",    rank: "Chief Engineer", side: "off", nationality: "TUR", passportNo: "TR11223344", flight: "TK2321", flightEta: "17:00", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "sent",      arrivalStatus: "pending",  timeline: [{ id:1, icon:"🚤", label:"Disembark", time:"14:30" }, { id:2, icon:"🛂", label:"Customs / Police", time:"15:15" }, { id:3, icon:"🚐", label:"Port → Airport", time:"16:00" }, { id:4, icon:"✈️", label:"Flight", time:"19:45" }] },
+    { id: 4, name: "Hasan Çelik",   rank: "AB Sailor",      side: "off", nationality: "TUR", passportNo: "TR44332211", flight: "PC1146", flightEta: "18:30", flightDelayed: false, visaRequired: true,  eVisaStatus: "approved", okToBoard: "confirmed", arrivalStatus: "departed", timeline: [{ id:1, icon:"🚤", label:"Disembark", time:"15:00" }, { id:2, icon:"🛂", label:"Customs / Police", time:"15:45" }, { id:3, icon:"🚐", label:"Port → Airport", time:"16:30" }, { id:4, icon:"✈️", label:"Flight", time:"20:15" }] },
   ]);
   const [hubTimeline, setHubTimeline] = useState([
     { id: 1, time: "10:00", emoji: "📦", title: "Spare Parts Customs Clearance",       status: "in_progress" },
@@ -243,15 +248,10 @@ export default function VoyageDetail() {
   const [timelineEditVal, setTimelineEditVal]     = useState("");
   const [editingCrewTimeline, setEditingCrewTimeline] = useState<{ crewId: number; stepId: number } | null>(null);
   const [crewTimelineEditVal, setCrewTimelineEditVal] = useState("");
-  const [showAddCrewDialog, setShowAddCrewDialog] = useState(false);
-  const [addCrewForm, setAddCrewForm] = useState<{
-    name: string; rank: string; side: "on" | "off";
-    nationality: string;
-    flight: string; flightEta: string; flightDelayed: boolean;
-    visaRequired: boolean;
-    eVisaStatus: "pending" | "approved" | "n/a";
-    okToBoard: "pending" | "sent" | "confirmed";
-  }>({ name: "", rank: "", side: "on", nationality: "", flight: "", flightEta: "", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a", okToBoard: "pending" });
+  const [showCrewPanel, setShowCrewPanel] = useState(false);
+  const [crewPanelMode, setCrewPanelMode] = useState<"add_on" | "add_off" | "edit">("add_on");
+  const [editingCrewId, setEditingCrewId] = useState<number | null>(null);
+  const [crewSlideForm, setCrewSlideForm] = useState<CrewSlideFormType>(EMPTY_CREW_SLIDE_FORM);
   const [showApptForm, setShowApptForm] = useState(false);
   const [apptForm, setApptForm] = useState({ appointmentType: "pilot", scheduledAt: "", notes: "" });
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
@@ -1243,7 +1243,7 @@ export default function VoyageDetail() {
                       <p className="text-xs text-slate-500">Real-time crew change tracking</p>
                     </div>
                   </div>
-                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 border-slate-600 text-slate-300 hover:bg-slate-700/50" onClick={() => setShowAddCrewDialog(true)} data-testid="button-add-crew">
+                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 border-slate-600 text-slate-300 hover:bg-slate-700/50" onClick={() => { setCrewPanelMode("add_on"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "on" }); setEditingCrewId(null); setShowCrewPanel(true); }} data-testid="button-add-crew">
                     <Plus className="w-3 h-3" /> Add Crew
                   </Button>
                 </div>
@@ -1266,16 +1266,25 @@ export default function VoyageDetail() {
                     return (
                       <div
                         key={crew.id}
-                        className="rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-800/80 transition-colors p-3 space-y-2"
+                        className="rounded-xl border border-slate-700 bg-slate-800 hover:border-slate-600 transition-colors p-3 space-y-2 cursor-pointer"
+                        onClick={() => { setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard }); setShowCrewPanel(true); }}
                         data-testid={`crew-card-${accent === "emerald" ? "on" : "off"}-${crew.id}`}
                       >
-                        {/* ── HEADER: Avatar | Name + Rank | Flag | Remove ── */}
+                        {/* ── HEADER: Avatar | Name + Rank | Flag | Status | Remove ── */}
                         <div className="flex items-center gap-2">
                           <div className={`w-8 h-8 rounded-full ${accentColors.avatar} flex items-center justify-center text-[12px] font-bold flex-shrink-0`}>
                             {crew.name[0]}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-bold text-slate-100 truncate leading-tight">{crew.name}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-xs font-bold text-slate-100 truncate leading-tight">{crew.name}</p>
+                              {crew.arrivalStatus === "arrived" && (
+                                <span className="inline-flex items-center text-[8px] font-bold text-emerald-400 bg-emerald-900/30 border border-emerald-500/40 rounded-full px-1.5 py-0.5 flex-shrink-0">🟢 Arrived</span>
+                              )}
+                              {crew.arrivalStatus === "departed" && (
+                                <span className="inline-flex items-center text-[8px] font-bold text-rose-400 bg-rose-900/30 border border-rose-500/40 rounded-full px-1.5 py-0.5 flex-shrink-0">🔴 Departed</span>
+                              )}
+                            </div>
                             <p className="text-[10px] text-slate-500 leading-tight">{crew.rank}</p>
                           </div>
                           {crew.nationality && (
@@ -1286,7 +1295,7 @@ export default function VoyageDetail() {
                           )}
                           <button
                             className="p-1 text-slate-600 hover:text-rose-400 transition-colors flex-shrink-0"
-                            onClick={() => setCrewSigners(cs => cs.filter(c => c.id !== crew.id))}
+                            onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.filter(c => c.id !== crew.id)); }}
                             data-testid={`button-remove-crew-${crew.id}`}
                           >
                             <X className="w-3 h-3" />
@@ -1368,7 +1377,7 @@ export default function VoyageDetail() {
                                   )}
                                   <button
                                     className="text-slate-600 hover:text-amber-400 transition-colors ml-0.5"
-                                    onClick={() => { setEditingCrewTimeline({ crewId: crew.id, stepId: step.id }); setCrewTimelineEditVal(step.time); }}
+                                    onClick={e => { e.stopPropagation(); setEditingCrewTimeline({ crewId: crew.id, stepId: step.id }); setCrewTimelineEditVal(step.time); }}
                                     title={`Edit ${step.label}`}
                                     data-testid={`button-edit-crew-timeline-${crew.id}-${step.id}`}
                                   >
@@ -1378,6 +1387,42 @@ export default function VoyageDetail() {
                               </span>
                             ))}
                           </div>
+                        </div>
+
+                        {/* ── QUICK ACTIONS ── */}
+                        <div className="flex gap-1.5 pt-1.5 border-t border-slate-700/40" onClick={e => e.stopPropagation()}>
+                          <button
+                            className="flex-1 flex items-center justify-center gap-1 h-6 text-[10px] font-medium rounded-md border border-slate-600 text-slate-400 hover:text-blue-400 hover:border-blue-500/50 hover:bg-blue-900/20 transition-colors"
+                            onClick={e => { e.stopPropagation(); setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard }); setShowCrewPanel(true); }}
+                            data-testid={`button-update-flight-${crew.id}`}
+                          >
+                            <Plane className="w-3 h-3" /> Update Flight
+                          </button>
+                          {crew.side === "on" ? (
+                            <button
+                              className={`flex-1 flex items-center justify-center gap-1 h-6 text-[10px] font-medium rounded-md border transition-colors ${
+                                crew.arrivalStatus === "arrived"
+                                  ? "border-emerald-500/50 text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30"
+                                  : "border-slate-600 text-slate-400 hover:text-emerald-400 hover:border-emerald-500/40 hover:bg-emerald-900/10"
+                              }`}
+                              onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, arrivalStatus: c.arrivalStatus === "arrived" ? "pending" : "arrived" })); }}
+                              data-testid={`button-mark-arrived-${crew.id}`}
+                            >
+                              <LogIn className="w-3 h-3" /> {crew.arrivalStatus === "arrived" ? "✓ Arrived" : "Mark Arrived"}
+                            </button>
+                          ) : (
+                            <button
+                              className={`flex-1 flex items-center justify-center gap-1 h-6 text-[10px] font-medium rounded-md border transition-colors ${
+                                crew.arrivalStatus === "departed"
+                                  ? "border-rose-500/50 text-rose-400 bg-rose-900/20 hover:bg-rose-900/30"
+                                  : "border-slate-600 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 hover:bg-rose-900/10"
+                              }`}
+                              onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, arrivalStatus: c.arrivalStatus === "departed" ? "pending" : "departed" })); }}
+                              data-testid={`button-mark-departed-${crew.id}`}
+                            >
+                              <LogOut className="w-3 h-3" /> {crew.arrivalStatus === "departed" ? "✓ Departed" : "Mark Departed"}
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -1390,13 +1435,27 @@ export default function VoyageDetail() {
                         <div className="flex items-center gap-2 pb-2 border-b border-emerald-500/20">
                           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                           <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">On-Signers</span>
-                          <span className="text-[10px] text-slate-500 ml-auto bg-emerald-900/30 border border-emerald-700/30 rounded-full px-2 py-0.5">
+                          <span className="text-[10px] text-slate-500 bg-emerald-900/30 border border-emerald-700/30 rounded-full px-2 py-0.5">
                             {crewSigners.filter(c => c.side === "on").length} joining
                           </span>
+                          <button
+                            className="ml-auto flex items-center gap-1 h-6 px-2 text-[10px] font-semibold rounded-md bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600/30 hover:border-blue-400/60 transition-colors"
+                            onClick={() => { setCrewPanelMode("add_on"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "on" }); setEditingCrewId(null); setShowCrewPanel(true); }}
+                            data-testid="button-add-on-signer"
+                          >
+                            <Plus className="w-2.5 h-2.5" /> Add
+                          </button>
                         </div>
                         {crewSigners.filter(c => c.side === "on").map(crew => renderCrewCard(crew, "emerald"))}
                         {crewSigners.filter(c => c.side === "on").length === 0 && (
-                          <p className="text-xs text-slate-600 text-center py-4 italic">No on-signers added yet.</p>
+                          <button
+                            className="w-full py-6 rounded-xl border border-dashed border-emerald-500/30 text-xs text-slate-600 hover:text-emerald-400 hover:border-emerald-500/50 transition-colors flex flex-col items-center gap-1"
+                            onClick={() => { setCrewPanelMode("add_on"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "on" }); setEditingCrewId(null); setShowCrewPanel(true); }}
+                            data-testid="button-empty-add-on"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Add first on-signer</span>
+                          </button>
                         )}
                       </div>
 
@@ -1405,13 +1464,27 @@ export default function VoyageDetail() {
                         <div className="flex items-center gap-2 pb-2 border-b border-rose-500/20">
                           <div className="w-2 h-2 rounded-full bg-rose-400" />
                           <span className="text-xs font-bold text-rose-400 uppercase tracking-widest">Off-Signers</span>
-                          <span className="text-[10px] text-slate-500 ml-auto bg-rose-900/30 border border-rose-700/30 rounded-full px-2 py-0.5">
+                          <span className="text-[10px] text-slate-500 bg-rose-900/30 border border-rose-700/30 rounded-full px-2 py-0.5">
                             {crewSigners.filter(c => c.side === "off").length} departing
                           </span>
+                          <button
+                            className="ml-auto flex items-center gap-1 h-6 px-2 text-[10px] font-semibold rounded-md bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600/30 hover:border-blue-400/60 transition-colors"
+                            onClick={() => { setCrewPanelMode("add_off"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "off" }); setEditingCrewId(null); setShowCrewPanel(true); }}
+                            data-testid="button-add-off-signer"
+                          >
+                            <Plus className="w-2.5 h-2.5" /> Add
+                          </button>
                         </div>
                         {crewSigners.filter(c => c.side === "off").map(crew => renderCrewCard(crew, "rose"))}
                         {crewSigners.filter(c => c.side === "off").length === 0 && (
-                          <p className="text-xs text-slate-600 text-center py-4 italic">No off-signers added yet.</p>
+                          <button
+                            className="w-full py-6 rounded-xl border border-dashed border-rose-500/30 text-xs text-slate-600 hover:text-rose-400 hover:border-rose-500/50 transition-colors flex flex-col items-center gap-1"
+                            onClick={() => { setCrewPanelMode("add_off"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "off" }); setEditingCrewId(null); setShowCrewPanel(true); }}
+                            data-testid="button-empty-add-off"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Add first off-signer</span>
+                          </button>
                         )}
                       </div>
                     </div>
@@ -1522,90 +1595,142 @@ export default function VoyageDetail() {
             </div>
           )}
 
-          {/* ── Add Crew Member Dialog ── */}
-          <Dialog open={showAddCrewDialog} onOpenChange={setShowAddCrewDialog}>
-            <DialogContent className="max-w-sm">
-              <DialogHeader>
-                <DialogTitle>Add Crew Member</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-3 pt-2">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Full Name</Label>
-                    <Input className="h-8 text-xs mt-1" placeholder="John Smith" value={addCrewForm.name} onChange={e => setAddCrewForm(f => ({ ...f, name: e.target.value }))} data-testid="input-crew-name" />
+          {/* ── Crew Member Slide-Over Panel ── */}
+          <Sheet open={showCrewPanel} onOpenChange={setShowCrewPanel}>
+            <SheetContent side="right" className="w-[420px] sm:w-[420px] flex flex-col p-0 bg-slate-900 border-l border-slate-700" data-testid="crew-slide-panel">
+              {/* Header */}
+              <SheetHeader className="px-6 pt-6 pb-4 border-b border-slate-700/60 flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${crewPanelMode === "add_on" ? "bg-emerald-500/15 border border-emerald-500/30" : crewPanelMode === "add_off" ? "bg-rose-500/15 border border-rose-500/30" : "bg-blue-500/15 border border-blue-500/30"}`}>
+                    {crewPanelMode === "add_on" ? <LogIn className="w-4 h-4 text-emerald-400" /> : crewPanelMode === "add_off" ? <LogOut className="w-4 h-4 text-rose-400" /> : <UserPlus className="w-4 h-4 text-blue-400" />}
                   </div>
                   <div>
-                    <Label className="text-xs">Rank / Position</Label>
-                    <Input className="h-8 text-xs mt-1" placeholder="Chief Officer" value={addCrewForm.rank} onChange={e => setAddCrewForm(f => ({ ...f, rank: e.target.value }))} data-testid="input-crew-rank" />
+                    <SheetTitle className="text-base font-bold text-slate-50">
+                      {crewPanelMode === "add_on" ? "Add On-Signer" : crewPanelMode === "add_off" ? "Add Off-Signer" : "Edit Crew Member"}
+                    </SheetTitle>
+                    <SheetDescription className="text-xs text-slate-500 mt-0.5">
+                      {crewPanelMode === "add_on" ? "Joining the vessel at this port" : crewPanelMode === "add_off" ? "Leaving the vessel at this port" : "Update crew logistics information"}
+                    </SheetDescription>
                   </div>
                 </div>
+              </SheetHeader>
+
+              {/* Scrollable Form Body */}
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+                {/* Section 1: Identity */}
                 <div>
-                  <Label className="text-xs">Sign Direction</Label>
-                  <div className="flex gap-2 mt-1">
-                    <button onClick={() => setAddCrewForm(f => ({ ...f, side: "on" }))} className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${addCrewForm.side === "on" ? "bg-emerald-900/40 border-emerald-500/50 text-emerald-400" : "bg-muted/30 border-border text-muted-foreground"}`} data-testid="btn-side-on">On-Signer</button>
-                    <button onClick={() => setAddCrewForm(f => ({ ...f, side: "off" }))} className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${addCrewForm.side === "off" ? "bg-rose-900/40 border-rose-500/50 text-rose-400" : "bg-muted/30 border-border text-muted-foreground"}`} data-testid="btn-side-off">Off-Signer</button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Flight No.</Label>
-                    <Input className="h-8 text-xs mt-1" placeholder="TK2320" value={addCrewForm.flight} onChange={e => setAddCrewForm(f => ({ ...f, flight: e.target.value }))} data-testid="input-crew-flight" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">ETA</Label>
-                    <Input className="h-8 text-xs mt-1" placeholder="14:30" value={addCrewForm.flightEta} onChange={e => setAddCrewForm(f => ({ ...f, flightEta: e.target.value }))} data-testid="input-crew-flighteta" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">Nationality (ISO-3)</Label>
-                    <Input className="h-8 text-xs mt-1" placeholder="TUR" maxLength={3} value={addCrewForm.nationality} onChange={e => setAddCrewForm(f => ({ ...f, nationality: e.target.value.toUpperCase() }))} data-testid="input-crew-nationality" />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Visa Required?</Label>
-                    <div className="flex gap-2 mt-1">
-                      <button onClick={() => setAddCrewForm(f => ({ ...f, visaRequired: false }))} className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${!addCrewForm.visaRequired ? "bg-emerald-900/40 border-emerald-500/50 text-emerald-400" : "bg-muted/30 border-border text-muted-foreground"}`} data-testid="btn-visa-no">No</button>
-                      <button onClick={() => setAddCrewForm(f => ({ ...f, visaRequired: true }))} className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${addCrewForm.visaRequired ? "bg-rose-900/40 border-rose-500/50 text-rose-400" : "bg-muted/30 border-border text-muted-foreground"}`} data-testid="btn-visa-yes">Yes</button>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Identity</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-slate-400">Full Name</Label>
+                      <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="John Smith" value={crewSlideForm.name} onChange={e => setCrewSlideForm(f => ({ ...f, name: e.target.value }))} data-testid="input-crew-name" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-slate-400">Rank / Position</Label>
+                      <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="Chief Officer" value={crewSlideForm.rank} onChange={e => setCrewSlideForm(f => ({ ...f, rank: e.target.value }))} data-testid="input-crew-rank" />
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label className="text-xs">e-Visa Status</Label>
-                    <select className="w-full h-8 text-xs mt-1 bg-background border border-border rounded-md px-2 text-foreground" value={addCrewForm.eVisaStatus} onChange={e => setAddCrewForm(f => ({ ...f, eVisaStatus: e.target.value as any }))} data-testid="select-evisa-status">
-                      <option value="n/a">N/A</option>
-                      <option value="pending">⏳ Pending</option>
-                      <option value="approved">✅ Approved</option>
-                    </select>
-                  </div>
-                  <div>
-                    <Label className="text-xs">OK to Board</Label>
-                    <select className="w-full h-8 text-xs mt-1 bg-background border border-border rounded-md px-2 text-foreground" value={addCrewForm.okToBoard} onChange={e => setAddCrewForm(f => ({ ...f, okToBoard: e.target.value as any }))} data-testid="select-otb-status">
-                      <option value="pending">Pending</option>
-                      <option value="sent">✈️ Sent to Airline</option>
-                      <option value="confirmed">✓ Confirmed</option>
-                    </select>
+
+                {/* Section 2: Nationality & Passport */}
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Nationality & Documents</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-slate-400">Nationality (ISO-3)</Label>
+                      <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600 uppercase" placeholder="TUR" maxLength={3} value={crewSlideForm.nationality} onChange={e => setCrewSlideForm(f => ({ ...f, nationality: e.target.value.toUpperCase() }))} data-testid="input-crew-nationality" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-slate-400">Passport No.</Label>
+                      <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="TR12345678" value={crewSlideForm.passportNo} onChange={e => setCrewSlideForm(f => ({ ...f, passportNo: e.target.value }))} data-testid="input-crew-passport" />
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-5">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={addCrewForm.flightDelayed} onChange={e => setAddCrewForm(f => ({ ...f, flightDelayed: e.target.checked }))} className="accent-rose-500" data-testid="check-crew-delayed" />
-                    <span className="text-xs text-rose-400">Flight Delayed</span>
+
+                {/* Section 3: Flight Details */}
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Flight Details</p>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <Label className="text-xs text-slate-400">Flight No.</Label>
+                      <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="TK2320" value={crewSlideForm.flight} onChange={e => setCrewSlideForm(f => ({ ...f, flight: e.target.value }))} data-testid="input-crew-flight" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-slate-400">{crewPanelMode === "add_off" || crewSlideForm.side === "off" ? "ETD (Departure)" : "ETA (Arrival)"}</Label>
+                      <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="14:30" value={crewSlideForm.flightEta} onChange={e => setCrewSlideForm(f => ({ ...f, flightEta: e.target.value }))} data-testid="input-crew-flighteta" />
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2.5 cursor-pointer p-2.5 rounded-lg bg-rose-900/10 border border-rose-500/20 hover:bg-rose-900/20 transition-colors">
+                    <input type="checkbox" checked={crewSlideForm.flightDelayed} onChange={e => setCrewSlideForm(f => ({ ...f, flightDelayed: e.target.checked }))} className="accent-rose-500 w-4 h-4" data-testid="check-crew-delayed" />
+                    <div>
+                      <p className="text-xs font-medium text-rose-400">Flight Delayed</p>
+                      <p className="text-[10px] text-rose-400/60">Mark if flight has been delayed</p>
+                    </div>
                   </label>
                 </div>
+
+                {/* Section 4: Visa & Clearance */}
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Visa & Clearance</p>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs text-slate-400 mb-1.5 block">Visa Required?</Label>
+                      <div className="flex gap-2">
+                        <button onClick={() => setCrewSlideForm(f => ({ ...f, visaRequired: false }))} className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${!crewSlideForm.visaRequired ? "bg-emerald-900/40 border-emerald-500/50 text-emerald-400" : "bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600"}`} data-testid="btn-visa-no">No</button>
+                        <button onClick={() => setCrewSlideForm(f => ({ ...f, visaRequired: true }))} className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${crewSlideForm.visaRequired ? "bg-rose-900/40 border-rose-500/50 text-rose-400" : "bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600"}`} data-testid="btn-visa-yes">Yes — Required</button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs text-slate-400">e-Visa Status</Label>
+                        <select className="w-full h-9 text-sm mt-1 bg-slate-800 border border-slate-700 rounded-md px-2 text-slate-100" value={crewSlideForm.eVisaStatus} onChange={e => setCrewSlideForm(f => ({ ...f, eVisaStatus: e.target.value as any }))} data-testid="select-evisa-status">
+                          <option value="n/a">N/A</option>
+                          <option value="pending">⏳ Pending</option>
+                          <option value="approved">✅ Approved</option>
+                        </select>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-slate-400">OK to Board</Label>
+                        <select className="w-full h-9 text-sm mt-1 bg-slate-800 border border-slate-700 rounded-md px-2 text-slate-100" value={crewSlideForm.okToBoard} onChange={e => setCrewSlideForm(f => ({ ...f, okToBoard: e.target.value as any }))} data-testid="select-otb-status">
+                          <option value="pending">Pending</option>
+                          <option value="sent">✈️ Sent to Airline</option>
+                          <option value="confirmed">✓ Confirmed</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
               </div>
-              <DialogFooter>
-                <Button variant="outline" size="sm" onClick={() => setShowAddCrewDialog(false)}>Cancel</Button>
-                <Button size="sm" onClick={() => {
-                  if (!addCrewForm.name.trim()) return;
-                  const defaultTimeline = addCrewForm.side === "on" ? ON_TIMELINE_DEFAULT.map(s => ({ ...s })) : OFF_TIMELINE_DEFAULT.map(s => ({ ...s }));
-                  setCrewSigners(cs => [...cs, { ...addCrewForm, id: Date.now(), timeline: defaultTimeline }]);
-                  setAddCrewForm({ name: "", rank: "", side: "on", nationality: "", flight: "", flightEta: "", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a", okToBoard: "pending" });
-                  setShowAddCrewDialog(false);
-                }} data-testid="button-confirm-add-crew">Add Crew Member</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+
+              {/* Sticky Footer */}
+              <SheetFooter className="px-6 py-4 border-t border-slate-700/60 flex-shrink-0 flex-row gap-2">
+                <Button variant="outline" className="flex-1 border-slate-700 text-slate-400 hover:bg-slate-800" onClick={() => setShowCrewPanel(false)} data-testid="button-cancel-crew-panel">
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={() => {
+                    if (!crewSlideForm.name.trim()) return;
+                    if (crewPanelMode === "edit" && editingCrewId !== null) {
+                      setCrewSigners(cs => cs.map(c => c.id !== editingCrewId ? c : { ...c, ...crewSlideForm }));
+                    } else {
+                      const side = crewPanelMode === "add_off" ? "off" : "on";
+                      const defaultTimeline = side === "on" ? ON_TIMELINE_DEFAULT.map(s => ({ ...s })) : OFF_TIMELINE_DEFAULT.map(s => ({ ...s }));
+                      setCrewSigners(cs => [...cs, { ...crewSlideForm, side, id: Date.now(), arrivalStatus: "pending", timeline: defaultTimeline }]);
+                    }
+                    setShowCrewPanel(false);
+                    setCrewSlideForm(EMPTY_CREW_SLIDE_FORM);
+                    setEditingCrewId(null);
+                  }}
+                  data-testid="button-confirm-add-crew"
+                >
+                  {crewPanelMode === "edit" ? "Save Changes" : "Add Crew Member"}
+                </Button>
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
 
           {/* ── Standard Port Ops (hidden for Husbandry & Crew Change) ── */}
           {voyage.purposeOfCall !== "Husbandry" && voyage.purposeOfCall !== "Crew Change" && (<>
