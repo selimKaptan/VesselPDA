@@ -2387,11 +2387,20 @@ export default function VoyageDetail() {
           {/* ── Port Formalities Auto-Generator ── */}
           {(() => {
         const PORT_TEMPLATES = [
-          { id: "berth_petition",  emoji: "📄", tr: "Liman Baskanligi Yanasma Dilekçesi",  en: "Harbour Master Berthing Petition" },
-          { id: "police_form",     emoji: "🛂", tr: "Deniz Polisi Gelis/Gidis Formu",      en: "Maritime Police Arrival/Departure" },
-          { id: "coastguard_decl", emoji: "🛟", tr: "Kiyi Emniyeti Deklarasyonu",          en: "Turkish Coastguard Declaration" },
-          { id: "tcdd_watch",      emoji: "👷", tr: "TCDD Posta/Vardiya Talepnamesi",       en: "TCDD Watch/Shift Request" },
-          { id: "shore_pass",      emoji: "⚓", tr: "Shore Pass",                           en: "Personnel Permission Card" },
+          { id: "police_arrival",    emoji: "🛂", tr: "Emniyet Deniz Limani — GELIS",            en: "Maritime Police — Arrival" },
+          { id: "police_departure",  emoji: "🛂", tr: "Emniyet Deniz Limani — GIDIS",            en: "Maritime Police — Departure" },
+          { id: "passport_arrival",  emoji: "🪪", tr: "Denizlimani Sube Mdr. — GIRIS",           en: "Port Immigration — Passport Arrival" },
+          { id: "tcdd_berth",        emoji: "⚓", tr: "TCDD Izmir — Yanasma Mektubu",            en: "TCDD Berthing Letter" },
+          { id: "tcdd_depart",       emoji: "🚢", tr: "TCDD Izmir — Kalkis Mektubu",             en: "TCDD Departure Letter" },
+          { id: "kiyi_emniyeti",     emoji: "🛟", tr: "Kiyi Emniyeti — Yanasma/Kalkma Talep",   en: "Coastguard Pilotage/Towage Request" },
+          { id: "arrival_decl",      emoji: "📋", tr: "Gelis Bildirim Tutanagi",                 en: "Arrival Declaration (Immigration)" },
+          { id: "shore_pass_notif",  emoji: "📝", tr: "Teblig ve Tebellug Belgesi",              en: "Shore Pass Notification Document" },
+          { id: "departure_decl",    emoji: "📋", tr: "Gidis Bildirim Tutanagi",                 en: "Departure Declaration (Immigration)" },
+          { id: "power_of_attorney", emoji: "🔏", tr: "Hususi Vekaletname",                      en: "Private Power of Attorney" },
+          { id: "tcdd_m10",          emoji: "📦", tr: "TCDD M.10 — Yukleme/Bosaltma Talepnamesi",en: "TCDD Cargo Operations Request (M.10)" },
+          { id: "tcdd_watch_table",  emoji: "👷", tr: "TCDD Amele Postasi Talep Tablosu",        en: "TCDD Watch/Labour Request Table" },
+          { id: "port_arrival",      emoji: "🏛️", tr: "Gemi Gelis Bildirimi — Liman Baskanligi", en: "Vessel Arrival Report — Port Authority" },
+          { id: "shore_pass",        emoji: "🆔", tr: "Liman Sehri Gezer Belgesi (Shore Pass)",  en: "Request Shore Pass (Landing Card)" },
         ];
 
             const generateOnePdf = async (templateId: string) => {
@@ -2432,7 +2441,7 @@ export default function VoyageDetail() {
                 if (i < PORT_TEMPLATES.length - 1) await new Promise(r => setTimeout(r, 400));
               }
               queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "documents"] });
-              toast({ title: "✅ All 5 Forms Generated!", description: "All port documents downloaded and saved." });
+              toast({ title: "✅ All 14 Forms Generated!", description: "All 14 port documents downloaded and saved." });
               setIsGeneratingAll(false);
               setGeneratingCount(0);
             };
@@ -2458,10 +2467,10 @@ export default function VoyageDetail() {
                     {isGeneratingAll ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Generating {generatingCount}/5...
+                        Generating {generatingCount}/14...
                       </>
                     ) : (
-                      <>🚀 Generate All (5 Forms)</>
+                      <>🚀 Generate All (14 Forms)</>
                     )}
                   </Button>
                 </div>

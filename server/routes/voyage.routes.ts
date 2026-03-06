@@ -431,8 +431,14 @@ router.post("/:id/generate-port-document", isAuthenticated, async (req: any, res
     const voyageId = parseInt(req.params.id);
     const { templateId } = req.body;
 
-    const VALID_TEMPLATES = ["berth_petition", "police_form", "coastguard_decl", "tcdd_watch", "shore_pass"] as const;
-    if (!templateId || !VALID_TEMPLATES.includes(templateId)) {
+    const VALID_IDS = [
+      "police_arrival","police_departure","passport_arrival",
+      "tcdd_berth","tcdd_depart",
+      "kiyi_emniyeti","arrival_decl","shore_pass_notif",
+      "departure_decl","power_of_attorney",
+      "tcdd_m10","tcdd_watch_table","port_arrival","shore_pass"
+    ];
+    if (!templateId || !VALID_IDS.includes(templateId)) {
       return res.status(400).json({ message: "Invalid templateId" });
     }
 
@@ -440,168 +446,683 @@ router.post("/:id/generate-port-document", isAuthenticated, async (req: any, res
     if (!voyage) return res.status(404).json({ message: "Voyage not found" });
 
     const TEMPLATE_META: Record<string, { tr: string; en: string }> = {
-      berth_petition:   { tr: "Liman Baskanligi Yanasma Dilekçesi",    en: "Harbour Master Berthing Petition" },
-      police_form:      { tr: "Deniz Polisi Gelis/Gidis Formu",        en: "Maritime Police Arrival/Departure" },
-      coastguard_decl:  { tr: "Kiyi Emniyeti Deklarasyonu",            en: "Turkish Coastguard Declaration" },
-      tcdd_watch:       { tr: "TCDD Posta/Vardiya Talepnamesi",         en: "TCDD Watch/Shift Request" },
-      shore_pass:       { tr: "Shore Pass",                             en: "Personnel Permission Card" },
+      police_arrival:    { tr: "Emniyet Deniz Limani - Gelis",         en: "Maritime Police - Arrival Declaration" },
+      police_departure:  { tr: "Emniyet Deniz Limani - Gidis",         en: "Maritime Police - Departure Declaration" },
+      passport_arrival:  { tr: "Denizlimani - Giris (Pasaport)",       en: "Port Immigration - Turkish Crew Arrival" },
+      tcdd_berth:        { tr: "TCDD Yanasma Mektubu",                 en: "TCDD Berthing Letter" },
+      tcdd_depart:       { tr: "TCDD Kalkis Mektubu",                  en: "TCDD Departure Letter" },
+      kiyi_emniyeti:     { tr: "Kiyi Emniyeti - Yanasma/Kalkma Talep", en: "Coastguard - Pilotage/Towage Request" },
+      arrival_decl:      { tr: "Gelis Bildirim Tutanagi",              en: "Arrival Declaration (Immigration)" },
+      shore_pass_notif:  { tr: "Teblig ve Tebellug Belgesi",           en: "Shore Pass Notification Document" },
+      departure_decl:    { tr: "Gidis Bildirim Tutanagi",              en: "Departure Declaration (Immigration)" },
+      power_of_attorney: { tr: "Hususi Vekaletname",                   en: "Private Power of Attorney" },
+      tcdd_m10:          { tr: "TCDD M.10 - Yukleme/Bosaltma Talep",   en: "TCDD Cargo Operations Request (M.10)" },
+      tcdd_watch_table:  { tr: "TCDD Amele Postasi Talep Tablosu",     en: "TCDD Watch/Labour Request Table" },
+      port_arrival:      { tr: "Gemi Gelis Bildirimi - Liman Baskanligi", en: "Vessel Arrival Report - Port Authority" },
+      shore_pass:        { tr: "Liman Sehri Gezer Belgesi",            en: "Request Shore Pass (Landing Card)" },
     };
     const tmpl = TEMPLATE_META[templateId];
 
-    const fmt = (d?: string | Date | null) => d ? new Date(d).toLocaleString("tr-TR") : "N/A";
+    const fmtDate = (d?: string | Date | null) => d ? new Date(d).toLocaleDateString("tr-TR") : "...";
+    const fmtDateTime = (d?: string | Date | null) => d ? new Date(d).toLocaleString("tr-TR") : "...";
+    const v = voyage;
+    const today = new Date().toLocaleDateString("tr-TR");
+    const todayFull = new Date().toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" });
+    const gemi = v.vesselName || "...";
+    const bayrak = v.flag || "...";
+    const imo = v.imoNumber || "...";
+    const grt = v.grt ? String(v.grt) : "...";
+    const nrt = (v as any).nrt ? String((v as any).nrt) : "...";
+    const liman = v.portName || "IZMIR";
+    const eta = fmtDate(v.eta);
+    const etd = fmtDate(v.etd);
+    const amac = v.purposeOfCall || "...";
+    // Company info from Selim Denizcilik
+    const ACENTE_ADI = "SELIM DENIZCILIK NAK.GEM.SAN.TIC.LTD.STI.";
+    const ACENTE_ADRES = "1443 Sk. No:148 Kat: 5 D:503 - 504 Alsancak-IZMIR";
+    const ACENTE_TEL = "Tel: 0.232 464 47 11 (PBX)  Fax: 0.232 464 18 31 - 464 32 71";
+    const ACENTE_TELEX = "Telex: 51133  Tic.Sic. No: Merkez 89899";
+    const ACENTE_YETKILI = "MURAT SIRINEL";
 
     const PDFDocumentModule = await import("pdfkit");
     const PDFDocument = (PDFDocumentModule as any).default || PDFDocumentModule;
-
     const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
     const chunks: Buffer[] = [];
     doc.on("data", (c: Buffer) => chunks.push(c));
 
+    // Helper: horizontal rule
+    const hline = (y?: number, x1 = 50, x2 = 545) => {
+      const yPos = y ?? doc.y;
+      doc.moveTo(x1, yPos).lineTo(x2, yPos).strokeColor("#000000").lineWidth(0.5).stroke();
+      doc.lineWidth(1);
+    };
+
+    // Helper: draw a table row with label-value pairs
+    const tableRow = (label: string, value: string, y: number, labelW = 200) => {
+      doc.font("Helvetica-Bold").fontSize(9).fillColor("#000000").text(label, 50, y, { width: labelW });
+      doc.font("Helvetica").fontSize(9).text(`: ${value}`, 50 + labelW, y, { width: 545 - 50 - labelW });
+    };
+
+    // Helper: standard Selim header (big logo-text style)
+    const selimHeader = () => {
+      doc.fontSize(28).font("Helvetica-Bold").fillColor("#000000")
+        .text("SELIM", 0, 40, { align: "center", width: 595 });
+      doc.fontSize(12).font("Helvetica-Bold")
+        .text("Denizcilik,Nakliyat, Gemicilik", 0, 78, { align: "center", width: 595 });
+      doc.fontSize(12).font("Helvetica-Bold")
+        .text("Sanayi Ticaret Limited Sirketi", 0, 95, { align: "center", width: 595 });
+    };
+
+    // Helper: Selim footer
+    const selimFooter = () => {
+      hline(798, 30, 565);
+      doc.fontSize(8).font("Helvetica").fillColor("#000000")
+        .text(ACENTE_ADRES, 0, 803, { align: "center", width: 595 });
+      doc.fontSize(8).text(ACENTE_TEL, 0, 813, { align: "center", width: 595 });
+      doc.fontSize(8).text(ACENTE_TELEX, 0, 823, { align: "center", width: 595 });
+    };
+
+    // Helper: TC Valilik header (Immigration)
+    const valikHeader = () => {
+      doc.fontSize(11).font("Helvetica-Bold").fillColor("#000000")
+        .text("T.C.", 0, 40, { align: "center", width: 595 });
+      doc.text("IZMIR VALILIGI", 0, 54, { align: "center", width: 595 });
+      doc.fontSize(9).font("Helvetica")
+        .text("Deniz Limani Sube Mudurlugu", 0, 68, { align: "center", width: 595 });
+      doc.text("(REPUBLIC OF TURKEY)", 0, 80, { align: "center", width: 595 });
+      doc.text("IZMIR SECURITY DEPARTMENT", 0, 92, { align: "center", width: 595 });
+      doc.text("PORT OFFICE", 0, 104, { align: "center", width: 595 });
+    };
+
     await new Promise<void>((resolve) => {
       doc.on("end", resolve);
 
-      // ── Header ──────────────────────────────────────────────────────
-      doc.rect(0, 0, 595.28, 80).fill("#0f172a");
-      doc.fontSize(7).fillColor("#94a3b8")
-        .text("VesselPDA · Auto-Generated Port Document · Confidential", 50, 18, { align: "center", width: 495.28 });
-      doc.fontSize(17).font("Helvetica-Bold").fillColor("#ffffff")
-        .text(tmpl.tr, 50, 32, { align: "center", width: 495.28 });
-      doc.fontSize(10).font("Helvetica").fillColor("#60a5fa")
-        .text(tmpl.en, 50, 56, { align: "center", width: 495.28 });
+      // =====================================================================
+      if (templateId === "police_arrival") {
+        // PAGE 1: Emniyet Deniz Limani GELiS
+        selimHeader();
+        doc.moveDown(5.5);
+        doc.fontSize(9).font("Helvetica-Bold").text("EMNIYET DENIZ LIMANI SUBE MUDURLUGU'NE", 50, doc.y);
+        doc.text("IZMIR", 50, doc.y + 12);
+        doc.fontSize(9).font("Helvetica").text(`${liman},        ${todayFull}`, 380, doc.y - 12);
+        doc.moveDown(2.5);
+        doc.fontSize(12).font("Helvetica-Bold").text("G E L I S", { align: "center" });
+        doc.moveDown(1);
+        doc.fontSize(9).font("Helvetica");
+        doc.font("Helvetica").text(`ACENTELIGIMIZE BAGLI  ${bayrak}  BAYRAKLI  ${gemi}  ISIMLI GEMININ GELIS KONTROLUNUN YAPILMASINI EMIR VE MUSADELERINIZE ARZ EDERIZ.`, 50, doc.y, { width: 490 });
+        doc.moveDown(1);
+        doc.text("SAYGLARIMIZLA", 380, doc.y);
+        doc.font("Helvetica-Bold").text(ACENTE_YETKILI, 380, doc.y + 12);
+        doc.moveDown(3.5);
+        const fieldY = doc.y;
+        const fields2 = [
+          ["GEMININ ADI",       gemi],
+          ["BAYRAGI",           bayrak],
+          ["BAGLAMA LIMANI",    (v as any).portOfRegistry || "..."],
+          ["NRT / GRT",         `${nrt}/        ${grt}/`],
+          ["GELDIGI YER",       (v as any).lastPort || (v as any).comingFrom || liman],
+          ["GELECEGI TARIH",    eta],
+          ["YUKLEYECEGI YUK",   "YOK                0"],
+          ["TAHLIYE EDECEGI YUK", (v as any).cargoQuantity ? `${(v as any).cargoQuantity} MTON    ${(v as any).cargoType || ""}` : "..."],
+          ["GIDECEGI YER",       (v as any).nextPort || "..."],
+          ["GIDECEGI TARIH",     etd === "..." ? "IS BITIMI" : etd],
+          ["TRANSIT YUKU",       (v as any).transitCargo || "..."],
+          ["YANASACAGI LIMAN",   (v as any).berthName || "ALSANCAK"],
+          ["IMO NO",             imo],
+        ];
+        fields2.forEach(([label, val], i) => {
+          doc.font("Helvetica-Bold").fontSize(9).text(label, 50, fieldY + i * 16);
+          doc.font("Helvetica").text(`: ${val}`, 200, fieldY + i * 16);
+        });
+        selimFooter();
 
-      // ── Vessel Particulars ───────────────────────────────────────────
-      doc.moveDown(3);
-      doc.fontSize(11).font("Helvetica-Bold").fillColor("#000000")
-        .text("VESSEL PARTICULARS (Auto-Filled)");
-      doc.moveTo(50, doc.y + 3).lineTo(545.28, doc.y + 3).strokeColor("#e2e8f0").stroke();
-      doc.moveDown(0.8);
+      // =====================================================================
+      } else if (templateId === "police_departure") {
+        selimHeader();
+        doc.moveDown(5.5);
+        doc.fontSize(9).font("Helvetica-Bold").text("EMNIYET DENIZ LIMANI SUBE MUDURLUGU'NE", 50);
+        doc.text("IZMIR", 50, doc.y + 12);
+        doc.fontSize(9).font("Helvetica").text(`${liman},        ${todayFull}`, 380, doc.y - 12);
+        doc.moveDown(2.5);
+        doc.fontSize(12).font("Helvetica-Bold").text("G I D I S", { align: "center" });
+        doc.moveDown(1);
+        doc.fontSize(9).font("Helvetica");
+        doc.font("Helvetica").text(`ACENTELIGIMIZE BAGLI  ${bayrak}  BAYRAKLI  ${gemi}  ISIMLI GEMININ GIDIS KONTROLUNUN YAPILMASINI EMIR VE MUSADELERINIZE ARZ EDERIZ.`, 50, doc.y, { width: 490 });
+        doc.moveDown(1);
+        doc.text("SAYGLARIMIZLA", 380, doc.y);
+        doc.font("Helvetica-Bold").text(ACENTE_YETKILI, 380, doc.y + 12);
+        doc.moveDown(3.5);
+        const fY = doc.y;
+        const dFields = [
+          ["GEMININ ADI",         gemi],
+          ["BAYRAGI",             bayrak],
+          ["BAGLAMA LIMANI",      (v as any).portOfRegistry || "..."],
+          ["NRT / GRT",           `${nrt}/        ${grt}/`],
+          ["GELDIGI YER",         (v as any).lastPort || liman],
+          ["GELDIGI TARIH",       eta],
+          ["YUKLEYECEGI YUK",     "YOK                0"],
+          ["TAHLIYE ETTIGI YUK",  (v as any).cargoQuantity ? `${(v as any).cargoQuantity} MTON    ${(v as any).cargoType || ""}` : "..."],
+          ["GIDECEGI YER",        "EMRE GORE"],
+          ["GIDECEGI TARIH",      etd === "..." ? "IS BITIMI" : etd],
+          ["TRANSIT YUKU",        (v as any).cargoType || "..."],
+          ["YANASACAGI LIMAN",    (v as any).berthName || "ALSANCAK"],
+          ["IMO NO",              imo],
+        ];
+        dFields.forEach(([label, val], i) => {
+          doc.font("Helvetica-Bold").fontSize(9).text(label, 50, fY + i * 16);
+          doc.font("Helvetica").text(`: ${val}`, 200, fY + i * 16);
+        });
+        selimFooter();
 
-      const fields: [string, string][] = [
-        ["Vessel Name / Gemi Adi:",        voyage.vesselName || "N/A"],
-        ["IMO Number:",                    voyage.imoNumber || "N/A"],
-        ["Flag / Bayrak:",                 voyage.flag || "N/A"],
-        ["GRT / Gross Tonnage:",           voyage.grt ? `${voyage.grt} GT` : "N/A"],
-        ["Port / Liman:",                  voyage.portName || "N/A"],
-        ["Purpose of Call / Gelis Sebebi:",voyage.purposeOfCall || "N/A"],
-        ["ETA:",                           fmt(voyage.eta)],
-        ["ETD:",                           fmt(voyage.etd)],
-      ];
-      if ((voyage as any).cargoType)     fields.push(["Cargo Type / Yuk Cinsi:",    String((voyage as any).cargoType)]);
-      if ((voyage as any).cargoQuantity) fields.push(["Cargo Qty / Yuk Miktari:",   `${(voyage as any).cargoQuantity} MT`]);
+      // =====================================================================
+      } else if (templateId === "passport_arrival") {
+        selimHeader();
+        doc.moveDown(5.5);
+        doc.fontSize(9).font("Helvetica-Bold").text("DENIZLIMANI SUBE MUDURLUGU'NE", 50);
+        doc.text("IZMIR", 50, doc.y + 12);
+        doc.fontSize(9).font("Helvetica").text(`IZMIR,        ${todayFull}`, 380, doc.y - 12);
+        doc.moveDown(2.5);
+        doc.fontSize(12).font("Helvetica-Bold").text("G i r i s", { align: "center" });
+        doc.moveDown(1);
+        doc.fontSize(9).font("Helvetica");
+        doc.font("Helvetica").text(`ACENTELIGIMIZE BAGLI  ${bayrak}  BAYRAKLI  ${gemi}  ISIMLI GEMININ TURK PERSONELLERININ GEREKLI PASAPORT GIRIS ISLEMLERININ YAPILMASINI ARZ DERIZ.`, 50, doc.y, { width: 490 });
+        doc.moveDown(1);
+        doc.text("SAYGLARIMIZLA", 380, doc.y);
+        doc.font("Helvetica-Bold").text(ACENTE_YETKILI, 380, doc.y + 12);
+        doc.moveDown(3);
+        doc.fontSize(9).font("Helvetica-Bold").text("GEMININ");
+        doc.font("Helvetica");
+        doc.text(`GELECEGI LIMAN       : ${(v as any).nextPort || liman}`, 50, doc.y + 8);
+        doc.text(`GELECEGI TARIH        : ${eta}`, 50, doc.y + 8);
+        selimFooter();
 
-      doc.fontSize(10);
-      fields.forEach(([label, value], i) => {
-        if (i % 2 === 0) {
-          doc.rect(48, doc.y - 3, 499.28, 16).fill("#f8fafc");
-        }
-        const y = doc.y;
-        doc.font("Helvetica-Bold").fillColor("#475569").text(label, 52, y, { continued: true, width: 200 });
-        doc.font("Helvetica").fillColor("#0f172a").text(value, { width: 280 });
-      });
+      // =====================================================================
+      } else if (templateId === "tcdd_berth") {
+        selimHeader();
+        doc.moveDown(5.5);
+        doc.fontSize(9).font("Helvetica-Bold").text("TCDD IZMIR LIMAN ISLETME MUDURLUGU'NE", 50);
+        doc.text("IZMIR", 50, doc.y + 12);
+        doc.fontSize(9).font("Helvetica").text(`IZMIR,        ${todayFull}`, 380, doc.y - 12);
+        doc.moveDown(2.5);
+        doc.fontSize(12).font("Helvetica-Bold").text("YANASMA MEKTUBU", { align: "center" });
+        doc.moveDown(1.5);
+        doc.fontSize(9).font("Helvetica");
+        doc.font("Helvetica").text(`        ACENTELIGIMIZE BAGLI  ${bayrak}  BAYRAKLI  ${gemi}  ISIMLI GEMIMIZIN`, 50, doc.y, { width: 490 });
+        doc.text(`        ${eta}  GUNU SAAT`, { continued: true });
+        doc.text(`        'DA IZMIR LIMANINA YANASTIRILMASINI EMIR VE MUSADELERINIZE ARZ EDERIZ.`);
+        doc.moveDown(2);
+        doc.fontSize(9).font("Helvetica-Bold").text("BAS:", 50);
+        doc.text("KIC:", 50, doc.y + 14);
+        doc.moveDown(2);
+        doc.font("Helvetica").fontSize(9).text("SAYGLARIMIZLA,", 380, doc.y);
+        doc.font("Helvetica-Bold").text(ACENTE_YETKILI, 380, doc.y + 14);
+        selimFooter();
 
-      doc.moveDown(1.5);
+      // =====================================================================
+      } else if (templateId === "tcdd_depart") {
+        selimHeader();
+        doc.moveDown(5.5);
+        doc.fontSize(9).font("Helvetica-Bold").text("TCDD IZMIR LIMAN ISLETME MUDURLUGU'NE", 50);
+        doc.text("IZMIR", 50, doc.y + 12);
+        doc.fontSize(9).font("Helvetica").text(`IZMIR,        ${todayFull}`, 380, doc.y - 12);
+        doc.moveDown(2.5);
+        doc.fontSize(12).font("Helvetica-Bold").text("KALKIS MEKTUBU", { align: "center" });
+        doc.moveDown(1.5);
+        doc.fontSize(9).font("Helvetica");
+        doc.font("Helvetica").text(`        ACENTELIGIMIZE BAGLI  ${bayrak}  BAYRAKLI  ${gemi}  ISIMLI GEMIMIZIN`, 50, doc.y, { width: 490 });
+        doc.text(`        ${etd === "..." ? "..." : etd}  GUNU SAAT`);
+        doc.text("        DA IZMIR LIMANINDAN KALDIRILMASINI EMIR VE MUSADELERINIZE ARZ.");
+        doc.moveDown(2);
+        doc.fontSize(9).font("Helvetica-Bold").text("RIHTIM NO:", 50);
+        doc.text("BAS:", 50, doc.y + 14);
+        doc.text("KIC:", 50, doc.y + 14);
+        doc.moveDown(2);
+        doc.font("Helvetica").fontSize(9).text("SAYGLARIMIZLA,", 380, doc.y);
+        doc.font("Helvetica-Bold").text(ACENTE_YETKILI, 380, doc.y + 14);
+        selimFooter();
 
-      // ── Template-specific content ────────────────────────────────────
-      doc.fontSize(11).font("Helvetica-Bold").fillColor("#000000");
-      if (templateId === "berth_petition") {
-        doc.text("TALEP / REQUEST");
-        doc.moveTo(50, doc.y + 2).lineTo(545.28, doc.y + 2).strokeColor("#e2e8f0").stroke();
-        doc.moveDown(0.6);
-        doc.fontSize(10).font("Helvetica").fillColor("#0f172a");
-        doc.text(`Yukarida bilgileri verilen gemimizin ${voyage.portName || "..."} limanina yanasma izni icin gereginizi arz ederiz.`);
-        doc.moveDown(0.4);
-        doc.text(`We hereby request berthing permission for the above-mentioned vessel at ${voyage.portName || "..."} port.`);
-      } else if (templateId === "police_form") {
-        doc.text("MURETTEBAT BILGISI / CREW INFORMATION");
-        doc.moveTo(50, doc.y + 2).lineTo(545.28, doc.y + 2).strokeColor("#e2e8f0").stroke();
-        doc.moveDown(0.6);
-        doc.fontSize(10).font("Helvetica").fillColor("#0f172a");
-        doc.text("Toplam Murettebat / Total Crew: ________________");
-        doc.text("Transit Yolcu / Transit Passengers: ________________");
-        doc.text("Kacak / Stowaways: None / Yok");
-        doc.moveDown(0.4);
-        doc.text("Geminin son 10 limani / Last 10 ports of call:");
-        for (let i = 1; i <= 5; i++) {
-          doc.text(`  ${i}. Port: ____________________  Date: ____________`);
-        }
-      } else if (templateId === "coastguard_decl") {
-        doc.text("BEYAN / DECLARATION");
-        doc.moveTo(50, doc.y + 2).lineTo(545.28, doc.y + 2).strokeColor("#e2e8f0").stroke();
-        doc.moveDown(0.6);
-        doc.fontSize(10).font("Helvetica").fillColor("#0f172a");
-        doc.text("Gemimizde yasadisi herhangi bir durum bulunmadigini beyan ederiz.");
-        doc.moveDown(0.3);
-        doc.text("We declare that there is no illegal situation on board our vessel.");
-        doc.moveDown(0.3);
-        doc.text("Tehlikeli madde / Dangerous goods: None / Yok");
-        doc.text("Silah / Weapons: None / Yok");
-        doc.text("Uyusturucu / Narcotics: None / Yok");
-      } else if (templateId === "tcdd_watch") {
-        doc.text("TALEP EDILEN HIZMET / REQUESTED SERVICE");
-        doc.moveTo(50, doc.y + 2).lineTo(545.28, doc.y + 2).strokeColor("#e2e8f0").stroke();
-        doc.moveDown(0.6);
-        doc.fontSize(10).font("Helvetica").fillColor("#0f172a");
-        doc.text("Posta Sayisi / Number of Watches: ________________");
-        doc.text("Baslangic Tarihi / Start Date: ________________");
-        doc.text("Bitis Tarihi / End Date: ________________");
-        doc.text("Vardiya Baslangici / Shift Start: ________________");
-        doc.text("Vardiya Bitisi / Shift End: ________________");
-        doc.text("Hizmet Turu / Service Type: ________________");
+      // =====================================================================
+      } else if (templateId === "kiyi_emniyeti") {
+        doc.fontSize(11).font("Helvetica-Bold").fillColor("#000000")
+          .text("KIYI EMNIYETI GENEL MUDURLUGU IZMIR", 0, 50, { align: "center", width: 595 });
+        doc.moveDown(1.5);
+        doc.fontSize(9).font("Helvetica")
+          .text("Liman Yanasma-Kalkma", { align: "center" });
+        doc.text("Kilavuzluk ve Romorkör Hizmetleri Talep Formu", { align: "center" });
+        doc.moveDown(1);
+        doc.text(`${todayFull}`, 380, doc.y);
+        doc.text("BAS(KW) - KIC(KW)", 390, doc.y + 12);
+        doc.moveDown(2);
+        const kY = doc.y;
+        const kFields: [string, string, string, string][] = [
+          ["GEMI ADI", gemi, "BAS ve KIC PERVANESI(KW)", "( ) - ( )"],
+          ["BAYRAGI", bayrak, "YUKUN CINSI", (v as any).cargoType || "..."],
+          ["IMO NUMARASI", imo, "TAHMINI YANASMA TARIHI", eta],
+          ["GROSS TON", `${grt}/`, "TAHMINI KALKIS TARIHI", etd],
+          ["ACENTESI", ACENTE_ADI.split(" ")[0] + " DENIZCILIK", "TEHLIKELI YUK-IMDG KOD", ""],
+          ["GEMI TIPI", (v as any).vesselType || "KIMYASAL TANKER", "(1-2-5.1-5.2-6.2-7)", ""],
+        ];
+        kFields.forEach(([l1, v1, l2, v2], i) => {
+          const ry = kY + i * 22;
+          doc.font("Helvetica-Bold").fontSize(9).text(l1, 50, ry);
+          doc.font("Helvetica").text(`: ${v1}`, 145, ry);
+          doc.font("Helvetica-Bold").text(l2, 300, ry);
+          doc.font("Helvetica").text(`: ${v2}`, 450, ry);
+        });
+        doc.font("Helvetica-Bold").fontSize(9).text("GELDIGI LIMAN", 50, kY + 132);
+        doc.font("Helvetica").text(`: ${liman}`, 145, kY + 132, { continued: true });
+        doc.font("Helvetica-Bold").text("    GIDECEGI LIMAN", { continued: true });
+        doc.font("Helvetica").text(`: ${(v as any).nextPort || "..."}`, { continued: false });
+        doc.moveDown(1.5);
+        doc.font("Helvetica-Bold").fontSize(9).text("TALEP EDILEN HIZMET:");
+        doc.moveDown(0.8);
+        const hizmetY = doc.y;
+        ["KILAVUZLUK", "ROMORKÖR", "PALAMAR", "PELIKAN", "SIFTING"].forEach((h, i) => {
+          doc.font("Helvetica-Bold").fontSize(9).text(h, 50 + i * 95, hizmetY);
+          const val = (h === "KILAVUZLUK" || h === "ROMORKÖR" || h === "PALAMAR") ? "EVET" : "HAYIR";
+          doc.font("Helvetica").text(val, 50 + i * 95, hizmetY + 14);
+        });
+        doc.moveDown(3);
+        doc.fontSize(8).font("Helvetica")
+          .text("Yukarida yazili hizmetler hususunda gerekli depozitonu alinmasini istedigimiz hizmetlerin verilmesini, Liman Hizmetleri Tarifesi hukumleri ile Liman ve Iskelelerinin dair Tuzuk, Yonetmelik, Talimat ve Sair .mevzuatini tatbikin Ingiltere Birllesik Kralligi Standart Cekme Sartlari (UNDER U.K. TOWAGE CONTRACT CONITIONS) 'nin tatbikini gunun 24 saat devam edebilecek calisma saatlerine uymay, Limaninin yukleme-bosaltma kapasitesine gore vasita bulundurmayi, aksi takdirde Isletmenizin kendi kapasitesine uygun yukleme-bosaltmayi temin hususunda alacagi tedbirleri kabul ve bunlara ait bilcumle ucret ve masraflari odemeyi, idarece zaruret goruldugu hallerde gemi ve vasitanin yukleme-bosaltma yerlerinin degistirilmesine Liman is imkan ve kapasitesi ve bu bakimdan alinacak her turlu tedbire uymay, Bogaz gecis acentelerinin bildirilmesi halinde, geminin Bogaz gecisinden dogan ve KIYI EMNIYETI GENEL MUDURLUGU (KEGIM)' nin tahakkuk ettirdigi her turlu borc odemeyit aahhut ederiz.", { width: 495 });
+        doc.moveDown(1.5);
+        doc.fontSize(9).font("Helvetica").text("DEPOZITO : ________________ TL", 50);
+        hline(doc.y + 20);
+        doc.font("Helvetica-Bold").fontSize(8).text("KASE - IMZA", 380, doc.y + 25);
+        doc.text("ACENTASI ve DONATANI", 370, doc.y + 12);
+
+      // =====================================================================
+      } else if (templateId === "arrival_decl") {
+        valikHeader();
+        doc.moveDown(5.5);
+        doc.fontSize(11).font("Helvetica-Bold").text("GELIS BILDIRIM TUTANAGI", 50);
+        doc.fontSize(9).font("Helvetica").text("(ARRIVAL DECLARATION)", 50, doc.y + 2);
+        doc.moveDown(1.5);
+        const adFields: [string, string, string][] = [
+          ["GEMININ ADI VE CINSI", "NAME OF VESSEL AND TYPE",              gemi],
+          ["GEMININ BAYRAGI",       "VESSEL'S FLAG",                       bayrak],
+          ["GEMININ ACENTESI",      "VESSEL'S AGENT",                      ACENTE_ADI.split(" ")[0] + " DENIZCILIK"],
+          ["GEMI KAPTANININ ADI",   "MASTER'S NAME",                       "..."],
+          ["GEMI TAYFA ADEDI",      "NUMBER OF CREW",                      "..."],
+          ["GEMI KUMPANYASININ ADI","OWNER OF THE VESSEL",                  "..."],
+          ["GEMININ NET VE GROS TONAJI","NRT AND GRT TONNAGE",             `${nrt}/ ${grt}/`],
+          ["GEMININ IZMIR YOLCUSU VE TEBASI","NUMBER AND NATIONALITY OF PASSANGER FOR IZMIR","YOK"],
+          ["GEMININ TRANSIT YUK VE CINSI","TRANSIT CARGO ONBOARD(KIND&QUANTITY)",          (v as any).cargoType || "..."],
+          ["GEMININ TRANSIT YOLCU ADEDI","NUMBER OF TRANSIT PASSENGER",                    "YOK"],
+          ["GEMIDE KACAK YOLCU OLUP OLMADIGI","ARE THERE STOWAWAY ON BOARD",               "YOK"],
+          ["GEMININ IZMIR YUK CINSI VE TONU","CARGO FOR IZMIR (KIND&QUALITY)",            (v as any).cargoType ? `${(v as any).cargoType} ${(v as any).cargoQuantity || ""}` : "..."],
+          ["IZMIR'DEN ALACAGI YUK CINSI VE TONU","CARGO LOADED FM IZMIR (KIND&QUANTITY)", "YOK"],
+          ["GEMININ GELDIGI VE GIDECEGI LIMAN","VESSEL ARRIVED FROM../VESSEL SAILED TO/", `${(v as any).lastPort || liman}    ${(v as any).nextPort || "..."}`],
+          ["GEMIDE SILAH OLUP OLMADIGI","ARE THERE ANY WHEAPONS ON BOARD..",               "YOK"],
+          ["TURK BAYRAGININ NIZAMI OLUP OLMADIGI","ARE THERE ANY TURKISH FLAGS ON BOARD",  "NIZAMI"],
+          ["LIMANIN NERESINDE OLDUGU","",                                                  (v as any).berthName || "ALSANCAK"],
+          ["IMO NO","",                                                                     imo],
+        ];
+        const adY = doc.y;
+        adFields.forEach(([tr2, en2, val], i) => {
+          const ry = adY + i * 18;
+          if (ry > 720) return;
+          doc.font("Helvetica-Bold").fontSize(7.5).text(tr2, 50, ry);
+          doc.font("Helvetica").fontSize(6.5).fillColor("#555555").text(en2, 50, ry + 7);
+          doc.fillColor("#000000").fontSize(8.5).text(`: ${val}`, 280, ry, { width: 260 });
+        });
+        doc.moveDown(1);
+        const certY = Math.min(doc.y + 10, 730);
+        doc.fontSize(8).font("Helvetica")
+          .text(`LIMANIMIZA ${liman}`, 50, certY);
+        doc.text(`'DAN BUGÜN      'DE GELEN  ${bayrak}  BAYRAKLI VE  ${gemi}  ADLI GEMININ GELIS KONTROLUNDE YAPILAN SORUSTURMA VE ARASTIRMADAN PASAPORTSUZ VE KACAK YOLCU BULUNMADIGI ANLASIMIS OLMAKLA TANZIM EDILEN IS BU GELIS BILDIRIMI IMZA ALTINA ALINDI      ${today}`, 50, certY + 12, { width: 245 });
+        doc.text("EMNIYET\nDENIZ LIMANI SUBE MUDURLUGU\n(CHIEF IMMIGRATION OFFICER)", 50, certY + 60);
+        doc.text("ACENTA\n(AGENT)", 230, certY + 60);
+        doc.text("KAPTAN\n(MASTER)", 380, certY + 60);
+
+      // =====================================================================
+      } else if (templateId === "departure_decl") {
+        valikHeader();
+        doc.moveDown(5.5);
+        doc.fontSize(11).font("Helvetica-Bold").text("GIDIS BILDIRIM TUTANAGI", 50);
+        doc.fontSize(9).font("Helvetica").text("(DEPARTURE DECLARATION)", 50, doc.y + 2);
+        doc.moveDown(1.5);
+        const ddFields: [string, string, string][] = [
+          ["GEMININ ADI VE CINSI",       "NAME OF VESSEL AND TYPE",                     gemi],
+          ["GEMININ BAYRAGI",             "(VESSEL'S FLAG)",                             bayrak],
+          ["GEMININ IZMIR'DEN ALDIGI YOLCU","(NUMBER OF EMBARKED PASSENGER)",            "YOK"],
+          ["GEMININ TRANSIT YOLCU ADEDI VE TEBASI","(NUMBER AND NATIONALITY OF TRANSIT PASSENGER)","YOK"],
+          ["GEMI TAYFA ADEDI",            "(NUMBER OF CREW)",                            "..."],
+          ["IZMIR'DEN ALDIGI YUK CINSI VE TONU","CARGO LOADED FM IZMIR (KIND&QUANTITY)", "YOK"],
+          ["GEMININ TRANSIT YUK CINSI VE TONAJI","(TRANSIT CARGO ONBOARD KIND&QUANTITY)", (v as any).cargoType ? `${(v as any).cargoType}  ${(v as any).cargoQuantity || ""} MTON` : "..."],
+          ["GEMIDE KACAK YOLCU OLUP OLMADIGI","ARE THERE STOWAWAY ON BOARD",             "YOK"],
+          ["GEMININ NET TONAJI",           "(NRT TONNAGE)",                               `${nrt}/`],
+          ["GEMININ GIDECEGI LIMAN VE TARIHI","(VESSEL SAIL TO... AND DATE.....)",        `0        ${etd}`],
+          ["GEMININ GELDIGI LIMAN VE TARIH","(VESSEL ARRIVED FROM.... AND DATE......)",   `${liman}        ${eta}`],
+          ["IMO NO",                       "",                                             imo],
+        ];
+        const ddY = doc.y;
+        ddFields.forEach(([tr2, en2, val], i) => {
+          const ry = ddY + i * 20;
+          if (ry > 700) return;
+          doc.font("Helvetica-Bold").fontSize(8).text(tr2, 50, ry);
+          doc.font("Helvetica").fontSize(7).fillColor("#555555").text(en2, 50, ry + 9);
+          doc.fillColor("#000000").fontSize(9).text(`: ${val}`, 280, ry, { width: 260 });
+        });
+        const certY2 = ddY + ddFields.length * 20 + 15;
+        doc.fontSize(7.5).font("Helvetica")
+          .text(`LIMANIZDAN              'A BUGÜN SAAT      'DE GIDEN  ${bayrak}  BAYRAKLI  ${gemi}  ADLI GEMININ GIDIS KONTROLUNDE YAPILAN SORUSTURMA VE ARASTIRMADAN PASAPORTSUZ VE KACAK YOLCU BULUNMADIGI ANLASIMIS OLMAKLA TANZIM EDILEN IS BU GIDIS BILDIRIMI IMZA ALTINA ALINDI      ${today}`, 50, certY2, { width: 250 });
+        doc.text("EMNIYET\nDENIZ LIMANI SUBE MUDURLUGU\n(CHIEF IMMIGRATION OFFICER)", 50, certY2 + 55);
+        doc.text("ACENTA\n(AGENT)", 230, certY2 + 55);
+        doc.text("KAPTAN\n(MASTER)", 380, certY2 + 55);
+
+      // =====================================================================
+      } else if (templateId === "shore_pass_notif") {
+        doc.fontSize(12).font("Helvetica-Bold").text("TEBLIG VE TEBELLUG BELGESI", 0, 50, { align: "center", width: 595 });
+        doc.fontSize(10).font("Helvetica").text("OF NOTIFIED & CONVEYED DOCUMENT", 0, 68, { align: "center", width: 595 });
+        doc.moveDown(1.5);
+        doc.fontSize(9).text(`${today}  gunü saat  ............  siralarinda  Alsancak liman  ............  rihtim mevkisinde (limanina) gelen`, 50, doc.y, { width: 495 });
+        doc.text(`${imo}  IMO no'lu  ${bayrak}  bayrakli,  ${gemi}  isimli geminin gemicilere liman sehri izin belgesi duzenlenmesi icin geminin kaptani veya yetkili acentesi tarafindan gerekli polis islemleri talep edilmistir.`, 50, doc.y + 14, { width: 495 });
+        doc.moveDown(1);
+        doc.fontSize(7.5).font("Helvetica").fillColor("#333333")
+          .text(`${today}  at ............  Hrs at the place of ALSANCAK PORT ............  Pier / anchorage for the vessel  ${bayrak}  flagged  ${gemi}  & IMO Nr  ${imo}  by the agent and master.`, 50, doc.y, { width: 495 });
+        doc.fillColor("#000000");
+        doc.moveDown(1.5);
+        const spLines = [
+          "1. Gelen gemi adaminin geldigi gemi ile geri doneceği ve izin verilen tarihler icerisinde Liman Sehrinin sinirlari disina cikamayacagi;\n   Crew members will sail with the vessel and Crew members will not exit outisde of the Port City border in limited date/s;",
+          "2. Liman sehri gezme izin belgesini aldigi birime teslim edeceği ve karti kaybetmesi durumunda en kisa surede bildirimde bulunacagi;\n   Crew members will give back the shore pass to the issued authority and to be informed authority soonest whether lost the pass;",
+          "3. Liman sehri gezi izin belgesinin, pasaport veya gemi adami cuzgani fotokopisi ile birlikte bulundurulmasi gerektiği;\n   Crew members are required to hold shore pass with his photocopy of passport or seamanbook during city visiting;",
+          "4. Liman Sehri Gezi Izin belgesinde verilen gemicinin belirtilen saatte gemiye donmemesi, Adli olaya karsimasi il disi sinirlarina ciktignin tespit edilmesi halinde gemici, acente veya gemi kaptani tarafindan durumun en kisa sure icerisinde Hudut Kapisi Pasaport bilgi verilecegi;",
+          "5. Giris - Cikiglarda sadece (Yolcu Salonu) Liman A Kapisi kullanilacagi;\n   Required to use only GATE A (Passenger Terminal) for entrance and exit the port;",
+          "6. Gemi Limanda bulundugu sure icerisinde Murettebat ve Yolcularin Gemi Adami Cüzdani ve Pasaportlari kendilerine verilmeyerek, gerektiginde Pasaport Polisine teslim edilmek uzere gemi kaptani tarafindan muhafaza altina alinacagi;",
+        ];
+        spLines.forEach(line => {
+          doc.fontSize(7).font("Helvetica").text(line, 50, doc.y, { width: 495 });
+          doc.moveDown(0.5);
+        });
+        doc.moveDown(1);
+        doc.fontSize(8).text("Yukarida belirtilen sartlarin yerine getirilmedigi taktirde 5682/20 sayili Pasaport Kanunu ve 6458/12-2b sayili Yabancilar ve Uluslararasi Koruma Kanununa Muhalefetten sorumular hakkinda adli ve idari islem yapilacaginin tarafimiza teblig edildigini konu hakkinda bilgi sahibi oldugumu kabul ve tebellug ederim.", 50, doc.y, { width: 495 });
+        doc.moveDown(1);
+        doc.text("TEBLIG TARIHI", 50, doc.y, { continued: true });
+        doc.text("TEBLIG EDEN", 320, doc.y);
+        doc.moveDown(3);
+        doc.font("Helvetica-Bold").text("GEMI ACENTESI", 50, doc.y);
+        doc.font("Helvetica").text("Agent", 50, doc.y + 10);
+        doc.font("Helvetica-Bold").text("GEMI KAPTANI", 320, doc.y);
+        doc.font("Helvetica").text("Master", 320, doc.y + 10);
+        doc.text(gemi, 320, doc.y + 22);
+        doc.text("...", 320, doc.y + 12);
+
+      // =====================================================================
+      } else if (templateId === "power_of_attorney") {
+        doc.fontSize(12).font("Helvetica-Bold").text("TERCUMEDIR", 0, 50, { align: "center", width: 595 });
+        doc.fontSize(10).text("(TURKCEDEN INGILIZCE'YE)", 0, 66, { align: "center", width: 595 });
+        doc.moveDown(1.5);
+        doc.fontSize(11).font("Helvetica-Bold").text("HUSUSI VEKALETNAME", 0, doc.y, { align: "center", width: 595, underline: true });
+        doc.moveDown(1.5);
+        doc.fontSize(9).font("Helvetica");
+        doc.text(`Kaptani bulundugum  ${bayrak}  bayrakli  ${(v as any).portOfRegistry || "..."}  limanina  ${(v as any).ownerName || "..."}  isimli geminin Aliaga, Dikili ve Izmir limanina ugrama nedeni ile; Liman ve Gumruk Idareleri ile, Sahil Sihhiye, Emniyet Mudurlükleri, T.C.D.D. ve Liman idaresi ile Turkiye Denizcilik Isletmesi nezdinde ve yukun alicisina tesliminde mutaf olup tarafimizdan yapilmasi muktazi formaliteler icin ve hicbir sekilde tasiyici ve donatan ilzam etmemek ve munhasiran beni temsile, yukarida mezkur formalitelere iliskin her turlu evraki adima imzalamaya, gerekli masraflari yapmaya, gemi manifestosunu gumruge ibraz etmeye, yuk sahiplerince ibraz edilecek konsimentolar karsiligi ordinolar vermeye, yukleme halinde adima konsimento imzalamaya, yukarida yazili salahiyetlerin tamami veya bir kismi icin baskalarina da tevkile mezun ve salahiyetli olmak uzere tasiyici / donatan ile araslarinda hicbir acetenlik anlasması bulunmayan,`, { width: 495 });
+        doc.moveDown(0.8);
+        doc.font("Helvetica-Bold").text(`${ACENTE_ADRES}`, { width: 495 });
+        doc.font("Helvetica").text(`${ACENTE_ADI}' ni vekil tayin ettim.`, { width: 495 });
+        doc.moveDown(1.5);
+        doc.font("Helvetica-Bold").text(gemi, 50, doc.y, { continued: true });
+        doc.font("Helvetica").text("  gemisi kaptani", { continued: true });
+        doc.font("Helvetica-Bold").text("KAPTAN  ...", 380, doc.y);
+        doc.moveDown(3);
+        doc.fontSize(11).font("Helvetica-Bold").text("PRIVATE POWER OF ATTORNEY", 0, doc.y, { align: "center", width: 595, underline: true });
+        doc.moveDown(1);
+        doc.fontSize(9).font("Helvetica");
+        doc.text(`I have appointed ${ACENTE_ADI.split(" ")[0]} DENIZCILIK TUR. SAN. VE TIC. LTD. STI. flagged ${bayrak} which does not any agency agreement and relationship with the forwarder Ship owner of the vessel ${gemi} Beloning to ${(v as any).ownerName || "..."} Owners, registered at ${(v as any).portOfRegistry || "..."} on which I'm serving as captain, by reason of it's call to Aliaga, Dikili and Izmir Port in the transactions to be made at the port and customs office Coast Health and Police Directorates Turkish Repuplic State Railways and Port Management and Turkish Maritime Administration Co. Inc. (Turkiye denizcilik isl.) and formalities related with the delivery or the load to the consignee me, and to sign all sorts of documants related with the above mentioned formalities, to pay the coasts incurred to present the ship manifest to the customs, to issue delivery orders in return of the bills of lading to be present by the cargo owners to sign the bill of lading on my behalf while loading to be authorized also to authorize others with full or partial power to do transactions written above`, { width: 495 });
+        doc.moveDown(1);
+        doc.font("Helvetica-Bold").text("Master of the ", 50, doc.y, { continued: true });
+        doc.text(gemi, { continued: true });
+        doc.text("  vessel  CAPTAIN ...", { continued: false });
+        doc.moveDown(0.5);
+        doc.font("Helvetica").text(`In the office of ${ACENTE_ADI.split(" ")[0]} DENIZCILIK NAKLIYAT,GEMICILIK SAN.VE IC.LTD.STI.`);
+        doc.text(`${ACENTE_ADRES}`);
+
+      // =====================================================================
+      } else if (templateId === "tcdd_m10") {
+        doc.fontSize(11).font("Helvetica-Bold").text("TCDD IZMIR LIMAN ISLETME MUDURLUGU", 0, 40, { align: "center", width: 595 });
+        doc.fontSize(10).text("GEMI YUKLEME VE BOSALTMA TALEPNAMESI (M.10)", 0, 56, { align: "center", width: 595 });
+        doc.moveDown(1.2);
+        doc.fontSize(8).font("Helvetica-Bold").text("GEMININ", 50, doc.y);
+        doc.moveDown(0.5);
+        hline();
+        // Table header
+        const tY = doc.y + 5;
+        const cols = [50, 160, 300, 400, 520];
+        const headers = ["Adi", "Bayragi", "Gros Tonilatosu", "Rusüm Ton.", "Boyu ve Eni"];
+        const vals1 = [gemi, bayrak, `${grt}/`, `${nrt}/`, `${(v as any).loa || "..."}M /${(v as any).beam || "..."}/`];
+        headers.forEach((h, i) => { doc.font("Helvetica-Bold").fontSize(7).text(h, cols[i], tY, { width: cols[i+1] ? cols[i+1]-cols[i]-5 : 60 }); });
+        hline(tY + 12);
+        vals1.forEach((val, i) => { doc.font("Helvetica").fontSize(8).text(val, cols[i], tY + 15, { width: cols[i+1] ? cols[i+1]-cols[i]-5 : 60 }); });
+        hline(tY + 28);
+        const row2Headers = ["Cektigi Su", "Radyo frekansı", "IMO No", "Geldigi Liman", "Gidecegi Liman"];
+        const row2Vals = [`${(v as any).draft || "..."}M`, (v as any).callSign || "...", imo, (v as any).lastPort || liman, (v as any).nextPort || "..."];
+        row2Headers.forEach((h, i) => { doc.font("Helvetica-Bold").fontSize(7).text(h, cols[i], tY + 32, { width: cols[i+1] ? cols[i+1]-cols[i]-5 : 60 }); });
+        hline(tY + 44);
+        row2Vals.forEach((val, i) => { doc.font("Helvetica").fontSize(8).text(val, cols[i], tY + 47, { width: cols[i+1] ? cols[i+1]-cols[i]-5 : 60 }); });
+        hline(tY + 60);
+        doc.fontSize(8).font("Helvetica-Bold").text("Acente ve Kumpanya", 50, tY + 64);
+        doc.font("Helvetica").text(ACENTE_ADI.split(" ")[0] + " DENIZCILIK", 180, tY + 64, { continued: true });
+        doc.font("Helvetica-Bold").text("    " + ((v as any).ownerName || "..."), { continued: false });
+        hline(tY + 76);
+        doc.font("Helvetica-Bold").fontSize(8).text("Gemi Vinclerinin Kapasitesi", 50, tY + 79);
+        doc.font("Helvetica").text("YOK", 180, tY + 79, { continued: true });
+        doc.font("Helvetica-Bold").text("    Yanasma sekli", 300, tY + 79, { continued: true });
+        doc.font("Helvetica").text(": ISKELE / SANCAK", { continued: false });
+        hline(tY + 91);
+        doc.fontSize(8).font("Helvetica").text(`Acentemize bagli, adi ve ozellikleri yukarida yazili gemi    ${eta}    HRS    ${(v as any).cargoQuantity || "..."} MTON    ${(v as any).cargoType || "..."}  Tarihinde limanımıza gelmistir/gelecektir. Bosaltilacak/yuklenecek- Limanınıza, yukletilmesi /-bosaltilmasi bu yuke ait tasdikli orijinal manifesto ile (3) Türkce kopyasi ve kargo plani iliskite verilmistir. Ambar kapaklari limanımızca/ tarafimizca acilacak ve kapatilacaktir. Geminin agir ve vinc donanimi tarafimizca yapilacaktir.`, 50, tY + 95, { width: 495 });
+        doc.moveDown(1.5);
+        doc.font("Helvetica-Bold").fontSize(8).text(`Gemiden: ${(v as any).cargoQuantity || "..."} MTON    ${(v as any).cargoType || "..."}  tahliyesi / yuklemesi-yapilacaktir.`);
+        doc.moveDown(1.5);
+        // Cargo table header
+        doc.fontSize(7).font("Helvetica-Bold");
+        const cargoColX = [50, 130, 180, 220, 260, 310, 360, 400, 440, 480];
+        doc.text("BOSALTMA", 50, doc.y, { width: 210 });
+        doc.text("YUKLEME", 310, doc.y, { width: 210 });
+        const cY = doc.y + 14;
+        ["Dolu","Bos","RO-RO","Dolu","Bos","RO-RO"].forEach((h, i) => { doc.text(h, 50 + i * 70, cY, { width: 65 }); });
+        hline(cY + 12);
+        ["20'lik","40'lik","20'lik","40'lik","","20'lik","40'lik","20'lik","40'lik",""].forEach((h, i) => {
+          if (i < 10) doc.text(h, 50 + i * 50, cY + 15, { width: 45 });
+        });
+        hline(cY + 27);
+        ["===","===","===","===","===","===","===","===","===","==="].forEach((h, i) => {
+          doc.text(h, 50 + i * 50, cY + 30, { width: 45 });
+        });
+        doc.moveDown(2.5);
+        doc.font("Helvetica-Bold").text("A.B.  YOK", 50, doc.y, { continued: true });
+        doc.text("A.Y.  YOK          0", 310, doc.y);
+        doc.moveDown(1);
+        doc.fontSize(7.5).font("Helvetica").text("Yukarida adi gecen geminin-bosaltmasi/-yukletilmesi hususunda;", 50);
+        doc.text("a) TCDD isletmesi Liman ve iskeleler tarifesi hukumleri ile liman iskelelerine iliskin sair mevzuatin tatbikini,", 50, doc.y + 3);
+        doc.text("b) Gunun 24 saat devam edebilecek calisma saatlerine uymay,", 50, doc.y + 3);
+        doc.text("c) Limaninin yukleme/bosaltma kapasitesine gore yukleme ve bosaltma vasitasi bulundurmayi ve aksi takdirde Mudurlugunuzu kendi kapasitesine uygun yuklemeyi ve bosaltmayi temin hususunda alacagi tedbirleri kabul ve bunlara ait bilcumle ucret ve masraflari ödemeyi,", 50, doc.y + 3, { width: 495 });
+        doc.text("d) Idarece zaruri goruldugu hallerde gemi ve vasitanin yukleme ve bosaltma kapasitesini arttrima bakimindan alacaginiz her turlu tedbirleri pesinen kabul ve taahhut ederiz.", 50, doc.y + 3, { width: 495 });
+        doc.moveDown(0.8);
+        doc.text("Vasita talebi, cer hizmeti, tatli su verilmesi, kilavuzluk ve romorkör isleri.. v.s. gibi Liman Idareleri'nin her turlu is sahipleri tarafindan bu madde yazilir.", 50, doc.y, { width: 495 });
+        doc.moveDown(1);
+        doc.font("Helvetica-Bold").fontSize(9).text("Acente Yetkilisi", 380, doc.y);
+        doc.text(ACENTE_YETKILI, 380, doc.y + 12);
+        doc.moveDown(1);
+        hline();
+        doc.fontSize(7.5).font("Helvetica").text(`Defter sira no: (      )`, 50, doc.y + 5);
+        doc.text(`( 274.42 ) JTL lik damga vergisi tarafimizdan makbuz karsiligi odenecektir.`, 50, doc.y + 3);
+
+      // =====================================================================
+      } else if (templateId === "tcdd_watch_table") {
+        doc.fontSize(10).font("Helvetica-Bold").text("TURKIYE T.C.D.D. ISLETMELERI", 50, 50);
+        doc.text("Izmir Isletmesi", 50, 66);
+        doc.moveDown(2.5);
+        // Main table border
+        const tX = 50, tW = 495, tTop = doc.y;
+        doc.rect(tX, tTop, tW, 320).stroke();
+        // Left column header: BOSALTMA YAPAN VAPURUN
+        doc.fontSize(8).font("Helvetica-Bold").text("BOSALTMA YAPAN VAPURUN", tX + 2, tTop + 5, { width: 160, align: "center" });
+        doc.moveTo(tX + 165, tTop).lineTo(tX + 165, tTop + 320).stroke();
+        // Middle: YUKLEME YAPAN VAPURUN
+        doc.text("YUKLEME YAPAN VAPURUN", tX + 167, tTop + 5, { width: 160, align: "center" });
+        doc.moveTo(tX + 330, tTop).lineTo(tX + 330, tTop + 320).stroke();
+        // Right: NOT
+        doc.text("NOT", tX + 332, tTop + 5, { width: 160, align: "center" });
+        // Subheaders row
+        const subY = tTop + 22;
+        doc.moveTo(tX, subY).lineTo(tX + tW, subY).stroke();
+        // Left sub columns
+        ["Isim ve Bandirasi", "Mevki/Bolge", "Istenilen Amele Postasi D e n i z", "Istenecek Amele postasi Deniz"].forEach((h, i) => {
+          doc.fontSize(6.5).font("Helvetica-Bold").text(h, tX + i * 41 + 2, subY + 2, { width: 38 });
+          if (i < 3) doc.moveTo(tX + (i+1) * 41, subY).lineTo(tX + (i+1) * 41, tTop + 320).stroke();
+        });
+        // Fill data in left sub-col
+        doc.fontSize(8).font("Helvetica").text(gemi, tX + 2, subY + 35, { width: 39 });
+        doc.text(bayrak, tX + 2, subY + 55, { width: 39 });
+        doc.text((v as any).cargoType || "...", tX + 2, subY + 75, { width: 39 });
+        doc.text("ALS", tX + 84, subY + 45, { width: 39 });
+        // Footer note
+        doc.fontSize(8).font("Helvetica").text(`${today} tarihinde bosaltmasi icin istenilen amele postalarinin gonderilmesini rica ederiz.`, tX + 2, tTop + 255, { width: 280 });
+        doc.font("Helvetica-Bold").text(ACENTE_YETKILI, tX + 2, tTop + 290);
+
+      // =====================================================================
+      } else if (templateId === "port_arrival") {
+        doc.fontSize(10).font("Helvetica-Bold").text("IZMIR BOLGE LIMAN BASKANLIGI'NA", 50, 50);
+        doc.fontSize(9).font("Helvetica").text(todayFull, 430, 50);
+        doc.moveDown(1);
+        doc.fontSize(11).font("Helvetica-Bold").text("GEMI GELIS BILDIRIMI", 0, doc.y, { align: "center", width: 595 });
+        doc.moveDown(0.8);
+        hline();
+        const gaFields: [string, string][] = [
+          ["GEMI ADI", gemi],
+          ["IMO NO", imo],
+          ["BAYRAK", bayrak],
+          ["GEMI CINSI", (v as any).vesselType || "..."],
+          ["NRT/GRT/DWT", `${nrt}/     ${grt}/     ${(v as any).dwt || "..."}`],
+          ["GELIS LIMANI TARIHI", `${liman}                ${eta}`],
+          ["GIDIS LIMANI TARIHI", `${(v as any).nextPort || "..."}                ${etd}`],
+          ["YUKUN ADI (ISLEM/YUK CINSI/MIKTAR)", `TRANSIT: ${(v as any).cargoType || "..."} | BOSALTMA: ${(v as any).cargoType || "..."}  ${(v as any).cargoQuantity || "..."} MTON`],
+          ["TAM BOY", `${(v as any).loa || "..."},${(v as any).loa ? "" : "42"} M`],
+          ["MMSI NO/CAGRI ISARETLERI", `${(v as any).mmsi || "..."}     ${(v as any).callSign || "..."}`],
+          ["YANASACAGI LIMAN TESISI", (v as any).berthName || "ALSANCAK"],
+          ["GEMININ GELIS DRAFTI", `${(v as any).draft || "..."} M`],
+          ["BOW-THRUSTER", "BAS: YOK    KIC: YOK"],
+          ["KLAS KURULUSU", (v as any).classificationSociety || "LLOYD'S REGISTER"],
+          ["SON ONSÖRVEY TARIHI VE LIMANI", (v as any).lastSurvey || "..."],
+          ["SON AKDENIZ MEMORANDUMU LIMAN DEVLETI KONTROL YERI ve TARIHI", "YOK"],
+          ["GEMININ HERHANGI BIR TECHIZAT/GEMIADAMI ICIN BAYRAK DEVLETI VEYA KLAS MUAFIYETI VAR MI?", "YOK"],
+        ];
+        let gaY = doc.y + 5;
+        gaFields.forEach(([label, val]) => {
+          if (gaY > 650) return;
+          doc.font("Helvetica-Bold").fontSize(8).text(label, 50, gaY, { width: 220 });
+          doc.font("Helvetica").fontSize(8).text(val, 275, gaY, { width: 270 });
+          hline(gaY + 14, 50, 545);
+          gaY += 16;
+        });
+        doc.fontSize(7).font("Helvetica")
+          .text("Yukarida ozellikleri belirtilen geminin, donataninin, sirketinin GKRY ile ilgisinin olmadigi, GKRY limanlarindan TURKIYE limanlarindan Yuk-Yolcu getirip gotürmedigimizi, mevcut yuklerimiz icerisinde limanlarimiza inecek yukler arasindan GKRY kokenli yuk bulunmadigini, ayrica limanımıza ugrayacak gemimizin cikis noktasinin KIRIM BOLGESI limanlar olmadigi, limandan KIRIM BOLGESI limanlarinaa cikamayacagini, KIRIM ibarelerini tasıyan gumruk, liman ve ticaret belgelerine UKRAYNA ibaresi icerseler dahi ulkemiz makamlarinda hicbir islem yapmayacagimizi, herhangi bir sekilde yukaridaki hususlara aykiri durumun tespiti halinde tum liman masraflari ve hukuki sorumluluklarin acentemize ait olacagini beyan ve taahhut eder gemimizin gelis/gidis islemlerinin yapilmasini Armator ve gemi Kaptani adina arz ederiz.", 50, gaY + 5, { width: 495 });
+        gaY += 70;
+        doc.font("Helvetica-Bold").fontSize(8).text("ACENTE BILGILERI", 50, gaY);
+        const aInfo: [string, string][] = [
+          ["ACENTE ADI", ACENTE_ADI],
+          ["SICIL NO", "89899"],
+          ["ADRES", "ALSANCAK/IZMIR"],
+          ["TELEFON(GSM)", "5323742840"],
+          ["FAKS/MAIL", "operation@selimshipping.com"],
+          ["VERGI DAIRESI / VERGI NO", "KORDON / 7600137148"],
+        ];
+        gaY += 14;
+        aInfo.forEach(([l, val]) => {
+          doc.font("Helvetica-Bold").fontSize(8).text(l, 50, gaY);
+          doc.font("Helvetica").text(val, 200, gaY);
+          gaY += 13;
+        });
+        doc.moveDown(1);
+        doc.fontSize(7.5).font("Helvetica")
+          .text("Acente Yetkili Personelinin Kimlik Belgesi Sicil No:38987", 350, gaY + 5);
+        doc.text("Gecerlilik Tarihi:26.04.2029", 350, gaY + 18);
+        doc.text(`Adi/Soyadi:${ACENTE_YETKILI}`, 350, gaY + 31);
+
+      // =====================================================================
       } else if (templateId === "shore_pass") {
-        doc.text("IZIN VERILEN PERSONEL / PERMITTED PERSONNEL");
-        doc.moveTo(50, doc.y + 2).lineTo(545.28, doc.y + 2).strokeColor("#e2e8f0").stroke();
-        doc.moveDown(0.6);
-        doc.fontSize(10).font("Helvetica").fillColor("#0f172a");
-        for (let i = 1; i <= 10; i++) {
-          doc.text(`${i}.  Ad Soyad: ________________________  Gorevi: ________________  Pasaport No: ________________`);
+        hline(50, 50, 545);
+        doc.fontSize(11).font("Helvetica-Bold").text("LIMAN SEHRI GEZER BELGESI IZIN TALEP DILEKÇESI", 0, 58, { align: "center", width: 595 });
+        doc.fontSize(9).font("Helvetica").text("REQUEST SHORE PASS (LANDING CARD)", 0, 74, { align: "center", width: 595 });
+        doc.fontSize(10).font("Helvetica-Bold").text("DENIZ LIMAN SUBE MUDURLUGU'NE", 0, 90, { align: "center", width: 595 });
+        doc.fontSize(9).font("Helvetica").text("MARINE BORDER IMMIGRATION OFFICE", 0, 105, { align: "center", width: 595 });
+        hline(120, 50, 545);
+        doc.fontSize(9).font("Helvetica").text("IZMIR", 430, 128);
+        doc.text(today, 430, 142);
+        const spFields: [string, string, string][] = [
+          ["GEMININ ADI", "(VESSEL NAME)", gemi],
+          ["IMO NO", "", imo],
+          ["GEMININ BAYRAGI", "(FLAG)", bayrak],
+          ["YANASACAGI LIMAN VEYA DEMIR YERI", "(PORT)", (v as any).berthName || "ALSANCAK"],
+          ["GELDIGI LIMAN", "(ARRIVED FROM)", (v as any).lastPort || liman],
+          ["GELDIGI TARIH VE SAAT", "(ARRIVAL DATE /TIME)", eta],
+          ["LIMANIZDA KALACAGI SURE", "(STAY AT PORT)", ""],
+          ["TOPLAM PERSONEL SAYISI", "(CREW MEMBERS TOTAL)", "..."],
+        ];
+        let spY = 155;
+        spFields.forEach(([tr2, en2, val]) => {
+          doc.font("Helvetica-Bold").fontSize(8).text(tr2, 50, spY);
+          doc.font("Helvetica").fontSize(7).fillColor("#555").text(en2, 50, spY + 9);
+          doc.fillColor("#000").fontSize(8).text(`: ${val}`, 300, spY, { width: 230 });
+          hline(spY + 18, 50, 545);
+          spY += 20;
+        });
+        // Crew list box
+        const crewBoxY = spY + 5;
+        doc.rect(50, crewBoxY, 245, 370).stroke();
+        doc.rect(295, crewBoxY, 250, 370).stroke();
+        doc.fontSize(8).font("Helvetica-Bold")
+          .text("KART TALEBINDE BULUNAN PERSONEL ISIMLERI", 52, crewBoxY + 10, { width: 241 });
+        doc.fontSize(7).font("Helvetica")
+          .text("(NAME OF THE CREW MEMBERS TO WHOM", 52, crewBoxY + 35, { width: 241 });
+        for (let i = 1; i <= 27; i++) {
+          const lineY = crewBoxY + 10 + i * 13;
+          if (lineY > crewBoxY + 360) break;
+          doc.fontSize(8).text(`${i}`, 298, lineY);
+          doc.moveTo(310, lineY + 8).lineTo(540, lineY + 8).strokeColor("#cccccc").lineWidth(0.3).stroke();
+          doc.strokeColor("#000000").lineWidth(1);
         }
+        // Bottom section
+        const botY = crewBoxY + 380;
+        doc.fontSize(7.5).font("Helvetica")
+          .text("YUKARIDAKI BILGILERIN DOGRULIGUNU TAAHHUT EDER, ISIMLERI BILDIRILEN GEMI PERSONELI NE LIMAN SEHRI IZIN BELGESI VERILMESI HUSUSUNDA (I COMFIRM THAT ABOVE DETAILED INFORMATIONS ARE CORRECT AND KINDLY REGUEST TO DELIVER US SHORE PASS FOR VISITING CITY)", 50, botY, { width: 495 });
+        doc.text(today, 430, botY + 35);
+        doc.rect(50, botY + 50, 200, 45).stroke();
+        doc.rect(295, botY + 50, 250, 45).stroke();
+        doc.fontSize(7.5).font("Helvetica-Bold").text("ACENTE YETKILI IMZASI (AGENCY SIGNATURE)", 52, botY + 52, { width: 196 });
+        doc.text("GEMI KAPTANI (MASTER)", 297, botY + 52, { width: 246 });
+        doc.rect(50, botY + 95, 200, 25).stroke();
+        doc.rect(295, botY + 95, 250, 25).stroke();
+        doc.fontSize(7.5).text("ADI SOYADI (NAME, SURNAME)", 52, botY + 97, { width: 196 });
+        doc.text("ADI SOYADI (NAME, SURNAME)", 297, botY + 97, { width: 246 });
+        doc.rect(50, botY + 120, 200, 25).stroke();
+        doc.rect(295, botY + 120, 250, 25).stroke();
+        doc.text("ACENTE KASEI (AGENCY STAMP)", 52, botY + 122, { width: 196 });
+        doc.text("IMZA KASE (SHIP STAMP, SIGNATURE)", 297, botY + 122, { width: 246 });
       }
 
-      doc.moveDown(2.5);
-
-      // ── Signature section ────────────────────────────────────────────
-      doc.fontSize(11).font("Helvetica-Bold").fillColor("#000000").text("DECLARATIONS / BEYANLAR");
-      doc.moveTo(50, doc.y + 2).lineTo(545.28, doc.y + 2).strokeColor("#e2e8f0").stroke();
-      doc.moveDown(0.6);
-      doc.fontSize(9).font("Helvetica").fillColor("#475569");
-      doc.text("The undersigned hereby declares that the above information is true and correct.");
-      doc.text("Asagida imzalayan, yukaridaki bilgilerin dogru ve eksiksiz oldugunu beyan eder.");
-
-      doc.moveDown(2.5);
-      const sigY = doc.y;
-      doc.moveTo(70, sigY).lineTo(230, sigY).strokeColor("#94a3b8").stroke();
-      doc.moveTo(315, sigY).lineTo(475, sigY).strokeColor("#94a3b8").stroke();
-      doc.fontSize(8).font("Helvetica-Bold").fillColor("#475569");
-      doc.text("Ship Agent / Acente", 70, sigY + 5, { width: 160, align: "center" });
-      doc.text("Port Authority / Liman Baskanligi", 315, sigY + 5, { width: 160, align: "center" });
-
-      // ── Footer ───────────────────────────────────────────────────────
+      // Apply footer to all pages
       const range = doc.bufferedPageRange();
-      for (let i = 0; i < range.count; i++) {
-        doc.switchToPage(range.start + i);
-        doc.fontSize(7).fillColor("#94a3b8");
-        doc.text(
-          `Auto-generated by VesselPDA · ${new Date().toLocaleDateString("en-GB")} · Template: ${templateId}   |   Vessel: ${voyage.vesselName || "—"} · Port: ${voyage.portName || "—"}`,
-          50, 815, { align: "center", width: 495.28 }
-        );
+      for (let p = 0; p < range.count; p++) {
+        doc.switchToPage(range.start + p);
+        doc.fontSize(6).fillColor("#888888")
+          .text(`Auto-generated by VesselPDA · ${today} · ${tmpl.tr}`, 50, 835, { align: "center", width: 495, lineBreak: false });
       }
 
       doc.end();
     });
 
     const pdfBuffer = Buffer.concat(chunks);
-    const safeName = `${templateId}_${(voyage.vesselName || "vessel").replace(/\s+/g, "_")}_${Date.now()}.pdf`;
+    const safeName = `${templateId}_${(gemi).replace(/\s+/g, "_")}_${Date.now()}.pdf`;
 
-    // Save to disk & voyage documents
     try {
       const uploadsDir = path.join(process.cwd(), "uploads", "documents");
       if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-      const filePath = path.join(uploadsDir, safeName);
-      fs.writeFileSync(filePath, pdfBuffer);
+      fs.writeFileSync(path.join(uploadsDir, safeName), pdfBuffer);
       const fileUrl = `/uploads/documents/${safeName}`;
       await storage.createVoyageDocument({
         voyageId,
-        name: `${tmpl.tr} — ${voyage.vesselName || "Vessel"}`,
+        name: `${tmpl.tr} — ${gemi}`,
         docType: "port_clearance",
         fileBase64: null,
         fileUrl,
