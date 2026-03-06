@@ -265,6 +265,7 @@ export default function VoyageDetail() {
   const [editingCrewId, setEditingCrewId] = useState<number | null>(null);
   const [crewSlideForm, setCrewSlideForm] = useState<CrewSlideFormType>(EMPTY_CREW_SLIDE_FORM);
   const [slideFormTimeline, setSlideFormTimeline] = useState<CrewTimelineStep[]>([]);
+  const [crewFilterMode, setCrewFilterMode] = useState<"all" | "action" | "ready">("all");
 
   // ── Smart Rule Engine helpers ─────────────────────────────────────────────
   const timeToMins = (t: string): number => {
@@ -1872,6 +1873,39 @@ export default function VoyageDetail() {
                   </div>
                 </div>
 
+                {/* ── Quick Filter Bar ── */}
+                {(() => {
+                  const _etd = voyage?.etd ? new Date(voyage.etd).toTimeString().substring(0, 5) : "";
+                  const _eta = voyage?.eta ? new Date(voyage.eta).toTimeString().substring(0, 5) : "";
+                  const actionCount = crewSigners.filter(c => {
+                    const warns = getCrewWarnings(c, _etd, _eta);
+                    return warns.some(w => !isHotelWarning(w)) || (c.requiresHotel && !c.hotelName);
+                  }).length;
+                  const filterDefs: { mode: "all" | "action" | "ready"; label: string; testId: string }[] = [
+                    { mode: "all",    label: "All Crew",                                   testId: "filter-all-crew"        },
+                    { mode: "action", label: `⚠️ Action Required${actionCount > 0 ? ` (${actionCount})` : ""}`, testId: "filter-action-required" },
+                    { mode: "ready",  label: "✅ Ready",                                   testId: "filter-ready"           },
+                  ];
+                  return (
+                    <div className="flex items-center gap-1.5" data-testid="crew-filter-bar">
+                      {filterDefs.map(({ mode, label, testId }) => (
+                        <button
+                          key={mode}
+                          onClick={() => setCrewFilterMode(mode)}
+                          data-testid={testId}
+                          className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${
+                            crewFilterMode === mode
+                              ? "bg-slate-700 border-slate-500 text-slate-200"
+                              : "bg-transparent border-slate-700/50 text-slate-500 hover:border-slate-600 hover:text-slate-400"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+
                 {/* ── Rich Data Card helpers ── */}
                 {(() => {
                   const flagMap: Record<string, string> = {
@@ -1882,15 +1916,38 @@ export default function VoyageDetail() {
                   };
                   const getFlag = (iso: string) => flagMap[iso?.toUpperCase()] ?? "🏳️";
 
+                  const applyCrewFilter = (crew: CrewSigner): boolean => {
+                    if (crewFilterMode === "all") return true;
+                    const _etd = voyage?.etd ? new Date(voyage.etd).toTimeString().substring(0, 5) : "";
+                    const _eta = voyage?.eta ? new Date(voyage.eta).toTimeString().substring(0, 5) : "";
+                    const allWarns = getCrewWarnings(crew, _etd, _eta);
+                    const hasOperationalWarn = allWarns.some(w => !isHotelWarning(w));
+                    const hasHotelPending = crew.requiresHotel && !crew.hotelName;
+                    const needsAction = hasOperationalWarn || hasHotelPending;
+                    return crewFilterMode === "action" ? needsAction : !needsAction;
+                  };
+
                   const renderCrewCard = (crew: CrewSigner, accent: "emerald" | "rose") => {
                     const accentColors = accent === "emerald"
                       ? { avatar: "bg-emerald-500/20 border-emerald-500/30 text-emerald-400", pulse: "bg-emerald-400" }
                       : { avatar: "bg-rose-500/20 border-rose-500/30 text-rose-400",           pulse: "bg-rose-400"   };
 
+                    const _vesselEtdTime = voyage?.etd ? new Date(voyage.etd).toTimeString().substring(0, 5) : "";
+                    const _vesselEtaTime = voyage?.eta ? new Date(voyage.eta).toTimeString().substring(0, 5) : "";
+                    const operationalWarns = getCrewWarnings(crew, _vesselEtdTime, _vesselEtaTime).filter(w => !isHotelWarning(w));
+                    const hasCritical = operationalWarns.some(w => w.includes("Critical"));
+                    const hasWarning  = operationalWarns.length > 0 && !hasCritical;
+
+                    const cardBorder = hasCritical
+                      ? "border-red-500/50 shadow-[0_0_12px_rgba(239,68,68,0.15)] hover:border-red-500/70"
+                      : hasWarning
+                        ? "border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.15)] hover:border-amber-500/70"
+                        : "border-slate-700 hover:border-slate-600";
+
                     return (
                       <div
                         key={crew.id}
-                        className="rounded-xl border border-slate-700 bg-slate-800 hover:border-slate-600 transition-colors p-3 space-y-2 cursor-pointer"
+                        className={`group rounded-xl border bg-slate-800 transition-all duration-200 p-3 space-y-2.5 cursor-pointer ${cardBorder}`}
                         onClick={() => { setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
                         data-testid={`crew-card-${accent === "emerald" ? "on" : "off"}-${crew.id}`}
                       >
@@ -1902,6 +1959,14 @@ export default function VoyageDetail() {
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
                               <p className="text-xs font-bold text-slate-100 truncate leading-tight">{crew.name}</p>
+                              {operationalWarns.length > 0 && (
+                                <span className="relative group/warn flex-shrink-0" data-testid={`warning-icon-${crew.id}`}>
+                                  <span className={`text-[11px] cursor-help leading-none ${hasCritical ? "text-red-400" : "text-amber-400"}`}>⚠</span>
+                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/warn:block z-30 w-max max-w-[220px] bg-slate-900 border border-slate-600/80 rounded-lg px-2.5 py-2 text-[10px] text-slate-200 shadow-2xl whitespace-normal leading-snug">
+                                    {operationalWarns.map(w => w.replace("⚠️ ", "").replace("🚨 ", "")).join(" · ")}
+                                  </span>
+                                </span>
+                              )}
                               {crew.arrivalStatus === "arrived" && (
                                 <span className="inline-flex items-center text-[8px] font-bold text-emerald-400 bg-emerald-900/30 border border-emerald-500/40 rounded-full px-1.5 py-0.5 flex-shrink-0">🟢 Arrived</span>
                               )}
@@ -1995,90 +2060,6 @@ export default function VoyageDetail() {
                           );
                         })()}
 
-                        {/* ── SMART RULE ENGINE WARNINGS (operational only — not hotel) ── */}
-                        {(() => {
-                          const vesselEtdTime = voyage.etd ? new Date(voyage.etd).toTimeString().substring(0, 5) : "";
-                          const vesselEtaTime = voyage.eta ? new Date(voyage.eta).toTimeString().substring(0, 5) : "";
-                          const operationalWarns = getCrewWarnings(crew, vesselEtdTime, vesselEtaTime).filter(w => !isHotelWarning(w));
-                          if (!operationalWarns.length) return null;
-                          return (
-                            <div className="space-y-1" data-testid={`crew-warnings-${crew.id}`}>
-                              {operationalWarns.map((w, i) => (
-                                <div key={i} className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[9px] font-semibold border ${w.includes("Critical") ? "bg-red-950/40 border-red-500/30 text-red-400" : "bg-amber-950/40 border-amber-500/30 text-amber-400"}`}>
-                                  <span>{w.includes("Critical") ? "🚨" : "⚠️"}</span>
-                                  <span>{w.replace("⚠️ ", "")}</span>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        })()}
-
-                        {/* ── QUICK DOCUMENT ACCESS ── */}
-                        {(() => {
-                          const docDefs: { key: keyof CrewDocs; icon: string; label: string }[] = [
-                            { key: "passport",    icon: "🛂", label: "Passport"     },
-                            { key: "seamansBook", icon: "📘", label: "Seaman's Book" },
-                            { key: "medicalCert", icon: "🩺", label: "Medical Cert"  },
-                          ];
-                          return (
-                            <div className="flex items-center gap-1.5 mt-1 pt-1.5 border-t border-slate-700/50 flex-wrap" data-testid={`crew-docs-row-${crew.id}`}>
-                              {docDefs.map(({ key, icon, label }) => {
-                                const doc = crew.docs[key];
-                                return (
-                                  <label
-                                    key={key}
-                                    title={doc ? `Open ${label}` : `Upload ${label}`}
-                                    className={`relative flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer transition-colors select-none ${
-                                      doc
-                                        ? "bg-slate-800 border border-blue-500/40 text-blue-300 hover:bg-slate-700 hover:border-blue-400/60"
-                                        : "bg-slate-800/50 border border-dashed border-slate-600/50 text-slate-600 hover:border-slate-500 hover:text-slate-500"
-                                    }`}
-                                    onClick={e => {
-                                      if (doc) {
-                                        e.preventDefault();
-                                        const a = document.createElement("a");
-                                        a.href = doc.dataUrl;
-                                        a.download = doc.name;
-                                        a.target = "_blank";
-                                        a.click();
-                                      }
-                                    }}
-                                    data-testid={`crew-doc-${crew.id}-${key}`}
-                                  >
-                                    <span className="leading-none">{icon}</span>
-                                    <span>{label}</span>
-                                    {doc && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 ml-0.5 flex-shrink-0" />}
-                                    {!doc && (
-                                      <input
-                                        type="file"
-                                        accept=".pdf,.jpg,.jpeg,.png"
-                                        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-                                        onClick={e => e.stopPropagation()}
-                                        onChange={e => {
-                                          const file = e.target.files?.[0];
-                                          if (!file) return;
-                                          const reader = new FileReader();
-                                          reader.onload = () => {
-                                            setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : {
-                                              ...c,
-                                              docs: { ...c.docs, [key]: { name: file.name, dataUrl: reader.result as string } },
-                                            }));
-                                            addActivityLog(`${crew.name}: ${label} uploaded.`, "Agent");
-                                            toast({ title: "Document Uploaded", description: `${label} for ${crew.name} saved.` });
-                                          };
-                                          reader.readAsDataURL(file);
-                                          e.target.value = "";
-                                        }}
-                                        data-testid={`input-doc-upload-${crew.id}-${key}`}
-                                      />
-                                    )}
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          );
-                        })()}
-
                         {/* ── FLIGHT ROW ── */}
                         <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
                           <span>✈️</span>
@@ -2090,52 +2071,6 @@ export default function VoyageDetail() {
                               ⚠ Delayed
                             </span>
                           )}
-                        </div>
-
-                        {/* ── TRANSFER TIMELINE ── */}
-                        <div className="pt-1.5 border-t border-slate-700/60" data-testid={`crew-timeline-${crew.id}`}>
-                          <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1.5">Transfer</p>
-                          <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
-                            {crew.timeline.map((step, idx) => (
-                              <span key={step.id} className="flex items-center gap-1">
-                                {idx > 0 && <span className="text-[9px] text-slate-700">›</span>}
-                                <span className="flex items-center gap-0.5 bg-slate-700/50 rounded-md px-1.5 py-0.5">
-                                  <span className="text-[10px] leading-none">{step.icon}</span>
-                                  {editingCrewTimeline?.crewId === crew.id && editingCrewTimeline?.stepId === step.id ? (
-                                    <input
-                                      autoFocus
-                                      type="text"
-                                      value={crewTimelineEditVal}
-                                      onChange={e => setCrewTimelineEditVal(e.target.value)}
-                                      onBlur={() => {
-                                        setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : {
-                                          ...c,
-                                          timeline: c.timeline.map(s => s.id !== step.id ? s : { ...s, time: crewTimelineEditVal }),
-                                        }));
-                                        setEditingCrewTimeline(null);
-                                      }}
-                                      onKeyDown={e => {
-                                        if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur();
-                                      }}
-                                      className="w-12 h-4 text-[10px] bg-slate-600 border border-slate-500 rounded px-1 text-slate-100 outline-none"
-                                      data-testid={`input-crew-timeline-${crew.id}-${step.id}`}
-                                      placeholder="HH:MM"
-                                    />
-                                  ) : (
-                                    <span className="text-[10px] text-slate-300 font-mono">{step.time || "—:——"}</span>
-                                  )}
-                                  <button
-                                    className="text-slate-600 hover:text-amber-400 transition-colors ml-0.5"
-                                    onClick={e => { e.stopPropagation(); setEditingCrewTimeline({ crewId: crew.id, stepId: step.id }); setCrewTimelineEditVal(step.time); }}
-                                    title={`Edit ${step.label}`}
-                                    data-testid={`button-edit-crew-timeline-${crew.id}-${step.id}`}
-                                  >
-                                    <Pen className="w-2.5 h-2.5" />
-                                  </button>
-                                </span>
-                              </span>
-                            ))}
-                          </div>
                         </div>
 
                         {/* ── QUICK ACTIONS ── */}
@@ -2173,6 +2108,8 @@ export default function VoyageDetail() {
                             </button>
                           )}
                         </div>
+                        {/* ── Details hint ── */}
+                        <p className="text-right text-[9px] text-slate-700 group-hover:text-slate-500 transition-colors select-none">Details →</p>
                       </div>
                     );
                   };
@@ -2195,7 +2132,7 @@ export default function VoyageDetail() {
                             <Plus className="w-2.5 h-2.5" /> Add
                           </button>
                         </div>
-                        {crewSigners.filter(c => c.side === "on").map(crew => renderCrewCard(crew, "emerald"))}
+                        {crewSigners.filter(c => c.side === "on").filter(applyCrewFilter).map(crew => renderCrewCard(crew, "emerald"))}
                         {crewSigners.filter(c => c.side === "on").length === 0 && (
                           <button
                             className="w-full py-6 rounded-xl border border-dashed border-emerald-500/30 text-xs text-slate-600 hover:text-emerald-400 hover:border-emerald-500/50 transition-colors flex flex-col items-center gap-1"
@@ -2224,7 +2161,7 @@ export default function VoyageDetail() {
                             <Plus className="w-2.5 h-2.5" /> Add
                           </button>
                         </div>
-                        {crewSigners.filter(c => c.side === "off").map(crew => renderCrewCard(crew, "rose"))}
+                        {crewSigners.filter(c => c.side === "off").filter(applyCrewFilter).map(crew => renderCrewCard(crew, "rose"))}
                         {crewSigners.filter(c => c.side === "off").length === 0 && (
                           <button
                             className="w-full py-6 rounded-xl border border-dashed border-rose-500/30 text-xs text-slate-600 hover:text-rose-400 hover:border-rose-500/50 transition-colors flex flex-col items-center gap-1"
