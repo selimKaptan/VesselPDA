@@ -2267,116 +2267,324 @@ export default function VoyageDetail() {
 
       {/* ── Tab: Dokümanlar ────────────────────────────────────── */}
       {activeTab === "documents" && (
-        <Card
-          className={`p-5 space-y-4 relative transition-all duration-150 ${isPanelDragOver ? "ring-2 ring-[hsl(var(--maritime-primary))] bg-[hsl(var(--maritime-primary)/0.03)]" : ""}`}
-          onDragOver={e => { e.preventDefault(); setIsPanelDragOver(true); }}
-          onDragEnter={e => { e.preventDefault(); setIsPanelDragOver(true); }}
-          onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsPanelDragOver(false); }}
-          onDrop={handlePanelDrop}
-          data-testid="panel-documents"
-        >
-          {isPanelDragOver && (
-            <div className="absolute inset-0 rounded-xl flex items-center justify-center bg-[hsl(var(--maritime-primary)/0.08)] border-2 border-dashed border-[hsl(var(--maritime-primary))] z-10 pointer-events-none">
-              <div className="text-center">
-                <Upload className="w-8 h-8 mx-auto mb-2 text-[hsl(var(--maritime-primary))]" />
-                <p className="text-sm font-semibold text-[hsl(var(--maritime-primary))]">Drop file here</p>
-              </div>
-            </div>
-          )}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FolderOpen className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-              <h2 className="font-semibold text-sm">Documents</h2>
-              {Array.isArray(docs) && docs.length > 0 && <span className="text-xs text-muted-foreground">({docs.length})</span>}
-            </div>
-            <div className="flex items-center gap-1.5">
-              {Array.isArray(docs) && docs.length > 0 && (
-                <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={handleDownloadAllZip} data-testid="button-download-all-zip">
-                  <Archive className="w-3 h-3" /> Download All
-                </Button>
-              )}
-              <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowTemplateDialog(true)} data-testid="button-from-template">
-                <LayoutTemplate className="w-3 h-3" /> From Template
-              </Button>
-              <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowDocDialog(true)} data-testid="button-upload-doc">
-                <Upload className="w-3 h-3" /> Upload
-              </Button>
-            </div>
-          </div>
+        <div className="space-y-6">
 
-          {/* Filtre butonları */}
-          <div className="flex gap-2 flex-wrap">
-            {[
-              { key: "all",           label: "All" },
-              { key: "manifest",      label: "Manifest" },
-              { key: "bill_of_lading",label: "Bill of Lading" },
-              { key: "certificate",   label: "Certificate" },
-              { key: "port_clearance",label: "Port Clearance" },
-              { key: "other",         label: "Other" },
-            ].map(f => (
-              <button
-                key={f.key}
-                onClick={() => setDocFilter(f.key)}
-                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                  docFilter === f.key ? "bg-[hsl(var(--maritime-primary))] text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                }`}
-                data-testid={`filter-doc-${f.key}`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
+          {/* ── Auto-Document Generator Section ── */}
+          {(() => {
+            const PORT_TEMPLATES = [
+              { id: "berth_petition", emoji: "📄", title: "Liman Başkanlığı Yanaşma Dilekçesi", sub: "Harbour Master Berthing Petition", desc: "Official berthing request submitted to Port Authority." },
+              { id: "police_form", emoji: "🛂", title: "Deniz Polisi Geliş/Gidiş Formu", sub: "Maritime Police Arrival/Departure", desc: "Police declaration for vessel arrival and departure clearance." },
+              { id: "coastguard_decl", emoji: "🛟", title: "Kıyı Emniyeti Deklarasyonu", sub: "Turkish Coastguard Declaration", desc: "Safety declaration submitted to Kıyı Emniyeti Genel Müdürlüğü." },
+              { id: "tcdd_watch", emoji: "👷", title: "TCDD Posta/Vardiya Talepnamesi", sub: "TCDD Watch/Shift Request", desc: "Shift request form for TCDD port operations personnel." },
+              { id: "shore_pass", emoji: "⚓", title: "Shore Pass", sub: "Personnel Permission Card", desc: "Shore pass document for crew going ashore." },
+            ];
 
-          {docsLoading ? (
-            <div className="space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>
-          ) : (() => {
-            const filtered = Array.isArray(docs) ? (docFilter === "all" ? docs : docs.filter((d: any) => d.docType === docFilter)) : [];
-            return filtered.length === 0 ? (
-              <div className="text-center py-10 text-muted-foreground">
-                <Upload className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                <p className="text-sm font-medium">No documents yet</p>
-                <p className="text-xs mt-1">Drag &amp; drop files here or use the "Upload" button</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {filtered.map((doc: any) => (
-                  <div key={doc.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30 group" data-testid={`doc-${doc.id}`}>
-                    <FileText className="w-4 h-4 flex-shrink-0 text-blue-500" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className="text-sm font-medium truncate">{doc.name}</p>
-                        {doc.version > 1 && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium flex-shrink-0" data-testid={`badge-doc-version-${doc.id}`}>v{doc.version}</span>
-                        )}
-                        {doc.templateId && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 font-medium flex-shrink-0">📋 Auto</span>
-                        )}
-                        {doc.signedAt ? (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-medium flex items-center gap-0.5 flex-shrink-0" data-testid={`badge-signed-${doc.id}`}>
-                            <BadgeCheck className="w-3 h-3" /> {doc.signatureText}
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => { setSignDocId(doc.id); setShowSignDialog(true); }}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground hover:text-foreground hover:border-primary transition-colors flex items-center gap-0.5 flex-shrink-0"
-                            data-testid={`button-sign-doc-${doc.id}`}
-                          >
-                            <Pen className="w-3 h-3" /> Sign
-                          </button>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">{DOC_TYPE_CONFIG[doc.docType] || "Other"} · {doc.uploaderName} · {new Date(doc.createdAt).toLocaleDateString("en-GB")}</p>
+            const generatePortFormPdf = async (template: (typeof PORT_TEMPLATES)[0]) => {
+              const { default: jsPDF } = await import("jspdf");
+              const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+              const etaStr = voyage.eta ? new Date(voyage.eta).toLocaleString("tr-TR") : "—";
+              const etdStr = voyage.etd ? new Date(voyage.etd).toLocaleString("tr-TR") : "—";
+
+              // Dark header band
+              doc.setFillColor(15, 23, 42);
+              doc.rect(0, 0, 210, 42, "F");
+              doc.setTextColor(148, 163, 184);
+              doc.setFontSize(7);
+              doc.text("VesselPDA · Auto-Generated Port Document · Confidential", 15, 11);
+              doc.setTextColor(255, 255, 255);
+              doc.setFontSize(15);
+              doc.setFont("helvetica", "bold");
+              doc.text(template.title, 15, 24);
+              doc.setFontSize(9);
+              doc.setFont("helvetica", "normal");
+              doc.setTextColor(100, 150, 200);
+              doc.text(template.sub, 15, 33);
+
+              // Horizontal rule
+              doc.setDrawColor(50, 70, 100);
+              doc.line(0, 42, 210, 42);
+
+              // Section heading
+              doc.setTextColor(30, 30, 30);
+              doc.setFontSize(10);
+              doc.setFont("helvetica", "bold");
+              doc.text("VESSEL PARTICULARS (Auto-Filled)", 15, 56);
+              doc.setDrawColor(220, 220, 220);
+              doc.line(15, 58, 195, 58);
+
+              const fields: [string, string][] = [
+                ["Vessel Name / Gemi Adı:", voyage.vesselName || "—"],
+                ["IMO Number:", voyage.imoNumber || "—"],
+                ["Flag / Bayrak:", voyage.flag || "—"],
+                ["GRT / Gross Tonnage:", voyage.grt ? `${voyage.grt} GT` : "—"],
+                ["Port / Liman:", voyage.portName || "—"],
+                ["Purpose of Call / Geliş Sebebi:", voyage.purposeOfCall || "—"],
+                ["ETA:", etaStr],
+                ["ETD:", etdStr],
+              ];
+
+              doc.setFontSize(10);
+              fields.forEach(([label, value], i) => {
+                const y = 67 + i * 10;
+                const isEven = i % 2 === 0;
+                if (isEven) {
+                  doc.setFillColor(248, 250, 252);
+                  doc.rect(12, y - 4, 186, 9, "F");
+                }
+                doc.setFont("helvetica", "bold");
+                doc.setTextColor(80, 80, 80);
+                doc.text(label, 15, y + 1);
+                doc.setFont("helvetica", "normal");
+                doc.setTextColor(20, 20, 20);
+                doc.text(value, 80, y + 1);
+              });
+
+              // Declarations section
+              const declY = 160;
+              doc.setFontSize(10);
+              doc.setFont("helvetica", "bold");
+              doc.setTextColor(30, 30, 30);
+              doc.text("DECLARATIONS / BEYANLAR", 15, declY);
+              doc.line(15, declY + 2, 195, declY + 2);
+              doc.setFont("helvetica", "normal");
+              doc.setFontSize(9);
+              doc.setTextColor(80, 80, 80);
+              doc.text("The undersigned hereby declares that the above information is true and correct.", 15, declY + 10);
+              doc.text("Aşağıda imzalayan, yukarıdaki bilgilerin doğru ve eksiksiz olduğunu beyan eder.", 15, declY + 18);
+
+              // Signature boxes
+              const sigY = 195;
+              doc.setDrawColor(180, 180, 180);
+              doc.rect(15, sigY, 80, 30);
+              doc.rect(115, sigY, 80, 30);
+              doc.setFontSize(8);
+              doc.setTextColor(130, 130, 130);
+              doc.text("Ship Agent Signature / Acente İmzası", 17, sigY + 35);
+              doc.text("Port Authority Stamp / Liman Başkanlığı Mühür", 117, sigY + 35);
+
+              // Footer
+              doc.setFillColor(248, 250, 252);
+              doc.rect(0, 278, 210, 20, "F");
+              doc.setFontSize(7);
+              doc.setTextColor(150, 150, 150);
+              doc.text(`Auto-generated by VesselPDA · ${new Date().toLocaleDateString("en-GB")} · Template ID: ${template.id}`, 15, 286);
+              doc.text(`Vessel: ${voyage.vesselName || "—"} · Port: ${voyage.portName || "—"}`, 15, 291);
+
+              doc.save(`${template.id}_${(voyage.vesselName || "vessel").replace(/\s+/g, "_")}.pdf`);
+              toast({ title: `📄 ${template.title}`, description: "PDF generated and downloaded." });
+            };
+
+            const generateAllForms = async () => {
+              toast({ title: "🚀 Generating 5 forms...", description: "PDFs are being prepared." });
+              for (const t of PORT_TEMPLATES) {
+                await generatePortFormPdf(t);
+                await new Promise(r => setTimeout(r, 400));
+              }
+              toast({ title: "✅ All 5 Forms Ready!", description: "All port documents have been downloaded." });
+            };
+
+            return (
+              <div className="space-y-5" data-testid="section-auto-doc-generator">
+                {/* Vessel Data Context Card */}
+                <div className="rounded-xl border border-slate-700/60 bg-slate-800/30 p-4" data-testid="card-vessel-context">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-6 h-6 bg-sky-500/20 rounded-md flex items-center justify-center flex-shrink-0">
+                      <Ship className="w-3.5 h-3.5 text-sky-400" />
                     </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => downloadDoc(doc)} className="p-1 hover:text-primary transition-colors" data-testid={`button-download-doc-${doc.id}`}><Download className="w-4 h-4" /></button>
-                      <button onClick={() => deleteDocMutation.mutate(doc.id)} className="p-1 hover:text-destructive transition-colors" data-testid={`button-delete-doc-${doc.id}`}><Trash2 className="w-4 h-4" /></button>
-                    </div>
+                    <span className="text-xs font-semibold text-slate-300 uppercase tracking-wide">Vessel Data — Auto-Fill Context</span>
+                    <span className="ml-auto text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded px-2 py-0.5 flex-shrink-0">✓ Ready to Fill</span>
                   </div>
-                ))}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
+                    {[
+                      { label: "Vessel Name", value: voyage.vesselName || "—" },
+                      { label: "IMO Number", value: voyage.imoNumber || "—" },
+                      { label: "GRT", value: voyage.grt ? `${voyage.grt} GT` : "—" },
+                      { label: "Flag", value: voyage.flag || "—" },
+                      { label: "Port", value: voyage.portName || "—" },
+                      { label: "Purpose of Call", value: voyage.purposeOfCall || "—" },
+                      { label: "ETA", value: voyage.eta ? new Date(voyage.eta).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" }) : "—" },
+                      { label: "ETD", value: voyage.etd ? new Date(voyage.etd).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" }) : "—" },
+                    ].map(({ label, value }) => (
+                      <div key={label}>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-0.5">{label}</p>
+                        <p className="text-sm font-medium text-slate-200 truncate">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Section Header + Generate All */}
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center flex-shrink-0">
+                      <FolderOpen className="w-3.5 h-3.5 text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-100">TCDD İzmir Port Formalities</h3>
+                      <p className="text-xs text-slate-500">5 auto-fillable official port documents</p>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 font-medium flex-shrink-0">5 templates</span>
+                  </div>
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/25 gap-2 text-sm font-semibold flex-shrink-0"
+                    onClick={generateAllForms}
+                    data-testid="button-generate-all-forms"
+                  >
+                    🚀 Auto-Fill & Generate All (5 Forms)
+                  </Button>
+                </div>
+
+                {/* Template Cards Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {PORT_TEMPLATES.map((template) => (
+                    <div
+                      key={template.id}
+                      className="bg-slate-800 border border-slate-700/60 rounded-xl p-4 flex items-start gap-4 hover:border-slate-600 transition-colors"
+                      data-testid={`card-template-${template.id}`}
+                    >
+                      <span className="text-2xl flex-shrink-0 mt-0.5">{template.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-100 leading-tight">{template.title}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{template.sub}</p>
+                        <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">{template.desc}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-shrink-0 h-8 px-3 gap-1.5 border-slate-600 hover:border-blue-500 hover:text-blue-400 text-slate-300 text-xs"
+                        onClick={() => generatePortFormPdf(template)}
+                        data-testid={`button-gen-pdf-${template.id}`}
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        Generate PDF
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Divider */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-slate-800" />
+                  <span className="text-xs text-slate-600 flex-shrink-0">Uploaded Documents</span>
+                  <div className="flex-1 h-px bg-slate-800" />
+                </div>
               </div>
             );
           })()}
-        </Card>
+
+          {/* ── Existing Document Management ── */}
+          <Card
+            className={`p-5 space-y-4 relative transition-all duration-150 ${isPanelDragOver ? "ring-2 ring-[hsl(var(--maritime-primary))] bg-[hsl(var(--maritime-primary)/0.03)]" : ""}`}
+            onDragOver={e => { e.preventDefault(); setIsPanelDragOver(true); }}
+            onDragEnter={e => { e.preventDefault(); setIsPanelDragOver(true); }}
+            onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsPanelDragOver(false); }}
+            onDrop={handlePanelDrop}
+            data-testid="panel-documents"
+          >
+            {isPanelDragOver && (
+              <div className="absolute inset-0 rounded-xl flex items-center justify-center bg-[hsl(var(--maritime-primary)/0.08)] border-2 border-dashed border-[hsl(var(--maritime-primary))] z-10 pointer-events-none">
+                <div className="text-center">
+                  <Upload className="w-8 h-8 mx-auto mb-2 text-[hsl(var(--maritime-primary))]" />
+                  <p className="text-sm font-semibold text-[hsl(var(--maritime-primary))]">Drop file here</p>
+                </div>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FolderOpen className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                <h2 className="font-semibold text-sm">Documents</h2>
+                {Array.isArray(docs) && docs.length > 0 && <span className="text-xs text-muted-foreground">({docs.length})</span>}
+              </div>
+              <div className="flex items-center gap-1.5">
+                {Array.isArray(docs) && docs.length > 0 && (
+                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={handleDownloadAllZip} data-testid="button-download-all-zip">
+                    <Archive className="w-3 h-3" /> Download All
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowTemplateDialog(true)} data-testid="button-from-template">
+                  <LayoutTemplate className="w-3 h-3" /> From Template
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowDocDialog(true)} data-testid="button-upload-doc">
+                  <Upload className="w-3 h-3" /> Upload
+                </Button>
+              </div>
+            </div>
+
+            {/* Filtre butonları */}
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { key: "all",           label: "All" },
+                { key: "manifest",      label: "Manifest" },
+                { key: "bill_of_lading",label: "Bill of Lading" },
+                { key: "certificate",   label: "Certificate" },
+                { key: "port_clearance",label: "Port Clearance" },
+                { key: "other",         label: "Other" },
+              ].map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setDocFilter(f.key)}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                    docFilter === f.key ? "bg-[hsl(var(--maritime-primary))] text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                  data-testid={`filter-doc-${f.key}`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {docsLoading ? (
+              <div className="space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div>
+            ) : (() => {
+              const filtered = Array.isArray(docs) ? (docFilter === "all" ? docs : docs.filter((d: any) => d.docType === docFilter)) : [];
+              return filtered.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground">
+                  <Upload className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm font-medium">No documents yet</p>
+                  <p className="text-xs mt-1">Drag &amp; drop files here or use the "Upload" button</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filtered.map((doc: any) => (
+                    <div key={doc.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30 group" data-testid={`doc-${doc.id}`}>
+                      <FileText className="w-4 h-4 flex-shrink-0 text-blue-500" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-medium truncate">{doc.name}</p>
+                          {doc.version > 1 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium flex-shrink-0" data-testid={`badge-doc-version-${doc.id}`}>v{doc.version}</span>
+                          )}
+                          {doc.templateId && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 font-medium flex-shrink-0">📋 Auto</span>
+                          )}
+                          {doc.signedAt ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-medium flex items-center gap-0.5 flex-shrink-0" data-testid={`badge-signed-${doc.id}`}>
+                              <BadgeCheck className="w-3 h-3" /> {doc.signatureText}
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => { setSignDocId(doc.id); setShowSignDialog(true); }}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground hover:text-foreground hover:border-primary transition-colors flex items-center gap-0.5 flex-shrink-0"
+                              data-testid={`button-sign-doc-${doc.id}`}
+                            >
+                              <Pen className="w-3 h-3" /> Sign
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{DOC_TYPE_CONFIG[doc.docType] || "Other"} · {doc.uploaderName} · {new Date(doc.createdAt).toLocaleDateString("en-GB")}</p>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => downloadDoc(doc)} className="p-1 hover:text-primary transition-colors" data-testid={`button-download-doc-${doc.id}`}><Download className="w-4 h-4" /></button>
+                        <button onClick={() => deleteDocMutation.mutate(doc.id)} className="p-1 hover:text-destructive transition-colors" data-testid={`button-delete-doc-${doc.id}`}><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </Card>
+        </div>
       )}
 
       {/* ── Tab: İletişim ──────────────────────────────────────── */}
