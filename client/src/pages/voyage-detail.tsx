@@ -206,15 +206,32 @@ export default function VoyageDetail() {
   const [reviewForm, setReviewForm] = useState({ rating: 0, comment: "" });
 
   // ── Husbandry: Crew Logistics Board ────────────────────────────────────────
-  const [crewSigners, setCrewSigners] = useState<{
+  type CrewTimelineStep = { id: number; icon: string; label: string; time: string };
+  type CrewSigner = {
     id: number; name: string; rank: string; side: "on" | "off";
+    nationality: string;
     flight: string; flightEta: string; flightDelayed: boolean;
-    visaCleared: boolean; transferStatus: string;
-  }[]>([
-    { id: 1, name: "Ahmet Yılmaz",  rank: "Chief Officer",  side: "on",  flight: "TK2320", flightEta: "14:30", flightDelayed: false, visaCleared: true,  transferStatus: "En route to Port"    },
-    { id: 2, name: "Mehmet Demir",  rank: "2nd Engineer",   side: "on",  flight: "PC1145", flightEta: "16:00", flightDelayed: true,  visaCleared: false, transferStatus: "At Hotel"             },
-    { id: 3, name: "Ali Öztürk",    rank: "Chief Engineer", side: "off", flight: "TK2321", flightEta: "17:00", flightDelayed: false, visaCleared: true,  transferStatus: "At Port"              },
-    { id: 4, name: "Hasan Çelik",   rank: "AB Sailor",      side: "off", flight: "PC1146", flightEta: "18:30", flightDelayed: false, visaCleared: true,  transferStatus: "En route to Airport" },
+    visaRequired: boolean;
+    eVisaStatus: "pending" | "approved" | "n/a";
+    okToBoard: "pending" | "sent" | "confirmed";
+    timeline: CrewTimelineStep[];
+  };
+  const ON_TIMELINE_DEFAULT: CrewTimelineStep[] = [
+    { id: 1, icon: "✈️", label: "Arrival Flight", time: "" },
+    { id: 2, icon: "🚐", label: "Airport → Port", time: "" },
+    { id: 3, icon: "🚤", label: "Embark",          time: "" },
+  ];
+  const OFF_TIMELINE_DEFAULT: CrewTimelineStep[] = [
+    { id: 1, icon: "🚤", label: "Disembark",       time: "" },
+    { id: 2, icon: "🛂", label: "Customs / Police", time: "" },
+    { id: 3, icon: "🚐", label: "Port → Airport",  time: "" },
+    { id: 4, icon: "✈️", label: "Flight",           time: "" },
+  ];
+  const [crewSigners, setCrewSigners] = useState<CrewSigner[]>([
+    { id: 1, name: "Ahmet Yılmaz",  rank: "Chief Officer",  side: "on",  nationality: "TUR", flight: "TK2320", flightEta: "14:30", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "confirmed", timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"13:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"15:00" }, { id:3, icon:"🚤", label:"Embark", time:"16:30" }] },
+    { id: 2, name: "Mehmet Demir",  rank: "2nd Engineer",   side: "on",  nationality: "TUR", flight: "PC1145", flightEta: "16:00", flightDelayed: true,  visaRequired: true,  eVisaStatus: "pending",  okToBoard: "pending",   timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"15:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"17:00" }, { id:3, icon:"🚤", label:"Embark", time:"18:30" }] },
+    { id: 3, name: "Ali Öztürk",    rank: "Chief Engineer", side: "off", nationality: "TUR", flight: "TK2321", flightEta: "17:00", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "sent",      timeline: [{ id:1, icon:"🚤", label:"Disembark", time:"14:30" }, { id:2, icon:"🛂", label:"Customs / Police", time:"15:15" }, { id:3, icon:"🚐", label:"Port → Airport", time:"16:00" }, { id:4, icon:"✈️", label:"Flight", time:"19:45" }] },
+    { id: 4, name: "Hasan Çelik",   rank: "AB Sailor",      side: "off", nationality: "TUR", flight: "PC1146", flightEta: "18:30", flightDelayed: false, visaRequired: true,  eVisaStatus: "approved", okToBoard: "confirmed", timeline: [{ id:1, icon:"🚤", label:"Disembark", time:"15:00" }, { id:2, icon:"🛂", label:"Customs / Police", time:"15:45" }, { id:3, icon:"🚐", label:"Port → Airport", time:"16:30" }, { id:4, icon:"✈️", label:"Flight", time:"20:15" }] },
   ]);
   const [hubTimeline, setHubTimeline] = useState([
     { id: 1, time: "10:00", emoji: "📦", title: "Spare Parts Customs Clearance",       status: "in_progress" },
@@ -224,12 +241,17 @@ export default function VoyageDetail() {
   ]);
   const [editingTimelineId, setEditingTimelineId] = useState<number | null>(null);
   const [timelineEditVal, setTimelineEditVal]     = useState("");
+  const [editingCrewTimeline, setEditingCrewTimeline] = useState<{ crewId: number; stepId: number } | null>(null);
+  const [crewTimelineEditVal, setCrewTimelineEditVal] = useState("");
   const [showAddCrewDialog, setShowAddCrewDialog] = useState(false);
   const [addCrewForm, setAddCrewForm] = useState<{
     name: string; rank: string; side: "on" | "off";
+    nationality: string;
     flight: string; flightEta: string; flightDelayed: boolean;
-    visaCleared: boolean; transferStatus: string;
-  }>({ name: "", rank: "", side: "on", flight: "", flightEta: "", flightDelayed: false, visaCleared: false, transferStatus: "En route to Port" });
+    visaRequired: boolean;
+    eVisaStatus: "pending" | "approved" | "n/a";
+    okToBoard: "pending" | "sent" | "confirmed";
+  }>({ name: "", rank: "", side: "on", nationality: "", flight: "", flightEta: "", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a", okToBoard: "pending" });
   const [showApptForm, setShowApptForm] = useState(false);
   const [apptForm, setApptForm] = useState({ appointmentType: "pilot", scheduledAt: "", notes: "" });
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
@@ -1226,107 +1248,175 @@ export default function VoyageDetail() {
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  {/* ON-SIGNERS */}
-                  <div className="space-y-2.5">
-                    <div className="flex items-center gap-2 pb-2 border-b border-emerald-500/20">
-                      <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">On-Signers</span>
-                      <span className="text-[10px] text-slate-500 ml-auto bg-emerald-900/30 border border-emerald-700/30 rounded-full px-2 py-0.5">
-                        {crewSigners.filter(c => c.side === "on").length} joining
-                      </span>
-                    </div>
-                    {crewSigners.filter(c => c.side === "on").map(crew => (
-                      <div key={crew.id} className="rounded-lg border border-slate-700 bg-slate-700/20 hover:bg-slate-700/30 transition-colors p-3 space-y-1.5" data-testid={`crew-card-on-${crew.id}`}>
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-[11px] font-bold text-emerald-400 flex-shrink-0">
-                            {crew.name[0]}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-slate-100 truncate">{crew.name}</p>
-                            <p className="text-[10px] text-slate-500">{crew.rank}</p>
-                          </div>
-                          <button className="p-1 text-slate-600 hover:text-rose-400 transition-colors" onClick={() => setCrewSigners(cs => cs.filter(c => c.id !== crew.id))} data-testid={`button-remove-crew-${crew.id}`}>
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                          <span>✈️</span>
-                          <span className="font-medium text-slate-300">{crew.flight || "—"}</span>
-                          <span className="text-slate-600">·</span>
-                          <span>ETA {crew.flightEta || "—"}</span>
-                          {crew.flightDelayed && (
-                            <span className="ml-auto inline-flex items-center text-[9px] font-bold text-rose-400 bg-rose-900/40 border border-rose-500/30 rounded-full px-1.5 py-0.5">Delayed</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                          <span>🛂</span>
-                          <span>Visa / OTB:</span>
-                          <span className={`ml-1 inline-flex items-center text-[9px] font-bold rounded-full px-1.5 py-0.5 ${crew.visaCleared ? "text-emerald-400 bg-emerald-900/40 border border-emerald-500/30" : "text-rose-400 bg-rose-900/40 border border-rose-500/30"}`}>
-                            {crew.visaCleared ? "✓ Cleared" : "⚠ Pending"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                          <span>🚐</span>
-                          <span className="truncate">{crew.transferStatus || "—"}</span>
-                        </div>
-                      </div>
-                    ))}
-                    {crewSigners.filter(c => c.side === "on").length === 0 && (
-                      <p className="text-xs text-slate-600 text-center py-4 italic">No on-signers added yet.</p>
-                    )}
-                  </div>
+                {/* ── Rich Data Card helpers ── */}
+                {(() => {
+                  const flagMap: Record<string, string> = {
+                    TUR: "🇹🇷", PHL: "🇵🇭", IND: "🇮🇳", RUS: "🇷🇺", UKR: "🇺🇦",
+                    GRC: "🇬🇷", CHN: "🇨🇳", IDN: "🇮🇩", MYS: "🇲🇾", MMR: "🇲🇲",
+                    BGD: "🇧🇩", LKA: "🇱🇰", HRV: "🇭🇷", POL: "🇵🇱", ROU: "🇷🇴",
+                    GBR: "🇬🇧", USA: "🇺🇸", DEU: "🇩🇪", FRA: "🇫🇷", NOR: "🇳🇴",
+                  };
+                  const getFlag = (iso: string) => flagMap[iso?.toUpperCase()] ?? "🏳️";
 
-                  {/* OFF-SIGNERS */}
-                  <div className="space-y-2.5">
-                    <div className="flex items-center gap-2 pb-2 border-b border-rose-500/20">
-                      <div className="w-2 h-2 rounded-full bg-rose-400" />
-                      <span className="text-xs font-bold text-rose-400 uppercase tracking-widest">Off-Signers</span>
-                      <span className="text-[10px] text-slate-500 ml-auto bg-rose-900/30 border border-rose-700/30 rounded-full px-2 py-0.5">
-                        {crewSigners.filter(c => c.side === "off").length} departing
-                      </span>
-                    </div>
-                    {crewSigners.filter(c => c.side === "off").map(crew => (
-                      <div key={crew.id} className="rounded-lg border border-slate-700 bg-slate-700/20 hover:bg-slate-700/30 transition-colors p-3 space-y-1.5" data-testid={`crew-card-off-${crew.id}`}>
+                  const renderCrewCard = (crew: CrewSigner, accent: "emerald" | "rose") => {
+                    const accentColors = accent === "emerald"
+                      ? { avatar: "bg-emerald-500/20 border-emerald-500/30 text-emerald-400", pulse: "bg-emerald-400" }
+                      : { avatar: "bg-rose-500/20 border-rose-500/30 text-rose-400",           pulse: "bg-rose-400"   };
+
+                    return (
+                      <div
+                        key={crew.id}
+                        className="rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-800/80 transition-colors p-3 space-y-2"
+                        data-testid={`crew-card-${accent === "emerald" ? "on" : "off"}-${crew.id}`}
+                      >
+                        {/* ── HEADER: Avatar | Name + Rank | Flag | Remove ── */}
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-[11px] font-bold text-rose-400 flex-shrink-0">
+                          <div className={`w-8 h-8 rounded-full ${accentColors.avatar} flex items-center justify-center text-[12px] font-bold flex-shrink-0`}>
                             {crew.name[0]}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-slate-100 truncate">{crew.name}</p>
-                            <p className="text-[10px] text-slate-500">{crew.rank}</p>
+                            <p className="text-xs font-bold text-slate-100 truncate leading-tight">{crew.name}</p>
+                            <p className="text-[10px] text-slate-500 leading-tight">{crew.rank}</p>
                           </div>
-                          <button className="p-1 text-slate-600 hover:text-rose-400 transition-colors" onClick={() => setCrewSigners(cs => cs.filter(c => c.id !== crew.id))} data-testid={`button-remove-crew-${crew.id}`}>
+                          {crew.nationality && (
+                            <div className="flex items-center gap-0.5 flex-shrink-0">
+                              <span className="text-sm leading-none">{getFlag(crew.nationality)}</span>
+                              <span className="text-[9px] text-slate-500 font-mono">{crew.nationality.toUpperCase()}</span>
+                            </div>
+                          )}
+                          <button
+                            className="p-1 text-slate-600 hover:text-rose-400 transition-colors flex-shrink-0"
+                            onClick={() => setCrewSigners(cs => cs.filter(c => c.id !== crew.id))}
+                            data-testid={`button-remove-crew-${crew.id}`}
+                          >
                             <X className="w-3 h-3" />
                           </button>
                         </div>
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                          <span>✈️</span>
-                          <span className="font-medium text-slate-300">{crew.flight || "—"}</span>
-                          <span className="text-slate-600">·</span>
-                          <span>ETA {crew.flightEta || "—"}</span>
-                          {crew.flightDelayed && (
-                            <span className="ml-auto inline-flex items-center text-[9px] font-bold text-rose-400 bg-rose-900/40 border border-rose-500/30 rounded-full px-1.5 py-0.5">Delayed</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                          <span>🛂</span>
-                          <span>Visa / OTB:</span>
-                          <span className={`ml-1 inline-flex items-center text-[9px] font-bold rounded-full px-1.5 py-0.5 ${crew.visaCleared ? "text-emerald-400 bg-emerald-900/40 border border-emerald-500/30" : "text-rose-400 bg-rose-900/40 border border-rose-500/30"}`}>
-                            {crew.visaCleared ? "✓ Cleared" : "⚠ Pending"}
+
+                        {/* ── VISA & CLEARANCE ROW: 3 badges ── */}
+                        <div className="flex flex-wrap gap-1" data-testid={`crew-visa-row-${crew.id}`}>
+                          {/* Visa Req badge */}
+                          <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 ${
+                            crew.visaRequired
+                              ? "text-rose-400 bg-rose-900/20 border-rose-500/50"
+                              : "text-emerald-400 bg-emerald-900/20 border-emerald-500/50"
+                          }`}>
+                            Visa Req: {crew.visaRequired ? "Yes" : "No"}
+                          </span>
+                          {/* e-Visa badge */}
+                          <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 ${
+                            crew.eVisaStatus === "approved" ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" :
+                            crew.eVisaStatus === "pending"  ? "text-amber-400 bg-amber-900/20 border-amber-500/50"      :
+                                                              "text-slate-500 bg-slate-700/40 border-slate-600/50"
+                          }`}>
+                            {crew.eVisaStatus === "approved" ? "✅ e-Visa" : crew.eVisaStatus === "pending" ? "⏳ e-Visa" : "e-Visa: N/A"}
+                          </span>
+                          {/* OTB badge */}
+                          <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 ${
+                            crew.okToBoard === "confirmed" ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" :
+                            crew.okToBoard === "sent"      ? "text-sky-400 bg-sky-900/20 border-sky-500/50"            :
+                                                            "text-slate-500 bg-slate-700/40 border-slate-600/50"
+                          }`}>
+                            {crew.okToBoard === "confirmed" ? "✓ OTB Confirmed" : crew.okToBoard === "sent" ? "✈️ OTB Sent" : "OTB: Pending"}
                           </span>
                         </div>
+
+                        {/* ── FLIGHT ROW ── */}
                         <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                          <span>🚐</span>
-                          <span className="truncate">{crew.transferStatus || "—"}</span>
+                          <span>✈️</span>
+                          <span className="font-semibold text-slate-300">{crew.flight || "—"}</span>
+                          <span className="text-slate-600">·</span>
+                          <span className="text-slate-400">ETA {crew.flightEta || "—"}</span>
+                          {crew.flightDelayed && (
+                            <span className="ml-auto inline-flex items-center text-[9px] font-bold text-rose-400 bg-rose-900/40 border border-rose-500/30 rounded-full px-1.5 py-0.5">
+                              ⚠ Delayed
+                            </span>
+                          )}
+                        </div>
+
+                        {/* ── TRANSFER TIMELINE ── */}
+                        <div className="pt-1.5 border-t border-slate-700/60" data-testid={`crew-timeline-${crew.id}`}>
+                          <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1.5">Transfer</p>
+                          <div className="flex flex-wrap items-center gap-x-1 gap-y-1">
+                            {crew.timeline.map((step, idx) => (
+                              <span key={step.id} className="flex items-center gap-1">
+                                {idx > 0 && <span className="text-[9px] text-slate-700">›</span>}
+                                <span className="flex items-center gap-0.5 bg-slate-700/50 rounded-md px-1.5 py-0.5">
+                                  <span className="text-[10px] leading-none">{step.icon}</span>
+                                  {editingCrewTimeline?.crewId === crew.id && editingCrewTimeline?.stepId === step.id ? (
+                                    <input
+                                      autoFocus
+                                      type="text"
+                                      value={crewTimelineEditVal}
+                                      onChange={e => setCrewTimelineEditVal(e.target.value)}
+                                      onBlur={() => {
+                                        setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : {
+                                          ...c,
+                                          timeline: c.timeline.map(s => s.id !== step.id ? s : { ...s, time: crewTimelineEditVal }),
+                                        }));
+                                        setEditingCrewTimeline(null);
+                                      }}
+                                      onKeyDown={e => {
+                                        if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur();
+                                      }}
+                                      className="w-12 h-4 text-[10px] bg-slate-600 border border-slate-500 rounded px-1 text-slate-100 outline-none"
+                                      data-testid={`input-crew-timeline-${crew.id}-${step.id}`}
+                                      placeholder="HH:MM"
+                                    />
+                                  ) : (
+                                    <span className="text-[10px] text-slate-300 font-mono">{step.time || "—:——"}</span>
+                                  )}
+                                  <button
+                                    className="text-slate-600 hover:text-amber-400 transition-colors ml-0.5"
+                                    onClick={() => { setEditingCrewTimeline({ crewId: crew.id, stepId: step.id }); setCrewTimelineEditVal(step.time); }}
+                                    title={`Edit ${step.label}`}
+                                    data-testid={`button-edit-crew-timeline-${crew.id}-${step.id}`}
+                                  >
+                                    <Pen className="w-2.5 h-2.5" />
+                                  </button>
+                                </span>
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    ))}
-                    {crewSigners.filter(c => c.side === "off").length === 0 && (
-                      <p className="text-xs text-slate-600 text-center py-4 italic">No off-signers added yet.</p>
-                    )}
-                  </div>
-                </div>
+                    );
+                  };
+
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      {/* ON-SIGNERS */}
+                      <div className="space-y-2.5">
+                        <div className="flex items-center gap-2 pb-2 border-b border-emerald-500/20">
+                          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">On-Signers</span>
+                          <span className="text-[10px] text-slate-500 ml-auto bg-emerald-900/30 border border-emerald-700/30 rounded-full px-2 py-0.5">
+                            {crewSigners.filter(c => c.side === "on").length} joining
+                          </span>
+                        </div>
+                        {crewSigners.filter(c => c.side === "on").map(crew => renderCrewCard(crew, "emerald"))}
+                        {crewSigners.filter(c => c.side === "on").length === 0 && (
+                          <p className="text-xs text-slate-600 text-center py-4 italic">No on-signers added yet.</p>
+                        )}
+                      </div>
+
+                      {/* OFF-SIGNERS */}
+                      <div className="space-y-2.5">
+                        <div className="flex items-center gap-2 pb-2 border-b border-rose-500/20">
+                          <div className="w-2 h-2 rounded-full bg-rose-400" />
+                          <span className="text-xs font-bold text-rose-400 uppercase tracking-widest">Off-Signers</span>
+                          <span className="text-[10px] text-slate-500 ml-auto bg-rose-900/30 border border-rose-700/30 rounded-full px-2 py-0.5">
+                            {crewSigners.filter(c => c.side === "off").length} departing
+                          </span>
+                        </div>
+                        {crewSigners.filter(c => c.side === "off").map(crew => renderCrewCard(crew, "rose"))}
+                        {crewSigners.filter(c => c.side === "off").length === 0 && (
+                          <p className="text-xs text-slate-600 text-center py-4 italic">No off-signers added yet.</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* RIGHT: Service Boat & Deliveries — col-span-1 */}
@@ -1466,18 +1556,41 @@ export default function VoyageDetail() {
                     <Input className="h-8 text-xs mt-1" placeholder="14:30" value={addCrewForm.flightEta} onChange={e => setAddCrewForm(f => ({ ...f, flightEta: e.target.value }))} data-testid="input-crew-flighteta" />
                   </div>
                 </div>
-                <div>
-                  <Label className="text-xs">Transfer Status</Label>
-                  <Input className="h-8 text-xs mt-1" placeholder="En route to Port" value={addCrewForm.transferStatus} onChange={e => setAddCrewForm(f => ({ ...f, transferStatus: e.target.value }))} data-testid="input-crew-transfer" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Nationality (ISO-3)</Label>
+                    <Input className="h-8 text-xs mt-1" placeholder="TUR" maxLength={3} value={addCrewForm.nationality} onChange={e => setAddCrewForm(f => ({ ...f, nationality: e.target.value.toUpperCase() }))} data-testid="input-crew-nationality" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Visa Required?</Label>
+                    <div className="flex gap-2 mt-1">
+                      <button onClick={() => setAddCrewForm(f => ({ ...f, visaRequired: false }))} className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${!addCrewForm.visaRequired ? "bg-emerald-900/40 border-emerald-500/50 text-emerald-400" : "bg-muted/30 border-border text-muted-foreground"}`} data-testid="btn-visa-no">No</button>
+                      <button onClick={() => setAddCrewForm(f => ({ ...f, visaRequired: true }))} className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${addCrewForm.visaRequired ? "bg-rose-900/40 border-rose-500/50 text-rose-400" : "bg-muted/30 border-border text-muted-foreground"}`} data-testid="btn-visa-yes">Yes</button>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">e-Visa Status</Label>
+                    <select className="w-full h-8 text-xs mt-1 bg-background border border-border rounded-md px-2 text-foreground" value={addCrewForm.eVisaStatus} onChange={e => setAddCrewForm(f => ({ ...f, eVisaStatus: e.target.value as any }))} data-testid="select-evisa-status">
+                      <option value="n/a">N/A</option>
+                      <option value="pending">⏳ Pending</option>
+                      <option value="approved">✅ Approved</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">OK to Board</Label>
+                    <select className="w-full h-8 text-xs mt-1 bg-background border border-border rounded-md px-2 text-foreground" value={addCrewForm.okToBoard} onChange={e => setAddCrewForm(f => ({ ...f, okToBoard: e.target.value as any }))} data-testid="select-otb-status">
+                      <option value="pending">Pending</option>
+                      <option value="sent">✈️ Sent to Airline</option>
+                      <option value="confirmed">✓ Confirmed</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="flex items-center gap-5">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={addCrewForm.flightDelayed} onChange={e => setAddCrewForm(f => ({ ...f, flightDelayed: e.target.checked }))} className="accent-rose-500" data-testid="check-crew-delayed" />
                     <span className="text-xs text-rose-400">Flight Delayed</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={addCrewForm.visaCleared} onChange={e => setAddCrewForm(f => ({ ...f, visaCleared: e.target.checked }))} className="accent-emerald-500" data-testid="check-crew-visa" />
-                    <span className="text-xs text-emerald-400">Visa Cleared</span>
                   </label>
                 </div>
               </div>
@@ -1485,8 +1598,9 @@ export default function VoyageDetail() {
                 <Button variant="outline" size="sm" onClick={() => setShowAddCrewDialog(false)}>Cancel</Button>
                 <Button size="sm" onClick={() => {
                   if (!addCrewForm.name.trim()) return;
-                  setCrewSigners(cs => [...cs, { ...addCrewForm, id: Date.now() }]);
-                  setAddCrewForm({ name: "", rank: "", side: "on", flight: "", flightEta: "", flightDelayed: false, visaCleared: false, transferStatus: "En route to Port" });
+                  const defaultTimeline = addCrewForm.side === "on" ? ON_TIMELINE_DEFAULT.map(s => ({ ...s })) : OFF_TIMELINE_DEFAULT.map(s => ({ ...s }));
+                  setCrewSigners(cs => [...cs, { ...addCrewForm, id: Date.now(), timeline: defaultTimeline }]);
+                  setAddCrewForm({ name: "", rank: "", side: "on", nationality: "", flight: "", flightEta: "", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a", okToBoard: "pending" });
                   setShowAddCrewDialog(false);
                 }} data-testid="button-confirm-add-crew">Add Crew Member</Button>
               </DialogFooter>
