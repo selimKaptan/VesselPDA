@@ -1,0 +1,15 @@
+Sen bir Senior UI/UX Mimarı ve React Geliştiricisisin. 'Crew Logistics Board' ekranımızı, modern SaaS standartlarına (Notion/Linear tarzı) ulaştırmak için KAPSAMLI bir UX güncellemesi yapıyoruz. Hantal formları ve kalabalık ekranları bırakıp, dinamik bir çalışma alanı (Workspace) kurmalıyız.
+
+Lütfen mevcut kodu şu 2 ANA BÖLÜM kurallarına göre tek seferde GÜNCELLE:
+
+BÖLÜM 1: AÇILIR/KAPANIR SAĞ PANEL (Collapsible Hotel Sidebar)
+1. Header'a (Add Crew butonunun yanına) "🏨 Hotels & Logistics" adında şık bir Toggle butonu ekle. İçinde otel bekleyen/kalan kişi sayısını (Örn: 3) minik bir rozet (Badge) ile göster.
+2. Sağdaki 'Hotel Reservations' panelini sabit olmaktan çıkarıp, gizlenebilir bir 'Sidebar' (Yan Panel) yap. (State: isHotelPanelOpen, Varsayılan: false).
+3. Panel kapalıyken, sol taraftaki 'ON-SIGNERS' ve 'OFF-SIGNERS' sütunları ekranı %100 kaplasın (ferahlasın). Toggle'a tıklandığında sol taraf esneyerek küçülsün ve sağ panel yumuşak bir animasyonla (duration-300, ease-in-out) ekranın sağ %30'luk kısmına yerleşsin.
+
+BÖLÜM 2: YERİNDE DÜZENLEME (Inline Editing & Micro-Popovers)
+1. Tıkla ve Değiştir (Saatler/Metinler): Personel kartlarındaki Uçuş Saati (14:30) veya Uçuş Kodu (TK2320) gibi metinlerin üzerine gelince arka plan hafifçe parlasın (hover effect) ve minik bir kalem (edit) ikonu çıksın. Tıklanınca o metin anında minik bir Input'a dönüşsün. Yeni değer yazılıp 'Enter'a basılınca (veya onBlur tetiklenince) Input kapanıp yeni değer yazı olarak kalsın. (Büyük form açılmasın!).
+2. Tıkla ve Seç (Statü Rozetleri): Visa, OTB ve Hotel rozetlerine tıklandığında devasa Slide-over formu AÇILMASIN. Bunun yerine tam rozetin olduğu yerde minik bir 'shadcn DropdownMenu' veya 'Popover' açılsın. Kullanıcı yeni durumu (Örn: OTB Confirmed) oradan seçsin ve menü kapansın.
+3. Detay Menüsü: Sağdan açılan o büyük eski 'Edit/Add' (Slide-over) formunu sadece 'Genişlet (Expand ↗)' ikonuna tıklandığında açılacak şekilde kartın köşesine gizle.
+
+Lütfen bu yapıları mevcut Dark Mode (slate-900) zarafetini bozmadan, framer-motion (veya CSS transitions) ile pürüzsüzce entegre et.
