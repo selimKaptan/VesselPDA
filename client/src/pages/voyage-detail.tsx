@@ -256,6 +256,43 @@ export default function VoyageDetail() {
   const [crewPanelMode, setCrewPanelMode] = useState<"add_on" | "add_off" | "edit">("add_on");
   const [editingCrewId, setEditingCrewId] = useState<number | null>(null);
   const [crewSlideForm, setCrewSlideForm] = useState<CrewSlideFormType>(EMPTY_CREW_SLIDE_FORM);
+  const [slideFormTimeline, setSlideFormTimeline] = useState<CrewTimelineStep[]>([]);
+
+  // ── Smart Rule Engine helpers ─────────────────────────────────────────────
+  const timeToMins = (t: string): number => {
+    if (!t || !/^\d{1,2}:\d{2}$/.test(t)) return -1;
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+  const addMins = (t: string, delta: number): string => {
+    const base = timeToMins(t);
+    if (base < 0) return "";
+    const total = ((base + delta) % 1440 + 1440) % 1440;
+    const hh = String(Math.floor(total / 60)).padStart(2, "0");
+    const mm = String(total % 60).padStart(2, "0");
+    return `${hh}:${mm}`;
+  };
+  // Compute per-crew card warnings (Rule 1 & 2) for display on cards
+  const getCrewWarnings = (crew: CrewSigner, vesselEtdStr?: string): string[] => {
+    const warns: string[] = [];
+    const flightMins = timeToMins(crew.flightEta);
+    if (crew.side === "on" && vesselEtdStr) {
+      const etdMins = timeToMins(vesselEtdStr);
+      if (flightMins >= 0 && etdMins >= 0 && flightMins > etdMins)
+        warns.push("⚠️ Critical: Flight arrives after Vessel ETD!");
+    }
+    if (crew.side === "off") {
+      const disembarkStep = crew.timeline.find(s => /disembark/i.test(s.label));
+      const disembarkMins = timeToMins(disembarkStep?.time ?? "");
+      if (flightMins >= 0 && disembarkMins >= 0) {
+        const gap = flightMins >= disembarkMins
+          ? flightMins - disembarkMins
+          : (1440 - disembarkMins) + flightMins;
+        if (gap < 300) warns.push("⚠️ Warning: Minimum 5 hours required for disembarkation & transfer.");
+      }
+    }
+    return warns;
+  };
 
   // ── AI Drop Zone (Hybrid) ──────────────────────────────────────────────────
   const [isDragOverCrewZone, setIsDragOverCrewZone] = useState(false);
@@ -276,6 +313,19 @@ export default function VoyageDetail() {
     const id = Date.now() * 1000 + Math.floor(Math.random() * 1000);
     setActivityLog(prev => [{ id, time, actor, message, highlight }, ...prev]);
   };
+
+  // ── Auto-fill Disembark time when Off-signer ETD changes ─────────────────
+  useEffect(() => {
+    if (crewSlideForm.side !== "off") return;
+    const etd = crewSlideForm.flightEta;
+    if (!etd) return;
+    const disembarkTime = addMins(etd, -300);
+    if (!disembarkTime) return;
+    setSlideFormTimeline(prev =>
+      prev.map(s => /disembark/i.test(s.label) ? { ...s, time: disembarkTime } : s)
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crewSlideForm.flightEta, crewSlideForm.side]);
 
   // ── AI Text Parser — real state updater ────────────────────────────────────
   const parseAndApplyAIText = (text: string) => {
@@ -1586,7 +1636,7 @@ export default function VoyageDetail() {
                       <p className="text-xs text-slate-500">Real-time crew change tracking</p>
                     </div>
                   </div>
-                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 border-slate-600 text-slate-300 hover:bg-slate-700/50" onClick={() => { setCrewPanelMode("add_on"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "on" }); setEditingCrewId(null); setShowCrewPanel(true); }} data-testid="button-add-crew">
+                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 border-slate-600 text-slate-300 hover:bg-slate-700/50" onClick={() => { setCrewPanelMode("add_on"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "on" }); setSlideFormTimeline(ON_TIMELINE_DEFAULT.map(s => ({ ...s }))); setEditingCrewId(null); setShowCrewPanel(true); }} data-testid="button-add-crew">
                     <Plus className="w-3 h-3" /> Add Crew
                   </Button>
                 </div>
@@ -1610,7 +1660,7 @@ export default function VoyageDetail() {
                       <div
                         key={crew.id}
                         className="rounded-xl border border-slate-700 bg-slate-800 hover:border-slate-600 transition-colors p-3 space-y-2 cursor-pointer"
-                        onClick={() => { setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard }); setShowCrewPanel(true); }}
+                        onClick={() => { setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
                         data-testid={`crew-card-${accent === "emerald" ? "on" : "off"}-${crew.id}`}
                       >
                         {/* ── HEADER: Avatar | Name + Rank | Flag | Status | Remove ── */}
@@ -1672,6 +1722,23 @@ export default function VoyageDetail() {
                             {crew.okToBoard === "confirmed" ? "✓ OTB Confirmed" : crew.okToBoard === "sent" ? "✈️ OTB Sent" : "OTB: Pending"}
                           </span>
                         </div>
+
+                        {/* ── SMART RULE ENGINE WARNINGS (on card) ── */}
+                        {(() => {
+                          const vesselEtdTime = voyage.etd ? new Date(voyage.etd).toTimeString().substring(0, 5) : "";
+                          const warns = getCrewWarnings(crew, vesselEtdTime);
+                          if (!warns.length) return null;
+                          return (
+                            <div className="space-y-1" data-testid={`crew-warnings-${crew.id}`}>
+                              {warns.map((w, i) => (
+                                <div key={i} className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[9px] font-semibold border ${w.includes("Critical") ? "bg-red-950/40 border-red-500/30 text-red-400" : "bg-amber-950/40 border-amber-500/30 text-amber-400"}`}>
+                                  <span>{w.includes("Critical") ? "🚨" : "⚠️"}</span>
+                                  <span>{w.replace("⚠️ ", "")}</span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
 
                         {/* ── QUICK DOCUMENT ACCESS ── */}
                         {(() => {
@@ -1802,7 +1869,7 @@ export default function VoyageDetail() {
                         <div className="flex gap-1.5 pt-1.5 border-t border-slate-700/40" onClick={e => e.stopPropagation()}>
                           <button
                             className="flex-1 flex items-center justify-center gap-1 h-6 text-[10px] font-medium rounded-md border border-slate-600 text-slate-400 hover:text-blue-400 hover:border-blue-500/50 hover:bg-blue-900/20 transition-colors"
-                            onClick={e => { e.stopPropagation(); setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard }); setShowCrewPanel(true); }}
+                            onClick={e => { e.stopPropagation(); setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
                             data-testid={`button-update-flight-${crew.id}`}
                           >
                             <Plane className="w-3 h-3" /> Update Flight
@@ -1849,7 +1916,7 @@ export default function VoyageDetail() {
                           </span>
                           <button
                             className="ml-auto flex items-center gap-1 h-6 px-2 text-[10px] font-semibold rounded-md bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600/30 hover:border-blue-400/60 transition-colors"
-                            onClick={() => { setCrewPanelMode("add_on"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "on" }); setEditingCrewId(null); setShowCrewPanel(true); }}
+                            onClick={() => { setCrewPanelMode("add_on"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "on" }); setSlideFormTimeline(ON_TIMELINE_DEFAULT.map(s => ({ ...s }))); setEditingCrewId(null); setShowCrewPanel(true); }}
                             data-testid="button-add-on-signer"
                           >
                             <Plus className="w-2.5 h-2.5" /> Add
@@ -1859,7 +1926,7 @@ export default function VoyageDetail() {
                         {crewSigners.filter(c => c.side === "on").length === 0 && (
                           <button
                             className="w-full py-6 rounded-xl border border-dashed border-emerald-500/30 text-xs text-slate-600 hover:text-emerald-400 hover:border-emerald-500/50 transition-colors flex flex-col items-center gap-1"
-                            onClick={() => { setCrewPanelMode("add_on"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "on" }); setEditingCrewId(null); setShowCrewPanel(true); }}
+                            onClick={() => { setCrewPanelMode("add_on"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "on" }); setSlideFormTimeline(ON_TIMELINE_DEFAULT.map(s => ({ ...s }))); setEditingCrewId(null); setShowCrewPanel(true); }}
                             data-testid="button-empty-add-on"
                           >
                             <Plus className="w-4 h-4" />
@@ -1878,7 +1945,7 @@ export default function VoyageDetail() {
                           </span>
                           <button
                             className="ml-auto flex items-center gap-1 h-6 px-2 text-[10px] font-semibold rounded-md bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600/30 hover:border-blue-400/60 transition-colors"
-                            onClick={() => { setCrewPanelMode("add_off"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "off" }); setEditingCrewId(null); setShowCrewPanel(true); }}
+                            onClick={() => { setCrewPanelMode("add_off"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "off" }); setSlideFormTimeline(OFF_TIMELINE_DEFAULT.map(s => ({ ...s }))); setEditingCrewId(null); setShowCrewPanel(true); }}
                             data-testid="button-add-off-signer"
                           >
                             <Plus className="w-2.5 h-2.5" /> Add
@@ -1888,7 +1955,7 @@ export default function VoyageDetail() {
                         {crewSigners.filter(c => c.side === "off").length === 0 && (
                           <button
                             className="w-full py-6 rounded-xl border border-dashed border-rose-500/30 text-xs text-slate-600 hover:text-rose-400 hover:border-rose-500/50 transition-colors flex flex-col items-center gap-1"
-                            onClick={() => { setCrewPanelMode("add_off"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "off" }); setEditingCrewId(null); setShowCrewPanel(true); }}
+                            onClick={() => { setCrewPanelMode("add_off"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "off" }); setSlideFormTimeline(OFF_TIMELINE_DEFAULT.map(s => ({ ...s }))); setEditingCrewId(null); setShowCrewPanel(true); }}
                             data-testid="button-empty-add-off"
                           >
                             <Plus className="w-4 h-4" />
@@ -2178,6 +2245,72 @@ export default function VoyageDetail() {
                   </label>
                 </div>
 
+                {/* Section 3b: Transfer Timeline */}
+                {(() => {
+                  const isOff = crewSlideForm.side === "off";
+                  const vesselEtdTime = voyage.etd ? new Date(voyage.etd).toTimeString().substring(0, 5) : "";
+                  const fMins = timeToMins(crewSlideForm.flightEta);
+                  const etdMins = timeToMins(vesselEtdTime);
+                  const disembarkMins = timeToMins(slideFormTimeline.find(s => /disembark/i.test(s.label))?.time ?? "");
+                  const rule1 = !isOff && fMins >= 0 && etdMins >= 0 && fMins > etdMins;
+                  const rule2 = isOff && fMins >= 0 && disembarkMins >= 0 && (() => {
+                    const gap = fMins >= disembarkMins ? fMins - disembarkMins : 1440 - disembarkMins + fMins;
+                    return gap < 300;
+                  })();
+                  return (
+                    <>
+                      {/* Smart Rule Engine warnings */}
+                      {rule1 && (
+                        <div className="flex items-start gap-2 p-3 rounded-lg bg-red-950/40 border border-red-500/40 text-xs text-red-400" data-testid="warning-flight-after-etd">
+                          <span className="text-sm leading-none mt-0.5">⚠️</span>
+                          <div>
+                            <p className="font-bold text-red-300">Critical: Flight arrives after Vessel ETD!</p>
+                            <p className="text-red-400/70 text-[10px] mt-0.5">Flight ETA {crewSlideForm.flightEta} is after vessel ETD {vesselEtdTime}. Crew may miss the vessel.</p>
+                          </div>
+                        </div>
+                      )}
+                      {rule2 && (
+                        <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-950/40 border border-amber-500/40 text-xs text-amber-400" data-testid="warning-transfer-gap">
+                          <span className="text-sm leading-none mt-0.5">⚠️</span>
+                          <div>
+                            <p className="font-bold text-amber-300">Warning: Insufficient transfer time!</p>
+                            <p className="text-amber-400/70 text-[10px] mt-0.5">Minimum 5 hours required between disembarkation and departure flight.</p>
+                          </div>
+                        </div>
+                      )}
+                      {/* Transfer Timeline steps */}
+                      <div>
+                        <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Transfer Timeline</p>
+                        <div className="space-y-2">
+                          {slideFormTimeline.map((step, idx) => (
+                            <div key={idx} className="flex items-center gap-2.5">
+                              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${step.done ? "bg-emerald-400" : "bg-slate-600"}`} />
+                              <span className="text-xs text-slate-400 flex-1 min-w-0">{step.label}</span>
+                              <input
+                                type="text"
+                                placeholder="HH:MM"
+                                className="w-20 h-7 text-xs px-2 rounded-md bg-slate-800 border border-slate-700 text-slate-100 placeholder:text-slate-600 text-center"
+                                value={step.time}
+                                onChange={e => setSlideFormTimeline(prev => prev.map((s, i) => i === idx ? { ...s, time: e.target.value } : s))}
+                                data-testid={`input-timeline-step-${idx}`}
+                              />
+                              <button
+                                type="button"
+                                title={step.done ? "Mark incomplete" : "Mark done"}
+                                className={`w-6 h-6 rounded-md border text-[10px] flex items-center justify-center flex-shrink-0 transition-colors ${step.done ? "bg-emerald-900/40 border-emerald-500/50 text-emerald-400 hover:bg-emerald-900/20" : "bg-slate-800 border-slate-700 text-slate-600 hover:border-slate-500 hover:text-slate-400"}`}
+                                onClick={() => setSlideFormTimeline(prev => prev.map((s, i) => i === idx ? { ...s, done: !s.done } : s))}
+                                data-testid={`btn-timeline-done-${idx}`}
+                              >
+                                ✓
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+
                 {/* Section 4: Visa & Clearance */}
                 <div>
                   <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Visa & Clearance</p>
@@ -2292,7 +2425,7 @@ export default function VoyageDetail() {
                     if (!crewSlideForm.name.trim()) return;
                     if (crewPanelMode === "edit" && editingCrewId !== null) {
                       const existing = crewSigners.find(c => c.id === editingCrewId);
-                      setCrewSigners(cs => cs.map(c => c.id !== editingCrewId ? c : { ...c, ...crewSlideForm }));
+                      setCrewSigners(cs => cs.map(c => c.id !== editingCrewId ? c : { ...c, ...crewSlideForm, timeline: slideFormTimeline }));
                       if (existing && existing.flight !== crewSlideForm.flight && crewSlideForm.flight) {
                         const fromFlight = existing.flight || "(none)";
                         const toFlight   = crewSlideForm.flight;
@@ -2302,8 +2435,7 @@ export default function VoyageDetail() {
                       }
                     } else {
                       const side = crewPanelMode === "add_off" ? "off" : "on";
-                      const defaultTimeline = side === "on" ? ON_TIMELINE_DEFAULT.map(s => ({ ...s })) : OFF_TIMELINE_DEFAULT.map(s => ({ ...s }));
-                      setCrewSigners(cs => [...cs, { ...crewSlideForm, side, id: Date.now(), arrivalStatus: "pending", docs: EMPTY_CREW_DOCS, timeline: defaultTimeline }]);
+                      setCrewSigners(cs => [...cs, { ...crewSlideForm, side, id: Date.now(), arrivalStatus: "pending", docs: EMPTY_CREW_DOCS, timeline: slideFormTimeline }]);
                       addActivityLog(`New ${side === "on" ? "On" : "Off"}-signer added: ${crewSlideForm.name}, ${crewSlideForm.rank || "N/A"}.`, "Agent");
                     }
                     setShowCrewPanel(false);
