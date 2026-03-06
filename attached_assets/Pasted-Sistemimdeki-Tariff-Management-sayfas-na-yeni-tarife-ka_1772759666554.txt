@@ -1,0 +1,72 @@
+Sistemimdeki "Tariff Management" sayfasına yeni tarife kategorilerini eklemek istiyorum. 
+
+ÖNEMLİ NOT: Lütfen veritabanındaki (tariffs tablosu) mevcut kayıtları KESİNLİKLE SİLME. Bu yeni verileri mevcut verilerin yanına ekle (append/insert).
+
+Aşağıdaki 3 yeni hizmet kategorisini ve hesaplama kurallarını sisteme entegre etmeni istiyorum:
+
+1. KATEGORİ: Sanitary Dues (Sahil Sağlık Ücreti)
+- Para Birimi: TRY (Türk Lirası)
+- Hizmet Tipi: Sanitary Dues
+- Formül: Geminin NRT (Net Tonaj) değeri x 21.67 olarak hesaplanacaktır.
+
+2. KATEGORİ: VTS Fees (Gemi Trafik Hizmetleri Ücreti)
+- Para Birimi: USD (Amerikan Doları)
+Kural: Geminin NRT değerine ve Bayrağına/Tipine göre sabit ücret alınır. Lütfen şu tabloları ekle:
+A) Yabancı Bayraklı Ticari Gemiler (Foreign Commercial):
+   300-2000 NRT: 88 USD
+   2001-5000 NRT: 176 USD
+   5001-10000 NRT: 330 USD
+   10001-20000 NRT: 495 USD
+   20001-50000 NRT: 660 USD
+   50001+ NRT: 990 USD
+B) Türk Bayraklı Gemiler (Turkish Flag - Non Cabotage):
+   300-2000 NRT: 22 USD
+   2001-5000 NRT: 44 USD
+   5001-10000 NRT: 82.5 USD
+   ... (Diğer aralıkları VTS standardına göre kurgula).
+
+3. KATEGORİ: Harbour Master Dues (Liman Başkanlığı Harçları)
+- Para Birimi: TRY (Türk Lirası)
+ÇOK ÖNEMLİ KURAL: Bu kalemin toplam tutarı, geminin NRT değerine göre 4 farklı alt hizmetin toplanmasıyla bulunur. Lütfen backend tarafında (veya formül yapısında) bu 4 kalemi toplayacak bir fonksiyon (Helper Function) yaz ve Proforma hesaplamasında bu kalemi tek bir satır (Harbour Master Dues) olarak göster.
+Formül = (1 x Denize Elverişlilik) + (2 x Liman Çıkış Belgesi) + (1 x Yola Elverişlilik LÇB) + (1 x Mesai Dışı LÇB)
+
+Alt Tablo A (Denize Elverişlilik - Mesai Dışı):
+11-50 NRT: 2.400 TL
+51-200 NRT: 3.600 TL
+201-500 NRT: 4.800 TL
+501-1000 NRT: 6.000 TL
+1001-3000 NRT: 9.000 TL
+3001-8000 NRT: 18.000 TL
+8001+ NRT: 30.000 TL
+
+Alt Tablo B (Liman Çıkış Belgesi - Mesai Dışı) -> ÇIKAN SONUÇ 2 İLE ÇARPILACAK:
+11-500 NRT: 200 TL
+501-2000 NRT: 500 TL
+2001-4000 NRT: 1.200 TL
+4001-8000 NRT: 1.800 TL
+8001-10000 NRT: 2.400 TL
+10001-30000 NRT: 4.800 TL
+30001-50000 NRT: 7.200 TL
+50001+ NRT: 12.000 TL
+
+Alt Tablo C (Yola Elverişlilik Belgesi - LÇB):
+11-500 NRT: 1.283,90 TL
+501-2000 NRT: 3.424 TL
+2001-4000 NRT: 6.848,10 TL
+4001-8000 NRT: 10.272,20 TL
+8001-10000 NRT: 17.120,20 TL
+10001-30000 NRT: 34.240,90 TL
+30001-50000 NRT: 51.361,40 TL
+50001+ NRT: 85.602,30 TL
+
+Alt Tablo D (Mesai Dışı LÇB Ücreti):
+11-500 NRT: 251 TL
+501-2000 NRT: 628 TL
+2001-4000 NRT: 1.506 TL
+4001-8000 NRT: 2.259 TL
+8001-10000 NRT: 3.012 TL
+10001-30000 NRT: 6.024 TL
+30001-50000 NRT: 9.036 TL
+50001+ NRT: 15.059 TL
+
+Lütfen bu karmaşık 'Harbour Master Dues' hesaplamasını proformaya entegre edecek bir TypeScript/JavaScript helper fonksiyonu oluştur ve bunu proforma hesaplama (estimate) motoruna bağla.
