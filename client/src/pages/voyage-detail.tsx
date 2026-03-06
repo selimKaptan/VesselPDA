@@ -28,6 +28,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
+import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
 import { useSocket } from "@/hooks/use-socket";
 import type { Port } from "@shared/schema";
@@ -301,10 +302,11 @@ export default function VoyageDetail() {
     return warns;
   };
 
-  // ── AI Drop Zone (Hybrid) ──────────────────────────────────────────────────
-  const [isDragOverCrewZone, setIsDragOverCrewZone] = useState(false);
+  // ── AI Drop Zone / Command Palette ────────────────────────────────────────
+  const [isGlobalDragging, setIsGlobalDragging] = useState(false);
   const [crewAiParsing, setCrewAiParsing] = useState(false);
   const [crewAiText, setCrewAiText] = useState("");
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   // ── Activity & Audit Log ───────────────────────────────────────────────────
   type ActivityLogEntry = { id: number; time: string; actor: "AI" | "Agent" | "System"; message: string; highlight?: string };
@@ -512,6 +514,141 @@ export default function VoyageDetail() {
     if (updatedCount > 0) setCrewSigners(newList);
     return { updatedCount, logLines };
   };
+
+  // ── processAiText: shared AI text processor (used by command palette & paste) ─
+  const processAiText = (txt: string) => {
+    if (!txt.trim()) return;
+    setCrewAiParsing(true);
+    setCrewAiText(txt);
+    setTimeout(() => {
+      const { updatedCount, logLines } = parseAndApplyAIText(txt);
+      setCrewAiParsing(false);
+      setCrewAiText("");
+      setIsCommandPaletteOpen(false);
+      if (updatedCount > 0) {
+        logLines.forEach(line => {
+          const arrowMatch = line.match(/(\S+ → \S+)/);
+          addActivityLog(`AI updated: ${line}`, "AI", arrowMatch?.[1]);
+        });
+        toast({
+          title: `✅ AI Updated ${updatedCount} Crew Member${updatedCount > 1 ? "s" : ""}`,
+          description: logLines.join(" · ").slice(0, 120),
+        });
+      } else {
+        toast({
+          title: "No matching crew found",
+          description: "AI could not match any crew member name from the text. Try including the crew member's name.",
+          variant: "destructive",
+        });
+      }
+    }, 900);
+  };
+
+  // ── handleAiFileDrop: shared file drop handler ─────────────────────────────
+  const handleAiFileDrop = (file: File) => {
+    if (file.type.startsWith("image/")) {
+      setCrewAiParsing(true);
+      const reader2 = new FileReader();
+      reader2.onload = async ev => {
+        try {
+          const dataUrl = ev.target?.result as string;
+          const base64 = dataUrl.split(",")[1];
+          const mimeType = file.type as "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+          const resp = await fetch("/api/ai/extract-crew-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ imageData: base64, mimeType }),
+          });
+          if (!resp.ok) throw new Error(await resp.text());
+          const { text: extracted } = await resp.json();
+          if (!extracted) throw new Error("No text extracted");
+          setCrewAiParsing(false);
+          toast({ title: `🔍 Extracted from ${file.name}`, description: "Opening AI command palette to review…" });
+          setCrewAiText(extracted);
+          setIsCommandPaletteOpen(true);
+        } catch (err: any) {
+          setCrewAiParsing(false);
+          toast({ title: "Image extraction failed", description: err.message || "Could not read crew data from image.", variant: "destructive" });
+        }
+      };
+      reader2.readAsDataURL(file);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const content = ((ev.target?.result as string) || "").trim().slice(0, 5000);
+      setCrewAiText(content);
+      setIsCommandPaletteOpen(true);
+      toast({ title: `📎 ${file.name} loaded`, description: "Review the content in the AI panel, then click Process." });
+    };
+    reader.onerror = () => {
+      toast({ title: "Could not read file", description: "Try copying the text and pasting it directly.", variant: "destructive" });
+    };
+    reader.readAsText(file);
+  };
+
+  // ── Global drag-enter overlay ──────────────────────────────────────────────
+  useEffect(() => {
+    let dragCounter = 0;
+    const handleDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounter++;
+      if (dragCounter === 1) setIsGlobalDragging(true);
+    };
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounter--;
+      if (dragCounter <= 0) { dragCounter = 0; setIsGlobalDragging(false); }
+    };
+    const handleDragOver = (e: DragEvent) => { e.preventDefault(); };
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounter = 0;
+      setIsGlobalDragging(false);
+      const file = e.dataTransfer?.files?.[0];
+      if (file) handleAiFileDrop(file);
+    };
+    document.addEventListener("dragenter", handleDragEnter);
+    document.addEventListener("dragleave", handleDragLeave);
+    document.addEventListener("dragover", handleDragOver);
+    document.addEventListener("drop", handleDrop);
+    return () => {
+      document.removeEventListener("dragenter", handleDragEnter);
+      document.removeEventListener("dragleave", handleDragLeave);
+      document.removeEventListener("dragover", handleDragOver);
+      document.removeEventListener("drop", handleDrop);
+    };
+  }, []);
+
+  // ── Global paste listener (Ctrl+V / Cmd+V outside inputs) ─────────────────
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      const text = e.clipboardData?.getData("text/plain") || "";
+      if (!text.trim()) return;
+      e.preventDefault();
+      setCrewAiText(text.trim());
+      setIsCommandPaletteOpen(true);
+    };
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, []);
+
+  // ── Cmd+K / Ctrl+K → open Command Palette; ESC → close ───────────────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setIsCommandPaletteOpen(prev => !prev);
+      }
+      if (e.key === "Escape") {
+        setIsCommandPaletteOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const [showApptForm, setShowApptForm] = useState(false);
   const [apptForm, setApptForm] = useState({ appointmentType: "pilot", scheduledAt: "", notes: "" });
@@ -1199,6 +1336,133 @@ export default function VoyageDetail() {
     <div className="px-3 py-5 space-y-6 max-w-6xl mx-auto">
       <PageMeta title={`Voyage — ${voyage.vesselName || "Detail"} | VesselPDA`} description="Voyage detail and operation file" />
 
+      {/* ── Global AI Drag Overlay ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {isGlobalDragging && (
+          <motion.div
+            key="global-drag-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-[100] backdrop-blur-md bg-slate-900/80 flex flex-col items-center justify-center pointer-events-none"
+            data-testid="global-drag-overlay"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="flex flex-col items-center gap-6"
+            >
+              <div className="relative">
+                <div className="w-28 h-28 rounded-3xl bg-blue-600/20 border-2 border-blue-500/60 flex items-center justify-center shadow-[0_0_60px_rgba(59,130,246,0.45)]">
+                  <Sparkles className="w-14 h-14 text-blue-400" />
+                </div>
+                <motion.div
+                  animate={{ scale: [1, 1.18, 1] }}
+                  transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
+                  className="absolute inset-0 rounded-3xl border-2 border-blue-400/40 pointer-events-none"
+                />
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-white mb-2">Drop files anywhere to process with AI</p>
+                <p className="text-sm text-slate-400">PDF, .eml, Images supported · Claude AI powered</p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── AI Command Palette ─────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {isCommandPaletteOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              key="command-palette-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[90] bg-black/60 backdrop-blur-sm"
+              onClick={() => setIsCommandPaletteOpen(false)}
+            />
+            {/* Panel */}
+            <motion.div
+              key="command-palette-panel"
+              initial={{ opacity: 0, y: -24, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -24, scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 340, damping: 26 }}
+              className="fixed top-[18%] left-1/2 -translate-x-1/2 z-[91] w-full max-w-2xl px-4"
+              data-testid="command-palette-modal"
+            >
+              <div className="bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center gap-3 px-5 pt-5 pb-3 border-b border-slate-800">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center flex-shrink-0">
+                    {crewAiParsing
+                      ? <Loader2 className="w-4 h-4 text-indigo-400 animate-spin" />
+                      : <Sparkles className="w-4 h-4 text-indigo-400" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-slate-100">✨ AI Crew Update</p>
+                    <p className="text-[10px] text-slate-500">Paste WhatsApp messages, flight updates, or drop a file</p>
+                  </div>
+                  <button
+                    onClick={() => setIsCommandPaletteOpen(false)}
+                    className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-slate-300 transition-colors"
+                    data-testid="button-close-command-palette"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Textarea */}
+                <div className="px-5 pt-4 pb-3">
+                  <textarea
+                    autoFocus
+                    className="w-full bg-slate-800/60 border border-slate-700 rounded-xl outline-none resize-none text-sm text-slate-200 placeholder:text-slate-600 px-4 py-3 leading-relaxed focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+                    style={{ minHeight: "120px" }}
+                    placeholder={"Paste WhatsApp message, type a crew update, or describe what changed...\n\nExample: \"Ahmet's flight changed to TK2321, arrives 17:00\"\nExample: \"Captain confirmed hotel check-in at Hilton\""}
+                    value={crewAiText}
+                    onChange={e => setCrewAiText(e.target.value)}
+                    disabled={crewAiParsing}
+                    data-testid="textarea-command-palette-input"
+                  />
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-between px-5 pb-5 pt-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {[".eml", "PDF", "Text", "WhatsApp", "Image"].map(fmt => (
+                      <span key={fmt} className="text-[10px] text-slate-600 bg-slate-800/70 border border-slate-700/60 rounded px-1.5 py-0.5">{fmt}</span>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-slate-600 bg-slate-800 border border-slate-700/40 rounded px-1.5 py-0.5 font-mono">ESC to close</span>
+                    <button
+                      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                        crewAiText.trim() && !crewAiParsing
+                          ? "bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_18px_rgba(99,102,241,0.45)] hover:shadow-[0_0_24px_rgba(99,102,241,0.6)]"
+                          : "bg-slate-700/50 text-slate-600 cursor-not-allowed border border-slate-600/40"
+                      }`}
+                      disabled={!crewAiText.trim() || crewAiParsing}
+                      onClick={() => processAiText(crewAiText)}
+                      data-testid="button-command-palette-process"
+                    >
+                      {crewAiParsing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                      🚀 Process with AI
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Back */}
       <Link href="/voyages">
         <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -1488,153 +1752,6 @@ export default function VoyageDetail() {
             </div>
           )}
 
-          {/* ── Crew Change: AI Hybrid Input Box ── */}
-          {voyage.purposeOfCall === "Crew Change" && (
-            <div
-              className={`relative w-full rounded-xl border-2 border-dashed transition-all duration-300 overflow-hidden ${
-                isDragOverCrewZone
-                  ? "border-blue-500 bg-slate-800/70 ring-2 ring-blue-500/30 shadow-[0_0_32px_rgba(59,130,246,0.25)]"
-                  : crewAiText
-                  ? "border-blue-500/50 bg-slate-800/50"
-                  : "border-slate-600 bg-slate-800/30 hover:border-slate-500 hover:bg-slate-800/45"
-              }`}
-              onDragOver={e => { e.preventDefault(); setIsDragOverCrewZone(true); }}
-              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOverCrewZone(false); }}
-              onDrop={e => {
-                e.preventDefault();
-                setIsDragOverCrewZone(false);
-                const file = e.dataTransfer.files?.[0];
-                if (!file) return;
-
-                // Images → send to Claude Vision endpoint, then auto-process
-                if (file.type.startsWith("image/")) {
-                  setCrewAiParsing(true);
-                  const reader2 = new FileReader();
-                  reader2.onload = async ev => {
-                    try {
-                      const dataUrl = ev.target?.result as string;
-                      const base64 = dataUrl.split(",")[1];
-                      const mimeType = file.type as "image/png" | "image/jpeg" | "image/gif" | "image/webp";
-                      const resp = await fetch("/api/ai/extract-crew-image", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ imageData: base64, mimeType }),
-                      });
-                      if (!resp.ok) throw new Error(await resp.text());
-                      const { text: extracted } = await resp.json();
-                      if (!extracted) throw new Error("No text extracted");
-                      // Stage into textarea so user can review before processing
-                      setCrewAiText(extracted);
-                      setCrewAiParsing(false);
-                      toast({ title: `🔍 Extracted from ${file.name}`, description: "AI extracted the crew list. Review below, then click 🚀 Ask AI to Process." });
-                    } catch (err: any) {
-                      setCrewAiParsing(false);
-                      toast({ title: "Image extraction failed", description: err.message || "Could not read crew data from image.", variant: "destructive" });
-                    }
-                  };
-                  reader2.readAsDataURL(file);
-                  return;
-                }
-
-                // For text-readable files (.eml, .txt, .csv, .pdf) — read as text and stage
-                const reader = new FileReader();
-                reader.onload = ev => {
-                  const content = (ev.target?.result as string) || "";
-                  // Trim to 5000 chars to keep the textarea manageable
-                  setCrewAiText(content.trim().slice(0, 5000));
-                  toast({ title: `📎 ${file.name} loaded`, description: "Review the content, then click 🚀 Ask AI to Process." });
-                };
-                reader.onerror = () => {
-                  toast({ title: "Could not read file", description: "Try copying the text and pasting it directly.", variant: "destructive" });
-                };
-                reader.readAsText(file);
-              }}
-              data-testid="crew-ai-dropzone"
-            >
-              {/* Glow overlay when dragging */}
-              {isDragOverCrewZone && (
-                <div className="absolute inset-0 pointer-events-none bg-blue-500/5 animate-pulse" />
-              )}
-
-              {/* Top bar: icon + label */}
-              <div className="flex items-center gap-2.5 px-4 pt-3.5 pb-2">
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
-                  isDragOverCrewZone ? "bg-blue-500/25 border border-blue-400/50" : "bg-slate-700/70 border border-slate-600/50"
-                }`}>
-                  {crewAiParsing
-                    ? <Loader2 className="w-3.5 h-3.5 text-blue-400 animate-spin" />
-                    : <Sparkles className={`w-3.5 h-3.5 ${isDragOverCrewZone || crewAiText ? "text-blue-400" : "text-slate-400"}`} />
-                  }
-                </div>
-                <span className={`text-xs font-semibold tracking-wide transition-colors ${isDragOverCrewZone ? "text-blue-300" : crewAiText ? "text-blue-400" : "text-slate-400"}`}>
-                  {crewAiParsing ? "✨ AI is processing…" : isDragOverCrewZone ? "✨ Release to extract crew data" : "✨ AI Crew Input"}
-                </span>
-                <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-md border text-slate-500 bg-slate-700/40 border-slate-600/40">
-                  AI POWERED
-                </span>
-              </div>
-
-              {/* Textarea */}
-              <textarea
-                className="w-full bg-transparent outline-none resize-none text-sm text-slate-200 placeholder:text-slate-600 px-4 pb-3 leading-relaxed"
-                style={{ minHeight: "72px" }}
-                placeholder={"✨ Drop email files (.eml, PDF) here, OR paste text/WhatsApp messages to let AI update crew details...\n\nExample: \"Ahmet's flight changed to TK2321, arrives 17:00\""}
-                value={crewAiText}
-                onChange={e => setCrewAiText(e.target.value)}
-                disabled={crewAiParsing}
-                data-testid="textarea-crew-ai-input"
-              />
-
-              {/* Bottom bar: formats + process button */}
-              <div className="flex items-center justify-between px-4 pb-3.5 pt-1 border-t border-slate-700/40">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {[".eml", "PDF", "Text", "WhatsApp"].map(fmt => (
-                    <span key={fmt} className="text-[10px] text-slate-600 bg-slate-700/40 border border-slate-700/60 rounded px-1.5 py-0.5">{fmt}</span>
-                  ))}
-                </div>
-                <button
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    crewAiText.trim() && !crewAiParsing
-                      ? "bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_14px_rgba(59,130,246,0.4)] hover:shadow-[0_0_20px_rgba(59,130,246,0.55)]"
-                      : "bg-slate-700/50 text-slate-600 cursor-not-allowed border border-slate-600/40"
-                  }`}
-                  disabled={!crewAiText.trim() || crewAiParsing}
-                  onClick={() => {
-                    const txt = crewAiText.trim();
-                    if (!txt) return;
-                    setCrewAiParsing(true);
-                    // Small delay to show the "processing" animation, then apply
-                    setTimeout(() => {
-                      const { updatedCount, logLines } = parseAndApplyAIText(txt);
-                      setCrewAiParsing(false);
-                      if (updatedCount > 0) {
-                        logLines.forEach(line => {
-                          // Detect "X → Y" to set as highlight
-                          const arrowMatch = line.match(/(\S+ → \S+)/);
-                          addActivityLog(`AI updated: ${line}`, "AI", arrowMatch?.[1]);
-                        });
-                        toast({
-                          title: `✅ AI Updated ${updatedCount} Crew Member${updatedCount > 1 ? "s" : ""}`,
-                          description: logLines.join(" · ").slice(0, 120),
-                        });
-                      } else {
-                        toast({
-                          title: "No matching crew found",
-                          description: "AI could not match any crew member name from the text. Try including the crew member's name.",
-                          variant: "destructive",
-                        });
-                      }
-                      setCrewAiText("");
-                    }, 900);
-                  }}
-                  data-testid="button-crew-ai-process"
-                >
-                  {crewAiParsing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                  🚀 Ask AI to Process
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* ── Husbandry / Crew Change: Logistics Control Tower ── */}
           {(voyage.purposeOfCall === "Husbandry" || voyage.purposeOfCall === "Crew Change") && (
@@ -1652,9 +1769,20 @@ export default function VoyageDetail() {
                       <p className="text-xs text-slate-500">Real-time crew change tracking</p>
                     </div>
                   </div>
-                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 border-slate-600 text-slate-300 hover:bg-slate-700/50" onClick={() => { setCrewPanelMode("add_on"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "on" }); setSlideFormTimeline(ON_TIMELINE_DEFAULT.map(s => ({ ...s }))); setEditingCrewId(null); setShowCrewPanel(true); }} data-testid="button-add-crew">
-                    <Plus className="w-3 h-3" /> Add Crew
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setIsCommandPaletteOpen(true)}
+                      className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-semibold bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/35 text-indigo-300 hover:text-indigo-200 transition-all"
+                      data-testid="button-ask-ai"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      Ask AI
+                      <span className="text-[9px] font-mono bg-slate-800/80 border border-slate-700/50 rounded px-1 py-0.5 text-slate-500 ml-0.5">⌘K</span>
+                    </button>
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 border-slate-600 text-slate-300 hover:bg-slate-700/50" onClick={() => { setCrewPanelMode("add_on"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "on" }); setSlideFormTimeline(ON_TIMELINE_DEFAULT.map(s => ({ ...s }))); setEditingCrewId(null); setShowCrewPanel(true); }} data-testid="button-add-crew">
+                      <Plus className="w-3 h-3" /> Add Crew
+                    </Button>
+                  </div>
                 </div>
 
                 {/* ── Rich Data Card helpers ── */}
