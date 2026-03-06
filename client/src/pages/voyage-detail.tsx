@@ -221,6 +221,12 @@ export default function VoyageDetail() {
     arrivalStatus: "pending" | "arrived" | "departed";
     timeline: CrewTimelineStep[];
     docs: CrewDocs;
+    requiresHotel: boolean;
+    hotelName: string;
+    hotelCheckIn: string;
+    hotelCheckOut: string;
+    hotelStatus: "none" | "reserved" | "checked-in" | "checked-out";
+    hotelPickupTime: string;
   };
   type CrewSlideFormType = Omit<CrewSigner, "id" | "timeline" | "arrivalStatus" | "docs">;
   const ON_TIMELINE_DEFAULT: CrewTimelineStep[] = [
@@ -235,12 +241,13 @@ export default function VoyageDetail() {
     { id: 4, icon: "✈️", label: "Flight",           time: "" },
   ];
   const EMPTY_CREW_DOCS: CrewDocs = { passport: null, seamansBook: null, medicalCert: null };
-  const EMPTY_CREW_SLIDE_FORM: CrewSlideFormType = { name: "", rank: "", side: "on", nationality: "", passportNo: "", flight: "", flightEta: "", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a", okToBoard: "pending" };
+  const HOTEL_DEFAULTS = { requiresHotel: false, hotelName: "", hotelCheckIn: "", hotelCheckOut: "", hotelStatus: "none" as const, hotelPickupTime: "" };
+  const EMPTY_CREW_SLIDE_FORM: CrewSlideFormType = { name: "", rank: "", side: "on", nationality: "", passportNo: "", flight: "", flightEta: "", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a", okToBoard: "pending", ...HOTEL_DEFAULTS };
   const [crewSigners, setCrewSigners] = useState<CrewSigner[]>([
-    { id: 1, name: "Ahmet Yılmaz",  rank: "Chief Officer",  side: "on",  nationality: "TUR", passportNo: "TR12345678", flight: "TK2320", flightEta: "14:30", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "confirmed", arrivalStatus: "pending",  docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"13:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"15:00" }, { id:3, icon:"🚤", label:"Embark", time:"16:30" }] },
-    { id: 2, name: "Mehmet Demir",  rank: "2nd Engineer",   side: "on",  nationality: "TUR", passportNo: "TR87654321", flight: "PC1145", flightEta: "16:00", flightDelayed: true,  visaRequired: true,  eVisaStatus: "pending",  okToBoard: "pending",   arrivalStatus: "pending",  docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"15:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"17:00" }, { id:3, icon:"🚤", label:"Embark", time:"18:30" }] },
-    { id: 3, name: "Ali Öztürk",    rank: "Chief Engineer", side: "off", nationality: "TUR", passportNo: "TR11223344", flight: "TK2321", flightEta: "17:00", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "sent",      arrivalStatus: "pending",  docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"🚤", label:"Disembark", time:"14:30" }, { id:2, icon:"🛂", label:"Customs / Police", time:"15:15" }, { id:3, icon:"🚐", label:"Port → Airport", time:"16:00" }, { id:4, icon:"✈️", label:"Flight", time:"19:45" }] },
-    { id: 4, name: "Hasan Çelik",   rank: "AB Sailor",      side: "off", nationality: "TUR", passportNo: "TR44332211", flight: "PC1146", flightEta: "18:30", flightDelayed: false, visaRequired: true,  eVisaStatus: "approved", okToBoard: "confirmed", arrivalStatus: "departed", docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"🚤", label:"Disembark", time:"15:00" }, { id:2, icon:"🛂", label:"Customs / Police", time:"15:45" }, { id:3, icon:"🚐", label:"Port → Airport", time:"16:30" }, { id:4, icon:"✈️", label:"Flight", time:"20:15" }] },
+    { id: 1, name: "Ahmet Yılmaz",  rank: "Chief Officer",  side: "on",  nationality: "TUR", passportNo: "TR12345678", flight: "TK2320", flightEta: "14:30", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "confirmed", arrivalStatus: "pending",  docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"13:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"15:00" }, { id:3, icon:"🚤", label:"Embark", time:"16:30" }], requiresHotel: true,  hotelName: "Hilton Alsancak", hotelCheckIn: "12:00", hotelCheckOut: "06:30", hotelStatus: "checked-in",  hotelPickupTime: "10:30" },
+    { id: 2, name: "Mehmet Demir",  rank: "2nd Engineer",   side: "on",  nationality: "TUR", passportNo: "TR87654321", flight: "PC1145", flightEta: "16:00", flightDelayed: true,  visaRequired: true,  eVisaStatus: "pending",  okToBoard: "pending",   arrivalStatus: "pending",  docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"15:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"17:00" }, { id:3, icon:"🚤", label:"Embark", time:"18:30" }], requiresHotel: true,  hotelName: "Marriott Izmir", hotelCheckIn: "14:00", hotelCheckOut: "08:00", hotelStatus: "reserved",    hotelPickupTime: "12:00" },
+    { id: 3, name: "Ali Öztürk",    rank: "Chief Engineer", side: "off", nationality: "TUR", passportNo: "TR11223344", flight: "TK2321", flightEta: "17:00", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "sent",      arrivalStatus: "pending",  docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"🚤", label:"Disembark", time:"14:30" }, { id:2, icon:"🛂", label:"Customs / Police", time:"15:15" }, { id:3, icon:"🚐", label:"Port → Airport", time:"16:00" }, { id:4, icon:"✈️", label:"Flight", time:"19:45" }], requiresHotel: false, hotelName: "",              hotelCheckIn: "",       hotelCheckOut: "",      hotelStatus: "none",        hotelPickupTime: "" },
+    { id: 4, name: "Hasan Çelik",   rank: "AB Sailor",      side: "off", nationality: "TUR", passportNo: "TR44332211", flight: "PC1146", flightEta: "18:30", flightDelayed: false, visaRequired: true,  eVisaStatus: "approved", okToBoard: "confirmed", arrivalStatus: "departed", docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"🚤", label:"Disembark", time:"15:00" }, { id:2, icon:"🛂", label:"Customs / Police", time:"15:45" }, { id:3, icon:"🚐", label:"Port → Airport", time:"16:30" }, { id:4, icon:"✈️", label:"Flight", time:"20:15" }], requiresHotel: true,  hotelName: "Hilton Alsancak", hotelCheckIn: "10:00", hotelCheckOut: "14:30", hotelStatus: "checked-out", hotelPickupTime: "14:30" },
   ]);
   const [hubTimeline, setHubTimeline] = useState([
     { id: 1, time: "10:00", emoji: "📦", title: "Spare Parts Customs Clearance",       status: "in_progress" },
@@ -326,6 +333,15 @@ export default function VoyageDetail() {
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [crewSlideForm.flightEta, crewSlideForm.side]);
+
+  // ── Auto-fill hotel pickup time = flightEta - 4h ──────────────────────────
+  useEffect(() => {
+    if (!crewSlideForm.requiresHotel || !crewSlideForm.flightEta) return;
+    const pickup = addMins(crewSlideForm.flightEta, -240);
+    if (!pickup) return;
+    setCrewSlideForm(f => ({ ...f, hotelPickupTime: pickup }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crewSlideForm.requiresHotel, crewSlideForm.flightEta]);
 
   // ── AI Text Parser — real state updater ────────────────────────────────────
   const parseAndApplyAIText = (text: string) => {
@@ -1660,7 +1676,7 @@ export default function VoyageDetail() {
                       <div
                         key={crew.id}
                         className="rounded-xl border border-slate-700 bg-slate-800 hover:border-slate-600 transition-colors p-3 space-y-2 cursor-pointer"
-                        onClick={() => { setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
+                        onClick={() => { setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
                         data-testid={`crew-card-${accent === "emerald" ? "on" : "off"}-${crew.id}`}
                       >
                         {/* ── HEADER: Avatar | Name + Rank | Flag | Status | Remove ── */}
@@ -1722,6 +1738,23 @@ export default function VoyageDetail() {
                             {crew.okToBoard === "confirmed" ? "✓ OTB Confirmed" : crew.okToBoard === "sent" ? "✈️ OTB Sent" : "OTB: Pending"}
                           </span>
                         </div>
+
+                        {/* ── HOTEL STATUS BADGE ── */}
+                        {crew.requiresHotel && (
+                          <div className="flex">
+                            <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 ${
+                              crew.hotelStatus === "checked-in"  ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" :
+                              crew.hotelStatus === "checked-out" ? "text-sky-400 bg-sky-900/20 border-sky-500/50"             :
+                              crew.hotelStatus === "reserved"    ? "text-blue-400 bg-blue-900/20 border-blue-500/50"          :
+                                                                   "text-slate-400 bg-slate-700/40 border-slate-600/50"
+                            }`} data-testid={`badge-hotel-${crew.id}`}>
+                              {crew.hotelStatus === "checked-in"  ? `🛏️ At Hotel${crew.hotelName ? `: ${crew.hotelName}` : ""}` :
+                               crew.hotelStatus === "checked-out" ? "🧳 Checked-Out" :
+                               crew.hotelStatus === "reserved"    ? `🔖 ${crew.hotelName || "Hotel Reserved"}` :
+                                                                    "🏨 Needs Hotel"}
+                            </span>
+                          </div>
+                        )}
 
                         {/* ── SMART RULE ENGINE WARNINGS (on card) ── */}
                         {(() => {
@@ -1869,7 +1902,7 @@ export default function VoyageDetail() {
                         <div className="flex gap-1.5 pt-1.5 border-t border-slate-700/40" onClick={e => e.stopPropagation()}>
                           <button
                             className="flex-1 flex items-center justify-center gap-1 h-6 text-[10px] font-medium rounded-md border border-slate-600 text-slate-400 hover:text-blue-400 hover:border-blue-500/50 hover:bg-blue-900/20 transition-colors"
-                            onClick={e => { e.stopPropagation(); setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
+                            onClick={e => { e.stopPropagation(); setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
                             data-testid={`button-update-flight-${crew.id}`}
                           >
                             <Plane className="w-3 h-3" /> Update Flight
@@ -1968,53 +2001,107 @@ export default function VoyageDetail() {
                 })()}
               </div>
 
-              {/* RIGHT: Activity Log (Crew Change) OR Service Boat & Deliveries (Husbandry) */}
+              {/* RIGHT: Hotel Hub (Crew Change) OR Service Boat & Deliveries (Husbandry) */}
               {voyage.purposeOfCall === "Crew Change" ? (
-                /* ── Activity & Audit Log ── */
-                <div className="rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 flex flex-col" style={{ minHeight: "360px" }} data-testid="activity-audit-log">
-                  <div className="flex items-center gap-2.5 mb-4 flex-shrink-0">
-                    <div className="w-8 h-8 rounded-lg bg-violet-500/15 border border-violet-500/30 flex items-center justify-center">
-                      <ClipboardList className="w-4 h-4 text-violet-400" />
+                /* ── 🏨 Hotel & Accommodation Hub ── */
+                <div className="rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 flex flex-col gap-4" style={{ minHeight: "360px" }} data-testid="hotel-hub-panel">
+                  {/* Header */}
+                  <div className="flex items-center justify-between flex-shrink-0">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center">
+                        <span className="text-sm leading-none">🏨</span>
+                      </div>
+                      <div>
+                        <h2 className="font-bold text-sm text-slate-50">Hotel Reservations</h2>
+                        <p className="text-xs text-slate-500">Accommodation tracker</p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="font-bold text-sm text-slate-50">Activity &amp; Audit Log</h2>
-                      <p className="text-xs text-slate-500">Live change tracking</p>
-                    </div>
+                    <span className="text-[10px] font-bold text-indigo-400 bg-indigo-900/30 border border-indigo-500/30 rounded-full px-2 py-0.5">
+                      {crewSigners.filter(c => c.requiresHotel).length} staying
+                    </span>
                   </div>
-                  <div className="flex-1 overflow-y-auto pr-1 space-y-0" data-testid="activity-log-entries">
-                    {activityLog.length === 0 ? (
-                      <p className="text-xs text-slate-600 italic text-center py-8">No activity yet. Actions will appear here.</p>
+
+                  {/* Hotel cards */}
+                  <div className="flex-1 overflow-y-auto space-y-3 pr-0.5" data-testid="hotel-cards-list">
+                    {crewSigners.filter(c => c.requiresHotel).length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-10 text-center">
+                        <span className="text-3xl mb-2">🏨</span>
+                        <p className="text-xs text-slate-500 font-medium">No hotel reservations</p>
+                        <p className="text-[10px] text-slate-600 mt-1">Enable "Requires Hotel" on a crew member to track accommodation here.</p>
+                      </div>
                     ) : (
-                      <div className="border-l border-slate-700 ml-3 pl-4 space-y-4">
-                        {activityLog.map(entry => {
-                          const actorColor = entry.actor === "AI" ? "bg-blue-500/20 border-blue-400/40 text-blue-300" : entry.actor === "System" ? "bg-violet-500/20 border-violet-400/40 text-violet-300" : "bg-slate-600/40 border-slate-500/40 text-slate-300";
-                          const actorInitial = entry.actor === "AI" ? "✦" : entry.actor === "System" ? "⚙" : "A";
-                          const parts = entry.highlight ? entry.message.split(entry.highlight) : null;
-                          return (
-                            <div key={entry.id} className="relative" data-testid={`log-entry-${entry.id}`}>
-                              {/* dot on the timeline */}
-                              <div className="absolute -left-[23px] top-1 w-3 h-3 rounded-full bg-slate-700 border-2 border-slate-600 flex-shrink-0" />
-                              <div className="flex items-start gap-2">
-                                <div className={`flex-shrink-0 w-5 h-5 rounded-full border text-[9px] font-bold flex items-center justify-center ${actorColor}`}>
-                                  {actorInitial}
+                      crewSigners.filter(c => c.requiresHotel).map(crew => {
+                        const statusCfg = {
+                          "none":         { label: "📋 Needs Hotel",  cls: "bg-slate-700/60 border-slate-600/50 text-slate-400" },
+                          "reserved":     { label: "🔖 Reserved",     cls: "bg-blue-900/30 border-blue-500/40 text-blue-300"  },
+                          "checked-in":   { label: "🛏️ In Hotel",     cls: "bg-emerald-900/30 border-emerald-500/40 text-emerald-300" },
+                          "checked-out":  { label: "🧳 Checked-Out",  cls: "bg-slate-700/60 border-slate-600/50 text-slate-400" },
+                        }[crew.hotelStatus] ?? { label: "📋 Needs Hotel", cls: "bg-slate-700/60 border-slate-600/50 text-slate-400" };
+
+                        const calcDuration = (): string => {
+                          if (!crew.hotelCheckIn || !crew.hotelCheckOut) return "";
+                          try {
+                            const inMs  = new Date(`2000-01-01 ${crew.hotelCheckIn}`).getTime();
+                            const outMs = new Date(`2000-01-01 ${crew.hotelCheckOut}`).getTime();
+                            const diff  = outMs >= inMs ? outMs - inMs : (outMs + 86400000) - inMs;
+                            const h = Math.round(diff / 3600000);
+                            const nights = Math.floor(h / 24);
+                            return nights > 0 ? `🌙 ${nights} Night${nights > 1 ? "s" : ""} / ${h}h` : `⏱ ${h}h`;
+                          } catch { return ""; }
+                        };
+
+                        return (
+                          <div
+                            key={crew.id}
+                            className="rounded-xl border border-slate-700 bg-slate-800 p-3 space-y-2.5 cursor-pointer hover:border-indigo-500/40 hover:bg-slate-700/50 transition-colors"
+                            onClick={() => { setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
+                            data-testid={`hotel-card-${crew.id}`}
+                          >
+                            {/* Row 1: Name + status badge */}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-slate-100 truncate">{crew.name}</p>
+                                <p className="text-[10px] text-slate-500">{crew.rank}</p>
+                              </div>
+                              <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 flex-shrink-0 ${statusCfg.cls}`}>
+                                {statusCfg.label}
+                              </span>
+                            </div>
+
+                            {/* Row 2: Hotel name */}
+                            {crew.hotelName && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs leading-none">🏨</span>
+                                <span className="text-xs font-semibold text-indigo-300 truncate">{crew.hotelName}</span>
+                              </div>
+                            )}
+
+                            {/* Row 3: Check-in / Check-out */}
+                            {(crew.hotelCheckIn || crew.hotelCheckOut) && (
+                              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                <div className="rounded-lg bg-slate-700/50 px-2 py-1.5">
+                                  <p className="text-slate-500 mb-0.5">Check-in</p>
+                                  <p className="font-bold text-slate-200">{crew.hotelCheckIn || "—"}</p>
                                 </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-xs text-slate-400 leading-relaxed">
-                                    {parts ? (
-                                      <>
-                                        {parts[0]}
-                                        <span className="text-amber-400 font-semibold">{entry.highlight}</span>
-                                        {parts[1]}
-                                      </>
-                                    ) : entry.message}
-                                  </p>
-                                  <p className="text-[10px] text-slate-600 mt-0.5 font-mono">{entry.time}</p>
+                                <div className="rounded-lg bg-slate-700/50 px-2 py-1.5">
+                                  <p className="text-slate-500 mb-0.5">Check-out</p>
+                                  <p className="font-bold text-slate-200">{crew.hotelCheckOut || "—"}</p>
                                 </div>
                               </div>
+                            )}
+
+                            {/* Row 4: Duration + Pickup */}
+                            <div className="flex items-center justify-between pt-1.5 border-t border-slate-700/50 gap-2">
+                              <span className="text-[10px] text-slate-500">{calcDuration()}</span>
+                              {crew.hotelPickupTime && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold rounded-lg border border-red-500/40 bg-red-900/30 text-red-300 px-2 py-0.5 flex-shrink-0" data-testid={`hotel-pickup-${crew.id}`}>
+                                  🚐 Pick-up: {crew.hotelPickupTime}
+                                </span>
+                              )}
                             </div>
-                          );
-                        })}
-                      </div>
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -2409,6 +2496,63 @@ export default function VoyageDetail() {
                   </div>
                   {crewPanelMode !== "edit" && (
                     <p className="text-[10px] text-slate-600 mt-2 italic">Documents can be uploaded after saving the crew member.</p>
+                  )}
+                </div>
+
+                {/* Section 6: Hotel & Accommodation */}
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Hotel & Accommodation</p>
+                  {/* Requires Hotel toggle */}
+                  <div className="mb-3">
+                    <Label className="text-xs text-slate-400 mb-1.5 block">Requires Hotel?</Label>
+                    <div className="flex gap-2">
+                      <button onClick={() => setCrewSlideForm(f => ({ ...f, requiresHotel: false }))} className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${!crewSlideForm.requiresHotel ? "bg-slate-600/60 border-slate-500 text-slate-200" : "bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600"}`} data-testid="toggle-requires-hotel-no">No</button>
+                      <button onClick={() => setCrewSlideForm(f => ({ ...f, requiresHotel: true }))} className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${crewSlideForm.requiresHotel ? "bg-indigo-900/50 border-indigo-500/60 text-indigo-300" : "bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600"}`} data-testid="toggle-requires-hotel-yes">🏨 Yes — Hotel Required</button>
+                    </div>
+                  </div>
+
+                  {crewSlideForm.requiresHotel && (
+                    <div className="space-y-3 rounded-xl border border-indigo-500/20 bg-indigo-900/10 p-3">
+                      {/* Hotel name */}
+                      <div>
+                        <Label className="text-xs text-slate-400">Hotel Name</Label>
+                        <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="e.g. Hilton Alsancak" value={crewSlideForm.hotelName} onChange={e => setCrewSlideForm(f => ({ ...f, hotelName: e.target.value }))} data-testid="input-hotel-name" />
+                      </div>
+
+                      {/* Check-in / Check-out */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs text-slate-400">Check-in</Label>
+                          <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="HH:MM" value={crewSlideForm.hotelCheckIn} onChange={e => setCrewSlideForm(f => ({ ...f, hotelCheckIn: e.target.value }))} data-testid="input-hotel-checkin" />
+                        </div>
+                        <div>
+                          <Label className="text-xs text-slate-400">Check-out</Label>
+                          <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="HH:MM" value={crewSlideForm.hotelCheckOut} onChange={e => setCrewSlideForm(f => ({ ...f, hotelCheckOut: e.target.value }))} data-testid="input-hotel-checkout" />
+                        </div>
+                      </div>
+
+                      {/* Hotel Status */}
+                      <div>
+                        <Label className="text-xs text-slate-400">Hotel Status</Label>
+                        <select className="w-full h-9 text-sm mt-1 bg-slate-800 border border-slate-700 rounded-md px-2 text-slate-100" value={crewSlideForm.hotelStatus} onChange={e => setCrewSlideForm(f => ({ ...f, hotelStatus: e.target.value as any }))} data-testid="select-hotel-status">
+                          <option value="none">📋 Needs Hotel</option>
+                          <option value="reserved">🔖 Reserved</option>
+                          <option value="checked-in">🛏️ Checked-In</option>
+                          <option value="checked-out">🧳 Checked-Out</option>
+                        </select>
+                      </div>
+
+                      {/* Smart Pickup (auto-computed) */}
+                      <div className="rounded-lg border border-red-500/25 bg-red-900/15 p-2.5 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] font-bold text-red-300 mb-0.5">🚐 Smart Pick-up Time</p>
+                          <p className="text-[9px] text-red-400/60">Auto-set 4 hours before flight ETA</p>
+                        </div>
+                        <span className="text-sm font-bold text-red-300 font-mono flex-shrink-0" data-testid="text-hotel-pickup">
+                          {crewSlideForm.hotelPickupTime || "—"}
+                        </span>
+                      </div>
+                    </div>
                   )}
                 </div>
 
