@@ -260,7 +260,7 @@ export default function VoyageDetail() {
   ];
   const EMPTY_CREW_DOCS: CrewDocs = { passport: null, seamansBook: null, medicalCert: null };
   const HOTEL_DEFAULTS = { requiresHotel: false, hotelName: "", hotelCheckIn: "", hotelCheckOut: "", hotelStatus: "none" as const, hotelPickupTime: "" };
-  const EMPTY_CREW_SLIDE_FORM: CrewSlideFormType = { name: "", rank: "", side: "on", nationality: "", passportNo: "", flight: "", flightEta: "", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a", okToBoard: "pending", ...HOTEL_DEFAULTS };
+  const EMPTY_CREW_SLIDE_FORM: CrewSlideFormType = { name: "", rank: "", side: "on", nationality: "", passportNo: "", flight: "", flightEta: "", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a", okToBoard: "pending" as const, ...HOTEL_DEFAULTS };
   const [crewSigners, setCrewSigners] = useState<CrewSigner[]>([
     { id: 1, name: "Ahmet Yılmaz",  rank: "Chief Officer",  side: "on",  nationality: "TUR", passportNo: "TR12345678", flight: "TK2320", flightEta: "14:30", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "confirmed", arrivalStatus: "pending",  docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"13:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"15:00" }, { id:3, icon:"🚤", label:"Embark", time:"16:30" }], requiresHotel: true,  hotelName: "Hilton Alsancak", hotelCheckIn: "12:00", hotelCheckOut: "06:30", hotelStatus: "checked-in",  hotelPickupTime: "10:30" },
     { id: 2, name: "Mehmet Demir",  rank: "2nd Engineer",   side: "on",  nationality: "TUR", passportNo: "TR87654321", flight: "PC1145", flightEta: "16:00", flightDelayed: true,  visaRequired: true,  eVisaStatus: "pending",  okToBoard: "pending",   arrivalStatus: "pending",  docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"15:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"17:00" }, { id:3, icon:"🚤", label:"Embark", time:"18:30" }], requiresHotel: true,  hotelName: "Marriott Izmir", hotelCheckIn: "14:00", hotelCheckOut: "08:00", hotelStatus: "reserved",    hotelPickupTime: "12:00" },
@@ -292,6 +292,7 @@ export default function VoyageDetail() {
   const [dragQuickHotelForm, setDragQuickHotelForm] = useState({ hotelName: "", checkIn: "", checkOut: "" });
   const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const { setNodeRef: setHotelDropRef, isOver: isHotelDragOver } = useDroppable({ id: "hotel-drop-zone" });
+  const dragAutoOpenedPanel = useRef(false);
 
   // ── AI Human-in-the-Loop ─────────────────────────────────────────────────
   const [aiPendingSuggestions, setAiPendingSuggestions] = useState<AiSuggestion[]>([]);
@@ -548,13 +549,6 @@ export default function VoyageDetail() {
         pendingSuggestions.push({ crewId: crew.id, field: "visaRequired", label: "Visa: Required", newVal: true, oldVal: false });
       }
 
-      // OTB
-      if (/(ok to board|otb confirmed|board confirmed)\b/i.test(text) && crew.okToBoard !== "confirmed") {
-        pendingSuggestions.push({ crewId: crew.id, field: "okToBoard", label: "OTB → Confirmed", newVal: "confirmed", oldVal: crew.okToBoard });
-      } else if (/(sent to airline|otb sent)\b/i.test(text) && crew.okToBoard !== "sent") {
-        pendingSuggestions.push({ crewId: crew.id, field: "okToBoard", label: "OTB → Sent", newVal: "sent", oldVal: crew.okToBoard });
-      }
-
       const crewSuggestions = pendingSuggestions.filter(s => s.crewId === crew.id);
       if (crewSuggestions.length > 0) {
         logLines.push(`${crew.name}: ${crewSuggestions.map(s => s.label).join(", ")}`);
@@ -603,9 +597,14 @@ export default function VoyageDetail() {
       if (crew) {
         setDragQuickBook({ crewId: crew.id, crewName: crew.name, crewRank: crew.rank });
         setDragQuickHotelForm({ hotelName: crew.hotelName || "", checkIn: crew.hotelCheckIn || "", checkOut: crew.hotelCheckOut || "" });
-        if (!isHotelPanelOpen) setIsHotelPanelOpen(true);
+      }
+    } else {
+      // If hotel panel was auto-opened during drag but crew was not dropped on it, close it again
+      if (dragAutoOpenedPanel.current) {
+        setIsHotelPanelOpen(false);
       }
     }
+    dragAutoOpenedPanel.current = false;
   };
 
   // ── handleAiFileDrop: shared file drop handler ─────────────────────────────
@@ -1864,7 +1863,7 @@ export default function VoyageDetail() {
 
           {/* ── Husbandry / Crew Change: Logistics Control Tower ── */}
           {(voyage.purposeOfCall === "Husbandry" || voyage.purposeOfCall === "Crew Change") && (
-            <DndContext sensors={dndSensors} onDragStart={e => setActiveDragId(Number(e.active.id))} onDragEnd={handleCrewDragEnd}>
+            <DndContext sensors={dndSensors} onDragStart={e => { setActiveDragId(Number(e.active.id)); if (!isHotelPanelOpen) { dragAutoOpenedPanel.current = true; setIsHotelPanelOpen(true); } }} onDragEnd={handleCrewDragEnd}>
             <div className="relative flex items-start gap-5" data-testid="husbandry-control-tower">
 
               {/* LEFT: Crew Logistics Board — grows to fill available space */}
@@ -2103,29 +2102,6 @@ export default function VoyageDetail() {
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                          {/* OTB — DropdownMenu */}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
-                              <button className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-opacity ${
-                                crew.okToBoard === "confirmed" ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" :
-                                crew.okToBoard === "sent"      ? "text-sky-400 bg-sky-900/20 border-sky-500/50"            :
-                                                                "text-slate-500 bg-slate-700/40 border-slate-600/50"
-                              }`} data-testid={`badge-otb-${crew.id}`}>
-                                {crew.okToBoard === "confirmed" ? "✓ OTB Confirmed" : crew.okToBoard === "sent" ? "✈️ OTB Sent" : "OTB: Pending"}
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="bg-slate-800 border-slate-700 text-slate-200 min-w-[170px] p-1">
-                              <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, okToBoard: "pending" })); }}>
-                                OTB: Pending
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, okToBoard: "sent" })); }}>
-                                ✈️ Sent to Airline
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, okToBoard: "confirmed" })); }}>
-                                ✓ OTB Confirmed
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
                         </div>
 
                         {/* ── HOTEL STATUS BADGE / PENDING WARNING ── */}
@@ -2221,6 +2197,45 @@ export default function VoyageDetail() {
                             </span>
                           )}
                         </div>
+
+                        {/* ── MICRO-TIMELINE ── */}
+                        {crew.timeline.length > 0 && (
+                          <div className="flex items-center flex-wrap gap-x-0.5 gap-y-0.5 text-[10px]" onClick={e => e.stopPropagation()}>
+                            {crew.timeline.map((step, idx) => (
+                              <span key={step.id} className="inline-flex items-center gap-0.5">
+                                {idx > 0 && <span className="text-slate-600 select-none mx-0.5">›</span>}
+                                <span className="text-slate-500 leading-none">{step.icon}</span>
+                                {editingCrewTimeline?.crewId === crew.id && editingCrewTimeline?.stepId === step.id ? (
+                                  <input
+                                    autoFocus
+                                    value={crewTimelineEditVal}
+                                    onChange={e => setCrewTimelineEditVal(e.target.value)}
+                                    onBlur={() => {
+                                      setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : {
+                                        ...c,
+                                        timeline: c.timeline.map(s => s.id !== step.id ? s : { ...s, time: crewTimelineEditVal })
+                                      }));
+                                      setEditingCrewTimeline(null);
+                                    }}
+                                    onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }}
+                                    className="w-12 h-4 text-[10px] font-mono bg-slate-700 border border-blue-500/70 rounded px-1 text-slate-100 outline-none"
+                                    placeholder="HH:MM"
+                                    data-testid={`inline-edit-timeline-${crew.id}-${step.id}`}
+                                  />
+                                ) : (
+                                  <span
+                                    className="font-mono text-slate-400 cursor-pointer hover:text-slate-200 hover:bg-slate-700/60 rounded px-0.5 py-0.5 transition-colors leading-none"
+                                    title={step.label}
+                                    onClick={() => { setEditingCrewTimeline({ crewId: crew.id, stepId: step.id }); setCrewTimelineEditVal(step.time); }}
+                                    data-testid={`timeline-step-${crew.id}-${step.id}`}
+                                  >
+                                    {step.time || "—"}
+                                  </span>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        )}
 
                         {/* ── QUICK ACTIONS ── */}
                         <div className="flex gap-1.5 pt-1.5 border-t border-slate-700/40" onClick={e => e.stopPropagation()}>
@@ -2863,14 +2878,6 @@ export default function VoyageDetail() {
                           <option value="n/a">N/A</option>
                           <option value="pending">⏳ Pending</option>
                           <option value="approved">✅ Approved</option>
-                        </select>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-slate-400">OK to Board</Label>
-                        <select className="w-full h-9 text-sm mt-1 bg-slate-800 border border-slate-700 rounded-md px-2 text-slate-100" value={crewSlideForm.okToBoard} onChange={e => setCrewSlideForm(f => ({ ...f, okToBoard: e.target.value as any }))} data-testid="select-otb-status">
-                          <option value="pending">Pending</option>
-                          <option value="sent">✈️ Sent to Airline</option>
-                          <option value="confirmed">✓ Confirmed</option>
                         </select>
                       </div>
                     </div>
