@@ -1127,185 +1127,250 @@ export default function VoyageDetail() {
       {/* ── Tab: Operasyon ─────────────────────────────────────── */}
       {activeTab === "operation" && (
         <div className="space-y-6">
-          {/* Voyage Team widget */}
-          <Card className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-medium text-sm flex items-center gap-2">
-                <Users2 className="w-4 h-4 text-sky-400" />
-                Voyage Team
-                <span className="text-xs text-muted-foreground">({participants.length + 1})</span>
-              </h3>
-              {(isOwner || isAgent) && (
-                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setActiveTab("participants")}>
-                  <UserPlus className="w-3 h-3 mr-1" /> Invite
-                </Button>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {voyage && (
-                <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full px-3 py-1">
-                  <div className="w-5 h-5 rounded-full bg-amber-600 flex items-center justify-center text-[10px] font-bold text-white">
-                    {voyage.ownerFirstName?.[0] ?? "O"}
-                  </div>
-                  <span className="text-xs font-medium">{`${voyage.ownerFirstName ?? ""} ${voyage.ownerLastName ?? ""}`.trim() || "Owner"}</span>
-                  <span className="text-[10px] text-amber-400/70">Owner</span>
-                </div>
-              )}
-              {participants.slice(0, 5).map((p: any) => (
-                <div key={p.id} className="flex items-center gap-1.5 bg-muted/40 rounded-full px-3 py-1 border border-border/50">
-                  <div className="w-5 h-5 rounded-full bg-slate-600 flex items-center justify-center text-[10px] font-bold text-white uppercase">
-                    {p.firstName?.[0] ?? p.inviteeEmail?.[0] ?? "?"}
-                  </div>
-                  <span className="text-xs font-medium">{`${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() || p.email || "—"}</span>
-                  <span className="text-[10px] text-muted-foreground capitalize">{p.role}</span>
-                </div>
-              ))}
-              {participants.length > 5 && (
-                <button onClick={() => setActiveTab("participants")} className="text-xs text-sky-400 hover:underline">
-                  +{participants.length - 5} more
-                </button>
-              )}
-              {participants.length === 0 && (
-                <p className="text-xs text-muted-foreground italic">No participants yet. Invite agents, providers or surveyors.</p>
-              )}
-            </div>
-          </Card>
+          {/* ── MAIN 3-COLUMN GRID ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* LEFT: Live Port Call Workflow (col-span-2) */}
+            <div className="lg:col-span-2">
+              {(() => {
+                const portCallStep = (() => {
+                  if (voyage.status === "completed") return 8;
+                  if (activeNor?.status === "accepted") return 5;
+                  if (activeNor?.status === "tendered") return 4;
+                  if (voyage.status === "active") return 3;
+                  return 2;
+                })();
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Görev Listesi */}
-            <Card className="p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ClipboardList className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                  <h2 className="font-semibold text-sm">Task List</h2>
-                </div>
-                {checklist.length > 0 && (
-                  <span className="text-xs text-muted-foreground">{completed}/{checklist.length} completed</span>
-                )}
-              </div>
+                const berthingDeadline = voyage.eta
+                  ? (() => {
+                      const d = new Date(new Date(voyage.eta).getTime() + 24 * 60 * 60 * 1000);
+                      return d.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+                    })()
+                  : "Tomorrow, 14:30";
 
-              {checklist.length > 0 && (
-                <div className="w-full bg-muted/40 rounded-full h-1.5">
-                  <div
-                    className="bg-[hsl(var(--maritime-primary))] h-1.5 rounded-full transition-all"
-                    style={{ width: `${(completed / checklist.length) * 100}%` }}
-                  />
-                </div>
-              )}
+                const STEPS = [
+                  { id: 1, emoji: "📡", title: "Arrival Declared", text: "Vessel arrival officially declared to Port Authority.", completedBadge: "✅ Arrival Declared (07:00 LT)" },
+                  { id: 2, emoji: "🛃", title: "Customs Arrival Control", text: "Customs inward clearance completed.", completedBadge: "✅ Arrival Approved & Customs Cleared (08:15 LT)" },
+                  { id: 3, emoji: "⚓", title: "Berthing Clearance", text: "Berthing ordino granted by Harbour Master. Valid for 24h.", completedBadge: null },
+                  { id: 4, emoji: "⏱️", title: "NOR Tendered", text: "Notice of Readiness will be tendered.", completedBadge: null },
+                  { id: 5, emoji: "🛬", title: "Vessel Berthed", text: "Waiting to be safely moored alongside.", completedBadge: null },
+                  { id: 6, emoji: "📋", title: "Survey Controls", text: "Initial draft and bunker surveys.", completedBadge: null },
+                  { id: 7, emoji: "🏗️", title: "Cargo Operations", text: "Waiting for survey completion.", completedBadge: null },
+                ];
 
-              <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
-                {checklist.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-4">No tasks yet. Add one below.</p>
-                )}
-                {checklist.map((item: any) => (
-                  <div key={item.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-colors ${item.isCompleted ? "bg-green-50 dark:bg-green-950/20" : "bg-muted/30"}`} data-testid={`checklist-item-${item.id}`}>
-                    <button onClick={() => toggleTaskMutation.mutate(item.id)} className="flex-shrink-0" data-testid={`button-toggle-task-${item.id}`}>
-                      {item.isCompleted
-                        ? <CheckCircle2 className="w-4 h-4 text-green-500" />
-                        : <Circle className="w-4 h-4 text-muted-foreground hover:text-primary transition-colors" />}
-                    </button>
-                    <span className={`flex-1 text-sm ${item.isCompleted ? "line-through text-muted-foreground" : ""}`}>{item.title}</span>
-                    <button onClick={() => deleteTaskMutation.mutate(item.id)} className="flex-shrink-0 hover:text-destructive text-muted-foreground transition-colors" data-testid={`button-delete-task-${item.id}`}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex gap-2">
-                <Input value={newTask} onChange={e => setNewTask(e.target.value)} placeholder="New task..." onKeyDown={e => { if (e.key === "Enter" && newTask.trim()) addTaskMutation.mutate(); }} className="text-sm h-8" data-testid="input-new-task" />
-                <Button size="sm" className="h-8 px-3" onClick={() => { if (newTask.trim()) addTaskMutation.mutate(); }} disabled={addTaskMutation.isPending || !newTask.trim()} data-testid="button-add-task">
-                  {addTaskMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                </Button>
-              </div>
-            </Card>
-
-            {/* Hizmet Talepleri */}
-            <Card className="p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Wrench className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                  <h2 className="font-semibold text-sm">Service Requests</h2>
-                </div>
-                <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowServiceDialog(true)} data-testid="button-add-service-request">
-                  <Plus className="w-3 h-3" /> Create Request
-                </Button>
-              </div>
-              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                {serviceReqs.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-4">No service requests for this voyage.</p>
-                )}
-                {serviceReqs.map((req: any) => {
-                  const cfg = SERVICE_TYPE_CONFIG[req.serviceType] || SERVICE_TYPE_CONFIG.other;
-                  const TypeIcon = cfg.icon;
-                  return (
-                    <Link key={req.id} href={`/service-requests/${req.id}`}>
-                      <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30 hover:bg-muted/60 transition-colors cursor-pointer" data-testid={`service-req-${req.id}`}>
-                        <TypeIcon className={`w-4 h-4 flex-shrink-0 ${cfg.color}`} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{cfg.label}</p>
-                          <p className="text-xs text-muted-foreground truncate">{req.description}</p>
+                return (
+                  <div className="rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-6 space-y-5" data-testid="card-port-call-workflow">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-[hsl(var(--maritime-primary)/0.15)] border border-[hsl(var(--maritime-primary)/0.3)] flex items-center justify-center">
+                          <Navigation className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
                         </div>
-                        <Badge variant="outline" className="text-[10px] flex-shrink-0 capitalize">{req.status}</Badge>
+                        <div>
+                          <h2 className="font-bold text-sm text-slate-50">Live Port Call Workflow</h2>
+                          <p className="text-xs text-slate-500">{voyage.portName || "Port"} · Active Operation</p>
+                        </div>
                       </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            </Card>
-          </div>
+                      <div className="flex items-center gap-1.5 bg-slate-900/60 border border-slate-700 rounded-full px-3 py-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                        <span className="text-xs font-semibold text-slate-300">Step {Math.min(portCallStep, 7)} of 7</span>
+                      </div>
+                    </div>
 
-          {/* NOR Card */}
-          <Card className="p-5 space-y-3" data-testid="card-nor-status">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileCheck className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                <h2 className="font-semibold text-sm">Notice of Readiness</h2>
-              </div>
-              {!activeNor ? (
-                <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" asChild>
-                  <Link href={`/nor?voyageId=${voyageId}`}>
-                    <Plus className="w-3 h-3" /> Create NOR
-                  </Link>
-                </Button>
-              ) : (
-                <Link href={`/nor/${activeNor.id}`}>
-                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs">View NOR →</Button>
-                </Link>
-              )}
+                    <div className="space-y-0">
+                      {STEPS.map((step, idx) => {
+                        const isDone = portCallStep > step.id;
+                        const isActive = portCallStep === step.id;
+                        const isLast = idx === STEPS.length - 1;
+                        return (
+                          <div key={step.id} className="flex gap-4">
+                            <div className="flex flex-col items-center">
+                              <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 z-10 ${
+                                isDone ? "bg-emerald-500/20 border-2 border-emerald-500/60" :
+                                isActive ? "bg-amber-500/20 border-2 border-amber-500 animate-pulse" :
+                                "bg-slate-700/60 border-2 border-slate-600/40"
+                              }`}>
+                                {isDone
+                                  ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                  : <span className={`text-base ${isActive ? "text-amber-300" : "text-slate-500"}`}>{step.emoji}</span>
+                                }
+                              </div>
+                              {!isLast && (
+                                <div className={`w-0.5 flex-1 mt-1 mb-1 min-h-[20px] rounded-full ${isDone ? "bg-emerald-500/30" : "bg-slate-700/40"}`} />
+                              )}
+                            </div>
+                            <div className={`flex-1 min-w-0 ${isLast ? "pb-0" : "pb-5"}`}>
+                              <div className="flex items-center justify-between gap-2 mb-0.5">
+                                <span className={`text-sm font-semibold ${isDone ? "text-slate-400" : isActive ? "text-slate-50" : "text-slate-500"}`}>{step.title}</span>
+                                {isDone && step.id <= 2 && (
+                                  <span className="text-[10px] text-slate-500">{step.id === 1 ? "07:00 LT" : "08:15 LT"}</span>
+                                )}
+                              </div>
+                              <p className={`text-xs leading-relaxed ${isDone ? "text-slate-600" : isActive ? "text-slate-400" : "text-slate-600"}`}>{step.text}</p>
+                              {isDone && step.completedBadge && (
+                                <div className="mt-1.5 inline-flex items-center gap-1 bg-emerald-950/40 border border-emerald-800/30 rounded-md px-2 py-0.5">
+                                  <span className="text-[10px] text-emerald-400 font-medium">{step.completedBadge}</span>
+                                </div>
+                              )}
+                              {isActive && step.id === 3 && (
+                                <div className="mt-2 flex items-start gap-2 bg-amber-900/30 border border-amber-500/40 rounded-lg p-2.5">
+                                  <span className="text-base leading-none mt-0.5">⏳</span>
+                                  <div>
+                                    <p className="text-xs font-bold text-amber-300 uppercase tracking-wide">Strict Deadline</p>
+                                    <p className="text-xs text-amber-200/80 mt-0.5">Must berth before <span className="font-semibold">{berthingDeadline}</span><span className="text-amber-400/70 ml-1">(18h remaining)</span></p>
+                                  </div>
+                                </div>
+                              )}
+                              {isActive && step.id === 4 && !activeNor && (
+                                <div className="mt-2">
+                                  <Link href={`/nor?voyageId=${voyageId}`}>
+                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-amber-500/40 text-amber-300 hover:bg-amber-900/30">
+                                      <Plus className="w-3 h-3" /> Tender NOR Now
+                                    </Button>
+                                  </Link>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
-            {!activeNor ? (
-              <p className="text-xs text-muted-foreground text-center py-2">
-                No Notice of Readiness created for this voyage yet.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Status</span>
-                  <Badge className={
-                    activeNor.status === "accepted" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
-                    activeNor.status === "tendered" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
-                    activeNor.status === "rejected" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
-                    "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                  }>{activeNor.status}</Badge>
+
+            {/* RIGHT: Supporting Modules (col-span-1) */}
+            <div className="flex flex-col gap-6">
+              {/* Voyage Team */}
+              <Card className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-medium text-sm flex items-center gap-2">
+                    <Users2 className="w-4 h-4 text-sky-400" />
+                    Voyage Team
+                    <span className="text-xs text-muted-foreground">({participants.length + 1})</span>
+                  </h3>
+                  {(isOwner || isAgent) && (
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setActiveTab("participants")}>
+                      <UserPlus className="w-3 h-3 mr-1" /> Invite
+                    </Button>
+                  )}
                 </div>
-                {activeNor.norTenderedAt && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Tendered</span>
-                    <span>{new Date(activeNor.norTenderedAt).toLocaleString("en-GB")}</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {voyage && (
+                    <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full px-3 py-1">
+                      <div className="w-5 h-5 rounded-full bg-amber-600 flex items-center justify-center text-[10px] font-bold text-white">
+                        {voyage.ownerFirstName?.[0] ?? "O"}
+                      </div>
+                      <span className="text-xs font-medium">{`${voyage.ownerFirstName ?? ""} ${voyage.ownerLastName ?? ""}`.trim() || "Owner"}</span>
+                      <span className="text-[10px] text-amber-400/70">Owner</span>
+                    </div>
+                  )}
+                  {participants.slice(0, 5).map((p: any) => (
+                    <div key={p.id} className="flex items-center gap-1.5 bg-muted/40 rounded-full px-3 py-1 border border-border/50">
+                      <div className="w-5 h-5 rounded-full bg-slate-600 flex items-center justify-center text-[10px] font-bold text-white uppercase">
+                        {p.firstName?.[0] ?? p.inviteeEmail?.[0] ?? "?"}
+                      </div>
+                      <span className="text-xs font-medium">{`${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() || p.email || "—"}</span>
+                      <span className="text-[10px] text-muted-foreground capitalize">{p.role}</span>
+                    </div>
+                  ))}
+                  {participants.length > 5 && (
+                    <button onClick={() => setActiveTab("participants")} className="text-xs text-sky-400 hover:underline">
+                      +{participants.length - 5} more
+                    </button>
+                  )}
+                  {participants.length === 0 && (
+                    <p className="text-xs text-muted-foreground italic">No participants yet. Invite agents, providers or surveyors.</p>
+                  )}
+                </div>
+              </Card>
+
+              {/* Service Requests */}
+              <Card className="p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Wrench className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                    <h2 className="font-semibold text-sm">Service Requests</h2>
+                  </div>
+                  <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowServiceDialog(true)} data-testid="button-add-service-request">
+                    <Plus className="w-3 h-3" /> Create Request
+                  </Button>
+                </div>
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {serviceReqs.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-4">No service requests for this voyage.</p>
+                  )}
+                  {serviceReqs.map((req: any) => {
+                    const cfg = SERVICE_TYPE_CONFIG[req.serviceType] || SERVICE_TYPE_CONFIG.other;
+                    const TypeIcon = cfg.icon;
+                    return (
+                      <Link key={req.id} href={`/service-requests/${req.id}`}>
+                        <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30 hover:bg-muted/60 transition-colors cursor-pointer" data-testid={`service-req-${req.id}`}>
+                          <TypeIcon className={`w-4 h-4 flex-shrink-0 ${cfg.color}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{cfg.label}</p>
+                            <p className="text-xs text-muted-foreground truncate">{req.description}</p>
+                          </div>
+                          <Badge variant="outline" className="text-[10px] flex-shrink-0 capitalize">{req.status}</Badge>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </Card>
+
+              {/* NOR Card */}
+              <Card className="p-5 space-y-3" data-testid="card-nor-status">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileCheck className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                    <h2 className="font-semibold text-sm">Notice of Readiness</h2>
+                  </div>
+                  {!activeNor ? (
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" asChild>
+                      <Link href={`/nor?voyageId=${voyageId}`}>
+                        <Plus className="w-3 h-3" /> Create NOR
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Link href={`/nor/${activeNor.id}`}>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs">View NOR →</Button>
+                    </Link>
+                  )}
+                </div>
+                {!activeNor ? (
+                  <p className="text-xs text-muted-foreground text-center py-2">
+                    No Notice of Readiness created for this voyage yet.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Status</span>
+                      <Badge className={
+                        activeNor.status === "accepted" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                        activeNor.status === "tendered" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                        activeNor.status === "rejected" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" :
+                        "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                      }>{activeNor.status}</Badge>
+                    </div>
+                    {activeNor.norTenderedAt && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Tendered</span>
+                        <span>{new Date(activeNor.norTenderedAt).toLocaleString("en-GB")}</span>
+                      </div>
+                    )}
+                    {activeNor.laytimeStartsAt && (
+                      <div className="flex justify-between text-xs font-medium">
+                        <span className="text-muted-foreground">Laytime Starts</span>
+                        <span className="text-emerald-600 dark:text-emerald-400">
+                          {new Date(activeNor.laytimeStartsAt).toLocaleString("en-GB")}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
-                {activeNor.laytimeStartsAt && (
-                  <div className="flex justify-between text-xs font-medium">
-                    <span className="text-muted-foreground">Laytime Starts</span>
-                    <span className="text-emerald-600 dark:text-emerald-400">
-                      {new Date(activeNor.laytimeStartsAt).toLocaleString("en-GB")}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-          </Card>
+              </Card>
+            </div>
+          </div>
 
           {/* SOF Card */}
           <Card className="p-5 space-y-3" data-testid="card-sof-status">
