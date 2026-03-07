@@ -20,10 +20,10 @@ import type { User } from "@shared/models/auth";
 import type { Vessel, Proforma, CompanyProfile } from "@shared/schema";
 import { PageMeta } from "@/components/page-meta";
 import {
-import { fmtDate, fmtDateTime } from "@/lib/formatDate";
   BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, LineChart, Line
 } from "recharts";
+import { fmtDate, fmtDateTime } from "@/lib/formatDate";
 
 const ROLE_BADGES: Record<string, string> = {
   shipowner: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",

@@ -21,11 +21,11 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
 import {
-import { fmtDate } from "@/lib/formatDate";
   Gavel, ArrowLeft, Clock, Ship, FileText, Upload, CheckCircle2,
   XCircle, Building2, Trophy, Mail, AlertCircle, Eye, Send, Star, Users, Download,
   MessageCircle, Anchor
 } from "lucide-react";
+import { fmtDate } from "@/lib/formatDate";
 
 function useCountdown(createdAt: string, expiryHours: number) {
   const [remaining, setRemaining] = useState("");
