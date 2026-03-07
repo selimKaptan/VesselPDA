@@ -2172,14 +2172,17 @@ export default function VoyageDetail() {
 
                     // ── MOD B: milestone data ─────────────────────────────────
                     const _hasHotelMilestone = crew.requiresHotel || !!crew.hotelName;
+                    const _kontrolTime = crew.timeline.find(s => /customs|police|kontrol|🛂/i.test(s.label + s.icon))?.time || "—";
                     const _msItems = (crew.side === "on" ? [
                       { key: "flight",   icon: "✈️", label: "FLIGHT",   time: crew.flightEta || "—",                                                                         delayed: crew.flightDelayed },
                       { key: "transfer", icon: "🚐", label: "TRANSFER", time: crew.timeline.find(s => /airport.*port|transfer/i.test(s.label))?.time || "—",                 delayed: false },
+                      { key: "kontrol",  icon: "🛃", label: "KONTROL",  time: _kontrolTime,                                                                                  delayed: false },
                       { key: "hotel",    icon: "🏨", label: "HOTEL",    time: crew.hotelCheckIn || "—",                                                                       delayed: false },
                       { key: "vessel",   icon: "🚢", label: "VESSEL",   time: _vesselEtaDisplay,                                                                              delayed: false },
                     ] : [
                       { key: "vessel",   icon: "🚢", label: "VESSEL",   time: _vesselEtdDisplay,                                                                              delayed: false },
                       { key: "hotel",    icon: "🏨", label: "HOTEL",    time: crew.hotelPickupTime || crew.hotelCheckOut || "—",                                              delayed: false },
+                      { key: "kontrol",  icon: "🛃", label: "KONTROL",  time: _kontrolTime,                                                                                  delayed: false },
                       { key: "transfer", icon: "🚐", label: "TRANSFER", time: crew.timeline.find(s => /port.*airport|transfer/i.test(s.label))?.time || "—",                 delayed: false },
                       { key: "flight",   icon: "✈️", label: "FLIGHT",   time: crew.flightEta || "—",                                                                         delayed: crew.flightDelayed },
                     ]).filter(ms => ms.key !== "hotel" || _hasHotelMilestone);
@@ -2294,7 +2297,9 @@ export default function VoyageDetail() {
                               {/* Horizontal workflow stepper */}
                               <div className="flex items-start justify-between gap-1">
                                 {_msItems.map((ms, idx) => {
-                                  const st = _getMS(idx);
+                                  const st: "done" | "active" | "future" = ms.key === "kontrol"
+                                    ? (crew.okToBoard === "confirmed" ? "done" : crew.okToBoard === "sent" ? "active" : "future")
+                                    : _getMS(idx);
                                   const tlStep = crew.timeline.find(s => s.icon === ms.icon);
                                   const isEditingThis =
                                     ms.key === "flight"
