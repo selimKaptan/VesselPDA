@@ -38,6 +38,7 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
     - **Husbandry & Services Only Voyage Type**: A specialized UI for "Husbandry" voyages, featuring a "Logistics Control Tower" with Crew Logistics Board and Service Boat & Deliveries stepper.
     - **AI Smart Drop Module**: Document analysis using Claude-Haiku for detecting maritime events, with a drag-and-drop interface and action execution.
     - **Drag & Drop Hotel Reservation**: Crew cards are draggable (via @dnd-kit/core) onto the Hotel Hub panel; dropping opens a Quick Hotel Booking dialog for assigning hotel name and check-in/check-out dates.
+    - **Crew Logistics Persistence**: `voyage_crew_logistics` DB table stores all crew board data (flight, hotel, OkToBoard, timeline, docs, etc.) per voyage. Frontend uses debounced auto-save (1s) via `PUT /api/voyages/:id/crew-logistics`; data loads via `useQuery` on page open. Save indicator shows "Kaydediliyor…" / "Kaydedildi" in board header.
     - **AI Human-in-the-Loop Verification**: AI natural language parsing (MODE 2) now stages suggestions instead of auto-applying; affected crew cards glow neon blue with inline ✓ Accept / ✕ Reject buttons per suggestion.
     - **Spotlight Focus Mode**: "⚠️ Action Required" filter activates a backdrop-blur overlay over the crew board; only action-required cards escape to z-20 foreground with pronounced glow.
     - **Voyages Cancelled Color Fix**: Cancelled-status voyage cards now show a neutral slate header strip instead of the purpose-of-call colour.

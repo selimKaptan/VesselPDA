@@ -36,6 +36,8 @@ import {
   type Invoice, type InsertInvoice,
   type PortAlert, type InsertPortAlert,
   type VesselQ88, type InsertVesselQ88,
+  type VoyageCrewLogistic, type InsertVoyageCrewLogistic,
+  voyageCrewLogistics,
   vessels, ports, tariffCategories, tariffRates, proformas, proformaApprovalLogs,
   forumCategories, forumTopics, forumReplies, forumLikes, forumDislikes,
   portTenders, tenderBids, agentReviews, vesselWatchlist,
@@ -228,6 +230,9 @@ export interface IStorage {
   createPortCallAppointment(data: InsertPortCallAppointment): Promise<PortCallAppointment>;
   updatePortCallAppointment(id: number, data: Partial<InsertPortCallAppointment>): Promise<PortCallAppointment | undefined>;
   deletePortCallAppointment(id: number): Promise<boolean>;
+
+  getVoyageCrewLogistics(voyageId: number): Promise<VoyageCrewLogistic[]>;
+  saveVoyageCrewLogistics(voyageId: number, crew: InsertVoyageCrewLogistic[]): Promise<VoyageCrewLogistic[]>;
 
   getFixtures(userId: string): Promise<Fixture[]>;
   getAllFixtures(): Promise<Fixture[]>;
@@ -1939,6 +1944,21 @@ export class DatabaseStorage implements IStorage {
   async deletePortCallAppointment(id: number): Promise<boolean> {
     const result = await db.delete(portCallAppointments).where(eq(portCallAppointments.id, id));
     return (result as any).rowCount > 0;
+  }
+
+  // ─── VOYAGE CREW LOGISTICS ──────────────────────────────────────────────────
+
+  async getVoyageCrewLogistics(voyageId: number): Promise<VoyageCrewLogistic[]> {
+    return db.select().from(voyageCrewLogistics)
+      .where(eq(voyageCrewLogistics.voyageId, voyageId))
+      .orderBy(asc(voyageCrewLogistics.sortOrder));
+  }
+
+  async saveVoyageCrewLogistics(voyageId: number, crew: InsertVoyageCrewLogistic[]): Promise<VoyageCrewLogistic[]> {
+    await db.delete(voyageCrewLogistics).where(eq(voyageCrewLogistics.voyageId, voyageId));
+    if (crew.length === 0) return [];
+    const rows = crew.map((c, i) => ({ ...c, voyageId, sortOrder: i }));
+    return db.insert(voyageCrewLogistics).values(rows).returning();
   }
 
   // ─── FIXTURES ───────────────────────────────────────────────────────────────

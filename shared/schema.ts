@@ -1905,3 +1905,37 @@ export const voyageContacts = pgTable("voyage_contacts", {
 export const insertVoyageContactSchema = createInsertSchema(voyageContacts).omit({ id: true, createdAt: true });
 export type InsertVoyageContact = z.infer<typeof insertVoyageContactSchema>;
 export type VoyageContact = typeof voyageContacts.$inferSelect;
+
+// ─── VOYAGE CREW LOGISTICS ───────────────────────────────────────────────────
+
+export const voyageCrewLogistics = pgTable("voyage_crew_logistics", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  name: varchar("name", { length: 200 }).notNull(),
+  rank: varchar("rank", { length: 100 }).notNull(),
+  side: varchar("side", { length: 10 }).notNull().default("on"),
+  nationality: varchar("nationality", { length: 10 }).default(""),
+  passportNo: varchar("passport_no", { length: 50 }).default(""),
+  flight: varchar("flight", { length: 20 }).default(""),
+  flightEta: varchar("flight_eta", { length: 10 }).default(""),
+  flightDelayed: boolean("flight_delayed").default(false).notNull(),
+  visaRequired: boolean("visa_required").default(false).notNull(),
+  eVisaStatus: varchar("e_visa_status", { length: 20 }).default("n/a").notNull(),
+  okToBoard: varchar("ok_to_board", { length: 20 }).default("pending").notNull(),
+  arrivalStatus: varchar("arrival_status", { length: 20 }).default("pending").notNull(),
+  timeline: jsonb("timeline").default([]).notNull(),
+  docs: jsonb("docs").default({}).notNull(),
+  requiresHotel: boolean("requires_hotel").default(false).notNull(),
+  hotelName: varchar("hotel_name", { length: 200 }).default(""),
+  hotelCheckIn: varchar("hotel_check_in", { length: 10 }).default(""),
+  hotelCheckOut: varchar("hotel_check_out", { length: 10 }).default(""),
+  hotelStatus: varchar("hotel_status", { length: 20 }).default("none").notNull(),
+  hotelPickupTime: varchar("hotel_pickup_time", { length: 10 }).default(""),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertVoyageCrewLogisticSchema = createInsertSchema(voyageCrewLogistics).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertVoyageCrewLogistic = z.infer<typeof insertVoyageCrewLogisticSchema>;
+export type VoyageCrewLogistic = typeof voyageCrewLogistics.$inferSelect;

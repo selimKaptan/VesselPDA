@@ -425,6 +425,56 @@ router.delete("/:voyageId/appointments/:id", isAuthenticated, async (req: any, r
   }
 });
 
+// ─── CREW LOGISTICS ──────────────────────────────────────────────────────────
+
+router.get("/:id/crew-logistics", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const crew = await storage.getVoyageCrewLogistics(voyageId);
+    res.json(crew);
+  } catch {
+    res.status(500).json({ message: "Failed to fetch crew logistics" });
+  }
+});
+
+router.put("/:id/crew-logistics", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const crew = req.body;
+    if (!Array.isArray(crew)) {
+      return res.status(400).json({ message: "Body must be an array of crew members" });
+    }
+    const saved = await storage.saveVoyageCrewLogistics(voyageId, crew.map((c: any) => ({
+      voyageId,
+      sortOrder: c.sortOrder ?? 0,
+      name: c.name ?? "",
+      rank: c.rank ?? "",
+      side: c.side ?? "on",
+      nationality: c.nationality ?? "",
+      passportNo: c.passportNo ?? "",
+      flight: c.flight ?? "",
+      flightEta: c.flightEta ?? "",
+      flightDelayed: c.flightDelayed ?? false,
+      visaRequired: c.visaRequired ?? false,
+      eVisaStatus: c.eVisaStatus ?? "n/a",
+      okToBoard: c.okToBoard ?? "pending",
+      arrivalStatus: c.arrivalStatus ?? "pending",
+      timeline: c.timeline ?? [],
+      docs: c.docs ?? {},
+      requiresHotel: c.requiresHotel ?? false,
+      hotelName: c.hotelName ?? "",
+      hotelCheckIn: c.hotelCheckIn ?? "",
+      hotelCheckOut: c.hotelCheckOut ?? "",
+      hotelStatus: c.hotelStatus ?? "none",
+      hotelPickupTime: c.hotelPickupTime ?? "",
+    })));
+    res.json(saved);
+  } catch (err) {
+    console.error("crew-logistics save error:", err);
+    res.status(500).json({ message: "Failed to save crew logistics" });
+  }
+});
+
 
 router.post("/:id/generate-port-document", isAuthenticated, async (req: any, res) => {
   try {

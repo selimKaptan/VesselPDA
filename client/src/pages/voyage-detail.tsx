@@ -263,12 +263,10 @@ export default function VoyageDetail() {
   const EMPTY_CREW_DOCS: CrewDocs = { passport: null, seamansBook: null, medicalCert: null };
   const HOTEL_DEFAULTS = { requiresHotel: false, hotelName: "", hotelCheckIn: "", hotelCheckOut: "", hotelStatus: "none" as const, hotelPickupTime: "" };
   const EMPTY_CREW_SLIDE_FORM: CrewSlideFormType = { name: "", rank: "", side: "on", nationality: "", passportNo: "", flight: "", flightEta: "", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a", okToBoard: "pending" as const, ...HOTEL_DEFAULTS };
-  const [crewSigners, setCrewSigners] = useState<CrewSigner[]>([
-    { id: 1, name: "Ahmet Yılmaz",  rank: "Chief Officer",  side: "on",  nationality: "TUR", passportNo: "TR12345678", flight: "TK2320", flightEta: "14:30", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "confirmed", arrivalStatus: "pending",  docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"13:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"15:00" }, { id:3, icon:"🚤", label:"Embark", time:"16:30" }], requiresHotel: true,  hotelName: "Hilton Alsancak", hotelCheckIn: "12:00", hotelCheckOut: "06:30", hotelStatus: "checked-in",  hotelPickupTime: "10:30" },
-    { id: 2, name: "Mehmet Demir",  rank: "2nd Engineer",   side: "on",  nationality: "TUR", passportNo: "TR87654321", flight: "PC1145", flightEta: "16:00", flightDelayed: true,  visaRequired: true,  eVisaStatus: "pending",  okToBoard: "pending",   arrivalStatus: "pending",  docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"✈️", label:"Arrival Flight", time:"15:45" }, { id:2, icon:"🚐", label:"Airport → Port", time:"17:00" }, { id:3, icon:"🚤", label:"Embark", time:"18:30" }], requiresHotel: true,  hotelName: "Marriott Izmir", hotelCheckIn: "14:00", hotelCheckOut: "08:00", hotelStatus: "reserved",    hotelPickupTime: "12:00" },
-    { id: 3, name: "Ali Öztürk",    rank: "Chief Engineer", side: "off", nationality: "TUR", passportNo: "TR11223344", flight: "TK2321", flightEta: "17:00", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a",      okToBoard: "sent",      arrivalStatus: "pending",  docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"🚤", label:"Disembark", time:"14:30" }, { id:2, icon:"🛂", label:"Customs / Police", time:"15:15" }, { id:3, icon:"🚐", label:"Port → Airport", time:"16:00" }, { id:4, icon:"✈️", label:"Flight", time:"19:45" }], requiresHotel: false, hotelName: "",              hotelCheckIn: "",       hotelCheckOut: "",      hotelStatus: "none",        hotelPickupTime: "" },
-    { id: 4, name: "Hasan Çelik",   rank: "AB Sailor",      side: "off", nationality: "TUR", passportNo: "TR44332211", flight: "PC1146", flightEta: "18:30", flightDelayed: false, visaRequired: true,  eVisaStatus: "approved", okToBoard: "confirmed", arrivalStatus: "departed", docs: { passport: null, seamansBook: null, medicalCert: null }, timeline: [{ id:1, icon:"🚤", label:"Disembark", time:"15:00" }, { id:2, icon:"🛂", label:"Customs / Police", time:"15:45" }, { id:3, icon:"🚐", label:"Port → Airport", time:"16:30" }, { id:4, icon:"✈️", label:"Flight", time:"20:15" }], requiresHotel: true,  hotelName: "Hilton Alsancak", hotelCheckIn: "10:00", hotelCheckOut: "14:30", hotelStatus: "checked-out", hotelPickupTime: "14:30" },
-  ]);
+  const [crewSigners, setCrewSigners] = useState<CrewSigner[]>([]);
+  const [crewSaveStatus, setCrewSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const crewHydrated = useRef(false);
+  const crewSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hubTimeline, setHubTimeline] = useState([
     { id: 1, time: "10:00", emoji: "📦", title: "Spare Parts Customs Clearance",       status: "in_progress" },
     { id: 2, time: "14:00", emoji: "🚐", title: "Crew Transfer from Airport to Port",  status: "upcoming"    },
@@ -865,6 +863,68 @@ export default function VoyageDetail() {
       return res.json();
     },
   });
+
+  // ── Crew Logistics: Load from DB ─────────────────────────────────────────
+  const { data: crewFromDb } = useQuery<any[]>({
+    queryKey: ["/api/voyages", voyageId, "crew-logistics"],
+    queryFn: async () => {
+      const res = await fetch(`/api/voyages/${voyageId}/crew-logistics`);
+      return res.json();
+    },
+    enabled: !!voyageId,
+  });
+
+  useEffect(() => {
+    if (!crewFromDb || crewHydrated.current) return;
+    crewHydrated.current = true;
+    setCrewSigners(crewFromDb.map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      rank: row.rank,
+      side: row.side as "on" | "off",
+      nationality: row.nationality ?? "",
+      passportNo: row.passportNo ?? "",
+      flight: row.flight ?? "",
+      flightEta: row.flightEta ?? "",
+      flightDelayed: row.flightDelayed ?? false,
+      visaRequired: row.visaRequired ?? false,
+      eVisaStatus: (row.eVisaStatus ?? "n/a") as "pending" | "approved" | "n/a",
+      okToBoard: (row.okToBoard ?? "pending") as "pending" | "sent" | "confirmed",
+      arrivalStatus: (row.arrivalStatus ?? "pending") as "pending" | "arrived" | "departed",
+      timeline: (row.timeline as any[]) ?? [],
+      docs: row.docs ?? { passport: null, seamansBook: null, medicalCert: null },
+      requiresHotel: row.requiresHotel ?? false,
+      hotelName: row.hotelName ?? "",
+      hotelCheckIn: row.hotelCheckIn ?? "",
+      hotelCheckOut: row.hotelCheckOut ?? "",
+      hotelStatus: (row.hotelStatus ?? "none") as "none" | "reserved" | "checked-in" | "checked-out",
+      hotelPickupTime: row.hotelPickupTime ?? "",
+    })));
+  }, [crewFromDb]);
+
+  // ── Crew Logistics: Debounced Auto-Save ──────────────────────────────────
+  const saveCrewMutation = useMutation({
+    mutationFn: async (crew: CrewSigner[]) => {
+      return apiRequest("PUT", `/api/voyages/${voyageId}/crew-logistics`, crew.map((c, i) => ({ ...c, sortOrder: i })));
+    },
+    onMutate: () => setCrewSaveStatus("saving"),
+    onSuccess: () => {
+      setCrewSaveStatus("saved");
+      setTimeout(() => setCrewSaveStatus("idle"), 2500);
+    },
+    onError: () => setCrewSaveStatus("error"),
+  });
+
+  useEffect(() => {
+    if (!crewHydrated.current) return;
+    if (crewSaveTimer.current) clearTimeout(crewSaveTimer.current);
+    crewSaveTimer.current = setTimeout(() => {
+      saveCrewMutation.mutate(crewSigners);
+    }, 1000);
+    return () => { if (crewSaveTimer.current) clearTimeout(crewSaveTimer.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crewSigners]);
+
   // ── Auto-set requiresHotel on crewSigners when voyage ETA/ETD loaded ───────
   useEffect(() => {
     if (!voyage) return;
@@ -2038,6 +2098,22 @@ export default function VoyageDetail() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* 💾 Auto-save indicator */}
+                    {crewSaveStatus === "saving" && (
+                      <span className="flex items-center gap-1 text-[10px] text-amber-400 font-medium animate-pulse">
+                        <Loader2 className="w-3 h-3 animate-spin" />Kaydediliyor…
+                      </span>
+                    )}
+                    {crewSaveStatus === "saved" && (
+                      <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
+                        <CheckCircle2 className="w-3 h-3" />Kaydedildi
+                      </span>
+                    )}
+                    {crewSaveStatus === "error" && (
+                      <span className="flex items-center gap-1 text-[10px] text-red-400 font-medium">
+                        <AlertTriangle className="w-3 h-3" />Hata
+                      </span>
+                    )}
                     {/* 🏨 Hotels & Logistics toggle */}
                     <button
                       onClick={() => setIsHotelPanelOpen(v => !v)}
