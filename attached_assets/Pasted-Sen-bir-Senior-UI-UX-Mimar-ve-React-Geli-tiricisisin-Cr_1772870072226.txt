@@ -1,0 +1,24 @@
+Sen bir Senior UI/UX Mimarı ve React Geliştiricisisin. 'Crew Logistics Board' ekranımızda sağ panel (Hotel Sidebar) kapandığında, personel kartları (Crew Cards) yatayda çok fazla uzuyor ve içlerinde anlamsız boşluklar oluşuyor. Kartları, bulundukları alanın genişliğine göre (Container/State bazlı) şekil değiştiren "Adaptif" bir yapıya geçiriyoruz.
+
+Lütfen 'CrewCard' bileşenini şu "Dinamik Genişleme" kurallarına göre YENİDEN YAZ:
+
+1. İKİ FARKLI GÖRÜNÜM MODU (Conditional Rendering):
+- Kartın genişliğine veya sağ panelin durumuna (isHotelPanelOpen) göre kart 2 farklı modda render edilmeli:
+  * MOD A (Kompakt): Sağ panel AÇIKKEN mevcut dikey/sıkışık tasarım kalsın.
+  * MOD B (Geniş Ekran / Detay Modu): Sağ panel KAPALIYKEN kartlar yatayda yayılsın ve aşağıdaki yeni 'Lineer Süreç' tasarımına geçsin.
+
+2. GENİŞ EKRAN MODU TASARIMI (MOD B):
+- Hiyerarşi: Sol üst köşede Personel Adı ve Rütbesi (Font boyutunu text-lg, font-bold yap).
+- Vize Ön Kontrolü: İsmin hemen altında değil, operasyon akışının EN BAŞINA bir "Pre-check" (Ön Kontrol) kutusu olarak yerleştir (Örn: [🛂 Visa: Approved]).
+- Dinamik Boşluk: İçerikleri 'justify-between' ile kartın geneline mantıksal bloklar halinde yay. Letter-spacing KULLANMA.
+
+3. LINEER SÜREÇ ÇİZELGESİ (Horizontal Workflow Stepper):
+- Kartın orta gövdesine, soldan sağa uzanan yatay bir iş akışı (Timeline/Stepper) ekle. 
+- 4 Ana Durak (Milestone): [🚢 Vessel] ➔ [🚐 Transfer] ➔ [🏨 Hotel] ➔ [✈️ Flight] (Off-Signer için bu sıra, On-Signer için tam tersi sıra).
+- Görsel Geri Bildirim: Tamamlanan adımlar 'text-emerald-400', aktif/şu anki adım parlayan 'text-blue-400' (veya neon efektli), gelecek adımlar ise soluk 'text-slate-600' olsun.
+- Saatler: Her ikonun (durağın) TAM ALTINA (flex-col) o durağın saatini belirgin bir fontla (Örn: ETD: 10:30) yaz.
+
+4. SAĞ KENAR VURGUSU (Edge Badges & Warnings):
+- Uyarıları (Delayed, Action Required, Hotel Needed vb.) kartın ortasında metin olarak bırakma.
+- Kartın EN SAĞINA (Far right), büyük ve dikkat çekici bir Rozet (Badge) olarak yerleştir. 
+- Eğer kritik bir hata varsa, kartın sadece sağ kenarına (border-r-4) kalın, renkli bir şerit (Örn: border-r-orange-500) ekleyerek durumu vurgula.
