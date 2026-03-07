@@ -2014,28 +2014,42 @@ export default function VoyageDetail() {
 
                     // ── MOD B: milestone data ─────────────────────────────────
                     const _msItems = crew.side === "on" ? [
-                      { key: "flight",   icon: "✈️", label: "FLIGHT",   time: crew.flightEta || "—" },
-                      { key: "transfer", icon: "🚐", label: "TRANSFER", time: crew.timeline.find(s => /airport.*port|transfer/i.test(s.label))?.time || "—" },
-                      { key: "hotel",    icon: "🏨", label: "HOTEL",    time: crew.hotelCheckIn || "—" },
-                      { key: "vessel",   icon: "🚢", label: "VESSEL",   time: _vesselEtaDisplay },
+                      { key: "flight",   icon: "✈️", label: "FLIGHT",   time: crew.flightEta || "—",                                                                         delayed: crew.flightDelayed },
+                      { key: "transfer", icon: "🚐", label: "TRANSFER", time: crew.timeline.find(s => /airport.*port|transfer/i.test(s.label))?.time || "—",                 delayed: false },
+                      { key: "hotel",    icon: "🏨", label: "HOTEL",    time: crew.hotelCheckIn || "—",                                                                       delayed: false },
+                      { key: "vessel",   icon: "🚢", label: "VESSEL",   time: _vesselEtaDisplay,                                                                              delayed: false },
                     ] : [
-                      { key: "vessel",   icon: "🚢", label: "VESSEL",   time: _vesselEtdDisplay },
-                      { key: "hotel",    icon: "🏨", label: "HOTEL",    time: crew.hotelPickupTime || crew.hotelCheckOut || "—" },
-                      { key: "transfer", icon: "🚐", label: "TRANSFER", time: crew.timeline.find(s => /port.*airport|transfer/i.test(s.label))?.time || "—" },
-                      { key: "flight",   icon: "✈️", label: "FLIGHT",   time: crew.flightEta || "—" },
+                      { key: "vessel",   icon: "🚢", label: "VESSEL",   time: _vesselEtdDisplay,                                                                              delayed: false },
+                      { key: "hotel",    icon: "🏨", label: "HOTEL",    time: crew.hotelPickupTime || crew.hotelCheckOut || "—",                                              delayed: false },
+                      { key: "transfer", icon: "🚐", label: "TRANSFER", time: crew.timeline.find(s => /port.*airport|transfer/i.test(s.label))?.time || "—",                 delayed: false },
+                      { key: "flight",   icon: "✈️", label: "FLIGHT",   time: crew.flightEta || "—",                                                                         delayed: crew.flightDelayed },
                     ];
                     const _getMS = (idx: number): "done" | "active" | "future" => {
                       const terminal = crew.side === "on" ? crew.arrivalStatus === "arrived" : crew.arrivalStatus === "departed";
                       if (terminal) return idx < _msItems.length - 1 ? "done" : "active";
                       return idx === 0 ? "active" : "future";
                     };
+                    const _getConnectorState = (idx: number): "done" | "future" | "delayed" => {
+                      if (_msItems[idx].delayed) return "delayed";
+                      return _getMS(idx - 1) === "done" ? "done" : "future";
+                    };
+                    const _parseStepTime = (raw: string): { date: string; time: string } => {
+                      if (!raw || raw === "—") return { date: "—", time: "—" };
+                      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw)) {
+                        const fmt = fmtDateTime(raw);
+                        const parts = fmt.split(" / ");
+                        return { date: parts[0] || "—", time: parts[1] || "—" };
+                      }
+                      if (/^\d{2}\.\d{2}\.\d{4}/.test(raw)) {
+                        const parts = raw.split(" / ");
+                        return { date: parts[0] || "—", time: parts[1] || "—" };
+                      }
+                      if (/^\d{2}:\d{2}$/.test(raw)) return { date: "—", time: raw };
+                      return { date: "—", time: raw };
+                    };
                     const _msIconCls = (s: "done"|"active"|"future") =>
                       s === "done"   ? "text-emerald-400" :
-                      s === "active" ? "text-blue-400 drop-shadow-[0_0_6px_rgba(96,165,250,0.8)]" :
-                                       "text-slate-600";
-                    const _msTimeCls = (s: "done"|"active"|"future") =>
-                      s === "done"   ? "text-emerald-300" :
-                      s === "active" ? "text-blue-400 font-bold" :
+                      s === "active" ? "text-cyan-400 drop-shadow-[0_0_6px_rgba(34,211,238,0.7)]" :
                                        "text-slate-600";
                     const _hotelPending = crew.requiresHotel && !crew.hotelName;
                     const _hasHotelInfo = crew.requiresHotel && !!crew.hotelName;
@@ -2110,12 +2124,33 @@ export default function VoyageDetail() {
                                     ms.key === "flight"
                                       ? inlineEdit?.crewId === crew.id && inlineEdit?.field === "flightEta"
                                       : tlStep != null && editingCrewTimeline?.crewId === crew.id && editingCrewTimeline?.stepId === tlStep.id;
+                                  const { date: _dPart, time: _tPart } = _parseStepTime(ms.time);
+                                  const _badgeBase = "flex flex-col items-center rounded-md px-1.5 py-1 mt-0.5 transition-all duration-300";
+                                  const _badgeCls = st === "active"
+                                    ? `${_badgeBase} bg-slate-800 shadow-[0_0_8px_rgba(34,211,238,0.4)] border border-cyan-500/30`
+                                    : st === "done"
+                                    ? `${_badgeBase} bg-slate-800/70 border border-emerald-700/25`
+                                    : `${_badgeBase} bg-slate-800/40 border border-slate-700/25`;
+                                  const _datePartCls = st === "active" ? "text-cyan-500/70" : st === "done" ? "text-emerald-700/70" : "text-slate-600";
+                                  const _timePartCls = st === "active" ? "text-cyan-400 font-bold" : st === "done" ? "text-emerald-300 font-semibold" : "text-slate-500";
                                   return (
-                                    <div key={ms.key} className="flex items-center">
-                                      {idx > 0 && <span className="text-slate-700 text-xs mx-1 mt-1">›</span>}
-                                      <div className="flex flex-col items-center gap-0.5" style={{ minWidth: 50 }}>
+                                    <div key={ms.key} className="flex items-start">
+                                      {/* Dynamic SVG connector */}
+                                      {idx > 0 && (() => {
+                                        const cs = _getConnectorState(idx);
+                                        if (cs === "done") return (
+                                          <div className="w-5 h-0.5 bg-emerald-500 flex-shrink-0 mt-4 mx-0.5 transition-all duration-700 rounded-full" />
+                                        );
+                                        if (cs === "delayed") return (
+                                          <div className="w-5 h-0.5 bg-orange-500 flex-shrink-0 mt-4 mx-0.5 rounded-full" style={{ animation: "connectorPulse 1.4s ease-in-out infinite" }} />
+                                        );
+                                        return (
+                                          <div className="w-5 flex-shrink-0 mt-4 mx-0.5 border-t border-dashed border-slate-600 opacity-50" />
+                                        );
+                                      })()}
+                                      <div className="flex flex-col items-center gap-0" style={{ minWidth: 52 }}>
                                         <span className={`text-lg leading-none ${_msIconCls(st)}`}>{ms.icon}</span>
-                                        <span className="text-[8px] text-slate-500 uppercase leading-tight text-center whitespace-nowrap">{ms.label}</span>
+                                        <span className="text-[8px] text-slate-500 uppercase leading-tight text-center tracking-wide">{ms.label}</span>
                                         {isEditingThis ? (
                                           ms.key === "flight" ? (
                                             <input
@@ -2124,7 +2159,7 @@ export default function VoyageDetail() {
                                               onChange={e => setInlineEdit(v => v ? { ...v, val: e.target.value } : v)}
                                               onBlur={() => { setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, flightEta: inlineEdit!.val })); setInlineEdit(null); }}
                                               onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }}
-                                              className="w-12 h-4 text-[10px] font-mono bg-slate-700 border border-blue-500/70 rounded px-1 text-slate-100 outline-none text-center"
+                                              className="w-12 h-4 text-[10px] font-mono bg-slate-700 border border-blue-500/70 rounded px-1 text-slate-100 outline-none text-center mt-0.5"
                                               placeholder="HH:MM"
                                               data-testid={`inline-edit-flighteta-${crew.id}`}
                                             />
@@ -2135,23 +2170,15 @@ export default function VoyageDetail() {
                                               onChange={e => setCrewTimelineEditVal(e.target.value)}
                                               onBlur={() => { if (tlStep) { setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, timeline: c.timeline.map(s => s.id !== tlStep.id ? s : { ...s, time: crewTimelineEditVal }) })); } setEditingCrewTimeline(null); }}
                                               onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }}
-                                              className="w-12 h-4 text-[10px] font-mono bg-slate-700 border border-blue-500/70 rounded px-1 text-slate-100 outline-none text-center"
+                                              className="w-12 h-4 text-[10px] font-mono bg-slate-700 border border-blue-500/70 rounded px-1 text-slate-100 outline-none text-center mt-0.5"
                                               placeholder="HH:MM"
                                               data-testid={`inline-edit-timeline-${crew.id}-${tlStep?.id}`}
                                             />
                                           )
-                                        ) : ms.key === "vessel" ? (
-                                          <span
-                                            className={`text-[9px] font-mono ${_msTimeCls(st)} leading-tight text-center whitespace-pre-wrap`}
-                                            data-testid={`ms-time-${crew.id}-${ms.key}`}
-                                          >
-                                            {ms.time.replace(" / ", "\n")}
-                                          </span>
                                         ) : (
-                                          <span
-                                            className={`text-[11px] font-mono ${_msTimeCls(st)} cursor-pointer hover:bg-slate-700/60 rounded px-0.5 py-0.5 transition-colors leading-none`}
-                                            title={`Edit ${ms.label} time`}
-                                            onClick={() => {
+                                          <div
+                                            className={`${_badgeCls}${ms.key !== "vessel" ? " cursor-pointer hover:border-slate-600/50" : ""}`}
+                                            onClick={ms.key !== "vessel" ? () => {
                                               if (ms.key === "flight") {
                                                 setInlineEdit({ crewId: crew.id, field: "flightEta", val: crew.flightEta || "" });
                                               } else if (tlStep) {
@@ -2160,11 +2187,13 @@ export default function VoyageDetail() {
                                               } else {
                                                 openSlideOver();
                                               }
-                                            }}
+                                            } : undefined}
+                                            title={ms.key !== "vessel" ? `Edit ${ms.label} time` : undefined}
                                             data-testid={`ms-time-${crew.id}-${ms.key}`}
                                           >
-                                            {ms.time}
-                                          </span>
+                                            <span className={`text-[9px] leading-none font-mono ${_datePartCls}`}>{_dPart}</span>
+                                            <span className={`text-[11px] leading-tight font-mono ${_timePartCls}`}>{_tPart}</span>
+                                          </div>
                                         )}
                                       </div>
                                     </div>

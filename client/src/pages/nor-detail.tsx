@@ -34,10 +34,6 @@ function fmtDT(d: string | Date | null | undefined) {
   if (!d) return "—";
   return fmtDateTime(d);
 }
-function fmtDate(d: string | Date | null | undefined) {
-  if (!d) return "—";
-  return fmtDate(d);
-}
 function toDatetimeLocal(d: string | Date | null | undefined) {
   if (!d) return "";
   return new Date(d).toISOString().slice(0, 16);

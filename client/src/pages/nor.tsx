@@ -28,11 +28,6 @@ const statusConfig: Record<NorStatus, { label: string; className: string }> = {
   rejected: { label: "Rejected", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
 };
 
-function fmtDate(d: string | null | undefined) {
-  if (!d) return "—";
-  return fmtDate(d);
-}
-
 const READY_TO_OPTIONS = ["Load", "Discharge", "Receive Cargo"];
 const CONDITION_OPTIONS = [
   "Whether in berth or not (WIBON)",

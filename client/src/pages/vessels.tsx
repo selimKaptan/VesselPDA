@@ -756,10 +756,6 @@ function certStatusBadge(status: string, expiresAt: string | null) {
     return <Badge className="bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 gap-1 text-[10px]"><Clock className="w-3 h-3" />No Expiry Set</Badge>;
   return <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 gap-1 text-[10px]"><CheckCircle2 className="w-3 h-3" />Valid</Badge>;
 }
-function fmtDate(dt: string | null) {
-  if (!dt) return "—";
-  return fmtDate(dt);
-}
 
 export default function Vessels() {
   const { state: sidebarState } = useSidebar();

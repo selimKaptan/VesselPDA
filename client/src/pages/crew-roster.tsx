@@ -8,11 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { fmtDate } from "@/lib/formatDate";
 
-function fmtDate(dt: string | null) {
-  if (!dt) return null;
-  return fmtDate(dt);
-}
-
 function ExpCell({ dt }: { dt: string | null }) {
   if (!dt) return <span className="text-muted-foreground/40">—</span>;
   const now = new Date();

@@ -253,6 +253,11 @@
   animation: pageFadeIn 0.2s ease-out;
 }
 
+@keyframes connectorPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 .sidebar-scroll::-webkit-scrollbar {
   width: 4px;
 }

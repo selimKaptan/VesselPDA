@@ -24,11 +24,6 @@ const statusConfig: Record<SofStatus, { label: string; className: string }> = {
   signed:    { label: "Signed",    className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
 };
 
-function fmtDate(d: string | null) {
-  if (!d) return "—";
-  return fmtDate(d);
-}
-
 const DEFAULT_FORM = {
   vesselName: "",
   portName: "",
