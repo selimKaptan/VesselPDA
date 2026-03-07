@@ -66,6 +66,12 @@ function buildGroupedBreakdown(lineItems: { description: string; amountUsd: numb
 router.get("/", isAuthenticated, async (req: any, res: any, next: any) => {
   try {
     const userId = req.user.claims.sub;
+    const voyageId = req.query.voyageId ? parseInt(req.query.voyageId as string) : null;
+
+    if (voyageId) {
+      const result = await storage.getProformasByVoyage(voyageId);
+      return res.json(result);
+    }
     if (await isAdmin(req)) {
       const allProformas = await storage.getAllProformas();
       return res.json(allProformas);
@@ -582,6 +588,7 @@ router.post("/", isAuthenticated, async (req: any, res: any, next: any) => {
       notes: req.body.notes || null,
       status: req.body.status || "draft",
       bankDetails: bankDetails || null,
+      voyageId: req.body.voyageId ? Number(req.body.voyageId) : null,
     } as any);
 
     await storage.incrementProformaCount(userId);

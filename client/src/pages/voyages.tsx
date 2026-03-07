@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
 import { useAuth } from "@/hooks/use-auth";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import type { Vessel, Port } from "@shared/schema";
 import { fmtDate } from "@/lib/formatDate";
 
@@ -164,6 +164,7 @@ const EMPTY_FORM = {
 export default function Voyages() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
 
@@ -349,11 +350,20 @@ export default function Voyages() {
   };
 
   const getPdaStatus = (v: any): { label: string; color: string } => {
-    if (v.status === "cancelled")       return { label: "—",             color: "text-slate-500" };
-    if (v.status === "archived")        return { label: "✅ Archived",   color: "text-slate-400" };
-    if (v.status === "pending_finance") return { label: "💰 In Review",  color: "text-amber-400" };
-    if (v.status === "completed")       return { label: "✅ Finalized",  color: "text-emerald-400" };
-    if (v.status === "active")          return { label: "⏳ Pending",    color: "text-amber-300" };
+    if (v.status === "cancelled") return { label: "—", color: "text-slate-500" };
+    if (v.proformaCount > 0) {
+      const totalK = v.proformaTotalUsd ? `$${Math.round(v.proformaTotalUsd / 1000)}K` : "";
+      const st = v.proformaLatestStatus;
+      const approvalSt = v.proformaLatestApprovalStatus;
+      if (approvalSt === "approved")  return { label: `✅ ${totalK}`,    color: "text-emerald-400" };
+      if (st === "sent")              return { label: `📤 ${totalK}`,    color: "text-sky-400" };
+      if (st === "final")             return { label: `🏁 ${totalK}`,    color: "text-violet-400" };
+      return                                 { label: `📝 Draft ${totalK}`, color: "text-amber-300" };
+    }
+    if (v.status === "archived")        return { label: "✅ Archived",    color: "text-slate-400" };
+    if (v.status === "pending_finance") return { label: "💰 In Review",   color: "text-amber-400" };
+    if (v.status === "completed")       return { label: "✅ Finalized",   color: "text-emerald-400" };
+    if (v.status === "active")          return { label: "⏳ Pending",     color: "text-amber-300" };
     return                                     { label: "📝 Not Started", color: "text-slate-400" };
   };
 
@@ -528,9 +538,13 @@ export default function Voyages() {
                         </p>
                       </div>
                       {/* Col 2: PDA Status */}
-                      <div className="min-w-0">
+                      <div
+                        className={`min-w-0 ${v.proformaLatestId ? "cursor-pointer group/pda" : ""}`}
+                        onClick={v.proformaLatestId ? (e) => { e.preventDefault(); e.stopPropagation(); setLocation(`/proformas/${v.proformaLatestId}`); } : undefined}
+                        data-testid={`pda-status-${v.id}`}
+                      >
                         <p className="text-[10px] uppercase text-slate-500 tracking-wide mb-0.5">💰 PDA</p>
-                        <p className={`text-[11px] font-semibold truncate ${pdaSt.color}`}>{pdaSt.label}</p>
+                        <p className={`text-[11px] font-semibold truncate ${pdaSt.color} ${v.proformaLatestId ? "group-hover/pda:underline" : ""}`}>{pdaSt.label}</p>
                       </div>
                       {/* Col 3: Live Status */}
                       <div className="min-w-0">

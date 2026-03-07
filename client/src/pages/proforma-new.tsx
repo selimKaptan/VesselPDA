@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useCallback, useEffect, useRef } from "react";
-import { FileText, Ship, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Package, AlertTriangle, ChevronsUpDown, Check, MapPin, RefreshCw, Zap, Waves, PenLine, List, Landmark, Download, BarChart3, Navigation, Building2, ShieldCheck, Layers, Receipt, Award } from "lucide-react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { FileText, Ship, ArrowLeft, Calculator, Loader2, ChevronDown, ChevronUp, Anchor, Package, AlertTriangle, ChevronsUpDown, Check, MapPin, RefreshCw, Zap, Waves, PenLine, List, Landmark, Download, BarChart3, Navigation, Building2, ShieldCheck, Layers, Receipt, Award, X, Link2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/auth-utils";
 import { Link, useLocation } from "wouter";
 import type { Vessel, Port, ProformaLineItem, CompanyProfile } from "@shared/schema";
-import { fmtDate } from "@/lib/formatDate";
+import { fmtDate, fmtDateTime } from "@/lib/formatDate";
 
 const purposeOptions = ["Loading", "Discharging", "Loading/Discharging", "Transit", "Bunkering", "Repair", "Survey"];
 const cargoUnits = ["MT", "CBM", "TEU", "Units"];
@@ -143,6 +143,46 @@ export default function ProformaNew() {
 
   const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
   const { data: myCompanyProfile } = useQuery<CompanyProfile | null>({ queryKey: ["/api/company-profile/me"] });
+
+  // ── Voyage pre-fill from ?voyageId= URL param ─────────────────────────────
+  const linkedVoyageId = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    const vid = params.get("voyageId");
+    return vid ? parseInt(vid) : null;
+  }, []);
+
+  const [voyageBannerDismissed, setVoyageBannerDismissed] = useState(false);
+  const voyagePreFilled = useRef(false);
+
+  const { data: linkedVoyage } = useQuery<any>({
+    queryKey: ["/api/voyages", linkedVoyageId],
+    queryFn: async () => {
+      const res = await fetch(`/api/voyages/${linkedVoyageId}`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!linkedVoyageId,
+  });
+
+  useEffect(() => {
+    if (!linkedVoyage || voyagePreFilled.current) return;
+    if (linkedVoyage.vesselId && !vessels?.length) return;
+    voyagePreFilled.current = true;
+    if (linkedVoyage.vesselId) {
+      setVesselMode("fleet");
+      setSelectedVessel(String(linkedVoyage.vesselId));
+      const vessel = vessels?.find((v) => v.id === linkedVoyage.vesselId);
+      if (vessel) applyFlagCategories(vessel.flag || "");
+    }
+    if (linkedVoyage.purposeOfCall) setPurposeOfCall(linkedVoyage.purposeOfCall);
+    if (linkedVoyage.cargoType) setCargoType(linkedVoyage.cargoType);
+    if (linkedVoyage.cargoQuantity) setCargoQuantity(String(linkedVoyage.cargoQuantity));
+    if (linkedVoyage.portId && linkedVoyage.portName) {
+      setSelectedPort(String(linkedVoyage.portId));
+      setPortSearch(linkedVoyage.portName);
+      setSelectedPortObj({ id: linkedVoyage.portId, name: linkedVoyage.portName, code: null, country: null, lat: null, lng: null, timezone: null } as any);
+    }
+  }, [linkedVoyage, vessels]);
 
   // URL param pre-fill: ?vesselId=X auto-selects vessel from fleet
   useEffect(() => {
@@ -357,6 +397,7 @@ export default function ProformaNew() {
       notes: notes || null,
       status: "draft",
       bankDetails: (bankName || usdIban || swiftCode) ? { bankName, beneficiary, usdIban, eurIban, swiftCode, branch: bankBranch } : undefined,
+      voyageId: linkedVoyageId ?? undefined,
     });
   };
 
@@ -386,6 +427,24 @@ export default function ProformaNew() {
           <p className="text-muted-foreground text-sm">Select vessel and port, set parameters, then click "Calculate Proforma".</p>
         </div>
       </div>
+
+      {/* ── Voyage Linked Banner ── */}
+      {linkedVoyageId && linkedVoyage && !voyageBannerDismissed && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[hsl(var(--maritime-primary)/0.08)] border border-[hsl(var(--maritime-primary)/0.25)] text-[hsl(var(--maritime-primary))]" data-testid="banner-voyage-linked">
+          <Link2 className="w-4 h-4 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="text-sm font-semibold">Linked to voyage: </span>
+            <span className="text-sm">
+              {linkedVoyage.vesselName || "Vessel"} → {linkedVoyage.portName || "Port"}
+              {linkedVoyage.purposeOfCall ? ` · ${linkedVoyage.purposeOfCall}` : ""}
+              {linkedVoyage.cargoType ? ` · ${linkedVoyage.cargoType}` : ""}
+            </span>
+          </div>
+          <button onClick={() => setVoyageBannerDismissed(true)} className="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity" data-testid="button-dismiss-voyage-banner">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-6">
 

@@ -98,6 +98,7 @@ export const proformas = pgTable("proformas", {
   approvalNote: text("approval_note"),
   approvalToken: varchar("approval_token"),
   recipientEmail: varchar("recipient_email"),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -105,6 +106,7 @@ export const proformaRelations = relations(proformas, ({ one, many }) => ({
   user: one(users, { fields: [proformas.userId], references: [users.id] }),
   vessel: one(vessels, { fields: [proformas.vesselId], references: [vessels.id] }),
   port: one(ports, { fields: [proformas.portId], references: [ports.id] }),
+  voyage: one(voyages, { fields: [proformas.voyageId], references: [voyages.id] }),
   approvalLogs: many(proformaApprovalLogs),
 }));
 
@@ -411,6 +413,7 @@ export const voyageRelations = relations(voyages, ({ one, many }) => ({
   checklists: many(voyageChecklists),
   serviceRequests: many(serviceRequests),
   activities: many(voyageActivities),
+  proformas: many(proformas),
 }));
 
 export const voyageChecklists = pgTable("voyage_checklists", {

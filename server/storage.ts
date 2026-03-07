@@ -84,6 +84,7 @@ export interface IStorage {
   getTariffRateForGrt(categoryId: number, grt: number): Promise<TariffRate | undefined>;
 
   getProformasByUser(userId: string): Promise<Proforma[]>;
+  getProformasByVoyage(voyageId: number): Promise<Proforma[]>;
   getAllProformas(): Promise<Proforma[]>;
   getProforma(id: number, userId: string): Promise<(Proforma & { vessel?: Vessel; port?: Port }) | undefined>;
   getProformaById(id: number): Promise<(Proforma & { vessel?: Vessel; port?: Port }) | undefined>;
@@ -392,6 +393,12 @@ export class DatabaseStorage implements IStorage {
   async getProformasByUser(userId: string): Promise<Proforma[]> {
     return db.select().from(proformas)
       .where(eq(proformas.userId, userId))
+      .orderBy(desc(proformas.createdAt));
+  }
+
+  async getProformasByVoyage(voyageId: number): Promise<Proforma[]> {
+    return db.select().from(proformas)
+      .where(eq((proformas as any).voyageId, voyageId))
       .orderBy(desc(proformas.createdAt));
   }
 
@@ -1188,7 +1195,45 @@ export class DatabaseStorage implements IStorage {
         .where(eq(voyages.userId, userId))
         .orderBy(desc(voyages.createdAt));
     }
-    return rows.map(r => ({ ...r.voyage, portName: r.portName, portLat: r.portLat, portLng: r.portLng }));
+    const voyageRows = rows.map(r => ({ ...r.voyage, portName: r.portName, portLat: r.portLat, portLng: r.portLng }));
+
+    // Enrich with proforma summary (count, total, latest status, latest id)
+    const voyageIds = voyageRows.map((v: any) => v.id).filter(Boolean);
+    if (voyageIds.length > 0) {
+      const proformaRows = await db
+        .select({
+          voyageId: (proformas as any).voyageId,
+          proformaCount: sql<number>`COUNT(*)::int`,
+          proformaTotalUsd: sql<number>`COALESCE(SUM(${proformas.totalUsd}), 0)::float`,
+          proformaLatestStatus: sql<string>`(array_agg(${proformas.status} ORDER BY ${proformas.id} DESC))[1]`,
+          proformaLatestApprovalStatus: sql<string>`(array_agg(${proformas.approvalStatus} ORDER BY ${proformas.id} DESC))[1]`,
+          proformaLatestId: sql<number>`MAX(${proformas.id})::int`,
+        })
+        .from(proformas)
+        .where(inArray((proformas as any).voyageId, voyageIds))
+        .groupBy((proformas as any).voyageId);
+
+      const pMap = new Map(proformaRows.map((p: any) => [p.voyageId, p]));
+      return voyageRows.map((v: any) => {
+        const ps = pMap.get(v.id);
+        return {
+          ...v,
+          proformaCount: ps?.proformaCount ?? 0,
+          proformaTotalUsd: ps?.proformaTotalUsd ?? 0,
+          proformaLatestStatus: ps?.proformaLatestStatus ?? null,
+          proformaLatestApprovalStatus: ps?.proformaLatestApprovalStatus ?? null,
+          proformaLatestId: ps?.proformaLatestId ?? null,
+        };
+      });
+    }
+    return voyageRows.map((v: any) => ({
+      ...v,
+      proformaCount: 0,
+      proformaTotalUsd: 0,
+      proformaLatestStatus: null,
+      proformaLatestApprovalStatus: null,
+      proformaLatestId: null,
+    }));
   }
 
   async getVoyageById(id: number): Promise<any | undefined> {

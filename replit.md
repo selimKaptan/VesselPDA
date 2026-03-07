@@ -42,6 +42,7 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
     - **AI Human-in-the-Loop Verification**: AI natural language parsing (MODE 2) now stages suggestions instead of auto-applying; affected crew cards glow neon blue with inline ✓ Accept / ✕ Reject buttons per suggestion.
     - **Spotlight Focus Mode**: "⚠️ Action Required" filter activates a backdrop-blur overlay over the crew board; only action-required cards escape to z-20 foreground with pronounced glow.
     - **Voyages Cancelled Color Fix**: Cancelled-status voyage cards now show a neutral slate header strip instead of the purpose-of-call colour.
+    - **Voyage → Proforma Integration**: `proformas.voyage_id` FK links proformas to voyages. `/proformas/new?voyageId=N` auto-fills vessel, port, purpose, and cargo from the voyage; a dismissable banner confirms the link. Voyage detail Financial tab lists linked proformas (status badge, total USD, View button). Voyage cards' 💰 PDA column shows real proforma status/amount (Draft/Sent/Approved) and navigates to the latest proforma on click. `GET /api/voyages` response enriched with `proformaCount`, `proformaTotalUsd`, `proformaLatestStatus`, `proformaLatestApprovalStatus`, `proformaLatestId`.
 - **Security**: Helmet Content-Security-Policy headers are configured.
 - **Demo System**: Server-side seeding for demo accounts, enabling immediate access to pre-populated data.
 - **PDF Export System**: Reusable components for generating PDFs with consistent headers, footers, and company branding.

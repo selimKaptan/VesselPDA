@@ -1073,6 +1073,17 @@ export default function VoyageDetail() {
     enabled: !!voyageId,
   });
 
+  const { data: voyageProformas = [] } = useQuery<any[]>({
+    queryKey: ["/api/proformas", "voyage", voyageId],
+    queryFn: async () => {
+      const res = await fetch(`/api/proformas?voyageId=${voyageId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: !!voyageId,
+  });
+
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
@@ -5119,6 +5130,9 @@ export default function VoyageDetail() {
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
                 <h2 className="font-semibold text-sm">Proforma Disbursement Accounts</h2>
+                {voyageProformas.length > 0 && (
+                  <span className="text-xs text-muted-foreground">({voyageProformas.length})</span>
+                )}
               </div>
               <Link href={`/proformas/new?voyageId=${voyageId}`}>
                 <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" data-testid="button-create-pda">
@@ -5126,15 +5140,57 @@ export default function VoyageDetail() {
                 </Button>
               </Link>
             </div>
-            <div className="text-center py-6 text-muted-foreground" data-testid="section-pdas">
-              <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">Create a Proforma Disbursement Account for this voyage.</p>
-              <Link href={`/proformas/new?voyageId=${voyageId}`}>
-                <Button size="sm" variant="default" className="mt-3 gap-1.5" data-testid="button-create-pda-cta">
-                  <Plus className="w-3.5 h-3.5" /> New PDA
-                </Button>
-              </Link>
-            </div>
+            {voyageProformas.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground" data-testid="section-pdas-empty">
+                <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">Create a Proforma Disbursement Account for this voyage.</p>
+                <Link href={`/proformas/new?voyageId=${voyageId}`}>
+                  <Button size="sm" variant="default" className="mt-3 gap-1.5" data-testid="button-create-pda-cta">
+                    <Plus className="w-3.5 h-3.5" /> New PDA
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-2" data-testid="section-pdas">
+                {voyageProformas.map((p: any) => {
+                  const statusColors: Record<string, string> = {
+                    draft: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+                    sent: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+                    final: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+                  };
+                  const approvalColors: Record<string, string> = {
+                    approved: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+                    rejected: "bg-red-500/10 text-red-400 border-red-500/20",
+                    pending: "bg-amber-500/10 text-amber-300 border-amber-500/20",
+                  };
+                  const stBadge = statusColors[p.status] || "bg-slate-500/10 text-slate-400 border-slate-500/20";
+                  const approvalBadge = p.approvalStatus ? approvalColors[p.approvalStatus] : null;
+                  return (
+                    <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg border border-border/40 bg-card/50 hover:bg-card/80 transition-colors" data-testid={`pda-row-${p.id}`}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-xs font-semibold text-foreground">PDA #{p.id}</span>
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${stBadge}`}>{p.status?.toUpperCase()}</span>
+                          {approvalBadge && (
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${approvalBadge}`}>{p.approvalStatus?.toUpperCase()}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          {p.vesselName && <span>{p.vesselName}</span>}
+                          {p.portName && <><span className="opacity-40">→</span><span>{p.portName}</span></>}
+                          {p.totalUsd != null && <span className="font-semibold text-emerald-400 ml-auto">${p.totalUsd.toLocaleString()}</span>}
+                        </div>
+                      </div>
+                      <Link href={`/proformas/${p.id}`}>
+                        <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs gap-1 flex-shrink-0" data-testid={`button-view-pda-${p.id}`}>
+                          View →
+                        </Button>
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </Card>
         </div>
       )}
