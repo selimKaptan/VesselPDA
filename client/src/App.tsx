@@ -74,6 +74,10 @@ import LaytimeCalculator from "@/pages/laytime-calculator";
 import DaAdvances from "@/pages/da-advances";
 import Analytics from "@/pages/analytics";
 import PortExpenses from "@/pages/port-expenses";
+import Maintenance from "@/pages/maintenance";
+import BunkerManagement from "@/pages/bunker-management";
+import NoonReports from "@/pages/noon-reports";
+import CharterParties from "@/pages/charter-parties";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -136,6 +140,10 @@ function AuthenticatedRouter() {
       <Route path="/da-advances" component={DaAdvances} />
       <Route path="/port-expenses" component={PortExpenses} />
       <Route path="/analytics" component={Analytics} />
+      <Route path="/maintenance" component={Maintenance} />
+      <Route path="/bunker-management" component={BunkerManagement} />
+      <Route path="/noon-reports" component={NoonReports} />
+      <Route path="/charter-parties" component={CharterParties} />
       <Route component={NotFound} />
     </Switch>
   );

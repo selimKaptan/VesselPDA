@@ -35,6 +35,7 @@ import {
   FileSpreadsheet,
   Zap,
   Users2,
+  Activity,
 } from "lucide-react";
 
 export type BadgeSource = "messages" | "nominations" | "tenders" | "certs" | "voyageInvites";
@@ -108,6 +109,10 @@ export const NAV_CATEGORIES: NavCategory[] = [
       { label: "Vessel Schedule", url: "/vessel-schedule", icon: Calendar },
       { label: "Certificates", url: "/vessel-certificates", icon: ScrollText, badge: "certs" },
       { label: "Vessel Tracking", url: "/vessel-track", icon: Navigation },
+      { label: "Performance", url: "/noon-reports", icon: Activity, isNew: true },
+      { label: "Charter Party & Hire", url: "/charter-parties", icon: ScrollText, isNew: true },
+      { label: "Maintenance", url: "/maintenance", icon: Settings, isNew: true },
+      { label: "Bunker Management", url: "/bunker-management", icon: Zap, isNew: true },
       { label: "Crew Roster", url: "/crew-roster", icon: Users2 },
     ],
   },
@@ -217,6 +222,10 @@ export const URL_TO_CATEGORY: Record<string, string> = {
   "/vessel-track": "fleet",
   "/vessel-q88": "fleet",
   "/crew-roster": "fleet",
+  "/noon-reports": "fleet",
+  "/charter-parties": "fleet",
+  "/maintenance": "fleet",
+  "/bunker-management": "fleet",
   "/directory": "services",
   "/service-requests": "services",
   "/ports": "services",

@@ -49,6 +49,11 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
 - **Voyage Notes & Tasks**: Notes/comments timeline on voyage detail (Notes & Tasks tab) with note types (comment/observation/alert/milestone), privacy toggle, and author attribution.
 - **Shipowner Portal**: Role-based voyage detail simplification (shipowners see only Overview, Financial, Documents, Notes tabs; read-only badge; simplified shipowner dashboard with pending approvals and fleet summary).
 - **Document Management Extensions**: Multi-file certificate upload, renewal workflow (schedule + status tracking), renewal status color-coding (blue=scheduled), Export List CSV for all certificates.
+- **Planned Maintenance System (PMS)**: Equipment registry per vessel (type, manufacturer, serial, location) + maintenance job orders with interval scheduling, priority levels (critical/urgent/routine), overdue detection (red/orange/green), and completion tracking. Route: `/maintenance`.
+- **Bunker Management**: Bunker order lifecycle (ordered→delivered→invoiced→paid) with BDN tracking, ROB (Remaining on Board) daily reporting, fuel consumption trend charts (Recharts), multi-fuel-type support (HFO/MGO/LSFO/VLSFO). Route: `/bunker-management`.
+- **Noon Reports & Vessel Performance**: Daily position/speed/RPM/weather/fuel consumption reports, performance KPI cards (avg speed, daily consumption, total NM), trend charts, sea state tracking. Route: `/noon-reports`.
+- **Charter Party & TC Hire Management**: TC/VC/BB/CoA charter party contracts, hire payment statements (gross/off-hire deductions/commissions/net), off-hire event log, active CP status tracking. Route: `/charter-parties`.
+- **Crew Enhancement (STCW + Payroll)**: Enhanced crew-roster with STCW & professional certificate tracking (expiry alerts), monthly payroll processing (basic/overtime/bonus/deductions/net), expanded contract fields (visa, seaman's book, emergency contact, relief due date). Tabs: Roster, STCW & Certificates, Payroll.
 
 ## External Dependencies
 - **PostgreSQL**: Primary relational database.

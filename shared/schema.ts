@@ -1183,11 +1183,20 @@ export const vesselCrew = pgTable("vessel_crew", {
   lastName: text("last_name").notNull(),
   rank: text("rank"),
   nationality: text("nationality"),
+  contractStartDate: timestamp("contract_start_date"),
   contractEndDate: timestamp("contract_end_date"),
+  monthlySalary: real("monthly_salary"),
+  salaryCurrency: text("salary_currency").default("USD"),
+  seamanBookNumber: text("seaman_book_number"),
+  seamanBookExpiry: timestamp("seaman_book_expiry"),
   passportNumber: text("passport_number"),
   passportExpiry: timestamp("passport_expiry"),
-  seamansBookNumber: text("seamans_book_number"),
-  seamansBookExpiry: timestamp("seamans_book_expiry"),
+  visaType: text("visa_type"),
+  visaExpiry: timestamp("visa_expiry"),
+  nextPortJoin: text("next_port_join"),
+  reliefDueDate: timestamp("relief_due_date"),
+  emergencyContactName: text("emergency_contact_name"),
+  emergencyContactPhone: text("emergency_contact_phone"),
   passportFileBase64: text("passport_file_base64"),
   passportFileName: text("passport_file_name"),
   passportFileUrl: text("passport_file_url"),
@@ -1202,14 +1211,69 @@ export const vesselCrew = pgTable("vessel_crew", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const vesselCrewRelations = relations(vesselCrew, ({ one }) => ({
+export const crewStcwCertificates = pgTable("crew_stcw_certificates", {
+  id: serial("id").primaryKey(),
+  crewId: integer("crew_id").notNull().references(() => vesselCrew.id, { onDelete: "cascade" }),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id),
+  certName: text("cert_name").notNull(),
+  certNumber: text("cert_number"),
+  issuingAuthority: text("issuing_authority"),
+  issueDate: timestamp("issue_date"),
+  expiryDate: timestamp("expiry_date").notNull(),
+  certType: text("cert_type").default("stcw"), // "stcw" | "medical" | "flag_state" | "other"
+  status: text("status").default("valid"), // "valid" | "expiring" | "expired"
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const crewPayroll = pgTable("crew_payroll", {
+  id: serial("id").primaryKey(),
+  crewId: integer("crew_id").notNull().references(() => vesselCrew.id, { onDelete: "cascade" }),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  periodMonth: integer("period_month").notNull(),
+  periodYear: integer("period_year").notNull(),
+  basicSalary: real("basic_salary").notNull(),
+  overtimeHours: real("overtime_hours").default(0),
+  overtimeRate: real("overtime_rate").default(0),
+  bonus: real("bonus").default(0),
+  deductions: real("deductions").default(0),
+  netPay: real("net_pay").notNull(),
+  currency: text("currency").default("USD"),
+  paidDate: timestamp("paid_date"),
+  status: text("status").default("pending"), // "pending" | "processed" | "paid"
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const vesselCrewRelations = relations(vesselCrew, ({ one, many }) => ({
   vessel: one(vessels, { fields: [vesselCrew.vesselId], references: [vessels.id] }),
   user: one(users, { fields: [vesselCrew.userId], references: [users.id] }),
+  stcwCertificates: many(crewStcwCertificates),
+  payrolls: many(crewPayroll),
+}));
+
+export const crewStcwCertificateRelations = relations(crewStcwCertificates, ({ one }) => ({
+  crew: one(vesselCrew, { fields: [crewStcwCertificates.crewId], references: [vesselCrew.id] }),
+  vessel: one(vessels, { fields: [crewStcwCertificates.vesselId], references: [vessels.id] }),
+}));
+
+export const crewPayrollRelations = relations(crewPayroll, ({ one }) => ({
+  crew: one(vesselCrew, { fields: [crewPayroll.crewId], references: [vesselCrew.id] }),
+  vessel: one(vessels, { fields: [crewPayroll.vesselId], references: [vessels.id] }),
+  user: one(users, { fields: [crewPayroll.userId], references: [users.id] }),
 }));
 
 export const insertVesselCrewSchema = createInsertSchema(vesselCrew).omit({ createdAt: true });
+export const insertCrewStcwCertificateSchema = createInsertSchema(crewStcwCertificates).omit({ id: true, createdAt: true });
+export const insertCrewPayrollSchema = createInsertSchema(crewPayroll).omit({ id: true, createdAt: true });
+
 export type InsertVesselCrew = z.infer<typeof insertVesselCrewSchema>;
 export type VesselCrew = typeof vesselCrew.$inferSelect;
+export type InsertCrewStcwCertificate = z.infer<typeof insertCrewStcwCertificateSchema>;
+export type CrewStcwCertificate = typeof crewStcwCertificates.$inferSelect;
+export type InsertCrewPayroll = z.infer<typeof insertCrewPayrollSchema>;
+export type CrewPayroll = typeof crewPayroll.$inferSelect;
 
 // ─── VESSEL POSITIONS (AIS History) ───────────────────────────────────────────
 
@@ -1398,6 +1462,91 @@ export type InsertSof = z.infer<typeof insertSofSchema>;
 export type InsertSofLineItem = z.infer<typeof insertSofLineItemSchema>;
 export type Sof = typeof statementOfFacts.$inferSelect;
 export type SofLineItem = typeof sofLineItems.$inferSelect;
+
+// ─── CHARTER PARTY & TC HIRE ──────────────────────────────────────────────────
+
+export const charterParties = pgTable("charter_parties", {
+  id: serial("id").primaryKey(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  charterType: text("charter_type").notNull(),  // "TC" | "VC" | "BB" | "CoA"
+  chartererName: text("charterer_name").notNull(),
+  chartererAddress: text("charterer_address"),
+  cpDate: timestamp("cp_date"),
+  commencementDate: timestamp("commencement_date"),
+  redeliveryDate: timestamp("redelivery_date"),
+  hireRate: real("hire_rate"),                     // per day
+  hireCurrency: text("hire_currency").default("USD"),
+  hireFrequency: text("hire_frequency").default("semi_monthly"),  // "daily" | "weekly" | "semi_monthly" | "monthly"
+  tradingArea: text("trading_area"),
+  cargoDescription: text("cargo_description"),
+  cpTerms: text("cp_terms"),
+  status: text("status").notNull().default("active"),  // "active" | "completed" | "cancelled" | "on_hold"
+  totalHireEarned: real("total_hire_earned").default(0),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const hirePayments = pgTable("hire_payments", {
+  id: serial("id").primaryKey(),
+  charterPartyId: integer("charter_party_id").notNull().references(() => charterParties.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  periodFrom: timestamp("period_from").notNull(),
+  periodTo: timestamp("period_to").notNull(),
+  hireDays: real("hire_days").notNull(),
+  grossHire: real("gross_hire").notNull(),
+  offHireDeduction: real("off_hire_deduction").default(0),
+  addressCommission: real("address_commission").default(0),
+  brokerCommission: real("broker_commission").default(0),
+  netHire: real("net_hire").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  dueDate: timestamp("due_date"),
+  paidDate: timestamp("paid_date"),
+  status: text("status").notNull().default("pending"),  // "pending" | "invoiced" | "paid" | "overdue"
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const offHireEvents = pgTable("off_hire_events", {
+  id: serial("id").primaryKey(),
+  charterPartyId: integer("charter_party_id").notNull().references(() => charterParties.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  startDatetime: timestamp("start_datetime").notNull(),
+  endDatetime: timestamp("end_datetime"),
+  reason: text("reason").notNull(),       // "breakdown" | "dry_dock" | "survey" | "owner_default" | "other"
+  description: text("description"),
+  deductedDays: real("deducted_days"),
+  status: text("status").notNull().default("active"),  // "active" | "resolved"
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const charterPartyRelations = relations(charterParties, ({ one, many }) => ({
+  vessel: one(vessels, { fields: [charterParties.vesselId], references: [vessels.id] }),
+  user: one(users, { fields: [charterParties.userId], references: [users.id] }),
+  payments: many(hirePayments),
+  offHireEvents: many(offHireEvents),
+}));
+
+export const hirePaymentRelations = relations(hirePayments, ({ one }) => ({
+  charterParty: one(charterParties, { fields: [hirePayments.charterPartyId], references: [charterParties.id] }),
+  user: one(users, { fields: [hirePayments.userId], references: [users.id] }),
+}));
+
+export const offHireEventRelations = relations(offHireEvents, ({ one }) => ({
+  charterParty: one(charterParties, { fields: [offHireEvents.charterPartyId], references: [charterParties.id] }),
+  user: one(users, { fields: [offHireEvents.userId], references: [users.id] }),
+}));
+
+export const insertCharterPartySchema = createInsertSchema(charterParties).omit({ id: true, createdAt: true });
+export const insertHirePaymentSchema = createInsertSchema(hirePayments).omit({ id: true, createdAt: true });
+export const insertOffHireEventSchema = createInsertSchema(offHireEvents).omit({ id: true, createdAt: true });
+
+export type InsertCharterParty = z.infer<typeof insertCharterPartySchema>;
+export type CharterParty = typeof charterParties.$inferSelect;
+export type InsertHirePayment = z.infer<typeof insertHirePaymentSchema>;
+export type HirePayment = typeof hirePayments.$inferSelect;
+export type InsertOffHireEvent = z.infer<typeof insertOffHireEventSchema>;
+export type OffHireEvent = typeof offHireEvents.$inferSelect;
 
 // ─── FDA - FINAL DISBURSEMENT ACCOUNT ─────────────────────────────────────────
 
@@ -2150,3 +2299,139 @@ export const daAdvanceRelations = relations(daAdvances, ({ one }) => ({
 export const insertDaAdvanceSchema = createInsertSchema(daAdvances).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertDaAdvance = z.infer<typeof insertDaAdvanceSchema>;
 export type DaAdvance = typeof daAdvances.$inferSelect;
+
+// ─── PLANNED MAINTENANCE SYSTEM (PMS) ────────────────────────────────────────
+
+export const vesselEquipment = pgTable("vessel_equipment", {
+  id: serial("id").primaryKey(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  name: varchar("name", { length: 200 }).notNull(),
+  equipmentType: varchar("equipment_type", { length: 100 }),
+  manufacturer: varchar("manufacturer", { length: 200 }),
+  model: varchar("model", { length: 200 }),
+  serialNumber: varchar("serial_number", { length: 100 }),
+  installDate: timestamp("install_date"),
+  location: varchar("location", { length: 200 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertVesselEquipmentSchema = createInsertSchema(vesselEquipment).omit({ id: true, createdAt: true });
+export type InsertVesselEquipment = z.infer<typeof insertVesselEquipmentSchema>;
+export type VesselEquipment = typeof vesselEquipment.$inferSelect;
+
+export const maintenanceJobs = pgTable("maintenance_jobs", {
+  id: serial("id").primaryKey(),
+  equipmentId: integer("equipment_id").notNull().references(() => vesselEquipment.id, { onDelete: "cascade" }),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  jobName: varchar("job_name", { length: 300 }).notNull(),
+  jobDescription: text("job_description"),
+  intervalType: varchar("interval_type", { length: 50 }).default("days"),
+  intervalValue: integer("interval_value"),
+  lastDoneDate: timestamp("last_done_date"),
+  lastDoneRunningHours: real("last_done_running_hours"),
+  nextDueDate: timestamp("next_due_date"),
+  priority: varchar("priority", { length: 20 }).default("routine"),
+  status: varchar("status", { length: 30 }).default("pending"),
+  assignedTo: varchar("assigned_to", { length: 200 }),
+  estimatedHours: real("estimated_hours"),
+  actualHours: real("actual_hours"),
+  partsUsed: text("parts_used"),
+  completedAt: timestamp("completed_at"),
+  completionNotes: text("completion_notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertMaintenanceJobSchema = createInsertSchema(maintenanceJobs).omit({ id: true, createdAt: true });
+export type InsertMaintenanceJob = z.infer<typeof insertMaintenanceJobSchema>;
+export type MaintenanceJob = typeof maintenanceJobs.$inferSelect;
+
+// ─── BUNKER MANAGEMENT ────────────────────────────────────────────────────────
+
+export const bunkerOrders = pgTable("bunker_orders", {
+  id: serial("id").primaryKey(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  port: varchar("port", { length: 200 }),
+  orderDate: timestamp("order_date"),
+  deliveryDate: timestamp("delivery_date"),
+  fuelType: varchar("fuel_type", { length: 50 }).notNull(),
+  quantityOrdered: real("quantity_ordered").notNull(),
+  quantityDelivered: real("quantity_delivered"),
+  pricePerMt: real("price_per_mt"),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  totalCost: real("total_cost"),
+  supplier: varchar("supplier", { length: 200 }),
+  bdnNumber: varchar("bdn_number", { length: 100 }),
+  sulphurContent: real("sulphur_content"),
+  status: varchar("status", { length: 30 }).default("ordered"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertBunkerOrderSchema = createInsertSchema(bunkerOrders).omit({ id: true, createdAt: true });
+export type InsertBunkerOrder = z.infer<typeof insertBunkerOrderSchema>;
+export type BunkerOrder = typeof bunkerOrders.$inferSelect;
+
+export const bunkerRobs = pgTable("bunker_robs", {
+  id: serial("id").primaryKey(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
+  reportDate: timestamp("report_date").notNull(),
+  hfoRob: real("hfo_rob").default(0),
+  mgoRob: real("mgo_rob").default(0),
+  lsfoRob: real("lsfo_rob").default(0),
+  vlsfoRob: real("vlsfo_rob").default(0),
+  hfoConsumed: real("hfo_consumed").default(0),
+  mgoConsumed: real("mgo_consumed").default(0),
+  lsfoConsumed: real("lsfo_consumed").default(0),
+  vlsfoConsumed: real("vlsfo_consumed").default(0),
+  reportedBy: varchar("reported_by").notNull().references(() => users.id),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertBunkerRobSchema = createInsertSchema(bunkerRobs).omit({ id: true, createdAt: true });
+export type InsertBunkerRob = z.infer<typeof insertBunkerRobSchema>;
+export type BunkerRob = typeof bunkerRobs.$inferSelect;
+
+// ─── NOON REPORTS ─────────────────────────────────────────────────────────────
+
+export const noonReports = pgTable("noon_reports", {
+  id: serial("id").primaryKey(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  reportDate: timestamp("report_date").notNull(),
+  reportTime: varchar("report_time", { length: 10 }).default("12:00"),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  positionDescription: varchar("position_description", { length: 500 }),
+  speedOverGround: real("speed_over_ground"),
+  speedThroughWater: real("speed_through_water"),
+  rpm: integer("rpm"),
+  distanceLastNoon: real("distance_last_noon"),
+  distanceToGo: real("distance_to_go"),
+  eta: timestamp("eta"),
+  seaState: integer("sea_state"),
+  windForce: integer("wind_force"),
+  windDirection: varchar("wind_direction", { length: 10 }),
+  swellHeight: real("swell_height"),
+  hfoConsumed: real("hfo_consumed").default(0),
+  mgoConsumed: real("mgo_consumed").default(0),
+  lsfoConsumed: real("lsfo_consumed").default(0),
+  hfoRob: real("hfo_rob"),
+  mgoRob: real("mgo_rob"),
+  lsfoRob: real("lsfo_rob"),
+  mainEngineHours: real("main_engine_hours"),
+  auxEngineHours: real("aux_engine_hours"),
+  remarks: text("remarks"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertNoonReportSchema = createInsertSchema(noonReports).omit({ id: true, createdAt: true });
+export type InsertNoonReport = z.infer<typeof insertNoonReportSchema>;
+export type NoonReport = typeof noonReports.$inferSelect;
+

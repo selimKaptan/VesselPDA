@@ -30,8 +30,6 @@ import { orgRouter, inviteRouter } from "./routes/organization.routes";
 import { voyageInviteRouter } from "./routes/voyage-invite.routes";
 import demoRouter from "./routes/demo.routes";
 
-import voyageNotesRoutes from "./routes/voyage-notes.routes";
-
 // Root-mounted modules (full /api/... paths preserved inside router)
 import authRoutes from "./routes/auth.routes";
 import portRoutes from "./routes/port.routes";
@@ -51,6 +49,11 @@ import portExpenseRoutes from "./routes/port-expense.routes";
 import voyageReportRoutes from "./routes/voyage-report.routes";
 import commissionRoutes from "./routes/commission.routes";
 import voyageNotesRoutes from "./routes/voyage-notes.routes";
+import maintenanceRoutes from "./routes/maintenance.routes";
+import bunkerRoutes from "./routes/bunker.routes";
+import noonReportRoutes from "./routes/noon-report.routes";
+import charterPartyRoutes from "./routes/charter-party.routes";
+import crewRoutes from "./routes/crew.routes";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -119,6 +122,11 @@ export async function registerRoutes(
   app.use("/api/laytime-sheets", laytimeRoutes);
   app.use("/api/da-advances", daAdvanceRoutes);
   app.use("/api/analytics", analyticsRoutes);
+  app.use("/api/maintenance", maintenanceRoutes);
+  app.use("/api/bunker", bunkerRoutes);
+  app.use("/api/noon-reports", noonReportRoutes);
+  app.use("/api/charter-parties", charterPartyRoutes);
+  app.use("/api/crew", crewRoutes);
 
   return httpServer;
 }

@@ -242,6 +242,9 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
         .then(() => seedTariffData())
         .catch((err: Error) => console.error("Tariff setup error:", err));
     });
+    import("./ensure-bunker-tables").then(({ ensureBunkerTables }) => {
+      ensureBunkerTables().catch((err: Error) => console.error("Bunker tables error:", err));
+    });
     import("./startup-checks").then(({ runStartupChecks }) => {
       runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));
     });

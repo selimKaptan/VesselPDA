@@ -45,8 +45,28 @@ import {
   type VoyageCrewLogistic, type InsertVoyageCrewLogistic,
   type PortExpense, type InsertPortExpense,
   type FdaMappingTemplate, type InsertFdaMappingTemplate,
+  type NoonReport, type InsertNoonReport,
+  type VesselEquipment, type InsertVesselEquipment,
+  type MaintenanceJob, type InsertMaintenanceJob,
+  type BunkerOrder, type InsertBunkerOrder,
+  type BunkerRob, type InsertBunkerRob,
+  type CharterParty, type InsertCharterParty,
+  type HirePayment, type InsertHirePayment,
+  type OffHireEvent, type InsertOffHireEvent,
+  type CrewStcwCert, type InsertCrewStcwCert,
+  type CrewPayroll, type InsertCrewPayroll,
   voyageCrewLogistics,
   portExpenses,
+  noonReports,
+  vesselEquipment,
+  maintenanceJobs,
+  bunkerOrders,
+  bunkerRobs,
+  charterParties,
+  hirePayments,
+  offHireEvents,
+  crewStcwCertificates,
+  crewPayroll,
   vessels, ports, tariffCategories, tariffRates, proformas, proformaApprovalLogs,
   forumCategories, forumTopics, forumReplies, forumLikes, forumDislikes,
   portTenders, tenderBids, agentReviews, vesselWatchlist,
@@ -240,6 +260,15 @@ export interface IStorage {
   updateVesselCrewMember(id: number, data: Partial<InsertVesselCrew>): Promise<VesselCrew | undefined>;
   deleteVesselCrewMember(id: number): Promise<boolean>;
 
+  getCrewStcwCertificates(crewId: number): Promise<CrewStcwCertificate[]>;
+  createCrewStcwCertificate(data: InsertCrewStcwCertificate): Promise<CrewStcwCertificate>;
+  updateCrewStcwCertificate(id: number, data: Partial<InsertCrewStcwCertificate>): Promise<CrewStcwCertificate | undefined>;
+  deleteCrewStcwCertificate(id: number): Promise<boolean>;
+
+  getCrewPayroll(vesselId: number): Promise<CrewPayroll[]>;
+  createCrewPayroll(data: InsertCrewPayroll): Promise<CrewPayroll>;
+  updateCrewPayroll(id: number, data: Partial<InsertCrewPayroll>): Promise<CrewPayroll | undefined>;
+
   getPortCallAppointments(voyageId: number): Promise<PortCallAppointment[]>;
   createPortCallAppointment(data: InsertPortCallAppointment): Promise<PortCallAppointment>;
   updatePortCallAppointment(id: number, data: Partial<InsertPortCallAppointment>): Promise<PortCallAppointment | undefined>;
@@ -302,6 +331,54 @@ export interface IStorage {
   updateFdaMappingTemplate(id: number, userId: string, data: Partial<InsertFdaMappingTemplate>): Promise<FdaMappingTemplate | undefined>;
   deleteFdaMappingTemplate(id: number, userId: string): Promise<boolean>;
   setFdaMappingTemplateDefault(id: number, userId: string): Promise<boolean>;
+
+  getNoonReports(vesselId: number, options?: { voyageId?: number; from?: Date; to?: Date }): Promise<NoonReport[]>;
+  createNoonReport(data: InsertNoonReport): Promise<NoonReport>;
+  updateNoonReport(id: number, data: Partial<InsertNoonReport>): Promise<NoonReport | undefined>;
+  deleteNoonReport(id: number): Promise<boolean>;
+  getVesselPerformanceStats(vesselId: number): Promise<any>;
+
+  // PMS
+  getVesselEquipment(vesselId: number): Promise<VesselEquipment[]>;
+  createVesselEquipment(data: InsertVesselEquipment): Promise<VesselEquipment>;
+  updateVesselEquipment(id: number, data: Partial<InsertVesselEquipment>): Promise<VesselEquipment | undefined>;
+  deleteVesselEquipment(id: number): Promise<boolean>;
+  getMaintenanceJobs(vesselId: number, options?: { equipmentId?: number; status?: string }): Promise<any[]>;
+  createMaintenanceJob(data: InsertMaintenanceJob): Promise<MaintenanceJob>;
+  updateMaintenanceJob(id: number, data: Partial<InsertMaintenanceJob>): Promise<MaintenanceJob | undefined>;
+  getMaintenanceSummary(vesselId: number): Promise<any>;
+
+  // Bunker
+  getBunkerOrders(vesselId: number): Promise<BunkerOrder[]>;
+  createBunkerOrder(data: InsertBunkerOrder): Promise<BunkerOrder>;
+  updateBunkerOrder(id: number, data: Partial<InsertBunkerOrder>): Promise<BunkerOrder | undefined>;
+  deleteBunkerOrder(id: number): Promise<boolean>;
+  getBunkerRobs(vesselId: number): Promise<BunkerRob[]>;
+  createBunkerRob(data: InsertBunkerRob): Promise<BunkerRob>;
+  getBunkerStats(vesselId: number): Promise<any>;
+
+  // Charter Party & Hire
+  getCharterParties(userId: string): Promise<CharterParty[]>;
+  getCharterParty(id: number): Promise<CharterParty | undefined>;
+  createCharterParty(data: InsertCharterParty): Promise<CharterParty>;
+  updateCharterParty(id: number, data: Partial<InsertCharterParty>): Promise<CharterParty | undefined>;
+  deleteCharterParty(id: number): Promise<boolean>;
+  getHirePayments(charterPartyId: number): Promise<HirePayment[]>;
+  createHirePayment(data: InsertHirePayment): Promise<HirePayment>;
+  updateHirePayment(id: number, data: Partial<InsertHirePayment>): Promise<HirePayment | undefined>;
+  getOffHireEvents(charterPartyId: number): Promise<OffHireEvent[]>;
+  createOffHireEvent(data: InsertOffHireEvent): Promise<OffHireEvent>;
+  updateOffHireEvent(id: number, data: Partial<InsertOffHireEvent>): Promise<OffHireEvent | undefined>;
+
+  // Crew STCW & Payroll
+  getCrewStcwCerts(crewId: number): Promise<CrewStcwCert[]>;
+  createCrewStcwCert(data: InsertCrewStcwCert): Promise<CrewStcwCert>;
+  updateCrewStcwCert(id: number, data: Partial<InsertCrewStcwCert>): Promise<CrewStcwCert | undefined>;
+  deleteCrewStcwCert(id: number): Promise<boolean>;
+  getCrewPayroll(vesselId: number): Promise<CrewPayroll[]>;
+  createCrewPayroll(data: InsertCrewPayroll): Promise<CrewPayroll>;
+  updateCrewPayroll(id: number, data: Partial<InsertCrewPayroll>): Promise<CrewPayroll | undefined>;
+  getCrewSummary(vesselId: number): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2031,11 +2108,20 @@ export class DatabaseStorage implements IStorage {
       lastName: vesselCrew.lastName,
       rank: vesselCrew.rank,
       nationality: vesselCrew.nationality,
+      contractStartDate: vesselCrew.contractStartDate,
       contractEndDate: vesselCrew.contractEndDate,
+      monthlySalary: vesselCrew.monthlySalary,
+      salaryCurrency: vesselCrew.salaryCurrency,
+      seamanBookNumber: vesselCrew.seamanBookNumber,
+      seamanBookExpiry: vesselCrew.seamanBookExpiry,
       passportNumber: vesselCrew.passportNumber,
       passportExpiry: vesselCrew.passportExpiry,
-      seamansBookNumber: vesselCrew.seamansBookNumber,
-      seamansBookExpiry: vesselCrew.seamansBookExpiry,
+      visaType: vesselCrew.visaType,
+      visaExpiry: vesselCrew.visaExpiry,
+      nextPortJoin: vesselCrew.nextPortJoin,
+      reliefDueDate: vesselCrew.reliefDueDate,
+      emergencyContactName: vesselCrew.emergencyContactName,
+      emergencyContactPhone: vesselCrew.emergencyContactPhone,
       passportFileBase64: vesselCrew.passportFileBase64,
       passportFileName: vesselCrew.passportFileName,
       passportFileUrl: vesselCrew.passportFileUrl,
@@ -2061,9 +2147,12 @@ export class DatabaseStorage implements IStorage {
     const toDate = (v: any) => v ? new Date(v) : null;
     const [row] = await db.insert(vesselCrew).values({
       ...data,
+      contractStartDate: toDate(data.contractStartDate) as any,
       contractEndDate: toDate(data.contractEndDate) as any,
       passportExpiry: toDate(data.passportExpiry) as any,
-      seamansBookExpiry: toDate(data.seamansBookExpiry) as any,
+      seamanBookExpiry: toDate(data.seamanBookExpiry) as any,
+      visaExpiry: toDate(data.visaExpiry) as any,
+      reliefDueDate: toDate(data.reliefDueDate) as any,
       medicalFitnessExpiry: toDate((data as any).medicalFitnessExpiry) as any,
     }).returning();
     return row;
@@ -2072,9 +2161,12 @@ export class DatabaseStorage implements IStorage {
   async updateVesselCrewMember(id: number, data: Partial<InsertVesselCrew>): Promise<VesselCrew | undefined> {
     const toDate = (v: any) => (v !== undefined ? (v ? new Date(v) : null) : undefined);
     const updateData: any = { ...data };
+    if (data.contractStartDate !== undefined) updateData.contractStartDate = toDate(data.contractStartDate);
     if (data.contractEndDate !== undefined) updateData.contractEndDate = toDate(data.contractEndDate);
     if (data.passportExpiry !== undefined) updateData.passportExpiry = toDate(data.passportExpiry);
-    if (data.seamansBookExpiry !== undefined) updateData.seamansBookExpiry = toDate(data.seamansBookExpiry);
+    if (data.seamanBookExpiry !== undefined) updateData.seamanBookExpiry = toDate(data.seamanBookExpiry);
+    if (data.visaExpiry !== undefined) updateData.visaExpiry = toDate(data.visaExpiry);
+    if (data.reliefDueDate !== undefined) updateData.reliefDueDate = toDate(data.reliefDueDate);
     if ((data as any).medicalFitnessExpiry !== undefined) updateData.medicalFitnessExpiry = toDate((data as any).medicalFitnessExpiry);
     const [row] = await db.update(vesselCrew).set(updateData).where(eq(vesselCrew.id, id)).returning();
     return row;
@@ -2083,6 +2175,59 @@ export class DatabaseStorage implements IStorage {
   async deleteVesselCrewMember(id: number): Promise<boolean> {
     const result = await db.delete(vesselCrew).where(eq(vesselCrew.id, id));
     return (result as any).rowCount > 0;
+  }
+
+  async getCrewStcwCertificates(crewId: number): Promise<CrewStcwCertificate[]> {
+    return db.select().from(crewStcwCertificates)
+      .where(eq(crewStcwCertificates.crewId, crewId))
+      .orderBy(asc(crewStcwCertificates.expiryDate));
+  }
+
+  async createCrewStcwCertificate(data: InsertCrewStcwCertificate): Promise<CrewStcwCertificate> {
+    const toDate = (v: any) => v ? new Date(v) : null;
+    const [row] = await db.insert(crewStcwCertificates).values({
+      ...data,
+      issueDate: toDate(data.issueDate) as any,
+      expiryDate: toDate(data.expiryDate) as any,
+    }).returning();
+    return row;
+  }
+
+  async updateCrewStcwCertificate(id: number, data: Partial<InsertCrewStcwCertificate>): Promise<CrewStcwCertificate | undefined> {
+    const toDate = (v: any) => (v !== undefined ? (v ? new Date(v) : null) : undefined);
+    const updateData: any = { ...data };
+    if (data.issueDate !== undefined) updateData.issueDate = toDate(data.issueDate);
+    if (data.expiryDate !== undefined) updateData.expiryDate = toDate(data.expiryDate);
+    const [row] = await db.update(crewStcwCertificates).set(updateData).where(eq(crewStcwCertificates.id, id)).returning();
+    return row;
+  }
+
+  async deleteCrewStcwCertificate(id: number): Promise<boolean> {
+    const result = await db.delete(crewStcwCertificates).where(eq(crewStcwCertificates.id, id));
+    return (result as any).rowCount > 0;
+  }
+
+  async getCrewPayroll(vesselId: number): Promise<CrewPayroll[]> {
+    return db.select().from(crewPayroll)
+      .where(eq(crewPayroll.vesselId, vesselId))
+      .orderBy(desc(crewPayroll.periodYear), desc(crewPayroll.periodMonth));
+  }
+
+  async createCrewPayroll(data: InsertCrewPayroll): Promise<CrewPayroll> {
+    const toDate = (v: any) => v ? new Date(v) : null;
+    const [row] = await db.insert(crewPayroll).values({
+      ...data,
+      paidDate: toDate(data.paidDate) as any,
+    }).returning();
+    return row;
+  }
+
+  async updateCrewPayroll(id: number, data: Partial<InsertCrewPayroll>): Promise<CrewPayroll | undefined> {
+    const toDate = (v: any) => (v !== undefined ? (v ? new Date(v) : null) : undefined);
+    const updateData: any = { ...data };
+    if (data.paidDate !== undefined) updateData.paidDate = toDate(data.paidDate);
+    const [row] = await db.update(crewPayroll).set(updateData).where(eq(crewPayroll.id, id)).returning();
+    return row;
   }
 
   // ─── PORT CALL APPOINTMENTS ─────────────────────────────────────────────────
@@ -2456,6 +2601,55 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
 
+  async getBunkerOrders(vesselId: number): Promise<BunkerOrder[]> {
+    return db.select().from(bunkerOrders)
+      .where(eq(bunkerOrders.vesselId, vesselId))
+      .orderBy(desc(bunkerOrders.orderDate));
+  }
+
+  async createBunkerOrder(data: InsertBunkerOrder): Promise<BunkerOrder> {
+    const [order] = await db.insert(bunkerOrders).values(data as any).returning();
+    return order;
+  }
+
+  async updateBunkerOrder(id: number, data: Partial<InsertBunkerOrder>): Promise<BunkerOrder | undefined> {
+    const [updated] = await db.update(bunkerOrders).set(data).where(eq(bunkerOrders.id, id)).returning();
+    return updated;
+  }
+
+  async deleteBunkerOrder(id: number): Promise<boolean> {
+    const [deleted] = await db.delete(bunkerOrders).where(eq(bunkerOrders.id, id)).returning();
+    return !!deleted;
+  }
+
+  async getBunkerRobs(vesselId: number): Promise<BunkerRob[]> {
+    return db.select().from(bunkerRobs)
+      .where(eq(bunkerRobs.vesselId, vesselId))
+      .orderBy(desc(bunkerRobs.reportDate));
+  }
+
+  async createBunkerRob(data: InsertBunkerRob): Promise<BunkerRob> {
+    const [rob] = await db.insert(bunkerRobs).values(data as any).returning();
+    return rob;
+  }
+
+  async getBunkerStats(vesselId: number): Promise<any> {
+    const orders = await this.getBunkerOrders(vesselId);
+    const robs = await this.getBunkerRobs(vesselId);
+
+    const latestRob = robs[0];
+    const totalCost = orders.reduce((sum, o) => sum + (o.totalCost || 0), 0);
+    const totalDelivered = orders.reduce((sum, o) => sum + (o.quantityDelivered || 0), 0);
+
+    return {
+      latestRob,
+      totalCost,
+      totalDelivered,
+      orderCount: orders.length,
+      lastReportDate: latestRob?.reportDate || null
+    };
+  }
+
   async getInvoicePayments(invoiceId: number): Promise<InvoicePayment[]> {
     return db.select().from(invoicePayments).where(eq(invoicePayments.invoiceId, invoiceId)).orderBy(desc(invoicePayments.paidAt));
   }
@@ -2529,6 +2723,253 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return !!updated;
+  }
+
+  async getNoonReports(vesselId: number, options?: { voyageId?: number; from?: Date; to?: Date }): Promise<NoonReport[]> {
+    const conditions = [eq(noonReports.vesselId, vesselId)];
+    if (options?.voyageId) conditions.push(eq(noonReports.voyageId, options.voyageId));
+    if (options?.from) conditions.push(gte(noonReports.reportDate, options.from));
+    if (options?.to) conditions.push(lte(noonReports.reportDate, options.to));
+
+    return db.select().from(noonReports)
+      .where(and(...conditions))
+      .orderBy(desc(noonReports.reportDate));
+  }
+
+  async createNoonReport(data: InsertNoonReport): Promise<NoonReport> {
+    const [report] = await db.insert(noonReports).values(data).returning();
+    return report;
+  }
+
+  async updateNoonReport(id: number, data: Partial<InsertNoonReport>): Promise<NoonReport | undefined> {
+    const [updated] = await db.update(noonReports).set(data).where(eq(noonReports.id, id)).returning();
+    return updated;
+  }
+
+  async deleteNoonReport(id: number): Promise<boolean> {
+    const [deleted] = await db.delete(noonReports).where(eq(noonReports.id, id)).returning();
+    return !!deleted;
+  }
+
+  async getVesselPerformanceStats(vesselId: number): Promise<any> {
+    const reports = await this.getNoonReports(vesselId);
+    if (reports.length === 0) return { avgSpeed: 0, avgDailyConsumption: 0, totalDistance: 0, reportDays: 0 };
+
+    const totalDistance = reports.reduce((sum, r) => sum + (Number(r.distanceLastNoon) || 0), 0);
+    const avgSpeed = reports.reduce((sum, r) => sum + (Number(r.speedOverGround) || 0), 0) / reports.length;
+    
+    const totalHfo = reports.reduce((sum, r) => sum + (Number(r.hfoConsumed) || 0), 0);
+    const totalMgo = reports.reduce((sum, r) => sum + (Number(r.mgoConsumed) || 0), 0);
+    const totalLsfo = reports.reduce((sum, r) => sum + (Number(r.lsfoConsumed) || 0), 0);
+    
+    const avgDailyConsumption = (totalHfo + totalMgo + totalLsfo) / reports.length;
+
+    return {
+      avgSpeed: Number(avgSpeed.toFixed(1)),
+      avgDailyConsumption: Number(avgDailyConsumption.toFixed(1)),
+      totalDistance: Number(totalDistance.toFixed(0)),
+      reportDays: reports.length
+    };
+  }
+
+  // ── PMS ────────────────────────────────────────────────────────────────────
+
+  async getVesselEquipment(vesselId: number): Promise<VesselEquipment[]> {
+    return db.select().from(vesselEquipment).where(eq(vesselEquipment.vesselId, vesselId)).orderBy(vesselEquipment.name);
+  }
+
+  async createVesselEquipment(data: InsertVesselEquipment): Promise<VesselEquipment> {
+    const [row] = await db.insert(vesselEquipment).values(data).returning();
+    return row;
+  }
+
+  async updateVesselEquipment(id: number, data: Partial<InsertVesselEquipment>): Promise<VesselEquipment | undefined> {
+    const [row] = await db.update(vesselEquipment).set(data).where(eq(vesselEquipment.id, id)).returning();
+    return row;
+  }
+
+  async deleteVesselEquipment(id: number): Promise<boolean> {
+    const [deleted] = await db.delete(vesselEquipment).where(eq(vesselEquipment.id, id)).returning();
+    return !!deleted;
+  }
+
+  async getMaintenanceJobs(vesselId: number, options?: { equipmentId?: number; status?: string }): Promise<any[]> {
+    const conditions = [eq(maintenanceJobs.vesselId, vesselId)];
+    if (options?.equipmentId) conditions.push(eq(maintenanceJobs.equipmentId, options.equipmentId));
+    if (options?.status) conditions.push(eq(maintenanceJobs.status, options.status));
+
+    return db.select().from(maintenanceJobs)
+      .where(and(...conditions))
+      .orderBy(desc(maintenanceJobs.nextDueDate), desc(maintenanceJobs.createdAt));
+  }
+
+  async createMaintenanceJob(data: InsertMaintenanceJob): Promise<MaintenanceJob> {
+    const [row] = await db.insert(maintenanceJobs).values(data).returning();
+    return row;
+  }
+
+  async updateMaintenanceJob(id: number, data: Partial<InsertMaintenanceJob>): Promise<MaintenanceJob | undefined> {
+    const [row] = await db.update(maintenanceJobs).set(data).where(eq(maintenanceJobs.id, id)).returning();
+    return row;
+  }
+
+  async getMaintenanceSummary(vesselId: number): Promise<any> {
+    const jobs = await this.getMaintenanceJobs(vesselId);
+    const now = new Date();
+    const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    return {
+      total: jobs.length,
+      overdue: jobs.filter(j => j.status === 'overdue' || (j.nextDueDate && new Date(j.nextDueDate) < now && j.status !== 'completed')).length,
+      upcoming: jobs.filter(j => j.nextDueDate && new Date(j.nextDueDate) >= now && new Date(j.nextDueDate) <= thirtyDays && j.status !== 'completed').length,
+      completed: jobs.filter(j => j.status === 'completed').length,
+    };
+  }
+
+  // ── Bunker ─────────────────────────────────────────────────────────────────
+
+  async getBunkerOrders(vesselId: number): Promise<BunkerOrder[]> {
+    return db.select().from(bunkerOrders).where(eq(bunkerOrders.vesselId, vesselId)).orderBy(desc(bunkerOrders.orderDate));
+  }
+
+  async createBunkerOrder(data: InsertBunkerOrder): Promise<BunkerOrder> {
+    const [row] = await db.insert(bunkerOrders).values(data).returning();
+    return row;
+  }
+
+  async updateBunkerOrder(id: number, data: Partial<InsertBunkerOrder>): Promise<BunkerOrder | undefined> {
+    const [row] = await db.update(bunkerOrders).set(data).where(eq(bunkerOrders.id, id)).returning();
+    return row;
+  }
+
+  async deleteBunkerOrder(id: number): Promise<boolean> {
+    const [deleted] = await db.delete(bunkerOrders).where(eq(bunkerOrders.id, id)).returning();
+    return !!deleted;
+  }
+
+  async getBunkerRobs(vesselId: number): Promise<BunkerRob[]> {
+    return db.select().from(bunkerRobs).where(eq(bunkerRobs.vesselId, vesselId)).orderBy(desc(bunkerRobs.reportDate));
+  }
+
+  async createBunkerRob(data: InsertBunkerRob): Promise<BunkerRob> {
+    const [row] = await db.insert(bunkerRobs).values(data).returning();
+    return row;
+  }
+
+  async getBunkerStats(vesselId: number): Promise<any> {
+    const robs = await this.getBunkerRobs(vesselId);
+    const latest = robs[0];
+    const totalConsumed = robs.reduce((acc, r) => ({
+      hfo: acc.hfo + (Number(r.hfoConsumed) || 0),
+      mgo: acc.mgo + (Number(r.mgoConsumed) || 0),
+      lsfo: acc.lsfo + (Number(r.lsfoConsumed) || 0),
+      vlsfo: acc.vlsfo + (Number(r.vlsfoConsumed) || 0),
+    }), { hfo: 0, mgo: 0, lsfo: 0, vlsfo: 0 });
+
+    return { latestRob: latest, totalConsumed };
+  }
+
+  // ── Charter Party ──────────────────────────────────────────────────────────
+
+  async getCharterParties(userId: string): Promise<CharterParty[]> {
+    return db.select().from(charterParties).where(eq(charterParties.userId, userId)).orderBy(desc(charterParties.cpDate));
+  }
+
+  async getCharterParty(id: number): Promise<CharterParty | undefined> {
+    const [row] = await db.select().from(charterParties).where(eq(charterParties.id, id));
+    return row;
+  }
+
+  async createCharterParty(data: InsertCharterParty): Promise<CharterParty> {
+    const [row] = await db.insert(charterParties).values(data).returning();
+    return row;
+  }
+
+  async updateCharterParty(id: number, data: Partial<InsertCharterParty>): Promise<CharterParty | undefined> {
+    const [row] = await db.update(charterParties).set(data).where(eq(charterParties.id, id)).returning();
+    return row;
+  }
+
+  async deleteCharterParty(id: number): Promise<boolean> {
+    const [deleted] = await db.delete(charterParties).where(eq(charterParties.id, id)).returning();
+    return !!deleted;
+  }
+
+  async getHirePayments(charterPartyId: number): Promise<HirePayment[]> {
+    return db.select().from(hirePayments).where(eq(hirePayments.charterPartyId, charterPartyId)).orderBy(desc(hirePayments.periodFrom));
+  }
+
+  async createHirePayment(data: InsertHirePayment): Promise<HirePayment> {
+    const [row] = await db.insert(hirePayments).values(data).returning();
+    return row;
+  }
+
+  async updateHirePayment(id: number, data: Partial<InsertHirePayment>): Promise<HirePayment | undefined> {
+    const [row] = await db.update(hirePayments).set(data).where(eq(hirePayments.id, id)).returning();
+    return row;
+  }
+
+  async getOffHireEvents(charterPartyId: number): Promise<OffHireEvent[]> {
+    return db.select().from(offHireEvents).where(eq(offHireEvents.charterPartyId, charterPartyId)).orderBy(desc(offHireEvents.startDatetime));
+  }
+
+  async createOffHireEvent(data: InsertOffHireEvent): Promise<OffHireEvent> {
+    const [row] = await db.insert(offHireEvents).values(data).returning();
+    return row;
+  }
+
+  async updateOffHireEvent(id: number, data: Partial<InsertOffHireEvent>): Promise<OffHireEvent | undefined> {
+    const [row] = await db.update(offHireEvents).set(data).where(eq(offHireEvents.id, id)).returning();
+    return row;
+  }
+
+  // ── Crew STCW & Payroll ────────────────────────────────────────────────────
+
+  async getCrewStcwCerts(crewId: number): Promise<CrewStcwCert[]> {
+    return db.select().from(crewStcwCertificates).where(eq(crewStcwCertificates.crewId, crewId)).orderBy(asc(crewStcwCertificates.expiryDate));
+  }
+
+  async createCrewStcwCert(data: InsertCrewStcwCert): Promise<CrewStcwCert> {
+    const [row] = await db.insert(crewStcwCertificates).values(data).returning();
+    return row;
+  }
+
+  async updateCrewStcwCert(id: number, data: Partial<InsertCrewStcwCert>): Promise<CrewStcwCert | undefined> {
+    const [row] = await db.update(crewStcwCertificates).set(data).where(eq(crewStcwCertificates.id, id)).returning();
+    return row;
+  }
+
+  async deleteCrewStcwCert(id: number): Promise<boolean> {
+    const [deleted] = await db.delete(crewStcwCertificates).where(eq(crewStcwCertificates.id, id)).returning();
+    return !!deleted;
+  }
+
+  async getCrewPayroll(vesselId: number): Promise<CrewPayroll[]> {
+    return db.select().from(crewPayroll).where(eq(crewPayroll.vesselId, vesselId)).orderBy(desc(crewPayroll.periodYear), desc(crewPayroll.periodMonth));
+  }
+
+  async createCrewPayroll(data: InsertCrewPayroll): Promise<CrewPayroll> {
+    const [row] = await db.insert(crewPayroll).values(data).returning();
+    return row;
+  }
+
+  async updateCrewPayroll(id: number, data: Partial<InsertCrewPayroll>): Promise<CrewPayroll | undefined> {
+    const [row] = await db.update(crewPayroll).set(data).where(eq(crewPayroll.id, id)).returning();
+    return row;
+  }
+
+  async getCrewSummary(vesselId: number): Promise<any> {
+    const crew = await this.getVesselCrew(vesselId);
+    const now = new Date();
+    const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    
+    const certs = await db.select().from(crewStcwCertificates).where(eq(crewStcwCertificates.vesselId, vesselId));
+    
+    return {
+      totalCrew: crew.length,
+      expiringCerts: certs.filter(c => new Date(c.expiryDate) >= now && new Date(c.expiryDate) <= thirtyDays).length,
+      expiredCerts: certs.filter(c => new Date(c.expiryDate) < now).length,
+    };
   }
 }
 
