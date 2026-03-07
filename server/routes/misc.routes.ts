@@ -29,6 +29,122 @@ router.get("/api/certificates/expiring", isAuthenticated, async (req: any, res) 
 });
 
 
+router.post("/api/invoices/bulk-update", isAuthenticated, async (req: any, res) => {
+  try {
+    const { ids, action } = req.body;
+    const userId = req.user?.claims?.sub || req.user?.id;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No IDs provided" });
+    }
+
+    if (action === "markPaid") {
+      for (const id of ids) {
+        const balance = await storage.getInvoiceBalance(id);
+        if (balance.balance > 0) {
+          await storage.createInvoicePayment({
+            invoiceId: id,
+            amount: balance.balance,
+            currency: "USD",
+            paidAt: new Date(),
+            paymentMethod: "bank_transfer",
+            recordedBy: userId
+          });
+        }
+      }
+    } else if (action === "sendReminder") {
+      const { sendSingleReminder } = await import("../payment-reminders");
+      for (const id of ids) {
+        const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id)).limit(1);
+        if (invoice && invoice.recipientEmail && invoice.status !== "paid" && invoice.status !== "cancelled") {
+          await sendSingleReminder({
+            id: invoice.id,
+            title: invoice.title,
+            amount: invoice.amount,
+            currency: invoice.currency,
+            dueDate: invoice.dueDate,
+            recipientEmail: invoice.recipientEmail,
+            recipientName: invoice.recipientName,
+            status: invoice.status,
+          });
+        }
+      }
+    } else {
+      return res.status(400).json({ message: "Invalid action" });
+    }
+
+    res.json({ success: true, count: ids.length });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || "Bulk update failed" });
+  }
+});
+
+router.post("/api/voyages/bulk-close", isAuthenticated, async (req: any, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No IDs provided" });
+    }
+
+    const { voyages } = await import("@shared/schema");
+    await db.update(voyages)
+      .set({ status: "completed" })
+      .where(sql`${voyages.id} IN (\${ids.join(",")})`);
+
+    res.json({ success: true, count: ids.length });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || "Bulk close failed" });
+  }
+});
+
+router.post("/api/port-expenses/import", isAuthenticated, multer({ storage: multer.memoryStorage() }).single("file"), async (req: any, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const voyageId = req.body.voyageId ? parseInt(req.body.voyageId) : null;
+    
+    const csvContent = req.file.buffer.toString("utf-8");
+    const lines = csvContent.split("\n");
+    const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+    
+    const importedCount = 0;
+    const { portExpenses } = await import("@shared/schema");
+    
+    const inserts = [];
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      const values = line.split(",").map(v => v.trim());
+      const data: any = {};
+      headers.forEach((header, idx) => {
+        data[header] = values[idx];
+      });
+
+      inserts.push({
+        userId,
+        voyageId: voyageId || (data.voyageid ? parseInt(data.voyageid) : null),
+        category: data.category || "other",
+        description: data.description || null,
+        amount: parseFloat(data.amount) || 0,
+        currency: data.currency || "USD",
+        vendor: data.vendor || null,
+        receiptNumber: data.receiptnumber || null,
+        expenseDate: data.date ? new Date(data.date) : new Date(),
+        isPaid: false
+      });
+    }
+
+    if (inserts.length > 0) {
+      await db.insert(portExpenses).values(inserts);
+    }
+
+    res.json({ success: true, count: inserts.length });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || "Import failed" });
+  }
+});
+
 router.get("/api/document-templates", isAuthenticated, async (_req, res) => {
   try {
     const templates = await cached('document-templates', 'daily', () => storage.getDocumentTemplates());

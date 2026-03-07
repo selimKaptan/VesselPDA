@@ -9,6 +9,8 @@ import type { Vessel, Proforma } from "@shared/schema";
 import { ProformaTrendChart, TenderTrendChart, VoyageTrendChart, StatusDistributionChart } from "./dashboard-charts";
 import { AiSmartDropMini } from "@/components/ai-smart-drop";
 import { fmtDate } from "@/lib/formatDate";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 function formatCountdown(etaStr: string): { text: string; className: string } {
   const diff = new Date(etaStr).getTime() - Date.now();
@@ -160,9 +162,11 @@ export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, p
   proformasLoading?: boolean; tenders: any[]; notificationsData: any; plan: string;
   proformaCount: number; proformaLimit: number;
 }) {
+  const { toast } = useToast();
   const { data: voyages, isLoading: voyagesLoading } = useQuery<any[]>({ queryKey: ["/api/voyages"] });
   const { data: pendingApprovalList, isLoading: pendingLoading } = useQuery<any[]>({ queryKey: ["/api/proformas/pending-approval"] });
   const { data: dashStatsData } = useQuery<any>({ queryKey: ["/api/stats/dashboard"] });
+  const { data: financialActivity } = useQuery<any[]>({ queryKey: ["/api/invoices/recent"] });
   const dashStats = dashStatsData?.stats;
 
   const activeVoyages = (voyages || []).filter((v: any) => ["in_progress", "scheduled", "planned"].includes(v.status)).length;
@@ -349,8 +353,8 @@ export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, p
               ) : (
                 <div className="space-y-1.5">
                   {(pendingApprovalList || []).slice(0, 5).map((pda: any) => (
-                    <Link key={pda.id} href={`/proformas/${pda.id}`}>
-                      <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group border border-amber-200/50 dark:border-amber-800/30 bg-amber-50/50 dark:bg-amber-950/10" data-testid={`row-pda-approval-${pda.id}`}>
+                    <div key={pda.id} className="flex items-center justify-between gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors border border-amber-200/50 dark:border-amber-800/30 bg-amber-50/50 dark:bg-amber-950/10" data-testid={`row-pda-approval-${pda.id}`}>
+                      <Link href={`/proformas/${pda.id}`} className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-7 h-7 rounded-md bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
                             <FileText className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
@@ -360,14 +364,44 @@ export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, p
                             <p className="text-xs text-muted-foreground truncate">{pda.portName || pda.purposeOfCall || "—"}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {pda.totalUsd && <span className="text-sm font-bold text-[hsl(var(--maritime-primary))]">${Number(pda.totalUsd).toLocaleString()}</span>}
-                          <Button size="sm" variant="outline" className="h-6 text-[10px] px-2 border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-400" data-testid={`button-review-pda-${pda.id}`}>
-                            Review →
+                      </Link>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {pda.totalUsd && <span className="text-sm font-bold text-[hsl(var(--maritime-primary))] mr-2">${Number(pda.totalUsd).toLocaleString()}</span>}
+                        <div className="flex gap-1">
+                          <Button 
+                            size="sm" 
+                            className="h-7 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            onClick={async () => {
+                              try {
+                                await apiRequest("POST", `/api/proformas/${pda.id}/approve`);
+                                queryClient.invalidateQueries({ queryKey: ["/api/proformas/pending-approval"] });
+                                toast({ title: "Approved", description: `PDA for ${pda.vesselName} approved.` });
+                              } catch (e) {
+                                toast({ title: "Error", variant: "destructive" });
+                              }
+                            }}
+                          >
+                            Approve
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            className="h-7 text-[10px] px-2 border-red-200 text-red-600 hover:bg-red-50"
+                            onClick={async () => {
+                              try {
+                                await apiRequest("POST", `/api/proformas/${pda.id}/reject`);
+                                queryClient.invalidateQueries({ queryKey: ["/api/proformas/pending-approval"] });
+                                toast({ title: "Rejected", description: `PDA for ${pda.vesselName} rejected.` });
+                              } catch (e) {
+                                toast({ title: "Error", variant: "destructive" });
+                              }
+                            }}
+                          >
+                            Reject
                           </Button>
                         </div>
                       </div>
-                    </Link>
+                    </div>
                   ))}
                 </div>
               )}
@@ -394,27 +428,84 @@ export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, p
               </div>
             ) : (
               <div className="space-y-1.5">
-                {recentVessels.map((v) => (
-                  <Link key={v.id} href="/vessels">
-                    <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group" data-testid={`row-vessel-${v.id}`}>
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-lg flex-shrink-0">{FLAG_EMOJI[v.flag] || "🚢"}</span>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{v.name}</p>
-                          <p className="text-xs text-muted-foreground">{v.flag} · {v.grt?.toLocaleString()} GRT</p>
+                {recentVessels.map((v) => {
+                  const vesselVoyages = (voyages || []).filter(voy => voy.vesselId === v.id && ["in_progress", "active"].includes(voy.status));
+                  const openInvoices = (financialActivity || []).filter(inv => inv.vesselId === v.id && !inv.isPaid);
+                  const invoiceTotal = openInvoices.reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
+                  
+                  return (
+                    <Link key={v.id} href="/vessels">
+                      <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group border border-transparent hover:border-border/50" data-testid={`row-vessel-${v.id}`}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-lg flex-shrink-0">{FLAG_EMOJI[v.flag] || "🚢"}</span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{v.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{v.flag} · {v.grt?.toLocaleString()} GRT</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4 text-right shrink-0">
+                          <div>
+                            <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-tighter">Active Voyages</p>
+                            <p className="text-sm font-bold">{vesselVoyages.length}</p>
+                          </div>
+                          {invoiceTotal > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold text-red-500 uppercase tracking-tighter">Open Invoices</p>
+                              <p className="text-sm font-bold text-red-600">${invoiceTotal.toLocaleString()}</p>
+                            </div>
+                          )}
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0 border-[hsl(var(--maritime-primary)/0.3)] text-[hsl(var(--maritime-primary))] hidden sm:inline-flex">
+                            {v.vesselType}
+                          </Badge>
                         </div>
                       </div>
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex-shrink-0 border-[hsl(var(--maritime-primary)/0.3)] text-[hsl(var(--maritime-primary))]">
-                        {v.vesselType}
-                      </Badge>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
                 <Link href="/vessels?new=true">
                   <Button variant="ghost" size="sm" className="w-full mt-1 gap-1.5 text-muted-foreground hover:text-foreground border border-dashed border-border/50">
                     <Plus className="w-3.5 h-3.5" /> Add Vessel
                   </Button>
                 </Link>
+              </div>
+            )}
+          </Card>
+
+          {/* Recent Financial Activity */}
+          <Card className="p-5 space-y-3" data-testid="card-financial-activity">
+            <div className="flex items-center justify-between">
+              <h2 className="font-serif font-semibold text-base flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-muted-foreground/60" /> Recent Financial Activity
+              </h2>
+              <Link href="/invoices">
+                <Button variant="ghost" size="sm" className="gap-1 text-xs h-7">View All <ArrowRight className="w-3 h-3" /></Button>
+              </Link>
+            </div>
+            {(!financialActivity) ? (
+              <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full rounded-lg" />)}</div>
+            ) : financialActivity.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No recent financial activity</p>
+            ) : (
+              <div className="space-y-1">
+                {financialActivity.slice(0, 5).map((inv: any) => (
+                  <div key={inv.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/40 transition-colors border-b last:border-0 border-border/50" data-testid={`row-recent-invoice-${inv.id}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${inv.isPaid ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                        <Receipt className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{inv.title}</p>
+                        <p className="text-[10px] text-muted-foreground">{inv.vesselName} · {fmtDate(inv.createdAt)}</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-bold">${Number(inv.amount).toLocaleString()}</p>
+                      <Badge variant="outline" className={`text-[10px] px-1 py-0 ${inv.isPaid ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                        {inv.isPaid ? 'Paid' : 'Pending'}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </Card>

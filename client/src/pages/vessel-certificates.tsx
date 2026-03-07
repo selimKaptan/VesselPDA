@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ShieldCheck, Plus, Trash2, Pencil, AlertTriangle, CheckCircle2, Clock, Loader2, BadgeCheck, HelpCircle } from "lucide-react";
+import { ShieldCheck, Plus, Trash2, Pencil, AlertTriangle, CheckCircle2, Clock, Loader2, BadgeCheck, HelpCircle, FileDown } from "lucide-react";
+import { exportToCsv } from "@/lib/export-csv";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -115,9 +116,30 @@ export default function VesselCertificates() {
     setDialogOpen(true);
   };
 
+  const [files, setFiles] = useState<{ base64: string; name: string; size: number }[]>([]);
+
+  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(e.target.files || []);
+    const newFiles: { base64: string; name: string; size: number }[] = [];
+    for (const file of selectedFiles) {
+      const reader = new FileReader();
+      const promise = new Promise<void>((resolve) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          const base64 = result.split(",")[1];
+          newFiles.push({ base64, name: file.name, size: file.size });
+          resolve();
+        };
+      });
+      reader.readAsDataURL(file);
+      await promise;
+    }
+    setFiles(prev => [...prev, ...newFiles]);
+  };
+
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = {
+      const commonPayload = {
         ...form,
         issuedAt: form.issuedAt || null,
         expiresAt: form.expiresAt || null,
@@ -125,17 +147,39 @@ export default function VesselCertificates() {
         certificateNumber: form.certificateNumber || null,
         notes: form.notes || null,
       };
+
       if (editCert?.id) {
+        const payload: any = { ...commonPayload };
+        if (files.length > 0) {
+          payload.fileBase64 = files[0].base64;
+          payload.fileName = files[0].name;
+          payload.fileSize = files[0].size;
+        }
         return apiRequest("PATCH", `/api/vessels/${editCert.vesselId}/certificates/${editCert.id}`, payload);
-      } else {
-        return apiRequest("POST", `/api/vessels/${editCert.vesselId}/certificates`, payload);
       }
+
+      if (files.length > 0) {
+        const promises = files.map((file, idx) => {
+          const payload = {
+            ...commonPayload,
+            name: files.length > 1 ? `${form.name} (${idx + 1})` : form.name,
+            fileBase64: file.base64,
+            fileName: file.name,
+            fileSize: file.size,
+          };
+          return apiRequest("POST", `/api/vessels/${editCert.vesselId}/certificates`, payload);
+        });
+        return Promise.all(promises);
+      }
+
+      return apiRequest("POST", `/api/vessels/${editCert.vesselId}/certificates`, commonPayload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/certificates/all"] });
       queryClient.invalidateQueries({ queryKey: ["/api/certificates/expiring"] });
       toast({ title: editCert?.id ? "Certificate updated" : "Certificate added" });
       setDialogOpen(false);
+      setFiles([]);
     },
     onError: () => toast({ title: "Error", description: "Operation failed", variant: "destructive" }),
   });
@@ -160,12 +204,38 @@ export default function VesselCertificates() {
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
       <PageMeta title="Vessel Certificates | VesselPDA" description="Vessel certificate tracking and management" />
 
-      <div className="flex items-center gap-3">
-        <BadgeCheck className="w-7 h-7 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold text-foreground font-serif">Vessel Certificates</h1>
-          <p className="text-sm text-muted-foreground">Track all certificates and monitor upcoming expiry dates</p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <BadgeCheck className="w-7 h-7 text-primary" />
+          <div>
+            <h1 className="text-2xl font-bold text-foreground font-serif">Vessel Certificates</h1>
+            <p className="text-sm text-muted-foreground">Track all certificates and monitor upcoming expiry dates</p>
+          </div>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2"
+          data-testid="button-export-cert-list"
+          onClick={() => {
+            const certMap = certsByVessel.data || {};
+            const allCerts = (vessels || []).flatMap((v: any) =>
+              (certMap[v.id] || []).map((c: any) => ({
+                Vessel: v.name,
+                Certificate: c.name,
+                Type: c.certType,
+                Category: c.category || "",
+                "Expiry Date": c.expiresAt ? fmtDate(c.expiresAt) : "",
+                Status: c.status,
+                "Renewal Status": c.renewalStatus || "none",
+              }))
+            );
+            exportToCsv(allCerts, "vessel-certificates");
+          }}
+        >
+          <FileDown className="w-4 h-4" />
+          Export List
+        </Button>
       </div>
 
       {expiring.length > 0 && (
@@ -293,6 +363,22 @@ export default function VesselCertificates() {
               <div className="col-span-2">
                 <Label>Notes</Label>
                 <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="optional" data-testid="textarea-cert-notes" />
+              </div>
+              <div className="col-span-2">
+                <Label>Files (Multiple allowed)</Label>
+                <Input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={handleFiles} className="mt-1" />
+                {files.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {files.map((f, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs bg-muted p-1.5 rounded">
+                        <span className="truncate flex-1 mr-2">{f.name}</span>
+                        <Button variant="ghost" size="icon" className="h-4 w-4" onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

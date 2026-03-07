@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useSearch } from "wouter";
-import { DollarSign, Plus, CheckCircle2, Clock, XCircle, AlertTriangle, FileText, Bell, X, Receipt, Download, FileDown, History, ChevronDown, ChevronUp } from "lucide-react";
+import { DollarSign, Plus, CheckCircle2, Clock, XCircle, AlertTriangle, FileText, Bell, X, Receipt, Download, FileDown, History, ChevronDown, ChevronUp, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
@@ -20,6 +21,7 @@ import { fmtDate } from "@/lib/formatDate";
 import { exportToCsv } from "@/lib/export-csv";
 import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { FloatingBulkActionBar } from "@/components/layout/floating-bulk-action-bar";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   pending:   { label: "Pending",   color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",  icon: Clock },
@@ -61,7 +63,7 @@ function getDueDateBadge(dueDateStr: string | null, status: string): { label: st
   return { label: `Due ${fmtDate(due)}`, className: "bg-muted text-muted-foreground" };
 }
 
-function InvoiceCard({ inv, cfg, StatusIcon, onPayFull, onPartialPayment, onCancel, onRemind, isPaying, isCancelling, isReminding }: any) {
+function InvoiceCard({ inv, cfg, StatusIcon, onPayFull, onPartialPayment, onCancel, onRemind, isPaying, isCancelling, isReminding, isSelected, onSelect }: any) {
   const [isOpen, setIsOpen] = useState(false);
   const { data: payments = [], isLoading: loadingPayments } = useQuery<any[]>({
     queryKey: [`/api/invoices/${inv.id}/payments`],
@@ -73,9 +75,19 @@ function InvoiceCard({ inv, cfg, StatusIcon, onPayFull, onPartialPayment, onCanc
   const progress = Math.min(100, (amountPaid / totalAmount) * 100);
 
   return (
-    <Card className="overflow-hidden border-muted-foreground/10" data-testid={`invoice-card-${inv.id}`}>
+    <Card className={`overflow-hidden border-muted-foreground/10 group relative transition-all ${isSelected ? 'ring-2 ring-primary bg-primary/5' : ''}`} data-testid={`invoice-card-${inv.id}`}>
+      {/* Checkbox Overlay */}
+      <div className={`absolute top-3 left-3 z-10 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+        <Checkbox 
+          checked={isSelected} 
+          onCheckedChange={() => onSelect(inv.id)} 
+          className="h-5 w-5 bg-background shadow-sm border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+          data-testid={`checkbox-invoice-${inv.id}`}
+        />
+      </div>
+
       <div className="p-4 flex flex-col sm:flex-row sm:items-center gap-4">
-        <div className="flex items-start gap-3 flex-1 min-w-0">
+        <div className="flex items-start gap-3 flex-1 min-w-0 ml-8 sm:ml-7">
           <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
             <FileText className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
           </div>
@@ -262,6 +274,30 @@ export default function Invoices() {
     portName: "",
     recipientName: "",
     recipientEmail: "",
+  });
+
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async ({ ids, action }: { ids: number[], action: "markPaid" | "sendReminder" }) => {
+      const res = await apiRequest("POST", "/api/invoices/bulk-update", { ids, action });
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      setSelectedIds([]);
+      toast({ 
+        title: "Bulk update successful", 
+        description: `Successfully ${variables.action === 'markPaid' ? 'marked as paid' : 'sent reminders for'} ${variables.ids.length} invoices.` 
+      });
+    },
+    onError: (err: any) => toast({ title: "Bulk update failed", description: err?.message, variant: "destructive" }),
   });
 
   const { data: invoices = [], isLoading } = useQuery<any[]>({
@@ -549,11 +585,52 @@ export default function Invoices() {
                 isPaying={payMutation.isPending}
                 isCancelling={cancelMutation.isPending}
                 isReminding={reminderMutation.isPending}
+                isSelected={selectedIds.includes(inv.id)}
+                onSelect={toggleSelect}
               />
             );
           })}
         </div>
       )}
+
+      <FloatingBulkActionBar 
+        selectedCount={selectedIds.length}
+        onClear={() => setSelectedIds([])}
+        actions={[
+          {
+            label: "Mark Paid",
+            icon: Check,
+            onClick: () => bulkUpdateMutation.mutate({ ids: selectedIds, action: "markPaid" }),
+            isLoading: bulkUpdateMutation.isPending && bulkUpdateMutation.variables?.action === "markPaid"
+          },
+          {
+            label: "Send Reminders",
+            icon: Bell,
+            onClick: () => bulkUpdateMutation.mutate({ ids: selectedIds, action: "sendReminder" }),
+            isLoading: bulkUpdateMutation.isPending && bulkUpdateMutation.variables?.action === "sendReminder"
+          },
+          {
+            label: "Export CSV",
+            icon: FileDown,
+            onClick: () => {
+              const selectedInvoices = invoices.filter(inv => selectedIds.includes(inv.id));
+              const rows = selectedInvoices.map(inv => ({
+                ID: inv.id,
+                Title: inv.title,
+                Type: TYPE_LABELS[inv.invoiceType] || inv.invoiceType,
+                Amount: inv.amount,
+                Currency: inv.currency,
+                Status: inv.status,
+                'Due Date': inv.dueDate ? fmtDate(inv.dueDate) : '',
+                'Paid At': inv.paidAt ? fmtDate(inv.paidAt) : '',
+                Recipient: inv.recipientEmail || inv.recipientName || '',
+                Voyage: inv.vesselName || inv.voyageId || ''
+              }));
+              exportToCsv(`Selected-Invoices-${new Date().toISOString().split('T')[0]}.csv`, rows);
+            }
+          }
+        ]}
+      />
 
       {/* Payment Dialog */}
       <Dialog open={showPaymentDialog !== null} onOpenChange={(open) => !open && setShowPaymentDialog(null)}>

@@ -29,17 +29,26 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
 - **Navigation System**: Icon rail with an expandable panel and comprehensive information architecture.
 - **Admin Tools**: User management and audit log system.
 - **Dashboards**: Role-specific dashboards enriched with operational data, including alerts for pending actions.
-- **Analytics & Reporting**: Dashboard with KPIs, trends, and drill-down capabilities for voyages, invoices, and vessel activity.
+- **Analytics & Reporting**: Dashboard with KPIs, trends, and drill-down capabilities for voyages, invoices, and vessel activity. Custom date range picker, vessel profitability comparison chart, port performance comparison chart, KPI trend arrows (period-over-period).
 - **Global Search**: Comprehensive search functionality including invoices and FDA accounts.
 - **Security**: Helmet Content-Security-Policy headers configured.
 - **Demo System**: Server-side seeding for pre-populated demo accounts.
-- **Mobile Responsiveness**: Optimized UI for various modules on mobile devices.
-- **CSV Export**: Export buttons on Invoices, Voyages, Port Expenses, DA Advances, and Analytics pages.
+- **Mobile Responsiveness**: Optimized UI for various modules on mobile devices. voyage-detail.tsx fully responsive (scrollable tab bar, responsive grids, overflow-x-auto tables, flexible widths).
+- **CSV Export**: Export buttons on Invoices, Voyages, Port Expenses, DA Advances, Analytics, and Vessel Certificates pages.
+- **CSV Import**: Port Expense bulk import via CSV file upload with column validation and voyage association.
+- **Bulk Operations**: Multi-select invoices and voyages with floating bulk action bar (bulk mark paid, send reminder, bulk close, export).
 - **Proforma Revision History UI**: Visual timeline of approval/revision actions on proforma detail view, revision count badges on list.
 - **Service Offer → Invoice Auto-creation**: When a service offer is selected, invoice auto-created with "Invoice Created" badge and "View Invoice" link.
 - **Voyage Completion Workflow**: "Complete Voyage" close-out with checklist dialog (FDA/Invoice/DA Advance checks) and summary modal.
 - **Unified Action Center**: `/actions` page aggregating all pending tasks (overdue invoices, expiring certs, pending advances, voyages needing FDA) with sidebar badge and top bar indicator.
 - **FDA Mapping Templates**: Save and reuse PDA→Port Expense category mappings via new `fda_mapping_templates` table; manageable in Settings → FDA Templates tab.
+- **Voyage Financial Report PDF**: Comprehensive PDF download from voyage detail (PDA/FDA comparison, port expenses, invoice summary, net balance).
+- **Agent Commission Module**: Commission calculation per voyage (% or fixed), Settings → Commissions tab, commission status tracking.
+- **Onboarding Improvements**: Getting Started checklist widget on dashboards, feature discovery tooltips on key pages.
+- **Automated Email Notifications**: Cron-triggered emails for invoice due dates (7d/1d), certificate expiry (30d), DA advance due (14d), payment confirmations. Configurable in Settings → Notifications.
+- **Voyage Notes & Tasks**: Notes/comments timeline on voyage detail (Notes & Tasks tab) with note types (comment/observation/alert/milestone), privacy toggle, and author attribution.
+- **Shipowner Portal**: Role-based voyage detail simplification (shipowners see only Overview, Financial, Documents, Notes tabs; read-only badge; simplified shipowner dashboard with pending approvals and fleet summary).
+- **Document Management Extensions**: Multi-file certificate upload, renewal workflow (schedule + status tracking), renewal status color-coding (blue=scheduled), Export List CSV for all certificates.
 
 ## External Dependencies
 - **PostgreSQL**: Primary relational database.

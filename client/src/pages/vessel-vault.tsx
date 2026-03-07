@@ -80,14 +80,22 @@ function certStatus(cert: CertRecord | undefined, today = new Date()): "valid" |
   return "valid";
 }
 
-function StatusBadge({ status }: { status: "valid" | "expiring" | "expired" | "missing" }) {
+function StatusBadge({ cert }: { cert: CertRecord | undefined }) {
+  const status = certStatus(cert);
+  if (cert?.renewalStatus && cert.renewalStatus !== "none" && cert.renewalStatus !== "renewed") {
+    return <Badge className="text-[10px] h-5 px-1.5 bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border-0">Renewal Scheduled</Badge>;
+  }
   if (status === "valid") return <Badge className="text-[10px] h-5 px-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-0">Valid</Badge>;
   if (status === "expiring") return <Badge className="text-[10px] h-5 px-1.5 bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-0">Expiring Soon</Badge>;
   if (status === "expired") return <Badge className="text-[10px] h-5 px-1.5 bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-0">Expired</Badge>;
   return <Badge className="text-[10px] h-5 px-1.5 bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-0">Not Uploaded</Badge>;
 }
 
-function StatusIcon({ status }: { status: "valid" | "expiring" | "expired" | "missing" }) {
+function StatusIcon({ cert }: { cert: CertRecord | undefined }) {
+  const status = certStatus(cert);
+  if (cert?.renewalStatus && cert.renewalStatus !== "none" && cert.renewalStatus !== "renewed") {
+    return <Clock className="w-4 h-4 text-blue-500 flex-shrink-0" />;
+  }
   if (status === "valid") return <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />;
   if (status === "expiring") return <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />;
   if (status === "expired") return <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />;
@@ -119,45 +127,100 @@ function UploadDialog({ open, onClose, vesselId, category, vaultDocType, docName
     issuedAt: existingCert?.issuedAt ? existingCert.issuedAt.split("T")[0] : "",
     expiresAt: existingCert?.expiresAt ? existingCert.expiresAt.split("T")[0] : "",
     notes: existingCert?.notes || "",
+    renewalStatus: existingCert?.renewalStatus || "none",
+    renewalPlannedDate: existingCert?.renewalPlannedDate ? existingCert.renewalPlannedDate.split("T")[0] : "",
   });
-  const [fileData, setFileData] = useState<{ base64: string; name: string; size: number } | null>(null);
+  const [files, setFiles] = useState<{ base64: string; name: string; size: number }[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
 
   const f = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const base64 = result.split(",")[1];
-      setFileData({ base64, name: file.name, size: file.size });
-    };
-    reader.readAsDataURL(file);
+  async function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const selectedFiles = Array.from(e.target.files || []);
+    if (selectedFiles.length === 0) return;
+
+    const newFiles: { base64: string; name: string; size: number }[] = [];
+    for (const file of selectedFiles) {
+      const reader = new FileReader();
+      const promise = new Promise<void>((resolve) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          const base64 = result.split(",")[1];
+          newFiles.push({ base64, name: file.name, size: file.size });
+          resolve();
+        };
+      });
+      reader.readAsDataURL(file);
+      await promise;
+    }
+    setFiles(prev => [...prev, ...newFiles]);
   }
+
+  const removeFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+  };
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const payload: any = {
-        name: form.name || docName || "Document",
-        certType: vaultDocType || category,
-        category,
-        vaultDocType: vaultDocType || null,
+      const commonPayload: any = {
         issuingAuthority: form.issuingAuthority || null,
         certificateNumber: form.certificateNumber || null,
         issuedAt: form.issuedAt || null,
         expiresAt: form.expiresAt || null,
         notes: form.notes || null,
         status: "valid",
+        renewalStatus: form.renewalStatus,
+        renewalPlannedDate: form.renewalPlannedDate || null,
       };
-      if (fileData) {
-        payload.fileBase64 = fileData.base64;
-        payload.fileName = fileData.name;
-        payload.fileSize = fileData.size;
-      }
+
       if (existingCert) {
+        const payload = {
+          ...commonPayload,
+          name: form.name || docName || "Document",
+          certType: vaultDocType || category,
+          category,
+          vaultDocType: vaultDocType || null,
+        };
+        if (files.length > 0) {
+          payload.fileBase64 = files[0].base64;
+          payload.fileName = files[0].name;
+          payload.fileSize = files[0].size;
+        }
         return apiRequest("PATCH", `/api/vessels/${vesselId}/certificates/${existingCert.id}`, payload);
       }
+
+      // Bulk upload
+      if (files.length > 0) {
+        const promises = files.map((file, idx) => {
+          const payload = {
+            ...commonPayload,
+            name: files.length > 1 ? `${form.name || docName || "Document"} (${idx + 1})` : (form.name || docName || "Document"),
+            certType: vaultDocType || category,
+            category,
+            vaultDocType: vaultDocType || null,
+            fileBase64: file.base64,
+            fileName: file.name,
+            fileSize: file.size,
+          };
+          
+          // Simple progress simulation for each file
+          setUploadProgress(prev => ({ ...prev, [file.name]: 10 }));
+          return apiRequest("POST", `/api/vessels/${vesselId}/certificates`, payload).then(res => {
+            setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+            return res;
+          });
+        });
+        return Promise.all(promises);
+      }
+
+      // No files, just metadata
+      const payload = {
+        ...commonPayload,
+        name: form.name || docName || "Document",
+        certType: vaultDocType || category,
+        category,
+        vaultDocType: vaultDocType || null,
+      };
       return apiRequest("POST", `/api/vessels/${vesselId}/certificates`, payload);
     },
     onSuccess: () => {
@@ -205,37 +268,75 @@ function UploadDialog({ open, onClose, vesselId, category, vaultDocType, docName
               <Input type="date" value={form.expiresAt} onChange={e => f("expiresAt", e.target.value)} data-testid="input-cert-expiry" />
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Renewal Status</Label>
+              <Select value={form.renewalStatus} onValueChange={v => f("renewalStatus", v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="renewed">Renewed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Planned Renewal Date</Label>
+              <Input type="date" value={form.renewalPlannedDate} onChange={e => f("renewalPlannedDate", e.target.value)} />
+            </div>
+          </div>
+
           <div className="space-y-1">
             <Label>Notes</Label>
             <Textarea value={form.notes} onChange={e => f("notes", e.target.value)} placeholder="Optional notes…" className="h-20 resize-none" data-testid="input-cert-notes" />
           </div>
           <div className="space-y-1">
-            <Label>File (PDF / Image)</Label>
+            <Label>Files (PDF / Image)</Label>
             <div
               className="border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:bg-muted/30 transition-colors"
               onClick={() => fileRef.current?.click()}
               data-testid="dropzone-cert-file"
             >
-              {fileData ? (
-                <div className="flex items-center justify-center gap-2 text-sm">
-                  <FileText className="w-4 h-4 text-blue-500" />
-                  <span className="font-medium">{fileData.name}</span>
-                  <span className="text-muted-foreground text-xs">({Math.round(fileData.size / 1024)} KB)</span>
-                </div>
-              ) : existingCert?.fileName ? (
-                <div className="flex items-center justify-center gap-2 text-sm">
-                  <FileText className="w-4 h-4 text-blue-500" />
-                  <span className="font-medium">{existingCert.fileName}</span>
-                  <span className="text-muted-foreground text-xs ml-1">(replace?)</span>
-                </div>
-              ) : (
-                <div className="text-muted-foreground">
-                  <Upload className="w-6 h-6 mx-auto mb-1 opacity-50" />
-                  <p className="text-xs">Click to browse or drag & drop</p>
-                </div>
-              )}
+              <div className="text-muted-foreground">
+                <Upload className="w-6 h-6 mx-auto mb-1 opacity-50" />
+                <p className="text-xs">Click to browse or drag & drop (multiple allowed)</p>
+              </div>
             </div>
-            <input ref={fileRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={handleFile} data-testid="input-cert-file" />
+            <input ref={fileRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" multiple onChange={handleFiles} data-testid="input-cert-file" />
+            
+            {files.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {files.map((file, idx) => (
+                  <div key={idx} className="flex flex-col gap-1 p-2 rounded bg-muted/50 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 truncate">
+                        <FileText className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                        <span className="font-medium truncate">{file.name}</span>
+                        <span className="text-muted-foreground">({Math.round(file.size / 1024)} KB)</span>
+                      </div>
+                      <button onClick={() => removeFile(idx)} className="text-muted-foreground hover:text-destructive">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    {uploadProgress[file.name] !== undefined && (
+                      <Progress value={uploadProgress[file.name]} className="h-1" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!files.length && existingCert?.fileName && (
+              <div className="mt-2 flex items-center gap-2 p-2 rounded bg-muted/50 text-xs">
+                <FileText className="w-3.5 h-3.5 text-blue-500" />
+                <span className="font-medium">{existingCert.fileName}</span>
+                <span className="text-muted-foreground ml-1">(existing)</span>
+              </div>
+            )}
           </div>
         </div>
         <DialogFooter>
@@ -284,7 +385,7 @@ function StatutorySlot({
       }`}
       data-testid={`slot-${doc.key}`}
     >
-      <StatusIcon status={status} />
+      <StatusIcon cert={cert} />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{doc.name}</p>
         {cert && (
@@ -292,11 +393,12 @@ function StatutorySlot({
             {cert.certificateNumber && <span className="mr-2">{cert.certificateNumber}</span>}
             {cert.expiresAt && <span>Expires: {fmtDate(cert.expiresAt)}</span>}
             {cert.issuingAuthority && <span className="ml-2 opacity-70">· {cert.issuingAuthority}</span>}
+            {cert.renewalPlannedDate && <span className="ml-2 text-blue-600 font-medium">· Renewal: {fmtDate(cert.renewalPlannedDate)}</span>}
           </p>
         )}
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
-        <StatusBadge status={status} />
+        <StatusBadge cert={cert} />
         {cert?.fileName && (
           <button
             className="p-1.5 hover:bg-muted rounded transition-colors text-blue-600"
@@ -439,21 +541,23 @@ function FreeCategoryTab({
             const status = certStatus(cert);
             return (
               <div key={cert.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border ${
+                cert.renewalStatus && cert.renewalStatus !== "none" && cert.renewalStatus !== "renewed" ? "bg-blue-50 dark:bg-blue-950/20 border-blue-200" :
                 status === "expired" ? "bg-red-50 dark:bg-red-950/20 border-red-200" :
                 status === "expiring" ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200" :
                 "bg-muted/30 border-border/50"
               }`} data-testid={`doc-free-${cert.id}`}>
-                <StatusIcon status={status} />
+                <StatusIcon cert={cert} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{cert.name}</p>
                   <p className="text-[11px] text-muted-foreground">
                     {cert.certificateNumber && <span className="mr-2">{cert.certificateNumber}</span>}
                     {cert.expiresAt ? <span>Expires: {fmtDate(cert.expiresAt)}</span> : <span>No expiry set</span>}
                     {cert.fileName && <span className="ml-2 opacity-70">· {cert.fileName}</span>}
+                    {cert.renewalPlannedDate && <span className="ml-2 text-blue-600 font-medium">· Renewal: {fmtDate(cert.renewalPlannedDate)}</span>}
                   </p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <StatusBadge status={status} />
+                  <StatusBadge cert={cert} />
                   <button className="p-1.5 hover:bg-muted rounded transition-colors" onClick={() => { setEditCert(cert); setShowUpload(true); }} data-testid={`button-edit-free-${cert.id}`}>
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -533,6 +637,7 @@ export default function VesselVault() {
 
   const expiredCount = STATUTORY_DOCS.filter(d => certStatus(statutoryMap.get(d.key), today) === "expired").length;
   const expiringCount = STATUTORY_DOCS.filter(d => certStatus(statutoryMap.get(d.key), today) === "expiring").length;
+  const scheduledCount = Array.from(statutoryMap.values()).filter(c => c.renewalStatus && c.renewalStatus !== "none" && c.renewalStatus !== "renewed").length;
 
   if (vesselsLoading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
@@ -553,21 +658,44 @@ export default function VesselVault() {
       <PageMeta title={`Vessel Vault — ${vessel.name} | VesselPDA`} description="Digital document safe for vessel statutory and operational certificates" />
 
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate("/vessels")} className="p-1.5 hover:bg-muted rounded-lg transition-colors" data-testid="button-back-vault">
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <div className="p-2 rounded-xl bg-[hsl(var(--maritime-primary)/0.1)]">
-          <FolderLock className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate("/vessels")} className="p-1.5 hover:bg-muted rounded-lg transition-colors" data-testid="button-back-vault">
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <div className="p-2 rounded-xl bg-[hsl(var(--maritime-primary)/0.1)]">
+            <FolderLock className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold leading-tight">{vessel.name} — Vessel Vault</h1>
+            <p className="text-xs text-muted-foreground">
+              {vessel.imoNumber && <span className="mr-3">IMO: {vessel.imoNumber}</span>}
+              {vessel.flag && <span className="mr-3">Flag: {vessel.flag}</span>}
+              {vessel.vesselType && <span>Type: {vessel.vesselType}</span>}
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-bold leading-tight">{vessel.name} — Vessel Vault</h1>
-          <p className="text-xs text-muted-foreground">
-            {vessel.imoNumber && <span className="mr-3">IMO: {vessel.imoNumber}</span>}
-            {vessel.flag && <span className="mr-3">Flag: {vessel.flag}</span>}
-            {vessel.vesselType && <span>Type: {vessel.vesselType}</span>}
-          </p>
-        </div>
+        <Button variant="outline" size="sm" onClick={() => {
+          const csv = [
+            ["Vessel Name", "Document Name", "Category", "Expiry Date", "Status", "Renewal Status"].join(","),
+            ...certs.map(c => [
+              vessel.name,
+              c.name,
+              c.category,
+              c.expiresAt ? fmtDate(c.expiresAt) : "N/A",
+              certStatus(c),
+              c.renewalStatus || "none"
+            ].join(","))
+          ].join("\n");
+          const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.setAttribute("href", url);
+          link.setAttribute("download", `certificates_${vessel.name.replace(/\s+/g, "_")}.csv`);
+          link.click();
+        }}>
+          <Download className="w-4 h-4 mr-1" /> Export List
+        </Button>
       </div>
 
       {/* Stats bar */}
@@ -591,6 +719,11 @@ export default function VesselVault() {
             {expiringCount > 0 && (
               <span className="flex items-center gap-1 text-xs text-amber-600 font-medium">
                 <AlertTriangle className="w-3.5 h-3.5" /> {expiringCount} Expiring
+              </span>
+            )}
+            {scheduledCount > 0 && (
+              <span className="flex items-center gap-1 text-xs text-blue-600 font-medium">
+                <Clock className="w-3.5 h-3.5" /> {scheduledCount} Renewal Scheduled
               </span>
             )}
             {uploaded === total && (

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { 
   Plus, Receipt, Filter, DollarSign, CheckCircle2, Clock, 
   Search, Trash2, Edit2, Wallet, Calendar, User, Tag, 
-  FileText, ArrowUpRight, BarChart3, TrendingUp, Calculator, FileDown
+  FileText, ArrowUpRight, BarChart3, TrendingUp, Calculator, FileDown, Upload
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { fmtDate } from "@/lib/formatDate";
 import { Skeleton } from "@/components/ui/skeleton";
 import { exportToCsv } from "@/lib/export-csv";
+import { ImportPortExpensesDialog } from "@/components/import-port-expenses-dialog";
 
 const EXPENSE_CATEGORIES = [
   { value: "port_dues", label: "Port Dues" },
@@ -41,6 +42,7 @@ const EXPENSE_CATEGORIES = [
 export default function PortExpenses() {
   const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterPaid, setFilterPaid] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -152,6 +154,14 @@ export default function PortExpenses() {
         </div>
         
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setIsImportDialogOpen(true)}
+            data-testid="button-import-port-expenses"
+            className="gap-2"
+          >
+            <Upload className="w-4 h-4" /> Import CSV
+          </Button>
           <Button
             variant="outline"
             onClick={() => {
@@ -308,6 +318,12 @@ export default function PortExpenses() {
           </DialogContent>
         </Dialog>
       </div>
+
+      <ImportPortExpensesDialog 
+        open={isImportDialogOpen} 
+        onOpenChange={setIsImportDialogOpen}
+        voyages={voyages || []}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-card/50 backdrop-blur border-sidebar-border/40 overflow-hidden relative">

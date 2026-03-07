@@ -915,6 +915,8 @@ export const vesselCertificates = pgTable("vessel_certificates", {
   certificateNumber: text("certificate_number"),
   notes: text("notes"),
   status: text("status").notNull().default("valid"),
+  renewalStatus: text("renewal_status").notNull().default("none"), // "none" | "scheduled" | "in_progress" | "renewed"
+  renewalPlannedDate: timestamp("renewal_planned_date"),
   fileBase64: text("file_base64"),
   fileName: text("file_name"),
   fileUrl: text("file_url"),

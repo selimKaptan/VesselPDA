@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { EmptyState } from "@/components/empty-state";
-import { Ship, Plus, MapPin, Calendar, ChevronRight, Anchor, CheckCircle2, Clock, XCircle, PlayCircle, Search, X, CheckCircle, AlertCircle, Loader2, FileDown } from "lucide-react";
+import { Ship, Plus, MapPin, Calendar, ChevronRight, Anchor, CheckCircle2, Clock, XCircle, PlayCircle, Search, X, CheckCircle, AlertCircle, Loader2, FileDown, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
@@ -19,6 +20,7 @@ import { Link, useLocation, useSearch } from "wouter";
 import type { Vessel, Port } from "@shared/schema";
 import { fmtDate } from "@/lib/formatDate";
 import { exportToCsv } from "@/lib/export-csv";
+import { FloatingBulkActionBar } from "@/components/layout/floating-bulk-action-bar";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   planned:         { label: "Planned",         color: "bg-blue-900/30 text-blue-400 border border-blue-500/30",       icon: Clock },
@@ -185,6 +187,27 @@ export default function Voyages() {
   const [activeFilter, setActiveFilter] = useState<string>("all");
 
   const role = (user as any)?.activeRole || (user as any)?.userRole || "shipowner";
+
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const bulkCloseMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      const res = await apiRequest("POST", "/api/voyages/bulk-close", { ids });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages"] });
+      setSelectedIds([]);
+      toast({ title: "Voyages closed", description: "Selected voyages have been marked as completed." });
+    },
+    onError: (err: any) => toast({ title: "Failed to close voyages", description: err?.message, variant: "destructive" }),
+  });
 
   const { data: voyageList, isLoading } = useQuery<any[]>({
     queryKey: ["/api/voyages"],
@@ -524,13 +547,27 @@ export default function Voyages() {
             const fdaSt     = getFdaStatus(v);
             const stage     = PORT_CALL_STAGE[v.status] || PORT_CALL_STAGE.planned;
             const isActive  = v.status === "active";
+            const isSelected = selectedIds.includes(v.id);
 
             return (
-              <Link key={v.id} href={`/voyages/${v.id}`}>
-                <Card
-                  className="relative p-0 overflow-hidden hover:shadow-xl hover:shadow-black/40 transition-all cursor-pointer border border-slate-700/60 hover:border-slate-500/50 group bg-slate-800/70 rounded-xl"
-                  data-testid={`card-voyage-${v.id}`}
-                >
+              <div key={v.id} className="relative group">
+                {/* Checkbox Overlay */}
+                <div className={`absolute top-3 left-3 z-20 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                  <Checkbox 
+                    checked={isSelected} 
+                    onCheckedChange={(checked) => {
+                      toggleSelect(v.id);
+                    }} 
+                    className="h-5 w-5 bg-slate-900 border-slate-700 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                    data-testid={`checkbox-voyage-${v.id}`}
+                  />
+                </div>
+
+                <Link href={`/voyages/${v.id}`}>
+                  <Card
+                    className={`relative p-0 overflow-hidden hover:shadow-xl hover:shadow-black/40 transition-all cursor-pointer border border-slate-700/60 hover:border-slate-500/50 group bg-slate-800/70 rounded-xl ${isSelected ? 'ring-2 ring-primary bg-primary/5' : ''}`}
+                    data-testid={`card-voyage-${v.id}`}
+                  >
                   {/* ── LAYER 1: CANLI ZİRVE ─────────────────────────────── */}
                   <div className={`${ps.bg} px-4 py-2.5 flex items-center justify-between border-b ${ps.border}`}>
                     <div className="flex items-center gap-2">
@@ -665,6 +702,7 @@ export default function Voyages() {
                   </div>
                 </Card>
               </Link>
+            </div>
             );
           })}
         </div>
@@ -695,6 +733,38 @@ export default function Voyages() {
           ]}
         />
       )}
+
+      <FloatingBulkActionBar 
+        selectedCount={selectedIds.length}
+        onClear={() => setSelectedIds([])}
+        actions={[
+          {
+            label: "Close Voyages",
+            icon: CheckCircle2,
+            onClick: () => bulkCloseMutation.mutate(selectedIds),
+            isLoading: bulkCloseMutation.isPending
+          },
+          {
+            label: "Export CSV",
+            icon: FileDown,
+            onClick: () => {
+              const selectedVoyages = (voyageList ?? []).filter((v: any) => selectedIds.includes(v.id));
+              const rows = selectedVoyages.map(v => ({
+                ID: v.id,
+                Vessel: v.vesselName,
+                Port: v.portName || v.portId,
+                Status: v.status,
+                ETA: v.eta ? fmtDate(v.eta) : '',
+                ETD: v.etd ? fmtDate(v.etd) : '',
+                Purpose: v.purposeOfCall,
+                Agent: v.agentName || v.agentUserId || '',
+                Created: v.createdAt ? fmtDate(v.createdAt) : ''
+              }));
+              exportToCsv(`Selected-Voyages-${new Date().toISOString().split('T')[0]}.csv`, rows);
+            }
+          }
+        ]}
+      />
 
       {/* Create Voyage Dialog */}
       <Dialog open={showCreate} onOpenChange={handleDialogClose}>

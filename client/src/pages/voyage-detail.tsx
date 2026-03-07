@@ -9,13 +9,14 @@ import {
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
   FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings, Archive, X,
   TrendingUp, TrendingDown, AlertTriangle, Mail, Plane, LogIn, LogOut, Maximize2, Calculator, FolderLock,
-  Scale, Banknote, CreditCard,
+  Scale, Banknote, CreditCard, Percent,
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,7 +39,7 @@ import { useSocket } from "@/hooks/use-socket";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { insertPortExpenseSchema, type PortExpense, type Voyage } from "@shared/schema";
+import { insertPortExpenseSchema, type PortExpense, type Voyage, type Port } from "@shared/schema";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   planned:         { label: "Planned",         color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",       icon: Clock },
@@ -246,6 +247,7 @@ export default function VoyageDetail() {
   const { id } = useParams<{ id: string }>();
   const voyageId = parseInt(id || "0");
   const { user } = useAuth();
+  const isShipowner = user?.userRole === "shipowner";
   const { toast } = useToast();
   const { joinVoyage, leaveVoyage } = useSocket();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -259,7 +261,11 @@ export default function VoyageDetail() {
   const [newTask, setNewTask] = useState("");
   const [chatMessage, setChatMessage] = useState("");
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "financial" | "activity" | "participants" | "cargo_ops" | "contacts" | "notes_tasks" | "commission">("operation");
+
+  // Adjusted activeTab initial value if needed, but 'operation' (Overview) is usually first
+  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "financial" | "activity" | "participants" | "cargo_ops" | "contacts" | "notes_tasks" | "commission">(
+    isShipowner ? "operation" : "operation"
+  );
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [noteContent, setNoteContent] = useState("");
   const [noteType, setNoteType] = useState<"comment" | "observation" | "alert" | "milestone">("comment");
@@ -2050,14 +2056,19 @@ export default function VoyageDetail() {
               <Ship className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h1 className="font-bold text-lg leading-tight tracking-tight">
+              <h1 className="font-bold text-lg leading-tight tracking-tight flex items-center gap-2">
                 {voyage.vesselName || "Vessel Not Specified"}
+                {isShipowner && (
+                  <Badge variant="outline" className="bg-slate-100 text-slate-600 border-slate-200 text-[10px] font-bold uppercase tracking-wider h-4 px-1">
+                    Read-only
+                  </Badge>
+                )}
               </h1>
               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 bg-muted/40 px-2 py-0.5 rounded-full border border-border/50">
                   {voyage.purposeOfCall}
                 </span>
-                {!["Crew Change", "Husbandry"].includes(voyage.purposeOfCall || "") && (
+                {!isShipowner && !["Crew Change", "Husbandry"].includes(voyage.purposeOfCall || "") && (
                   <button
                     onClick={() => {
                       setEditCargoType(voyage.cargoType || "");
@@ -2079,9 +2090,9 @@ export default function VoyageDetail() {
           </div>
 
           {/* Sağ: status badge + butonlar */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
             {/* Status badge */}
-            <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border ${
+            <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border shrink-0 ${
               voyage.status === "active"
                 ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 shadow-[0_0_8px_rgba(16,185,129,0.15)]"
                 : voyage.status === "planned"
@@ -2114,7 +2125,7 @@ export default function VoyageDetail() {
             )}
 
             {/* ⚡ Close Operation button */}
-            {isOwner && (voyage.status === "active" || voyage.status === "completed") && (
+            {!isShipowner && isOwner && (voyage.status === "active" || voyage.status === "completed") && (
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -2134,6 +2145,19 @@ export default function VoyageDetail() {
                   ⚡ Operasyonu Kapat ve Finansa Aktar
                 </button>
               </div>
+            )}
+
+            {isShipowner && (voyage.status === "active" || voyage.status === "completed") && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(`/api/voyage-reports/${voyageId}/financial-report/pdf`, '_blank')}
+                className="flex items-center gap-2"
+                data-testid="button-download-report"
+              >
+                <Download className="w-4 h-4" />
+                Download Report
+              </Button>
             )}
             {voyage.status === "pending_finance" && (
               <span className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold bg-amber-900/25 border border-amber-500/30 text-amber-400" data-testid="badge-pending-finance">
@@ -2318,20 +2342,29 @@ export default function VoyageDetail() {
           { key: "notes_tasks", label: "Notes & Tasks", icon: ClipboardList },
           { key: "participants", label: "Team",      icon: Users2 },
           { key: "contacts",    label: "Contacts",  icon: Mail },
-        ] as const).filter(({ key }) => !(key === "cargo_ops" && (voyage?.purposeOfCall === "Husbandry" || voyage?.purposeOfCall === "Crew Change"))).map(({ key, label, icon: Icon }) => (
+          { key: "commission",  label: "Commission", icon: Percent },
+        ] as const).filter(({ key }) => {
+          if (isShipowner) {
+            return ["operation", "financial", "documents", "notes_tasks"].includes(key);
+          }
+          if (key === "cargo_ops" && (voyage?.purposeOfCall === "Husbandry" || voyage?.purposeOfCall === "Crew Change")) {
+            return false;
+          }
+          return true;
+        }).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
-            className={`flex-1 min-w-[100px] sm:min-w-0 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+            className={`flex-1 min-w-[100px] sm:min-w-0 flex items-center justify-center gap-1.5 py-1 px-2 text-xs sm:py-2 sm:px-3 sm:text-sm font-medium transition-all ${
               activeTab === key
                 ? "bg-background shadow-sm text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
             data-testid={`tab-${key}`}
           >
-            <Icon className="w-4 h-4" /> {label}
+            <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> {label}
             {key === "comms" && chatMessages.length > 0 && (
-              <span className="ml-1 text-[10px] bg-[hsl(var(--maritime-primary)/0.15)] text-[hsl(var(--maritime-primary))] px-1.5 py-0.5 rounded-full font-semibold">
+              <span className="ml-1 text-[10px] bg-[hsl(var(--maritime-primary)/0.15)] text-[hsl(var(--maritime-primary))] px-1 sm:px-1.5 py-0.5 rounded-full font-semibold">
                 {chatMessages.length}
               </span>
             )}
@@ -3066,9 +3099,9 @@ export default function VoyageDetail() {
               {/* RIGHT: Hotel Hub (Crew Change — always mounted, CSS width toggle for reliable DnD) */}
               {voyage.purposeOfCall === "Crew Change" && (
                 <div
-                  className={`flex-shrink-0 overflow-hidden transition-[width,opacity] ease-in-out ${activeDragId !== null ? "duration-0" : "duration-300"} ${isHotelPanelOpen ? "w-[310px] opacity-100" : "w-0 opacity-0"}`}
+                  className={`flex-shrink-0 overflow-hidden transition-[width,opacity] ease-in-out ${activeDragId !== null ? "duration-0" : "duration-300"} ${isHotelPanelOpen ? "w-full sm:w-[310px] opacity-100" : "w-0 opacity-0"}`}
                 >
-                  <div ref={setHotelDropRef} className={`w-[310px] rounded-xl border bg-slate-800/40 backdrop-blur-sm p-5 flex flex-col gap-4 transition-all duration-200 ${isHotelDragOver ? "border-blue-400/60 bg-blue-950/20 shadow-[0_0_24px_rgba(59,130,246,0.25)]" : "border-slate-700"}`} style={{ minHeight: "360px" }} data-testid="hotel-hub-panel">
+                  <div ref={setHotelDropRef} className={`w-full sm:w-[310px] rounded-xl border bg-slate-800/40 backdrop-blur-sm p-5 flex flex-col gap-4 transition-all duration-200 ${isHotelDragOver ? "border-blue-400/60 bg-blue-950/20 shadow-[0_0_24px_rgba(59,130,246,0.25)]" : "border-slate-700"}`} style={{ minHeight: "360px" }} data-testid="hotel-hub-panel">
                       {isHotelDragOver && (
                         <div className="absolute top-3 left-0 right-0 flex justify-center pointer-events-none z-20">
                           <span className="text-[10px] font-bold text-blue-300 bg-blue-950/80 border border-blue-500/50 rounded-full px-3 py-1">🏨 Drop to assign hotel</span>
@@ -3187,7 +3220,7 @@ export default function VoyageDetail() {
 
               {/* RIGHT: Service Boat & Deliveries (Husbandry — always visible) */}
               {voyage.purposeOfCall === "Husbandry" && (
-              <div className="w-[310px] rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 space-y-4" data-testid="husbandry-timeline">
+              <div className="w-full sm:w-[310px] rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-5 space-y-4" data-testid="husbandry-timeline">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg bg-sky-500/15 border border-sky-500/30 flex items-center justify-center">
@@ -3398,7 +3431,7 @@ export default function VoyageDetail() {
                 {/* Section 1: Identity */}
                 <div>
                   <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Identity</p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs text-slate-400">Full Name</Label>
                       <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="John Smith" value={crewSlideForm.name} onChange={e => setCrewSlideForm(f => ({ ...f, name: e.target.value }))} data-testid="input-crew-name" />
@@ -3460,7 +3493,7 @@ export default function VoyageDetail() {
                 {/* Section 2: Nationality & Passport */}
                 <div>
                   <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Nationality & Documents</p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs text-slate-400">Nationality (ISO-3)</Label>
                       <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600 uppercase" placeholder="TUR" maxLength={3} value={crewSlideForm.nationality} onChange={e => setCrewSlideForm(f => ({ ...f, nationality: e.target.value.toUpperCase() }))} data-testid="input-crew-nationality" />
@@ -3600,7 +3633,7 @@ export default function VoyageDetail() {
                         <button onClick={() => setCrewSlideForm(f => ({ ...f, visaRequired: true }))} className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${crewSlideForm.visaRequired ? "bg-rose-900/40 border-rose-500/50 text-rose-400" : "bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600"}`} data-testid="btn-visa-yes">Yes — Required</button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <Label className="text-xs text-slate-400">e-Visa Status</Label>
                         <select className="w-full h-9 text-sm mt-1 bg-slate-800 border border-slate-700 rounded-md px-2 text-slate-100" value={crewSlideForm.eVisaStatus} onChange={e => setCrewSlideForm(f => ({ ...f, eVisaStatus: e.target.value as any }))} data-testid="select-evisa-status">
@@ -3735,7 +3768,7 @@ export default function VoyageDetail() {
                       </div>
 
                       {/* Check-in / Check-out */}
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <Label className="text-xs text-slate-400">Check-in</Label>
                           <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="HH:MM" value={crewSlideForm.hotelCheckIn} onChange={e => setCrewSlideForm(f => ({ ...f, hotelCheckIn: e.target.value }))} data-testid="input-hotel-checkin" />
@@ -4659,7 +4692,7 @@ export default function VoyageDetail() {
                       </div>
 
                       {/* From / To */}
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <Label className="text-xs">From *</Label>
                           <Input type="datetime-local" value={logForm.fromTime}
@@ -5870,7 +5903,7 @@ export default function VoyageDetail() {
       {activeTab === "participants" && (
         <div className="space-y-6" data-testid="tab-content-participants">
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="font-semibold text-base flex items-center gap-2">
                 <Users2 className="w-4 h-4 text-sky-400" /> Voyage Team
@@ -5973,7 +6006,8 @@ export default function VoyageDetail() {
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs border bg-amber-500/15 text-amber-500 border-amber-500/30">{pendingInvites.length}</span>
               </h4>
               <div className="rounded-lg border overflow-hidden">
-                <table className="w-full text-sm" data-testid="table-pending-invites">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm" data-testid="table-pending-invites">
                   <thead>
                     <tr className="border-b bg-muted/30">
                       <th className="text-left p-3 font-medium text-muted-foreground">Invitee</th>
@@ -6018,6 +6052,7 @@ export default function VoyageDetail() {
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}
@@ -6062,9 +6097,9 @@ export default function VoyageDetail() {
                     className="min-h-[100px] bg-background border-muted/40"
                   />
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                       <Select value={noteType} onValueChange={(val: any) => setNoteType(val)}>
-                        <SelectTrigger className="w-[140px] h-9 text-xs">
+                        <SelectTrigger className="w-full sm:w-[140px] h-9 text-xs">
                           <SelectValue placeholder="Note Type" />
                         </SelectTrigger>
                         <SelectContent>
