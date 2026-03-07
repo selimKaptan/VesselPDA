@@ -1,0 +1,27 @@
+Sen bir Senior Full-Stack Geliştiricisi ve SaaS Ürün Mimarıısın. 'Crew Logistics Board' ekranımıza, operasyon yöneticilerinin armatörlere göndereceği "Fiyatsız, Çift Dilli (TR/EN) Operasyon Özeti Raporu" modülünü ekliyoruz. Kullanıcının sağladığı Product Requirement Document (PRD) kurallarına göre şu geliştirmeleri yap:
+
+1. ARAYÜZ VE TETİKLEYİCİ (UI/UX):
+- Header kısmına, filtrelerin yanına belirgin bir buton ekle: `[ 📧 Send Ops Summary ]`.
+- Butona tıklandığında geniş ve ferah bir 'shadcn Dialog' (Önizleme Modalı) açılsın.
+- Modalın sağ üst köşesine şık bir 'Toggle' (Switch veya Tabs) ekle: `[ TR | EN ]`. Bu toggle değiştiğinde, modal içindeki oluşturulan rapor metni anında seçili dile çevrilsin (State üzerinden dinamik render).
+
+2. İÇERİK MOTORU VE HİYERARŞİ (Data Parsing Logic):
+Modalın içindeki metin alanı (Textarea/Rich Text) sistemdeki 'crew' verilerini tarayıp şu 3 bloğu OTOMATİK oluştursun (Metin DÜZENLENEBİLİR olmalı):
+
+- BLOK 1: ⚠️ UYARILAR / AKSİYON BEKLEYENLER (Action Required):
+  * Sistemde 'Action Req', 'Delayed' veya 'Visa Req'd' olan personelleri filtrele.
+  * EN: "⚠️ Attention: Hotel reservation missing for Ali Öztürk. Mehmet Demir's flight is delayed."
+  * TR: "⚠️ Dikkat: Ali Öztürk için otel rezervasyonu eksik. Mehmet Demir'in uçuşunda rötar var."
+
+- BLOK 2: OPERASYON ÖZETİ (Logistics Timeline):
+  * On-Signers ve Off-Signers olarak iki alt başlığa ayır.
+  * EN: "ON-SIGNERS: Ahmet Yılmaz (Chief Officer) picked up from airport at 14:30 and checked into Hilton Hotel. | OFF-SIGNERS: Hasan Çelik arrived at airport at 16:30."
+  * TR: "KATILANLAR: Ahmet Yılmaz 14:30'da havalimanından alınarak Hilton Otel'e yerleştirildi..."
+
+- BLOK 3: SAĞLANAN HİZMET KALEMLERİ (Strictly NO PRICING):
+  * Sadece hizmetin adı ve adedi yazılsın. KESİNLİKLE fiyat, USD, EUR ibaresi ekleme.
+  * EN: "Services Arranged: Flights (TK2320, PC1145), Accommodation (Hilton Alsancak - 1 Night), Ground Transfers (2 Vehicles)."
+
+3. AKSİYON VE LOG (Tech & Audit):
+- Modalın altında `[ Copy to Clipboard ]` ve `[ Send via Email (mailto) ]` butonları olsun.
+- 'Send' veya 'Copy' butonuna basıldığında, bu eylemi sistemin sağ tarafındaki mevcut 'Activity & Audit Log' paneline ekle (Örn: "Operation summary generated and sent in EN at 14:35").
