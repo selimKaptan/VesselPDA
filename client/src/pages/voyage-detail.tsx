@@ -22,7 +22,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetDescription } from "@/components/ui/sheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
@@ -2793,27 +2792,28 @@ export default function VoyageDetail() {
           </Dialog>
 
           {/* ── Crew Member Slide-Over Panel ── */}
-          <Sheet open={showCrewPanel} onOpenChange={setShowCrewPanel}>
-            <SheetContent side="right" className="w-[420px] sm:w-[420px] flex flex-col p-0 bg-slate-900 border-l border-slate-700" data-testid="crew-slide-panel">
+          <Dialog open={showCrewPanel} onOpenChange={setShowCrewPanel}>
+            <DialogContent className="max-w-none w-screen h-screen m-0 rounded-none flex flex-col p-0 bg-slate-900 border-0" data-testid="crew-slide-panel">
               {/* Header */}
-              <SheetHeader className="px-6 pt-6 pb-4 border-b border-slate-700/60 flex-shrink-0">
+              <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-700/60 flex-shrink-0">
                 <div className="flex items-center gap-3">
                   <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${crewPanelMode === "add_on" ? "bg-emerald-500/15 border border-emerald-500/30" : crewPanelMode === "add_off" ? "bg-rose-500/15 border border-rose-500/30" : "bg-blue-500/15 border border-blue-500/30"}`}>
                     {crewPanelMode === "add_on" ? <LogIn className="w-4 h-4 text-emerald-400" /> : crewPanelMode === "add_off" ? <LogOut className="w-4 h-4 text-rose-400" /> : <UserPlus className="w-4 h-4 text-blue-400" />}
                   </div>
                   <div>
-                    <SheetTitle className="text-base font-bold text-slate-50">
+                    <DialogTitle className="text-base font-bold text-slate-50">
                       {crewPanelMode === "add_on" ? "Add On-Signer" : crewPanelMode === "add_off" ? "Add Off-Signer" : "Edit Crew Member"}
-                    </SheetTitle>
-                    <SheetDescription className="text-xs text-slate-500 mt-0.5">
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-slate-500 mt-0.5">
                       {crewPanelMode === "add_on" ? "Joining the vessel at this port" : crewPanelMode === "add_off" ? "Leaving the vessel at this port" : "Update crew logistics information"}
-                    </SheetDescription>
+                    </DialogDescription>
                   </div>
                 </div>
-              </SheetHeader>
+              </DialogHeader>
 
               {/* Scrollable Form Body */}
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+              <div className="flex-1 overflow-y-auto">
+                <div className="max-w-2xl mx-auto px-6 py-5 space-y-5">
 
                 {/* Section 1: Identity */}
                 <div>
@@ -2948,34 +2948,63 @@ export default function VoyageDetail() {
                         </div>
                       )}
                       {/* Transfer Timeline steps */}
-                      <div>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Transfer Timeline</p>
-                        <div className="space-y-2">
-                          {slideFormTimeline.map((step, idx) => (
-                            <div key={idx} className="flex items-center gap-2.5">
-                              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${step.done ? "bg-emerald-400" : "bg-slate-600"}`} />
-                              <span className="text-xs text-slate-400 flex-1 min-w-0">{step.label}</span>
-                              <input
-                                type="text"
-                                placeholder="HH:MM"
-                                className="w-20 h-7 text-xs px-2 rounded-md bg-slate-800 border border-slate-700 text-slate-100 placeholder:text-slate-600 text-center"
-                                value={step.time}
-                                onChange={e => setSlideFormTimeline(prev => prev.map((s, i) => i === idx ? { ...s, time: e.target.value } : s))}
-                                data-testid={`input-timeline-step-${idx}`}
-                              />
-                              <button
-                                type="button"
-                                title={step.done ? "Mark incomplete" : "Mark done"}
-                                className={`w-6 h-6 rounded-md border text-[10px] flex items-center justify-center flex-shrink-0 transition-colors ${step.done ? "bg-emerald-900/40 border-emerald-500/50 text-emerald-400 hover:bg-emerald-900/20" : "bg-slate-800 border-slate-700 text-slate-600 hover:border-slate-500 hover:text-slate-400"}`}
-                                onClick={() => setSlideFormTimeline(prev => prev.map((s, i) => i === idx ? { ...s, done: !s.done } : s))}
-                                data-testid={`btn-timeline-done-${idx}`}
-                              >
-                                ✓
-                              </button>
+                      {(() => {
+                        const toDatetimeLocal = (val: string): string => {
+                          if (!val) return "";
+                          if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(val)) return val.slice(0, 16);
+                          if (/^\d{2}:\d{2}$/.test(val)) {
+                            const today = new Date().toISOString().slice(0, 10);
+                            return `${today}T${val}`;
+                          }
+                          return "";
+                        };
+                        const fromDatetimeLocal = (val: string): string => {
+                          if (!val) return "";
+                          return val.slice(11, 16);
+                        };
+                        const displayTimeline = (val: string): string => {
+                          if (!val) return "—";
+                          if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(val)) return fmtDateTime(val);
+                          return val;
+                        };
+                        return (
+                          <div>
+                            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Transfer Timeline</p>
+                            <div className="space-y-3">
+                              {slideFormTimeline.map((step, idx) => (
+                                <div key={idx} className="flex items-center gap-3">
+                                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${step.done ? "bg-emerald-400" : "bg-slate-600"}`} />
+                                  <span className="text-xs text-slate-300 flex-1 min-w-0 font-medium">{step.icon} {step.label}</span>
+                                  <div className="flex flex-col items-end gap-0.5">
+                                    <input
+                                      type="datetime-local"
+                                      className="h-8 text-xs px-2 rounded-md bg-slate-800 border border-slate-700 text-slate-100 [color-scheme:dark]"
+                                      value={toDatetimeLocal(step.time)}
+                                      onChange={e => {
+                                        const raw = e.target.value;
+                                        setSlideFormTimeline(prev => prev.map((s, i) => i === idx ? { ...s, time: fromDatetimeLocal(raw) } : s));
+                                      }}
+                                      data-testid={`input-timeline-step-${idx}`}
+                                    />
+                                    {step.time && (
+                                      <span className="text-[9px] text-slate-500 font-mono">{displayTimeline(toDatetimeLocal(step.time))}</span>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    title={step.done ? "Mark incomplete" : "Mark done"}
+                                    className={`w-6 h-6 rounded-md border text-[10px] flex items-center justify-center flex-shrink-0 transition-colors ${step.done ? "bg-emerald-900/40 border-emerald-500/50 text-emerald-400 hover:bg-emerald-900/20" : "bg-slate-800 border-slate-700 text-slate-600 hover:border-slate-500 hover:text-slate-400"}`}
+                                    onClick={() => setSlideFormTimeline(prev => prev.map((s, i) => i === idx ? { ...s, done: !s.done } : s))}
+                                    data-testid={`btn-timeline-done-${idx}`}
+                                  >
+                                    ✓
+                                  </button>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
-                      </div>
+                          </div>
+                        );
+                      })()}
                     </>
                   );
                 })()}
@@ -3162,10 +3191,11 @@ export default function VoyageDetail() {
                   )}
                 </div>
 
+                </div>
               </div>
 
               {/* Sticky Footer */}
-              <SheetFooter className="px-6 py-4 border-t border-slate-700/60 flex-shrink-0 flex-row gap-2">
+              <div className="px-6 py-4 border-t border-slate-700/60 flex-shrink-0 flex flex-row gap-2 max-w-2xl mx-auto w-full">
                 <Button variant="outline" className="flex-1 border-slate-700 text-slate-400 hover:bg-slate-800" onClick={() => setShowCrewPanel(false)} data-testid="button-cancel-crew-panel">
                   Cancel
                 </Button>
@@ -3196,10 +3226,9 @@ export default function VoyageDetail() {
                 >
                   {crewPanelMode === "edit" ? "Save Changes" : "Add Crew Member"}
                 </Button>
-              </SheetFooter>
-            </SheetContent>
-          </Sheet>
-
+              </div>
+            </DialogContent>
+          </Dialog>
           {/* ── Standard Port Ops (hidden for Husbandry & Crew Change) ── */}
           {voyage.purposeOfCall !== "Husbandry" && voyage.purposeOfCall !== "Crew Change" && (<>
           {/* ── MAIN 3-COLUMN GRID ── */}
