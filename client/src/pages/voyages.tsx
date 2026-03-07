@@ -565,6 +565,17 @@ export default function Voyages() {
                             <p className={`text-[11px] font-semibold truncate ${fdaSt.color} ${v.fdaLatestId ? "group-hover/fda:underline" : ""}`}>{fdaSt.label}</p>
                           </div>
                         )}
+                        {v.invoiceCount > 0 && (
+                          <div
+                            className="cursor-pointer group/inv"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setLocation(`/invoices?voyageId=${v.id}`); }}
+                            data-testid={`invoice-status-${v.id}`}
+                          >
+                            <p className="text-[11px] text-slate-400 truncate group-hover/inv:underline">
+                              💳 {v.invoiceCount} Invoice{v.invoiceCount !== 1 ? "s" : ""}{v.invoicePendingCount > 0 ? ` (${v.invoicePendingCount} pending)` : ""}
+                            </p>
+                          </div>
+                        )}
                       </div>
                       {/* Col 3: Live Status */}
                       <div className="min-w-0">

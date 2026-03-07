@@ -463,7 +463,10 @@ router.get("/api/stats/dashboard", isAuthenticated, async (req: any, res) => {
           (SELECT COUNT(*) FROM proformas WHERE user_id = $1)::int as my_proformas,
           (SELECT COALESCE(SUM(total_usd::numeric), 0) FROM proformas WHERE user_id = $1) as my_total_spend,
           (SELECT COUNT(*) FROM proformas WHERE user_id = $1 AND status = 'sent')::int as pending_pda_approvals,
-          (SELECT COUNT(*) FROM fda_accounts fa JOIN voyages v ON fa.voyage_id = v.id WHERE v.user_id = $1)::int as my_fda_count
+          (SELECT COUNT(*) FROM fda_accounts fa JOIN voyages v ON fa.voyage_id = v.id WHERE v.user_id = $1)::int as my_fda_count,
+          (SELECT COUNT(*) FROM invoices i JOIN voyages v ON i.voyage_id = v.id WHERE v.user_id = $1 AND i.status = 'pending')::int as pending_invoice_count,
+          (SELECT COUNT(*) FROM invoices i JOIN voyages v ON i.voyage_id = v.id WHERE v.user_id = $1 AND i.status = 'pending' AND i.due_date < NOW())::int as overdue_invoice_count,
+          (SELECT COALESCE(SUM(i.amount), 0) FROM invoices i JOIN voyages v ON i.voyage_id = v.id WHERE v.user_id = $1 AND i.status = 'pending') as pending_invoice_total
       `, [userId]);
       stats = rows[0];
     } else if (role === 'agent') {

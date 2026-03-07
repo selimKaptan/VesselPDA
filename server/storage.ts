@@ -1229,9 +1229,23 @@ export class DatabaseStorage implements IStorage {
         .groupBy(fdaAccounts.voyageId);
       const fMap = new Map(fdaRows.map((f: any) => [f.voyageId, f]));
 
+      // Enrich with invoice summary
+      const invoiceRows = await db
+        .select({
+          voyageId: invoices.voyageId,
+          invoiceCount: sql<number>`COUNT(*)::int`,
+          invoicePendingCount: sql<number>`COUNT(*) FILTER (WHERE ${invoices.status} = 'pending')::int`,
+          invoicePendingTotal: sql<number>`COALESCE(SUM(${invoices.amount}) FILTER (WHERE ${invoices.status} = 'pending'), 0)::float`,
+        })
+        .from(invoices)
+        .where(inArray(invoices.voyageId, voyageIds))
+        .groupBy(invoices.voyageId);
+      const iMap = new Map(invoiceRows.map((i: any) => [i.voyageId, i]));
+
       return voyageRows.map((v: any) => {
         const ps = pMap.get(v.id);
         const fs = fMap.get(v.id);
+        const is_ = iMap.get(v.id);
         return {
           ...v,
           proformaCount: ps?.proformaCount ?? 0,
@@ -1243,6 +1257,9 @@ export class DatabaseStorage implements IStorage {
           fdaTotalActualUsd: fs?.fdaTotalActualUsd ?? 0,
           fdaLatestStatus: fs?.fdaLatestStatus ?? null,
           fdaLatestId: fs?.fdaLatestId ?? null,
+          invoiceCount: is_?.invoiceCount ?? 0,
+          invoicePendingCount: is_?.invoicePendingCount ?? 0,
+          invoicePendingTotal: is_?.invoicePendingTotal ?? 0,
         };
       });
     }
@@ -1257,6 +1274,9 @@ export class DatabaseStorage implements IStorage {
       fdaTotalActualUsd: 0,
       fdaLatestStatus: null,
       fdaLatestId: null,
+      invoiceCount: 0,
+      invoicePendingCount: 0,
+      invoicePendingTotal: 0,
     }));
   }
 

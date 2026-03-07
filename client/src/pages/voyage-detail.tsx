@@ -5093,7 +5093,7 @@ export default function VoyageDetail() {
                   <span className="text-xs text-muted-foreground">({voyageInvoices.length})</span>
                 )}
               </div>
-              <Link href="/invoices">
+              <Link href={`/invoices?voyageId=${voyageId}`}>
                 <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" data-testid="button-view-all-invoices">
                   <ExternalLink className="w-3 h-3" /> View All
                 </Button>
@@ -5123,7 +5123,7 @@ export default function VoyageDetail() {
                       }`}>
                         {inv.status || "pending"}
                       </span>
-                      <Link href={`/invoices`}>
+                      <Link href={`/invoices?voyageId=${voyageId}`}>
                         <Button size="sm" variant="ghost" className="h-7 w-7 p-0" data-testid={`button-view-invoice-${inv.id}`}>
                           <ExternalLink className="w-3 h-3" />
                         </Button>

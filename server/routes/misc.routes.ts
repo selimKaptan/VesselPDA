@@ -13,6 +13,7 @@ import { sendInvoiceCreatedEmail } from "../email";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { addPdfHeader, addPdfFooter } from "../proforma-pdf";
 
 const router = Router();
 
@@ -318,6 +319,117 @@ router.delete("/api/port-alerts/:id", isAuthenticated, async (req: any, res) => 
   } catch {
     res.status(500).json({ message: "Failed to delete port alert" });
   }
+});
+
+router.get("/api/invoices/:id/pdf", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const invoiceId = parseInt(req.params.id);
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, invoiceId));
+    if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const companyProfile = userId ? await storage.getCompanyProfileByUser(userId) : null;
+
+    const PDFDocumentModule = await import("pdfkit");
+    const PDFDocument = (PDFDocumentModule as any).default || PDFDocumentModule;
+    const doc = new PDFDocument({ size: "A4", margin: 50, bufferPages: true });
+    const chunks: Buffer[] = [];
+    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+
+    await new Promise<void>(async (resolve, reject) => {
+      doc.on("end", resolve);
+      doc.on("error", reject);
+      try {
+        await addPdfHeader(doc, companyProfile || null, "INVOICE");
+
+        doc.fontSize(9).font("Helvetica").fillColor("#333");
+        doc.text(`Reference: #INV-${invoice.id}`, 50, doc.y, { width: 240 });
+        doc.text(`Date: ${invoice.createdAt ? new Date(invoice.createdAt).toLocaleDateString("en-GB") : new Date().toLocaleDateString("en-GB")}`, 50, doc.y + 2, { width: 240 });
+        if (invoice.dueDate) {
+          doc.text(`Due Date: ${new Date(invoice.dueDate).toLocaleDateString("en-GB")}`, 50, doc.y + 2, { width: 240 });
+        }
+        doc.text(`Status: ${(invoice.status || "pending").toUpperCase()}`, 50, doc.y + 2, { width: 240 });
+        doc.fillColor("#000").moveDown(1);
+
+        if (invoice.recipientName || invoice.recipientEmail) {
+          doc.font("Helvetica-Bold").fontSize(9).text("BILL TO:", 50, doc.y);
+          doc.font("Helvetica").fontSize(9);
+          if (invoice.recipientName) doc.text(invoice.recipientName, 50, doc.y + 2);
+          if (invoice.recipientEmail) doc.text(invoice.recipientEmail, 50, doc.y + 2);
+          doc.moveDown(1);
+        }
+
+        doc.font("Helvetica-Bold").fontSize(8);
+        const y = doc.y;
+        doc.rect(50, y, 495, 16).fill("#e8edf4");
+        doc.fillColor("#1e3a5f");
+        doc.text("DESCRIPTION", 54, y + 4, { width: 320 });
+        doc.text("AMOUNT", 374, y + 4, { width: 80, align: "right" });
+        doc.text("CURRENCY", 459, y + 4, { width: 80, align: "right" });
+        doc.y = y + 20;
+        doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+        doc.moveDown(0.5);
+
+        doc.fillColor("#333").font("Helvetica").fontSize(9);
+        const iy = doc.y;
+        doc.text(invoice.title || `Invoice #${invoice.id}`, 54, iy, { width: 320 });
+        doc.font("Helvetica-Bold").fillColor("#1e3a5f");
+        doc.text(Number(invoice.amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 }), 374, iy, { width: 80, align: "right" });
+        doc.fillColor("#333").font("Helvetica");
+        doc.text(invoice.currency || "USD", 459, iy, { width: 80, align: "right" });
+        doc.moveDown(1);
+
+        doc.moveTo(50, doc.y).lineTo(545, doc.y).lineWidth(1.5).stroke().lineWidth(1);
+        doc.moveDown(0.5);
+        doc.font("Helvetica-Bold").fontSize(10);
+        const ty = doc.y;
+        doc.text("TOTAL DUE", 54, ty);
+        doc.fillColor("#1e3a5f").text(
+          `${invoice.currency || "USD"} ${Number(invoice.amount || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+          374, ty, { width: 165, align: "right" }
+        );
+        doc.fillColor("#000").moveDown(2);
+
+        if (invoice.notes) {
+          doc.font("Helvetica-Bold").fontSize(8).text("NOTES:", 50, doc.y);
+          doc.font("Helvetica").fontSize(8).text(invoice.notes, 50, doc.y + 2, { width: 495 });
+          doc.moveDown(1);
+        }
+
+        const cp = companyProfile as any;
+        if (cp && (cp.bankName || cp.bankIban || cp.bankSwift)) {
+          doc.moveDown(0.5);
+          doc.moveTo(50, doc.y).lineTo(545, doc.y).lineWidth(0.5).strokeColor("#b0b8c4").stroke().lineWidth(1).strokeColor("black");
+          doc.moveDown(0.5);
+          const bankY = doc.y;
+          doc.rect(50, bankY, 495, 14).fill("#e8edf4");
+          doc.fillColor("#1e3a5f").fontSize(8.5).font("Helvetica-Bold").text("BANK DETAILS", 54, bankY + 3);
+          doc.y = bankY + 18;
+          doc.fillColor("#333").fontSize(8).font("Helvetica");
+          const bankFields: [string, string][] = [
+            ["Bank", cp.bankName || ""],
+            ["Beneficiary", cp.bankAccountName || cp.companyName || ""],
+            ["IBAN", cp.bankIban || ""],
+            ["SWIFT / BIC", cp.bankSwift || ""],
+            ["Branch", cp.bankBranchName || ""],
+          ];
+          for (const [label, val] of bankFields) {
+            if (!val) continue;
+            doc.text(`${label}: `, 54, doc.y, { continued: true }).font("Helvetica-Bold").text(val);
+            doc.font("Helvetica").moveDown(0.25);
+          }
+        }
+
+        addPdfFooter(doc, companyProfile || null);
+        doc.end();
+      } catch (err) { reject(err); }
+    });
+
+    const pdfBuffer = Buffer.concat(chunks);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="Invoice-${invoiceId}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (error) { next(error); }
 });
 
 

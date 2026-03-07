@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useSearch } from "wouter";
-import { DollarSign, Plus, CheckCircle2, Clock, XCircle, AlertTriangle, FileText, Bell, X, Receipt } from "lucide-react";
+import { DollarSign, Plus, CheckCircle2, Clock, XCircle, AlertTriangle, FileText, Bell, X, Receipt, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -358,6 +358,11 @@ export default function Invoices() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  <a href={`/api/invoices/${inv.id}/pdf`} download={`Invoice-${inv.id}.pdf`} data-testid={`button-download-invoice-pdf-${inv.id}`}>
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-slate-600 border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900/30" type="button">
+                      <Download className="w-3 h-3" /> PDF
+                    </Button>
+                  </a>
                   {inv.status === "pending" && inv.recipientEmail && (
                     <Button
                       size="sm"

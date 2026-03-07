@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Ship, FileText, Gavel, Bell, Plus, ArrowRight, Crown, Zap, Navigation, Users, Building2, Activity, Fuel, Clock, Calendar, Anchor, CheckCircle2, AlertCircle } from "lucide-react";
+import { Ship, FileText, Gavel, Bell, Plus, ArrowRight, Crown, Zap, Navigation, Users, Building2, Activity, Fuel, Clock, Calendar, Anchor, CheckCircle2, AlertCircle, Receipt, DollarSign } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -159,6 +159,8 @@ export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, p
 }) {
   const { data: voyages, isLoading: voyagesLoading } = useQuery<any[]>({ queryKey: ["/api/voyages"] });
   const { data: pendingApprovalList, isLoading: pendingLoading } = useQuery<any[]>({ queryKey: ["/api/proformas/pending-approval"] });
+  const { data: dashStatsData } = useQuery<any>({ queryKey: ["/api/stats/dashboard"] });
+  const dashStats = dashStatsData?.stats;
 
   const activeVoyages = (voyages || []).filter((v: any) => ["in_progress", "scheduled", "planned"].includes(v.status)).length;
   const pendingApprovals = (pendingApprovalList || []).length;
@@ -194,7 +196,7 @@ export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, p
         <StatCard label="Total Vessels" value={vessels?.length ?? 0} loading={vesselsLoading} icon={Ship} color="var(--maritime-primary)" href="/vessels" testId="stat-fleet" />
         <StatCard label="Active Voyages" value={voyagesLoading ? "…" : activeVoyages} loading={voyagesLoading} icon={Navigation} color="var(--maritime-secondary)" href="/voyages" testId="stat-active-voyages" />
         <StatCard label="Pending Approvals" value={pendingLoading ? "…" : pendingApprovals} loading={pendingLoading} icon={FileText} color="38 92% 50%" href="/proformas" testId="stat-pending-approvals" />
-        <StatCard label="Notifications" value={unread} icon={Bell} color="var(--maritime-accent)" href="/messages" testId="stat-notifications" />
+        <StatCard label="Pending Invoices" value={dashStats?.pending_invoice_count ?? 0} icon={Receipt} color="var(--maritime-accent)" href="/invoices" testId="stat-pending-invoices" />
       </div>
 
       {/* Fleet Status Breakdown */}
@@ -253,6 +255,28 @@ export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, p
           <Link href="/proformas">
             <Button size="sm" className="flex-shrink-0 h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1" data-testid="button-review-approvals">
               Review <ArrowRight className="w-3 h-3" />
+            </Button>
+          </Link>
+        </div>
+      )}
+
+      {/* Overdue Invoice Alert */}
+      {dashStats?.overdue_invoice_count > 0 && (
+        <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-red-500/10 border border-red-500/30" data-testid="banner-overdue-invoices">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
+              <DollarSign className="w-4 h-4 text-red-600 dark:text-red-400" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                {dashStats.overdue_invoice_count} overdue invoice{dashStats.overdue_invoice_count > 1 ? "s" : ""} — ${Number(dashStats.pending_invoice_total || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} unpaid
+              </p>
+              <p className="text-xs text-red-600 dark:text-red-400">These invoices have passed their due date and require attention.</p>
+            </div>
+          </div>
+          <Link href="/invoices">
+            <Button size="sm" className="flex-shrink-0 h-7 text-xs bg-red-600 hover:bg-red-700 text-white gap-1" data-testid="button-view-overdue-invoices">
+              View <ArrowRight className="w-3 h-3" />
             </Button>
           </Link>
         </div>
