@@ -37,10 +37,12 @@ import { useSocket } from "@/hooks/use-socket";
 import type { Port } from "@shared/schema";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
-  planned:   { label: "Planned",   color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",    icon: Clock },
-  active:    { label: "Active",    color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", icon: PlayCircle },
-  completed: { label: "Completed", color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",        icon: CheckCircle2 },
-  cancelled: { label: "Cancelled", color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",         icon: XCircle },
+  planned:         { label: "Planned",         color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",       icon: Clock },
+  active:          { label: "Active",          color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",   icon: PlayCircle },
+  completed:       { label: "Completed",       color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",          icon: CheckCircle2 },
+  cancelled:       { label: "Cancelled",       color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",           icon: XCircle },
+  pending_finance: { label: "Pending Finance", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",   icon: DollarSign },
+  archived:        { label: "Archived",        color: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",      icon: Archive },
 };
 
 const SERVICE_TYPE_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
@@ -61,10 +63,12 @@ const DOC_TYPE_CONFIG: Record<string, string> = {
 };
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
-  planned: ["active", "cancelled"],
-  active: ["completed", "cancelled"],
-  completed: [],
-  cancelled: [],
+  planned:         ["active", "cancelled"],
+  active:          ["completed", "cancelled", "pending_finance"],
+  completed:       ["pending_finance"],
+  cancelled:       [],
+  pending_finance: ["archived"],
+  archived:        [],
 };
 
 // ─── Port Call Stepper ────────────────────────────────────────────────────────
@@ -283,6 +287,10 @@ export default function VoyageDetail() {
   const [crewFilterMode, setCrewFilterMode] = useState<"all" | "action" | "ready">("all");
   const [isHotelPanelOpen, setIsHotelPanelOpen] = useState(false);
   const [inlineEdit, setInlineEdit] = useState<{ crewId: number; field: "flight" | "flightEta"; val: string } | null>(null);
+
+  // ── Close Operation / Finance Handover ───────────────────────────────────
+  const [showCloseOpModal, setShowCloseOpModal] = useState(false);
+  const [closeOpAcknowledge, setCloseOpAcknowledge] = useState(false);
 
   // ── Drag & Drop ─────────────────────────────────────────────────────────
   const [activeDragId, setActiveDragId] = useState<number | null>(null);
@@ -1768,6 +1776,21 @@ export default function VoyageDetail() {
               </span>
             )}
 
+            {/* ⚡ Close Operation button */}
+            {isOwner && (voyage.status === "active" || voyage.status === "completed") && (
+              <button
+                onClick={() => { setCloseOpAcknowledge(false); setShowCloseOpModal(true); }}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-semibold bg-amber-600/20 hover:bg-amber-600/35 border border-amber-500/40 text-amber-300 hover:text-amber-200 transition-all"
+                data-testid="button-close-operation"
+              >
+                ⚡ Operasyonu Kapat ve Finansa Aktar
+              </button>
+            )}
+            {voyage.status === "pending_finance" && (
+              <span className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold bg-amber-900/25 border border-amber-500/30 text-amber-400" data-testid="badge-pending-finance">
+                <DollarSign className="w-3.5 h-3.5" /> Finans Onayı Bekleniyor
+              </span>
+            )}
             {/* Change Status dropdown */}
             {isOwner && transitions.length > 0 && (
               <DropdownMenu>
@@ -5925,6 +5948,159 @@ export default function VoyageDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Close Operation / Finance Handover Modal ─────────────────────────── */}
+      {showCloseOpModal && (() => {
+        const isCrewOp = voyage.purposeOfCall === "Crew Change" || voyage.purposeOfCall === "Husbandry";
+        const hasPdaDoc = docs.some((d: any) => /proforma|pda/i.test((d.name || "") + (d.docType || "")));
+        const hasHotelDoc = docs.some((d: any) => /hotel|otel/i.test((d.name || "") + (d.docType || "")));
+        const checkItems = [
+          {
+            id: "op_status",
+            label: "Operasyon Durumu",
+            ok: voyage.status === "active" || voyage.status === "completed",
+            detailOk: "Sefer aktif/tamamlandı durumunda.",
+            detailFail: "Sefer henüz planlama aşamasında, finansa aktarılamaz.",
+            actionLabel: null as string | null,
+            critical: true,
+          },
+          {
+            id: "pda",
+            label: "Acente PDA Proforması",
+            ok: hasPdaDoc,
+            detailOk: "PDA/Proforma belgesi sisteme yüklendi.",
+            detailFail: "Proforma henüz oluşturulmadı ya da belge yüklenmedi.",
+            actionLabel: "PDA Oluştur",
+            actionHref: `/proformas/new?voyageId=${voyageId}`,
+            critical: false,
+          },
+          {
+            id: "docs",
+            label: "Operasyon Belgeleri",
+            ok: docs.length > 0,
+            detailOk: `${docs.length} belge sisteme yüklendi.`,
+            detailFail: "Hiç operasyon belgesi yüklenmedi.",
+            actionLabel: "Belge Yükle",
+            critical: false,
+          },
+          ...(isCrewOp ? [{
+            id: "hotel_docs",
+            label: "Otel Faturaları / Belgeleri",
+            ok: hasHotelDoc,
+            detailOk: "Otel belgesi sisteme yüklendi.",
+            detailFail: "Otel faturası / rezervasyon belgesi yüklenmedi.",
+            actionLabel: "Şimdi Yükle" as string | null,
+            critical: false,
+          }] : []),
+        ];
+        const hasCriticalFail = checkItems.some(i => i.critical && !i.ok);
+        const hasNonCriticalFail = checkItems.some(i => !i.critical && !i.ok);
+        const canConfirm = !hasCriticalFail && (!hasNonCriticalFail || closeOpAcknowledge);
+        return (
+          <Dialog open={showCloseOpModal} onOpenChange={v => { if (!v) setShowCloseOpModal(false); }}>
+            <DialogContent className="max-w-lg bg-slate-900 border-slate-700 text-slate-100" data-testid="dialog-close-operation">
+              <DialogHeader>
+                <DialogTitle className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  ⚡ Operasyonu Finansa Devret
+                </DialogTitle>
+                <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                  {voyage.vesselName || "—"} · {voyage.portName || "—"}
+                </p>
+              </DialogHeader>
+
+              <div className="space-y-2 py-1">
+                <p className="text-xs text-slate-400 pb-1">Sistem operasyon verilerini taradı. Lütfen aşağıdaki kalemleri gözden geçirin:</p>
+                {checkItems.map(item => (
+                  <div
+                    key={item.id}
+                    className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
+                      item.ok
+                        ? "bg-emerald-950/30 border-emerald-700/30"
+                        : item.critical
+                        ? "bg-red-950/40 border-red-500/50 shadow-[0_0_8px_rgba(239,68,68,0.15)]"
+                        : "bg-amber-950/30 border-amber-700/30"
+                    }`}
+                    data-testid={`check-item-${item.id}`}
+                  >
+                    <span className="text-lg leading-none mt-0.5 flex-shrink-0">
+                      {item.ok ? "✅" : item.critical ? "❌" : "⚠️"}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-semibold ${item.ok ? "text-emerald-300" : item.critical ? "text-red-300" : "text-amber-300"}`}>{item.label}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{item.ok ? item.detailOk : item.detailFail}</p>
+                    </div>
+                    {!item.ok && item.actionLabel && (
+                      "actionHref" in item && (item as any).actionHref ? (
+                        <a
+                          href={(item as any).actionHref}
+                          onClick={() => setShowCloseOpModal(false)}
+                          className="flex-shrink-0 text-[10px] font-bold px-2 py-1 rounded-md bg-amber-700/30 border border-amber-600/40 text-amber-300 hover:bg-amber-700/50 transition-colors"
+                          data-testid={`action-${item.id}`}
+                        >
+                          {item.actionLabel}
+                        </a>
+                      ) : (
+                        <button
+                          onClick={() => setShowCloseOpModal(false)}
+                          className="flex-shrink-0 text-[10px] font-bold px-2 py-1 rounded-md bg-amber-700/30 border border-amber-600/40 text-amber-300 hover:bg-amber-700/50 transition-colors"
+                          data-testid={`action-${item.id}`}
+                        >
+                          {item.actionLabel}
+                        </button>
+                      )
+                    )}
+                  </div>
+                ))}
+
+                {hasCriticalFail && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-red-950/50 border border-red-500/40 mt-2">
+                    <span className="text-base">🚫</span>
+                    <p className="text-xs text-red-300 font-semibold">Kritik eksikler tamamlanmadan operasyon finansa aktarılamaz.</p>
+                  </div>
+                )}
+                {!hasCriticalFail && hasNonCriticalFail && (
+                  <label className="flex items-start gap-2 p-3 rounded-lg bg-amber-950/30 border border-amber-700/30 cursor-pointer mt-2" data-testid="label-acknowledge">
+                    <input
+                      type="checkbox"
+                      checked={closeOpAcknowledge}
+                      onChange={e => setCloseOpAcknowledge(e.target.checked)}
+                      className="mt-0.5 accent-amber-500"
+                      data-testid="checkbox-acknowledge"
+                    />
+                    <span className="text-xs text-amber-300">Eksik kalemlerin farkındayım, yine de devam etmek istiyorum.</span>
+                  </label>
+                )}
+              </div>
+
+              <DialogFooter className="gap-2 pt-1">
+                <button
+                  onClick={() => setShowCloseOpModal(false)}
+                  className="h-8 px-4 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 transition-all"
+                  data-testid="button-closeop-cancel"
+                >
+                  İptal
+                </button>
+                <button
+                  disabled={!canConfirm}
+                  onClick={() => {
+                    statusMutation.mutate("pending_finance");
+                    addActivityLog("Operasyon finansa devredildi (Pending Finance).", "Agent");
+                    setShowCloseOpModal(false);
+                  }}
+                  className={`h-8 px-4 rounded-lg text-xs font-bold border transition-all ${
+                    canConfirm
+                      ? "bg-amber-600/30 hover:bg-amber-600/50 border-amber-500/50 text-amber-200"
+                      : "bg-slate-800 border-slate-700 text-slate-600 cursor-not-allowed"
+                  }`}
+                  data-testid="button-closeop-confirm"
+                >
+                  ✓ Onayla ve Finansa Gönder
+                </button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* Status Confirmation Dialog */}
       <AlertDialog open={pendingStatus !== null} onOpenChange={open => { if (!open) setPendingStatus(null); }}>

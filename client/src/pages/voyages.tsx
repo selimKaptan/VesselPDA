@@ -20,10 +20,12 @@ import type { Vessel, Port } from "@shared/schema";
 import { fmtDate } from "@/lib/formatDate";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
-  planned:   { label: "Planned",    color: "bg-blue-900/30 text-blue-400 border border-blue-500/30",    icon: Clock },
-  active:    { label: "Active",     color: "bg-green-900/30 text-green-400 border border-green-500/30", icon: PlayCircle },
-  completed: { label: "Completed",  color: "bg-slate-700/50 text-slate-400 border border-slate-600/30", icon: CheckCircle2 },
-  cancelled: { label: "Cancelled",  color: "bg-red-900/30 text-red-400 border border-red-500/30",       icon: XCircle },
+  planned:         { label: "Planned",         color: "bg-blue-900/30 text-blue-400 border border-blue-500/30",       icon: Clock },
+  active:          { label: "Active",          color: "bg-green-900/30 text-green-400 border border-green-500/30",    icon: PlayCircle },
+  completed:       { label: "Completed",       color: "bg-slate-700/50 text-slate-400 border border-slate-600/30",    icon: CheckCircle2 },
+  cancelled:       { label: "Cancelled",       color: "bg-red-900/30 text-red-400 border border-red-500/30",          icon: XCircle },
+  pending_finance: { label: "Pending Finance", color: "bg-amber-900/30 text-amber-400 border border-amber-500/30",    icon: AlertCircle },
+  archived:        { label: "Archived",        color: "bg-slate-800/50 text-slate-500 border border-slate-700/30",    icon: CheckCircle },
 };
 
 const PURPOSE_STYLE: Record<string, { bg: string; text: string; border: string; icon: string; label: string; pill: string; pillActive: string }> = {
@@ -41,10 +43,12 @@ const DEFAULT_PURPOSE_STYLE = { bg: "bg-blue-900/50", text: "text-blue-300", bor
 // Port call operational stage — derived from voyage.status
 // If a dedicated portCallStage field is added to the voyage table in the future, extend this config
 const PORT_CALL_STAGE: Record<string, { label: string; dot: string; text: string }> = {
-  planned:   { label: "Pre-Arrival", dot: "bg-blue-400",   text: "text-blue-400"   },
-  active:    { label: "In Port",     dot: "bg-green-400",  text: "text-green-400"  },
-  completed: { label: "Departed",    dot: "bg-slate-400",  text: "text-slate-400"  },
-  cancelled: { label: "Cancelled",   dot: "bg-red-400",    text: "text-red-400"    },
+  planned:         { label: "Pre-Arrival",    dot: "bg-blue-400",   text: "text-blue-400"   },
+  active:          { label: "In Port",        dot: "bg-green-400",  text: "text-green-400"  },
+  completed:       { label: "Departed",       dot: "bg-slate-400",  text: "text-slate-400"  },
+  cancelled:       { label: "Cancelled",      dot: "bg-red-400",    text: "text-red-400"    },
+  pending_finance: { label: "Finance Review", dot: "bg-amber-400",  text: "text-amber-400"  },
+  archived:        { label: "Archived",       dot: "bg-slate-500",  text: "text-slate-500"  },
 };
 
 const PURPOSE_OPTIONS = ["Loading", "Discharging", "Transit", "Bunkering", "Repair", "Crew Change", "Inspection", "Husbandry"];
