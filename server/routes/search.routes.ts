@@ -4,7 +4,7 @@ import { isAuthenticated } from "../replit_integrations/auth";
 import { cached } from "../cache";
 import { storage } from "../storage";
 import { ilike, or, and, eq } from "drizzle-orm";
-import { vessels, ports, proformas, portTenders, voyages, forumTopics } from "@shared/schema";
+import { vessels, ports, proformas, portTenders, voyages, forumTopics, invoices, fdaAccounts } from "@shared/schema";
 import { companyProfiles } from "@shared/models/auth";
 
 const router = Router();
@@ -31,6 +31,8 @@ router.get("/api/search", isAuthenticated, async (req: any, res: any, next: any)
         voyageResults,
         companyResults,
         forumResults,
+        invoiceResults,
+        fdaResults,
       ] = await Promise.all([
         // Vessels — search name, IMO, callSign
         db
@@ -105,6 +107,28 @@ router.get("/api/search", isAuthenticated, async (req: any, res: any, next: any)
           .from(forumTopics)
           .where(ilike(forumTopics.title, searchTerm))
           .limit(limit),
+
+        // Invoices — search title; user-filtered
+        db
+          .select({ id: invoices.id, title: invoices.title, amount: invoices.amount, status: invoices.status })
+          .from(invoices)
+          .where(
+            isAdmin
+              ? ilike(invoices.title, searchTerm)
+              : and(eq(invoices.userId, userId), ilike(invoices.title, searchTerm))
+          )
+          .limit(limit),
+
+        // FDA accounts — search reference number; user-filtered
+        db
+          .select({ id: fdaAccounts.id, referenceNumber: fdaAccounts.referenceNumber, status: fdaAccounts.status, totalActualUsd: fdaAccounts.totalActualUsd })
+          .from(fdaAccounts)
+          .where(
+            isAdmin
+              ? ilike(fdaAccounts.referenceNumber, searchTerm)
+              : and(eq(fdaAccounts.userId, userId), ilike(fdaAccounts.referenceNumber, searchTerm))
+          )
+          .limit(limit),
       ]);
 
       return [
@@ -163,6 +187,22 @@ router.get("/api/search", isAuthenticated, async (req: any, res: any, next: any)
           subtitle: "Forum Topic",
           icon: "💬",
           href: `/forum/${f.id}`,
+        })),
+        ...invoiceResults.map((inv: any) => ({
+          type: "invoice",
+          id: inv.id,
+          title: inv.title || `Invoice #${inv.id}`,
+          subtitle: `$${(inv.amount || 0).toLocaleString()} — ${inv.status || "draft"}`,
+          icon: "💳",
+          href: `/invoices`,
+        })),
+        ...fdaResults.map((f: any) => ({
+          type: "fda",
+          id: f.id,
+          title: f.referenceNumber || `FDA #${f.id}`,
+          subtitle: `FDA — ${f.status || "draft"}${f.totalActualUsd ? " — $" + Number(f.totalActualUsd).toLocaleString() : ""}`,
+          icon: "📊",
+          href: `/fda/${f.id}`,
         })),
       ];
     });

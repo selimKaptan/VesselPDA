@@ -9,6 +9,7 @@ import {
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
   FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings, Archive, X,
   TrendingUp, TrendingDown, AlertTriangle, Mail, Plane, LogIn, LogOut, Maximize2, Calculator, FolderLock,
+  Scale, Banknote, CreditCard,
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
@@ -1159,6 +1160,28 @@ export default function VoyageDetail() {
     queryKey: ["/api/fda", "voyage", voyageId],
     queryFn: async () => {
       const res = await fetch(`/api/fda?voyageId=${voyageId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      const d = await res.json();
+      return Array.isArray(d) ? d : [];
+    },
+    enabled: !!voyageId,
+  });
+
+  const { data: voyageLaytimeSheets = [] } = useQuery<any[]>({
+    queryKey: ["/api/laytime-sheets", "voyage", voyageId],
+    queryFn: async () => {
+      const res = await fetch(`/api/laytime-sheets?voyageId=${voyageId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      const d = await res.json();
+      return Array.isArray(d) ? d : [];
+    },
+    enabled: !!voyageId,
+  });
+
+  const { data: voyageDaAdvances = [] } = useQuery<any[]>({
+    queryKey: ["/api/da-advances", "voyage", voyageId],
+    queryFn: async () => {
+      const res = await fetch(`/api/da-advances?voyageId=${voyageId}`, { credentials: "include" });
       if (!res.ok) return [];
       const d = await res.json();
       return Array.isArray(d) ? d : [];
@@ -5353,6 +5376,115 @@ export default function VoyageDetail() {
               </div>
             )}
           </Card>
+
+          {/* Laytime Sheets Section */}
+          <Card className="p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Scale className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                <h2 className="font-semibold text-sm">Laytime Calculations</h2>
+                {(voyageLaytimeSheets as any[]).length > 0 && (
+                  <span className="text-xs text-muted-foreground">({(voyageLaytimeSheets as any[]).length})</span>
+                )}
+              </div>
+              <Link href={`/laytime-calculator?voyageId=${voyageId}`}>
+                <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" data-testid="button-new-laytime">
+                  <Plus className="w-3 h-3" /> New Calculation
+                </Button>
+              </Link>
+            </div>
+            {(voyageLaytimeSheets as any[]).length === 0 ? (
+              <div className="text-center py-5 text-muted-foreground text-sm">
+                <Scale className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                No laytime calculations for this voyage.
+              </div>
+            ) : (
+              <div className="space-y-2" data-testid="section-laytime-sheets">
+                {(voyageLaytimeSheets as any[]).map((s: any) => (
+                  <div key={s.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors" data-testid={`laytime-row-${s.id}`}>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{s.title || `Laytime #${s.id}`}</p>
+                      <p className="text-xs text-muted-foreground">{s.vesselName || ""}{s.portName ? ` · ${s.portName}` : ""}</p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-3 shrink-0">
+                      {s.result?.status === "on_demurrage" && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                          DEM -{(s.result.demurrageAmount || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                        </span>
+                      )}
+                      {s.result?.status === "on_despatch" && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                          DES +{(s.result.despatchAmount || 0).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                        </span>
+                      )}
+                      <Link href={`/laytime-calculator?sheetId=${s.id}`}>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" data-testid={`button-view-laytime-${s.id}`}>
+                          <ExternalLink className="w-3 h-3" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* DA Advances Section */}
+          <Card className="p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Banknote className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                <h2 className="font-semibold text-sm">DA Advance Requests</h2>
+                {(voyageDaAdvances as any[]).length > 0 && (
+                  <span className="text-xs text-muted-foreground">({(voyageDaAdvances as any[]).length})</span>
+                )}
+              </div>
+              <Link href={`/da-advances?voyageId=${voyageId}`}>
+                <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" data-testid="button-new-da-advance">
+                  <Plus className="w-3 h-3" /> New Advance
+                </Button>
+              </Link>
+            </div>
+            {(voyageDaAdvances as any[]).length === 0 ? (
+              <div className="text-center py-5 text-muted-foreground text-sm">
+                <Banknote className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                No advance requests for this voyage.
+              </div>
+            ) : (
+              <div className="space-y-2" data-testid="section-da-advances">
+                {(voyageDaAdvances as any[]).map((a: any) => {
+                  const pct = a.requestedAmount > 0 ? Math.min(100, ((a.receivedAmount || 0) / a.requestedAmount) * 100) : 0;
+                  return (
+                    <div key={a.id} className="px-3 py-2.5 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors" data-testid={`da-advance-row-${a.id}`}>
+                      <div className="flex items-center justify-between">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{a.title}</p>
+                          <p className="text-xs text-muted-foreground">{a.principalName || ""} · {a.currency} {Number(a.requestedAmount || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="flex items-center gap-2 ml-3 shrink-0">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            a.status === "fully_received" ? "bg-emerald-100 text-emerald-700" :
+                            a.status === "partially_received" ? "bg-blue-100 text-blue-700" :
+                            a.status === "cancelled" ? "bg-slate-100 text-slate-600" :
+                            "bg-amber-100 text-amber-700"
+                          }`}>{(a.status || "pending").replace(/_/g, " ")}</span>
+                          <Link href={`/da-advances?voyageId=${voyageId}`}>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
+                              <ExternalLink className="w-3 h-3" />
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                      <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div className={`h-full rounded-full ${pct >= 100 ? "bg-emerald-500" : pct > 0 ? "bg-blue-500" : "bg-amber-400"}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+
         </div>
       )}
 

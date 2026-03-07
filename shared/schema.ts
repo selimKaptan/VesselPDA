@@ -1948,3 +1948,59 @@ export const voyageCrewLogistics = pgTable("voyage_crew_logistics", {
 export const insertVoyageCrewLogisticSchema = createInsertSchema(voyageCrewLogistics).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertVoyageCrewLogistic = z.infer<typeof insertVoyageCrewLogisticSchema>;
 export type VoyageCrewLogistic = typeof voyageCrewLogistics.$inferSelect;
+
+// ─── LAYTIME SHEETS ──────────────────────────────────────────────────────────
+
+export const laytimeSheets = pgTable("laytime_sheets", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
+  title: text("title").notNull().default("Laytime Calculation"),
+  vesselName: text("vessel_name"),
+  portName: text("port_name"),
+  terms: jsonb("terms").notNull().default({}),
+  events: jsonb("events").notNull().default([]),
+  result: jsonb("result").default(null),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const laytimeSheetRelations = relations(laytimeSheets, ({ one }) => ({
+  user: one(users, { fields: [laytimeSheets.userId], references: [users.id] }),
+  voyage: one(voyages, { fields: [laytimeSheets.voyageId], references: [voyages.id] }),
+}));
+
+export const insertLaytimeSheetSchema = createInsertSchema(laytimeSheets).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertLaytimeSheet = z.infer<typeof insertLaytimeSheetSchema>;
+export type LaytimeSheet = typeof laytimeSheets.$inferSelect;
+
+// ─── DA ADVANCES ─────────────────────────────────────────────────────────────
+
+export const daAdvances = pgTable("da_advances", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
+  proformaId: integer("proforma_id").references(() => proformas.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  requestedAmount: real("requested_amount").notNull(),
+  receivedAmount: real("received_amount").notNull().default(0),
+  currency: text("currency").notNull().default("USD"),
+  status: text("status").notNull().default("pending"),
+  dueDate: timestamp("due_date"),
+  recipientEmail: text("recipient_email"),
+  principalName: text("principal_name"),
+  notes: text("notes"),
+  bankDetails: text("bank_details"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const daAdvanceRelations = relations(daAdvances, ({ one }) => ({
+  user: one(users, { fields: [daAdvances.userId], references: [users.id] }),
+  voyage: one(voyages, { fields: [daAdvances.voyageId], references: [voyages.id] }),
+  proforma: one(proformas, { fields: [daAdvances.proformaId], references: [proformas.id] }),
+}));
+
+export const insertDaAdvanceSchema = createInsertSchema(daAdvances).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertDaAdvance = z.infer<typeof insertDaAdvanceSchema>;
+export type DaAdvance = typeof daAdvances.$inferSelect;

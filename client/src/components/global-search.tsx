@@ -36,7 +36,7 @@ function saveRecent(query: string) {
   } catch {}
 }
 
-const TYPE_ORDER = ["vessel", "port", "proforma", "tender", "voyage", "company", "forum"];
+const TYPE_ORDER = ["vessel", "voyage", "proforma", "fda", "invoice", "tender", "port", "company", "forum"];
 const TYPE_LABELS: Record<string, string> = {
   vessel: "Vessels",
   port: "Ports",
@@ -45,6 +45,8 @@ const TYPE_LABELS: Record<string, string> = {
   voyage: "Voyages",
   company: "Companies",
   forum: "Forum Topics",
+  invoice: "Invoices",
+  fda: "Final Disbursement Accounts",
 };
 
 function groupResults(results: SearchResult[]): Array<{ type: string; items: SearchResult[] }> {

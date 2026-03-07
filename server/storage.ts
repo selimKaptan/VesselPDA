@@ -1,6 +1,9 @@
 import {
   type User, type UpsertUser,
   type Vessel, type InsertVessel,
+  type LaytimeSheet, type InsertLaytimeSheet,
+  type DaAdvance, type InsertDaAdvance,
+  laytimeSheets, daAdvances,
   type Port, type InsertPort,
   type TariffCategory, type InsertTariffCategory,
   type TariffRate, type InsertTariffRate,
@@ -256,6 +259,20 @@ export interface IStorage {
   updateVesselQ88(vesselId: number, data: Partial<InsertVesselQ88>): Promise<VesselQ88>;
   getPublicVesselQ88(vesselId: number): Promise<VesselQ88 | undefined>;
   duplicateVesselQ88(sourceVesselId: number, targetVesselId: number, userId: string): Promise<VesselQ88>;
+
+  getLaytimeSheetsByUser(userId: string): Promise<LaytimeSheet[]>;
+  getLaytimeSheetsByVoyage(voyageId: number): Promise<LaytimeSheet[]>;
+  getLaytimeSheet(id: number): Promise<LaytimeSheet | undefined>;
+  createLaytimeSheet(data: InsertLaytimeSheet): Promise<LaytimeSheet>;
+  updateLaytimeSheet(id: number, data: Partial<InsertLaytimeSheet>): Promise<LaytimeSheet>;
+  deleteLaytimeSheet(id: number): Promise<void>;
+
+  getDaAdvancesByUser(userId: string): Promise<DaAdvance[]>;
+  getDaAdvancesByVoyage(voyageId: number): Promise<DaAdvance[]>;
+  getDaAdvance(id: number): Promise<DaAdvance | undefined>;
+  createDaAdvance(data: InsertDaAdvance): Promise<DaAdvance>;
+  updateDaAdvance(id: number, data: Partial<InsertDaAdvance>): Promise<DaAdvance>;
+  deleteDaAdvance(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2287,6 +2304,64 @@ export class DatabaseStorage implements IStorage {
       lastUpdated: new Date(),
     }).returning();
     return row;
+  }
+
+  // ── Laytime Sheets ──────────────────────────────────────────────────────────
+
+  async getLaytimeSheetsByUser(userId: string): Promise<LaytimeSheet[]> {
+    return db.select().from(laytimeSheets).where(eq(laytimeSheets.userId, userId)).orderBy(desc(laytimeSheets.updatedAt));
+  }
+
+  async getLaytimeSheetsByVoyage(voyageId: number): Promise<LaytimeSheet[]> {
+    return db.select().from(laytimeSheets).where(eq(laytimeSheets.voyageId, voyageId)).orderBy(desc(laytimeSheets.updatedAt));
+  }
+
+  async getLaytimeSheet(id: number): Promise<LaytimeSheet | undefined> {
+    const [row] = await db.select().from(laytimeSheets).where(eq(laytimeSheets.id, id));
+    return row;
+  }
+
+  async createLaytimeSheet(data: InsertLaytimeSheet): Promise<LaytimeSheet> {
+    const [row] = await db.insert(laytimeSheets).values(data).returning();
+    return row;
+  }
+
+  async updateLaytimeSheet(id: number, data: Partial<InsertLaytimeSheet>): Promise<LaytimeSheet> {
+    const [row] = await db.update(laytimeSheets).set({ ...data, updatedAt: new Date() }).where(eq(laytimeSheets.id, id)).returning();
+    return row;
+  }
+
+  async deleteLaytimeSheet(id: number): Promise<void> {
+    await db.delete(laytimeSheets).where(eq(laytimeSheets.id, id));
+  }
+
+  // ── DA Advances ─────────────────────────────────────────────────────────────
+
+  async getDaAdvancesByUser(userId: string): Promise<DaAdvance[]> {
+    return db.select().from(daAdvances).where(eq(daAdvances.userId, userId)).orderBy(desc(daAdvances.createdAt));
+  }
+
+  async getDaAdvancesByVoyage(voyageId: number): Promise<DaAdvance[]> {
+    return db.select().from(daAdvances).where(eq(daAdvances.voyageId, voyageId)).orderBy(desc(daAdvances.createdAt));
+  }
+
+  async getDaAdvance(id: number): Promise<DaAdvance | undefined> {
+    const [row] = await db.select().from(daAdvances).where(eq(daAdvances.id, id));
+    return row;
+  }
+
+  async createDaAdvance(data: InsertDaAdvance): Promise<DaAdvance> {
+    const [row] = await db.insert(daAdvances).values(data).returning();
+    return row;
+  }
+
+  async updateDaAdvance(id: number, data: Partial<InsertDaAdvance>): Promise<DaAdvance> {
+    const [row] = await db.update(daAdvances).set({ ...data, updatedAt: new Date() }).where(eq(daAdvances.id, id)).returning();
+    return row;
+  }
+
+  async deleteDaAdvance(id: number): Promise<void> {
+    await db.delete(daAdvances).where(eq(daAdvances.id, id));
   }
 }
 

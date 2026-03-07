@@ -40,6 +40,9 @@ import commercialRoutes from "./routes/commercial.routes";
 import miscRoutes from "./routes/misc.routes";
 import searchRoutes from "./routes/search.routes";
 import q88Routes from "./routes/q88.routes";
+import laytimeRoutes from "./routes/laytime.routes";
+import daAdvanceRoutes from "./routes/da-advance.routes";
+import analyticsRoutes from "./routes/analytics.routes";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -98,6 +101,10 @@ export async function registerRoutes(
   app.use("/api/invites", inviteRouter);
   app.use("/api", voyageInviteRouter);
   app.use(demoRouter);
+
+  app.use("/api/laytime-sheets", laytimeRoutes);
+  app.use("/api/da-advances", daAdvanceRoutes);
+  app.use("/api/analytics", analyticsRoutes);
 
   return httpServer;
 }

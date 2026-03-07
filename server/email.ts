@@ -828,3 +828,54 @@ export async function sendCertificateExpiryEmail(data: CertificateExpiryEmailDat
     return true;
   } catch (err) { console.error("[email] sendCertificateExpiryEmail failed:", err); return false; }
 }
+
+export interface DaAdvanceRequestEmailData {
+  toEmail: string;
+  toName: string;
+  agentName: string;
+  vesselName: string;
+  amount: number;
+  currency: string;
+  dueDate?: string;
+  bankDetails?: string;
+  notes?: string;
+  title: string;
+}
+
+export async function sendDaAdvanceRequestEmail(data: DaAdvanceRequestEmailData): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) { console.warn("[email] No credentials — skipping sendDaAdvanceRequestEmail"); return false; }
+  const resend = new Resend(creds.apiKey);
+  const subject = `DA Advance Request — ${data.title} (${data.vesselName})`;
+  const fmtAmt = `${data.currency} ${data.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const html = `
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+      <div style="background:#1e3a5f;padding:20px;border-radius:8px 8px 0 0;">
+        <h1 style="color:white;margin:0;font-size:20px;">⚓ VesselPDA — DA Advance Request</h1>
+      </div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
+        <p style="font-size:16px;font-weight:600;color:#1e293b;">Dear ${data.toName},</p>
+        <p style="color:#475569;">Ship agent <strong>${data.agentName}</strong> has submitted a Disbursement Account (DA) Advance Request for the following voyage:</p>
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:16px 0;">
+          <table style="width:100%;border-collapse:collapse;">
+            <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Reference</td><td style="padding:6px 0;font-weight:600;color:#1e293b;">${data.title}</td></tr>
+            <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Vessel</td><td style="padding:6px 0;font-weight:600;color:#1e293b;">${data.vesselName}</td></tr>
+            <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Requested Amount</td><td style="padding:6px 0;font-weight:700;color:#1e3a5f;font-size:16px;">${fmtAmt}</td></tr>
+            ${data.dueDate ? `<tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Due Date</td><td style="padding:6px 0;font-weight:600;color:#dc2626;">${data.dueDate}</td></tr>` : ""}
+          </table>
+        </div>
+        ${data.bankDetails ? `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;margin:12px 0;"><p style="font-size:12px;font-weight:600;color:#1e40af;margin:0 0 6px;">Bank Transfer Details:</p><pre style="font-size:12px;color:#1e293b;margin:0;white-space:pre-wrap;">${data.bankDetails}</pre></div>` : ""}
+        ${data.notes ? `<p style="color:#475569;font-size:14px;">${data.notes}</p>` : ""}
+        <p style="color:#475569;">Please arrange fund transfer at your earliest convenience.</p>
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;">
+        <p style="color:#94a3b8;font-size:12px;">Sent via VesselPDA Maritime Platform</p>
+      </div>
+    </div>
+  `;
+  try {
+    const { error } = await resend.emails.send({ from: `VesselPDA <${creds.fromEmail}>`, to: [data.toEmail], subject, html });
+    if (error) { console.error("[email] sendDaAdvanceRequestEmail error:", error); return false; }
+    console.log(`[email] DA advance request email sent to ${data.toEmail}`);
+    return true;
+  } catch (err) { console.error("[email] sendDaAdvanceRequestEmail failed:", err); return false; }
+}

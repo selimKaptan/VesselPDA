@@ -1,4 +1,4 @@
-import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, MessageCircle, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, Handshake, Package, TrendingUp, Wallet, ClipboardList, Calculator, FolderLock } from "lucide-react";
+import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, MessageCircle, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, Handshake, Package, TrendingUp, Wallet, ClipboardList, Calculator, FolderLock, Scale, Banknote, BarChart2 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -125,6 +125,11 @@ export function AppSidebar() {
   if (isAgent || effectiveRole === "shipowner" || isAdminUser) {
     toolsNav.push({ title: "Invoices", url: "/invoices", icon: Wallet });
   }
+  if (isAgent || effectiveRole === "shipowner" || isAdminUser) {
+    toolsNav.push({ title: "Laytime Calculator", url: "/laytime-calculator", icon: Scale });
+    toolsNav.push({ title: "DA Advances", url: "/da-advances", icon: Banknote });
+  }
+  toolsNav.push({ title: "Analytics", url: "/analytics", icon: BarChart2 });
   if (!isAgent) {
     toolsNav.push({ title: "Cargo / Positions", url: "/cargo-positions", icon: Package });
   }
