@@ -30,7 +30,7 @@ router.get("/pending", isAuthenticated, async (req: any, res: any) => {
     thirtyDaysFromNow.setDate(now.getDate() + 30);
 
     // Filter helpers
-    const userFilter = isAdmin ? sql`1=1` : eq(invoices.userId, userId);
+    const userFilter = isAdmin ? sql`true` : eq(invoices.createdByUserId, userId);
     
     // 1. Overdue Invoices (Critical)
     const overdueInvoices = await db.select()
@@ -48,20 +48,20 @@ router.get("/pending", isAuthenticated, async (req: any, res: any) => {
       vesselId: vesselCertificates.vesselId,
       vesselName: vessels.name,
       certType: vesselCertificates.certType,
-      expiresAt: vesselCertificates.expiryDate,
+      expiresAt: vesselCertificates.expiresAt,
     })
     .from(vesselCertificates)
     .innerJoin(vessels, eq(vessels.id, vesselCertificates.vesselId))
     .where(and(
-      isAdmin ? sql`1=1` : eq(vessels.userId, userId),
-      lt(vesselCertificates.expiryDate, thirtyDaysFromNow)
+      isAdmin ? sql`true` : eq(vesselCertificates.userId, userId),
+      lt(vesselCertificates.expiresAt, thirtyDaysFromNow)
     ));
 
     // 3. Pending DA Advances (Warning)
     const pendingDaAdvances = await db.select()
       .from(daAdvances)
       .where(and(
-        isAdmin ? sql`1=1` : eq(daAdvances.userId, userId),
+        isAdmin ? sql`true` : eq(daAdvances.userId, userId),
         eq(daAdvances.status, "requested")
       ));
 
@@ -77,7 +77,7 @@ router.get("/pending", isAuthenticated, async (req: any, res: any) => {
     .leftJoin(fdaAccounts, eq(fdaAccounts.voyageId, voyages.id))
     .leftJoin(ports, eq(ports.id, voyages.portId))
     .where(and(
-      isAdmin ? sql`1=1` : eq(voyages.userId, userId),
+      isAdmin ? sql`true` : eq(voyages.userId, userId),
       eq(voyages.status, "completed"),
       isNull(fdaAccounts.id)
     ));
@@ -86,7 +86,7 @@ router.get("/pending", isAuthenticated, async (req: any, res: any) => {
     const pendingProformaApprovals = (role === 'shipowner' || isAdmin) ? await db.select()
       .from(proformas)
       .where(and(
-        isAdmin ? sql`1=1` : eq(proformas.userId, userId),
+        isAdmin ? sql`true` : eq(proformas.userId, userId),
         eq(proformas.status, "sent")
       )) : [];
 
@@ -99,7 +99,7 @@ router.get("/pending", isAuthenticated, async (req: any, res: any) => {
     })
     .from(serviceRequests)
     .where(and(
-      isAdmin ? sql`1=1` : eq(serviceRequests.userId, userId),
+      isAdmin ? sql`true` : eq(serviceRequests.requesterId, userId),
       eq(serviceRequests.status, "open")
     ));
 
@@ -111,7 +111,7 @@ router.get("/pending", isAuthenticated, async (req: any, res: any) => {
     })
     .from(portExpenses)
     .where(and(
-      isAdmin ? sql`1=1` : eq(portExpenses.userId, userId),
+      isAdmin ? sql`true` : eq(portExpenses.userId, userId),
       isNull(portExpenses.fdaId)
     ))
     .groupBy(portExpenses.voyageId);

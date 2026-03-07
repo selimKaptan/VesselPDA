@@ -604,7 +604,7 @@ export default function Invoices() {
               [1,2,3].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
             ) : filtered.length === 0 ? (
               <EmptyState
-                icon={FileText}
+                icon="📄"
                 title="No invoices found"
                 description="Try adjusting your filters or create a new invoice."
               />
@@ -646,7 +646,7 @@ export default function Invoices() {
               [1,2,3].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
             ) : invoices.filter((i: any) => i.status === "provider_review").length === 0 ? (
               <EmptyState
-                icon={Check}
+                icon="✅"
                 title="All clear!"
                 description="You have no invoices pending review."
               />

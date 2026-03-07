@@ -110,7 +110,6 @@ function AuthenticatedRouter() {
       <Route path="/pricing" component={Pricing} />
       <Route path="/directory" component={Directory} />
       <Route path="/directory/:id" component={DirectoryProfile} />
-      <Route path="/service-ports" component={ServicePorts} />
       <Route path="/company-profile" component={CompanyProfile} />
       <Route path="/admin" component={AdminPanel} />
       <Route path="/tariff-management" component={TariffManagement} />
@@ -118,7 +117,6 @@ function AuthenticatedRouter() {
       <Route path="/forum/:id" component={ForumTopic} />
       <Route path="/tenders" component={Tenders} />
       <Route path="/tenders/:id" component={TenderDetail} />
-      <Route path="/contact" component={Contact} />
       <Route path="/vessel-track" component={VesselTrack} />
       <Route path="/vessel-schedule" component={VesselSchedule} />
       <Route path="/port-info" component={PortInfo} />
@@ -160,7 +158,6 @@ function AuthenticatedRouter() {
       <Route path="/bunker-management" component={BunkerManagement} />
       <Route path="/noon-reports" component={NoonReports} />
       <Route path="/charter-parties" component={CharterParties} />
-      <Route path="/port-calls" component={PortCalls} />
       <Route path="/husbandry" component={Husbandry} />
       <Route path="/agent-report/:voyageId" component={AgentReport} />
       <Route path="/environmental" component={Environmental} />
