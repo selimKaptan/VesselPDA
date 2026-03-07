@@ -186,6 +186,9 @@ export default function VoyageDetail() {
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "financial" | "activity" | "participants" | "cargo_ops" | "contacts">("operation");
   const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [editCargoOpen, setEditCargoOpen] = useState(false);
+  const [editCargoType, setEditCargoType] = useState("");
+  const [editCargoQty, setEditCargoQty] = useState("");
   const [inviteTab, setInviteTab] = useState<"email" | "directory" | "bulk">("email");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("observer");
@@ -924,6 +927,22 @@ export default function VoyageDetail() {
     return () => { if (crewSaveTimer.current) clearTimeout(crewSaveTimer.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [crewSigners]);
+
+  // ── Cargo Update Mutation ─────────────────────────────────────────────────
+  const updateCargoMutation = useMutation({
+    mutationFn: (data: { cargoType: string; cargoQuantity: string }) =>
+      apiRequest("PATCH", `/api/voyages/${voyageId}`, {
+        cargoType: data.cargoType.trim() || null,
+        cargoQuantity: data.cargoQuantity ? parseFloat(data.cargoQuantity) : null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages"] });
+      setEditCargoOpen(false);
+      toast({ title: "Cargo info updated" });
+    },
+    onError: () => toast({ title: "Failed to update cargo info", variant: "destructive" }),
+  });
 
   // ── Auto-set requiresHotel on crewSigners when voyage ETA/ETD loaded ───────
   useEffect(() => {
@@ -1793,10 +1812,27 @@ export default function VoyageDetail() {
               <h1 className="font-bold text-lg leading-tight tracking-tight">
                 {voyage.vesselName || "Vessel Not Specified"}
               </h1>
-              <div className="flex items-center gap-2 mt-0.5">
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 bg-muted/40 px-2 py-0.5 rounded-full border border-border/50">
                   {voyage.purposeOfCall}
                 </span>
+                {!["Crew Change", "Husbandry"].includes(voyage.purposeOfCall || "") && (
+                  <button
+                    onClick={() => {
+                      setEditCargoType(voyage.cargoType || "");
+                      setEditCargoQty(voyage.cargoQuantity != null ? String(voyage.cargoQuantity) : "");
+                      setEditCargoOpen(true);
+                    }}
+                    className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground bg-muted/30 hover:bg-muted/60 border border-border/40 hover:border-border rounded-full px-2.5 py-0.5 transition-all"
+                    data-testid="button-edit-cargo"
+                  >
+                    📦{" "}
+                    {voyage.cargoType
+                      ? `${voyage.cargoType}${voyage.cargoQuantity ? ` · ${Number(voyage.cargoQuantity).toLocaleString()} MT` : ""}`
+                      : <span className="italic opacity-60">Set cargo info</span>}
+                    <Pen className="w-2.5 h-2.5 ml-0.5 opacity-50" />
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -5199,6 +5235,56 @@ export default function VoyageDetail() {
                 <Button variant="outline" onClick={() => setShowNoteDialog(false)}>Cancel</Button>
                 <Button onClick={() => addNoteMutation.mutate()} disabled={!noteTitle.trim() || addNoteMutation.isPending} data-testid="button-save-note">
                   {addNoteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Note"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* ── Cargo Edit Dialog ── */}
+          <Dialog open={editCargoOpen} onOpenChange={setEditCargoOpen}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  📦 Cargo Information
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-1">
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Cargo Type</Label>
+                  <Input
+                    value={editCargoType}
+                    onChange={e => setEditCargoType(e.target.value.toUpperCase())}
+                    placeholder="e.g. WHEAT, IRON ORE, CRUDE OIL"
+                    className="uppercase placeholder:normal-case"
+                    data-testid="input-edit-cargo-type"
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Cargo Quantity (MT)</Label>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={editCargoQty}
+                      onChange={e => setEditCargoQty(e.target.value)}
+                      placeholder="e.g. 45000"
+                      className="pr-12"
+                      data-testid="input-edit-cargo-qty"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium pointer-events-none">MT</span>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEditCargoOpen(false)}>Cancel</Button>
+                <Button
+                  onClick={() => updateCargoMutation.mutate({ cargoType: editCargoType, cargoQuantity: editCargoQty })}
+                  disabled={updateCargoMutation.isPending}
+                  data-testid="button-save-cargo"
+                >
+                  {updateCargoMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                  Save
                 </Button>
               </DialogFooter>
             </DialogContent>

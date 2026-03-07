@@ -397,6 +397,8 @@ export const voyages = pgTable("voyages", {
   etd: timestamp("etd"),
   purposeOfCall: text("purpose_of_call").notNull().default("Loading"),
   notes: text("notes"),
+  cargoType: text("cargo_type"),
+  cargoQuantity: real("cargo_quantity"),
   cargoTotalMt: real("cargo_total_mt"),
   createdAt: timestamp("created_at").defaultNow(),
 });

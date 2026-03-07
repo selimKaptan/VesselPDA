@@ -144,6 +144,8 @@ function PortSearch({ value, onChange }: { value: string; onChange: (portId: num
   );
 }
 
+const CARGO_PURPOSES = ["Loading", "Discharging", "Transit", "Bunkering", "Repair", "Inspection"];
+
 const EMPTY_FORM = {
   portId: 0,
   portName: "",
@@ -155,6 +157,8 @@ const EMPTY_FORM = {
   etd: "",
   purposeOfCall: "Loading",
   notes: "",
+  cargoType: "",
+  cargoQuantity: "",
 };
 
 export default function Voyages() {
@@ -262,6 +266,8 @@ export default function Voyages() {
       if (vesselInfo?.grt) payload.grt = vesselInfo.grt;
       if (vesselInfo?.mmsi) payload.mmsi = vesselInfo.mmsi;
       if (vesselInfo?.callSign) payload.callSign = vesselInfo.callSign;
+      if (form.cargoType) payload.cargoType = form.cargoType;
+      if (form.cargoQuantity) payload.cargoQuantity = parseFloat(form.cargoQuantity);
       const res = await apiRequest("POST", "/api/voyages", payload);
       return res.json();
     },
@@ -786,6 +792,47 @@ export default function Voyages() {
                 />
               </div>
             </div>
+
+            {/* ── SECTION 3: Cargo Information (cargo-relevant purposes only) ── */}
+            {CARGO_PURPOSES.includes(form.purposeOfCall) && (
+              <>
+                <div className="h-px bg-border" />
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-full bg-[hsl(var(--maritime-primary))] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">3</div>
+                    <span className="text-sm font-semibold">Cargo Information</span>
+                    <span className="text-xs text-muted-foreground">(optional)</span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Cargo Type</Label>
+                    <Input
+                      value={form.cargoType}
+                      onChange={e => setForm(f => ({ ...f, cargoType: e.target.value.toUpperCase() }))}
+                      placeholder="e.g. WHEAT, IRON ORE, CRUDE OIL"
+                      className="uppercase placeholder:normal-case"
+                      data-testid="input-cargo-type"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Cargo Quantity (MT)</Label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min={0}
+                        value={form.cargoQuantity}
+                        onChange={e => setForm(f => ({ ...f, cargoQuantity: e.target.value }))}
+                        placeholder="e.g. 45000"
+                        className="pr-12"
+                        data-testid="input-cargo-quantity"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium pointer-events-none">MT</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           <DialogFooter className="pt-2">
