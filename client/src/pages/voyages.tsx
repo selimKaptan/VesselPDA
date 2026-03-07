@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { EmptyState } from "@/components/empty-state";
+import { PortLookupInput } from "@/components/port-lookup-input";
 import { Ship, Plus, MapPin, Calendar, ChevronRight, Anchor, CheckCircle2, Clock, XCircle, PlayCircle, Search, X, CheckCircle, AlertCircle, Loader2, FileDown, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -94,56 +95,13 @@ function getCountryLabel(country: string): string {
 }
 
 function PortSearch({ value, onChange }: { value: string; onChange: (portId: number, portName: string) => void }) {
-  const [query, setQuery] = useState(value);
-  const [open, setOpen] = useState(false);
-  const ref = useState(() => ({ current: null as HTMLDivElement | null }))[0];
-  const { data: ports } = useQuery<Port[]>({
-    queryKey: ["/api/ports", query],
-    queryFn: async () => {
-      if (query.length < 2) return [];
-      const res = await fetch(`/api/ports?q=${encodeURIComponent(query)}`);
-      return res.json();
-    },
-    enabled: query.length >= 2,
-  });
-
   return (
-    <div className="relative">
-      <Input
-        value={query}
-        onChange={e => { setQuery(e.target.value); setOpen(true); }}
-        placeholder="Search port name or LOCODE (e.g. Antwerp, Rotterdam)..."
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        data-testid="input-port-search"
-      />
-      {open && ports && ports.length > 0 && (
-        <div className="absolute z-50 top-full mt-1 w-full bg-popover border rounded-md shadow-lg max-h-64 overflow-y-auto divide-y">
-          {ports.map(p => (
-            <button
-              key={p.id}
-              type="button"
-              className="w-full text-left px-3 py-2.5 hover:bg-muted transition-colors flex items-center gap-3"
-              onMouseDown={() => {
-                onChange(p.id, p.name);
-                setQuery(p.name);
-                setOpen(false);
-              }}
-              data-testid={`option-port-${p.id}`}
-            >
-              <span className="text-xl flex-shrink-0 leading-none">{getCountryFlag(p.country || "")}</span>
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{p.name}</p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {getCountryLabel(p.country || "")}
-                  {p.code ? `, Unlocode: ${p.code}` : ""}
-                </p>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <PortLookupInput
+      value={value}
+      onChange={(portId, portName) => onChange(parseInt(portId), portName)}
+      placeholder="Search port name or LOCODE (e.g. Antwerp, Rotterdam)..."
+      data-testid="input-port-search"
+    />
   );
 }
 

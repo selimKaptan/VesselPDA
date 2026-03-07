@@ -84,6 +84,33 @@ router.post("/api/notifications/:id/read", isAuthenticated, async (req: any, res
   }
 });
 
+router.delete("/api/notifications/:id", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user.claims.sub;
+    const id = parseInt(req.params.id);
+    const { db } = await import("../db");
+    const { notifications } = await import("@shared/schema");
+    const { and, eq } = await import("drizzle-orm");
+    await db.delete(notifications).where(and(eq(notifications.id, id), eq(notifications.userId, userId)));
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to delete notification" });
+  }
+});
+
+router.delete("/api/notifications", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user.claims.sub;
+    const { db } = await import("../db");
+    const { notifications } = await import("@shared/schema");
+    const { and, eq } = await import("drizzle-orm");
+    await db.delete(notifications).where(and(eq(notifications.userId, userId), eq(notifications.isRead, true)));
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to clear notifications" });
+  }
+});
+
 
 router.post("/api/feedback", isAuthenticated, async (req: any, res) => {
   try {

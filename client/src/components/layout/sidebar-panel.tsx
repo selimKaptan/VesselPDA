@@ -121,6 +121,13 @@ export function SidebarPanel({ activeCategory }: SidebarPanelProps) {
                     NEW
                   </span>
                 )}
+
+                {/* PRO badge */}
+                {page.isPro && (
+                  <span className="flex-shrink-0 text-[9px] px-1 py-0.5 rounded bg-amber-500/20 text-amber-400 font-semibold leading-none border border-amber-500/30">
+                    PRO
+                  </span>
+                )}
               </div>
             </Link>
           );

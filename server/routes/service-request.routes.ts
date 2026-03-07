@@ -118,7 +118,7 @@ router.post("/:id/offers/:offerId/select", isAuthenticated, async (req: any, res
         title: `${serviceRequest.serviceType} — ${serviceRequest.vesselName}`,
         amount: offer.price,
         currency: offer.currency,
-        status: "pending",
+        status: "provider_review",
         invoiceType: "service_fee",
         recipientEmail: serviceRequest.requester?.email,
         notes: `Auto-created from Service Offer #${offer.id}\n${offer.notes || ""}`,

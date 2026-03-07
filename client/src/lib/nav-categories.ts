@@ -54,6 +54,7 @@ export interface NavSubPage {
   icon: any;
   badge?: BadgeSource;
   isNew?: boolean;
+  isPro?: boolean;
   exact?: boolean;
 }
 
@@ -125,6 +126,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
       { label: "Certificates", url: "/vessel-certificates", icon: ScrollText, badge: "certs" },
       { label: "Vessel Tracking", url: "/vessel-track", icon: Navigation },
       { label: "Performance", url: "/noon-reports", icon: Activity, isNew: true },
+      { label: "Passage Planning", url: "/passage-planning", icon: Map, isNew: true },
       { label: "Charter Party & Hire", url: "/charter-parties", icon: ScrollText, isNew: true },
       { label: "Maintenance", url: "/maintenance", icon: Settings, isNew: true },
       { label: "Bunker Management", url: "/bunker-management", icon: Zap, isNew: true },
@@ -155,7 +157,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     icon: Receipt,
     color: "sky",
     subPages: [
-      { label: "DA Comparison", url: "/da-comparison", icon: BarChart3 },
+      { label: "DA Comparison", url: "/da-comparison", icon: BarChart3, isPro: true },
       { label: "Final Disbursement", url: "/fda", icon: Receipt, isNew: true },
       { label: "Invoices", url: "/invoices", icon: CreditCard },
       { label: "Port Expenses", url: "/port-expenses", icon: Receipt },
@@ -173,7 +175,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
       { label: "Forum", url: "/forum", icon: MessageSquare },
       { label: "Notifications", url: "/notifications", icon: BellRing },
       { label: "Voyage Invitations", url: "/voyage-invitations", icon: UserPlus, badge: "voyageInvites" },
-      { label: "AI Smart Drop", url: "/ai-smart-drop", icon: Wand2, isNew: true },
+      { label: "AI Smart Drop", url: "/ai-smart-drop", icon: Wand2, isNew: true, isPro: true },
     ],
   },
   {
@@ -186,7 +188,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
       { label: "Market Data & BDI", url: "/market-data", icon: TrendingUp },
       { label: "Port Info", url: "/port-info", icon: Anchor },
       { label: "Sanctions Check", url: "/sanctions-check", icon: Shield },
-      { label: "Analytics", url: "/analytics", icon: BarChart3 },
+      { label: "Analytics", url: "/analytics", icon: BarChart3, isPro: true },
     ],
   },
   {
@@ -246,6 +248,7 @@ export const URL_TO_CATEGORY: Record<string, string> = {
   "/vessel-q88": "fleet",
   "/crew-roster": "fleet",
   "/noon-reports": "fleet",
+  "/passage-planning": "fleet",
   "/charter-parties": "fleet",
   "/maintenance": "fleet",
   "/bunker-management": "fleet",

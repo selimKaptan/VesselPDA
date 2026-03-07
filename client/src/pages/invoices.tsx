@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useSearch } from "wouter";
-import { DollarSign, Plus, CheckCircle2, Clock, XCircle, AlertTriangle, FileText, Bell, X, Receipt, Download, FileDown, History, ChevronDown, ChevronUp, Check } from "lucide-react";
+import { DollarSign, Plus, CheckCircle2, Clock, XCircle, AlertTriangle, FileText, Bell, X, Receipt, Download, FileDown, History, ChevronDown, ChevronUp, Check, Eye, Edit, Send, Search as SearchIcon, Filter, Calendar as CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,19 +15,22 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
-import { isPast } from "date-fns";
+import { isPast, format } from "date-fns";
 import { EmptyState } from "@/components/empty-state";
 import { fmtDate } from "@/lib/formatDate";
 import { exportToCsv } from "@/lib/export-csv";
 import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FloatingBulkActionBar } from "@/components/layout/floating-bulk-action-bar";
+import { useAuth } from "@/hooks/use-auth";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   pending:   { label: "Pending",   color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",  icon: Clock },
   paid:      { label: "Paid",      color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",  icon: CheckCircle2 },
   overdue:   { label: "Overdue",   color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",         icon: AlertTriangle },
   cancelled: { label: "Cancelled", color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",        icon: XCircle },
+  provider_review: { label: "Review Required", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400", icon: Eye },
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -63,7 +66,7 @@ function getDueDateBadge(dueDateStr: string | null, status: string): { label: st
   return { label: `Due ${fmtDate(due)}`, className: "bg-muted text-muted-foreground" };
 }
 
-function InvoiceCard({ inv, cfg, StatusIcon, onPayFull, onPartialPayment, onCancel, onRemind, isPaying, isCancelling, isReminding, isSelected, onSelect }: any) {
+function InvoiceCard({ inv, cfg, StatusIcon, onPayFull, onPartialPayment, onCancel, onRemind, onReview, isPaying, isCancelling, isReminding, isSelected, onSelect }: any) {
   const [isOpen, setIsOpen] = useState(false);
   const { data: payments = [], isLoading: loadingPayments } = useQuery<any[]>({
     queryKey: [`/api/invoices/${inv.id}/payments`],
@@ -134,53 +137,66 @@ function InvoiceCard({ inv, cfg, StatusIcon, onPayFull, onPartialPayment, onCanc
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <a href={`/api/invoices/${inv.id}/pdf`} download={`Invoice-${inv.id}.pdf`} data-testid={`button-download-invoice-pdf-${inv.id}`}>
-            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-slate-600 border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900/30" type="button">
-              <Download className="w-3 h-3" /> PDF
-            </Button>
-          </a>
-          
-          <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-            <CollapsibleTrigger asChild>
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" data-testid={`button-toggle-payments-${inv.id}`}>
-                <History className="w-3 h-3" /> History {isOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              </Button>
-            </CollapsibleTrigger>
-          </Collapsible>
-
-          {inv.status === "pending" && inv.recipientEmail && (
+          {inv.status === "provider_review" ? (
             <Button
               size="sm"
-              variant="outline"
-              className="h-7 text-xs gap-1 text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-              onClick={onRemind}
-              disabled={isReminding}
-              data-testid={`button-send-reminder-${inv.id}`}
+              className="h-7 text-xs gap-1"
+              onClick={() => onReview(inv)}
+              data-testid={`button-review-invoice-${inv.id}`}
             >
-              <Bell className="w-3 h-3" /> Remind
+              <Edit className="w-3 h-3" /> Review & Approve
             </Button>
-          )}
-          {(inv.status === "pending" || inv.status === "overdue") && (
+          ) : (
             <>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs gap-1 text-blue-600 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-950/30"
-                onClick={onPartialPayment}
-                data-testid={`button-partial-payment-${inv.id}`}
-              >
-                Partial Pay
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs gap-1 text-green-600 border-green-200 hover:bg-green-50 dark:hover:bg-green-950/30"
-                onClick={onPayFull}
-                disabled={isPaying}
-                data-testid={`button-mark-paid-${inv.id}`}
-              >
-                <CheckCircle2 className="w-3 h-3" /> Full Pay
-              </Button>
+              <a href={`/api/invoices/${inv.id}/pdf`} download={`Invoice-${inv.id}.pdf`} data-testid={`button-download-invoice-pdf-${inv.id}`}>
+                <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-slate-600 border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900/30" type="button">
+                  <Download className="w-3 h-3" /> PDF
+                </Button>
+              </a>
+              
+              <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1" data-testid={`button-toggle-payments-${inv.id}`}>
+                    <History className="w-3 h-3" /> History {isOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </Button>
+                </CollapsibleTrigger>
+              </Collapsible>
+
+              {inv.status === "pending" && inv.recipientEmail && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1 text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                  onClick={onRemind}
+                  disabled={isReminding}
+                  data-testid={`button-send-reminder-${inv.id}`}
+                >
+                  <Bell className="w-3 h-3" /> Remind
+                </Button>
+              )}
+              {(inv.status === "pending" || inv.status === "overdue") && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1 text-blue-600 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                    onClick={onPartialPayment}
+                    data-testid={`button-partial-payment-${inv.id}`}
+                  >
+                    Partial Pay
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1 text-green-600 border-green-200 hover:bg-green-50 dark:hover:bg-green-950/30"
+                    onClick={onPayFull}
+                    disabled={isPaying}
+                    data-testid={`button-mark-paid-${inv.id}`}
+                  >
+                    <CheckCircle2 className="w-3 h-3" /> Full Pay
+                  </Button>
+                </>
+              )}
             </>
           )}
           {inv.status !== "cancelled" && inv.status !== "paid" && (
@@ -240,6 +256,7 @@ function InvoiceCard({ inv, cfg, StatusIcon, onPayFull, onPartialPayment, onCanc
 }
 
 export default function Invoices() {
+  const { user } = useAuth();
   const { toast } = useToast();
   const searchStr = useSearch();
   const params = new URLSearchParams(searchStr);
@@ -247,13 +264,21 @@ export default function Invoices() {
   const fdaId = fdaIdParam ? parseInt(fdaIdParam) : null;
   const statusParam = params.get("status");
 
+  const [activeTab, setActiveTab] = useState("all_invoices");
   const [statusFilter, setStatusFilter] = useState(statusParam || "all");
   const [currencyFilter, setCurrencyFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState<number | null>(null);
+  const [showReviewDialog, setShowReviewDialog] = useState<any>(null);
   const [fdaBannerDismissed, setFdaBannerDismissed] = useState(false);
   const preFilledRef = useRef(false);
+
+  // Statement Filters
+  const [statementCounterparty, setStatementCounterparty] = useState("");
+  const [statementFromDate, setStatementFromDate] = useState("");
+  const [statementToDate, setStatementToDate] = useState("");
+
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
     paymentMethod: "bank_transfer",
@@ -276,6 +301,11 @@ export default function Invoices() {
     recipientEmail: "",
   });
 
+  const [reviewForm, setReviewForm] = useState({
+    amount: "",
+    notes: ""
+  });
+
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   const toggleSelect = (id: number) => {
@@ -283,6 +313,32 @@ export default function Invoices() {
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
+
+  const { data: statementInvoices = [], isLoading: isLoadingStatement } = useQuery<any[]>({
+    queryKey: ["/api/invoices/statement", statementCounterparty, statementFromDate, statementToDate],
+    queryFn: async () => {
+      const q = new URLSearchParams();
+      if (statementCounterparty) q.append("counterparty", statementCounterparty);
+      if (statementFromDate) q.append("from", statementFromDate);
+      if (statementToDate) q.append("to", statementToDate);
+      const res = await fetch(`/api/invoices/statement?${q.toString()}`);
+      return res.json();
+    },
+    enabled: activeTab === "statement",
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status, amount, notes }: any) => {
+      const res = await apiRequest("PATCH", `/api/invoices/${id}/status`, { status, amount, notes });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      setShowReviewDialog(null);
+      toast({ title: "Invoice updated and approved" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to update invoice", variant: "destructive" }),
+  });
 
   const bulkUpdateMutation = useMutation({
     mutationFn: async ({ ids, action }: { ids: number[], action: "markPaid" | "sendReminder" }) => {
@@ -406,6 +462,8 @@ export default function Invoices() {
 
   const sumUsd = (list: any[]) => list.reduce((acc, i) => acc + (i.currency === "USD" ? i.amount : 0), 0);
 
+  const isProvider = user?.userRole === "provider" || user?.activeRole === "provider";
+
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6" data-testid="page-invoices">
       <PageMeta title="Financial Flow | VesselPDA" />
@@ -467,383 +525,517 @@ export default function Invoices() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="p-4 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
-            <Clock className="w-5 h-5 text-amber-600" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Pending</p>
-            <p className="text-lg font-bold">{pending.length} invoice(s)</p>
-            {sumUsd(pending) > 0 && <p className="text-xs text-muted-foreground">${sumUsd(pending).toLocaleString()} USD</p>}
-          </div>
-        </Card>
-        <Card className="p-4 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
-            <CheckCircle2 className="w-5 h-5 text-green-600" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Paid</p>
-            <p className="text-lg font-bold">{paid.length} invoice(s)</p>
-            {sumUsd(paid) > 0 && <p className="text-xs text-muted-foreground">${sumUsd(paid).toLocaleString()} USD</p>}
-          </div>
-        </Card>
-        <Card className="p-4 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
-            <AlertTriangle className="w-5 h-5 text-red-600" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Overdue</p>
-            <p className="text-lg font-bold">{overdue.length} invoice(s)</p>
-            {sumUsd(overdue) > 0 && <p className="text-xs text-muted-foreground">${sumUsd(overdue).toLocaleString()} USD</p>}
-          </div>
-        </Card>
-      </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="all_invoices" data-testid="tab-all-invoices">All Invoices</TabsTrigger>
+          {isProvider && <TabsTrigger value="pending_review" data-testid="tab-pending-review">Pending My Review</TabsTrigger>}
+          {isProvider && <TabsTrigger value="statement" data-testid="tab-statement">Statement of Account</TabsTrigger>}
+        </TabsList>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <div className="flex gap-1 flex-wrap">
-          {["all", "pending", "paid", "overdue", "cancelled"].map(s => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                statusFilter === s
-                  ? "bg-[hsl(var(--maritime-primary))] text-white"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              }`}
-              data-testid={`filter-status-${s}`}
-            >
-              {s === "all" ? "All" : STATUS_CONFIG[s]?.label || s}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-1">
-          {["all", "USD", "EUR", "TRY"].map(c => (
-            <button
-              key={c}
-              onClick={() => setCurrencyFilter(c)}
-              className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                currencyFilter === c
-                  ? "bg-[hsl(var(--maritime-primary))] text-white"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              }`}
-              data-testid={`filter-currency-${c}`}
-            >
-              {c === "all" ? "All Currencies" : `${CURRENCY_FLAGS[c]} ${c}`}
-            </button>
-          ))}
-        </div>
-        <Input
-          placeholder="Search invoices..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="max-w-xs h-8 text-sm"
-          data-testid="input-search-invoices"
-        />
-      </div>
+        <TabsContent value="all_invoices" className="space-y-6">
+          {/* Stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card className="p-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+                <Clock className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Pending</p>
+                <p className="text-lg font-bold">{pending.length} invoice(s)</p>
+                {sumUsd(pending) > 0 && <p className="text-xs text-muted-foreground">${sumUsd(pending).toLocaleString()} USD</p>}
+              </div>
+            </Card>
+            <Card className="p-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                <CheckCircle2 className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Paid</p>
+                <p className="text-lg font-bold">{paid.length} invoice(s)</p>
+                {sumUsd(paid) > 0 && <p className="text-xs text-muted-foreground">${sumUsd(paid).toLocaleString()} USD</p>}
+              </div>
+            </Card>
+            <Card className="p-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Overdue</p>
+                <p className="text-lg font-bold">{overdue.length} invoice(s)</p>
+                {sumUsd(overdue) > 0 && <p className="text-xs text-muted-foreground">${sumUsd(overdue).toLocaleString()} USD</p>}
+              </div>
+            </Card>
+          </div>
 
-      {/* List */}
-      {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
-        </div>
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon="💳"
-          title="No Invoices"
-          description="Invoices are created from approved FDAs or manually for port services."
-          actionLabel="View FDAs"
-          actionHref="/fda"
-          secondaryLabel="Create Manual Invoice"
-          onAction={() => setShowNew(true)}
-          tips={[
-            "Approved Proforma DAs can be converted to invoices",
-            "Track payment status and overdue amounts here",
-            "Export invoices as PDF for your clients"
-          ]}
-        />
-      ) : (
-        <div className="space-y-3">
-          {filtered.map((inv: any) => {
-            const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.pending;
-            const StatusIcon = cfg.icon;
-            return (
-              <InvoiceCard
-                key={inv.id}
-                inv={inv}
-                cfg={cfg}
-                StatusIcon={StatusIcon}
-                onPayFull={() => payMutation.mutate({ id: inv.id })}
-                onPartialPayment={() => {
-                  setPaymentForm({ ...paymentForm, amount: String(Number(inv.balance || inv.amount)) });
-                  setShowPaymentDialog(inv.id);
-                }}
-                onCancel={() => cancelMutation.mutate(inv.id)}
-                onRemind={() => reminderMutation.mutate(inv.id)}
-                isPaying={payMutation.isPending}
-                isCancelling={cancelMutation.isPending}
-                isReminding={reminderMutation.isPending}
-                isSelected={selectedIds.includes(inv.id)}
-                onSelect={toggleSelect}
-              />
-            );
-          })}
-        </div>
-      )}
-
-      <FloatingBulkActionBar 
-        selectedCount={selectedIds.length}
-        onClear={() => setSelectedIds([])}
-        actions={[
-          {
-            label: "Mark Paid",
-            icon: Check,
-            onClick: () => bulkUpdateMutation.mutate({ ids: selectedIds, action: "markPaid" }),
-            isLoading: bulkUpdateMutation.isPending && bulkUpdateMutation.variables?.action === "markPaid"
-          },
-          {
-            label: "Send Reminders",
-            icon: Bell,
-            onClick: () => bulkUpdateMutation.mutate({ ids: selectedIds, action: "sendReminder" }),
-            isLoading: bulkUpdateMutation.isPending && bulkUpdateMutation.variables?.action === "sendReminder"
-          },
-          {
-            label: "Export CSV",
-            icon: FileDown,
-            onClick: () => {
-              const selectedInvoices = invoices.filter(inv => selectedIds.includes(inv.id));
-              const rows = selectedInvoices.map(inv => ({
-                ID: inv.id,
-                Title: inv.title,
-                Type: TYPE_LABELS[inv.invoiceType] || inv.invoiceType,
-                Amount: inv.amount,
-                Currency: inv.currency,
-                Status: inv.status,
-                'Due Date': inv.dueDate ? fmtDate(inv.dueDate) : '',
-                'Paid At': inv.paidAt ? fmtDate(inv.paidAt) : '',
-                Recipient: inv.recipientEmail || inv.recipientName || '',
-                Voyage: inv.vesselName || inv.voyageId || ''
-              }));
-              exportToCsv(`Selected-Invoices-${new Date().toISOString().split('T')[0]}.csv`, rows);
-            }
-          }
-        ]}
-      />
-
-      {/* Payment Dialog */}
-      <Dialog open={showPaymentDialog !== null} onOpenChange={(open) => !open && setShowPaymentDialog(null)}>
-        <DialogContent className="max-w-md" data-testid="dialog-partial-payment">
-          <DialogHeader>
-            <DialogTitle className="font-serif">Record Payment</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>Amount *</Label>
-              <Input
-                type="number"
-                value={paymentForm.amount}
-                onChange={e => setPaymentForm(f => ({ ...f, amount: e.target.value }))}
-                placeholder="0.00"
-                data-testid="input-payment-amount"
-              />
-              <p className="text-[10px] text-muted-foreground">
-                Remaining balance: {showPaymentDialog && (() => {
-                  const inv = invoices.find((i: any) => i.id === showPaymentDialog);
-                  return inv ? `${CURRENCY_FLAGS[inv.currency] || ""} ${Number(inv.balance || inv.amount).toLocaleString()}` : "";
-                })()}
-              </p>
+          {/* Filters */}
+          <div className="flex flex-wrap gap-3">
+            <div className="flex gap-1 flex-wrap">
+              {["all", "pending", "paid", "overdue", "cancelled", "provider_review"].map(s => (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className={`px-3 py-1 text-xs font-medium rounded-full transition-all border ${
+                    statusFilter === s 
+                      ? "bg-primary text-primary-foreground border-primary" 
+                      : "bg-muted text-muted-foreground border-transparent hover:bg-muted/80"
+                  }`}
+                  data-testid={`filter-status-${s}`}
+                >
+                  {(STATUS_CONFIG[s]?.label || "All").toUpperCase()}
+                </button>
+              ))}
             </div>
-            <div className="space-y-1.5">
-              <Label>Payment Method</Label>
-              <Select value={paymentForm.paymentMethod} onValueChange={v => setPaymentForm(f => ({ ...f, paymentMethod: v }))}>
-                <SelectTrigger data-testid="select-payment-method">
+            
+            <div className="flex-1 min-w-[200px] relative">
+              <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search invoices..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="h-8 pl-8 text-xs bg-muted/50 border-0 focus-visible:ring-1"
+                data-testid="input-search-invoices"
+              />
+            </div>
+          </div>
+
+          {/* List */}
+          <div className="space-y-3">
+            {isLoading ? (
+              [1,2,3].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
+            ) : filtered.length === 0 ? (
+              <EmptyState
+                icon={FileText}
+                title="No invoices found"
+                description="Try adjusting your filters or create a new invoice."
+              />
+            ) : (
+              filtered.map((inv: any) => (
+                <InvoiceCard
+                  key={inv.id}
+                  inv={inv}
+                  cfg={STATUS_CONFIG[inv.status] || STATUS_CONFIG.pending}
+                  StatusIcon={(STATUS_CONFIG[inv.status] || STATUS_CONFIG.pending).icon}
+                  onPayFull={() => {
+                    setPaymentForm(f => ({ ...f, amount: String(inv.amount - (inv.amountPaid || 0)) }));
+                    setShowPaymentDialog(inv.id);
+                  }}
+                  onPartialPayment={() => {
+                    setPaymentForm(f => ({ ...f, amount: "" }));
+                    setShowPaymentDialog(inv.id);
+                  }}
+                  onCancel={() => cancelMutation.mutate(inv.id)}
+                  onRemind={() => reminderMutation.mutate(inv.id)}
+                  onReview={(invoice: any) => {
+                    setReviewForm({ amount: String(invoice.amount), notes: invoice.notes || "" });
+                    setShowReviewDialog(invoice);
+                  }}
+                  isPaying={payMutation.isPending}
+                  isCancelling={cancelMutation.isPending}
+                  isReminding={reminderMutation.isPending}
+                  isSelected={selectedIds.includes(inv.id)}
+                  onSelect={toggleSelect}
+                />
+              ))
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="pending_review" className="space-y-4">
+          <div className="space-y-3">
+            {isLoading ? (
+              [1,2,3].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
+            ) : invoices.filter((i: any) => i.status === "provider_review").length === 0 ? (
+              <EmptyState
+                icon={Check}
+                title="All clear!"
+                description="You have no invoices pending review."
+              />
+            ) : (
+              invoices.filter((i: any) => i.status === "provider_review").map((inv: any) => (
+                <InvoiceCard
+                  key={inv.id}
+                  inv={inv}
+                  cfg={STATUS_CONFIG.provider_review}
+                  StatusIcon={STATUS_CONFIG.provider_review.icon}
+                  onReview={(invoice: any) => {
+                    setReviewForm({ amount: String(invoice.amount), notes: invoice.notes || "" });
+                    setShowReviewDialog(invoice);
+                  }}
+                  onCancel={() => cancelMutation.mutate(inv.id)}
+                  isSelected={selectedIds.includes(inv.id)}
+                  onSelect={toggleSelect}
+                />
+              ))
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="statement" className="space-y-6">
+          <Card className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              <div className="space-y-2">
+                <Label className="text-xs">Counterparty (Name or Email)</Label>
+                <div className="relative">
+                  <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input 
+                    placeholder="Search..." 
+                    value={statementCounterparty}
+                    onChange={(e) => setStatementCounterparty(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">From Date</Label>
+                <Input 
+                  type="date" 
+                  value={statementFromDate}
+                  onChange={(e) => setStatementFromDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">To Date</Label>
+                <Input 
+                  type="date" 
+                  value={statementToDate}
+                  onChange={(e) => setStatementToDate(e.target.value)}
+                />
+              </div>
+              <Button 
+                className="gap-2"
+                onClick={() => {
+                  const rows = statementInvoices.map(inv => ({
+                    Date: inv.createdAt ? format(new Date(inv.createdAt), 'dd/MM/yyyy') : '',
+                    Title: inv.title,
+                    Recipient: inv.recipientName || inv.recipientEmail || '',
+                    Amount: inv.amount,
+                    Currency: inv.currency,
+                    Status: inv.status,
+                    'Amount Paid': inv.amountPaid || 0,
+                    Balance: (inv.amount - (inv.amountPaid || 0)).toFixed(2)
+                  }));
+                  exportToCsv(`Statement-${statementCounterparty || 'All'}-${new Date().toISOString().split('T')[0]}.csv`, rows);
+                }}
+                disabled={statementInvoices.length === 0}
+              >
+                <Download className="w-4 h-4" /> Export Statement
+              </Button>
+            </div>
+          </Card>
+
+          <Card className="overflow-hidden border-muted-foreground/10">
+            <div className="p-0">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 border-b border-muted-foreground/10">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold">Date</th>
+                    <th className="px-4 py-3 text-left font-semibold">Description</th>
+                    <th className="px-4 py-3 text-left font-semibold">Counterparty</th>
+                    <th className="px-4 py-3 text-right font-semibold">Amount</th>
+                    <th className="px-4 py-3 text-right font-semibold">Paid</th>
+                    <th className="px-4 py-3 text-right font-semibold">Balance</th>
+                    <th className="px-4 py-3 text-center font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-muted-foreground/10">
+                  {isLoadingStatement ? (
+                    [1,2,3].map(i => (
+                      <tr key={i}>
+                        <td colSpan={7} className="px-4 py-3"><Skeleton className="h-4 w-full" /></td>
+                      </tr>
+                    ))
+                  ) : statementInvoices.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground italic">No invoices found for this criteria.</td>
+                    </tr>
+                  ) : (
+                    <>
+                      {statementInvoices.map((inv: any) => (
+                        <tr key={inv.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-4 py-3">{inv.createdAt ? format(new Date(inv.createdAt), 'dd/MM/yyyy') : '-'}</td>
+                          <td className="px-4 py-3 font-medium">{inv.title}</td>
+                          <td className="px-4 py-3">{inv.recipientName || inv.recipientEmail || '-'}</td>
+                          <td className="px-4 py-3 text-right font-semibold">{inv.currency} {Number(inv.amount).toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right text-emerald-600 font-medium">{inv.currency} {Number(inv.amountPaid || 0).toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right font-bold text-blue-600">{inv.currency} {(inv.amount - (inv.amountPaid || 0)).toLocaleString()}</td>
+                          <td className="px-4 py-3 text-center">
+                            <Badge className={`text-[10px] uppercase ${STATUS_CONFIG[inv.status]?.color || ''}`}>
+                              {inv.status}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="bg-muted/20 font-bold border-t-2 border-muted-foreground/20">
+                        <td colSpan={3} className="px-4 py-4 text-right">Total Outstanding Balance (Current Filter):</td>
+                        <td colSpan={3} className="px-4 py-4 text-right text-lg text-blue-700">
+                          USD {statementInvoices.reduce((sum, inv) => sum + (inv.amount - (inv.amountPaid || 0)), 0).toLocaleString()}
+                        </td>
+                        <td></td>
+                      </tr>
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Floating Action Bar */}
+      <FloatingBulkActionBar 
+        selectedCount={selectedIds.length} 
+        onClear={() => setSelectedIds([])}
+      >
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="gap-2 h-8 text-xs border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100"
+          onClick={() => bulkUpdateMutation.mutate({ ids: selectedIds, action: "sendReminder" })}
+          disabled={bulkUpdateMutation.isPending}
+        >
+          <Bell className="w-3.5 h-3.5" /> Send Reminders
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="gap-2 h-8 text-xs border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+          onClick={() => bulkUpdateMutation.mutate({ ids: selectedIds, action: "markPaid" })}
+          disabled={bulkUpdateMutation.isPending}
+        >
+          <Check className="w-3.5 h-3.5" /> Mark Paid
+        </Button>
+      </FloatingBulkActionBar>
+
+      {/* New Invoice Dialog */}
+      <Dialog open={showNew} onOpenChange={setShowNew}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Invoice</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+            <div className="space-y-2 md:col-span-2">
+              <Label>Invoice Title / Description</Label>
+              <Input 
+                placeholder="e.g. Proforma DA — MV Izmir Express" 
+                value={form.title} 
+                onChange={e => setForm({ ...form, title: e.target.value })} 
+                data-testid="input-invoice-title"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Invoice Type</Label>
+              <Select value={form.invoiceType} onValueChange={v => setForm({ ...form, invoiceType: v })}>
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="cheque">Cheque</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  <SelectItem value="invoice">Standard Invoice</SelectItem>
+                  <SelectItem value="proforma_da">Proforma DA</SelectItem>
+                  <SelectItem value="final_da">Final DA</SelectItem>
+                  <SelectItem value="fda_disbursement">FDA Disbursement</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label>Paid Date</Label>
-              <Input
-                type="date"
-                value={paymentForm.paidAt}
-                onChange={e => setPaymentForm(f => ({ ...f, paidAt: e.target.value }))}
-                data-testid="input-payment-date"
+            <div className="space-y-2">
+              <Label>Amount</Label>
+              <Input 
+                type="number" 
+                step="0.01" 
+                placeholder="0.00" 
+                value={form.amount} 
+                onChange={e => setForm({ ...form, amount: e.target.value })} 
+                data-testid="input-invoice-amount"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
+              <Label>Currency</Label>
+              <Select value={form.currency} onValueChange={v => setForm({ ...form, currency: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USD">🇺🇸 USD</SelectItem>
+                  <SelectItem value="EUR">🇪🇺 EUR</SelectItem>
+                  <SelectItem value="TRY">🇹🇷 TRY</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Due Date</Label>
+              <Input 
+                type="date" 
+                value={form.dueDate} 
+                onChange={e => setForm({ ...form, dueDate: e.target.value })} 
+                data-testid="input-invoice-due-date"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Voyage (Optional)</Label>
+              <Select value={form.voyageId} onValueChange={v => setForm({ ...form, voyageId: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select voyage" />
+                </SelectTrigger>
+                <SelectContent>
+                  {voyages.map((v: any) => (
+                    <SelectItem key={v.id} value={String(v.id)}>{v.vesselName} — {v.voyageNumber}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Recipient Name</Label>
+              <Input 
+                placeholder="Company or Person" 
+                value={form.recipientName} 
+                onChange={e => setForm({ ...form, recipientName: e.target.value })} 
+                data-testid="input-recipient-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Recipient Email</Label>
+              <Input 
+                type="email" 
+                placeholder="invoice@example.com" 
+                value={form.recipientEmail} 
+                onChange={e => setForm({ ...form, recipientEmail: e.target.value })} 
+                data-testid="input-recipient-email"
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Notes</Label>
+              <Textarea 
+                placeholder="Bank details, terms, etc." 
+                value={form.notes} 
+                onChange={e => setForm({ ...form, notes: e.target.value })} 
+                data-testid="textarea-invoice-notes"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNew(false)}>Cancel</Button>
+            <Button onClick={() => createMutation.mutate(form)} disabled={createMutation.isPending} data-testid="button-save-invoice">
+              Create Invoice
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Review Dialog */}
+      <Dialog open={!!showReviewDialog} onOpenChange={() => setShowReviewDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Review & Approve Invoice</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <p className="text-sm font-medium">{showReviewDialog?.title}</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Amount ({showReviewDialog?.currency})</Label>
+              <Input 
+                type="number" 
+                step="0.01" 
+                value={reviewForm.amount} 
+                onChange={e => setReviewForm({ ...reviewForm, amount: e.target.value })} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea 
+                value={reviewForm.notes} 
+                onChange={e => setReviewForm({ ...reviewForm, notes: e.target.value })} 
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReviewDialog(null)}>Close</Button>
+            <Button 
+              className="gap-2"
+              onClick={() => updateStatusMutation.mutate({ 
+                id: showReviewDialog.id, 
+                status: "pending", 
+                amount: reviewForm.amount,
+                notes: reviewForm.notes
+              })}
+              disabled={updateStatusMutation.isPending}
+            >
+              <Send className="w-4 h-4" /> Approve & Send
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Dialog */}
+      <Dialog open={!!showPaymentDialog} onOpenChange={() => setShowPaymentDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Payment Amount (USD)</Label>
+              <Input 
+                type="number" 
+                step="0.01" 
+                placeholder="0.00" 
+                value={paymentForm.amount} 
+                onChange={e => setPaymentForm({ ...paymentForm, amount: e.target.value })} 
+                data-testid="input-payment-amount"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Date</Label>
+                <Input 
+                  type="date" 
+                  value={paymentForm.paidAt} 
+                  onChange={e => setPaymentForm({ ...paymentForm, paidAt: e.target.value })} 
+                  data-testid="input-payment-date"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Method</Label>
+                <Select value={paymentForm.paymentMethod} onValueChange={v => setPaymentForm({ ...paymentForm, paymentMethod: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="credit_card">Credit Card</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="check">Check</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
               <Label>Reference (Optional)</Label>
-              <Input
-                value={paymentForm.reference}
-                onChange={e => setPaymentForm(f => ({ ...f, reference: e.target.value }))}
-                placeholder="Bank reference number"
-                data-testid="input-payment-reference"
+              <Input 
+                placeholder="SWIFT ref, check number, etc." 
+                value={paymentForm.reference} 
+                onChange={e => setPaymentForm({ ...paymentForm, reference: e.target.value })} 
+                data-testid="input-payment-ref"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>Notes (Optional)</Label>
-              <Textarea
-                value={paymentForm.notes}
-                onChange={e => setPaymentForm(f => ({ ...f, notes: e.target.value }))}
-                placeholder="Internal payment notes"
-                className="h-20"
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea 
+                placeholder="Internal notes about this payment" 
+                value={paymentForm.notes} 
+                onChange={e => setPaymentForm({ ...paymentForm, notes: e.target.value })} 
                 data-testid="textarea-payment-notes"
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPaymentDialog(null)}>Cancel</Button>
-            <Button
-              onClick={() => showPaymentDialog && payMutation.mutate({ id: showPaymentDialog, data: paymentForm })}
+            <Button 
+              onClick={() => payMutation.mutate({ id: showPaymentDialog!, data: paymentForm })} 
               disabled={payMutation.isPending || !paymentForm.amount}
-              data-testid="button-confirm-payment"
+              data-testid="button-save-payment"
             >
               Record Payment
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* New Invoice Dialog */}
-      <Dialog open={showNew} onOpenChange={setShowNew}>
-        <DialogContent className="max-w-lg" data-testid="dialog-new-invoice">
-          <DialogHeader>
-            <DialogTitle className="font-serif">New Invoice</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>Title *</Label>
-              <Input
-                value={form.title}
-                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                placeholder="Invoice title"
-                data-testid="input-invoice-title"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Type</Label>
-                <Select value={form.invoiceType} onValueChange={v => setForm(f => ({ ...f, invoiceType: v }))}>
-                  <SelectTrigger data-testid="select-invoice-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="invoice">Invoice</SelectItem>
-                    <SelectItem value="proforma_da">Proforma DA</SelectItem>
-                    <SelectItem value="final_da">Final DA</SelectItem>
-                    <SelectItem value="fda_disbursement">FDA Disbursement</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Currency</Label>
-                <Select value={form.currency} onValueChange={v => setForm(f => ({ ...f, currency: v }))}>
-                  <SelectTrigger data-testid="select-invoice-currency">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="USD">🇺🇸 USD</SelectItem>
-                    <SelectItem value="EUR">🇪🇺 EUR</SelectItem>
-                    <SelectItem value="TRY">🇹🇷 TRY</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Amount *</Label>
-              <Input
-                type="number"
-                value={form.amount}
-                onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                placeholder="0.00"
-                data-testid="input-invoice-amount"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Due Date</Label>
-              <Input
-                type="date"
-                value={form.dueDate}
-                onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
-                data-testid="input-invoice-due-date"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Recipient Name <span className="text-muted-foreground text-xs">(optional)</span></Label>
-                <Input
-                  value={form.recipientName}
-                  onChange={e => setForm(f => ({ ...f, recipientName: e.target.value }))}
-                  placeholder="e.g. John Smith"
-                  data-testid="input-invoice-recipient-name"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Recipient Email <span className="text-muted-foreground text-xs">(reminders)</span></Label>
-                <Input
-                  type="email"
-                  value={form.recipientEmail}
-                  onChange={e => setForm(f => ({ ...f, recipientEmail: e.target.value }))}
-                  placeholder="e.g. john@example.com"
-                  data-testid="input-invoice-recipient-email"
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Linked Voyage</Label>
-              <Select value={form.voyageId} onValueChange={v => setForm(f => ({ ...f, voyageId: v }))}>
-                <SelectTrigger data-testid="select-invoice-voyage">
-                  <SelectValue placeholder="Select voyage (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No voyage</SelectItem>
-                  {Array.isArray(voyages) && voyages.map((v: any) => (
-                    <SelectItem key={v.id} value={String(v.id)}>
-                      {v.vesselName} — {v.portName || v.portId}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Notes</Label>
-              <Textarea
-                value={form.notes}
-                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                placeholder="Additional information..."
-                rows={3}
-                data-testid="input-invoice-notes"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNew(false)}>Cancel</Button>
-            <Button
-              onClick={() => createMutation.mutate({
-                title: form.title,
-                invoiceType: form.invoiceType,
-                amount: parseFloat(form.amount) || 0,
-                currency: form.currency,
-                dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
-                notes: form.notes || null,
-                voyageId: form.voyageId && form.voyageId !== "none" ? parseInt(form.voyageId) : null,
-                fdaId: form.fdaId ? parseInt(form.fdaId) : null,
-                vesselName: form.vesselName || null,
-                portName: form.portName || null,
-                recipientEmail: form.recipientEmail || null,
-                recipientName: form.recipientName || null,
-              })}
-              disabled={createMutation.isPending || !form.title.trim() || !form.amount}
-              data-testid="button-submit-invoice"
-            >
-              {createMutation.isPending ? "Creating..." : "Create Invoice"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -233,6 +233,71 @@ router.post("/api/invoices", isAuthenticated, async (req: any, res) => {
 });
 
 
+router.patch("/api/invoices/:id/status", isAuthenticated, async (req: any, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { status, amount, notes } = req.body;
+    const userId = req.user?.claims?.sub || req.user?.id;
+
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id)).limit(1);
+    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+    // Ensure only the creator or admin can update the status
+    if (invoice.createdByUserId !== userId) {
+      const user = await storage.getUser(userId);
+      if (user?.userRole !== "admin") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+    }
+
+    const updateData: any = { status };
+    if (amount !== undefined) updateData.amount = parseFloat(amount);
+    if (notes !== undefined) updateData.notes = notes;
+
+    await db.update(invoices).set(updateData).where(eq(invoices.id, id));
+    
+    logAction(userId, "update_status", "invoice", id, { status }, getClientIp(req));
+
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || "Failed to update invoice status" });
+  }
+});
+
+router.get("/api/invoices/statement", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const { counterparty, from, to } = req.query;
+
+    let query = db.select().from(invoices).where(eq(invoices.createdByUserId, userId));
+
+    const results = await query;
+    let filtered = results;
+
+    if (counterparty) {
+      filtered = filtered.filter(inv => 
+        (inv.recipientName && inv.recipientName.toLowerCase().includes((counterparty as string).toLowerCase())) ||
+        (inv.recipientEmail && inv.recipientEmail.toLowerCase().includes((counterparty as string).toLowerCase()))
+      );
+    }
+
+    if (from) {
+      const fromDate = new Date(from as string);
+      filtered = filtered.filter(inv => inv.createdAt && new Date(inv.createdAt) >= fromDate);
+    }
+
+    if (to) {
+      const toDate = new Date(to as string);
+      filtered = filtered.filter(inv => inv.createdAt && new Date(inv.createdAt) <= toDate);
+    }
+
+    // Calculate running balance if needed, or just return the invoices
+    res.json(filtered);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || "Failed to fetch statement" });
+  }
+});
+
 router.patch("/api/invoices/:id/pay", isAuthenticated, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);

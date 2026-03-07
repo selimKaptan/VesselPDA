@@ -3,6 +3,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import JSZip from "jszip";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useEffect, useMemo, useRef } from "react";
+import { PortLookupInput } from "@/components/port-lookup-input";
 import {
   Ship, Plus, Trash2, Edit2, Search, Loader2,
   ArrowRight, Anchor, MapPin, Calendar,
@@ -268,12 +269,14 @@ function VesselForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="flag">Flag *</Label>
-          <Select value={form.flag} onValueChange={(v) => set("flag", v)} required>
-            <SelectTrigger data-testid="select-flag"><SelectValue placeholder="Select flag" /></SelectTrigger>
-            <SelectContent>
-              {flags.map((f) => <SelectItem key={f} value={f}>{FLAG_EMOJI[f] || "🏳️"} {f}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <Input 
+            id="flag" 
+            placeholder="e.g. Panama" 
+            value={form.flag}
+            onChange={(e) => set("flag", e.target.value)}
+            required
+            data-testid="input-flag"
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="vesselType">Vessel Type *</Label>

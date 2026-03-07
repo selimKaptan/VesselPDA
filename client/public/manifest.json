@@ -1,0 +1,45 @@
+{
+  "name": "VesselPDA — Maritime Platform",
+  "short_name": "VesselPDA",
+  "description": "Maritime proforma disbursement account software for ship agents and shipowners.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0f2b4a",
+  "background_color": "#0f2b4a",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/logo-v2.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo-v2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/dashboard",
+      "description": "Go to your dashboard"
+    },
+    {
+      "name": "New Proforma",
+      "url": "/proformas/new",
+      "description": "Create a new proforma disbursement account"
+    },
+    {
+      "name": "Voyages",
+      "url": "/voyages",
+      "description": "View your voyages"
+    }
+  ]
+}

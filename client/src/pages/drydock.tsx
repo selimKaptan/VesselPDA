@@ -46,6 +46,9 @@ import {
 } from "recharts";
 import { exportToCsv } from "@/lib/export-csv";
 
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+
 export default function DrydockPage() {
   const { toast } = useToast();
   const [selectedVesselId, setSelectedVesselId] = useState<string>("");
@@ -405,8 +408,74 @@ export default function DrydockPage() {
                   </TabsTrigger>
                 </TabsList>
                 <div className="flex gap-2 mr-2">
+                   <Button variant="outline" size="sm" onClick={() => {
+                     if (!selectedProject) return;
+                     const doc = new jsPDF();
+                     const vesselName = vessels.find(v => v.id.toString() === selectedVesselId)?.name || "Unknown Vessel";
+                     
+                     doc.setFontSize(20);
+                     doc.text("Drydock Specification", 14, 22);
+                     doc.setFontSize(11);
+                     doc.setTextColor(100);
+                     doc.text(`Vessel: ${vesselName}`, 14, 30);
+                     doc.text(`Project: ${selectedProject.projectName}`, 14, 35);
+                     doc.text(`Shipyard: ${selectedProject.shipyard || 'N/A'}`, 14, 40);
+                     doc.text(`Status: ${selectedProject.status?.toUpperCase()}`, 14, 45);
+                     
+                     doc.setFontSize(14);
+                     doc.setTextColor(0);
+                     doc.text("Job Specification", 14, 60);
+
+                     const groupedJobs = jobs.reduce((acc: any, job) => {
+                       const cat = job.category || 'Other';
+                       if (!acc[cat]) acc[cat] = [];
+                       acc[cat].push(job);
+                       return acc;
+                     }, {});
+
+                     let currentY = 65;
+                     Object.keys(groupedJobs).forEach(cat => {
+                       doc.setFontSize(12);
+                       doc.setFont("helvetica", "bold");
+                       doc.text(cat, 14, currentY + 5);
+                       
+                       autoTable(doc, {
+                         startY: currentY + 8,
+                         head: [['No', 'Description', 'Priority', 'Est Cost', 'Status']],
+                         body: groupedJobs[cat].map((j: any) => [
+                           j.jobNumber || '-',
+                           j.description,
+                           j.priority?.toUpperCase(),
+                           `$${(j.estimatedCost || 0).toLocaleString()}`,
+                           j.status?.toUpperCase()
+                         ]),
+                       });
+                       currentY = (doc as any).lastAutoTable.finalY + 10;
+                     });
+
+                     if (currentY > 250) {
+                       doc.addPage();
+                       currentY = 20;
+                     }
+
+                     doc.setFontSize(14);
+                     doc.text("Budget vs Actual Summary", 14, currentY + 5);
+                     autoTable(doc, {
+                       startY: currentY + 10,
+                       head: [['Metric', 'Amount']],
+                       body: [
+                         ['Planned Budget', `$${(selectedProject.plannedBudget || 0).toLocaleString()}`],
+                         ['Actual Cost', `$${totalActual.toLocaleString()}`],
+                         ['Progress', `${Math.round(progress)}%`]
+                       ],
+                     });
+
+                     doc.save(`Drydock_Spec_${vesselName}_${selectedProject.projectName}.pdf`);
+                   }} className="bg-sky-600 hover:bg-sky-700 text-white h-8 border-none">
+                     <Download className="h-3.5 w-3.5 mr-2" /> Export PDF
+                   </Button>
                    <Button variant="outline" size="sm" onClick={handleExportJobs} className="bg-slate-800 border-slate-700 h-8">
-                     <Download className="h-3.5 w-3.5 mr-2" /> Export Spec
+                     <Download className="h-3.5 w-3.5 mr-2" /> Export CSV
                    </Button>
                 </div>
               </div>

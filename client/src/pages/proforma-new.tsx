@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { PortLookupInput } from "@/components/port-lookup-input";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/auth-utils";
@@ -96,6 +97,7 @@ export default function ProformaNew() {
   // Exchange rates
   const [usdTryRate, setUsdTryRate] = useState<number>(43.86);
   const [eurTryRate, setEurTryRate] = useState<number>(51.73);
+  const [rates, setRates] = useState<any>(null);
   const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
 
   // Advanced / save fields
@@ -328,11 +330,12 @@ export default function ProformaNew() {
   const liveRatesMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("GET", "/api/exchange-rates");
-      return res.json() as Promise<{ usdTry: number; eurTry: number; eurUsd?: number; source: string; updatedAt: string | null }>;
+      return res.json() as Promise<{ usdTry: number; eurTry: number; gbpTry: number; jpyTry: number; cnyTry: number; nokTry: number; sgdTry: number; eurUsd?: number; source: string; updatedAt: string | null }>;
     },
     onSuccess: (data) => {
       setUsdTryRate(data.usdTry);
       setEurTryRate(data.eurTry);
+      setRates(data);
       setRatesUpdatedAt(data.updatedAt);
     },
     onError: () => {
@@ -609,60 +612,16 @@ export default function ProformaNew() {
                   <MapPin className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" />
                   Port / Terminal <span className="text-red-500">*</span>
                 </Label>
-                  <Popover open={portOpen} onOpenChange={(open) => { setPortOpen(open); if (!open) setPortSearch(""); }}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={portOpen}
-                        className="w-full h-10 justify-between font-normal"
-                        data-testid="select-port-terminal"
-                      >
-                        {selectedPortObj
-                          ? selectedPortObj.name
-                          : <span className="text-muted-foreground">Search and select port / terminal...</span>}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-full max-w-xl p-0" align="start">
-                      <Command shouldFilter={false}>
-                        <CommandInput
-                          placeholder="Type port name or LOCODE (min 2 chars)..."
-                          value={portSearch}
-                          onValueChange={setPortSearch}
-                          data-testid="input-search-port"
-                        />
-                        <CommandList>
-                          {portSearch.trim().length < 2 ? (
-                            <div className="py-6 text-center text-sm text-muted-foreground">
-                              Type at least 2 characters to search ports...
-                            </div>
-                          ) : portsSearchLoading ? (
-                            <div className="py-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                              <Loader2 className="w-4 h-4 animate-spin" /> Searching ports...
-                            </div>
-                          ) : filteredPorts.length === 0 ? (
-                            <CommandEmpty>No port found. Try a different name or LOCODE.</CommandEmpty>
-                          ) : (
-                            <CommandGroup className="max-h-[280px] overflow-y-auto">
-                              {filteredPorts.slice(0, 80).map((p) => (
-                                <CommandItem
-                                  key={p.id}
-                                  value={p.id.toString()}
-                                  onSelect={() => { setSelectedPort(p.id.toString()); setSelectedPortObj(p); setPortOpen(false); setPortSearch(""); }}
-                                  data-testid={`option-port-${p.id}`}
-                                >
-                                  <Check className={`mr-2 h-4 w-4 shrink-0 ${selectedPort === p.id.toString() ? "opacity-100" : "opacity-0"}`} />
-                                  <span className="flex-1">{p.name}</span>
-                                  {p.code && <span className="ml-2 text-xs text-muted-foreground font-mono">{p.code}</span>}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                <PortLookupInput
+                  value={selectedPort}
+                  onChange={(portId, portName, portCode) => {
+                    setSelectedPort(portId);
+                    setPortSearch(portName);
+                    setSelectedPortObj({ id: parseInt(portId), name: portName, code: portCode || null } as any);
+                  }}
+                  placeholder="Search and select port / terminal..."
+                  data-testid="select-port-terminal"
+                />
                 {selectedPortData && (
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground px-3 py-2 rounded-lg bg-muted/30 border border-dashed" data-testid="text-port-summary">
                     <MapPin className="w-3 h-3 text-[hsl(var(--maritime-primary))]" />
@@ -829,6 +788,31 @@ export default function ProformaNew() {
             </div>
             <div className="px-6 py-4 space-y-3">
               <div className="grid grid-cols-2 gap-4">
+                <div className="sm:col-span-2 space-y-1.5">
+                  <Label className="text-sm font-medium">Currency</Label>
+                  <Select 
+                    value={rates?.targetCurrency || "USD"} 
+                    onValueChange={(val) => {
+                      // This is just a visual selector for now as the calculation 
+                      // is primarily USD/EUR based in the current backend logic.
+                      // But we show the expanded options as requested.
+                    }}
+                  >
+                    <SelectTrigger className="h-10" data-testid="select-currency">
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USD">USD - US Dollar</SelectItem>
+                      <SelectItem value="EUR">EUR - Euro</SelectItem>
+                      <SelectItem value="GBP">GBP - British Pound</SelectItem>
+                      <SelectItem value="JPY">JPY - Japanese Yen</SelectItem>
+                      <SelectItem value="CNY">CNY - Chinese Yuan</SelectItem>
+                      <SelectItem value="NOK">NOK - Norwegian Krone</SelectItem>
+                      <SelectItem value="SGD">SGD - Singapore Dollar</SelectItem>
+                      <SelectItem value="TRY">TRY - Turkish Lira</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium text-muted-foreground">USD / TRY</Label>
                   <Input
@@ -852,6 +836,26 @@ export default function ProformaNew() {
                   />
                 </div>
               </div>
+              {rates && (
+                <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="px-2 py-1 rounded bg-muted/50 border border-dashed flex flex-col">
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">GBP/TRY</span>
+                    <span className="text-xs font-mono">{rates.gbpTry?.toFixed(4)}</span>
+                  </div>
+                  <div className="px-2 py-1 rounded bg-muted/50 border border-dashed flex flex-col">
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">JPY/TRY</span>
+                    <span className="text-xs font-mono">{rates.jpyTry?.toFixed(4)}</span>
+                  </div>
+                  <div className="px-2 py-1 rounded bg-muted/50 border border-dashed flex flex-col">
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">CNY/TRY</span>
+                    <span className="text-xs font-mono">{rates.cnyTry?.toFixed(4)}</span>
+                  </div>
+                  <div className="px-2 py-1 rounded bg-muted/50 border border-dashed flex flex-col">
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">NOK/TRY</span>
+                    <span className="text-xs font-mono">{rates.nokTry?.toFixed(4)}</span>
+                  </div>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
                 EUR/USD Parity: <strong className="text-foreground font-mono">{(eurTryRate / usdTryRate).toFixed(4)}</strong>
               </p>

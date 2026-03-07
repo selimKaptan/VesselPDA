@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import { format } from "date-fns";
 import { 
   ShieldCheck, 
   FileText, 
@@ -14,7 +17,8 @@ import {
   ExternalLink,
   MapPin,
   DollarSign,
-  Briefcase
+  Briefcase,
+  Download
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -146,15 +150,60 @@ export default function InsurancePage() {
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <PageMeta title="Insurance Management | VPDA" />
       
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-2">
-            <ShieldCheck className="h-8 w-8 text-sky-500" />
-            Insurance Management
-          </h1>
-          <p className="text-slate-400 mt-1">Manage P&I, H&M policies and insurance claims</p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-2">
+              <ShieldCheck className="h-8 w-8 text-sky-500" />
+              Insurance Management
+            </h1>
+            <p className="text-slate-400 mt-1">Manage P&I, H&M policies and insurance claims</p>
+          </div>
+          <Button variant="outline" size="sm" className="bg-slate-900 border-slate-800 text-white" onClick={() => {
+            const doc = new jsPDF();
+            doc.setFontSize(20);
+            doc.text("Insurance Policy Schedule", 14, 22);
+            doc.setFontSize(11);
+            doc.setTextColor(100);
+            doc.text(`Generated: ${format(new Date(), "dd MMM yyyy HH:mm")}`, 14, 30);
+            doc.text(`Active Policies: ${summary?.activePolicies || 0}`, 14, 35);
+            doc.text(`Total Annual Premium: $${summary?.totalPremium?.toLocaleString() || 0}`, 14, 40);
+
+            doc.setFontSize(14);
+            doc.setTextColor(0);
+            doc.text("Active Policies", 14, 55);
+            autoTable(doc, {
+              startY: 60,
+              head: [['Vessel', 'Type', 'Insurer', 'Policy #', 'Value', 'Premium', 'Expiry']],
+              body: (summary?.policies || []).map(p => [
+                vessels.find(v => v.id === p.vesselId)?.name || "Unknown",
+                p.policyType,
+                p.insurer,
+                p.policyNumber,
+                `$${(p.insuredValue || 0).toLocaleString()}`,
+                `$${(p.premiumAmount || 0).toLocaleString()}`,
+                p.coverageTo ? format(new Date(p.coverageTo), "dd MMM yyyy") : "N/A"
+              ]),
+            });
+
+            const nextY = (doc as any).lastAutoTable.finalY + 15;
+            doc.text("Claims Summary", 14, nextY);
+            autoTable(doc, {
+              startY: nextY + 5,
+              head: [['Date', 'Vessel', 'Incident', 'Est. Claim', 'Status']],
+              body: (summary?.claims || []).map(c => [
+                c.incidentDate ? format(new Date(c.incidentDate), "dd MMM yyyy") : "N/A",
+                vessels.find(v => v.id === c.vesselId)?.name || "Unknown",
+                c.incidentType,
+                `$${(c.estimatedClaim || 0).toLocaleString()}`,
+                c.status?.toUpperCase()
+              ]),
+            });
+
+            doc.save("Insurance_Schedule_Report.pdf");
+          }}>
+            <Download className="mr-2 h-4 w-4" /> Export PDF
+          </Button>
         </div>
-      </div>
 
       {expiringPolicies.length > 0 && (
         <Card className="bg-destructive/10 border-destructive/20">

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { PlanGate } from "@/components/plan-gate";
 import {
   BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -157,6 +158,7 @@ export default function AnalyticsPage() {
   const vesselActivity = data?.vesselActivity || [];
 
   return (
+    <PlanGate requiredPlan="standard" feature="Analytics & Reports">
     <div className="min-h-screen bg-background">
       <PageMeta title="Analytics & Reports | VesselPDA" description="Operational analytics and reporting dashboard" />
 
@@ -554,5 +556,6 @@ export default function AnalyticsPage() {
 
       </div>
     </div>
+    </PlanGate>
   );
 }

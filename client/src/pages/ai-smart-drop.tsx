@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Wand2, Clock, FileText, ChevronRight, RotateCcw } from "lucide-react";
+import { PlanGate } from "@/components/plan-gate";
 import { AiSmartDrop, AiAnalysisModal } from "@/components/ai-smart-drop";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,6 +88,7 @@ export default function AiSmartDropPage() {
   const history = data?.history || [];
 
   return (
+    <PlanGate requiredPlan="standard" feature="AI Smart Drop">
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -154,5 +156,6 @@ export default function AiSmartDropPage() {
         />
       )}
     </div>
+    </PlanGate>
   );
 }

@@ -32,6 +32,10 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import { format } from "date-fns";
+
 const RATING_COLORS = {
   A: "#22c55e", // Green
   B: "#84cc16", // Lime
@@ -85,8 +89,63 @@ export default function EnvironmentalPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" data-testid="button-export-data">
-            <Download className="mr-2 h-4 w-4" /> Export Report
+          <Button variant="outline" data-testid="button-export-data" onClick={() => {
+            const doc = new jsPDF();
+            doc.setFontSize(20);
+            doc.text("Environmental Compliance Report", 14, 22);
+            doc.setFontSize(11);
+            doc.setTextColor(100);
+            doc.text(`Generated: ${format(new Date(), "dd MMM yyyy HH:mm")}`, 14, 30);
+            doc.text(`Fleet Average CII: ${fleetSummary?.avgCiiRating || "C"}`, 14, 35);
+            doc.text(`Total ETS Liability: EUR ${fleetSummary?.totalEtsLiability?.toLocaleString() || 0}`, 14, 40);
+
+            doc.setFontSize(14);
+            doc.setTextColor(0);
+            doc.text("CII Ratings by Vessel", 14, 55);
+            autoTable(doc, {
+              startY: 60,
+              head: [['Vessel', 'Year', 'Attained', 'Required', 'Rating']],
+              body: (ciiRecords || []).map(r => [
+                vessels?.find(v => v.id === r.vesselId)?.name || `Vessel #${r.vesselId}`,
+                r.reportingYear.toString(),
+                (r.ciiAttained || 0).toFixed(2),
+                (r.ciiRequired || 0).toFixed(2),
+                r.ciiRating || 'N/A'
+              ]),
+            });
+
+            let nextY = (doc as any).lastAutoTable.finalY + 15;
+            doc.text("EU ETS Emissions Ledger", 14, nextY);
+            autoTable(doc, {
+              startY: nextY + 5,
+              head: [['Vessel', 'Period', 'CO2 (mt)', 'Liable CO2', 'Cost (EUR)']],
+              body: (etsRecords || []).map(r => [
+                vessels?.find(v => v.id === r.vesselId)?.name || `Vessel #${r.vesselId}`,
+                `${r.reportingPeriod || ''} ${r.reportingYear}`,
+                (r.co2Emissions || 0).toLocaleString(),
+                (r.etsLiableCo2 || 0).toLocaleString(),
+                `EUR ${(r.totalCostEur || 0).toLocaleString()}`
+              ]),
+            });
+
+            nextY = (doc as any).lastAutoTable.finalY + 15;
+            doc.text("IMO DCS Reporting Summary", 14, nextY);
+            autoTable(doc, {
+              startY: nextY + 5,
+              head: [['Vessel', 'Year', 'Fuel (mt)', 'Dist (nm)', 'Verifier', 'Status']],
+              body: (dcsReports || []).map(r => [
+                vessels?.find(v => v.id === r.vesselId)?.name || `Vessel #${r.vesselId}`,
+                r.reportingYear.toString(),
+                (r.totalFuel || 0).toLocaleString(),
+                (r.distanceNm || 0).toLocaleString(),
+                r.verifier || "N/A",
+                r.status || ''
+              ]),
+            });
+
+            doc.save("Environmental_Compliance_Report.pdf");
+          }}>
+            <Download className="mr-2 h-4 w-4" /> Export PDF
           </Button>
           <Dialog>
             <DialogTrigger asChild>

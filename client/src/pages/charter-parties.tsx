@@ -20,7 +20,8 @@ import {
   Ship,
   FileText,
   AlertTriangle,
-  History
+  History,
+  Download
 } from "lucide-react";
 import { format } from "date-fns";
 import { 
@@ -52,6 +53,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export default function CharterParties() {
   const [selectedCpId, setSelectedCpId] = useState<number | null>(null);
@@ -172,6 +176,60 @@ export default function CharterParties() {
                 <Badge variant="secondary" className="h-7 uppercase tracking-wider">
                   {selectedCp.status}
                 </Badge>
+                <Button variant="outline" size="sm" onClick={() => {
+                  const doc = new jsPDF();
+                  doc.setFontSize(20);
+                  doc.text("Charter Party Summary", 14, 22);
+                  doc.setFontSize(11);
+                  doc.setTextColor(100);
+                  
+                  const vesselName = vessels?.find(v => v.id === selectedCp.vesselId)?.name || "Unknown Vessel";
+                  
+                  doc.text(`Vessel: ${vesselName}`, 14, 30);
+                  doc.text(`Charterer: ${selectedCp.chartererName}`, 14, 35);
+                  doc.text(`CP Date: ${selectedCp.cpDate ? format(new Date(selectedCp.cpDate), "dd MMM yyyy") : "N/A"}`, 14, 40);
+                  doc.text(`Type: ${selectedCp.charterType}`, 14, 45);
+                  doc.text(`Rate: ${Number(selectedCp.hireRate).toLocaleString()} ${selectedCp.hireCurrency} / ${selectedCp.hireFrequency}`, 14, 50);
+
+                  doc.setFontSize(14);
+                  doc.setTextColor(0);
+                  doc.text("Hire Statements", 14, 65);
+
+                  const payments = queryClient.getQueryData<HirePayment[]>(["/api/charter-parties", selectedCp.id, "hire-payments"]) || [];
+                  
+                  autoTable(doc, {
+                    startY: 70,
+                    head: [['Statement #', 'Period', 'Gross Hire', 'Net Hire', 'Status']],
+                    body: payments.map(p => [
+                      p.id.toString(),
+                      `${p.periodFrom ? format(new Date(p.periodFrom), "dd MMM") : 'N/A'} - ${p.periodTo ? format(new Date(p.periodTo), "dd MMM yyyy") : 'N/A'}`,
+                      `${Number(p.grossHire).toLocaleString()}`,
+                      `${Number(p.netHire).toLocaleString()}`,
+                      (p.status || '').toUpperCase()
+                    ]),
+                  });
+
+                  const finalY = (doc as any).lastAutoTable.finalY || 70;
+                  doc.setFontSize(14);
+                  doc.text("Off-Hire Events", 14, finalY + 15);
+
+                  const events = queryClient.getQueryData<OffHireEvent[]>(["/api/charter-parties", selectedCp.id, "off-hire"]) || [];
+
+                  autoTable(doc, {
+                    startY: finalY + 20,
+                    head: [['ID', 'Period', 'Duration (Days)', 'Reason']],
+                    body: events.map(e => [
+                      e.id.toString(),
+                      `${e.startDatetime ? format(new Date(e.startDatetime), "dd MMM HH:mm") : 'N/A'} - ${e.endDatetime ? format(new Date(e.endDatetime), "dd MMM yyyy HH:mm") : 'N/A'}`,
+                      (e.deductedDays || 0).toString(),
+                      e.reason || ''
+                    ]),
+                  });
+
+                  doc.save(`CP_Summary_${vesselName}_${selectedCp.chartererName}.pdf`);
+                }}>
+                  <Download className="mr-2 h-4 w-4" /> Export PDF
+                </Button>
               </div>
 
               <TabsContent value="overview">

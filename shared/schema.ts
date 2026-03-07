@@ -3034,3 +3034,42 @@ export type VoyageEstimation = typeof voyageEstimations.$inferSelect;
 // T003: Broker Commissions - ALREADY DEFINED ABOVE
 
 // T005: Broker Contacts (CRM) - ALREADY DEFINED ABOVE
+
+// Passage Planning
+export const passagePlans = pgTable("passage_plans", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 255 }).notNull(),
+  vesselId: integer("vessel_id"),
+  voyageId: integer("voyage_id"),
+  planName: varchar("plan_name", { length: 255 }).notNull(),
+  origin: varchar("origin", { length: 255 }).notNull(),
+  destination: varchar("destination", { length: 255 }).notNull(),
+  totalDistanceNm: real("total_distance_nm"),
+  totalDays: real("total_days"),
+  departureDate: timestamp("departure_date"),
+  arrivalDate: timestamp("arrival_date"),
+  status: varchar("status", { length: 50 }).default("draft"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertPassagePlanSchema = createInsertSchema(passagePlans).omit({ id: true, createdAt: true });
+export type InsertPassagePlan = z.infer<typeof insertPassagePlanSchema>;
+export type PassagePlan = typeof passagePlans.$inferSelect;
+
+export const passageWaypoints = pgTable("passage_waypoints", {
+  id: serial("id").primaryKey(),
+  planId: integer("plan_id").notNull(),
+  sequence: integer("sequence").notNull().default(0),
+  waypointName: varchar("waypoint_name", { length: 255 }).notNull(),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  courseToNext: real("course_to_next"),
+  distanceToNextNm: real("distance_to_next_nm"),
+  speedKnots: real("speed_knots"),
+  etd: timestamp("etd"),
+  eta: timestamp("eta"),
+  notes: text("notes"),
+});
+export const insertPassageWaypointSchema = createInsertSchema(passageWaypoints).omit({ id: true });
+export type InsertPassageWaypoint = z.infer<typeof insertPassageWaypointSchema>;
+export type PassageWaypoint = typeof passageWaypoints.$inferSelect;

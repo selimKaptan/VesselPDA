@@ -7,6 +7,10 @@ const FALLBACK: Record<string, { buy: number; sell: number; effective: number }>
   "USD/TRY": { buy: 43.50, sell: 44.22, effective: 43.86 },
   "EUR/TRY": { buy: 51.30, sell: 52.16, effective: 51.73 },
   "GBP/TRY": { buy: 55.10, sell: 55.90, effective: 55.50 },
+  "JPY/TRY": { buy: 0.28, sell: 0.30, effective: 0.29 },
+  "CNY/TRY": { buy: 6.00, sell: 6.20, effective: 6.10 },
+  "NOK/TRY": { buy: 3.90, sell: 4.10, effective: 4.00 },
+  "SGD/TRY": { buy: 32.00, sell: 33.00, effective: 32.50 },
   "EUR/USD": { buy: 1.170, sell: 1.185, effective: 1.178 },
 };
 
@@ -24,6 +28,10 @@ export interface RatesBundle {
   usdTry: number;
   eurTry: number;
   gbpTry: number;
+  jpyTry: number;
+  cnyTry: number;
+  nokTry: number;
+  sgdTry: number;
   eurUsd: number;
   source: string;
   updatedAt: string | null;
@@ -64,16 +72,28 @@ export async function fetchTCMBRates(): Promise<RatesBundle> {
   const usd = extractPair("USD");
   const eur = extractPair("EUR");
   const gbp = extractPair("GBP");
+  const jpy = extractPair("JPY");
+  const cny = extractPair("CNY");
+  const nok = extractPair("NOK");
+  const sgd = extractPair("SGD");
 
   if (!usd || !eur) throw new Error("Could not parse USD/EUR rates from TCMB XML");
 
   const eurUsdEffective = Math.round((eur.effective / usd.effective) * 100000) / 100000;
   const gbpEff = gbp?.effective ?? FALLBACK["GBP/TRY"].effective;
+  const jpyEff = jpy?.effective ?? FALLBACK["JPY/TRY"].effective;
+  const cnyEff = cny?.effective ?? FALLBACK["CNY/TRY"].effective;
+  const nokEff = nok?.effective ?? FALLBACK["NOK/TRY"].effective;
+  const sgdEff = sgd?.effective ?? FALLBACK["SGD/TRY"].effective;
 
   const pairs = [
     { base: "USD", target: "TRY", buy: usd.buy, sell: usd.sell, eff: usd.effective },
     { base: "EUR", target: "TRY", buy: eur.buy, sell: eur.sell, eff: eur.effective },
     { base: "GBP", target: "TRY", buy: gbp?.buy ?? null, sell: gbp?.sell ?? null, eff: gbpEff },
+    { base: "JPY", target: "TRY", buy: jpy?.buy ?? null, sell: jpy?.sell ?? null, eff: jpyEff },
+    { base: "CNY", target: "TRY", buy: cny?.buy ?? null, sell: cny?.sell ?? null, eff: cnyEff },
+    { base: "NOK", target: "TRY", buy: nok?.buy ?? null, sell: nok?.sell ?? null, eff: nokEff },
+    { base: "SGD", target: "TRY", buy: sgd?.buy ?? null, sell: sgd?.sell ?? null, eff: sgdEff },
     { base: "EUR", target: "USD", buy: null, sell: null, eff: eurUsdEffective },
   ];
 
@@ -94,6 +114,10 @@ export async function fetchTCMBRates(): Promise<RatesBundle> {
     usdTry: usd.effective,
     eurTry: eur.effective,
     gbpTry: gbpEff,
+    jpyTry: jpyEff,
+    cnyTry: cnyEff,
+    nokTry: nokEff,
+    sgdTry: sgdEff,
     eurUsd: eurUsdEffective,
     source: "tcmb",
     updatedAt: now,
@@ -128,6 +152,10 @@ export async function getCachedRates(): Promise<RatesBundle | null> {
     usdTry: map["USD/TRY"],
     eurTry: map["EUR/TRY"],
     gbpTry: map["GBP/TRY"] ?? FALLBACK["GBP/TRY"].effective,
+    jpyTry: map["JPY/TRY"] ?? FALLBACK["JPY/TRY"].effective,
+    cnyTry: map["CNY/TRY"] ?? FALLBACK["CNY/TRY"].effective,
+    nokTry: map["NOK/TRY"] ?? FALLBACK["NOK/TRY"].effective,
+    sgdTry: map["SGD/TRY"] ?? FALLBACK["SGD/TRY"].effective,
     eurUsd: map["EUR/USD"] ?? Math.round((map["EUR/TRY"] / map["USD/TRY"]) * 100000) / 100000,
     source: "tcmb",
     updatedAt: latestUpdatedAt?.toISOString() ?? null,
@@ -174,6 +202,10 @@ export async function getOrFetchRates(forceRefresh = false): Promise<RatesBundle
       usdTry: FALLBACK["USD/TRY"].effective,
       eurTry: FALLBACK["EUR/TRY"].effective,
       gbpTry: FALLBACK["GBP/TRY"].effective,
+      jpyTry: FALLBACK["JPY/TRY"].effective,
+      cnyTry: FALLBACK["CNY/TRY"].effective,
+      nokTry: FALLBACK["NOK/TRY"].effective,
+      sgdTry: FALLBACK["SGD/TRY"].effective,
       eurUsd: FALLBACK["EUR/USD"].effective,
       source: "fallback",
       updatedAt: null,

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { db } from "../db";
-import { sql, and, eq, lt, gte, isNull } from "drizzle-orm";
+import { sql, and, eq, lt, isNull } from "drizzle-orm";
 import { storage } from "../storage";
 import { 
   invoices, 
@@ -10,10 +10,10 @@ import {
   daAdvances, 
   voyages, 
   proformas, 
-  serviceRequests, 
-  serviceOffers,
+  serviceRequests,
   portExpenses,
-  fdaAccounts
+  fdaAccounts,
+  ports
 } from "@shared/schema";
 
 const router = Router();
@@ -66,16 +66,16 @@ router.get("/pending", isAuthenticated, async (req: any, res: any) => {
       ));
 
     // 4. Voyages Needing FDA (Warning)
-    // Voyages that are completed or in_progress but don't have an FDA account yet
+    // Voyages that are completed but don't have an FDA account yet
     const voyagesNeedingFda = await db.select({
       id: voyages.id,
       vesselName: voyages.vesselName,
-      portName: sql`ports.name`,
+      portName: ports.name,
       eta: voyages.eta
     })
     .from(voyages)
     .leftJoin(fdaAccounts, eq(fdaAccounts.voyageId, voyages.id))
-    .innerJoin(sql`ports`, sql`ports.id = ${voyages.portId}`)
+    .leftJoin(ports, eq(ports.id, voyages.portId))
     .where(and(
       isAdmin ? sql`1=1` : eq(voyages.userId, userId),
       eq(voyages.status, "completed"),

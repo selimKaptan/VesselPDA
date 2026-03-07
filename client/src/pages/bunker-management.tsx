@@ -1,9 +1,13 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import { format } from "date-fns";
 import { 
   Fuel, Plus, Search, Trash2, Edit2, Calendar, 
   ArrowUpRight, BarChart3, TrendingUp, History, 
-  Ship, MapPin, BadgeDollarSign, Info, CheckCircle2, Clock
+  Ship, MapPin, BadgeDollarSign, Info, CheckCircle2, Clock,
+  Download
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -267,6 +271,67 @@ export default function BunkerManagement() {
           </TabsList>
 
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => {
+              const doc = new jsPDF();
+              const vesselName = vessels?.find(v => v.id === selectedVesselId)?.name || "Unknown Vessel";
+              
+              doc.setFontSize(20);
+              doc.text("ROB Report", 14, 22);
+              doc.setFontSize(11);
+              doc.setTextColor(100);
+              doc.text(`Vessel: ${vesselName}`, 14, 30);
+              doc.text(`Date: ${format(new Date(), "dd MMM yyyy HH:mm")}`, 14, 35);
+
+              doc.setFontSize(14);
+              doc.setTextColor(0);
+              doc.text("Current ROB Summary", 14, 50);
+
+              const latestRob = stats?.latestRob;
+              autoTable(doc, {
+                startY: 55,
+                head: [['Fuel Type', 'Quantity (MT)']],
+                body: [
+                  ['VLSFO', `${latestRob?.vlsfoRob || 0} MT`],
+                  ['MGO', `${latestRob?.mgoRob || 0} MT`],
+                  ['HFO', `${latestRob?.hfoRob || 0} MT`],
+                  ['LSFO', `${latestRob?.lsfoRob || 0} MT`],
+                ],
+              });
+
+              let nextY = (doc as any).lastAutoTable.finalY + 15;
+              doc.text("Bunker Orders History", 14, nextY);
+              
+              autoTable(doc, {
+                startY: nextY + 5,
+                head: [['Date', 'Fuel Type', 'Qty', 'Port', 'Supplier', 'Status']],
+                body: (orders || []).map(o => [
+                  o.orderDate ? format(new Date(o.orderDate), "dd MMM yyyy") : "N/A",
+                  o.fuelType,
+                  `${o.quantityOrdered} MT`,
+                  o.port || "N/A",
+                  o.supplier || "N/A",
+                  o.status?.toUpperCase()
+                ]),
+              });
+
+              nextY = (doc as any).lastAutoTable.finalY + 15;
+              doc.text("Recent Consumption", 14, nextY);
+
+              autoTable(doc, {
+                startY: nextY + 5,
+                head: [['Date', 'VLSFO Cons.', 'MGO Cons.', 'HFO Cons.']],
+                body: (robs || []).slice(0, 10).map(r => [
+                  r.reportDate ? format(new Date(r.reportDate), "dd MMM yyyy") : "N/A",
+                  `${r.vlsfoConsumed || 0} MT`,
+                  `${r.mgoConsumed || 0} MT`,
+                  `${r.hfoConsumed || 0} MT`
+                ]),
+              });
+
+              doc.save(`ROB_Report_${vesselName}.pdf`);
+            }}>
+              <Download className="mr-2 h-4 w-4" /> Export PDF
+            </Button>
             <Dialog open={isOrderDialogOpen} onOpenChange={setIsOrderDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="sm" className="bg-sky-600 hover:bg-sky-500 gap-2">

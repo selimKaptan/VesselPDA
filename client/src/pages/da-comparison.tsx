@@ -1,5 +1,6 @@
 import { useParams, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { PlanGate } from "@/components/plan-gate";
 import { useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer, Cell
@@ -557,8 +558,10 @@ export default function DaComparison() {
   const proformaId = params?.proformaId;
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto pb-20 md:pb-6">
-      {proformaId ? <DetailMode proformaId={proformaId} /> : <ListMode />}
-    </div>
+    <PlanGate requiredPlan="unlimited" feature="DA Comparison Report">
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto pb-20 md:pb-6">
+        {proformaId ? <DetailMode proformaId={proformaId} /> : <ListMode />}
+      </div>
+    </PlanGate>
   );
 }

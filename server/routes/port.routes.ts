@@ -148,7 +148,7 @@ router.get("/api/port-info/:locode", async (req, res) => {
 
 router.get("/api/exchange-rates", async (_req, res) => {
   try {
-    const rates = await cached('exchange-rates', 'long', () => getOrFetchRates());
+    const rates = await getOrFetchRates();
     res.json(rates);
   } catch (error: any) {
     console.error("Exchange rate fetch error:", error.message);
@@ -161,7 +161,6 @@ router.post("/api/exchange-rates/refresh", isAuthenticated, async (req: any, res
   try {
     if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
     const rates = await fetchTCMBRates();
-    invalidateCache('exchange-rates', 'long');
     res.json({ success: true, rates });
   } catch (error: any) {
     console.error("Exchange rate refresh error:", error.message);

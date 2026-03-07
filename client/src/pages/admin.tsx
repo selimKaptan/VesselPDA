@@ -138,6 +138,7 @@ export default function AdminPanel() {
   const [auditUserId, setAuditUserId] = useState("");
   const [auditAction, setAuditAction] = useState("all");
   const [auditEntityType, setAuditEntityType] = useState("all");
+  const [auditIpAddress, setAuditIpAddress] = useState("");
   const [auditFrom, setAuditFrom] = useState("");
   const [auditTo, setAuditTo] = useState("");
   const [auditPage, setAuditPage] = useState(0);
@@ -147,38 +148,28 @@ export default function AdminPanel() {
   if (auditUserId) auditParams.set("userId", auditUserId);
   if (auditAction !== "all") auditParams.set("action", auditAction);
   if (auditEntityType !== "all") auditParams.set("entityType", auditEntityType);
+  if (auditIpAddress) auditParams.set("ipAddress", auditIpAddress);
   if (auditFrom) auditParams.set("from", auditFrom);
   if (auditTo) auditParams.set("to", auditTo);
   auditParams.set("limit", "50");
   auditParams.set("offset", String(auditPage * 50));
 
   const { data: auditData, isLoading: auditLoading, refetch: refetchAudit } = useQuery<{ logs: any[]; total: number }>({
-    queryKey: ["/api/admin/audit-logs", auditUserId, auditAction, auditEntityType, auditFrom, auditTo, auditPage],
+    queryKey: ["/api/admin/audit-logs", auditUserId, auditAction, auditEntityType, auditIpAddress, auditFrom, auditTo, auditPage],
     queryFn: () => fetch(`/api/admin/audit-logs?${auditParams}`, { credentials: "include" }).then(r => r.json()),
     enabled: auditEnabled,
   });
   const auditLogs = auditData?.logs ?? [];
   const auditTotal = auditData?.total ?? 0;
 
+  const { data: auditStats } = useQuery<any>({
+    queryKey: ["/api/admin/audit-logs/stats", auditUserId, auditAction, auditEntityType, auditIpAddress, auditFrom, auditTo],
+    queryFn: () => fetch(`/api/admin/audit-logs/stats?${auditParams}`, { credentials: "include" }).then(r => r.json()),
+    enabled: auditEnabled,
+  });
+
   const exportAuditCsv = () => {
-    if (!auditLogs.length) return;
-    const headers = ["ID", "User", "Action", "Entity Type", "Entity ID", "Details", "IP Address", "Timestamp"];
-    const rows = auditLogs.map((l: any) => [
-      l.id,
-      `${l.first_name || ""} ${l.last_name || ""}`.trim() || l.email || l.user_id || "—",
-      l.action,
-      l.entity_type,
-      l.entity_id ?? "",
-      l.details ? JSON.stringify(l.details) : "",
-      l.ip_address || "",
-      l.created_at ? new Date(l.created_at).toISOString() : "",
-    ]);
-    const csv = [headers, ...rows].map(r => r.map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
-    URL.revokeObjectURL(url);
+    window.open(`/api/admin/audit-logs/export?${auditParams}`, "_blank");
   };
 
   const [bunkerDialog, setBunkerDialog] = useState(false);
@@ -1829,7 +1820,6 @@ export default function AdminPanel() {
           </Card>
         </TabsContent>
 
-        {/* Audit Log Tab */}
         <TabsContent value="audit-log" className="space-y-4">
           <Card className="p-5">
             <div className="flex items-center justify-between mb-4">
@@ -1843,13 +1833,44 @@ export default function AdminPanel() {
                   <RotateCcw className="w-3.5 h-3.5 mr-1.5" />Refresh
                 </Button>
                 <Button variant="outline" size="sm" onClick={exportAuditCsv} disabled={!auditLogs.length} data-testid="button-audit-csv">
-                  <ChevronRight className="w-3.5 h-3.5 mr-1.5" />Export CSV
+                  <Activity className="w-3.5 h-3.5 mr-1.5" />Export All (CSV)
                 </Button>
               </div>
             </div>
 
+            {/* Stats Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <Card className="p-4 flex items-center gap-4 bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/30 shadow-none">
+                <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Logs This Week</p>
+                  <p className="text-xl font-bold">{auditStats?.totalThisWeek || 0}</p>
+                </div>
+              </Card>
+              <Card className="p-4 flex items-center gap-4 bg-green-50/50 dark:bg-green-900/10 border-green-100 dark:border-green-900/30 shadow-none">
+                <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-green-600 dark:text-green-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Most Active User</p>
+                  <p className="text-xl font-bold truncate">{auditStats?.mostActiveUser || "N/A"}</p>
+                </div>
+              </Card>
+              <Card className="p-4 flex items-center gap-4 bg-purple-50/50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-900/30 shadow-none">
+                <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center">
+                  <Zap className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Top Action</p>
+                  <p className="text-xl font-bold uppercase">{auditStats?.topAction || "N/A"}</p>
+                </div>
+              </Card>
+            </div>
+
             {/* Filters */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4 p-4 rounded-lg bg-muted/30 border border-border/50">
               <div>
                 <Label className="text-[11px] text-muted-foreground mb-1 block">User ID</Label>
                 <Input
@@ -1858,6 +1879,16 @@ export default function AdminPanel() {
                   onChange={e => { setAuditUserId(e.target.value); setAuditPage(0); }}
                   className="h-8 text-sm"
                   data-testid="input-audit-user"
+                />
+              </div>
+              <div>
+                <Label className="text-[11px] text-muted-foreground mb-1 block">IP Address</Label>
+                <Input
+                  placeholder="192.168..."
+                  value={auditIpAddress}
+                  onChange={e => { setAuditIpAddress(e.target.value); setAuditPage(0); }}
+                  className="h-8 text-sm"
+                  data-testid="input-audit-ip"
                 />
               </div>
               <div>

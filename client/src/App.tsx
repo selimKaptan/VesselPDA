@@ -90,6 +90,8 @@ import VoyageEstimation from "@/pages/voyage-estimation";
 import OrderBook from "@/pages/order-book";
 import BrokerCommissions from "@/pages/broker-commissions";
 import Contacts from "@/pages/contacts";
+import PassagePlanning from "@/pages/passage-planning";
+import NotificationsPage from "@/pages/notifications";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -169,6 +171,8 @@ function AuthenticatedRouter() {
       <Route path="/order-book" component={OrderBook} />
       <Route path="/broker-commissions" component={BrokerCommissions} />
       <Route path="/contacts" component={Contacts} />
+      <Route path="/passage-planning" component={PassagePlanning} />
+      <Route path="/notifications" component={NotificationsPage} />
       <Route component={NotFound} />
     </Switch>
   );

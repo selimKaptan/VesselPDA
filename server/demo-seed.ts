@@ -18,6 +18,13 @@ import {
   laytimeSheets,
   daAdvances,
   portExpenses,
+  brokerCommissions,
+  brokerContacts,
+  serviceRequests,
+  serviceOffers,
+  noonReports,
+  ciiRecords,
+  euEtsRecords,
 } from "../shared/schema";
 
 export async function seedDemoData(userId: string, userRole: string) {
@@ -131,6 +138,29 @@ export async function seedDemoData(userId: string, userRole: string) {
     const now = new Date();
     const daysAgo = (n: number) => new Date(now.getTime() - n * 86400000);
     const daysFromNow = (n: number) => new Date(now.getTime() + n * 86400000);
+
+    // Historical voyages
+    const historicalVoyages = Array.from({ length: 10 }, (_, i) => ({
+      userId, 
+      vesselId: vesselRows[i % vesselRows.length].id, 
+      portId: portRows[i % portRows.length].id,
+      vesselName: vesselRows[i % vesselRows.length].name,
+      imoNumber: "9123456",
+      flag: "Malta",
+      vesselType: "bulk_carrier",
+      grt: 28500,
+      status: "completed",
+      purposeOfCall: i % 2 === 0 ? "Loading" : "Discharging",
+      eta: daysAgo(40 + i * 30),
+      etd: daysAgo(35 + i * 30),
+      notes: `Historical voyage ${10-i} completed successfully.`,
+    }));
+    
+    for (const v of historicalVoyages) {
+      const [inserted] = await db.insert(voyages).values(v).returning({ id: voyages.id });
+      voyageRows.push(inserted);
+      summary.voyages++;
+    }
 
     const voyageData = [
       {
@@ -287,6 +317,22 @@ export async function seedDemoData(userId: string, userRole: string) {
     const daysFromNow = (n: number) => new Date(now.getTime() + n * 86400000);
 
     const invoiceData = [
+      // 12 months of historical invoices
+      ...Array.from({ length: 24 }, (_, i) => {
+        const monthsAgo = Math.floor(i / 2);
+        const status = i % 4 === 0 ? "overdue" : i % 3 === 0 ? "pending" : "paid";
+        return {
+          createdByUserId: userId,
+          title: `Historical Invoice ${24-i}`,
+          amount: 2500 + Math.random() * 5000,
+          currency: "USD",
+          dueDate: daysAgo(monthsAgo * 30 + 5),
+          paidAt: status === "paid" ? daysAgo(monthsAgo * 30 + 2) : null,
+          status,
+          invoiceType: "invoice",
+          recipientName: i % 2 === 0 ? "Demo Shipowner Ltd." : "Mediterranean Oil Corp.",
+        };
+      }),
       {
         createdByUserId: userId,
         voyageId: voyageRows[0]?.id, proformaId: proformaRows[0]?.id,
@@ -699,6 +745,124 @@ export async function seedDemoData(userId: string, userRole: string) {
     } catch (err: any) {
       console.error("[demo-seed] PortExpenses failed:", err?.message);
     }
+  }
+
+  // ─── NEW: BROKER SEED ──────────────────────────────────────────────────
+  try {
+    const daysAgo = (n: number) => new Date(Date.now() - n * 86400000);
+    const contactsData = [
+      { userId, contactType: "shipowner", companyName: "Aegean Shipping SA", contactName: "George P.", email: "ops@aegean.gr", pastDealCount: 12, rating: 5, tags: "reliable,fast" },
+      { userId, contactType: "charterer", companyName: "Global Grain Ltd", contactName: "Sarah M.", email: "chartering@globalgrain.com", pastDealCount: 8, rating: 4, tags: "bulk,large-volume" },
+      { userId, contactType: "broker", companyName: "Maritime Links", contactName: "Selim Y.", email: "selim@mlinks.com", pastDealCount: 5, rating: 5, tags: "straits-expert" },
+      { userId, contactType: "operator", companyName: "Black Sea Ops", contactName: "Ivan D.", email: "ops@blacksea.com", pastDealCount: 3, rating: 3, tags: "regional" },
+      { userId, contactType: "shipowner", companyName: "Hellas Bulkers", contactName: "Nikos K.", email: "chartering@hellas.gr", pastDealCount: 15, rating: 5, tags: "capesize" },
+    ];
+    await db.insert(brokerContacts).values(contactsData);
+
+    const commsData = [
+      { userId, counterparty: "Aegean Shipping SA", grossCommission: 1250, netCommission: 1250, commissionRate: 1.25, currency: "USD", status: "paid", fixtureDate: daysAgo(45) },
+      { userId, counterparty: "Global Grain Ltd", grossCommission: 800, netCommission: 800, commissionRate: 1.0, currency: "USD", status: "pending", fixtureDate: daysAgo(10) },
+      { userId, counterparty: "Maritime Links", grossCommission: 2100, netCommission: 2100, commissionRate: 2.5, currency: "USD", status: "overdue", fixtureDate: daysAgo(65) },
+    ];
+    await db.insert(brokerCommissions).values(commsData);
+  } catch (err: any) {
+    console.error("[demo-seed] Broker seed failed:", err?.message);
+  }
+
+  // ─── NEW: PROVIDER SEED ──────────────────────────────────────────────────
+  try {
+    const daysAgo = (n: number) => new Date(Date.now() - n * 86400000);
+    const srData = [
+      { requesterId: userId, portId: portRows[0].id, vesselName: "MV AEGEAN STAR", serviceType: "provision", description: "Fresh water and provisions for 20 crew.", status: "completed", createdAt: daysAgo(15) },
+      { requesterId: userId, portId: portRows[1].id, vesselName: "MV BARBAROS", serviceType: "bunker", description: "500 MT VLSFO", status: "open", createdAt: daysAgo(2) },
+      { requesterId: userId, portId: portRows[2].id, vesselName: "MV BLACK SEA TRADER", serviceType: "repair", description: "Engine room pump maintenance", status: "pending", createdAt: daysAgo(5) },
+    ];
+    for (const sr of srData) {
+      const [inserted] = await db.insert(serviceRequests).values(sr as any).returning({ id: serviceRequests.id });
+      await db.insert(serviceOffers).values({
+        serviceRequestId: inserted.id,
+        providerUserId: userId,
+        price: 1500 + Math.random() * 2000,
+        currency: "USD",
+        notes: "Best price guaranteed.",
+        status: sr.status === "completed" ? "selected" : "pending"
+      });
+    }
+  } catch (err: any) {
+    console.error("[demo-seed] Provider seed failed:", err?.message);
+  }
+
+  // ─── NEW: MASTER SEED (NOON REPORTS) ───────────────────────────────────
+  try {
+    if (vesselRows.length > 0) {
+      const noonData = [
+        {
+          userId,
+          vesselId: vesselRows[0].id,
+          reportDate: new Date(Date.now() - 86400000),
+          latitude: "35.12 N",
+          longitude: "024.45 E",
+          course: 275,
+          speed: 14.5,
+          distanceLast24h: 348,
+          distanceToGo: 1250,
+          windForce: 4,
+          seaState: 3,
+          foRob: 450.5,
+          doRob: 85.2,
+          fwRob: 120.0,
+          status: "submitted"
+        },
+        {
+          userId,
+          vesselId: vesselRows[0].id,
+          reportDate: new Date(Date.now() - 2 * 86400000),
+          latitude: "34.55 N",
+          longitude: "028.10 E",
+          course: 272,
+          speed: 14.2,
+          distanceLast24h: 340,
+          distanceToGo: 1598,
+          windForce: 3,
+          seaState: 2,
+          foRob: 475.2,
+          doRob: 88.5,
+          fwRob: 125.0,
+          status: "submitted"
+        }
+      ];
+      await db.insert(noonReports).values(noonData);
+    }
+  } catch (err: any) {
+    console.error("[demo-seed] Noon reports failed:", err?.message);
+  }
+
+  // ─── NEW: ENVIRONMENTAL SEED (CII / EU ETS) ─────────────────────────────
+  try {
+    if (vesselRows.length > 0) {
+      await db.insert(ciiRecords).values({
+        vesselId: vesselRows[0].id,
+        year: 2023,
+        attainedCii: 4.85,
+        requiredCii: 5.12,
+        rating: "B",
+        co2Emissions: 12500.5,
+        distanceTraveled: 45000,
+        status: "finalized"
+      });
+
+      await db.insert(euEtsRecords).values({
+        vesselId: vesselRows[0].id,
+        periodStart: new Date("2023-01-01"),
+        periodEnd: new Date("2023-12-31"),
+        totalEmissions: 8500.2,
+        taxableEmissions: 3400.08, // 40% for 2024 scope in 2023 demo
+        allowancesNeeded: 3400,
+        status: "reported"
+      });
+    }
+  } catch (err: any) {
+    console.error("[demo-seed] Environmental seed failed:", err?.message);
   }
 
   try {

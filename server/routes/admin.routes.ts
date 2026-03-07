@@ -1164,7 +1164,7 @@ router.delete("/tariff-custom-sections/:id/entries/:entryId", isAuthenticated, a
 router.get("/audit-logs", isAuthenticated, async (req: any, res) => {
   try {
     if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
-    const { userId, action, entityType, from, to, limit: lim, offset: off } = req.query;
+    const { userId, action, entityType, from, to, limit: lim, offset: off, ipAddress } = req.query;
     let query = `
       SELECT al.*, u.email, u.first_name, u.last_name
       FROM audit_logs al
@@ -1173,10 +1173,12 @@ router.get("/audit-logs", isAuthenticated, async (req: any, res) => {
     `;
     const params: any[] = [];
     if (userId) { params.push(userId); query += ` AND al.user_id = $${params.length}`; }
-    if (action) { params.push(action); query += ` AND al.action = $${params.length}`; }
-    if (entityType) { params.push(entityType); query += ` AND al.entity_type = $${params.length}`; }
+    if (action && action !== 'all') { params.push(action); query += ` AND al.action = $${params.length}`; }
+    if (entityType && entityType !== 'all') { params.push(entityType); query += ` AND al.entity_type = $${params.length}`; }
     if (from) { params.push(from); query += ` AND al.created_at >= $${params.length}`; }
     if (to) { params.push(to); query += ` AND al.created_at <= $${params.length}`; }
+    if (ipAddress) { params.push(`%${ipAddress}%`); query += ` AND al.ip_address LIKE $${params.length}`; }
+    
     query += ` ORDER BY al.created_at DESC`;
     const limitVal = Math.min(parseInt(lim as string) || 100, 500);
     const offsetVal = parseInt(off as string) || 0;
@@ -1188,16 +1190,110 @@ router.get("/audit-logs", isAuthenticated, async (req: any, res) => {
     let countQ = `SELECT COUNT(*) FROM audit_logs al WHERE 1=1`;
     const countParams: any[] = [];
     if (userId) { countParams.push(userId); countQ += ` AND al.user_id = $${countParams.length}`; }
-    if (action) { countParams.push(action); countQ += ` AND al.action = $${countParams.length}`; }
-    if (entityType) { countParams.push(entityType); countQ += ` AND al.entity_type = $${countParams.length}`; }
+    if (action && action !== 'all') { countParams.push(action); countQ += ` AND al.action = $${countParams.length}`; }
+    if (entityType && entityType !== 'all') { countParams.push(entityType); countQ += ` AND al.entity_type = $${countParams.length}`; }
     if (from) { countParams.push(from); countQ += ` AND al.created_at >= $${countParams.length}`; }
     if (to) { countParams.push(to); countQ += ` AND al.created_at <= $${countParams.length}`; }
+    if (ipAddress) { countParams.push(`%${ipAddress}%`); countQ += ` AND al.ip_address LIKE $${countParams.length}`; }
+    
     const countResult = await pool.query(countQ, countParams);
 
     res.json({ logs: result.rows, total: parseInt(countResult.rows[0].count) });
   } catch (error) {
     console.error("Audit log fetch error:", error);
     res.status(500).json({ message: "Failed to fetch audit logs" });
+  }
+});
+
+router.get("/audit-logs/export", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    const { userId, action, entityType, from, to, ipAddress } = req.query;
+    
+    let query = `
+      SELECT al.*, u.email, u.first_name, u.last_name
+      FROM audit_logs al
+      LEFT JOIN users u ON al.user_id = u.id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+    if (userId) { params.push(userId); query += ` AND al.user_id = $${params.length}`; }
+    if (action && action !== 'all') { params.push(action); query += ` AND al.action = $${params.length}`; }
+    if (entityType && entityType !== 'all') { params.push(entityType); query += ` AND al.entity_type = $${params.length}`; }
+    if (from) { params.push(from); query += ` AND al.created_at >= $${params.length}`; }
+    if (to) { params.push(to); query += ` AND al.created_at <= $${params.length}`; }
+    if (ipAddress) { params.push(`%${ipAddress}%`); query += ` AND al.ip_address LIKE $${params.length}`; }
+    
+    query += ` ORDER BY al.created_at DESC`;
+    
+    const result = await pool.query(query, params);
+    const logs = result.rows;
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=audit-log-${new Date().toISOString().slice(0, 10)}.csv`);
+
+    const headers = ["ID", "User", "Action", "Entity Type", "Entity ID", "Details", "IP Address", "Timestamp"];
+    res.write(headers.join(",") + "\n");
+
+    for (const l of logs) {
+      const row = [
+        l.id,
+        `"${(`${l.first_name || ""} ${l.last_name || ""}`.trim() || l.email || l.user_id || "—").replace(/"/g, '""')}"`,
+        l.action,
+        l.entity_type,
+        l.entity_id ?? "",
+        `"${(l.details ? JSON.stringify(l.details) : "").replace(/"/g, '""')}"`,
+        l.ip_address || "",
+        l.created_at ? new Date(l.created_at).toISOString() : "",
+      ];
+      res.write(row.join(",") + "\n");
+    }
+    res.end();
+  } catch (error) {
+    console.error("Audit log export error:", error);
+    res.status(500).json({ message: "Failed to export audit logs" });
+  }
+});
+
+router.get("/audit-logs/stats", isAuthenticated, async (req: any, res) => {
+  try {
+    if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
+    const { userId, action, entityType, from, to, ipAddress } = req.query;
+
+    let baseFilter = "WHERE 1=1";
+    const params: any[] = [];
+    if (userId) { params.push(userId); baseFilter += ` AND user_id = $${params.length}`; }
+    if (action && action !== 'all') { params.push(action); baseFilter += ` AND action = $${params.length}`; }
+    if (entityType && entityType !== 'all') { params.push(entityType); baseFilter += ` AND entity_type = $${params.length}`; }
+    if (from) { params.push(from); baseFilter += ` AND created_at >= $${params.length}`; }
+    if (to) { params.push(to); baseFilter += ` AND created_at <= $${params.length}`; }
+    if (ipAddress) { params.push(`%${ipAddress}%`); baseFilter += ` AND ip_address LIKE $${params.length}`; }
+
+    const [weeklyRes, activeUserRes, topActionRes] = await Promise.all([
+      pool.query(`SELECT COUNT(*) as count FROM audit_logs WHERE created_at > NOW() - INTERVAL '7 days'`),
+      pool.query(`
+        SELECT u.email, COUNT(*) as count 
+        FROM audit_logs al
+        JOIN users u ON al.user_id = u.id
+        ${baseFilter.replace(/user_id/, 'al.user_id').replace(/action/, 'al.action').replace(/entity_type/, 'al.entity_type').replace(/created_at/, 'al.created_at').replace(/ip_address/, 'al.ip_address')}
+        GROUP BY u.email ORDER BY count DESC LIMIT 1
+      `, params),
+      pool.query(`
+        SELECT action, COUNT(*) as count 
+        FROM audit_logs
+        ${baseFilter}
+        GROUP BY action ORDER BY count DESC LIMIT 1
+      `, params)
+    ]);
+
+    res.json({
+      totalThisWeek: parseInt(weeklyRes.rows[0].count) || 0,
+      mostActiveUser: activeUserRes.rows[0]?.email || "N/A",
+      topAction: topActionRes.rows[0]?.action || "N/A"
+    });
+  } catch (error) {
+    console.error("Audit stats error:", error);
+    res.status(500).json({ message: "Failed to fetch audit stats" });
   }
 });
 
