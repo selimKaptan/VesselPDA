@@ -1,0 +1,89 @@
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+
+✓ 84 modules transformed.
+
+✗ Build failed in 3.36s
+
+[vite:esbuild] Transform failed with 1 error:
+/home/runner/workspace/client/src/pages/admin.tsx:23:7: ERROR: Expected "as" but found "{"
+file: /home/runner/workspace/client/src/pages/admin.tsx:23:7
+
+Expected "as" but found "{"
+21 |  import { PageMeta } from "@/components/page-meta";
+22 |  import {
+23 |  import { fmtDate, fmtDateTime } from "@/lib/formatDate";
+   |         ^
+24 |    BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
+25 |    ResponsiveContainer, Legend, LineChart, Line
+
+    at failureErrorWithLog (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:1467:15)
+    at /home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:736:50
+    at responseCallbacks.<computed> (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:603:9)
+    at handleIncomingPacket (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:658:12)
+    at Socket.readFromStdout (/home/runner/workspace/node_modules/vite/node_modules/esbuild/lib/main.js:581:7)
+    at Socket.emit (node:events:524:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:191:23) {
+  errors: [Getter/Setter],
+  warnings: [Getter/Setter],
+  frame: '\n' +
+    'Expected "as" but found "{"\n' +
+    '21 |  import { PageMeta } from "@/components/page-meta";\n' +
+    '22 |  import {\n' +
+    '23 |  import { fmtDate, fmtDateTime } from "@/lib/formatDate";\n' +
+    '   |         ^\n' +
+    '24 |    BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip,\n' +
+    '25 |    ResponsiveContainer, Legend, LineChart, Line\n',
+  loc: {
+    column: 7,
+    file: '/home/runner/workspace/client/src/pages/admin.tsx',
+    length: 1,
+    line: 23,
+    lineText: 'import { fmtDate, fmtDateTime } from "@/lib/formatDate";',
+    namespace: '',
+    suggestion: 'as'
+  },
+  code: 'PLUGIN_ERROR',
+  plugin: 'vite:esbuild',
+  hook: 'transform',
+  id: '/home/runner/workspace/client/src/pages/admin.tsx',
+  watchFiles: [
+    '/home/runner/workspace/client/index.html',
+    '/home/runner/workspace/client/src/main.tsx',
+    '/home/runner/workspace/package.json',
+    '/home/runner/workspace/node_modules/react/jsx-runtime.js',
+    '/home/runner/workspace/node_modules/react-dom/client.js',
+    '/home/runner/workspace/client/src/index.css',
+    '/home/runner/workspace/node_modules/react/cjs/react-jsx-runtime.production.min.js',
+    '/home/runner/workspace/node_modules/react-dom/index.js',
+    '/home/runner/workspace/node_modules/react/index.js',
+    '/home/runner/workspace/node_modules/react-dom/cjs/react-dom.production.min.js',
+    '/home/runner/workspace/client/src/App.tsx',
+    '/home/runner/workspace/node_modules/react/cjs/react.production.min.js',
+    '/home/runner/workspace/node_modules/scheduler/index.js',
+    '/home/runner/workspace/client/src/hooks/use-auth.ts',
+    '/home/runner/workspace/client/src/hooks/use-socket.ts',
+    '/home/runner/workspace/client/src/hooks/use-toast.ts',
+    '/home/runner/workspace/client/src/lib/auth-utils.ts',
+    '/home/runner/workspace/client/src/lib/formatDate.ts',
+    '/home/runner/workspace/client/src/lib/nav-categories.ts',
+    '/home/runner/workspace/client/src/lib/proforma-summary.ts',
+    '/home/runner/workspace/client/src/lib/queryClient.ts',
+    '/home/runner/workspace/client/src/lib/role-navigation.ts',
+    '/home/runner/workspace/client/src/lib/socket.ts',
+    '/home/runner/workspace/client/src/lib/utils.ts',
+    '/home/runner/workspace/client/src/components/ai-chat.tsx',
+    '/home/runner/workspace/client/src/components/ai-smart-drop.tsx',
+    '/home/runner/workspace/client/src/components/app-sidebar-backup.tsx',
+    '/home/runner/workspace/client/src/components/app-sidebar.tsx',
+    '/home/runner/workspace/client/src/components/dashboards/admin-dashboard.tsx',
+    '/home/runner/workspace/client/src/components/dashboards/agent-dashboard.tsx',
+    '
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.11.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+npm notice To update run: npm install -g npm@11.11.0
+npm notice
+
