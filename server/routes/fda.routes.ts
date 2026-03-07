@@ -8,6 +8,7 @@ import { fdaAccounts, type FdaLineItem } from "@shared/schema";
 import { logAction } from "../audit";
 import { logVoyageActivity } from "../voyage-activity";
 import { addPdfHeader, addPdfFooter } from "../proforma-pdf";
+import { sendFdaReadyEmail } from "../email";
 
 const router = Router();
 
@@ -108,6 +109,39 @@ router.post("/", isAuthenticated, async (req: any, res: any, next: any) => {
       });
     }
 
+    // Fire-and-forget: notify shipowner that FDA has been created
+    (async () => {
+      try {
+        let shipownerId: string | null = null;
+        if (voyageId) {
+          const pool = (db as any).$client ?? (db as any).pool;
+          if (pool) {
+            const { rows } = await pool.query(
+              `SELECT user_id FROM voyages WHERE id = $1 LIMIT 1`, [voyageId]
+            );
+            if (rows?.[0]?.user_id) shipownerId = rows[0].user_id;
+          }
+        }
+        if (shipownerId) {
+          const shipowner = await storage.getUser(shipownerId);
+          if (shipowner?.email) {
+            const baseUrl = `${req.protocol}://${req.get("host")}`;
+            await sendFdaReadyEmail({
+              toEmail: shipowner.email,
+              recipientName: shipowner.firstName || "Valued Customer",
+              vesselName: fda.vesselName || "—",
+              portName: fda.portName || "—",
+              referenceNumber: fda.referenceNumber || `FDA-${fda.id}`,
+              estimatedUsd: fda.totalEstimatedUsd || 0,
+              actualUsd: fda.totalActualUsd || 0,
+              variancePercent: fda.variancePercent || 0,
+              fdaUrl: `${baseUrl}/fda/${fda.id}`,
+            });
+          }
+        }
+      } catch (e) { console.warn("[fda] FDA created email skipped:", e); }
+    })();
+
     res.json(fda);
   } catch (error) { next(error); }
 });
@@ -182,6 +216,28 @@ router.post("/:id/approve", isAuthenticated, async (req: any, res: any, next: an
         title: 'FDA approved' 
       });
     }
+
+    // Fire-and-forget: notify the FDA owner (agent) that the FDA has been approved
+    (async () => {
+      try {
+        const fdaOwner = await storage.getUser(updated.userId);
+        if (fdaOwner?.email && fdaOwner.id !== userId) {
+          const baseUrl = `${req.protocol}://${req.get("host")}`;
+          await sendFdaReadyEmail({
+            toEmail: fdaOwner.email,
+            recipientName: fdaOwner.firstName || "Agent",
+            vesselName: updated.vesselName || "—",
+            portName: updated.portName || "—",
+            referenceNumber: updated.referenceNumber || `FDA-${updated.id}`,
+            estimatedUsd: updated.totalEstimatedUsd || 0,
+            actualUsd: updated.totalActualUsd || 0,
+            variancePercent: updated.variancePercent || 0,
+            fdaUrl: `${baseUrl}/fda/${updated.id}`,
+            subject: `FDA Approved: ${updated.referenceNumber} — Create Invoice`,
+          });
+        }
+      } catch (e) { console.warn("[fda] FDA approved email skipped:", e); }
+    })();
 
     res.json(updated);
   } catch (error) { next(error); }

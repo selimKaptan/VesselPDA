@@ -971,6 +971,7 @@ export const invoices = pgTable("invoices", {
   id: serial("id").primaryKey(),
   voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
   proformaId: integer("proforma_id").references(() => proformas.id, { onDelete: "set null" }),
+  fdaId: integer("fda_id"),
   createdByUserId: varchar("created_by_user_id").notNull().references(() => users.id),
   title: text("title").notNull(),
   amount: real("amount").notNull(),

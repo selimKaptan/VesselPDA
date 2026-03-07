@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import {
   ArrowLeft, Download, CheckCircle2, Loader2, Calculator,
-  TrendingUp, TrendingDown, Minus, Plus, Trash2, Save, ArrowUpDown, BarChart3
+  TrendingUp, TrendingDown, Minus, Plus, Trash2, Save, ArrowUpDown, BarChart3, Receipt
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -206,6 +206,13 @@ export default function FdaDetail() {
               <Link href={`/da-comparison/${fda.proformaId}`}>
                 <Button variant="outline" className="gap-2" size="sm" data-testid="button-compare-pda">
                   <BarChart3 className="h-4 w-4" /> Compare with PDA
+                </Button>
+              </Link>
+            )}
+            {isApproved && (
+              <Link href={`/invoices?fdaId=${fda.id}`}>
+                <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="button-create-invoice-from-fda">
+                  <Receipt className="h-4 w-4" /> Create Invoice
                 </Button>
               </Link>
             )}

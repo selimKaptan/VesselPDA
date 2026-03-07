@@ -23,6 +23,8 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
 - **Communication & Collaboration**: Features include a forum/discussion board, direct messaging, and a notification system.
 - **Document Management**: Capabilities for managing various maritime documents.
 - **Assessment & Reporting**: Mutual assessment features, Statement of Facts (SOF) module, Final Disbursement Account (FDA) module with variance calculation, and DA comparison reports.
+- **Invoice → FDA Integration**: `invoices.fda_id` FK links invoices to approved FDAs. FDA detail page has a "Create Invoice" button (status=approved/sent) navigating to `/invoices?fdaId=N`. Invoices page reads `?fdaId=N` URL param, fetches the FDA, auto-opens the New Invoice dialog with pre-filled title/amount/type/voyageId, and shows a dismissable emerald banner. `GET /api/invoices?fdaId=N` filter supported. Invoice creation payload accepts `fdaId`, `vesselName`, `portName` for email context.
+- **Automatic Email Notifications**: `sendFdaReadyEmail` and `sendInvoiceCreatedEmail` functions added to `server/email.ts`. FDA created → shipowner notified (fire-and-forget via voyage owner lookup). FDA approved → FDA creator (agent) notified with subject "FDA Approved — Create Invoice". Invoice created with `recipientEmail` → invoice email sent to recipient.
 - **Scheduling & Planning**: Vessel schedule calendar and a voyage invitation system.
 - **Internationalization & Accessibility**: Support for multiple languages (TR/EN) and dark mode.
 - **Navigation System**: An icon rail with an expandable panel, updated with a comprehensive IA overhaul including categories like Port Operations, Commercial, Fleet, Services & Directory, Finance, Workspace, and Intelligence.

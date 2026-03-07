@@ -9,6 +9,7 @@ import { sql as drizzleSql, eq, desc, and, lt, gt, lte, isNotNull } from "drizzl
 import { emitToUser } from "../socket";
 import { logAction, getClientIp } from "../audit";
 import { logVoyageActivity } from "../voyage-activity";
+import { sendInvoiceCreatedEmail } from "../email";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -43,9 +44,11 @@ router.get("/api/invoices", isAuthenticated, async (req: any, res) => {
     const items = await storage.getInvoicesByUser(userId);
     const voyageIdFilter = req.query.voyageId ? Number(req.query.voyageId) : null;
     const proformaIdFilter = req.query.proformaId ? Number(req.query.proformaId) : null;
+    const fdaIdFilter = req.query.fdaId ? Number(req.query.fdaId) : null;
     let result = items;
     if (voyageIdFilter) result = result.filter((i: any) => i.voyageId === voyageIdFilter);
     if (proformaIdFilter) result = result.filter((i: any) => i.proformaId === proformaIdFilter || i.linkedProformaId === proformaIdFilter);
+    if (fdaIdFilter) result = result.filter((i: any) => i.fdaId === fdaIdFilter);
     res.json(result);
   } catch {
     res.status(500).json({ message: "Failed to get invoices" });
@@ -56,7 +59,7 @@ router.get("/api/invoices", isAuthenticated, async (req: any, res) => {
 router.post("/api/invoices", isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user?.claims?.sub || req.user?.id;
-    const { title, amount, currency, dueDate, notes, invoiceType, voyageId, proformaId, linkedProformaId, recipientEmail, recipientName } = req.body;
+    const { title, amount, currency, dueDate, notes, invoiceType, voyageId, proformaId, fdaId, linkedProformaId, recipientEmail, recipientName, vesselName, portName } = req.body;
     if (!title || !amount) return res.status(400).json({ message: "title and amount required" });
 
     const invoice = await storage.createInvoice({
@@ -69,6 +72,7 @@ router.post("/api/invoices", isAuthenticated, async (req: any, res) => {
       invoiceType: invoiceType || "invoice",
       voyageId: voyageId ? parseInt(voyageId) : null,
       proformaId: proformaId ? parseInt(proformaId) : null,
+      fdaId: fdaId ? parseInt(fdaId) : null,
       linkedProformaId: linkedProformaId ? parseInt(linkedProformaId) : null,
       recipientEmail: recipientEmail || null,
       recipientName: recipientName || null,
@@ -82,6 +86,27 @@ router.post("/api/invoices", isAuthenticated, async (req: any, res) => {
         activityType: 'invoice_created', 
         title: `Invoice created: ${amount} ${currency || 'USD'}` 
       });
+    }
+
+    // Fire-and-forget: send invoice notification to recipient
+    if (recipientEmail) {
+      (async () => {
+        try {
+          const baseUrl = `${req.protocol}://${req.get("host")}`;
+          const dueDateStr = dueDate ? new Date(dueDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "No due date";
+          await sendInvoiceCreatedEmail({
+            toEmail: recipientEmail,
+            recipientName: recipientName || "Valued Customer",
+            vesselName: vesselName || "—",
+            portName: portName || "—",
+            invoiceTitle: title,
+            amount: parseFloat(amount),
+            currency: currency || "USD",
+            dueDate: dueDateStr,
+            invoiceUrl: `${baseUrl}/invoices`,
+          });
+        } catch (e) { console.warn("[invoice] Invoice created email skipped:", e); }
+      })();
     }
 
     res.status(201).json(invoice);

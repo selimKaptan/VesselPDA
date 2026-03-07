@@ -16,6 +16,8 @@ import {
   orgInviteTemplate,
   voyageInviteTemplate,
   cargoReportTemplate,
+  fdaReadyTemplate,
+  invoiceCreatedTemplate,
 } from "./email-templates";
 import { db } from "./db";
 import { eq, asc } from "drizzle-orm";
@@ -694,4 +696,89 @@ export async function sendCargoReportEmail(data: { toEmails: string[]; voyageId:
     console.error("[email] sendCargoReportEmail failed:", err);
     return false;
   }
+}
+
+
+// ─── FDA READY EMAIL ──────────────────────────────────────────────────────────
+
+export interface FdaReadyEmailData {
+  toEmail: string;
+  recipientName: string;
+  vesselName: string;
+  portName: string;
+  referenceNumber: string;
+  estimatedUsd: number;
+  actualUsd: number;
+  variancePercent: number;
+  fdaUrl: string;
+  subject?: string;
+}
+
+export async function sendFdaReadyEmail(data: FdaReadyEmailData): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) { console.warn("[email] No credentials — skipping sendFdaReadyEmail"); return false; }
+  const resend = new Resend(creds.apiKey);
+  const { html, subject } = fdaReadyTemplate({
+    recipientName: data.recipientName,
+    vesselName: data.vesselName,
+    portName: data.portName,
+    referenceNumber: data.referenceNumber,
+    estimatedUsd: data.estimatedUsd,
+    actualUsd: data.actualUsd,
+    variancePercent: data.variancePercent,
+    fdaUrl: data.fdaUrl,
+  });
+  try {
+    const { error } = await resend.emails.send({
+      from: `VesselPDA <${creds.fromEmail}>`,
+      to: [data.toEmail],
+      subject: data.subject || subject,
+      html,
+    });
+    if (error) { console.error("[email] sendFdaReadyEmail error:", error); return false; }
+    console.log(`[email] FDA ready email sent to ${data.toEmail} (${data.referenceNumber})`);
+    return true;
+  } catch (err) { console.error("[email] sendFdaReadyEmail failed:", err); return false; }
+}
+
+
+// ─── INVOICE CREATED EMAIL ────────────────────────────────────────────────────
+
+export interface InvoiceCreatedEmailData {
+  toEmail: string;
+  recipientName: string;
+  vesselName: string;
+  portName: string;
+  invoiceTitle: string;
+  amount: number;
+  currency: string;
+  dueDate: string;
+  invoiceUrl: string;
+}
+
+export async function sendInvoiceCreatedEmail(data: InvoiceCreatedEmailData): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) { console.warn("[email] No credentials — skipping sendInvoiceCreatedEmail"); return false; }
+  const resend = new Resend(creds.apiKey);
+  const { html, subject } = invoiceCreatedTemplate({
+    recipientName: data.recipientName,
+    vesselName: data.vesselName,
+    portName: data.portName,
+    invoiceTitle: data.invoiceTitle,
+    amount: data.amount,
+    currency: data.currency,
+    dueDate: data.dueDate,
+    invoiceUrl: data.invoiceUrl,
+  });
+  try {
+    const { error } = await resend.emails.send({
+      from: `VesselPDA <${creds.fromEmail}>`,
+      to: [data.toEmail],
+      subject,
+      html,
+    });
+    if (error) { console.error("[email] sendInvoiceCreatedEmail error:", error); return false; }
+    console.log(`[email] Invoice created email sent to ${data.toEmail} (${data.invoiceTitle})`);
+    return true;
+  } catch (err) { console.error("[email] sendInvoiceCreatedEmail failed:", err); return false; }
 }

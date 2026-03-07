@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { DollarSign, Plus, CheckCircle2, Clock, XCircle, AlertTriangle, FileText, ChevronDown, Bell } from "lucide-react";
+import { useSearch } from "wouter";
+import { DollarSign, Plus, CheckCircle2, Clock, XCircle, AlertTriangle, FileText, Bell, X, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
-import { formatDistanceToNow, isPast, isWithinInterval, addDays } from "date-fns";
+import { isPast } from "date-fns";
 import { EmptyState } from "@/components/empty-state";
 import { fmtDate } from "@/lib/formatDate";
 
@@ -25,9 +26,10 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }>
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  proforma_da: "Proforma DA",
-  final_da:    "Final DA",
-  invoice:     "Invoice",
+  proforma_da:      "Proforma DA",
+  final_da:         "Final DA",
+  invoice:          "Invoice",
+  fda_disbursement: "FDA Disbursement",
 };
 
 const CURRENCY_FLAGS: Record<string, string> = {
@@ -58,10 +60,16 @@ function getDueDateBadge(dueDateStr: string | null, status: string): { label: st
 
 export default function Invoices() {
   const { toast } = useToast();
+  const searchStr = useSearch();
+  const params = new URLSearchParams(searchStr);
+  const fdaIdParam = params.get("fdaId");
+  const fdaId = fdaIdParam ? parseInt(fdaIdParam) : null;
+
   const [statusFilter, setStatusFilter] = useState("all");
   const [currencyFilter, setCurrencyFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
+  const [fdaBannerDismissed, setFdaBannerDismissed] = useState(false);
   const [form, setForm] = useState({
     title: "",
     invoiceType: "invoice",
@@ -70,6 +78,9 @@ export default function Invoices() {
     dueDate: "",
     notes: "",
     voyageId: "",
+    fdaId: "",
+    vesselName: "",
+    portName: "",
     recipientName: "",
     recipientEmail: "",
   });
@@ -82,6 +93,29 @@ export default function Invoices() {
     queryKey: ["/api/voyages"],
   });
 
+  const { data: linkedFda } = useQuery<any>({
+    queryKey: ["/api/fda", fdaId],
+    queryFn: () => fetch(`/api/fda/${fdaId}`, { credentials: "include" }).then(r => r.json()),
+    enabled: !!fdaId,
+  });
+
+  // Pre-fill form when FDA is loaded from URL param
+  useEffect(() => {
+    if (linkedFda && !linkedFda.error && fdaId) {
+      setForm(f => ({
+        ...f,
+        title: `Final Disbursement — ${linkedFda.vesselName || ""}${linkedFda.portName ? " / " + linkedFda.portName : ""}`,
+        amount: String(Math.round((linkedFda.totalActualUsd || 0) * 100) / 100),
+        invoiceType: "fda_disbursement",
+        voyageId: linkedFda.voyageId ? String(linkedFda.voyageId) : "",
+        fdaId: String(fdaId),
+        vesselName: linkedFda.vesselName || "",
+        portName: linkedFda.portName || "",
+      }));
+      setShowNew(true);
+    }
+  }, [linkedFda, fdaId]);
+
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest("POST", "/api/invoices", data);
@@ -90,7 +124,7 @@ export default function Invoices() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
       setShowNew(false);
-      setForm({ title: "", invoiceType: "invoice", amount: "", currency: "USD", dueDate: "", notes: "", voyageId: "", recipientName: "", recipientEmail: "" });
+      setForm({ title: "", invoiceType: "invoice", amount: "", currency: "USD", dueDate: "", notes: "", voyageId: "", fdaId: "", vesselName: "", portName: "", recipientName: "", recipientEmail: "" });
       toast({ title: "Invoice created" });
     },
     onError: () => toast({ title: "Error", description: "Could not create invoice", variant: "destructive" }),
@@ -145,6 +179,27 @@ export default function Invoices() {
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6" data-testid="page-invoices">
       <PageMeta title="Financial Flow | VesselPDA" />
+
+      {/* FDA Linked Banner */}
+      {fdaId && linkedFda && !linkedFda.error && !fdaBannerDismissed && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800" data-testid="banner-fda-linked-invoice">
+          <Receipt className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
+              Creating invoice for FDA{" "}
+              <span className="font-bold">{linkedFda.referenceNumber || `#${fdaId}`}</span>
+              {linkedFda.vesselName && ` — ${linkedFda.vesselName}`}
+            </span>
+          </div>
+          <button
+            onClick={() => setFdaBannerDismissed(true)}
+            className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 flex-shrink-0"
+            data-testid="button-dismiss-fda-banner"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -366,6 +421,7 @@ export default function Invoices() {
                     <SelectItem value="invoice">Invoice</SelectItem>
                     <SelectItem value="proforma_da">Proforma DA</SelectItem>
                     <SelectItem value="final_da">Final DA</SelectItem>
+                    <SelectItem value="fda_disbursement">FDA Disbursement</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -461,6 +517,9 @@ export default function Invoices() {
                 dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
                 notes: form.notes || null,
                 voyageId: form.voyageId && form.voyageId !== "none" ? parseInt(form.voyageId) : null,
+                fdaId: form.fdaId ? parseInt(form.fdaId) : null,
+                vesselName: form.vesselName || null,
+                portName: form.portName || null,
                 recipientEmail: form.recipientEmail || null,
                 recipientName: form.recipientName || null,
               })}
