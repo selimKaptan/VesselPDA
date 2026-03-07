@@ -1992,6 +1992,8 @@ export default function VoyageDetail() {
 
                     const _vesselEtdTime = voyage?.etd ? new Date(voyage.etd).toTimeString().substring(0, 5) : "";
                     const _vesselEtaTime = voyage?.eta ? new Date(voyage.eta).toTimeString().substring(0, 5) : "";
+                    const _vesselEtaDisplay = voyage?.eta ? fmtDateTime(voyage.eta) : "—";
+                    const _vesselEtdDisplay = voyage?.etd ? fmtDateTime(voyage.etd) : "—";
                     const operationalWarns = getCrewWarnings(crew, _vesselEtdTime, _vesselEtaTime).filter(w => !isHotelWarning(w));
                     const hasCritical = operationalWarns.some(w => w.includes("Critical"));
                     const hasWarning  = operationalWarns.length > 0 && !hasCritical;
@@ -2016,9 +2018,9 @@ export default function VoyageDetail() {
                       { key: "flight",   icon: "✈️", label: "FLIGHT",   time: crew.flightEta || "—" },
                       { key: "transfer", icon: "🚐", label: "TRANSFER", time: crew.timeline.find(s => /airport.*port|transfer/i.test(s.label))?.time || "—" },
                       { key: "hotel",    icon: "🏨", label: "HOTEL",    time: crew.hotelCheckIn || "—" },
-                      { key: "vessel",   icon: "🚢", label: "VESSEL",   time: _vesselEtaTime || "—" },
+                      { key: "vessel",   icon: "🚢", label: "VESSEL",   time: _vesselEtaDisplay },
                     ] : [
-                      { key: "vessel",   icon: "🚢", label: "VESSEL",   time: _vesselEtdTime || "—" },
+                      { key: "vessel",   icon: "🚢", label: "VESSEL",   time: _vesselEtdDisplay },
                       { key: "hotel",    icon: "🏨", label: "HOTEL",    time: crew.hotelPickupTime || crew.hotelCheckOut || "—" },
                       { key: "transfer", icon: "🚐", label: "TRANSFER", time: crew.timeline.find(s => /port.*airport|transfer/i.test(s.label))?.time || "—" },
                       { key: "flight",   icon: "✈️", label: "FLIGHT",   time: crew.flightEta || "—" },
@@ -2139,6 +2141,13 @@ export default function VoyageDetail() {
                                               data-testid={`inline-edit-timeline-${crew.id}-${tlStep?.id}`}
                                             />
                                           )
+                                        ) : ms.key === "vessel" ? (
+                                          <span
+                                            className={`text-[9px] font-mono ${_msTimeCls(st)} leading-tight text-center whitespace-pre-wrap`}
+                                            data-testid={`ms-time-${crew.id}-${ms.key}`}
+                                          >
+                                            {ms.time.replace(" / ", "\n")}
+                                          </span>
                                         ) : (
                                           <span
                                             className={`text-[11px] font-mono ${_msTimeCls(st)} cursor-pointer hover:bg-slate-700/60 rounded px-0.5 py-0.5 transition-colors leading-none`}
