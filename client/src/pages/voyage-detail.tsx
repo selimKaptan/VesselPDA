@@ -2171,7 +2171,8 @@ export default function VoyageDetail() {
                     const wideMode = !isHotelPanelOpen;
 
                     // ── MOD B: milestone data ─────────────────────────────────
-                    const _msItems = crew.side === "on" ? [
+                    const _hasHotelMilestone = crew.requiresHotel || !!crew.hotelName;
+                    const _msItems = (crew.side === "on" ? [
                       { key: "flight",   icon: "✈️", label: "FLIGHT",   time: crew.flightEta || "—",                                                                         delayed: crew.flightDelayed },
                       { key: "transfer", icon: "🚐", label: "TRANSFER", time: crew.timeline.find(s => /airport.*port|transfer/i.test(s.label))?.time || "—",                 delayed: false },
                       { key: "hotel",    icon: "🏨", label: "HOTEL",    time: crew.hotelCheckIn || "—",                                                                       delayed: false },
@@ -2181,7 +2182,7 @@ export default function VoyageDetail() {
                       { key: "hotel",    icon: "🏨", label: "HOTEL",    time: crew.hotelPickupTime || crew.hotelCheckOut || "—",                                              delayed: false },
                       { key: "transfer", icon: "🚐", label: "TRANSFER", time: crew.timeline.find(s => /port.*airport|transfer/i.test(s.label))?.time || "—",                 delayed: false },
                       { key: "flight",   icon: "✈️", label: "FLIGHT",   time: crew.flightEta || "—",                                                                         delayed: crew.flightDelayed },
-                    ];
+                    ]).filter(ms => ms.key !== "hotel" || _hasHotelMilestone);
                     const _getMS = (idx: number): "done" | "active" | "future" => {
                       const terminal = crew.side === "on" ? crew.arrivalStatus === "arrived" : crew.arrivalStatus === "departed";
                       if (terminal) return idx < _msItems.length - 1 ? "done" : "active";
@@ -2265,6 +2266,23 @@ export default function VoyageDetail() {
                                       <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, eVisaStatus: "n/a" })); }}>e-Visa: N/A</DropdownMenuItem>
                                       <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, eVisaStatus: "pending" })); }}>⏳ Pending</DropdownMenuItem>
                                       <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, eVisaStatus: "approved" })); }}>✅ Approved</DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                  {/* Boarding Control / Custom Control badge */}
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+                                      <button className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-opacity ${
+                                        crew.okToBoard === "confirmed" ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" :
+                                        crew.okToBoard === "sent"      ? "text-amber-400 bg-amber-900/20 border-amber-500/50" :
+                                                                         "text-slate-400 bg-slate-800/50 border-slate-600/50"
+                                      }`} data-testid={`badge-oktoboard-${crew.id}`}>
+                                        🛃 {crew.okToBoard === "confirmed" ? "Kontrol: ✓ OK" : crew.okToBoard === "sent" ? "Kontrol: Gönderildi" : "Kontrol: Bekliyor"}
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="bg-slate-800 border-slate-700 text-slate-200 min-w-[200px] p-1">
+                                      <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, okToBoard: "confirmed" })); }}>✓ Kontrol Onaylandı</DropdownMenuItem>
+                                      <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, okToBoard: "sent" })); }}>📨 Kontrol Formu Gönderildi</DropdownMenuItem>
+                                      <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, okToBoard: "pending" })); }}>⏳ Kontrol Bekliyor</DropdownMenuItem>
                                     </DropdownMenuContent>
                                   </DropdownMenu>
                                 </div>
