@@ -50,10 +50,14 @@ export default function ServiceRequestDetail() {
       const res = await apiRequest("POST", `/api/service-requests/${reqId}/offers/${offerId}/select`);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/service-requests", reqId] });
       queryClient.invalidateQueries({ queryKey: ["/api/service-requests"] });
-      toast({ title: "Offer selected" });
+      queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      toast({ 
+        title: "Offer selected", 
+        description: data.autoCreatedInvoiceId ? "An invoice has been automatically created." : undefined 
+      });
     },
     onError: () => toast({ title: "Error", variant: "destructive" }),
   });
@@ -156,9 +160,17 @@ export default function ServiceRequestDetail() {
                       <div className="flex items-center gap-2 mb-1">
                         <p className="font-semibold text-sm">{offer.providerName}</p>
                         {isSelected && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                            <CheckCircle2 className="w-2.5 h-2.5" /> Selected
-                          </span>
+                          <div className="flex flex-wrap gap-2">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                              <CheckCircle2 className="w-2.5 h-2.5" /> Selected
+                            </span>
+                            <Badge variant="secondary" className="text-[10px] h-auto py-0 px-2 font-bold bg-blue-100 text-blue-700 hover:bg-blue-100 border-none">
+                              Invoice Created
+                            </Badge>
+                            <Link href={`/invoices?voyageId=${request.voyageId}`}>
+                              <a className="text-[10px] text-blue-600 hover:underline font-medium">View Invoice</a>
+                            </Link>
+                          </div>
                         )}
                         {isRejected && (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">Declined</span>

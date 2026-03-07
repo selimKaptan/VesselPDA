@@ -156,6 +156,48 @@ router.get("/:id", isAuthenticated, async (req: any, res: any, next: any) => {
 });
 
 
+router.get("/:id/reconciliation", isAuthenticated, async (req: any, res: any, next: any) => {
+  try {
+    const fdaId = parseInt(req.params.id);
+    const [fda] = await db.select().from(fdaAccounts).where(eq(fdaAccounts.id, fdaId));
+    if (!fda) return res.status(404).json({ error: "FDA not found" });
+
+    const voyageId = fda.voyageId;
+    const expenses = await storage.getPortExpensesByVoyage(voyageId);
+    
+    // Line items from FDA
+    const lineItems = (fda.lineItems as any[]) || [];
+    
+    // Reconciliation logic
+    const reconItems = lineItems.map(li => {
+      const linkedExpenses = expenses.filter(e => e.fdaId === fdaId && e.category === li.category);
+      const actual = linkedExpenses.reduce((sum, e) => sum + (e.amountUsd || e.amount || 0), 0);
+      return {
+        category: li.category,
+        description: li.description,
+        estimated: li.estimatedUsd || 0,
+        actual: actual,
+        variance: actual - (li.estimatedUsd || 0),
+        linkedExpenses
+      };
+    });
+
+    const unlinkedExpenses = expenses.filter(e => !e.fdaId && e.voyageId === voyageId);
+
+    const totalEstimated = reconItems.reduce((sum, i) => sum + i.estimated, 0);
+    const totalActual = reconItems.reduce((sum, i) => sum + i.actual, 0);
+
+    res.json({
+      lineItems: reconItems,
+      unlinkedExpenses,
+      totalEstimated,
+      totalActual,
+      totalVariance: totalActual - totalEstimated
+    });
+  } catch (error) { next(error); }
+});
+
+
 router.patch("/:id", isAuthenticated, async (req: any, res: any, next: any) => {
   try {
     const fdaId = parseInt(req.params.id);

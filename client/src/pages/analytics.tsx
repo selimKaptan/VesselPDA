@@ -5,10 +5,11 @@ import {
   BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
-import { BarChart2, TrendingUp, Ship, Anchor, FileText, DollarSign, Activity } from "lucide-react";
+import { BarChart2, TrendingUp, Ship, Anchor, FileText, DollarSign, Activity, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageMeta } from "@/components/page-meta";
+import { exportToCsv } from "@/lib/export-csv";
 
 const PERIOD_OPTIONS = [
   { label: "3 Months", value: "3" },
@@ -140,9 +141,20 @@ export default function AnalyticsPage() {
 
           {/* Monthly Voyages */}
           <div className="rounded-xl border border-border bg-card p-5" data-testid="chart-monthly-voyages">
-            <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
-              <Ship className="w-4 h-4 text-primary" /> Monthly Voyages
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-sm flex items-center gap-2">
+                <Ship className="w-4 h-4 text-primary" /> Monthly Voyages
+              </h3>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => exportToCsv("monthly_voyages.csv", monthlyVoyages)}
+                title="Export to CSV"
+              >
+                <FileDown className="h-4 w-4" />
+              </Button>
+            </div>
             {monthlyVoyages.length === 0 && !isLoading ? (
               <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">No voyage data for this period</div>
             ) : (
@@ -173,9 +185,20 @@ export default function AnalyticsPage() {
 
           {/* Invoice Revenue */}
           <div className="rounded-xl border border-border bg-card p-5" data-testid="chart-invoice-revenue">
-            <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-primary" /> Invoice Revenue
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-sm flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-primary" /> Invoice Revenue
+              </h3>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => exportToCsv("monthly_revenue.csv", monthlyRevenue)}
+                title="Export to CSV"
+              >
+                <FileDown className="h-4 w-4" />
+              </Button>
+            </div>
             {monthlyRevenue.length === 0 && !isLoading ? (
               <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">No invoice data for this period</div>
             ) : (
@@ -201,9 +224,20 @@ export default function AnalyticsPage() {
 
           {/* Top Ports */}
           <div className="rounded-xl border border-border bg-card p-5" data-testid="chart-top-ports">
-            <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
-              <Anchor className="w-4 h-4 text-primary" /> Top Ports by Voyage Count
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-sm flex items-center gap-2">
+                <Anchor className="w-4 h-4 text-primary" /> Top Ports by Voyage Count
+              </h3>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => exportToCsv("top_ports.csv", topPorts)}
+                title="Export to CSV"
+              >
+                <FileDown className="h-4 w-4" />
+              </Button>
+            </div>
             {topPorts.length === 0 && !isLoading ? (
               <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">No port data for this period</div>
             ) : (
@@ -234,9 +268,20 @@ export default function AnalyticsPage() {
 
           {/* Invoice Status Pie */}
           <div className="rounded-xl border border-border bg-card p-5" data-testid="chart-invoice-status">
-            <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
-              <FileText className="w-4 h-4 text-primary" /> Invoice Status Distribution
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-sm flex items-center gap-2">
+                <FileText className="w-4 h-4 text-primary" /> Invoice Status Distribution
+              </h3>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => exportToCsv("invoice_status.csv", invoiceStatus)}
+                title="Export to CSV"
+              >
+                <FileDown className="h-4 w-4" />
+              </Button>
+            </div>
             {invoiceStatus.length === 0 && !isLoading ? (
               <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">No invoice data for this period</div>
             ) : (

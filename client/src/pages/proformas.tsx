@@ -498,7 +498,16 @@ export default function Proformas() {
             <TableBody>
               {filteredProformas.map((pda) => (
                 <TableRow key={pda.id} data-testid={`row-proforma-list-${pda.id}`}>
-                  <TableCell className="font-medium">{pda.referenceNumber}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      {pda.referenceNumber}
+                      {(pda as any).revisionCount > 0 && (
+                        <Badge variant="outline" className="text-[10px] h-4 px-1 border-orange-200 text-orange-700 bg-orange-50 dark:bg-orange-950/30 dark:text-orange-300">
+                          R{(pda as any).revisionCount}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="hidden md:table-cell text-muted-foreground">{pda.toCompany || "-"}</TableCell>
                   <TableCell className="hidden sm:table-cell">
                     <Badge variant="secondary" className="text-xs">{pda.purposeOfCall}</Badge>

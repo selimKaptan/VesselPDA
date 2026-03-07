@@ -74,10 +74,18 @@ router.get("/", isAuthenticated, async (req: any, res: any, next: any) => {
     }
     if (await isAdmin(req)) {
       const allProformas = await storage.getAllProformas();
-      return res.json(allProformas);
+      const enrichedProformas = await Promise.all(allProformas.map(async (p: any) => {
+        const logs = await storage.getProformaApprovalLogs(p.id);
+        return { ...p, revisionCount: logs.filter((l: any) => l.action === "request_revision").length };
+      }));
+      return res.json(enrichedProformas);
     }
     const proformas = await storage.getProformasByUser(userId);
-    res.json(proformas);
+    const enrichedProformas = await Promise.all(proformas.map(async (p: any) => {
+      const logs = await storage.getProformaApprovalLogs(p.id);
+      return { ...p, revisionCount: logs.filter((l: any) => l.action === "request_revision").length };
+    }));
+    res.json(enrichedProformas);
   } catch (error) {
     console.error("[proformas:GET] fetch failed:", error);
     next(error);

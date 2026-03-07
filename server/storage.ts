@@ -38,10 +38,13 @@ import {
   type BunkerPrice, type InsertBunkerPrice,
   type DocumentTemplate, type InsertDocumentTemplate,
   type Invoice, type InsertInvoice,
+  type InvoicePayment, type InsertInvoicePayment,
+  invoicePayments,
   type PortAlert, type InsertPortAlert,
   type VesselQ88, type InsertVesselQ88,
   type VoyageCrewLogistic, type InsertVoyageCrewLogistic,
   type PortExpense, type InsertPortExpense,
+  type FdaMappingTemplate, type InsertFdaMappingTemplate,
   voyageCrewLogistics,
   portExpenses,
   vessels, ports, tariffCategories, tariffRates, proformas, proformaApprovalLogs,
@@ -53,6 +56,7 @@ import {
   directNominations, voyageChatMessages, endorsements,
   vesselCertificates, portCallAppointments, fixtures, cargoPositions, bunkerPrices,
   documentTemplates, invoices, portAlerts, vesselCrew, vesselQ88, fdaAccounts, notificationPreferences,
+  fdaMappingTemplates,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
@@ -171,7 +175,7 @@ export interface IStorage {
   getVoyagesByUser(userId: string, role: string, agentUserId?: string): Promise<any[]>;
   getVoyageById(id: number): Promise<any | undefined>;
   getVoyageByTenderId(tenderId: number): Promise<Voyage | undefined>;
-  updateVoyageStatus(id: number, status: string): Promise<Voyage | undefined>;
+  updateVoyageStatus(id: number, status: string, completedAt?: Date): Promise<Voyage | undefined>;
   createChecklistItem(data: InsertVoyageChecklist): Promise<VoyageChecklist>;
   getChecklistByVoyage(voyageId: number): Promise<VoyageChecklist[]>;
   toggleChecklistItem(id: number, voyageId: number): Promise<VoyageChecklist | undefined>;
@@ -282,9 +286,20 @@ export interface IStorage {
 
   getPortExpensesByUser(userId: string): Promise<PortExpense[]>;
   getPortExpensesByVoyage(voyageId: number): Promise<PortExpense[]>;
+  getPortExpensesByFda(fdaId: number): Promise<PortExpense[]>;
   createPortExpense(data: InsertPortExpense): Promise<PortExpense>;
   updatePortExpense(id: number, data: Partial<InsertPortExpense>): Promise<PortExpense | undefined>;
   deletePortExpense(id: number): Promise<boolean>;
+
+  getInvoicePayments(invoiceId: number): Promise<InvoicePayment[]>;
+  createInvoicePayment(data: InsertInvoicePayment): Promise<InvoicePayment>;
+  getInvoiceBalance(invoiceId: number): Promise<{ total: number; paid: number; balance: number; status: string }>;
+
+  getFdaMappingTemplates(userId: string): Promise<FdaMappingTemplate[]>;
+  createFdaMappingTemplate(data: InsertFdaMappingTemplate): Promise<FdaMappingTemplate>;
+  updateFdaMappingTemplate(id: number, userId: string, data: Partial<InsertFdaMappingTemplate>): Promise<FdaMappingTemplate | undefined>;
+  deleteFdaMappingTemplate(id: number, userId: string): Promise<boolean>;
+  setFdaMappingTemplateDefault(id: number, userId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1349,8 +1364,11 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async updateVoyageStatus(id: number, status: string): Promise<Voyage | undefined> {
-    const [row] = await db.update(voyages).set({ status }).where(eq(voyages.id, id)).returning();
+  async updateVoyageStatus(id: number, status: string, completedAt?: Date): Promise<Voyage | undefined> {
+    const [row] = await db.update(voyages)
+      .set({ status, completedAt: completedAt || null })
+      .where(eq(voyages.id, id))
+      .returning();
     return row;
   }
 
@@ -2404,6 +2422,12 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(portExpenses.expenseDate));
   }
 
+  async getPortExpensesByFda(fdaId: number): Promise<PortExpense[]> {
+    return db.select().from(portExpenses)
+      .where(eq(portExpenses.fdaId, fdaId))
+      .orderBy(desc(portExpenses.expenseDate));
+  }
+
   async createPortExpense(data: InsertPortExpense): Promise<PortExpense> {
     const [expense] = await db.insert(portExpenses).values(data).returning();
     return expense;
@@ -2420,6 +2444,81 @@ export class DatabaseStorage implements IStorage {
   async deletePortExpense(id: number): Promise<boolean> {
     const result = await db.delete(portExpenses).where(eq(portExpenses.id, id)).returning();
     return result.length > 0;
+  }
+
+  async getInvoicePayments(invoiceId: number): Promise<InvoicePayment[]> {
+    return db.select().from(invoicePayments).where(eq(invoicePayments.invoiceId, invoiceId)).orderBy(desc(invoicePayments.paidAt));
+  }
+
+  async createInvoicePayment(data: InsertInvoicePayment): Promise<InvoicePayment> {
+    const [payment] = await db.insert(invoicePayments).values(data).returning();
+    
+    // Update invoice status and balance
+    const { total, paid, balance, status } = await this.getInvoiceBalance(data.invoiceId);
+    await db.update(invoices)
+      .set({ amountPaid: paid, balance, status, paidAt: status === "paid" ? new Date() : null })
+      .where(eq(invoices.id, data.invoiceId));
+
+    return payment;
+  }
+
+  async getInvoiceBalance(invoiceId: number): Promise<{ total: number; paid: number; balance: number; status: string }> {
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, invoiceId)).limit(1);
+    if (!invoice) throw new Error("Invoice not found");
+
+    const payments = await this.getInvoicePayments(invoiceId);
+    const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const balance = Number(invoice.amount) - totalPaid;
+    
+    let status = invoice.status;
+    if (balance <= 0) {
+      status = "paid";
+    } else if (totalPaid > 0) {
+      status = "pending"; // Or "partial" if we had that status, but the task says "pending" is the default and it becomes "paid" when full.
+    }
+
+    return { total: Number(invoice.amount), paid: totalPaid, balance: Math.max(0, balance), status };
+  }
+
+  async getFdaMappingTemplates(userId: string): Promise<FdaMappingTemplate[]> {
+    return db.select().from(fdaMappingTemplates)
+      .where(eq(fdaMappingTemplates.userId, userId))
+      .orderBy(desc(fdaMappingTemplates.createdAt));
+  }
+
+  async createFdaMappingTemplate(data: InsertFdaMappingTemplate): Promise<FdaMappingTemplate> {
+    const [created] = await db.insert(fdaMappingTemplates).values(data).returning();
+    return created;
+  }
+
+  async updateFdaMappingTemplate(id: number, userId: string, data: Partial<InsertFdaMappingTemplate>): Promise<FdaMappingTemplate | undefined> {
+    const [updated] = await db.update(fdaMappingTemplates)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(fdaMappingTemplates.id, id), eq(fdaMappingTemplates.userId, userId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteFdaMappingTemplate(id: number, userId: string): Promise<boolean> {
+    const [deleted] = await db.delete(fdaMappingTemplates)
+      .where(and(eq(fdaMappingTemplates.id, id), eq(fdaMappingTemplates.userId, userId)))
+      .returning();
+    return !!deleted;
+  }
+
+  async setFdaMappingTemplateDefault(id: number, userId: string): Promise<boolean> {
+    // Reset all defaults for this user
+    await db.update(fdaMappingTemplates)
+      .set({ isDefault: false })
+      .where(eq(fdaMappingTemplates.userId, userId));
+
+    // Set new default
+    const [updated] = await db.update(fdaMappingTemplates)
+      .set({ isDefault: true, updatedAt: new Date() })
+      .where(and(eq(fdaMappingTemplates.id, id), eq(fdaMappingTemplates.userId, userId)))
+      .returning();
+
+    return !!updated;
   }
 }
 

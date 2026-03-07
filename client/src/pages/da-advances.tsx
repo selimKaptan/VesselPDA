@@ -15,6 +15,8 @@ import {
 import { PageMeta } from "@/components/page-meta";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { exportToCsv } from "@/lib/export-csv";
+import { fmtDate } from "@/lib/formatDate";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-amber-500/15 text-amber-600 border-amber-500/30",
@@ -167,9 +169,32 @@ export default function DaAdvancesPage() {
               <p className="text-sm text-muted-foreground">Manage advance fund requests from principals</p>
             </div>
           </div>
-          <Button onClick={() => setShowDialog(true)} className="gap-2" data-testid="button-new-advance">
-            <Plus className="w-4 h-4" /> New Request
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                const rows = filtered.map(a => ({
+                  ID: a.id,
+                  Title: a.title,
+                  Principal: a.principalName || '',
+                  Requested: a.requestedAmount,
+                  Received: a.receivedAmount || 0,
+                  Balance: (a.requestedAmount || 0) - (a.receivedAmount || 0),
+                  Status: STATUS_LABELS[a.status] || a.status,
+                  'Due Date': a.dueDate ? fmtDate(a.dueDate) : '',
+                  Voyage: a.voyageId || ''
+                }));
+                exportToCsv(`DA-Advances-${new Date().toISOString().split('T')[0]}.csv`, rows);
+              }}
+              data-testid="button-export-advances-csv"
+              className="gap-2"
+            >
+              <FileDown className="w-4 h-4" /> Export CSV
+            </Button>
+            <Button onClick={() => setShowDialog(true)} className="gap-2" data-testid="button-new-advance">
+              <Plus className="w-4 h-4" /> New Request
+            </Button>
+          </div>
         </div>
 
         {/* Summary cards */}

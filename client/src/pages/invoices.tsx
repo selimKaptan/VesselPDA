@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useSearch } from "wouter";
-import { DollarSign, Plus, CheckCircle2, Clock, XCircle, AlertTriangle, FileText, Bell, X, Receipt, Download } from "lucide-react";
+import { DollarSign, Plus, CheckCircle2, Clock, XCircle, AlertTriangle, FileText, Bell, X, Receipt, Download, FileDown, History, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,9 @@ import { PageMeta } from "@/components/page-meta";
 import { isPast } from "date-fns";
 import { EmptyState } from "@/components/empty-state";
 import { fmtDate } from "@/lib/formatDate";
+import { exportToCsv } from "@/lib/export-csv";
+import { Progress } from "@/components/ui/progress";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   pending:   { label: "Pending",   color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",  icon: Clock },
@@ -58,6 +61,172 @@ function getDueDateBadge(dueDateStr: string | null, status: string): { label: st
   return { label: `Due ${fmtDate(due)}`, className: "bg-muted text-muted-foreground" };
 }
 
+function InvoiceCard({ inv, cfg, StatusIcon, onPayFull, onPartialPayment, onCancel, onRemind, isPaying, isCancelling, isReminding }: any) {
+  const [isOpen, setIsOpen] = useState(false);
+  const { data: payments = [], isLoading: loadingPayments } = useQuery<any[]>({
+    queryKey: [`/api/invoices/${inv.id}/payments`],
+    enabled: isOpen,
+  });
+
+  const amountPaid = Number(inv.amountPaid || 0);
+  const totalAmount = Number(inv.amount);
+  const progress = Math.min(100, (amountPaid / totalAmount) * 100);
+
+  return (
+    <Card className="overflow-hidden border-muted-foreground/10" data-testid={`invoice-card-${inv.id}`}>
+      <div className="p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+            <FileText className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-semibold text-sm truncate">{inv.title}</p>
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-muted-foreground/30">
+                {TYPE_LABELS[inv.invoiceType] || inv.invoiceType}
+              </Badge>
+              <Badge className={`text-[10px] px-1.5 py-0 ${cfg.color} border-0`} data-testid={`badge-invoice-status-${inv.id}`}>
+                <StatusIcon className="w-3 h-3 mr-1" />
+                {cfg.label}
+              </Badge>
+              {inv.fdaId && (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400" data-testid={`badge-fda-link-${inv.id}`}>
+                  FDA #{inv.fdaId}
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-3 mt-1 flex-wrap">
+              <span className="text-base font-bold">
+                {CURRENCY_FLAGS[inv.currency]} {inv.currency} {totalAmount.toLocaleString("en-GB", { minimumFractionDigits: 2 })}
+              </span>
+              {(() => {
+                const badge = getDueDateBadge(inv.dueDate, inv.status);
+                return (
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${badge.className}`} data-testid={`badge-due-date-${inv.id}`}>
+                    {badge.label}
+                  </span>
+                );
+              })()}
+              {amountPaid > 0 && (
+                <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400" data-testid={`text-paid-amount-${inv.id}`}>
+                  Paid: {CURRENCY_FLAGS[inv.currency]} {amountPaid.toLocaleString()} ({progress.toFixed(0)}%)
+                </span>
+              )}
+            </div>
+            {amountPaid > 0 && amountPaid < totalAmount && (
+              <div className="mt-2 w-full max-w-[200px]">
+                <Progress value={progress} className="h-1" />
+              </div>
+            )}
+            {inv.notes && <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{inv.notes}</p>}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <a href={`/api/invoices/${inv.id}/pdf`} download={`Invoice-${inv.id}.pdf`} data-testid={`button-download-invoice-pdf-${inv.id}`}>
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-slate-600 border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900/30" type="button">
+              <Download className="w-3 h-3" /> PDF
+            </Button>
+          </a>
+          
+          <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+            <CollapsibleTrigger asChild>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" data-testid={`button-toggle-payments-${inv.id}`}>
+                <History className="w-3 h-3" /> History {isOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </Button>
+            </CollapsibleTrigger>
+          </Collapsible>
+
+          {inv.status === "pending" && inv.recipientEmail && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1 text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+              onClick={onRemind}
+              disabled={isReminding}
+              data-testid={`button-send-reminder-${inv.id}`}
+            >
+              <Bell className="w-3 h-3" /> Remind
+            </Button>
+          )}
+          {(inv.status === "pending" || inv.status === "overdue") && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1 text-blue-600 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                onClick={onPartialPayment}
+                data-testid={`button-partial-payment-${inv.id}`}
+              >
+                Partial Pay
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1 text-green-600 border-green-200 hover:bg-green-50 dark:hover:bg-green-950/30"
+                onClick={onPayFull}
+                disabled={isPaying}
+                data-testid={`button-mark-paid-${inv.id}`}
+              >
+                <CheckCircle2 className="w-3 h-3" /> Full Pay
+              </Button>
+            </>
+          )}
+          {inv.status !== "cancelled" && inv.status !== "paid" && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs text-muted-foreground hover:text-destructive"
+              onClick={onCancel}
+              disabled={isCancelling}
+              data-testid={`button-cancel-invoice-${inv.id}`}
+            >
+              Cancel
+            </Button>
+          )}
+        </div>
+      </div>
+      
+      <Collapsible open={isOpen}>
+        <CollapsibleContent>
+          <div className="px-4 pb-4 pt-0 border-t border-muted-foreground/5 bg-muted/30">
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mt-3 mb-2">Payment History</h4>
+            {loadingPayments ? (
+              <div className="space-y-1">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+              </div>
+            ) : payments.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic">No payments recorded yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {payments.map((p: any) => (
+                  <div key={p.id} className="flex items-center justify-between text-xs py-1 border-b border-muted-foreground/5 last:border-0" data-testid={`payment-row-${p.id}`}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{fmtDate(p.paidAt)}</span>
+                      <span className="text-[10px] text-muted-foreground">{p.paymentMethod} {p.reference ? `• Ref: ${p.reference}` : ""}</span>
+                    </div>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                      +{CURRENCY_FLAGS[p.currency] || ""} {Number(p.amount).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between text-xs pt-1 font-bold">
+                  <span>Total Paid</span>
+                  <span>{CURRENCY_FLAGS[inv.currency]} {amountPaid.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs font-bold text-muted-foreground">
+                  <span>Remaining Balance</span>
+                  <span>{CURRENCY_FLAGS[inv.currency]} {(totalAmount - amountPaid).toLocaleString()}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
+  );
+}
+
 export default function Invoices() {
   const { toast } = useToast();
   const searchStr = useSearch();
@@ -70,8 +239,16 @@ export default function Invoices() {
   const [currencyFilter, setCurrencyFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState<number | null>(null);
   const [fdaBannerDismissed, setFdaBannerDismissed] = useState(false);
   const preFilledRef = useRef(false);
+  const [paymentForm, setPaymentForm] = useState({
+    amount: "",
+    paymentMethod: "bank_transfer",
+    reference: "",
+    notes: "",
+    paidAt: new Date().toISOString().split('T')[0]
+  });
   const [form, setForm] = useState({
     title: "",
     invoiceType: "invoice",
@@ -140,12 +317,20 @@ export default function Invoices() {
   });
 
   const payMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("PATCH", `/api/invoices/${id}/pay`, { paidAt: new Date().toISOString() });
+    mutationFn: async ({ id, data }: { id: number, data?: any }) => {
+      const res = await apiRequest("PATCH", `/api/invoices/${id}/pay`, data || { paidAt: new Date().toISOString() });
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/invoices"] });
+      setShowPaymentDialog(null);
+      setPaymentForm({
+        amount: "",
+        paymentMethod: "bank_transfer",
+        reference: "",
+        notes: "",
+        paidAt: new Date().toISOString().split('T')[0]
+      });
       toast({ title: "Payment recorded" });
     },
   });
@@ -216,9 +401,34 @@ export default function Invoices() {
           <h1 className="text-2xl font-serif font-bold text-foreground">Financial Flow</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Invoice and payment tracking</p>
         </div>
-        <Button onClick={() => setShowNew(true)} data-testid="button-new-invoice" className="gap-2">
-          <Plus className="w-4 h-4" /> New Invoice
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const rows = filtered.map(inv => ({
+                ID: inv.id,
+                Title: inv.title,
+                Type: TYPE_LABELS[inv.invoiceType] || inv.invoiceType,
+                Amount: inv.amount,
+                Currency: inv.currency,
+                Status: inv.status,
+                'Due Date': inv.dueDate ? fmtDate(inv.dueDate) : '',
+                'Paid At': inv.paidAt ? fmtDate(inv.paidAt) : '',
+                Recipient: inv.recipientEmail || inv.recipientName || '',
+                Voyage: inv.vesselName || inv.voyageId || ''
+              }));
+              exportToCsv(`Invoices-${new Date().toISOString().split('T')[0]}.csv`, rows);
+            }}
+            data-testid="button-export-invoices-csv"
+            className="gap-2"
+          >
+            <FileDown className="w-4 h-4" /> Export CSV
+          </Button>
+          <Button onClick={() => setShowNew(true)} data-testid="button-new-invoice" className="gap-2">
+            <Plus className="w-4 h-4" /> New Invoice
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -324,94 +534,105 @@ export default function Invoices() {
             const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.pending;
             const StatusIcon = cfg.icon;
             return (
-              <Card key={inv.id} className="p-4 flex flex-col sm:flex-row sm:items-center gap-4" data-testid={`invoice-card-${inv.id}`}>
-                <div className="flex items-start gap-3 flex-1 min-w-0">
-                  <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                    <FileText className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-sm truncate">{inv.title}</p>
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-muted-foreground/30">
-                        {TYPE_LABELS[inv.invoiceType] || inv.invoiceType}
-                      </Badge>
-                      <Badge className={`text-[10px] px-1.5 py-0 ${cfg.color} border-0`} data-testid={`badge-invoice-status-${inv.id}`}>
-                        <StatusIcon className="w-3 h-3 mr-1" />
-                        {cfg.label}
-                      </Badge>
-                      {inv.fdaId && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400" data-testid={`badge-fda-link-${inv.id}`}>
-                          FDA #{inv.fdaId}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 flex-wrap">
-                      <span className="text-base font-bold">
-                        {CURRENCY_FLAGS[inv.currency]} {inv.currency} {Number(inv.amount).toLocaleString("en-GB", { minimumFractionDigits: 2 })}
-                      </span>
-                      {(() => {
-                        const badge = getDueDateBadge(inv.dueDate, inv.status);
-                        return (
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${badge.className}`} data-testid={`badge-due-date-${inv.id}`}>
-                            {badge.label}
-                          </span>
-                        );
-                      })()}
-                      {inv.recipientEmail && (
-                        <span className="text-[10px] text-muted-foreground">📧 {inv.recipientEmail}</span>
-                      )}
-                    </div>
-                    {inv.notes && <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{inv.notes}</p>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <a href={`/api/invoices/${inv.id}/pdf`} download={`Invoice-${inv.id}.pdf`} data-testid={`button-download-invoice-pdf-${inv.id}`}>
-                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-slate-600 border-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900/30" type="button">
-                      <Download className="w-3 h-3" /> PDF
-                    </Button>
-                  </a>
-                  {inv.status === "pending" && inv.recipientEmail && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs gap-1 text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-                      onClick={() => reminderMutation.mutate(inv.id)}
-                      disabled={reminderMutation.isPending}
-                      data-testid={`button-send-reminder-${inv.id}`}
-                    >
-                      <Bell className="w-3 h-3" /> Remind
-                    </Button>
-                  )}
-                  {(inv.status === "pending" || inv.status === "overdue") && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs gap-1 text-green-600 border-green-200 hover:bg-green-50 dark:hover:bg-green-950/30"
-                      onClick={() => payMutation.mutate(inv.id)}
-                      disabled={payMutation.isPending}
-                      data-testid={`button-mark-paid-${inv.id}`}
-                    >
-                      <CheckCircle2 className="w-3 h-3" /> Mark Paid
-                    </Button>
-                  )}
-                  {inv.status !== "cancelled" && inv.status !== "paid" && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs text-muted-foreground hover:text-destructive"
-                      onClick={() => cancelMutation.mutate(inv.id)}
-                      disabled={cancelMutation.isPending}
-                      data-testid={`button-cancel-invoice-${inv.id}`}
-                    >
-                      Cancel
-                    </Button>
-                  )}
-                </div>
-              </Card>
+              <InvoiceCard
+                key={inv.id}
+                inv={inv}
+                cfg={cfg}
+                StatusIcon={StatusIcon}
+                onPayFull={() => payMutation.mutate({ id: inv.id })}
+                onPartialPayment={() => {
+                  setPaymentForm({ ...paymentForm, amount: String(Number(inv.balance || inv.amount)) });
+                  setShowPaymentDialog(inv.id);
+                }}
+                onCancel={() => cancelMutation.mutate(inv.id)}
+                onRemind={() => reminderMutation.mutate(inv.id)}
+                isPaying={payMutation.isPending}
+                isCancelling={cancelMutation.isPending}
+                isReminding={reminderMutation.isPending}
+              />
             );
           })}
         </div>
       )}
+
+      {/* Payment Dialog */}
+      <Dialog open={showPaymentDialog !== null} onOpenChange={(open) => !open && setShowPaymentDialog(null)}>
+        <DialogContent className="max-w-md" data-testid="dialog-partial-payment">
+          <DialogHeader>
+            <DialogTitle className="font-serif">Record Payment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Amount *</Label>
+              <Input
+                type="number"
+                value={paymentForm.amount}
+                onChange={e => setPaymentForm(f => ({ ...f, amount: e.target.value }))}
+                placeholder="0.00"
+                data-testid="input-payment-amount"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Remaining balance: {showPaymentDialog && (() => {
+                  const inv = invoices.find((i: any) => i.id === showPaymentDialog);
+                  return inv ? `${CURRENCY_FLAGS[inv.currency] || ""} ${Number(inv.balance || inv.amount).toLocaleString()}` : "";
+                })()}
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Payment Method</Label>
+              <Select value={paymentForm.paymentMethod} onValueChange={v => setPaymentForm(f => ({ ...f, paymentMethod: v }))}>
+                <SelectTrigger data-testid="select-payment-method">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="cheque">Cheque</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Paid Date</Label>
+              <Input
+                type="date"
+                value={paymentForm.paidAt}
+                onChange={e => setPaymentForm(f => ({ ...f, paidAt: e.target.value }))}
+                data-testid="input-payment-date"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Reference (Optional)</Label>
+              <Input
+                value={paymentForm.reference}
+                onChange={e => setPaymentForm(f => ({ ...f, reference: e.target.value }))}
+                placeholder="Bank reference number"
+                data-testid="input-payment-reference"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notes (Optional)</Label>
+              <Textarea
+                value={paymentForm.notes}
+                onChange={e => setPaymentForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Internal payment notes"
+                className="h-20"
+                data-testid="textarea-payment-notes"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPaymentDialog(null)}>Cancel</Button>
+            <Button
+              onClick={() => showPaymentDialog && payMutation.mutate({ id: showPaymentDialog, data: paymentForm })}
+              disabled={payMutation.isPending || !paymentForm.amount}
+              data-testid="button-confirm-payment"
+            >
+              Record Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* New Invoice Dialog */}
       <Dialog open={showNew} onOpenChange={setShowNew}>

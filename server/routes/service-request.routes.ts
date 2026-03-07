@@ -106,15 +106,37 @@ router.post("/:id/offers/:offerId/select", isAuthenticated, async (req: any, res
     const offerId = parseInt(req.params.offerId);
     const offer = await storage.selectServiceOffer(offerId, requestId);
     if (!offer) return res.status(404).json({ message: "Offer not found" });
-    // Notify selected provider
-    await storage.createNotification({
-      userId: offer.providerUserId,
-      type: "service_offer_selected",
-      title: "Your Offer Was Accepted",
-      message: "Your service offer has been accepted.",
-      link: `/service-requests/${requestId}`,
-    });
-    res.json(offer);
+
+    // Auto-create invoice
+    const serviceRequest = await storage.getServiceRequestById(requestId);
+    let autoCreatedInvoiceId: number | undefined;
+
+    if (serviceRequest) {
+      const invoice = await storage.createInvoice({
+        createdByUserId: offer.providerUserId,
+        voyageId: serviceRequest.voyageId,
+        title: `${serviceRequest.serviceType} — ${serviceRequest.vesselName}`,
+        amount: offer.price,
+        currency: offer.currency,
+        status: "pending",
+        invoiceType: "service_fee",
+        recipientEmail: serviceRequest.requester?.email,
+        notes: `Auto-created from Service Offer #${offer.id}\n${offer.notes || ""}`,
+        dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // 15 days from now
+      });
+      autoCreatedInvoiceId = invoice.id;
+
+      // Notify selected provider
+      await storage.createNotification({
+        userId: offer.providerUserId,
+        type: "service_offer_selected",
+        title: "Your Offer Was Accepted",
+        message: `Your service offer for ${serviceRequest.vesselName} has been accepted. An invoice has been automatically created.`,
+        link: `/service-requests/${requestId}`,
+      });
+    }
+
+    res.json({ ...offer, autoCreatedInvoiceId });
   } catch (error) {
     res.status(500).json({ message: "Failed to select offer" });
   }

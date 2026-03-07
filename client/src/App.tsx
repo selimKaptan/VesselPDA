@@ -51,6 +51,7 @@ import Fixtures from "@/pages/fixtures";
 import CargoPositions from "@/pages/cargo-positions";
 import MarketData from "@/pages/market-data";
 import Invoices from "@/pages/invoices";
+import ActionCenter from "@/pages/actions";
 import PdaReview from "@/pages/pda-review";
 import Sof from "@/pages/sof";
 import SofDetail from "@/pages/sof-detail";
@@ -118,6 +119,7 @@ function AuthenticatedRouter() {
       <Route path="/cargo-positions" component={CargoPositions} />
       <Route path="/market-data" component={MarketData} />
       <Route path="/invoices" component={Invoices} />
+      <Route path="/actions" component={ActionCenter} />
       <Route path="/pda-review" component={PdaReview} />
       <Route path="/nor" component={Nor} />
       <Route path="/nor/:id" component={NorDetail} />

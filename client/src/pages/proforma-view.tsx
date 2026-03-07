@@ -88,6 +88,8 @@ export default function ProformaView() {
     enabled: !!params.id,
   });
 
+  const revisionCount = approvalHistory?.filter(log => log.action === "request_revision").length || 0;
+
   const { data: myProfile } = useQuery<CompanyProfile | null>({
     queryKey: ["/api/company-profile/me"],
   });
@@ -272,11 +274,16 @@ export default function ProformaView() {
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>
-          <div>
+          <div className="flex items-center gap-2">
             <h1 className="font-serif text-xl sm:text-2xl font-bold tracking-tight" data-testid="text-proforma-ref">
               {proforma.referenceNumber}
             </h1>
             <Badge variant="secondary" className="capitalize">{proforma.status}</Badge>
+            {revisionCount > 0 && (
+              <Badge variant="outline" className="border-orange-200 text-orange-700 bg-orange-50 dark:bg-orange-950/30 dark:text-orange-300">
+                {revisionCount} {revisionCount === 1 ? "Revision" : "Revisions"}
+              </Badge>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -431,7 +438,9 @@ export default function ProformaView() {
         </div>
       )}
 
-      <Card className="p-6 sm:p-8 space-y-6 sm:space-y-8 print:shadow-none print:border-none" id="proforma-document" data-testid="card-proforma-document">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="p-6 sm:p-8 space-y-6 sm:space-y-8 print:shadow-none print:border-none" id="proforma-document" data-testid="card-proforma-document">
         <div className="flex items-start justify-between gap-4 sm:gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
@@ -566,46 +575,77 @@ export default function ProformaView() {
           This proforma disbursement account is an estimate only. Actual charges are subject to change based on vessel call conditions and applicable port tariffs.
         </div>
       </Card>
+    </div>
 
-      {/* Approval History Timeline */}
-      {approvalHistory && approvalHistory.length > 0 && (
-        <Card className="p-5" data-testid="card-approval-history">
-          <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-muted-foreground" /> Approval History
-          </h3>
-          <div className="space-y-3">
+    {/* Revision History Sidebar */}
+    <div className="space-y-6 print:hidden">
+      <Card className="p-4">
+        <div className="flex items-center gap-2 mb-4">
+          <RefreshCw className="w-5 h-5 text-maritime-primary" />
+          <h3 className="font-bold text-lg">Revision Timeline</h3>
+        </div>
+        
+        {!approvalHistory || approvalHistory.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">No revision history yet.</p>
+        ) : (
+          <div className="relative pl-4 border-l-2 border-muted space-y-6">
             {approvalHistory.map((log: any, i: number) => {
-              const actionConfig: Record<string, { color: string; label: string; icon: any }> = {
-                sent: { color: "text-blue-600 dark:text-blue-400", label: "Sent for Approval", icon: Send },
-                approve: { color: "text-green-600 dark:text-green-400", label: "Approved", icon: CheckCircle2 },
-                reject: { color: "text-red-600 dark:text-red-400", label: "Rejected", icon: XCircle },
-                request_revision: { color: "text-orange-600 dark:text-orange-400", label: "Revision Requested", icon: RefreshCw },
-              };
-              const cfg = actionConfig[log.action] || { color: "text-muted-foreground", label: log.action, icon: Clock };
-              const LogIcon = cfg.icon;
+              let Icon = Clock;
+              let colorClass = "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
+              let actionLabel = log.action;
+
+              if (log.action === "approve") {
+                Icon = CheckCircle2;
+                colorClass = "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
+                actionLabel = "Approved";
+              } else if (log.action === "request_revision") {
+                Icon = RefreshCw;
+                colorClass = "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
+                actionLabel = "Revision Requested";
+              } else if (log.action === "reject") {
+                Icon = XCircle;
+                colorClass = "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300";
+                actionLabel = "Rejected";
+              } else if (log.action === "sent") {
+                Icon = Send;
+                colorClass = "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
+                actionLabel = "Sent for Approval";
+              }
+
               return (
-                <div key={log.id || i} className="flex items-start gap-3" data-testid={`row-approval-log-${i}`}>
-                  <div className={`mt-0.5 flex-shrink-0 ${cfg.color}`}>
-                    <LogIcon className="w-4 h-4" />
+                <div key={log.id || i} className="relative">
+                  <div className={`absolute -left-[21px] mt-1 p-1 rounded-full border-2 border-background ${colorClass.split(' ')[0]}`}>
+                    <Icon className="w-3 h-3" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-sm font-medium ${cfg.color}`}>{cfg.label}</span>
-                      <span className="text-xs text-muted-foreground">by {log.user_name?.trim() || "Unknown"}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {log.created_at ? fmtDateTime(log.created_at) : ""}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${colorClass}`}>
+                        {actionLabel}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                        {fmtDateTime(log.created_at || log.createdAt)}
                       </span>
                     </div>
                     {log.note && (
-                      <p className="text-xs text-muted-foreground mt-1 bg-muted/30 px-2 py-1 rounded">{log.note}</p>
+                      <p className="text-sm bg-muted/50 p-2 rounded-md italic">
+                        "{log.note}"
+                      </p>
                     )}
+                    <p className="text-[10px] text-muted-foreground">
+                      Status: {log.previousStatus || log.previous_status} → {log.newStatus || log.new_status}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      by {log.user_name || "System"}
+                    </p>
                   </div>
                 </div>
               );
             })}
           </div>
-        </Card>
-      )}
+        )}
+      </Card>
+    </div>
+  </div>
 
       {/* Review Dialog (Shipowner / Admin) */}
       <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>

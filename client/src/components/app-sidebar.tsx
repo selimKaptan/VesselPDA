@@ -1,4 +1,4 @@
-import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, MessageCircle, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, Handshake, Package, TrendingUp, Wallet, ClipboardList, Calculator, FolderLock, Scale, Banknote, BarChart2 } from "lucide-react";
+import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, MessageCircle, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, Handshake, Package, TrendingUp, Wallet, ClipboardList, Calculator, FolderLock, Scale, Banknote, BarChart2, Zap, Receipt } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -46,44 +46,18 @@ export function AppSidebar() {
     ? `${(user.firstName || "")[0] || ""}${(user.lastName || "")[0] || ""}`.toUpperCase() || "U"
     : "U";
 
+  const { data: actionBadge } = useQuery<{ counts: { critical: number, total: number } }>({
+    queryKey: ["/api/actions/pending"],
+    refetchInterval: 120000,
+  });
+  const actionCount = actionBadge?.counts?.total || 0;
+
   const mainNav = [
     { title: t("nav.dashboard"), url: "/", icon: LayoutDashboard },
+    { title: "Action Center", url: "/actions", icon: Zap, badge: actionCount },
     { title: t("nav.directory"), url: "/directory", icon: Users },
     { title: t("nav.forum"), url: "/forum", icon: MessageSquare },
   ];
-
-  const isAdminUser = userRole === "admin";
-  const effectiveRole = isAdminUser ? activeRole : userRole;
-
-  const switchRoleMutation = useMutation({
-    mutationFn: async (newRole: string) => {
-      const res = await apiRequest("PATCH", "/api/admin/active-role", { activeRole: newRole });
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-    },
-  });
-
-  const { data: tenderBadge } = useQuery<{ count: number }>({
-    queryKey: ["/api/tenders/badge-count"],
-    refetchInterval: 60000,
-  });
-  const tenderCount = tenderBadge?.count || 0;
-
-  const { data: msgBadge } = useQuery<{ count: number }>({
-    queryKey: ["/api/messages/unread-count"],
-    refetchInterval: 30000,
-  });
-  const unreadMessages = msgBadge?.count || 0;
-
-  const { data: nomBadge } = useQuery<{ count: number }>({
-    queryKey: ["/api/nominations/pending-count"],
-    refetchInterval: 15000,
-    refetchOnWindowFocus: true,
-    enabled: effectiveRole === "agent",
-  });
-  const pendingNominations = nomBadge?.count || 0;
 
   const isAgent = effectiveRole === "agent";
 
@@ -215,6 +189,8 @@ export function AppSidebar() {
             <SidebarMenu>
               {mainNav.map((item) => {
                 const active = isActive(item.url);
+                const hasBadge = (item as any).badge > 0;
+                const isActionCenter = item.url === "/actions";
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild data-active={active} tooltip={item.title}>
@@ -230,7 +206,12 @@ export function AppSidebar() {
                         className="transition-all duration-150"
                       >
                         <item.icon className="w-4 h-4" />
-                        <span className="font-medium">{item.title}</span>
+                        <span className="font-medium flex-1">{item.title}</span>
+                        {hasBadge && (
+                          <span className={`ml-auto flex-shrink-0 w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center ${isActionCenter ? 'bg-primary animate-pulse' : 'bg-amber-500'}`}>
+                            {(item as any).badge}
+                          </span>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

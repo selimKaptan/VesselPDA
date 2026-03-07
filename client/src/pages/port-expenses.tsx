@@ -3,7 +3,7 @@ import { useState } from "react";
 import { 
   Plus, Receipt, Filter, DollarSign, CheckCircle2, Clock, 
   Search, Trash2, Edit2, Wallet, Calendar, User, Tag, 
-  FileText, ArrowUpRight, BarChart3, TrendingUp, Calculator
+  FileText, ArrowUpRight, BarChart3, TrendingUp, Calculator, FileDown
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { fmtDate } from "@/lib/formatDate";
 import { Skeleton } from "@/components/ui/skeleton";
+import { exportToCsv } from "@/lib/export-csv";
 
 const EXPENSE_CATEGORIES = [
   { value: "port_dues", label: "Port Dues" },
@@ -150,13 +151,36 @@ export default function PortExpenses() {
           <p className="text-muted-foreground mt-1">Track and manage all vessel related port expenses and disbursements.</p>
         </div>
         
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-add-expense" className="bg-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-primary))/0.9]">
-              <Plus className="w-4 h-4 mr-2" /> Add Expense
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              const rows = (filteredExpenses || []).map(e => ({
+                ID: e.id,
+                Category: EXPENSE_CATEGORIES.find(cat => cat.value === e.category)?.label || e.category,
+                Description: e.description || '',
+                Vendor: e.vendor || '',
+                Amount: e.amount,
+                Currency: e.currency,
+                Date: e.expenseDate ? fmtDate(e.expenseDate) : '',
+                Paid: e.isPaid ? 'Yes' : 'No',
+                'Receipt#': e.receiptNumber || '',
+                Voyage: e.voyageId || ''
+              }));
+              exportToCsv(`Port-Expenses-${new Date().toISOString().split('T')[0]}.csv`, rows);
+            }}
+            data-testid="button-export-port-expenses-csv"
+            className="gap-2"
+          >
+            <FileDown className="w-4 h-4" /> Export CSV
+          </Button>
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-add-expense" className="bg-[hsl(var(--maritime-primary))] hover:bg-[hsl(var(--maritime-primary))/0.9]">
+                <Plus className="w-4 h-4 mr-2" /> Add Expense
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Add New Port Expense</DialogTitle>
             </DialogHeader>
@@ -537,5 +561,6 @@ export default function PortExpenses() {
         </Card>
       </div>
     </div>
+  </div>
   );
 }

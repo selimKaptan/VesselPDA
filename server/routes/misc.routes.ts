@@ -3,7 +3,7 @@ import { storage } from "../storage";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { isAdmin } from "./shared";
 import { cached, invalidateCache } from "../cache";
-import { insertInvoiceSchema, voyageActivities, invoices } from "@shared/schema";
+import { insertInvoiceSchema, voyageActivities, invoices, insertInvoicePaymentSchema } from "@shared/schema";
 import { db } from "../db";
 import { sql as drizzleSql, eq, desc, and, lt, gt, lte, isNotNull } from "drizzle-orm";
 import { emitToUser } from "../socket";
@@ -120,24 +120,89 @@ router.post("/api/invoices", isAuthenticated, async (req: any, res) => {
 router.patch("/api/invoices/:id/pay", isAuthenticated, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { paidAt } = req.body;
+    const { paidAt, amount, paymentMethod, reference, notes } = req.body;
     const userId = req.user?.claims?.sub || req.user?.id;
-    await storage.updateInvoiceStatus(id, "paid", paidAt ? new Date(paidAt) : new Date());
-    logAction(userId, "pay", "invoice", id, { status: "paid" }, getClientIp(req));
-    
+
+    if (amount) {
+      // Partial payment
+      const payment = await storage.createInvoicePayment({
+        invoiceId: id,
+        amount: parseFloat(amount),
+        currency: "USD", // Should probably match invoice currency
+        paidAt: paidAt ? new Date(paidAt) : new Date(),
+        paymentMethod: paymentMethod || "bank_transfer",
+        reference: reference || null,
+        notes: notes || null,
+        recordedBy: userId
+      });
+      logAction(userId, "pay", "invoice_payment", payment.id, { amount: parseFloat(amount) }, getClientIp(req));
+    } else {
+      // Full payment (legacy behavior, but now recorded as a payment)
+      const balance = await storage.getInvoiceBalance(id);
+      if (balance.balance > 0) {
+        await storage.createInvoicePayment({
+          invoiceId: id,
+          amount: balance.balance,
+          currency: "USD",
+          paidAt: paidAt ? new Date(paidAt) : new Date(),
+          paymentMethod: paymentMethod || "bank_transfer",
+          recordedBy: userId
+        });
+      }
+    }
+
     const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id)).limit(1);
     if (invoice && invoice.voyageId) {
       logVoyageActivity({ 
         voyageId: invoice.voyageId, 
         userId, 
         activityType: 'invoice_paid', 
-        title: 'Invoice paid' 
+        title: invoice.status === 'paid' ? 'Invoice fully paid' : `Partial payment recorded: ${amount} ${invoice.currency}`
       });
     }
 
     res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || "Failed to record payment" });
+  }
+});
+
+router.get("/api/invoices/:id/payments", isAuthenticated, async (req: any, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const payments = await storage.getInvoicePayments(id);
+    res.json(payments);
   } catch {
-    res.status(500).json({ message: "Failed to mark invoice paid" });
+    res.status(500).json({ message: "Failed to get payments" });
+  }
+});
+
+router.post("/api/invoices/:id/payments", isAuthenticated, async (req: any, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const data = insertInvoicePaymentSchema.parse({
+      ...req.body,
+      invoiceId: id,
+      recordedBy: userId
+    });
+
+    const payment = await storage.createInvoicePayment(data);
+    logAction(userId, "create", "invoice_payment", payment.id, { amount: data.amount }, getClientIp(req));
+
+    const [invoice] = await db.select().from(invoices).where(eq(invoices.id, id)).limit(1);
+    if (invoice && invoice.voyageId) {
+      logVoyageActivity({ 
+        voyageId: invoice.voyageId, 
+        userId, 
+        activityType: 'invoice_paid', 
+        title: invoice.status === 'paid' ? 'Invoice fully paid' : `Partial payment recorded: ${data.amount} ${invoice.currency}`
+      });
+    }
+
+    res.status(201).json(payment);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || "Failed to create payment" });
   }
 });
 

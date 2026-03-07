@@ -9,6 +9,12 @@ router.get("/", isAuthenticated, async (req: any, res: any) => {
   try {
     const userId = req.user.claims.sub;
     const voyageId = req.query.voyageId ? parseInt(req.query.voyageId as string) : undefined;
+    const fdaId = req.query.fdaId ? parseInt(req.query.fdaId as string) : undefined;
+
+    if (fdaId) {
+      const expenses = await storage.getPortExpensesByFda(fdaId);
+      return res.json(expenses);
+    }
     if (voyageId) {
       const expenses = await storage.getPortExpensesByVoyage(voyageId);
       return res.json(expenses);

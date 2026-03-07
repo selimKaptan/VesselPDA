@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { EmptyState } from "@/components/empty-state";
-import { Ship, Plus, MapPin, Calendar, ChevronRight, Anchor, CheckCircle2, Clock, XCircle, PlayCircle, Search, X, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Ship, Plus, MapPin, Calendar, ChevronRight, Anchor, CheckCircle2, Clock, XCircle, PlayCircle, Search, X, CheckCircle, AlertCircle, Loader2, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Link, useLocation, useSearch } from "wouter";
 import type { Vessel, Port } from "@shared/schema";
 import { fmtDate } from "@/lib/formatDate";
+import { exportToCsv } from "@/lib/export-csv";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   planned:         { label: "Planned",         color: "bg-blue-900/30 text-blue-400 border border-blue-500/30",       icon: Clock },
@@ -417,11 +418,34 @@ export default function Voyages() {
             </div>
           )}
         </div>
-        {role !== "provider" && (
-          <Button onClick={() => setShowCreate(true)} className="gap-2" data-testid="button-create-voyage">
-            <Plus className="w-4 h-4" /> New Voyage
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              const rows = filteredVoyages.map(v => ({
+                ID: v.id,
+                Vessel: v.vesselName,
+                Port: v.portName || v.portId,
+                Status: v.status,
+                ETA: v.eta ? fmtDate(v.eta) : '',
+                ETD: v.etd ? fmtDate(v.etd) : '',
+                Purpose: v.purposeOfCall,
+                Agent: v.agentName || v.agentUserId || '',
+                Created: v.createdAt ? fmtDate(v.createdAt) : ''
+              }));
+              exportToCsv(`Voyages-${new Date().toISOString().split('T')[0]}.csv`, rows);
+            }}
+            data-testid="button-export-voyages-csv"
+            className="gap-2"
+          >
+            <FileDown className="w-4 h-4" /> Export CSV
           </Button>
-        )}
+          {role !== "provider" && (
+            <Button onClick={() => setShowCreate(true)} className="gap-2" data-testid="button-create-voyage">
+              <Plus className="w-4 h-4" /> New Voyage
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* ── Smart Filter Bar ── */}

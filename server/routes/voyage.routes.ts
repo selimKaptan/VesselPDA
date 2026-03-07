@@ -10,7 +10,7 @@ import { db } from "../db";
 import { eq, desc, asc, inArray } from "drizzle-orm";
 import multer from "multer";
 import { logVoyageActivity } from "../voyage-activity";
-import { voyageActivities, voyageCargoLogs, voyageCargoReceivers, voyages, voyageContacts } from "@shared/schema";
+import { voyageActivities, voyageCargoLogs, voyageCargoReceivers, voyages, voyageContacts, fdaAccounts, invoices, daAdvances, statementOfFacts, noticeOfReadiness } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import path from "path";
 import fs from "fs";
@@ -428,6 +428,96 @@ router.delete("/:voyageId/appointments/:id", isAuthenticated, async (req: any, r
 });
 
 // ─── CREW LOGISTICS ──────────────────────────────────────────────────────────
+
+router.get("/:id/closeout-status", isAuthenticated, async (req: any, res: any) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const voyage = await storage.getVoyageById(voyageId);
+    if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+
+    // Check FDA status
+    const fdas = await db.select().from(fdaAccounts).where(eq(fdaAccounts.voyageId, voyageId));
+    const fdaApproved = fdas.some(f => f.status === "approved");
+    const fdaCount = fdas.length;
+
+    // Check Invoices
+    const invs = await db.select().from(invoices).where(eq(invoices.voyageId, voyageId));
+    const pendingInvoices = invs.filter(i => i.status !== "paid");
+    const allInvoicesPaid = pendingInvoices.length === 0;
+    const pendingInvoiceCount = pendingInvoices.length;
+    const pendingInvoiceTotal = pendingInvoices.reduce((sum, i) => sum + (i.amount || 0), 0);
+
+    // Check DA Advances
+    const advances = await db.select().from(daAdvances).where(eq(daAdvances.voyageId, voyageId));
+    const pendingAdvances = advances.filter(a => a.status !== "received"); // Assuming "received" means settled
+    const daAdvancesSettled = pendingAdvances.length === 0;
+    const pendingAdvanceCount = pendingAdvances.length;
+
+    // Check SOFs and NORs
+    const sofs = await db.select().from(statementOfFacts).where(eq(statementOfFacts.voyageId, voyageId));
+    const nors = await db.select().from(noticeOfReadiness).where(eq(noticeOfReadiness.voyageId, voyageId));
+
+    const warnings: string[] = [];
+    if (!fdaApproved) warnings.push("No approved FDA found.");
+    if (!allInvoicesPaid) warnings.push(`${pendingInvoiceCount} unpaid invoice(s) totaling ${pendingInvoiceTotal} USD.`);
+    if (!daAdvancesSettled) warnings.push(`${pendingAdvanceCount} open DA advance(s).`);
+
+    res.json({
+      fdaApproved,
+      fdaCount,
+      allInvoicesPaid,
+      pendingInvoiceCount,
+      pendingInvoiceTotal,
+      daAdvancesSettled,
+      pendingAdvanceCount,
+      sofsCount: sofs.length,
+      norsCount: nors.length,
+      canCloseOut: true, // Allow closing even with warnings as per task "Uyarılarla devam et"
+      warnings
+    });
+  } catch (error) {
+    console.error("closeout-status error:", error);
+    res.status(500).json({ message: "Failed to fetch closeout status" });
+  }
+});
+
+router.post("/:id/complete", isAuthenticated, async (req: any, res: any) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const voyage = await storage.getVoyageById(voyageId);
+    if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+
+    const updated = await storage.updateVoyageStatus(voyageId, "completed", new Date());
+    logVoyageActivity({
+      voyageId,
+      userId,
+      activityType: 'status_changed',
+      title: 'Voyage Completed',
+      description: 'The voyage has been officially closed out.'
+    });
+
+    // Fetch summary data
+    const expenses = await storage.getPortExpensesByVoyage(voyageId);
+    const totalActual = expenses.reduce((sum, e) => sum + (e.amountUsd || 0), 0);
+    const proformas = await storage.getProformasByVoyage(voyageId);
+    const totalPda = proformas.reduce((sum, p) => sum + (p.totalUsd || 0), 0);
+
+    res.json({
+      success: true,
+      voyage: updated,
+      summary: {
+        totalActual,
+        totalPda,
+        variance: totalActual - totalPda,
+        durationDays: voyage.eta && voyage.etd ? Math.ceil((new Date(voyage.etd).getTime() - new Date(voyage.eta).getTime()) / (1000 * 60 * 60 * 24)) : 0
+      }
+    });
+  } catch (error) {
+    console.error("complete voyage error:", error);
+    res.status(500).json({ message: "Failed to complete voyage" });
+  }
+});
 
 router.get("/:id/crew-logistics", isAuthenticated, async (req: any, res) => {
   try {

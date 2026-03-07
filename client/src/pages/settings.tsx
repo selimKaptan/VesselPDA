@@ -12,8 +12,65 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, CheckCircle2, AlertCircle, User, Lock, Mail, Shield, Building2, ShieldCheck, Clock, XCircle, Loader2, Compass, Bell } from "lucide-react";
+import { CheckCircle, CheckCircle2, AlertCircle, User, Lock, Mail, Shield, Building2, ShieldCheck, Clock, XCircle, Loader2, Compass, Bell, Calculator, Trash2, Star } from "lucide-react";
 import type { CompanyProfile, NotificationPreference } from "@shared/schema";
+
+function FdaTemplatesManager() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: templates = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/fda-mapping-templates"],
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => apiRequest("DELETE", `/api/fda-mapping-templates/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/fda-mapping-templates"] });
+      toast({ title: "Template deleted" });
+    },
+  });
+
+  const setDefaultMutation = useMutation({
+    mutationFn: async (id: number) => apiRequest("POST", `/api/fda-mapping-templates/${id}/set-default`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/fda-mapping-templates"] });
+      toast({ title: "Default template set" });
+    },
+  });
+
+  if (isLoading) return <Loader2 className="w-6 h-6 animate-spin" />;
+
+  if (templates.length === 0) return <p className="text-sm text-muted-foreground text-center py-4">No templates found. Create one from the FDA details page.</p>;
+
+  return (
+    <div className="space-y-4">
+      {templates.map((t) => (
+        <div key={t.id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
+          <div className="flex items-center gap-3">
+            <Calculator className="w-4 h-4 text-muted-foreground" />
+            <div>
+              <p className="text-sm font-medium flex items-center gap-2">
+                {t.name}
+                {t.isDefault && <Badge variant="secondary" className="text-[10px] h-4 px-1">Default</Badge>}
+              </p>
+              <p className="text-xs text-muted-foreground">Created {new Date(t.createdAt).toLocaleDateString()}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {!t.isDefault && (
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-amber-500" onClick={() => setDefaultMutation.mutate(t.id)}>
+                <Star className="h-4 h-4" />
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => deleteMutation.mutate(t.id)}>
+              <Trash2 className="h-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const AGENT_COMPLETION_FIELDS = [
   { key: "logoUrl", label: "Company Logo", hint: "Upload a logo to build trust", isArray: false },
@@ -215,7 +272,23 @@ export default function Settings() {
             <Bell className="w-4 h-4" />
             Notifications
           </TabsTrigger>
+          <TabsTrigger value="fda-templates" className="flex items-center gap-2">
+            <Calculator className="w-4 h-4" />
+            FDA Templates
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="fda-templates" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>FDA Mapping Templates</CardTitle>
+              <CardDescription>Manage your templates for FDA cost category mapping.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FdaTemplatesManager />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="account" className="space-y-6">
           {/* Profile Completion — agent & provider only */}

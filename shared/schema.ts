@@ -421,6 +421,24 @@ export const notificationPreferenceRelations = relations(notificationPreferences
 
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ createdAt: true, isRead: true });
 export const insertNotificationPreferenceSchema = createInsertSchema(notificationPreferences).omit({ id: true, updatedAt: true });
+export const fdaMappingTemplates = pgTable("fda_mapping_templates", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  mappings: jsonb("mappings").notNull().default([]).$type<{ pdaCategory: string; portExpenseCategory: string; note?: string }[]>(),
+  isDefault: boolean("is_default").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const fdaMappingTemplateRelations = relations(fdaMappingTemplates, ({ one }) => ({
+  user: one(users, { fields: [fdaMappingTemplates.userId], references: [users.id] }),
+}));
+
+export const insertFdaMappingTemplateSchema = createInsertSchema(fdaMappingTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertFdaMappingTemplate = z.infer<typeof insertFdaMappingTemplateSchema>;
+export type FdaMappingTemplate = typeof fdaMappingTemplates.$inferSelect;
+
 export const insertPortExpenseSchema = createInsertSchema(portExpenses).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
@@ -453,6 +471,7 @@ export const voyages = pgTable("voyages", {
   cargoType: text("cargo_type"),
   cargoQuantity: real("cargo_quantity"),
   cargoTotalMt: real("cargo_total_mt"),
+  completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -1040,18 +1059,43 @@ export const invoices = pgTable("invoices", {
   recipientName: varchar("recipient_name"),
   reminderSentAt: timestamp("reminder_sent_at"),
   overdueReminderSentAt: timestamp("overdue_reminder_sent_at"),
+  amountPaid: real("amount_paid").default(0),
+  balance: real("balance"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const invoiceRelations = relations(invoices, ({ one }) => ({
+export const invoicePayments = pgTable("invoice_payments", {
+  id: serial("id").primaryKey(),
+  invoiceId: integer("invoice_id").notNull().references(() => invoices.id, { onDelete: "cascade" }),
+  amount: real("amount").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  paidAt: timestamp("paid_at").notNull().defaultNow(),
+  paymentMethod: text("payment_method"),  // "bank_transfer" | "cash" | "cheque" | "other"
+  reference: text("reference"),           // banka havalesi referansı
+  notes: text("notes"),
+  recordedBy: varchar("recorded_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const invoiceRelations = relations(invoices, ({ one, many }) => ({
   voyage: one(voyages, { fields: [invoices.voyageId], references: [voyages.id] }),
   proforma: one(proformas, { fields: [invoices.proformaId], references: [proformas.id] }),
   creator: one(users, { fields: [invoices.createdByUserId], references: [users.id] }),
+  payments: many(invoicePayments),
+}));
+
+export const invoicePaymentRelations = relations(invoicePayments, ({ one }) => ({
+  invoice: one(invoices, { fields: [invoicePayments.invoiceId], references: [invoices.id] }),
+  user: one(users, { fields: [invoicePayments.recordedBy], references: [users.id] }),
 }));
 
 export const insertInvoiceSchema = createInsertSchema(invoices).omit({ createdAt: true, status: true });
+export const insertInvoicePaymentSchema = createInsertSchema(invoicePayments).omit({ id: true, createdAt: true });
+
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 export type Invoice = typeof invoices.$inferSelect;
+export type InvoicePayment = typeof invoicePayments.$inferSelect;
+export type InsertInvoicePayment = z.infer<typeof insertInvoicePaymentSchema>;
 
 // ─── PORT ALERTS ─────────────────────────────────────────────────────────────
 

@@ -15,7 +15,7 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
 - **Authentication**: Custom email/password authentication with verification and session management.
 - **User & Role Management**: A six-role system (Shipowner, Agent, Broker, Provider, Master, Admin) with granular permissions.
 - **Core Maritime Operations**: Tools for managing vessel data, port information, port calls, voyages, and proforma disbursement accounts (with PDF export and live exchange rates).
-- **Financial Management**: Modules for Final Disbursement Accounts (FDA) with variance calculation, invoice management (including PDF export, voyage enrichment, and integration with FDAs), DA Advance/Fund Request system, Laytime Calculator with persistence, and Port Expense Ledger.
+- **Financial Management**: Modules for Final Disbursement Accounts (FDA) with variance calculation, invoice management (including PDF export, voyage enrichment, and integration with FDAs), DA Advance/Fund Request system, Laytime Calculator with persistence, Port Expense Ledger, Invoice Partial Payment Tracking (with progress bars and payment history), and FDA→Port Expense Reconciliation.
 - **Company & Service Management**: Verified company profiles and a comprehensive directory of maritime service providers.
 - **Subscription System**: A 3-tier subscription model.
 - **Vessel Tracking**: Live AIS vessel tracking.
@@ -34,6 +34,12 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
 - **Security**: Helmet Content-Security-Policy headers configured.
 - **Demo System**: Server-side seeding for pre-populated demo accounts.
 - **Mobile Responsiveness**: Optimized UI for various modules on mobile devices.
+- **CSV Export**: Export buttons on Invoices, Voyages, Port Expenses, DA Advances, and Analytics pages.
+- **Proforma Revision History UI**: Visual timeline of approval/revision actions on proforma detail view, revision count badges on list.
+- **Service Offer → Invoice Auto-creation**: When a service offer is selected, invoice auto-created with "Invoice Created" badge and "View Invoice" link.
+- **Voyage Completion Workflow**: "Complete Voyage" close-out with checklist dialog (FDA/Invoice/DA Advance checks) and summary modal.
+- **Unified Action Center**: `/actions` page aggregating all pending tasks (overdue invoices, expiring certs, pending advances, voyages needing FDA) with sidebar badge and top bar indicator.
+- **FDA Mapping Templates**: Save and reuse PDA→Port Expense category mappings via new `fda_mapping_templates` table; manageable in Settings → FDA Templates tab.
 
 ## External Dependencies
 - **PostgreSQL**: Primary relational database.

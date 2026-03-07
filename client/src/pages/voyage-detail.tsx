@@ -304,6 +304,31 @@ export default function VoyageDetail() {
   const [loadingTemplateId, setLoadingTemplateId] = useState<string | null>(null);
   const [reviewForm, setReviewForm] = useState({ rating: 0, comment: "" });
   const [isAddExpenseDialogOpen, setIsAddExpenseDialogOpen] = useState(false);
+  const [showCloseOutDialog, setShowCloseOutDialog] = useState(false);
+  const [showSummaryDialog, setShowSummaryDialog] = useState(false);
+  const [closeOutSummary, setCloseOutSummary] = useState<any>(null);
+
+  const { data: closeOutStatus, isLoading: isLoadingCloseOutStatus } = useQuery({
+    queryKey: ["/api/voyages", voyageId, "closeout-status"],
+    enabled: showCloseOutDialog,
+  });
+
+  const completeVoyageMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/voyages/${voyageId}/complete`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId] });
+      setCloseOutSummary(data.summary);
+      setShowCloseOutDialog(false);
+      setShowSummaryDialog(true);
+      toast({ title: "Voyage Completed", description: "The voyage has been closed out successfully." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
 
   const form = useForm({
     resolver: zodResolver(insertPortExpenseSchema),
@@ -2064,11 +2089,15 @@ export default function VoyageDetail() {
                     return (
                       <DropdownMenuItem
                         key={t}
-                        onClick={() =>
-                          (t === "completed" || t === "cancelled")
-                            ? setPendingStatus(t)
-                            : statusMutation.mutate(t)
-                        }
+                        onClick={() => {
+                          if (t === "completed") {
+                            setShowCloseOutDialog(true);
+                          } else if (t === "cancelled") {
+                            setPendingStatus(t);
+                          } else {
+                            statusMutation.mutate(t);
+                          }
+                        }}
                         className="gap-2"
                       >
                         {TIcon && <TIcon className="w-4 h-4" />}{cfg?.label}
@@ -6883,26 +6912,196 @@ export default function VoyageDetail() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {pendingStatus === "completed" ? "Mark Voyage as Completed?" : "Cancel This Voyage?"}
+              Cancel This Voyage?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingStatus === "completed"
-                ? "This voyage will be marked as completed. This action cannot be undone and the status can no longer be changed."
-                : "This voyage will be marked as cancelled. This action cannot be undone."}
+              This voyage will be marked as cancelled. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setPendingStatus(null)} data-testid="button-cancel-status">Go Back</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => { if (pendingStatus) { statusMutation.mutate(pendingStatus); setPendingStatus(null); } }}
-              className={pendingStatus === "completed" ? "bg-gray-700 hover:bg-gray-800" : "bg-red-600 hover:bg-red-700"}
+              className="bg-red-600 hover:bg-red-700"
               data-testid="button-confirm-status"
             >
-              {pendingStatus === "completed" ? "Yes, Complete" : "Yes, Cancel"}
+              Yes, Cancel
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Close-out Checklist Dialog */}
+      <Dialog open={showCloseOutDialog} onOpenChange={setShowCloseOutDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-primary" />
+              Voyage Close-out Checklist
+            </DialogTitle>
+            <DialogDescription>
+              Verify the following items before completing the voyage.
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingCloseOutStatus ? (
+            <div className="py-10 flex justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid gap-4">
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-3">
+                    {closeOutStatus?.fdaApproved ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                    ) : (
+                      <AlertTriangle className="w-5 h-5 text-amber-500" />
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">FDA Status</p>
+                      <p className="text-xs text-muted-foreground">
+                        {closeOutStatus?.fdaApproved ? "Approved FDA exists" : "No approved FDA found"}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant={closeOutStatus?.fdaApproved ? "default" : "outline"}>
+                    {closeOutStatus?.fdaCount} FDAs
+                  </Badge>
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-3">
+                    {closeOutStatus?.allInvoicesPaid ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-red-500" />
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">Invoices</p>
+                      <p className="text-xs text-muted-foreground">
+                        {closeOutStatus?.allInvoicesPaid ? "All invoices paid" : `${closeOutStatus?.pendingInvoiceCount} invoices pending`}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant={closeOutStatus?.allInvoicesPaid ? "default" : "destructive"}>
+                    ${closeOutStatus?.pendingInvoiceTotal} Pending
+                  </Badge>
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-3">
+                    {closeOutStatus?.daAdvancesSettled ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                    ) : (
+                      <AlertTriangle className="w-5 h-5 text-amber-500" />
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">DA Advances</p>
+                      <p className="text-xs text-muted-foreground">
+                        {closeOutStatus?.daAdvancesSettled ? "All advances settled" : `${closeOutStatus?.pendingAdvanceCount} advances pending`}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant={closeOutStatus?.daAdvancesSettled ? "default" : "outline"}>
+                    {closeOutStatus?.pendingAdvanceCount} Pending
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3 border rounded-lg bg-muted/30 flex flex-col items-center justify-center">
+                    <p className="text-2xl font-bold">{closeOutStatus?.sofsCount}</p>
+                    <p className="text-xs text-muted-foreground uppercase">SOF Records</p>
+                  </div>
+                  <div className="p-3 border rounded-lg bg-muted/30 flex flex-col items-center justify-center">
+                    <p className="text-2xl font-bold">{closeOutStatus?.norsCount}</p>
+                    <p className="text-xs text-muted-foreground uppercase">NOR Records</p>
+                  </div>
+                </div>
+              </div>
+
+              {closeOutStatus?.warnings?.length > 0 && (
+                <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-400 mb-2 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4" /> Attention Required
+                  </h4>
+                  <ul className="text-xs text-amber-700 dark:text-amber-300 list-disc pl-5 space-y-1">
+                    {closeOutStatus.warnings.map((w: string, i: number) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowCloseOutDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={() => completeVoyageMutation.mutate()}
+              disabled={completeVoyageMutation.isPending}
+              data-testid="button-complete-voyage-final"
+            >
+              {completeVoyageMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Complete Voyage
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Voyage Summary Dialog */}
+      <Dialog open={showSummaryDialog} onOpenChange={setShowSummaryDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BadgeCheck className="w-6 h-6 text-emerald-500" />
+              Voyage Summary
+            </DialogTitle>
+            <DialogDescription>
+              Performance metrics for Voyage #{voyageId}
+            </DialogDescription>
+          </DialogHeader>
+
+          {closeOutSummary && (
+            <div className="space-y-6 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground uppercase">Total PDA (Estimated)</p>
+                  <p className="text-xl font-bold">${closeOutSummary.totalPda.toLocaleString()}</p>
+                </div>
+                <div className="space-y-1 text-right">
+                  <p className="text-xs text-muted-foreground uppercase">Total FDA (Actual)</p>
+                  <p className="text-xl font-bold text-emerald-600">${closeOutSummary.totalActual.toLocaleString()}</p>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl border-2 border-dashed flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Variance</p>
+                  <p className="text-xs text-muted-foreground">Difference between estimated and actual</p>
+                </div>
+                <div className={`text-xl font-black ${closeOutSummary.variance <= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                  {closeOutSummary.variance > 0 ? "+" : ""}{closeOutSummary.variance.toLocaleString()} USD
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Voyage Duration</span>
+                <span className="font-semibold">{closeOutSummary.durationDays} Days</span>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button className="w-full" onClick={() => setShowSummaryDialog(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

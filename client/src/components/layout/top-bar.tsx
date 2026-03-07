@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useTheme } from "@/components/theme-provider";
 import { useLanguage } from "@/lib/i18n";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { NotificationBell } from "@/components/notification-bell";
@@ -28,6 +28,7 @@ import {
   Search,
   Shield,
   X,
+  Zap,
 } from "lucide-react";
 
 const PLAN_BADGE: Record<string, string> = {
@@ -178,6 +179,26 @@ interface TopBarProps {
   onMenuClick: () => void;
 }
 
+function ActionBadge() {
+  const { data: actions } = useQuery<{ counts: { critical: number, total: number } }>({
+    queryKey: ["/api/actions/pending"],
+    refetchInterval: 120000,
+  });
+
+  if (!actions || !actions.counts || !actions.counts.critical) return null;
+
+  return (
+    <Link href="/actions">
+      <div className="relative group cursor-pointer">
+        <Zap className="w-5 h-5 text-amber-400 group-hover:text-amber-300 transition-colors" />
+        <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-[#080c18] animate-pulse">
+          {actions.counts.critical}
+        </span>
+      </div>
+    </Link>
+  );
+}
+
 export function TopBar({ user, onMenuClick }: TopBarProps) {
   const { lang, setLang } = useLanguage();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -282,6 +303,7 @@ export function TopBar({ user, onMenuClick }: TopBarProps) {
           >TR</button>
         </div>
         <DarkModeToggle />
+        <ActionBadge />
         <NotificationBell />
         <UserMenu user={user} />
       </div>
