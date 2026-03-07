@@ -64,6 +64,7 @@ import defectRoutes from "./routes/defect.routes";
 import sparePartsRoutes from "./routes/spare-parts.routes";
 import voyageEstimationRoutes from "./routes/voyage-estimation.routes";
 import passagePlanRoutes from "./routes/passage-plan.routes";
+import crewDocConfigRoutes from "./routes/crew-doc-config.routes";
 import orderBookRoutes from "./routes/order-book.routes";
 import brokerCommissionRoutes from "./routes/broker-commission.routes";
 import brokerContactsRoutes from "./routes/broker-contacts.routes";
@@ -152,6 +153,7 @@ export async function registerRoutes(
   // ─── Sprint 9: Broker Modules ─────────────────────────────────────────────
   app.use("/api/voyage-estimations", isAuthenticated, voyageEstimationRoutes);
   app.use("/api/passage-plans", isAuthenticated, passagePlanRoutes);
+  app.use("/api/crew-doc-config", isAuthenticated, crewDocConfigRoutes);
   app.use("/api/order-book", isAuthenticated, orderBookRoutes);
   app.use("/api/broker-commissions", isAuthenticated, brokerCommissionRoutes);
   app.use("/api/broker-contacts", isAuthenticated, brokerContactsRoutes);

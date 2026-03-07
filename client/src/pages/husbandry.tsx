@@ -16,8 +16,12 @@ import {
   Clock,
   AlertCircle,
   FileText,
-  Ship
+  Ship,
+  Printer,
+  Settings2
 } from "lucide-react";
+import { generateAndPrintCrewDocs, type DocSelection } from "@/components/crew-change-docs";
+import type { CrewDocConfig } from "@shared/schema";
 import { 
   Card, 
   CardContent, 
@@ -415,6 +419,139 @@ function CrewChangeView({ orders, vessels }: { orders: HusbandryOrder[], vessels
   );
 }
 
+function DocGeneratorDialog({ changes, vessel }: { changes: CrewChange[]; vessel: any }) {
+  const [open, setOpen] = useState(false);
+  const [docDate, setDocDate] = useState(new Date().toISOString().split("T")[0]);
+  const [sel, setSel] = useState<DocSelection>({
+    gumruk: true,
+    polisYurttan: true,
+    polisYurda: true,
+    vize: true,
+    acente: true,
+    ekimTur: true,
+  });
+
+  const { data: config } = useQuery<CrewDocConfig | null>({
+    queryKey: ["/api/crew-doc-config"],
+    enabled: open,
+  });
+
+  const signOnCount = changes.filter(c => c.changeType === "sign_on").length;
+  const signOffCount = changes.filter(c => c.changeType === "sign_off").length;
+  const visaCount = changes.filter(c => c.visaRequired).length;
+
+  const handleGenerate = () => {
+    const formattedDate = docDate
+      ? new Date(docDate).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" })
+      : "";
+    generateAndPrintCrewDocs(
+      {
+        crewChanges: changes,
+        vessel: {
+          name: vessel?.name || "",
+          flag: vessel?.flag || "",
+          imoNumber: vessel?.imoNumber || "",
+        },
+        config: config || null,
+      },
+      sel,
+      formattedDate
+    );
+  };
+
+  const DOC_OPTIONS = [
+    { key: "gumruk", label: "Gümrük – Personel Değişikliği", desc: `${signOnCount} katılım, ${signOffCount} ayrılış` },
+    { key: "polisYurttan", label: "Polis – Yurttan Çıkış", desc: `${signOnCount} kişi (gemiye katılan)`, disabled: signOnCount === 0 },
+    { key: "polisYurda", label: "Polis – Yurda Giriş", desc: `${signOffCount} kişi (gemiden ayrılan)`, disabled: signOffCount === 0 },
+    { key: "vize", label: "Vize Talep Formu", desc: `${visaCount} kişi için`, disabled: visaCount === 0 },
+    { key: "acente", label: "Acente Personeli Giriş İzni", desc: "Selim Denizcilik çalışanları" },
+    { key: "ekimTur", label: "Ekim Tur Giriş İzni", desc: "Transfer şirketi personeli" },
+  ];
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setOpen(true)}
+        disabled={changes.length === 0}
+        data-testid="button-generate-docs"
+        className="gap-1.5 text-xs border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+      >
+        <Printer className="w-3.5 h-3.5" /> Belgeler Oluştur
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="w-4 h-4 text-blue-400" />
+              Resmi Belgeler Oluştur
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Belge Tarihi</label>
+              <input
+                type="date"
+                value={docDate}
+                onChange={e => setDocDate(e.target.value)}
+                className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm text-white"
+                data-testid="input-doc-date"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Üretilecek Belgeler</p>
+              {DOC_OPTIONS.map(opt => (
+                <label
+                  key={opt.key}
+                  className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                    sel[opt.key as keyof DocSelection]
+                      ? "border-blue-500/40 bg-blue-500/5"
+                      : "border-slate-700/50 bg-slate-800/30"
+                  } ${opt.disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={sel[opt.key as keyof DocSelection]}
+                    onChange={e => setSel(s => ({ ...s, [opt.key]: e.target.checked }))}
+                    disabled={opt.disabled}
+                    className="mt-0.5 w-3.5 h-3.5 flex-shrink-0"
+                  />
+                  <div>
+                    <p className="text-xs font-medium text-white">{opt.label}</p>
+                    <p className="text-[11px] text-slate-500">{opt.desc}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            {!config?.portName && (
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-xs text-amber-400">
+                <strong>İpucu:</strong> Belge yapılandırmasını doldurun — liman adı, gümrük birimi, acente personeli ve Ekim Tur bilgileri.{" "}
+                <a href="/crew-doc-settings" className="underline text-amber-300">Ayarları Düzenle →</a>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" onClick={() => setOpen(false)} className="flex-1 text-xs h-8">
+                İptal
+              </Button>
+              <Button
+                onClick={handleGenerate}
+                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs h-8"
+                data-testid="button-print-docs"
+              >
+                <Printer className="w-3.5 h-3.5 mr-1.5" /> Belgeleri Aç / Yazdır
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function CrewChangeGroup({ order, vessel }: { order: HusbandryOrder, vessel: any }) {
   const { data: changes = [], isLoading } = useQuery<CrewChange[]>({
     queryKey: ["/api/husbandry", order.id, "crew-changes"],
@@ -428,8 +565,9 @@ function CrewChangeGroup({ order, vessel }: { order: HusbandryOrder, vessel: any
           <span className="text-white font-medium">{vessel?.name || "Unknown"}</span>
           <span className="text-slate-500 text-xs">— {fmtDate(order.requestedDate)}</span>
         </div>
-        <div className="text-xs text-slate-400">
-           {changes.length} Persons
+        <div className="flex items-center gap-2">
+          <DocGeneratorDialog changes={changes} vessel={vessel} />
+          <span className="text-xs text-slate-400">{changes.length} Personel</span>
         </div>
       </CardHeader>
       <CardContent className="p-0">
@@ -498,6 +636,15 @@ function AddCrewChangeDialog({ crewOrders, vessels }: { crewOrders: HusbandryOrd
       rank: "",
       nationality: "",
       passportNumber: "",
+      passportIssueDate: "",
+      passportExpiry: "",
+      seamanBookNumber: "",
+      seamanBookIssueDate: "",
+      seamanBookExpiry: "",
+      dateOfBirth: "",
+      birthPlace: "",
+      departureDate: "",
+      arrivalDate: "",
       visaRequired: false,
       visaStatus: "Pending",
       flightDetails: "",
@@ -516,171 +663,216 @@ function AddCrewChangeDialog({ crewOrders, vessels }: { crewOrders: HusbandryOrd
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/husbandry", variables.husbandryOrderId, "crew-changes"] });
-      toast({ title: "Person added to crew change" });
+      toast({ title: "Personel eklendi" });
       setOpen(false);
       form.reset();
     }
   });
 
+  const inp = "bg-slate-800 border-slate-700 text-white text-xs h-8";
+  const lbl = "text-xs text-slate-400";
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white border-0" disabled={crewOrders.length === 0}>
-          <Plus className="w-4 h-4" /> Add Person
+        <Button className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white border-0" disabled={crewOrders.length === 0} data-testid="button-add-crew-person">
+          <Plus className="w-4 h-4" /> Personel Ekle
         </Button>
       </DialogTrigger>
-      <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-2xl">
+      <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add Person to Crew Change</DialogTitle>
+          <DialogTitle>Personel Değişikliğine Kişi Ekle</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(v => mutation.mutate(v))} className="space-y-4 pt-4">
-             <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  name="husbandryOrderId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Husbandry Order</FormLabel>
-                      <Select onValueChange={v => {
-                        const id = parseInt(v);
-                        field.onChange(id);
-                        const order = crewOrders.find(o => o.id === id);
-                        if (order) form.setValue("vesselId", order.vesselId);
-                      }}>
-                        <FormControl>
-                          <SelectTrigger className="bg-slate-800 border-slate-700">
-                            <SelectValue placeholder="Select order" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="bg-slate-800 border-slate-700 text-white">
-                          {crewOrders.map(o => {
-                            const v = vessels.find(vessel => vessel.id === o.vesselId);
-                            return <SelectItem key={o.id} value={String(o.id)}>{v?.name} — {fmtDate(o.requestedDate)}</SelectItem>;
-                          })}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  name="changeType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="bg-slate-800 border-slate-700">
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="bg-slate-800 border-slate-700 text-white">
-                          <SelectItem value="sign_on">Sign On</SelectItem>
-                          <SelectItem value="sign_off">Sign Off</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-             </div>
+          <form onSubmit={form.handleSubmit(v => mutation.mutate(v))} className="space-y-3 pt-2">
 
-             <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  name="seafarerName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Full Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} className="bg-slate-800 border-slate-700" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  name="rank"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Rank</FormLabel>
-                      <FormControl>
-                        <Input {...field} className="bg-slate-800 border-slate-700" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-             </div>
+            {/* Order & Type */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField name="husbandryOrderId" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={lbl}>Husbandry Emri</FormLabel>
+                  <Select onValueChange={v => {
+                    const id = parseInt(v);
+                    field.onChange(id);
+                    const order = crewOrders.find(o => o.id === id);
+                    if (order) form.setValue("vesselId", order.vesselId);
+                  }}>
+                    <FormControl>
+                      <SelectTrigger className={inp}><SelectValue placeholder="Seç" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                      {crewOrders.map(o => {
+                        const v = vessels.find(vessel => vessel.id === o.vesselId);
+                        return <SelectItem key={o.id} value={String(o.id)}>{v?.name} — {fmtDate(o.requestedDate)}</SelectItem>;
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField name="changeType" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={lbl}>İşlem Türü</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger className={inp}><SelectValue /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                      <SelectItem value="sign_on">Gemiye Katılım (Sign On)</SelectItem>
+                      <SelectItem value="sign_off">Gemiden Ayrılış (Sign Off)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
 
-             <div className="grid grid-cols-3 gap-4">
-                <FormField
-                  name="nationality"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nationality</FormLabel>
-                      <FormControl>
-                        <Input {...field} className="bg-slate-800 border-slate-700" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  name="passportNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Passport No</FormLabel>
-                      <FormControl>
-                        <Input {...field} className="bg-slate-800 border-slate-700" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  name="changeDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Date</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} className="bg-slate-800 border-slate-700" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-             </div>
+            {/* Name & Rank */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField name="seafarerName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={lbl}>Ad Soyad *</FormLabel>
+                  <FormControl><Input {...field} className={inp} data-testid="input-seafarer-name" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField name="rank" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={lbl}>Rütbe / Görevi</FormLabel>
+                  <FormControl><Input {...field} placeholder="Kaptan, Makinist..." className={inp} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
 
-             <div className="grid grid-cols-2 gap-4 border-t border-slate-800 pt-4">
-                <FormField
-                  name="flightDetails"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Flight Details</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Flight No, Time..." className="bg-slate-800 border-slate-700" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  name="hotelName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Hotel Info</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Hotel name, room..." className="bg-slate-800 border-slate-700" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-             </div>
+            {/* Nationality, DOB, Birth Place */}
+            <div className="grid grid-cols-3 gap-3">
+              <FormField name="nationality" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={lbl}>Uyruğu</FormLabel>
+                  <FormControl><Input {...field} placeholder="HİNDİSTAN" className={inp} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField name="dateOfBirth" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={lbl}>Doğum Tarihi</FormLabel>
+                  <FormControl><Input type="date" {...field} className={inp} data-testid="input-dob" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField name="birthPlace" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={lbl}>Doğum Yeri</FormLabel>
+                  <FormControl><Input {...field} placeholder="Şehir / Ülke" className={inp} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
 
-            <DialogFooter className="pt-4">
-              <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500" disabled={mutation.isPending}>
-                Add to Roster
+            {/* Passport section */}
+            <div className="border border-slate-700/50 rounded-lg p-3 space-y-2">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Pasaport</p>
+              <div className="grid grid-cols-3 gap-3">
+                <FormField name="passportNumber" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={lbl}>Pasaport No</FormLabel>
+                    <FormControl><Input {...field} className={inp} data-testid="input-passport-no" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField name="passportIssueDate" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={lbl}>Veriliş Tarihi</FormLabel>
+                    <FormControl><Input type="date" {...field} className={inp} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField name="passportExpiry" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={lbl}>Geçerlilik Tarihi</FormLabel>
+                    <FormControl><Input type="date" {...field} className={inp} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+
+            {/* Seaman book section */}
+            <div className="border border-slate-700/50 rounded-lg p-3 space-y-2">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Denizci Cüzdanı</p>
+              <div className="grid grid-cols-3 gap-3">
+                <FormField name="seamanBookNumber" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={lbl}>Cüzdan No</FormLabel>
+                    <FormControl><Input {...field} className={inp} data-testid="input-seaman-book" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField name="seamanBookIssueDate" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={lbl}>Veriliş Tarihi</FormLabel>
+                    <FormControl><Input type="date" {...field} className={inp} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField name="seamanBookExpiry" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className={lbl}>Geçerlilik Tarihi</FormLabel>
+                    <FormControl><Input type="date" {...field} className={inp} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+
+            {/* Port & Dates */}
+            <div className="grid grid-cols-3 gap-3">
+              <FormField name="port" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={lbl}>Liman</FormLabel>
+                  <FormControl><Input {...field} placeholder="STAR RAFİNERİ / ALİAĞA" className={inp} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField name="departureDate" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={lbl}>Gemiden Ayrılış</FormLabel>
+                  <FormControl><Input type="date" {...field} className={inp} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField name="arrivalDate" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={lbl}>Gemiye Katılış</FormLabel>
+                  <FormControl><Input type="date" {...field} className={inp} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+
+            {/* Visa required toggle */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField name="visaRequired" render={({ field }) => (
+                <FormItem className="flex items-center gap-2 space-y-0 pt-2">
+                  <FormControl>
+                    <input type="checkbox" checked={!!field.value} onChange={e => field.onChange(e.target.checked)} className="w-4 h-4" />
+                  </FormControl>
+                  <FormLabel className={lbl}>Vize Gerekiyor</FormLabel>
+                </FormItem>
+              )} />
+              <FormField name="flightDetails" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className={lbl}>Uçuş Bilgileri</FormLabel>
+                  <FormControl><Input {...field} placeholder="TK2309 ADB→IST 07:55..." className={inp} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 h-9" disabled={mutation.isPending} data-testid="button-save-crew-person">
+                Kaydet
               </Button>
             </DialogFooter>
           </form>

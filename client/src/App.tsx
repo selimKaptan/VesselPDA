@@ -92,6 +92,7 @@ import BrokerCommissions from "@/pages/broker-commissions";
 import Contacts from "@/pages/contacts";
 import PassagePlanning from "@/pages/passage-planning";
 import NotificationsPage from "@/pages/notifications";
+import CrewDocSettings from "@/pages/crew-doc-settings";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -173,6 +174,7 @@ function AuthenticatedRouter() {
       <Route path="/contacts" component={Contacts} />
       <Route path="/passage-planning" component={PassagePlanning} />
       <Route path="/notifications" component={NotificationsPage} />
+      <Route path="/crew-doc-settings" component={CrewDocSettings} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -2650,6 +2650,15 @@ export const crewChanges = pgTable("crew_changes", {
   rank: text("rank"),
   nationality: text("nationality"),
   passportNumber: text("passport_number"),
+  passportIssueDate: timestamp("passport_issue_date"),
+  passportExpiry: timestamp("passport_expiry"),
+  seamanBookNumber: text("seaman_book_number"),
+  seamanBookIssueDate: timestamp("seaman_book_issue_date"),
+  seamanBookExpiry: timestamp("seaman_book_expiry"),
+  dateOfBirth: timestamp("date_of_birth"),
+  birthPlace: text("birth_place"),
+  departureDate: timestamp("departure_date"),
+  arrivalDate: timestamp("arrival_date"),
   visaRequired: boolean("visa_required").default(false),
   visaStatus: text("visa_status"),
   flightDetails: text("flight_details"),
@@ -3073,3 +3082,22 @@ export const passageWaypoints = pgTable("passage_waypoints", {
 export const insertPassageWaypointSchema = createInsertSchema(passageWaypoints).omit({ id: true });
 export type InsertPassageWaypoint = z.infer<typeof insertPassageWaypointSchema>;
 export type PassageWaypoint = typeof passageWaypoints.$inferSelect;
+
+// ─── Crew Change Document Configuration ─────────────────────────────────────
+export const crewDocConfig = pgTable("crew_doc_config", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 255 }).notNull(),
+  portName: text("port_name"),
+  customsAuthority: text("customs_authority"),
+  customsUnit: text("customs_unit"),
+  policeAuthority: text("police_authority"),
+  agentPersonnel: jsonb("agent_personnel").$type<Array<{ name: string; tcId: string; birthPlace?: string; birthDate?: string }>>(),
+  agentVehicles: jsonb("agent_vehicles").$type<Array<{ plate: string; model?: string }>>(),
+  ekimTurPersonnel: jsonb("ekim_tur_personnel").$type<Array<{ name: string; tcId: string }>>(),
+  ekimTurVehicles: jsonb("ekim_tur_vehicles").$type<string[]>(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertCrewDocConfigSchema = createInsertSchema(crewDocConfig).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCrewDocConfig = z.infer<typeof insertCrewDocConfigSchema>;
+export type CrewDocConfig = typeof crewDocConfig.$inferSelect;
