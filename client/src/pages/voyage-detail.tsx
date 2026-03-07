@@ -259,7 +259,52 @@ export default function VoyageDetail() {
   const [newTask, setNewTask] = useState("");
   const [chatMessage, setChatMessage] = useState("");
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "financial" | "activity" | "participants" | "cargo_ops" | "contacts">("operation");
+  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "financial" | "activity" | "participants" | "cargo_ops" | "contacts" | "notes_tasks" | "commission">("operation");
+  const [showNoteForm, setShowNoteForm] = useState(false);
+  const [noteContent, setNoteContent] = useState("");
+  const [noteType, setNoteType] = useState<"comment" | "observation" | "alert" | "milestone">("comment");
+  const [isPrivateNote, setIsPrivateNote] = useState(false);
+  const [taskDueDate, setTaskDueDate] = useState("");
+  const [taskAssignedTo, setTaskAssignedTo] = useState("both");
+
+  const { data: voyageNotes = [] } = useQuery<any[]>({
+    queryKey: ["/api/voyages", voyageId, "notes"],
+    enabled: !!voyageId,
+  });
+
+  const addNoteMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", `/api/voyages/${voyageId}/notes`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "notes"] });
+      setNoteContent("");
+      setShowNoteForm(false);
+      toast({ title: "Note added" });
+    },
+  });
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: async (noteId: number) => {
+      await apiRequest("DELETE", `/api/voyages/notes/${noteId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "notes"] });
+      toast({ title: "Note deleted" });
+    },
+  });
+
+  const updateTaskMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const res = await apiRequest("PATCH", `/api/voyages/${voyageId}/checklist/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId] });
+      toast({ title: "Task updated" });
+    },
+  });
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [editCargoOpen, setEditCargoOpen] = useState(false);
   const [editCargoType, setEditCargoType] = useState("");
@@ -1282,10 +1327,19 @@ export default function VoyageDetail() {
 
   const addTaskMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/voyages/${voyageId}/checklist`, { title: newTask, assignedTo: "both" });
+      const res = await apiRequest("POST", `/api/voyages/${voyageId}/checklist`, { 
+        title: newTask, 
+        assignedTo: taskAssignedTo,
+        dueDate: taskDueDate || null
+      });
       return res.json();
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId] }); setNewTask(""); },
+    onSuccess: () => { 
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId] }); 
+      setNewTask(""); 
+      setTaskDueDate("");
+      setTaskAssignedTo("both");
+    },
     onError: () => toast({ title: "Could not add task", variant: "destructive" }),
   });
 
@@ -1751,7 +1805,7 @@ export default function VoyageDetail() {
     enabled: directorySearch.length >= 2,
   });
 
-  const addNoteMutation = useMutation({
+  const addActivityMutation = useMutation({
     mutationFn: () => apiRequest("POST", `/api/voyages/${voyageId}/activities`, { title: noteTitle, description: noteDesc }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "activities"] });
@@ -2061,13 +2115,25 @@ export default function VoyageDetail() {
 
             {/* ⚡ Close Operation button */}
             {isOwner && (voyage.status === "active" || voyage.status === "completed") && (
-              <button
-                onClick={() => { setCloseOpAcknowledge(false); setShowCloseOpModal(true); }}
-                className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-semibold bg-amber-600/20 hover:bg-amber-600/35 border border-amber-500/40 text-amber-300 hover:text-amber-200 transition-all"
-                data-testid="button-close-operation"
-              >
-                ⚡ Operasyonu Kapat ve Finansa Aktar
-              </button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(`/api/voyage-reports/${voyageId}/financial-report/pdf`, '_blank')}
+                  className="flex items-center gap-2"
+                  data-testid="button-download-report"
+                >
+                  <Download className="w-4 h-4" />
+                  Download Report
+                </Button>
+                <button
+                  onClick={() => { setCloseOpAcknowledge(false); setShowCloseOpModal(true); }}
+                  className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm font-semibold bg-amber-600/20 hover:bg-amber-600/35 border border-amber-500/40 text-amber-300 hover:text-amber-200 transition-all"
+                  data-testid="button-close-operation"
+                >
+                  ⚡ Operasyonu Kapat ve Finansa Aktar
+                </button>
+              </div>
             )}
             {voyage.status === "pending_finance" && (
               <span className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold bg-amber-900/25 border border-amber-500/30 text-amber-400" data-testid="badge-pending-finance">
@@ -2249,6 +2315,7 @@ export default function VoyageDetail() {
           { key: "documents",   label: "Documents",  icon: FolderOpen },
           { key: "comms",       label: "Messages",   icon: MessageCircle },
           { key: "financial",   label: "Financial",  icon: DollarSign },
+          { key: "notes_tasks", label: "Notes & Tasks", icon: ClipboardList },
           { key: "participants", label: "Team",      icon: Users2 },
           { key: "contacts",    label: "Contacts",  icon: Mail },
         ] as const).filter(({ key }) => !(key === "cargo_ops" && (voyage?.purposeOfCall === "Husbandry" || voyage?.purposeOfCall === "Crew Change"))).map(({ key, label, icon: Icon }) => (
@@ -5740,8 +5807,8 @@ export default function VoyageDetail() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setShowNoteDialog(false)}>Cancel</Button>
-                <Button onClick={() => addNoteMutation.mutate()} disabled={!noteTitle.trim() || addNoteMutation.isPending} data-testid="button-save-note">
-                  {addNoteMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Note"}
+                <Button onClick={() => addActivityMutation.mutate()} disabled={!noteTitle.trim() || addActivityMutation.isPending} data-testid="button-save-note">
+                  {addActivityMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Note"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -5962,6 +6029,224 @@ export default function VoyageDetail() {
               <p className="text-xs mt-1">Invite agents, providers, or surveyors to collaborate on this voyage.</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Tab: Notes & Tasks ─────────────────────────────────────── */}
+      {activeTab === "notes_tasks" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="lg:col-span-2 space-y-4">
+            <Card className="p-4 bg-card/50 backdrop-blur-sm border-muted/20">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4 text-primary" />
+                  Voyage Timeline & Notes
+                </h3>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="h-8 text-xs gap-1"
+                  onClick={() => setShowNoteForm(!showNoteForm)}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  New Note
+                </Button>
+              </div>
+
+              {showNoteForm && (
+                <div className="mb-6 p-4 rounded-xl bg-muted/30 border border-muted/50 space-y-4 animate-in zoom-in-95 duration-200">
+                  <Textarea 
+                    placeholder="Write a note, observation or alert..."
+                    value={noteContent}
+                    onChange={(e) => setNoteContent(e.target.value)}
+                    className="min-h-[100px] bg-background border-muted/40"
+                  />
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <Select value={noteType} onValueChange={(val: any) => setNoteType(val)}>
+                        <SelectTrigger className="w-[140px] h-9 text-xs">
+                          <SelectValue placeholder="Note Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="comment">💬 Comment</SelectItem>
+                          <SelectItem value="observation">👁️ Observation</SelectItem>
+                          <SelectItem value="alert">⚠️ Alert</SelectItem>
+                          <SelectItem value="milestone">🏁 Milestone</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <div className="flex items-center gap-2 px-3 h-9 rounded-md border border-muted/40 bg-background/50">
+                        <Label htmlFor="private-note" className="text-xs cursor-pointer">Private</Label>
+                        <Switch 
+                          id="private-note" 
+                          checked={isPrivateNote} 
+                          onCheckedChange={setIsPrivateNote}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 ml-auto">
+                      <Button size="sm" variant="ghost" className="h-9 text-xs" onClick={() => setShowNoteForm(false)}>Cancel</Button>
+                      <Button 
+                        size="sm" 
+                        className="h-9 text-xs px-4" 
+                        onClick={() => addNoteMutation.mutate({
+                          content: noteContent,
+                          noteType,
+                          isPrivate: isPrivateNote
+                        })}
+                        disabled={!noteContent.trim() || addNoteMutation.isPending}
+                      >
+                        {addNoteMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Post Note"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                {voyageNotes.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-xl">
+                    <p className="text-sm">No notes yet. Share observations or updates here.</p>
+                  </div>
+                ) : (
+                  voyageNotes.map((note: any) => (
+                    <div key={note.id} className="relative pl-4 border-l-2 border-muted/30 pb-4 last:pb-0">
+                      <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-background border-2 border-muted flex items-center justify-center">
+                        {note.noteType === 'alert' && <div className="w-1.5 h-1.5 rounded-full bg-red-500" />}
+                        {note.noteType === 'milestone' && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+                        {note.noteType === 'observation' && <div className="w-1.5 h-1.5 rounded-full bg-sky-500" />}
+                        {note.noteType === 'comment' && <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />}
+                      </div>
+                      <div className="bg-muted/20 rounded-xl p-3 border border-muted/10 hover:border-muted/30 transition-colors group">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                              {note.authorName?.slice(0, 2).toUpperCase() || "UN"}
+                            </div>
+                            <span className="text-xs font-semibold">{note.authorName}</span>
+                            <span className="text-[10px] text-muted-foreground">{fmtDateTime(note.createdAt)}</span>
+                            {note.isPrivate && (
+                              <Badge variant="outline" className="text-[9px] h-4 py-0 bg-amber-500/10 text-amber-500 border-amber-500/20">Private</Badge>
+                            )}
+                            <Badge className={`text-[9px] h-4 py-0 capitalize ${
+                              note.noteType === 'alert' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+                              note.noteType === 'milestone' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
+                              note.noteType === 'observation' ? 'bg-sky-500/10 text-sky-500 border-sky-500/20' :
+                              'bg-slate-500/10 text-slate-500 border-slate-500/20'
+                            }`}>
+                              {note.noteType}
+                            </Badge>
+                          </div>
+                          {note.authorId === userId && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => deleteNoteMutation.mutate(note.id)}
+                            >
+                              <Trash2 className="w-3 h-3 text-muted-foreground hover:text-red-500" />
+                            </Button>
+                          )}
+                        </div>
+                        <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                          {note.content}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card className="p-4 bg-card/50 backdrop-blur-sm border-muted/20">
+              <h3 className="text-sm font-semibold flex items-center gap-2 mb-4">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                Tasks & Checklist
+              </h3>
+              
+              <div className="space-y-3 mb-6">
+                <div className="flex flex-col gap-2">
+                  <Input 
+                    placeholder="New task title..." 
+                    value={newTask}
+                    onChange={(e) => setNewTask(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                  <div className="flex gap-2">
+                    <Input 
+                      type="date"
+                      value={taskDueDate}
+                      onChange={(e) => setTaskDueDate(e.target.value)}
+                      className="h-9 text-xs flex-1"
+                    />
+                    <Select value={taskAssignedTo} onValueChange={setTaskAssignedTo}>
+                      <SelectTrigger className="h-9 text-xs w-[100px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="both">Both</SelectItem>
+                        <SelectItem value="agent">Agent</SelectItem>
+                        <SelectItem value="owner">Owner</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button 
+                    className="w-full h-9 text-xs" 
+                    disabled={!newTask.trim() || addTaskMutation.isPending}
+                    onClick={() => addTaskMutation.mutate()}
+                  >
+                    {addTaskMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Plus className="w-3.5 h-3.5 mr-1" />}
+                    Add Task
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {voyage.checklist?.length === 0 ? (
+                  <p className="text-center py-6 text-xs text-muted-foreground italic">No tasks assigned.</p>
+                ) : (
+                  voyage.checklist?.map((item: any) => (
+                    <div key={item.id} className={`group flex items-start gap-3 p-3 rounded-xl border transition-all ${
+                      item.isCompleted ? 'bg-muted/10 border-muted/20' : 'bg-background border-muted/30 hover:border-primary/30'
+                    }`}>
+                      <Checkbox 
+                        checked={item.isCompleted} 
+                        onCheckedChange={(checked) => updateTaskMutation.mutate({ id: item.id, data: { isCompleted: !!checked } })}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium leading-tight ${item.isCompleted ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                          {item.title}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          {item.dueDate && (
+                            <span className={`text-[10px] flex items-center gap-1 ${
+                              new Date(item.dueDate) < new Date() && !item.isCompleted ? 'text-red-500 font-bold' : 'text-muted-foreground'
+                            }`}>
+                              <Calendar className="w-3 h-3" />
+                              {new Date(item.dueDate).toLocaleDateString()}
+                            </span>
+                          )}
+                          <Badge variant="outline" className="text-[9px] h-4 py-0 capitalize border-muted/50">
+                            {item.assignedTo}
+                          </Badge>
+                        </div>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity -mr-1"
+                        onClick={() => deleteTaskMutation.mutate(item.id)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-red-500" />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </Card>
+          </div>
         </div>
       )}
 

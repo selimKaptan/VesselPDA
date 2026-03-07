@@ -210,15 +210,44 @@ router.patch("/:id/checklist/:itemId", isAuthenticated, async (req: any, res) =>
   try {
     const voyageId = parseInt(req.params.id);
     const itemId = parseInt(req.params.itemId);
-    const item = await storage.toggleChecklistItem(itemId, voyageId);
+    const { isCompleted, assignedTo, dueDate, title } = req.body;
+
+    const currentItem = (await storage.getChecklistByVoyage(voyageId)).find(i => i.id === itemId);
+    if (!currentItem) return res.status(404).json({ message: "Item not found" });
+
+    const updateData: any = {};
+    if (isCompleted !== undefined) updateData.isCompleted = isCompleted;
+    if (assignedTo !== undefined) updateData.assignedTo = assignedTo;
+    if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
+    if (title !== undefined) updateData.title = title;
+
+    // Use toggle behavior if no data provided (backward compatibility)
+    if (Object.keys(req.body).length === 0) {
+      const item = await storage.toggleChecklistItem(itemId, voyageId);
+      return res.json(item);
+    }
+
+    const item = await storage.updateChecklistItem(itemId, voyageId, updateData);
     if (!item) return res.status(404).json({ message: "Item not found" });
-    if (item.isCompleted) {
-      const userId = req.user?.claims?.sub || req.user?.id;
+
+    const userId = req.user?.claims?.sub || req.user?.id;
+    if (isCompleted && !currentItem.isCompleted) {
       logVoyageActivity({ voyageId, userId, activityType: 'checklist_completed', title: `Completed: ${item.title}` });
     }
+
+    if (assignedTo && assignedTo !== currentItem.assignedTo) {
+      await storage.createNotification({
+        userId: assignedTo,
+        type: "task_assigned",
+        title: "New Task Assigned",
+        message: `You have been assigned a task: ${item.title}`,
+        link: `/voyages/${voyageId}`,
+      });
+    }
+
     res.json(item);
   } catch (error) {
-    res.status(500).json({ message: "Failed to toggle checklist item" });
+    res.status(500).json({ message: "Failed to update checklist item" });
   }
 });
 

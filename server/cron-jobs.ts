@@ -4,6 +4,7 @@ import { getPositionByMmsi } from "./ais-stream";
 import { fetchTCMBRates } from "./exchange-rates";
 import { checkAndSendReminders } from "./payment-reminders";
 import { sendCertificateExpiryEmail } from "./email";
+import { checkInvoiceDueDates, checkCertificateExpiry as checkCertificateExpiryAlert, checkDaAdvanceDue } from "./cron";
 
 // ────────────────────────────────────────────────────────────────────────────
 // a) syncWatchlistPositions — Every 5 minutes
@@ -277,6 +278,15 @@ async function checkPaymentReminders() {
   console.log("[cron] checkPaymentReminders: starting...");
   const result = await checkAndSendReminders();
   console.log("[cron] checkPaymentReminders: result:", result);
+  
+  // Custom Invoice Reminders
+  await checkInvoiceDueDates();
+  
+  // Custom Certificate Expiry
+  await checkCertificateExpiryAlert();
+  
+  // DA Advance Due
+  await checkDaAdvanceDue();
 }
 
 export function startCronJobs() {

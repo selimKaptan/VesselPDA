@@ -69,6 +69,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+import { FeatureTooltip } from "@/components/feature-tooltip";
+
 export default function AnalyticsPage() {
   const [period, setPeriod] = useState("6");
 
@@ -103,8 +105,10 @@ export default function AnalyticsPage() {
               <BarChart2 className="w-5 h-5 text-primary" />
             </div>
             <div>
+            <FeatureTooltip id="analytics-intro" content="This is your financial command center. All voyage profitability and expenses are summarized here.">
               <h1 className="text-2xl font-bold tracking-tight">Analytics & Reports</h1>
-              <p className="text-sm text-muted-foreground">Operational performance overview</p>
+            </FeatureTooltip>
+            <p className="text-sm text-muted-foreground">Operational performance overview</p>
             </div>
           </div>
           <div className="flex gap-1 p-1 bg-muted rounded-lg w-full sm:w-auto overflow-x-auto" data-testid="period-selector">

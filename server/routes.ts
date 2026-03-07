@@ -30,6 +30,8 @@ import { orgRouter, inviteRouter } from "./routes/organization.routes";
 import { voyageInviteRouter } from "./routes/voyage-invite.routes";
 import demoRouter from "./routes/demo.routes";
 
+import voyageNotesRoutes from "./routes/voyage-notes.routes";
+
 // Root-mounted modules (full /api/... paths preserved inside router)
 import authRoutes from "./routes/auth.routes";
 import portRoutes from "./routes/port.routes";
@@ -46,6 +48,9 @@ import laytimeRoutes from "./routes/laytime.routes";
 import daAdvanceRoutes from "./routes/da-advance.routes";
 import analyticsRoutes from "./routes/analytics.routes";
 import portExpenseRoutes from "./routes/port-expense.routes";
+import voyageReportRoutes from "./routes/voyage-report.routes";
+import commissionRoutes from "./routes/commission.routes";
+import voyageNotesRoutes from "./routes/voyage-notes.routes";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -91,6 +96,9 @@ export async function registerRoutes(
   app.use("/api/forum", forumRoutes);
   app.use("/api/tenders", tenderRoutes);
   app.use("/api/voyages", voyageRoutes);
+  app.use(commissionRoutes);
+  app.use(voyageNotesRoutes);
+  app.use("/api/voyage-reports", voyageReportRoutes);
   app.use("/api/service-requests", serviceRequestRoutes);
   app.use("/api/nominations", nominationRoutes);
   app.use("/api/market", marketRoutes);

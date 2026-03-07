@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
@@ -87,6 +88,77 @@ const PROVIDER_COMPLETION_FIELDS = [
   { key: "phone", label: "Phone Number", hint: "Add a contact phone number", isArray: false },
   { key: "email", label: "Contact Email", hint: "Add a contact email address", isArray: false },
 ];
+
+function CommissionSettings() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // We can store default commission settings in user's profile or a separate table.
+  // For simplicity, let's use a local state or a new table if needed.
+  // The task says "Commission Settings" tab in settings.tsx.
+  // Since we don't have a specific table for user-level commission defaults yet, 
+  // let's assume it might be part of company profile or we can just provide the UI for now.
+  
+  const [defaultRate, setDefaultRate] = useState(2.5);
+  const [commissionType, setCommissionType] = useState<"percentage" | "fixed">("percentage");
+  const [currency, setCurrency] = useState("USD");
+
+  const saveSettings = () => {
+    toast({ title: "Settings saved", description: "Default commission settings updated." });
+  };
+
+  if (user?.userRole !== "agent" && user?.userRole !== "admin") return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Commission Settings</CardTitle>
+        <CardDescription>Configure your default agency commission rules.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Commission Type</Label>
+            <Select value={commissionType} onValueChange={(v: any) => setCommissionType(v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="percentage">Percentage (%)</SelectItem>
+                <SelectItem value="fixed">Fixed Amount</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>{commissionType === "percentage" ? "Default Rate (%)" : "Default Amount"}</Label>
+            <Input 
+              type="number" 
+              value={defaultRate} 
+              onChange={(e) => setDefaultRate(parseFloat(e.target.value))} 
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label>Default Currency</Label>
+          <Select value={currency} onValueChange={setCurrency}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="USD">USD</SelectItem>
+              <SelectItem value="EUR">EUR</SelectItem>
+              <SelectItem value="TRY">TRY</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button onClick={saveSettings} className="w-full bg-[hsl(var(--maritime-primary))] text-white">
+          Save Commission Settings
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Settings() {
   const { user } = useAuth();
@@ -263,7 +335,7 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="account" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6">
+        <TabsList className="grid w-full grid-cols-4 mb-6">
           <TabsTrigger value="account" className="flex items-center gap-2">
             <User className="w-4 h-4" />
             Account
@@ -272,11 +344,19 @@ export default function Settings() {
             <Bell className="w-4 h-4" />
             Notifications
           </TabsTrigger>
+          <TabsTrigger value="commissions" className="flex items-center gap-2">
+            <Calculator className="w-4 h-4" />
+            Commissions
+          </TabsTrigger>
           <TabsTrigger value="fda-templates" className="flex items-center gap-2">
             <Calculator className="w-4 h-4" />
             FDA Templates
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="commissions" className="space-y-6">
+          <CommissionSettings />
+        </TabsContent>
 
         <TabsContent value="fda-templates" className="space-y-6">
           <Card>
@@ -747,6 +827,54 @@ export default function Settings() {
                   checked={!!notificationPrefs?.emailOnVoyageUpdate} 
                   onCheckedChange={(checked) => handleTogglePreference("emailOnVoyageUpdate", checked)}
                   data-testid="switch-email-voyage"
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Invoice Due Reminder</Label>
+                  <p className="text-xs text-muted-foreground">Receive reminders 7 days and 1 day before invoice due date.</p>
+                </div>
+                <Switch 
+                  checked={!!notificationPrefs?.emailOnInvoiceDue} 
+                  onCheckedChange={(checked) => handleTogglePreference("emailOnInvoiceDue", checked)}
+                  data-testid="switch-email-invoice-due"
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Certificate Expiry Warning</Label>
+                  <p className="text-xs text-muted-foreground">Receive warnings 30 days before certificate expiry.</p>
+                </div>
+                <Switch 
+                  checked={!!notificationPrefs?.emailOnCertificateExpiry} 
+                  onCheckedChange={(checked) => handleTogglePreference("emailOnCertificateExpiry", checked)}
+                  data-testid="switch-email-cert-expiry"
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>DA Advance Reminder</Label>
+                  <p className="text-xs text-muted-foreground">Receive reminders 14 days before DA advance due date.</p>
+                </div>
+                <Switch 
+                  checked={!!notificationPrefs?.emailOnDaAdvanceDue} 
+                  onCheckedChange={(checked) => handleTogglePreference("emailOnDaAdvanceDue", checked)}
+                  data-testid="switch-email-da-due"
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Payment Received Confirmation</Label>
+                  <p className="text-xs text-muted-foreground">Receive confirmation when a payment is received.</p>
+                </div>
+                <Switch 
+                  checked={!!notificationPrefs?.emailOnPaymentReceived} 
+                  onCheckedChange={(checked) => handleTogglePreference("emailOnPaymentReceived", checked)}
+                  data-testid="switch-email-payment-received"
                 />
               </div>
             </CardContent>

@@ -18,6 +18,10 @@ import {
   cargoReportTemplate,
   fdaReadyTemplate,
   invoiceCreatedTemplate,
+  invoiceDueReminderTemplate,
+  certificateExpiryTemplate,
+  daAdvanceDueTemplate,
+  paymentReceivedTemplate,
 } from "./email-templates";
 import { db } from "./db";
 import { eq, asc } from "drizzle-orm";
@@ -583,6 +587,54 @@ export async function sendApprovalRequestEmail(data: ApprovalRequestEmailData): 
     console.log(`[email] Approval request email sent to ${data.toEmail}`);
     return true;
   } catch (err) { console.error("[email] sendApprovalRequestEmail failed:", err); return false; }
+}
+
+export async function sendInvoiceDueReminder(to: string, data: Parameters<typeof invoiceDueReminderTemplate>[0]): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) return false;
+  const resend = new Resend(creds.apiKey);
+  const { subject, html } = invoiceDueReminderTemplate(data);
+  try {
+    const { error } = await resend.emails.send({ from: `VesselPDA <${creds.fromEmail}>`, to: [to], subject, html });
+    if (error) { console.error("[email] sendInvoiceDueReminder error:", error); return false; }
+    return true;
+  } catch (err) { console.error("[email] sendInvoiceDueReminder failed:", err); return false; }
+}
+
+export async function sendCertificateExpiryWarning(to: string, data: Parameters<typeof certificateExpiryTemplate>[0]): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) return false;
+  const resend = new Resend(creds.apiKey);
+  const { subject, html } = certificateExpiryTemplate(data);
+  try {
+    const { error } = await resend.emails.send({ from: `VesselPDA <${creds.fromEmail}>`, to: [to], subject, html });
+    if (error) { console.error("[email] sendCertificateExpiryWarning error:", error); return false; }
+    return true;
+  } catch (err) { console.error("[email] sendCertificateExpiryWarning failed:", err); return false; }
+}
+
+export async function sendDaAdvanceDueReminder(to: string, data: Parameters<typeof daAdvanceDueTemplate>[0]): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) return false;
+  const resend = new Resend(creds.apiKey);
+  const { subject, html } = daAdvanceDueTemplate(data);
+  try {
+    const { error } = await resend.emails.send({ from: `VesselPDA <${creds.fromEmail}>`, to: [to], subject, html });
+    if (error) { console.error("[email] sendDaAdvanceDueReminder error:", error); return false; }
+    return true;
+  } catch (err) { console.error("[email] sendDaAdvanceDueReminder failed:", err); return false; }
+}
+
+export async function sendPaymentReceivedConfirmation(to: string, data: Parameters<typeof paymentReceivedTemplate>[0]): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) return false;
+  const resend = new Resend(creds.apiKey);
+  const { subject, html } = paymentReceivedTemplate(data);
+  try {
+    const { error } = await resend.emails.send({ from: `VesselPDA <${creds.fromEmail}>`, to: [to], subject, html });
+    if (error) { console.error("[email] sendPaymentReceivedConfirmation error:", error); return false; }
+    return true;
+  } catch (err) { console.error("[email] sendPaymentReceivedConfirmation failed:", err); return false; }
 }
 
 // ─── CARGO REPORT EMAIL ───────────────────────────────────────────────────────

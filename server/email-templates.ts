@@ -416,6 +416,110 @@ export function nominationTemplate(params: {
   };
 }
 
+export function invoiceDueReminderTemplate(params: {
+  recipientName: string;
+  invoiceTitle: string;
+  amount: number;
+  currency: string;
+  dueDate: string;
+  invoiceUrl: string;
+  daysRemaining: number;
+}): { subject: string; html: string } {
+  const content = `
+    <h1 style="color:#f1f5f9;font-size:20px;margin:0 0 8px 0">Invoice Due Reminder</h1>
+    <p style="color:#94a3b8;font-size:14px;line-height:1.6;margin:8px 0">Dear ${params.recipientName},</p>
+    <p style="color:#94a3b8;font-size:14px;line-height:1.6;margin:8px 0">This is a reminder that the following invoice is due in ${params.daysRemaining} day(s).</p>
+    <hr style="height:1px;background-color:#2d3a56;margin:18px 0;border:none">
+    <table style="width:100%;border-collapse:collapse">
+      ${infoRow("Invoice", params.invoiceTitle)}
+      ${infoRow("Amount", `${params.currency} ${params.amount.toLocaleString("en")}`)}
+      ${infoRow("Due Date", params.dueDate)}
+    </table>
+    <div style="text-align:center;padding:18px 0 10px">
+      ${btn("View Invoice", params.invoiceUrl, "sky")}
+    </div>
+  `;
+  return {
+    subject: `Reminder: Invoice Due - ${params.invoiceTitle}`,
+    html: baseTemplate(content),
+  };
+}
+
+export function certificateExpiryTemplate(params: {
+  vesselName: string;
+  certificateType: string;
+  expiryDate: string;
+  viewUrl: string;
+}): { subject: string; html: string } {
+  const content = `
+    <h1 style="color:#f1f5f9;font-size:20px;margin:0 0 8px 0">Certificate Expiry Warning</h1>
+    <p style="color:#94a3b8;font-size:14px;line-height:1.6;margin:8px 0">The following certificate for <strong style="color:#f1f5f9">${params.vesselName}</strong> is expiring soon.</p>
+    <hr style="height:1px;background-color:#2d3a56;margin:18px 0;border:none">
+    <table style="width:100%;border-collapse:collapse">
+      ${infoRow("Vessel", params.vesselName)}
+      ${infoRow("Certificate", params.certificateType)}
+      ${infoRow("Expiry Date", params.expiryDate)}
+    </table>
+    <div style="text-align:center;padding:18px 0 10px">
+      ${btn("View Certificates", params.viewUrl, "sky")}
+    </div>
+  `;
+  return {
+    subject: `Warning: Certificate Expiring - ${params.vesselName}`,
+    html: baseTemplate(content),
+  };
+}
+
+export function daAdvanceDueTemplate(params: {
+  title: string;
+  amount: number;
+  currency: string;
+  dueDate: string;
+  viewUrl: string;
+}): { subject: string; html: string } {
+  const content = `
+    <h1 style="color:#f1f5f9;font-size:20px;margin:0 0 8px 0">DA Advance Reminder</h1>
+    <p style="color:#94a3b8;font-size:14px;line-height:1.6;margin:8px 0">This is a reminder for the following DA Advance.</p>
+    <hr style="height:1px;background-color:#2d3a56;margin:18px 0;border:none">
+    <table style="width:100%;border-collapse:collapse">
+      ${infoRow("Description", params.title)}
+      ${infoRow("Amount", `${params.currency} ${params.amount.toLocaleString("en")}`)}
+      ${infoRow("Due Date", params.dueDate)}
+    </table>
+    <div style="text-align:center;padding:18px 0 10px">
+      ${btn("View DA Advances", params.viewUrl, "sky")}
+    </div>
+  `;
+  return {
+    subject: `Reminder: DA Advance - ${params.title}`,
+    html: baseTemplate(content),
+  };
+}
+
+export function paymentReceivedTemplate(params: {
+  invoiceTitle: string;
+  paidAmount: number;
+  currency: string;
+  remainingBalance: number;
+  recipientName: string;
+}): { subject: string; html: string } {
+  const content = `
+    <h1 style="color:#f1f5f9;font-size:20px;margin:0 0 8px 0">Payment Received</h1>
+    <p style="color:#94a3b8;font-size:14px;line-height:1.6;margin:8px 0">Dear ${params.recipientName},</p>
+    <p style="color:#94a3b8;font-size:14px;line-height:1.6;margin:8px 0">We have received a payment for the following invoice.</p>
+    <hr style="height:1px;background-color:#2d3a56;margin:18px 0;border:none">
+    <table style="width:100%;border-collapse:collapse">
+      ${infoRow("Invoice", params.invoiceTitle)}
+      ${infoRow("Amount Paid", `${params.currency} ${params.paidAmount.toLocaleString("en")}`)}
+      ${infoRow("Remaining Balance", `${params.currency} ${params.remainingBalance.toLocaleString("en")}`)}
+    </table>
+  `;
+  return {
+    subject: `Payment Received: ${params.invoiceTitle}`,
+    html: baseTemplate(content),
+  };
+}
+
 export function nominationResponseTemplate(params: {
   nominatorName: string;
   agentCompanyName: string;

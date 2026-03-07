@@ -9,7 +9,7 @@ import { sql as drizzleSql, eq, desc, and, lt, gt, lte, isNotNull } from "drizzl
 import { emitToUser } from "../socket";
 import { logAction, getClientIp } from "../audit";
 import { logVoyageActivity } from "../voyage-activity";
-import { sendInvoiceCreatedEmail } from "../email";
+import { sendInvoiceCreatedEmail, sendPaymentReceivedConfirmation } from "../email";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -198,6 +198,31 @@ router.post("/api/invoices/:id/payments", isAuthenticated, async (req: any, res)
         activityType: 'invoice_paid', 
         title: invoice.status === 'paid' ? 'Invoice fully paid' : `Partial payment recorded: ${data.amount} ${invoice.currency}`
       });
+    }
+
+    // Send payment confirmation email
+    if (invoice && invoice.createdByUserId) {
+      (async () => {
+        try {
+          const prefs = await storage.getNotificationPreferences(invoice.createdByUserId);
+          if (prefs?.emailOnPaymentReceived) {
+            const user = await storage.getUser(invoice.createdByUserId);
+            const balance = await storage.getInvoiceBalance(id);
+            if (user?.email) {
+              await sendPaymentReceivedConfirmation(user.email, {
+                invoiceTitle: invoice.title,
+                paidAmount: parseFloat(data.amount),
+                currency: invoice.currency,
+                remainingBalance: balance.balance,
+                recipientName: `\${user.firstName || ""} \${user.lastName || ""}`.trim() || user.username,
+                viewUrl: `\${req.protocol}://\${req.get("host")}/invoices`
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("[payment] Payment confirmation email failed:", e);
+        }
+      })();
     }
 
     res.status(201).json(payment);

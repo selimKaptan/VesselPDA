@@ -152,6 +152,9 @@ const FLAG_EMOJI: Record<string, string> = {
   Malta: "🇲🇹", Cyprus: "🇨🇾", Greece: "🇬🇷", Singapore: "🇸🇬",
 };
 
+import { GettingStartedWidget } from "@/components/getting-started-widget";
+import { FeatureTooltip } from "@/components/feature-tooltip";
+
 export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, proformasLoading, tenders, notificationsData, plan, proformaCount, proformaLimit }: {
   user: any; vessels?: Vessel[]; vesselsLoading?: boolean; proformas?: Proforma[];
   proformasLoading?: boolean; tenders: any[]; notificationsData: any; plan: string;
@@ -191,6 +194,8 @@ export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, p
 
   return (
     <div className="space-y-6">
+      {/* Getting Started Checklist */}
+      <GettingStartedWidget />
       {/* 4 Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="Total Vessels" value={vessels?.length ?? 0} loading={vesselsLoading} icon={Ship} color="var(--maritime-primary)" href="/vessels" testId="stat-fleet" />

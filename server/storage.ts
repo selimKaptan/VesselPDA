@@ -291,6 +291,8 @@ export interface IStorage {
   updatePortExpense(id: number, data: Partial<InsertPortExpense>): Promise<PortExpense | undefined>;
   deletePortExpense(id: number): Promise<boolean>;
 
+  updateChecklistItem(id: number, voyageId: number, data: Partial<InsertVoyageChecklist>): Promise<VoyageChecklist | undefined>;
+
   getInvoicePayments(invoiceId: number): Promise<InvoicePayment[]>;
   createInvoicePayment(data: InsertInvoicePayment): Promise<InvoicePayment>;
   getInvoiceBalance(invoiceId: number): Promise<{ total: number; paid: number; balance: number; status: string }>;
@@ -1404,6 +1406,14 @@ export class DatabaseStorage implements IStorage {
     const result = await db.delete(voyageChecklists)
       .where(and(eq(voyageChecklists.id, id), eq(voyageChecklists.voyageId, voyageId)));
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async updateChecklistItem(id: number, voyageId: number, data: Partial<InsertVoyageChecklist>): Promise<VoyageChecklist | undefined> {
+    const [updated] = await db.update(voyageChecklists)
+      .set(data)
+      .where(and(eq(voyageChecklists.id, id), eq(voyageChecklists.voyageId, voyageId)))
+      .returning();
+    return updated;
   }
 
   // ─── SERVICE REQUESTS ───────────────────────────────────────────────────────

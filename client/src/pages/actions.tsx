@@ -33,10 +33,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLanguage } from "@/lib/i18n";
 import { fmtDate } from "@/lib/formatDate";
 
+import { FeatureTooltip } from "@/components/feature-tooltip";
+
 export default function ActionCenter() {
   const { t } = useLanguage();
   
-  const { data: actions, isLoading } = useQuery({
+  const { data: actions, isLoading } = useQuery<any>({
     queryKey: ["/api/actions/pending"],
     refetchInterval: 120000, // 2 minutes polling
   });
@@ -81,7 +83,9 @@ export default function ActionCenter() {
             <Zap className="w-6 h-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Action Center</h1>
+            <FeatureTooltip id="actions-intro" content="This is your task center. All pending approvals, missing documents, and urgent actions are listed here.">
+              <h1 className="text-3xl font-bold tracking-tight">Action Center</h1>
+            </FeatureTooltip>
             <p className="text-muted-foreground">Manage your pending tasks and critical updates</p>
           </div>
         </div>

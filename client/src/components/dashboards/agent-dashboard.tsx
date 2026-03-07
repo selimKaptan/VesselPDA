@@ -230,6 +230,9 @@ function AccuracyWidget() {
   );
 }
 
+import { GettingStartedWidget } from "@/components/getting-started-widget";
+import { FeatureTooltip } from "@/components/feature-tooltip";
+
 export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificationsData }: {
   user: any; tenders: any[]; myBidsData: any; myProfile?: CompanyProfile | null; notificationsData: any;
 }) {
@@ -270,6 +273,8 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
 
   return (
     <div className="space-y-6">
+      {/* Getting Started Checklist */}
+      <GettingStartedWidget />
       {/* Verification status banner */}
       {myProfile && (
         <>

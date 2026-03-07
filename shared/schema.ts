@@ -391,6 +391,10 @@ export const portExpenses = pgTable("port_expenses", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const insertPortExpenseSchema = createInsertSchema(portExpenses).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertPortExpense = z.infer<typeof insertPortExpenseSchema>;
+export type PortExpense = typeof portExpenses.$inferSelect;
+
 export const portExpenseRelations = relations(portExpenses, ({ one }) => ({
   user: one(users, { fields: [portExpenses.userId], references: [users.id] }),
   voyage: one(voyages, { fields: [portExpenses.voyageId], references: [voyages.id] }),
@@ -407,6 +411,10 @@ export const notificationPreferences = pgTable("notification_preferences", {
   emailOnCertExpiry: boolean("email_on_cert_expiry").default(true),
   emailOnNewMessage: boolean("email_on_new_message").default(true),
   emailOnVoyageUpdate: boolean("email_on_voyage_update").default(false),
+  emailOnInvoiceDue: boolean("email_on_invoice_due").default(true),
+  emailOnCertificateExpiry: boolean("email_on_certificate_expiry").default(true),
+  emailOnDaAdvanceDue: boolean("email_on_da_advance_due").default(true),
+  emailOnPaymentReceived: boolean("email_on_payment_received").default(true),
   inAppOnAll: boolean("in_app_on_all").default(true),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -439,13 +447,54 @@ export const insertFdaMappingTemplateSchema = createInsertSchema(fdaMappingTempl
 export type InsertFdaMappingTemplate = z.infer<typeof insertFdaMappingTemplateSchema>;
 export type FdaMappingTemplate = typeof fdaMappingTemplates.$inferSelect;
 
-export const insertPortExpenseSchema = createInsertSchema(portExpenses).omit({ id: true, createdAt: true, updatedAt: true });
-export type InsertNotification = z.infer<typeof insertNotificationSchema>;
-export type Notification = typeof notifications.$inferSelect;
-export type NotificationPreference = typeof notificationPreferences.$inferSelect;
-export type InsertNotificationPreference = z.infer<typeof insertNotificationPreferenceSchema>;
-export type PortExpense = typeof portExpenses.$inferSelect;
-export type InsertPortExpense = z.infer<typeof insertPortExpenseSchema>;
+export const agentCommissions = pgTable("agent_commissions", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "cascade" }),
+  invoiceId: integer("invoice_id").references(() => invoices.id),
+  commissionType: text("commission_type").notNull().default("percentage"), // "percentage" | "fixed"
+  rate: real("rate"),          // % (ör. 2.5 = %2.5)
+  fixedAmount: real("fixed_amount"),
+  currency: text("currency").notNull().default("USD"),
+  baseAmount: real("base_amount"), // komisyon hesaplanan temel tutar
+  calculatedAmount: real("calculated_amount").notNull(),
+  status: text("status").notNull().default("pending"), // "pending" | "invoiced" | "paid"
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const agentCommissionRelations = relations(agentCommissions, ({ one }) => ({
+  user: one(users, { fields: [agentCommissions.userId], references: [users.id] }),
+  voyage: one(voyages, { fields: [agentCommissions.voyageId], references: [voyages.id] }),
+  invoice: one(invoices, { fields: [agentCommissions.invoiceId], references: [invoices.id] }),
+}));
+
+export const insertAgentCommissionSchema = createInsertSchema(agentCommissions).omit({ id: true, createdAt: true });
+export type InsertAgentCommission = z.infer<typeof insertAgentCommissionSchema>;
+export type AgentCommission = typeof agentCommissions.$inferSelect;
+
+export const voyageNotes = pgTable("voyage_notes", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  authorId: varchar("author_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  noteType: text("note_type").notNull().default("comment"), // "comment" | "observation" | "alert" | "milestone"
+  isPrivate: boolean("is_private").default(false),
+  linkedEntityType: text("linked_entity_type"), // "invoice" | "fda" | "proforma" | null
+  linkedEntityId: integer("linked_entity_id"),
+  mentions: text("mentions").array().default([]), // user IDs
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const voyageNoteRelations = relations(voyageNotes, ({ one }) => ({
+  voyage: one(voyages, { fields: [voyageNotes.voyageId], references: [voyages.id] }),
+  author: one(users, { fields: [voyageNotes.authorId], references: [users.id] }),
+}));
+
+export const insertVoyageNoteSchema = createInsertSchema(voyageNotes).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertVoyageNote = z.infer<typeof insertVoyageNoteSchema>;
+export type VoyageNote = typeof voyageNotes.$inferSelect;
 
 // ─── VOYAGES (SEFER YÖNETİMİ) ─────────────────────────────────────────────────
 

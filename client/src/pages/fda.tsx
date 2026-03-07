@@ -43,6 +43,8 @@ function VariancePill({ pct }: { pct: number | null | undefined }) {
   );
 }
 
+import { FeatureTooltip } from "@/components/feature-tooltip";
+
 export default function FdaPage() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -142,10 +144,12 @@ export default function FdaPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Calculator className="h-7 w-7 text-maritime-primary" />
-            <div>
+          <div>
+            <FeatureTooltip id="fda-intro" content="FDA (Final Disbursement Account) is the actual cost of a port call. Once approved, it is automatically compared with the PDA to show variances.">
               <h1 className="text-2xl font-bold text-foreground">Final Disbursement Accounts</h1>
-              <p className="text-sm text-muted-foreground">Compare estimated vs actual port costs</p>
-            </div>
+            </FeatureTooltip>
+            <p className="text-sm text-muted-foreground">Compare estimated vs actual port costs</p>
+          </div>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
