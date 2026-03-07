@@ -18,6 +18,15 @@ import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
 import type { Vessel, Port } from "@shared/schema";
 
+function fmtDate(dt?: string | Date | null): string {
+  if (!dt) return "—";
+  const d = new Date(dt);
+  if (isNaN(d.getTime())) return "—";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}.${mm}.${d.getFullYear()}`;
+}
+
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   planned:   { label: "Planned",    color: "bg-blue-900/30 text-blue-400 border border-blue-500/30",    icon: Clock },
   active:    { label: "Active",     color: "bg-green-900/30 text-green-400 border border-green-500/30", icon: PlayCircle },
@@ -424,7 +433,7 @@ export default function Voyages() {
                       {v.eta && (
                         <div className="flex items-center gap-1.5 text-xs text-slate-500">
                           <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>ETA: <span className="text-slate-400 font-medium">{new Date(v.eta).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span></span>
+                          <span>ETA: <span className="text-slate-400 font-medium">{fmtDate(v.eta)}</span></span>
                           {/* Urgency indicator */}
                           {(() => {
                             const eta = new Date(v.eta);

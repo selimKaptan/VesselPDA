@@ -84,6 +84,26 @@ function getStepperIndex(status: string): number {
   return -1;
 }
 
+// ── Global date/time formatters (DD.MM.YYYY / HH:MM) ─────────────────────
+function fmtDate(dt?: string | Date | null): string {
+  if (!dt) return "—";
+  const d = new Date(dt);
+  if (isNaN(d.getTime())) return "—";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}.${mm}.${d.getFullYear()}`;
+}
+function fmtDateTime(dt?: string | Date | null): string {
+  if (!dt) return "—";
+  const d = new Date(dt);
+  if (isNaN(d.getTime())) return "—";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const HH = String(d.getHours()).padStart(2, "0");
+  const MM = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}.${mm}.${d.getFullYear()} / ${HH}:${MM}`;
+}
+
 function getDateTag(dt: string | null | undefined): {
   label: string; relText: string; color: string;
 } | null {
@@ -91,9 +111,7 @@ function getDateTag(dt: string | null | undefined): {
   const now = Date.now();
   const ms = new Date(dt).getTime();
   const days = Math.ceil((ms - now) / 86_400_000);
-  const label = new Date(dt).toLocaleDateString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric",
-  });
+  const label = fmtDate(dt);
   if (days > 3)  return { label, relText: `in ${days} days`,        color: "text-slate-300 bg-slate-700/50 border-slate-600/30"   };
   if (days > 0)  return { label, relText: days === 1 ? "Tomorrow" : `in ${days} days`, color: "text-orange-400 bg-orange-500/20 border-orange-500/20" };
   if (days === 0) return { label, relText: "Today",                  color: "text-red-400 bg-red-500/20 border-red-500/20"          };
@@ -1369,7 +1387,9 @@ export default function VoyageDetail() {
     const hrs = Math.floor(mins / 60);
     if (hrs < 24) return `${hrs} hour${hrs > 1 ? 's' : ''} ago`;
     if (hrs < 48) return "Yesterday";
-    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    const dd2 = String(d.getDate()).padStart(2, "0");
+    const mm2 = String(d.getMonth() + 1).padStart(2, "0");
+    return `${dd2}.${mm2}`;
   }
 
   function formatActivityTime(dt: string | Date): string {
@@ -1379,10 +1399,14 @@ export default function VoyageDetail() {
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
     const isYesterday = d.toDateString() === yesterday.toDateString();
-    const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    const HH = String(d.getHours()).padStart(2, "0");
+    const MM = String(d.getMinutes()).padStart(2, "0");
+    const time = `${HH}:${MM}`;
     if (isToday)     return `Today, ${time}`;
     if (isYesterday) return `Yesterday, ${time}`;
-    return `${d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })}, ${time}`;
+    const dd2 = String(d.getDate()).padStart(2, "0");
+    const mm2 = String(d.getMonth() + 1).padStart(2, "0");
+    return `${dd2}.${mm2}., ${time}`;
   }
 
   function getActivityStyle(type: string): { bg: string; text: string; emoji: string; isSystem: boolean } {
@@ -2470,18 +2494,12 @@ export default function VoyageDetail() {
                 })()}
               </div>
 
-              {/* RIGHT: Hotel Hub (Crew Change — collapsible) OR Service Boat & Deliveries (Husbandry) */}
-              <AnimatePresence>
-                {isHotelPanelOpen && voyage.purposeOfCall === "Crew Change" && (
-                  <motion.div
-                    key="hotel-panel"
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: 310, opacity: 1 }}
-                    exit={{ width: 0, opacity: 0 }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                    className="flex-shrink-0 overflow-hidden"
-                  >
-                    <div ref={setHotelDropRef} className={`w-[310px] rounded-xl border bg-slate-800/40 backdrop-blur-sm p-5 flex flex-col gap-4 transition-all duration-200 ${isHotelDragOver ? "border-blue-400/60 bg-blue-950/20 shadow-[0_0_24px_rgba(59,130,246,0.25)]" : "border-slate-700"}`} style={{ minHeight: "360px" }} data-testid="hotel-hub-panel">
+              {/* RIGHT: Hotel Hub (Crew Change — always mounted, CSS width toggle for reliable DnD) */}
+              {voyage.purposeOfCall === "Crew Change" && (
+                <div
+                  className={`flex-shrink-0 overflow-hidden transition-[width,opacity] ease-in-out ${activeDragId !== null ? "duration-0" : "duration-300"} ${isHotelPanelOpen ? "w-[310px] opacity-100" : "w-0 opacity-0"}`}
+                >
+                  <div ref={setHotelDropRef} className={`w-[310px] rounded-xl border bg-slate-800/40 backdrop-blur-sm p-5 flex flex-col gap-4 transition-all duration-200 ${isHotelDragOver ? "border-blue-400/60 bg-blue-950/20 shadow-[0_0_24px_rgba(59,130,246,0.25)]" : "border-slate-700"}`} style={{ minHeight: "360px" }} data-testid="hotel-hub-panel">
                       {isHotelDragOver && (
                         <div className="absolute top-3 left-0 right-0 flex justify-center pointer-events-none z-20">
                           <span className="text-[10px] font-bold text-blue-300 bg-blue-950/80 border border-blue-500/50 rounded-full px-3 py-1">🏨 Drop to assign hotel</span>
@@ -2539,15 +2557,23 @@ export default function VoyageDetail() {
                             onClick={() => { setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
                             data-testid={`hotel-card-${crew.id}`}
                           >
-                            {/* Row 1: Name + status badge */}
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="min-w-0">
+                            {/* Row 1: Name + status badge + delete */}
+                            <div className="flex items-center gap-2">
+                              <div className="min-w-0 flex-1">
                                 <p className="text-xs font-bold text-slate-100 truncate">{crew.name}</p>
                                 <p className="text-[10px] text-slate-500">{crew.rank}</p>
                               </div>
                               <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 flex-shrink-0 ${statusCfg.cls}`}>
                                 {statusCfg.label}
                               </span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, requiresHotel: false, hotelName: "", hotelCheckIn: "", hotelCheckOut: "", hotelStatus: "none" as const, hotelPickupTime: "" })); }}
+                                className="p-1 text-slate-400 hover:text-red-400 transition-colors flex-shrink-0"
+                                data-testid={`button-delete-hotel-${crew.id}`}
+                                title="Remove from hotel"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
                             </div>
 
                             {/* Row 2: Hotel name */}
@@ -2586,10 +2612,9 @@ export default function VoyageDetail() {
                       })
                     )}
                   </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  </div>
+                </div>
+              )}
 
               {/* RIGHT: Service Boat & Deliveries (Husbandry — always visible) */}
               {voyage.purposeOfCall === "Husbandry" && (
@@ -3203,7 +3228,7 @@ export default function VoyageDetail() {
                 const berthingDeadline = voyage.eta
                   ? (() => {
                       const d = new Date(new Date(voyage.eta).getTime() + 24 * 60 * 60 * 1000);
-                      return d.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+                      return fmtDateTime(d);
                     })()
                   : "Tomorrow, 14:30";
 
@@ -3415,14 +3440,14 @@ export default function VoyageDetail() {
                     {activeNor.norTenderedAt && (
                       <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Tendered</span>
-                        <span>{new Date(activeNor.norTenderedAt).toLocaleString("en-GB")}</span>
+                        <span>{fmtDateTime(activeNor.norTenderedAt)}</span>
                       </div>
                     )}
                     {activeNor.laytimeStartsAt && (
                       <div className="flex justify-between text-xs font-medium">
                         <span className="text-muted-foreground">Laytime Starts</span>
                         <span className="text-emerald-600 dark:text-emerald-400">
-                          {new Date(activeNor.laytimeStartsAt).toLocaleString("en-GB")}
+                          {fmtDateTime(activeNor.laytimeStartsAt)}
                         </span>
                       </div>
                     )}
@@ -3567,7 +3592,7 @@ export default function VoyageDetail() {
                     <div key={appt.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30" data-testid={`appt-row-${appt.id}`}>
                       <Badge className={`text-xs shrink-0 ${typeCfg.color}`}>{typeCfg.label}</Badge>
                       <span className="text-xs text-muted-foreground shrink-0">
-                        {appt.scheduledAt ? new Date(appt.scheduledAt).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" }) : "Date not set"}
+                        {appt.scheduledAt ? fmtDateTime(appt.scheduledAt) : "Date not set"}
                       </span>
                       {appt.notes && <span className="text-xs text-muted-foreground truncate flex-1">{appt.notes}</span>}
                       <div className="ml-auto flex items-center gap-1.5 shrink-0">
@@ -3613,7 +3638,7 @@ export default function VoyageDetail() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">{r.reviewerName || "User"}</span>
-                        <span className="text-xs text-muted-foreground">{new Date(r.createdAt).toLocaleDateString("en-GB")}</span>
+                        <span className="text-xs text-muted-foreground">{fmtDate(r.createdAt)}</span>
                       </div>
                       <div className="flex gap-0.5 mt-1">
                         {[1,2,3,4,5].map(i => <Star key={i} className={`w-3.5 h-3.5 ${i <= r.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />)}
@@ -3656,7 +3681,7 @@ export default function VoyageDetail() {
           ? new Date(Date.now() + (remainingMt / avgRate) * 86_400_000)
           : null;
         const etcFormatted = etcTs
-          ? etcTs.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+          ? fmtDate(etcTs)
           : null;
         const etcTime = etcTs
           ? etcTs.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
@@ -3758,8 +3783,7 @@ export default function VoyageDetail() {
                         ? new Date(Date.now() + (rRemaining / avgRate) * 86_400_000)
                         : null;
                       const rEtcStr = rEtcTs
-                        ? rEtcTs.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) + " " +
-                          rEtcTs.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+                        ? fmtDateTime(rEtcTs)
                         : null;
                       return (
                         <div key={r.id} className="space-y-1" data-testid={`receiver-row-${r.id}`}>
@@ -3893,7 +3917,7 @@ export default function VoyageDetail() {
                         const rep = batch[0];
                         const isDelay = rep.logType === "delay";
                         const isTruckWait = isDelay && (rep.remarks || "").toLowerCase().includes("waiting_for_trucks");
-                        const fmtDT = (dt: string) => new Date(dt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) + " " + new Date(dt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+                        const fmtDT = (dt: string) => fmtDateTime(dt);
                         const fmtTime = (dt: string) => new Date(dt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
                         const batchMt = batch.reduce((s: number, l: any) => s + (l.amountHandled || 0), 0);
                         const batchTrucks = batch.reduce((s: number, l: any) => s + (l.truckCount || 0), 0);
@@ -3913,7 +3937,7 @@ export default function VoyageDetail() {
                         const periodLabel = rep.fromTime && rep.toTime
                           ? `${fmtDT(rep.fromTime)} → ${fmtTime(rep.toTime)}`
                           : rep.logDate
-                          ? new Date(rep.logDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+                          ? fmtDate(rep.logDate)
                           : "—";
                         const batchKey = rep.batchId || String(rep.id);
 
@@ -4429,7 +4453,7 @@ export default function VoyageDetail() {
                             </button>
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">{DOC_TYPE_CONFIG[doc.docType] || "Other"} · {doc.uploaderName} · {new Date(doc.createdAt).toLocaleDateString("en-GB")}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{DOC_TYPE_CONFIG[doc.docType] || "Other"} · {doc.uploaderName} · {fmtDate(doc.createdAt)}</p>
                       </div>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => downloadDoc(doc)} className="p-1 hover:text-primary transition-colors" data-testid={`button-download-doc-${doc.id}`}><Download className="w-4 h-4" /></button>
@@ -4541,7 +4565,7 @@ export default function VoyageDetail() {
                       { label: "Vessel", value: voyage.vesselName || "—" },
                       { label: "IMO", value: voyage.imoNumber || "—" },
                       { label: "Port", value: voyage.portName || "—" },
-                      { label: "ETA", value: voyage.eta ? new Date(voyage.eta).toLocaleDateString("en-GB") : "—" },
+                      { label: "ETA", value: fmtDate(voyage.eta) },
                     ].map(({ label, value }) => (
                       <div key={label}>
                         <span className="text-[10px] text-slate-500">{label}</span>
@@ -4633,7 +4657,8 @@ export default function VoyageDetail() {
                 chatMessages.map((msg: any) => {
                   const isMine = msg.senderId === userId;
                   const time = new Date(msg.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-                  const date = new Date(msg.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit" });
+                  const _d = new Date(msg.createdAt);
+                  const date = `${String(_d.getDate()).padStart(2,"0")}.${String(_d.getMonth()+1).padStart(2,"0")}`;
                   const initial = (msg.senderName || "?")[0].toUpperCase();
                   return (
                     <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`} data-testid={`chat-msg-${msg.id}`}>
@@ -4959,7 +4984,7 @@ export default function VoyageDetail() {
                   </div>
                   {p.serviceType && <p className="text-xs text-muted-foreground">Service: {p.serviceType}</p>}
                   <p className="text-xs text-muted-foreground">
-                    Joined {p.respondedAt ? new Date(p.respondedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
+                    Joined {p.respondedAt ? fmtDate(p.respondedAt) : "—"}
                   </p>
                   {p.permissions && (
                     <div className="flex flex-wrap gap-1.5">
@@ -5010,10 +5035,10 @@ export default function VoyageDetail() {
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${rColors[inv.role] ?? rColors.observer} capitalize`}>{inv.role}</span>
                           </td>
                           <td className="p-3 text-muted-foreground text-xs hidden md:table-cell">
-                            {inv.invitedAt ? new Date(inv.invitedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
+                            {inv.invitedAt ? fmtDate(inv.invitedAt) : "—"}
                           </td>
                           <td className="p-3 text-muted-foreground text-xs hidden lg:table-cell">
-                            {inv.expiresAt ? new Date(inv.expiresAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
+                            {inv.expiresAt ? fmtDate(inv.expiresAt) : "—"}
                           </td>
                           {(isOwner || isAgent) && (
                             <td className="p-3">
