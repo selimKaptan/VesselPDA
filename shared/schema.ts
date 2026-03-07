@@ -242,6 +242,46 @@ export type InsertForumReply = z.infer<typeof insertForumReplySchema>;
 export type ForumReply = typeof forumReplies.$inferSelect;
 export type ForumLike = typeof forumLikes.$inferSelect;
 
+export const portCalls = pgTable("port_calls", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  portName: text("port_name").notNull(),
+  berth: text("berth"),
+  agentName: text("agent_name"),
+  eta: timestamp("eta"),
+  actualArrival: timestamp("actual_arrival"),
+  norTendered: timestamp("nor_tendered"),
+  berthingTime: timestamp("berthing_time"),
+  operationsStart: timestamp("operations_start"),
+  operationsEnd: timestamp("operations_end"),
+  departure: timestamp("departure"),
+  cargoType: text("cargo_type"),
+  cargoQuantity: real("cargo_quantity"),
+  cargoUnit: text("cargo_unit").default("MT"),
+  status: text("status").notNull().default("expected"), // expected | arrived | in_port | operations | departed | closed
+  pilotArranged: boolean("pilot_arranged").default(false),
+  tugArranged: boolean("tug_arranged").default(false),
+  customsCleared: boolean("customs_cleared").default(false),
+  pdaIssued: boolean("pda_issued").default(false),
+  fdaIssued: boolean("fda_issued").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const portCallRelations = relations(portCalls, ({ one }) => ({
+  voyage: one(voyages, { fields: [portCalls.voyageId], references: [voyages.id] }),
+  vessel: one(vessels, { fields: [portCalls.vesselId], references: [vessels.id] }),
+  user: one(users, { fields: [portCalls.userId], references: [users.id] }),
+}));
+
+// ─── PORT CALLS (Agent Module) ─────────────────────────────────────────────
+
+export const insertPortCallSchema = createInsertSchema(portCalls).omit({ id: true, createdAt: true });
+export type InsertPortCall = z.infer<typeof insertPortCallSchema>;
+export type PortCall = typeof portCalls.$inferSelect;
+
 // ─── PORT CALL TENDER SYSTEM ─────────────────────────────────────────────────
 
 export const portTenders = pgTable("port_tenders", {
@@ -2435,3 +2475,67 @@ export const insertNoonReportSchema = createInsertSchema(noonReports).omit({ id:
 export type InsertNoonReport = z.infer<typeof insertNoonReportSchema>;
 export type NoonReport = typeof noonReports.$inferSelect;
 
+
+// ─── HUSBANDRY SERVICES (Agent Module) ────────────────────────────────────
+
+export const husbandryOrders = pgTable("husbandry_orders", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
+  portCallId: integer("port_call_id").references(() => portCalls.id, { onDelete: "set null" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  serviceType: text("service_type").notNull(),
+  // "crew_change" | "medical" | "spare_parts" | "cash_to_master" | "provisions" | "postal" | "survey" | "other"
+  description: text("description").notNull(),
+  requestedDate: timestamp("requested_date"),
+  completedDate: timestamp("completed_date"),
+  vendor: text("vendor"),
+  cost: real("cost"),
+  currency: text("currency").notNull().default("USD"),
+  status: text("status").notNull().default("requested"),  // requested | confirmed | in_progress | completed | cancelled
+  invoiceId: integer("invoice_id").references(() => invoices.id, { onDelete: "set null" }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const husbandryOrderRelations = relations(husbandryOrders, ({ one, many }) => ({
+  vessel: one(vessels, { fields: [husbandryOrders.vesselId], references: [vessels.id] }),
+  voyage: one(voyages, { fields: [husbandryOrders.voyageId], references: [voyages.id] }),
+  portCall: one(portCalls, { fields: [husbandryOrders.portCallId], references: [portCalls.id] }),
+  user: one(users, { fields: [husbandryOrders.userId], references: [users.id] }),
+  invoice: one(invoices, { fields: [husbandryOrders.invoiceId], references: [invoices.id] }),
+  crewChanges: many(crewChanges),
+}));
+
+export const insertHusbandryOrderSchema = createInsertSchema(husbandryOrders).omit({ id: true, createdAt: true });
+export type InsertHusbandryOrder = z.infer<typeof insertHusbandryOrderSchema>;
+export type HusbandryOrder = typeof husbandryOrders.$inferSelect;
+
+export const crewChanges = pgTable("crew_changes", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  husbandryOrderId: integer("husbandry_order_id").notNull().references(() => husbandryOrders.id, { onDelete: "cascade" }),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id),
+  changeType: text("change_type").notNull(),  // "sign_on" | "sign_off"
+  seafarerName: text("seafarer_name").notNull(),
+  rank: text("rank"),
+  nationality: text("nationality"),
+  passportNumber: text("passport_number"),
+  visaRequired: boolean("visa_required").default(false),
+  visaStatus: text("visa_status"),
+  flightDetails: text("flight_details"),
+  hotelRequired: boolean("hotel_required").default(false),
+  hotelName: text("hotel_name"),
+  port: text("port"),
+  changeDate: timestamp("change_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const crewChangeRelations = relations(crewChanges, ({ one }) => ({
+  husbandryOrder: one(husbandryOrders, { fields: [crewChanges.husbandryOrderId], references: [husbandryOrders.id] }),
+  vessel: one(vessels, { fields: [crewChanges.vesselId], references: [vessels.id] }),
+}));
+
+export const insertCrewChangeSchema = createInsertSchema(crewChanges).omit({ id: true, createdAt: true });
+export type InsertCrewChange = z.infer<typeof insertCrewChangeSchema>;
+export type CrewChange = typeof crewChanges.$inferSelect;

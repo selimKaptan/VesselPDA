@@ -54,6 +54,11 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
 - **Noon Reports & Vessel Performance**: Daily position/speed/RPM/weather/fuel consumption reports, performance KPI cards (avg speed, daily consumption, total NM), trend charts, sea state tracking. Route: `/noon-reports`.
 - **Charter Party & TC Hire Management**: TC/VC/BB/CoA charter party contracts, hire payment statements (gross/off-hire deductions/commissions/net), off-hire event log, active CP status tracking. Route: `/charter-parties`.
 - **Crew Enhancement (STCW + Payroll)**: Enhanced crew-roster with STCW & professional certificate tracking (expiry alerts), monthly payroll processing (basic/overtime/bonus/deductions/net), expanded contract fields (visa, seaman's book, emergency contact, relief due date). Tabs: Roster, STCW & Certificates, Payroll.
+- **Port Call Management**: Dedicated agent module for tracking active port calls (vessel arrivals, berth assignments, operational milestones: NOR/berthing/operations/departure). Status workflow: expected→arrived→in_port→operations→departed. KPI cards, quick status updates, voyage/PDA linking. Route: `/port-calls`.
+- **Husbandry Services**: Agent module for managing vessel services: crew changes, medical assistance, spare parts, cash-to-master, provisions, postal, surveys. Crew change details (visa, flight, hotel), cost tracking, vendor management. Route: `/husbandry`.
+- **Agent Operations Dashboard**: Enhanced agent-specific dashboard with Active Port Calls widget, Husbandry Pending Services widget, updated Quick Access with Port Calls/Husbandry/Action Center shortcuts.
+- **Navigation Fixes (Agent Role)**: Port Expenses, DA Advances now in Finance nav; Analytics in Intelligence nav; Port Calls, Action Center, Husbandry in Port Operations nav — all accessible to agent role.
+- **Port Agent's Report PDF**: Comprehensive port agent report generated from voyage data (vessel movement log, financial summary, cargo operations, services arranged). PDF export and print functionality. Accessible from voyage detail. Route: `/agent-report/:voyageId`.
 
 ## External Dependencies
 - **PostgreSQL**: Primary relational database.

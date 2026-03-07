@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Anchor, Gavel, Star, TrendingUp, ArrowRight, Building2, Navigation, MapPin, FileText, MessageSquare, ShieldCheck, AlertTriangle, Clock, XCircle, Ship, Plus, Zap, BarChart3, Bell, Calendar, Receipt, CheckCircle2, ChevronRight } from "lucide-react";
+import { Anchor, Gavel, Star, TrendingUp, ArrowRight, Building2, Navigation, MapPin, FileText, MessageSquare, ShieldCheck, AlertTriangle, Clock, XCircle, Ship, Plus, Zap, BarChart3, Bell, Calendar, Receipt, CheckCircle2, ChevronRight, Package, UserCheck } from "lucide-react";
 import { BidWinRateChart, ProformaTrendChart, VoyageTrendChart } from "./dashboard-charts";
 import { AiSmartDropMini } from "@/components/ai-smart-drop";
 import { Card } from "@/components/ui/card";
@@ -109,6 +109,110 @@ function formatCountdown(etaStr: string): { text: string; className: string } {
   if (hours < 48) return { text: "Tomorrow", className: "text-amber-500 font-semibold" };
   const days = Math.round(hours / 24);
   return { text: `in ${days}d`, className: "text-muted-foreground" };
+}
+
+function ActivePortCallsWidget() {
+  const { data, isLoading } = useQuery<any[]>({ queryKey: ["/api/port-calls"] });
+  const activeCalls = (data || []).filter((c: any) => ["arrived", "in_port", "operations"].includes(c.status));
+  const expectedCalls = (data || []).filter((c: any) => c.status === "expected").slice(0, 3);
+
+  if (!isLoading && (!data || data.length === 0)) return null;
+
+  const statusColors: Record<string, string> = {
+    expected: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    arrived: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+    in_port: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+    operations: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    departed: "bg-slate-100 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400",
+  };
+
+  const displayCalls = [...activeCalls, ...expectedCalls].slice(0, 5);
+
+  return (
+    <Card className="p-4 space-y-3 border-sky-200 dark:border-sky-800/50 bg-sky-50/30 dark:bg-sky-950/10" data-testid="card-active-port-calls">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Anchor className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+          <h3 className="font-semibold text-sm">Active Port Calls</h3>
+          {activeCalls.length > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-[10px] font-semibold">
+              {activeCalls.length} in port
+            </span>
+          )}
+        </div>
+        <Link href="/port-calls">
+          <span className="text-xs text-sky-400 hover:underline cursor-pointer">View All →</span>
+        </Link>
+      </div>
+      {isLoading ? (
+        <div className="space-y-2">{[...Array(3)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-muted/40 animate-pulse" />)}</div>
+      ) : displayCalls.length === 0 ? (
+        <p className="text-xs text-muted-foreground text-center py-2">No active port calls</p>
+      ) : (
+        <div className="space-y-2">
+          {displayCalls.map((c: any) => (
+            <Link key={c.id} href="/port-calls">
+              <div className="flex items-center gap-3 py-1.5 hover:bg-white/50 dark:hover:bg-white/5 rounded-lg px-1.5 transition-colors cursor-pointer">
+                <Ship className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{c.vesselName || `Vessel #${c.vesselId}`}</p>
+                  <p className="text-xs text-muted-foreground truncate">{c.portName}</p>
+                </div>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${statusColors[c.status] || "bg-muted text-muted-foreground"}`}>
+                  {c.status.replace("_", " ")}
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function HusbandryPendingWidget() {
+  const { data } = useQuery<any[]>({ queryKey: ["/api/husbandry"] });
+  const pending = (data || []).filter((o: any) => ["requested", "confirmed", "in_progress"].includes(o.status)).slice(0, 4);
+  if (!pending.length) return null;
+
+  const typeIcons: Record<string, string> = {
+    crew_change: "🔄",
+    medical: "🏥",
+    spare_parts: "📦",
+    cash_to_master: "💵",
+    provisions: "🍞",
+    postal: "📮",
+    survey: "📋",
+    other: "🔧",
+  };
+
+  return (
+    <Card className="p-4 space-y-3 border-violet-200 dark:border-violet-800/50 bg-violet-50/20 dark:bg-violet-950/10" data-testid="card-husbandry-pending">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Package className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+          <h3 className="font-semibold text-sm">Pending Services</h3>
+          <span className="px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 text-[10px] font-semibold">
+            {pending.length}
+          </span>
+        </div>
+        <Link href="/husbandry">
+          <span className="text-xs text-violet-400 hover:underline cursor-pointer">View All →</span>
+        </Link>
+      </div>
+      <div className="space-y-1.5">
+        {pending.map((o: any) => (
+          <div key={o.id} className="flex items-center gap-2 py-1 px-1.5 rounded-lg hover:bg-white/50 dark:hover:bg-white/5">
+            <span className="text-sm flex-shrink-0">{typeIcons[o.serviceType] || "🔧"}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium truncate">{o.serviceType?.replace(/_/g, " ")}</p>
+              <p className="text-[10px] text-muted-foreground truncate">{o.description?.slice(0, 40)}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
 }
 
 function UpcomingPortCallsWidget() {
@@ -543,6 +647,8 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
 
         {/* Right col: Quick Access */}
         <div className="space-y-5">
+          <ActivePortCallsWidget />
+          <HusbandryPendingWidget />
           <UpcomingPortCallsWidget />
           <PaymentAlertsWidget />
           <RecentActivityCard />
@@ -552,10 +658,11 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
             </h2>
             <div className="space-y-1.5">
               {[
-                { href: "/voyages", icon: Navigation, label: "New Voyage", desc: "Create a voyage record", color: "var(--maritime-secondary)", testId: "qa-new-voyage" },
+                { href: "/port-calls", icon: Anchor, label: "Port Calls", desc: "Track active port calls", color: "199 89% 40%", testId: "qa-port-calls" },
+                { href: "/husbandry", icon: Package, label: "Husbandry", desc: "Crew changes & services", color: "270 70% 50%", testId: "qa-husbandry" },
                 { href: "/proformas/new", icon: Plus, label: "New Proforma", desc: "Generate a proforma D/A", color: "var(--maritime-primary)", testId: "qa-new-proforma" },
                 { href: "/fda", icon: Receipt, label: "New FDA", desc: "Create final disbursement", color: "142 71% 35%", testId: "qa-new-fda" },
-                { href: "/proformas", icon: Zap, label: "Quick Estimate", desc: "Instant proforma estimate", color: "38 92% 50%", testId: "qa-quick-proforma" },
+                { href: "/actions", icon: Zap, label: "Action Center", desc: "Pending tasks & alerts", color: "38 92% 50%", testId: "qa-actions" },
                 { href: "/tenders", icon: Gavel, label: "Open Tenders", desc: "Browse port call tenders", color: "var(--maritime-accent)", testId: "qa-tenders" },
                 { href: "/port-info", icon: MapPin, label: "Port Information", desc: "Turkish port details", color: "217 91% 40%", testId: "qa-ports" },
               ].map((action) => (

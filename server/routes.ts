@@ -54,6 +54,9 @@ import bunkerRoutes from "./routes/bunker.routes";
 import noonReportRoutes from "./routes/noon-report.routes";
 import charterPartyRoutes from "./routes/charter-party.routes";
 import crewRoutes from "./routes/crew.routes";
+import portCallRoutes from "./routes/port-call.routes";
+import husbandryRoutes from "./routes/husbandry.routes";
+import agentReportRoutes from "./routes/agent-report.routes";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -127,6 +130,9 @@ export async function registerRoutes(
   app.use("/api/noon-reports", noonReportRoutes);
   app.use("/api/charter-parties", charterPartyRoutes);
   app.use("/api/crew", crewRoutes);
+  app.use("/api/port-calls", portCallRoutes);
+  app.use("/api/husbandry", husbandryRoutes);
+  app.use("/api/agent-report", agentReportRoutes);
 
   return httpServer;
 }

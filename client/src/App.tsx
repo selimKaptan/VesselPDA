@@ -16,6 +16,7 @@ import RoleSelection from "@/pages/role-selection";
 import Dashboard from "@/pages/dashboard";
 import Vessels from "@/pages/vessels";
 import Ports from "@/pages/ports";
+import PortCalls from "@/pages/port-calls";
 import Proformas from "@/pages/proformas";
 import ProformaNew from "@/pages/proforma-new";
 import ProformaView from "@/pages/proforma-view";
@@ -78,6 +79,8 @@ import Maintenance from "@/pages/maintenance";
 import BunkerManagement from "@/pages/bunker-management";
 import NoonReports from "@/pages/noon-reports";
 import CharterParties from "@/pages/charter-parties";
+import Husbandry from "@/pages/husbandry";
+import AgentReport from "@/pages/agent-report";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -88,6 +91,7 @@ function AuthenticatedRouter() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/vessels" component={Vessels} />
       <Route path="/ports" component={Ports} />
+      <Route path="/port-calls" component={PortCalls} />
       <Route path="/proformas" component={Proformas} />
       <Route path="/proformas/new" component={ProformaNew} />
       <Route path="/proformas/:id" component={ProformaView} />
@@ -144,6 +148,9 @@ function AuthenticatedRouter() {
       <Route path="/bunker-management" component={BunkerManagement} />
       <Route path="/noon-reports" component={NoonReports} />
       <Route path="/charter-parties" component={CharterParties} />
+      <Route path="/port-calls" component={PortCalls} />
+      <Route path="/husbandry" component={Husbandry} />
+      <Route path="/agent-report/:voyageId" component={AgentReport} />
       <Route component={NotFound} />
     </Switch>
   );

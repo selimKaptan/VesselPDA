@@ -5911,9 +5911,21 @@ export default function VoyageDetail() {
               <p className="text-sm text-muted-foreground">{participants.length + 1} member{participants.length !== 0 ? "s" : ""}</p>
             </div>
             {(isOwner || isAgent) && (
-              <Button onClick={() => setShowInviteDialog(true)} data-testid="button-invite-participant">
-                <UserPlus className="w-4 h-4 mr-2" /> Invite
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-1.5 border-amber-500/30 text-amber-500 hover:bg-amber-500/10 no-print"
+                  asChild
+                >
+                  <Link href={`/agent-report/${voyageId}`}>
+                    <FileText className="w-3.5 h-3.5" /> Agent Report
+                  </Link>
+                </Button>
+                <Button onClick={() => setShowInviteDialog(true)} data-testid="button-invite-participant">
+                  <UserPlus className="w-4 h-4 mr-2" /> Invite
+                </Button>
+              </div>
             )}
           </div>
 

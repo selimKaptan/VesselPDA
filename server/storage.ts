@@ -67,6 +67,9 @@ import {
   offHireEvents,
   crewStcwCertificates,
   crewPayroll,
+  type HusbandryOrder, type InsertHusbandryOrder,
+  type CrewChange, type InsertCrewChange,
+  husbandryOrders, crewChanges,
   vessels, ports, tariffCategories, tariffRates, proformas, proformaApprovalLogs,
   forumCategories, forumTopics, forumReplies, forumLikes, forumDislikes,
   portTenders, tenderBids, agentReviews, vesselWatchlist,
@@ -379,6 +382,16 @@ export interface IStorage {
   createCrewPayroll(data: InsertCrewPayroll): Promise<CrewPayroll>;
   updateCrewPayroll(id: number, data: Partial<InsertCrewPayroll>): Promise<CrewPayroll | undefined>;
   getCrewSummary(vesselId: number): Promise<any>;
+
+  // Husbandry
+  getHusbandryOrders(userId: string): Promise<HusbandryOrder[]>;
+  getVesselHusbandryOrders(vesselId: number): Promise<HusbandryOrder[]>;
+  createHusbandryOrder(data: InsertHusbandryOrder): Promise<HusbandryOrder>;
+  updateHusbandryOrder(id: number, data: Partial<InsertHusbandryOrder>): Promise<HusbandryOrder | undefined>;
+  deleteHusbandryOrder(id: number): Promise<boolean>;
+  getCrewChanges(husbandryOrderId: number): Promise<CrewChange[]>;
+  createCrewChange(data: InsertCrewChange): Promise<CrewChange>;
+  updateCrewChange(id: number, data: Partial<InsertCrewChange>): Promise<CrewChange | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2970,6 +2983,45 @@ export class DatabaseStorage implements IStorage {
       expiringCerts: certs.filter(c => new Date(c.expiryDate) >= now && new Date(c.expiryDate) <= thirtyDays).length,
       expiredCerts: certs.filter(c => new Date(c.expiryDate) < now).length,
     };
+  }
+
+  // ── Husbandry ─────────────────────────────────────────────────────────────
+
+  async getHusbandryOrders(userId: string): Promise<HusbandryOrder[]> {
+    return db.select().from(husbandryOrders).where(eq(husbandryOrders.userId, userId)).orderBy(desc(husbandryOrders.createdAt));
+  }
+
+  async getVesselHusbandryOrders(vesselId: number): Promise<HusbandryOrder[]> {
+    return db.select().from(husbandryOrders).where(eq(husbandryOrders.vesselId, vesselId)).orderBy(desc(husbandryOrders.createdAt));
+  }
+
+  async createHusbandryOrder(data: InsertHusbandryOrder): Promise<HusbandryOrder> {
+    const [row] = await db.insert(husbandryOrders).values(data).returning();
+    return row;
+  }
+
+  async updateHusbandryOrder(id: number, data: Partial<InsertHusbandryOrder>): Promise<HusbandryOrder | undefined> {
+    const [row] = await db.update(husbandryOrders).set(data).where(eq(husbandryOrders.id, id)).returning();
+    return row;
+  }
+
+  async deleteHusbandryOrder(id: number): Promise<boolean> {
+    const [deleted] = await db.delete(husbandryOrders).where(eq(husbandryOrders.id, id)).returning();
+    return !!deleted;
+  }
+
+  async getCrewChanges(husbandryOrderId: number): Promise<CrewChange[]> {
+    return db.select().from(crewChanges).where(eq(crewChanges.husbandryOrderId, husbandryOrderId)).orderBy(asc(crewChanges.changeDate));
+  }
+
+  async createCrewChange(data: InsertCrewChange): Promise<CrewChange> {
+    const [row] = await db.insert(crewChanges).values(data).returning();
+    return row;
+  }
+
+  async updateCrewChange(id: number, data: Partial<InsertCrewChange>): Promise<CrewChange | undefined> {
+    const [row] = await db.update(crewChanges).set(data).where(eq(crewChanges.id, id)).returning();
+    return row;
   }
 }
 
