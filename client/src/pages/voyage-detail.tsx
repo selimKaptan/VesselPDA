@@ -368,6 +368,11 @@ export default function VoyageDetail() {
   const [crewAiText, setCrewAiText] = useState("");
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
+  // ── Ops Summary Report ────────────────────────────────────────────────────
+  const [opsSummaryOpen, setOpsSummaryOpen] = useState(false);
+  const [opsSummaryLang, setOpsSummaryLang] = useState<"TR" | "EN">("EN");
+  const [opsSummaryText, setOpsSummaryText] = useState("");
+
   // ── Activity & Audit Log ───────────────────────────────────────────────────
   type ActivityLogEntry = { id: number; time: string; actor: "AI" | "Agent" | "System"; message: string; highlight?: string };
   const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([
@@ -381,6 +386,129 @@ export default function VoyageDetail() {
     // Use random suffix to guarantee unique ID even when called multiple times per millisecond
     const id = Date.now() * 1000 + Math.floor(Math.random() * 1000);
     setActivityLog(prev => [{ id, time, actor, message, highlight }, ...prev]);
+  };
+
+  // ── Ops Summary Content Engine ─────────────────────────────────────────────
+  const generateOpsSummary = (lang: "TR" | "EN"): string => {
+    const isEN = lang === "EN";
+    const now = new Date();
+    const nowStr = now.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" }) + " / " + now.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+
+    // ── BLOCK 1: Warnings ────────────────────────────────────────────────────
+    const warnings: string[] = [];
+    crewSigners.forEach(c => {
+      if (c.requiresHotel && !c.hotelName) {
+        warnings.push(isEN
+          ? `• Hotel reservation missing for ${c.name} (${c.rank}).`
+          : `• ${c.name} (${c.rank}) için otel rezervasyonu eksik.`);
+      }
+      if (c.flightDelayed) {
+        warnings.push(isEN
+          ? `• ${c.name}'s flight (${c.flight || "—"}) is delayed.`
+          : `• ${c.name}'in uçuşunda (${c.flight || "—"}) rötar var.`);
+      }
+      if (c.visaRequired && c.eVisaStatus === "pending") {
+        warnings.push(isEN
+          ? `• Visa pending for ${c.name} (${c.rank}).`
+          : `• ${c.name} (${c.rank}) için vize onayı bekleniyor.`);
+      }
+    });
+    const block1Header = isEN ? "⚠️  ACTION REQUIRED / WARNINGS" : "⚠️  AKSİYON BEKLEYENLER / UYARILAR";
+    const block1Body = warnings.length > 0 ? warnings.join("\n") : (isEN ? "✅ No action items." : "✅ Bekleyen aksiyon yok.");
+
+    // ── BLOCK 2: Logistics Timeline ──────────────────────────────────────────
+    const onSigners = crewSigners.filter(c => c.side === "on");
+    const offSigners = crewSigners.filter(c => c.side === "off");
+
+    const formatOnSigner = (c: (typeof crewSigners)[0]) => {
+      const transfer = c.timeline.find(s => /airport.*port|transfer/i.test(s.label));
+      const transferTime = transfer?.time ? ` at ${transfer.time}` : "";
+      const hotelInfo = c.hotelName
+        ? (isEN
+            ? `, checked into ${c.hotelName}${c.hotelCheckIn ? " (check-in: " + c.hotelCheckIn + ")" : ""}${c.hotelCheckOut ? ", check-out: " + c.hotelCheckOut : ""}`
+            : `, ${c.hotelName} otel'e yerleştirildi${c.hotelCheckIn ? " (giriş: " + c.hotelCheckIn + ")" : ""}${c.hotelCheckOut ? ", çıkış: " + c.hotelCheckOut : ""}`)
+        : "";
+      if (isEN) return `  • ${c.name} (${c.rank}) — Flight: ${c.flight || "—"}, Arrival ETA: ${c.flightEta || "—"}${transferTime ? ", transferred" + transferTime : ""}${hotelInfo}.`;
+      return `  • ${c.name} (${c.rank}) — Uçuş: ${c.flight || "—"}, Geliş: ${c.flightEta || "—"}${transferTime ? ", transfer" + transferTime : ""}${hotelInfo}.`;
+    };
+    const formatOffSigner = (c: (typeof crewSigners)[0]) => {
+      const transfer = c.timeline.find(s => /port.*airport|transfer/i.test(s.label));
+      const transferTime = transfer?.time ? ` at ${transfer.time}` : "";
+      if (isEN) return `  • ${c.name} (${c.rank}) — Flight: ${c.flight || "—"}, Departure ETA: ${c.flightEta || "—"}${transferTime ? ", transfer to airport" + transferTime : ""}.`;
+      return `  • ${c.name} (${c.rank}) — Uçuş: ${c.flight || "—"}, Gidiş: ${c.flightEta || "—"}${transferTime ? ", havalimanı transferi" + transferTime : ""}.`;
+    };
+
+    const onLabel = isEN ? "ON-SIGNERS (Joining Crew)" : "KATILANLAR (Gemiye Binenler)";
+    const offLabel = isEN ? "OFF-SIGNERS (Departing Crew)" : "AYRILANLAR (Gemiden İnenler)";
+    const noneStr = isEN ? "  None." : "  Yok.";
+    const block2Header = isEN ? "📋  OPERATIONS SUMMARY — LOGISTICS TIMELINE" : "📋  OPERASYON ÖZETİ — LOJİSTİK ZAMAN ÇİZELGESİ";
+    const block2Body = [
+      `${onLabel}:`,
+      onSigners.length > 0 ? onSigners.map(formatOnSigner).join("\n") : noneStr,
+      "",
+      `${offLabel}:`,
+      offSigners.length > 0 ? offSigners.map(formatOffSigner).join("\n") : noneStr,
+    ].join("\n");
+
+    // ── BLOCK 3: Services (NO pricing) ──────────────────────────────────────
+    const uniqueFlights = [...new Set(crewSigners.map(c => c.flight).filter(Boolean))];
+    const hotelsWithNights = crewSigners
+      .filter(c => c.requiresHotel && c.hotelName)
+      .map(c => {
+        const nights = (() => {
+          if (!c.hotelCheckIn || !c.hotelCheckOut) return null;
+          const parseHM = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+          const inM = parseHM(c.hotelCheckIn);
+          const outM = parseHM(c.hotelCheckOut);
+          const diff = outM < inM ? (1440 - inM + outM) : (outM - inM);
+          return diff >= 600 ? 1 : null;
+        })();
+        return `${c.hotelName}${nights ? (isEN ? " (1 Night)" : " (1 Gece)") : ""}`;
+      });
+    const uniqueHotels = [...new Set(hotelsWithNights)];
+    const transferCount = crewSigners.reduce((acc, c) => {
+      return acc + c.timeline.filter(s => /transfer|airport/i.test(s.label)).length;
+    }, 0);
+    const visaCount = crewSigners.filter(c => c.visaRequired).length;
+
+    const block3Header = isEN ? "🛎️  SERVICES ARRANGED (No Pricing)" : "🛎️  SAĞLANAN HİZMET KALEMLERİ (Fiyatsız)";
+    const flightsLine = isEN
+      ? `  • Flights: ${uniqueFlights.length > 0 ? uniqueFlights.join(", ") : "None"}`
+      : `  • Uçuşlar: ${uniqueFlights.length > 0 ? uniqueFlights.join(", ") : "Yok"}`;
+    const hotelsLine = isEN
+      ? `  • Accommodation: ${uniqueHotels.length > 0 ? uniqueHotels.join("; ") : "None"}`
+      : `  • Konaklama: ${uniqueHotels.length > 0 ? uniqueHotels.join("; ") : "Yok"}`;
+    const transferLine = isEN
+      ? `  • Ground Transfers: ${transferCount} vehicle run(s)`
+      : `  • Kara Transferleri: ${transferCount} araç seferi`;
+    const visaLine = visaCount > 0
+      ? (isEN ? `  • Visa Services: ${visaCount} crew member(s)` : `  • Vize Hizmetleri: ${visaCount} personel`)
+      : null;
+    const block3Body = [flightsLine, hotelsLine, transferLine, ...(visaLine ? [visaLine] : [])].join("\n");
+
+    // ── Compose full report ──────────────────────────────────────────────────
+    const sep = "─".repeat(52);
+    const vesselLine = isEN
+      ? `Vessel: ${voyage?.vesselName || "—"}  |  Port: ${voyage?.portName || "—"}  |  Generated: ${nowStr}`
+      : `Gemi: ${voyage?.vesselName || "—"}  |  Liman: ${voyage?.portName || "—"}  |  Oluşturuldu: ${nowStr}`;
+
+    return [
+      isEN ? "OPERATIONS SUMMARY REPORT" : "OPERASYON ÖZETİ RAPORU",
+      vesselLine,
+      sep,
+      block1Header,
+      block1Body,
+      sep,
+      block2Header,
+      block2Body,
+      sep,
+      block3Header,
+      block3Body,
+      sep,
+      isEN
+        ? "This report contains no pricing information."
+        : "Bu rapor herhangi bir fiyat bilgisi içermemektedir.",
+    ].join("\n");
   };
 
   // ── Auto-fill Disembark time when Off-signer ETD changes ─────────────────
@@ -1913,6 +2041,13 @@ export default function VoyageDetail() {
                       <Sparkles className="w-3 h-3" />
                       Ask AI
                       <span className="text-[9px] font-mono bg-slate-800/80 border border-slate-700/50 rounded px-1 py-0.5 text-slate-500 ml-0.5">⌘K</span>
+                    </button>
+                    <button
+                      onClick={() => { setOpsSummaryText(generateOpsSummary(opsSummaryLang)); setOpsSummaryOpen(true); }}
+                      className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-semibold bg-emerald-700/20 hover:bg-emerald-700/35 border border-emerald-600/40 text-emerald-300 hover:text-emerald-200 transition-all"
+                      data-testid="button-send-ops-summary"
+                    >
+                      📧 Send Ops Summary
                     </button>
                     <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 border-slate-600 text-slate-300 hover:bg-slate-700/50" onClick={() => { setCrewPanelMode("add_on"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "on" }); setSlideFormTimeline(ON_TIMELINE_DEFAULT.map(s => ({ ...s }))); setEditingCrewId(null); setShowCrewPanel(true); }} data-testid="button-add-crew">
                       <Plus className="w-3 h-3" /> Add Crew
@@ -5710,6 +5845,83 @@ export default function VoyageDetail() {
             >
               {createReviewMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Submit Review"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Ops Summary Report Dialog ────────────────────────────────────────── */}
+      <Dialog open={opsSummaryOpen} onOpenChange={setOpsSummaryOpen}>
+        <DialogContent className="max-w-2xl bg-slate-900 border-slate-700 text-slate-100" data-testid="dialog-ops-summary">
+          <DialogHeader>
+            <div className="flex items-center justify-between gap-4">
+              <DialogTitle className="text-base font-bold text-slate-100">📋 Operations Summary Report</DialogTitle>
+              <div className="flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-lg p-0.5">
+                {(["EN", "TR"] as const).map(l => (
+                  <button
+                    key={l}
+                    onClick={() => { setOpsSummaryLang(l); setOpsSummaryText(generateOpsSummary(l)); }}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${opsSummaryLang === l ? "bg-cyan-600 text-white shadow" : "text-slate-400 hover:text-slate-200"}`}
+                    data-testid={`toggle-lang-${l}`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-col gap-0.5 pt-1">
+              <p className="text-xs text-slate-400">Auto-generated from current crew data. You may edit before sending.</p>
+              <p className="text-[11px] text-slate-500 font-mono">
+                Vessel: <span className="text-slate-400">{voyage?.vesselName || "—"}</span>
+                {" "}|{" "}Port: <span className="text-slate-400">{voyage?.portName || "—"}</span>
+                {" "}|{" "}Generated: <span className="text-slate-400">{new Date().toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" })} / {new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</span>
+              </p>
+            </div>
+          </DialogHeader>
+
+          <div className="py-1">
+            <textarea
+              value={opsSummaryText}
+              onChange={e => setOpsSummaryText(e.target.value)}
+              rows={18}
+              className="w-full rounded-md bg-slate-800 border border-slate-700 text-slate-200 text-xs font-mono px-3 py-2.5 resize-none focus:outline-none focus:border-cyan-600/60 focus:ring-1 focus:ring-cyan-600/30 transition-all"
+              data-testid="textarea-ops-summary"
+              spellCheck={false}
+            />
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2 pt-0">
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(opsSummaryText).then(() => {
+                  const t = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+                  addActivityLog(`Operation summary copied to clipboard (${opsSummaryLang}) at ${t}.`, "Agent");
+                });
+              }}
+              className="flex items-center gap-1.5 h-8 px-4 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-200 transition-all"
+              data-testid="button-ops-copy"
+            >
+              📋 Copy to Clipboard
+            </button>
+            <button
+              onClick={() => {
+                const subject = encodeURIComponent(`Operations Summary — ${voyage?.vesselName || "Vessel"}`);
+                const body = encodeURIComponent(opsSummaryText);
+                window.open(`mailto:?subject=${subject}&body=${body}`);
+                const t = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+                addActivityLog(`Operation summary sent via email in ${opsSummaryLang} at ${t}.`, "Agent");
+              }}
+              className="flex items-center gap-1.5 h-8 px-4 rounded-lg text-xs font-semibold bg-emerald-700/30 hover:bg-emerald-700/50 border border-emerald-600/50 text-emerald-300 hover:text-emerald-200 transition-all"
+              data-testid="button-ops-send-email"
+            >
+              📧 Send via Email
+            </button>
+            <button
+              onClick={() => setOpsSummaryOpen(false)}
+              className="flex items-center gap-1.5 h-8 px-4 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 transition-all ml-auto"
+              data-testid="button-ops-close"
+            >
+              Close
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
