@@ -1,0 +1,27 @@
+Sen bir Senior UI/UX Mimarı ve Tailwind Uzmanısın. 'Voyages' ekranındaki gemi kartlarını (Voyage Card), kullanıcının sağladığı yeni veri yoğunluklu ve dinamik 'Glanceable Dashboard' tasarımına göre YENİDEN İNŞA ET.
+
+Lütfen 'VoyageCard' bileşenini şu 4 katmanlı yapıya göre kodla:
+
+1. CANLI ZİRVE (Header & Countdown):
+- Kartın en üstüne ince, operasyon tipine göre renklenen bir başlık şeridi ekle (Örn: Loading için bg-emerald-900/40).
+- Sol tarafta parlayan (pulse) minik bir ikon ve "🟢 LOADING OPERATION" (text-xs, font-bold, uppercase) yazsın.
+- Sağ tarafta ise dinamik bir Geri Sayım (Countdown) etiketi olsun: "⏳ 04h 12m Left" (text-slate-300).
+
+2. KİMLİK VE LOKASYON (Body - Top):
+- Gemi Adı: Çok belirgin, büyük font (text-lg font-bold text-slate-100). Hemen altında gri ve küçük fontla IMO numarası (Örn: IMO: 9456789).
+- Lokasyon ve Zaman: Alt alta iki şık satır:
+  * 📍 [Liman Adı] - [Rıhtım/Berth] (Örn: Alsancak Limanı - Rıhtım 4)
+  * 📅 ETA: DD.MM.YYYY - HH:MM (Örn: 08.03.2026 - 14:00)
+
+3. HAYATİ VERİ IZGARASI (The Vital Grid):
+- Lokasyon bilgisinin altına hafif saydam bir ayırıcı çizgi (border-t border-slate-700/50) çek.
+- Altına 3 sütunlu bir CSS Grid (grid-cols-3 gap-2) yerleştir. Her sütunun üstünde çok küçük (text-[10px] uppercase text-slate-500) başlık, altında ise belirgin veri (text-sm text-slate-200) olsun:
+  * Kolon 1: 📦 CARGO INFO (Örn: 45.000 MT Wheat)
+  * Kolon 2: 💰 PDA STATUS (Örn: ✅ Approved veya ⏳ Pending)
+  * Kolon 3: ⚓ LIVE STATUS (Örn: ⏳ Awaiting Customs)
+
+4. DİNAMİK İLERLEME ÇUBUĞU (Progress Bar):
+- Kartın en altına, tüm genişliği kaplayan (w-full) şık bir Progress Bar (shadcn Progress veya özel div) ekle.
+- Üstünde "İlerleme: %40" (Progress: 40%) yazsın. Çubuğun dolan kısmı, operasyon rengiyle (Loading ise emerald-500) eşleşsin.
+
+Not: Tasarımı tamamen Dark Mode (slate-800/900 arka plan) standartlarına, Bento Box köşelerine (rounded-xl) ve zarif hover efektlerine uygun yap. Şimdilik bu alanlara UI testleri için mantıklı mock (sahte) veriler gir.
