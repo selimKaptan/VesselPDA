@@ -124,6 +124,7 @@ export function AppSidebar() {
   }
   if (isAgent || effectiveRole === "shipowner" || isAdminUser) {
     toolsNav.push({ title: "Invoices", url: "/invoices", icon: Wallet });
+    toolsNav.push({ title: "Port Expenses", url: "/port-expenses", icon: Receipt });
   }
   if (isAgent || effectiveRole === "shipowner" || isAdminUser) {
     toolsNav.push({ title: "Laytime Calculator", url: "/laytime-calculator", icon: Scale });

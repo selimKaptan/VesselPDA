@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
 import { useAuth } from "@/hooks/use-auth";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import type { Vessel, Port } from "@shared/schema";
 import { fmtDate } from "@/lib/formatDate";
 
@@ -164,7 +164,14 @@ const EMPTY_FORM = {
 export default function Voyages() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+  const searchStr = useSearch();
+  const params = new URLSearchParams(searchStr);
+  const monthParam = params.get("month");
+  const portParam = params.get("port");
+  const vesselParam = params.get("vessel");
+  const statusParam = params.get("status");
+
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
 
@@ -285,6 +292,13 @@ export default function Voyages() {
   const next24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
   const filteredVoyages = (voyageList ?? []).filter((v: any) => {
+    if (monthParam && v.eta) {
+      if (!v.eta.startsWith(monthParam)) return false;
+    }
+    if (portParam && v.portName !== portParam) return false;
+    if (vesselParam && v.vesselName !== vesselParam) return false;
+    if (statusParam && v.status !== statusParam) return false;
+
     if (activeFilter === "all") return true;
     if (activeFilter === "next24h") {
       if (!v.eta) return false;
@@ -384,6 +398,24 @@ export default function Voyages() {
         <div>
           <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-voyages-title">Voyages</h1>
           <p className="text-muted-foreground text-sm">Operations files and voyage management</p>
+          {(monthParam || portParam || vesselParam || statusParam) && (
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-xs font-medium text-muted-foreground">Filters:</span>
+              {monthParam && <Badge variant="secondary" className="text-[10px]">{monthParam} <X className="w-2 h-2 ml-1 cursor-pointer" onClick={() => {
+                const p = new URLSearchParams(searchStr); p.delete("month"); setLocation(`/voyages?${p.toString()}`);
+              }} /></Badge>}
+              {portParam && <Badge variant="secondary" className="text-[10px]">{portParam} <X className="w-2 h-2 ml-1 cursor-pointer" onClick={() => {
+                const p = new URLSearchParams(searchStr); p.delete("port"); setLocation(`/voyages?${p.toString()}`);
+              }} /></Badge>}
+              {vesselParam && <Badge variant="secondary" className="text-[10px]">{vesselParam} <X className="w-2 h-2 ml-1 cursor-pointer" onClick={() => {
+                const p = new URLSearchParams(searchStr); p.delete("vessel"); setLocation(`/voyages?${p.toString()}`);
+              }} /></Badge>}
+              {statusParam && <Badge variant="secondary" className="text-[10px]">{statusParam} <X className="w-2 h-2 ml-1 cursor-pointer" onClick={() => {
+                const p = new URLSearchParams(searchStr); p.delete("status"); setLocation(`/voyages?${p.toString()}`);
+              }} /></Badge>}
+              <Button variant="ghost" size="sm" className="h-5 px-2 text-[10px]" onClick={() => setLocation("/voyages")}>Clear All</Button>
+            </div>
+          )}
         </div>
         {role !== "provider" && (
           <Button onClick={() => setShowCreate(true)} className="gap-2" data-testid="button-create-voyage">

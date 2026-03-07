@@ -370,13 +370,64 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const portExpenses = pgTable("port_expenses", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
+  fdaId: integer("fda_id").references(() => fdaAccounts.id, { onDelete: "set null" }),
+  category: text("category").notNull(),
+  // "port_dues" | "pilotage" | "towage" | "agency_fee" | "mooring" | "anchorage" | 
+  // "launch_hire" | "garbage" | "fresh_water" | "bunker" | "survey" | "customs" | "other"
+  description: text("description"),
+  amount: real("amount").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  amountUsd: real("amount_usd"),
+  receiptNumber: text("receipt_number"),
+  vendor: text("vendor"),
+  expenseDate: timestamp("expense_date"),
+  isPaid: boolean("is_paid").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const portExpenseRelations = relations(portExpenses, ({ one }) => ({
+  user: one(users, { fields: [portExpenses.userId], references: [users.id] }),
+  voyage: one(voyages, { fields: [portExpenses.voyageId], references: [voyages.id] }),
+  fda: one(fdaAccounts, { fields: [portExpenses.fdaId], references: [fdaAccounts.id] }),
+}));
+
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id).unique(),
+  emailOnProformaApproval: boolean("email_on_proforma_approval").default(true),
+  emailOnFdaReady: boolean("email_on_fda_ready").default(true),
+  emailOnInvoiceCreated: boolean("email_on_invoice_created").default(true),
+  emailOnDaAdvance: boolean("email_on_da_advance").default(true),
+  emailOnCertExpiry: boolean("email_on_cert_expiry").default(true),
+  emailOnNewMessage: boolean("email_on_new_message").default(true),
+  emailOnVoyageUpdate: boolean("email_on_voyage_update").default(false),
+  inAppOnAll: boolean("in_app_on_all").default(true),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const notificationRelations = relations(notifications, ({ one }) => ({
   user: one(users, { fields: [notifications.userId], references: [users.id] }),
 }));
 
+export const notificationPreferenceRelations = relations(notificationPreferences, ({ one }) => ({
+  user: one(users, { fields: [notificationPreferences.userId], references: [users.id] }),
+}));
+
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ createdAt: true, isRead: true });
+export const insertNotificationPreferenceSchema = createInsertSchema(notificationPreferences).omit({ id: true, updatedAt: true });
+export const insertPortExpenseSchema = createInsertSchema(portExpenses).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
+export type NotificationPreference = typeof notificationPreferences.$inferSelect;
+export type InsertNotificationPreference = z.infer<typeof insertNotificationPreferenceSchema>;
+export type PortExpense = typeof portExpenses.$inferSelect;
+export type InsertPortExpense = z.infer<typeof insertPortExpenseSchema>;
 
 // ─── VOYAGES (SEFER YÖNETİMİ) ─────────────────────────────────────────────────
 

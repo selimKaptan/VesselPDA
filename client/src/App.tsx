@@ -72,6 +72,7 @@ import CrewRoster from "@/pages/crew-roster";
 import LaytimeCalculator from "@/pages/laytime-calculator";
 import DaAdvances from "@/pages/da-advances";
 import Analytics from "@/pages/analytics";
+import PortExpenses from "@/pages/port-expenses";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -131,6 +132,7 @@ function AuthenticatedRouter() {
       <Route path="/crew-roster" component={CrewRoster} />
       <Route path="/laytime-calculator" component={LaytimeCalculator} />
       <Route path="/da-advances" component={DaAdvances} />
+      <Route path="/port-expenses" component={PortExpenses} />
       <Route path="/analytics" component={Analytics} />
       <Route component={NotFound} />
     </Switch>

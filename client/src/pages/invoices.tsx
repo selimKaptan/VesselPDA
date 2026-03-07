@@ -64,8 +64,9 @@ export default function Invoices() {
   const params = new URLSearchParams(searchStr);
   const fdaIdParam = params.get("fdaId");
   const fdaId = fdaIdParam ? parseInt(fdaIdParam) : null;
+  const statusParam = params.get("status");
 
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState(statusParam || "all");
   const [currencyFilter, setCurrencyFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
@@ -99,6 +100,12 @@ export default function Invoices() {
     queryFn: () => fetch(`/api/fda/${fdaId}`, { credentials: "include" }).then(r => r.json()),
     enabled: !!fdaId,
   });
+
+  useEffect(() => {
+    if (statusParam) {
+      setStatusFilter(statusParam);
+    }
+  }, [statusParam]);
 
   // Pre-fill form when FDA is loaded from URL param — only once per mount
   useEffect(() => {

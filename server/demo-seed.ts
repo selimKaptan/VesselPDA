@@ -15,13 +15,17 @@ import {
   cargoPositions,
   noticeOfReadiness,
   notifications,
+  laytimeSheets,
+  daAdvances,
+  portExpenses,
 } from "../shared/schema";
 
 export async function seedDemoData(userId: string, userRole: string) {
   const summary: Record<string, number> = {
     vessels: 0, proformas: 0, voyages: 0, sofs: 0, sofEvents: 0,
     fdas: 0, invoices: 0, fixtures: 0, cargoPositions: 0, nors: 0,
-    notifications: 0, checklists: 0,
+    notifications: 0, checklists: 0, laytimeSheets: 0, daAdvances: 0,
+    portExpenses: 0,
   };
 
   let portRows: { id: number; name: string }[] = [];
@@ -543,6 +547,157 @@ export async function seedDemoData(userId: string, userRole: string) {
       summary.checklists += checklistItems.length;
     } catch (err: any) {
       console.error("[demo-seed] Checklists failed:", err?.message);
+    }
+  }
+
+  // ─── NEW: LAYTIME SHEETS ──────────────────────────────────────────────────
+  if (voyageRows.length >= 2) {
+    try {
+      const laytimeData = [
+        {
+          userId,
+          voyageId: voyageRows[0].id,
+          title: "Laytime - Wheat Cargo",
+          vesselName: vesselRows[0].name,
+          portName: portRows[0].name,
+          terms: {
+            laytimeAllowed: "3 days 12 hours",
+            laytimeType: "SHINC",
+            demurrageRate: 15000,
+            despatchRate: 7500,
+          },
+          events: [
+            { date: new Date(Date.now() - 15 * 86400000).toISOString(), event: "NOR Tendered", duration: "0", remarks: "" },
+            { date: new Date(Date.now() - 14 * 86400000).toISOString(), event: "Commenced Loading", duration: "24h", remarks: "All holds" },
+            { date: new Date(Date.now() - 13 * 86400000).toISOString(), event: "Loading", duration: "24h", remarks: "" },
+            { date: new Date(Date.now() - 12 * 86400000).toISOString(), event: "Completed Loading", duration: "12h", remarks: "" },
+          ],
+          result: {
+            allowed: 84, // hours
+            used: 60,
+            balance: 24,
+            status: "despatch",
+            amount: 7500,
+          },
+        },
+        {
+          userId,
+          voyageId: voyageRows[1].id,
+          title: "Laytime - Iron Ore",
+          vesselName: vesselRows[1].name,
+          portName: portRows[1].name,
+          terms: {
+            laytimeAllowed: "2 days",
+            laytimeType: "SHEX",
+            demurrageRate: 12000,
+            despatchRate: 6000,
+          },
+          events: [
+            { date: new Date(Date.now() - 3 * 86400000).toISOString(), event: "NOR Tendered", duration: "0", remarks: "" },
+            { date: new Date(Date.now() - 2 * 86400000).toISOString(), event: "Commenced Loading", duration: "24h", remarks: "" },
+            { date: new Date(Date.now() - 1 * 86400000).toISOString(), event: "Loading", duration: "24h", remarks: "Rain delay 4h" },
+            { date: new Date().toISOString(), event: "Still Loading", duration: "12h", remarks: "" },
+          ],
+          result: {
+            allowed: 48,
+            used: 60,
+            balance: -12,
+            status: "demurrage",
+            amount: 6000,
+          },
+        }
+      ];
+      await db.insert(laytimeSheets).values(laytimeData);
+      summary.laytimeSheets += laytimeData.length;
+    } catch (err: any) {
+      console.error("[demo-seed] LaytimeSheets failed:", err?.message);
+    }
+  }
+
+  // ─── NEW: DA ADVANCES ─────────────────────────────────────────────────────
+  if (voyageRows.length >= 2 && proformaRows.length >= 2) {
+    try {
+      const daAdvanceData = [
+        {
+          userId,
+          voyageId: voyageRows[0].id,
+          proformaId: proformaRows[0].id,
+          title: "Initial Advance Request",
+          requestedAmount: 12450,
+          receivedAmount: 12450,
+          currency: "USD",
+          status: "fully_received",
+          dueDate: new Date(Date.now() - 10 * 86400000),
+          principalName: "Demo Shipowner Ltd.",
+          bankDetails: "Standard Demo Bank - Swift: DEMO123",
+          notes: "Received in full on time.",
+        },
+        {
+          userId,
+          voyageId: voyageRows[1].id,
+          proformaId: proformaRows[1].id,
+          title: "Emergency Funds - Port Dues",
+          requestedAmount: 5000,
+          receivedAmount: 2500,
+          currency: "USD",
+          status: "partially_received",
+          dueDate: new Date(Date.now() + 2 * 86400000),
+          principalName: "Demo Shipping Co.",
+          bankDetails: "Standard Demo Bank - Swift: DEMO123",
+          notes: "Partial payment received, awaiting balance.",
+        }
+      ];
+      await db.insert(daAdvances).values(daAdvanceData);
+      summary.daAdvances += daAdvanceData.length;
+    } catch (err: any) {
+      console.error("[demo-seed] DAAdvances failed:", err?.message);
+    }
+  }
+
+  // ─── NEW: PORT EXPENSES ───────────────────────────────────────────────────
+  if (voyageRows.length >= 2) {
+    try {
+      const expenseCategories = ["port_dues", "pilotage", "towage", "agency_fee", "mooring", "anchorage", "launch_hire", "garbage", "fresh_water", "bunker", "survey", "customs", "other"];
+      const portExpenseData = [];
+      
+      // Voyage 0 expenses
+      for (let i = 0; i < 6; i++) {
+        portExpenseData.push({
+          userId,
+          voyageId: voyageRows[0].id,
+          category: expenseCategories[i % expenseCategories.length],
+          description: `Expense for ${expenseCategories[i % expenseCategories.length]}`,
+          amount: 500 + Math.random() * 1500,
+          currency: "USD",
+          amountUsd: 500 + Math.random() * 1500,
+          vendor: "Port Services Co.",
+          expenseDate: new Date(Date.now() - (12 + i) * 86400000),
+          isPaid: true,
+          receiptNumber: `RCPT-00${i}`,
+        });
+      }
+
+      // Voyage 1 expenses
+      for (let i = 0; i < 4; i++) {
+        portExpenseData.push({
+          userId,
+          voyageId: voyageRows[1].id,
+          category: expenseCategories[(i + 5) % expenseCategories.length],
+          description: `Active expense ${i}`,
+          amount: 300 + Math.random() * 800,
+          currency: "USD",
+          amountUsd: 300 + Math.random() * 800,
+          vendor: "Local Agency Ltd.",
+          expenseDate: new Date(Date.now() - i * 86400000),
+          isPaid: i % 2 === 0,
+          receiptNumber: i % 2 === 0 ? `RCPT-B-00${i}` : null,
+        });
+      }
+
+      await db.insert(portExpenses).values(portExpenseData);
+      summary.portExpenses += portExpenseData.length;
+    } catch (err: any) {
+      console.error("[demo-seed] PortExpenses failed:", err?.message);
     }
   }
 

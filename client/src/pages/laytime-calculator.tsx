@@ -121,94 +121,168 @@ async function downloadPdf(
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = 210;
   const margin = 15;
-  let y = 20;
+  let y = 15;
 
-  doc.setFillColor(30, 58, 95);
-  doc.rect(0, 0, pageW, 28, "F");
+  // --- Header ---
+  // Maritime Blue Header Bar
+  doc.setFillColor(26, 58, 92); // #1a3a5c
+  doc.rect(0, 0, pageW, 35, "F");
+  
+  // VesselPDA Logo Placeholder / Text
   doc.setTextColor(255, 255, 255);
+  doc.setFontSize(22);
+  doc.setFont("helvetica", "bold");
+  doc.text("VesselPDA", margin, 22);
+  
   doc.setFontSize(14);
-  doc.setFont("helvetica", "bold");
-  doc.text("LAYTIME CALCULATION REPORT", margin, 12);
-  doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
-  doc.text("VesselPDA Maritime Platform", margin, 19);
-  doc.text(new Date().toLocaleDateString("en-GB"), pageW - margin, 19, { align: "right" });
-  y = 36;
+  doc.text("LAYTIME CALCULATION REPORT", margin, 30);
 
-  doc.setTextColor(30, 41, 59);
-  doc.setFontSize(11);
+  // Report Date & ID
+  doc.setFontSize(9);
+  doc.text(`Date: ${new Date().toLocaleDateString("en-GB")}`, pageW - margin, 20, { align: "right" });
+  doc.text(`Ref: ${title.substring(0, 20)}`, pageW - margin, 26, { align: "right" });
+
+  y = 45;
+
+  // --- Summary Section ---
+  doc.setTextColor(26, 58, 92);
+  doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
-  doc.text(title, margin, y);
+  doc.text("VESSEL & VOYAGE SUMMARY", margin, y);
   y += 6;
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(100, 116, 139);
-  if (vesselName) doc.text(`Vessel: ${vesselName}`, margin, y);
-  if (portName) doc.text(`Port: ${portName}`, margin + 60, y);
-  y += 10;
 
-  doc.setFillColor(241, 245, 249);
-  doc.rect(margin, y, pageW - 2 * margin, 28, "F");
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.5);
+  doc.line(margin, y, pageW - margin, y);
+  y += 8;
+
   doc.setTextColor(30, 41, 59);
-  doc.setFontSize(9);
+  doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
-  const cols = ["Time Allowed", "Time Used", "Balance", "Status"];
-  const vals = [
-    fmtHours(calc.allowed),
-    fmtHours(calc.timeUsed),
-    (calc.diff >= 0 ? "+" : "") + fmtHours(calc.diff),
-    calc.status === "on_demurrage" ? "DEMURRAGE" : calc.status === "on_despatch" ? "DESPATCH" : "WITHIN LAYTIME",
-  ];
+  doc.text("Vessel Name:", margin, y);
+  doc.text("Port:", margin + 80, y);
+  
+  doc.setFont("helvetica", "normal");
+  doc.text(vesselName || "N/A", margin + 30, y);
+  doc.text(portName || "N/A", margin + 95, y);
+  y += 8;
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Charter Party Terms:", margin, y);
+  doc.setFont("helvetica", "normal");
+  doc.text(`${terms.laytimeTerms} (${terms.allowedDays}d ${terms.allowedHours}h allowed)`, margin + 45, y);
+  y += 8;
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Demurrage Rate:", margin, y);
+  doc.text("Despatch Rate:", margin + 80, y);
+  doc.setFont("helvetica", "normal");
+  doc.text(`${fmtMoney(parseFloat(terms.demurrageRate) || 0, terms.currency)} / Day`, margin + 35, y);
+  doc.text(`${fmtMoney(parseFloat(terms.despatchRate) || 0, terms.currency)} / Day`, margin + 115, y);
+  y += 12;
+
+  // --- Calculation Results Card ---
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(margin, y, pageW - 2 * margin, 32, 2, 2, "F");
+  
   const colW = (pageW - 2 * margin) / 4;
-  cols.forEach((c, i) => { doc.text(c, margin + i * colW + 2, y + 7); });
-  doc.setFont("helvetica", "normal");
-  vals.forEach((v, i) => { doc.text(v, margin + i * colW + 2, y + 16); });
-  const financialAmt = calc.status === "on_demurrage"
-    ? `-${fmtMoney(calc.demurrageAmount, terms.currency)}`
-    : calc.status === "on_despatch"
-    ? `+${fmtMoney(calc.despatchAmount, terms.currency)}`
-    : `${terms.currency} 0.00`;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text(`Financial Result: ${financialAmt}`, margin + 2, y + 26);
-  y += 38;
+  const statusLabel = calc.status === "on_demurrage" ? "DEMURRAGE" : calc.status === "on_despatch" ? "DESPATCH" : "WITHIN LAYTIME";
+  const statusColor = calc.status === "on_demurrage" ? [220, 38, 38] : calc.status === "on_despatch" ? [22, 163, 74] : [71, 85, 105];
 
   doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
   doc.setFont("helvetica", "bold");
+  doc.text("TIME ALLOWED", margin + 5, y + 10);
+  doc.text("TIME USED", margin + colW + 5, y + 10);
+  doc.text("BALANCE", margin + 2 * colW + 5, y + 10);
+  doc.text("STATUS", margin + 3 * colW + 5, y + 10);
+
+  doc.setFontSize(12);
   doc.setTextColor(30, 41, 59);
-  doc.text("Statement of Facts (SOF)", margin, y);
-  y += 5;
-  doc.setFillColor(30, 58, 95);
-  doc.rect(margin, y, pageW - 2 * margin, 6, "F");
-  doc.setTextColor(255, 255, 255);
+  doc.text(fmtHours(calc.allowed), margin + 5, y + 18);
+  doc.text(fmtHours(calc.timeUsed), margin + colW + 5, y + 18);
+  
+  const balanceText = (calc.diff >= 0 ? "+" : "") + fmtHours(calc.diff);
+  doc.text(balanceText, margin + 2 * colW + 5, y + 18);
+  
+  doc.setTextColor(statusColor[0], statusColor[1], statusColor[2]);
+  doc.text(statusLabel, margin + 3 * colW + 5, y + 18);
+
+  const financialAmt = calc.status === "on_demurrage"
+    ? `Amount Due Owner: ${fmtMoney(calc.demurrageAmount, terms.currency)}`
+    : calc.status === "on_despatch"
+    ? `Amount Due Charterer: ${fmtMoney(calc.despatchAmount, terms.currency)}`
+    : `Balance: ${terms.currency} 0.00`;
+  
+  doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.text("#", margin + 2, y + 4);
-  doc.text("Date / Time", margin + 8, y + 4);
-  doc.text("Description", margin + 50, y + 4);
-  doc.text("Count%", margin + 130, y + 4);
-  doc.text("Effective", margin + 148, y + 4);
+  doc.text(financialAmt, margin + 5, y + 26);
+  y += 45;
+
+  // --- Events Table ---
+  doc.setTextColor(26, 58, 92);
+  doc.setFontSize(12);
+  doc.text("STATEMENT OF FACTS (SOF)", margin, y);
   y += 6;
+
+  // Table Header
+  doc.setFillColor(26, 58, 92);
+  doc.rect(margin, y, pageW - 2 * margin, 8, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(9);
+  doc.text("#", margin + 2, y + 5.5);
+  doc.text("DATE / TIME", margin + 10, y + 5.5);
+  doc.text("EVENT DESCRIPTION", margin + 55, y + 5.5);
+  doc.text("COUNT%", margin + 145, y + 5.5);
+  doc.text("DURATION", margin + 165, y + 5.5);
+  y += 8;
 
   const sorted = [...events].filter(e => e.dateTime).sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+  
+  doc.setTextColor(30, 41, 59);
+  doc.setFont("helvetica", "normal");
+  
   sorted.forEach((ev, i) => {
-    if (y > 270) { doc.addPage(); y = 20; }
-    doc.setFillColor(i % 2 === 0 ? 248 : 255, i % 2 === 0 ? 250 : 255, i % 2 === 0 ? 252 : 255);
-    doc.rect(margin, y, pageW - 2 * margin, 6, "F");
-    doc.setTextColor(30, 41, 59);
-    doc.setFont("helvetica", "normal");
     const p = calc.periods[i];
-    doc.text(String(i + 1), margin + 2, y + 4);
-    doc.text(ev.dateTime.replace("T", " "), margin + 8, y + 4);
-    doc.text((ev.description || "").substring(0, 38), margin + 50, y + 4);
-    doc.text(`${ev.toCount}%`, margin + 130, y + 4);
-    doc.text(p ? fmtHours(p.effective) : "—", margin + 148, y + 4);
-    y += 6;
+    // Zebra stripping
+    if (i % 2 === 1) {
+      doc.setFillColor(248, 250, 252);
+      doc.rect(margin, y, pageW - 2 * margin, 8, "F");
+    }
+
+    doc.text(String(i + 1), margin + 2, y + 5.5);
+    doc.text(ev.dateTime.replace("T", " "), margin + 10, y + 5.5);
+    
+    // Truncate description if too long
+    let desc = ev.description || "";
+    if (desc.length > 50) desc = desc.substring(0, 47) + "...";
+    doc.text(desc, margin + 55, y + 5.5);
+    
+    doc.text(`${ev.toCount}%`, margin + 145, y + 5.5);
+    doc.text(p ? fmtHours(p.effective) : "—", margin + 165, y + 5.5);
+
+    y += 8;
+
+    // Page break handling
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+      // Re-add header on new page? (Optional, but let's keep it simple)
+    }
   });
 
-  doc.setTextColor(100, 116, 139);
-  doc.setFontSize(8);
-  doc.text("Generated by VesselPDA — All calculations are for reference only.", margin, 285);
+  // --- Footer ---
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.setDrawColor(226, 232, 240);
+    doc.line(margin, 282, pageW - margin, 282);
+    doc.text(`VesselPDA Laytime Report | Generated on ${new Date().toLocaleString("en-GB")}`, margin, 287);
+    doc.text(`Page ${i} of ${pageCount}`, pageW - margin, 287, { align: "right" });
+  }
 
   doc.save(`${title.replace(/\s+/g, "_")}_laytime_report.pdf`);
 }
@@ -481,17 +555,17 @@ export default function LaytimeCalculator() {
       </div>
 
       {/* Body */}
-      <div className="flex gap-5 p-6 items-start">
+      <div className="flex flex-col lg:flex-row gap-5 p-6 items-start">
 
         {/* ── SAVED SHEETS PANEL ────────────────────────────────────────── */}
         {sheets.length > 0 && (
-          <div className="w-56 shrink-0">
+          <div className="w-full lg:w-56 shrink-0 order-2 lg:order-1">
             <div className="rounded-xl border border-border bg-card overflow-hidden sticky top-6">
               <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-muted/20">
                 <FolderOpen className="w-3.5 h-3.5 text-primary" />
                 <span className="text-xs font-semibold">Saved Sheets</span>
               </div>
-              <div className="max-h-[350px] overflow-y-auto">
+              <div className="max-h-[250px] lg:max-h-[350px] overflow-y-auto">
                 {sheets.map((s: any) => (
                   <button
                     key={s.id}
@@ -515,7 +589,7 @@ export default function LaytimeCalculator() {
         )}
 
         {/* ── LEFT COLUMN ───────────────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col gap-5 min-w-0">
+        <div className="flex-1 flex flex-col gap-5 min-w-0 w-full order-1 lg:order-2">
 
           {/* Charter Party Terms */}
           <div className="rounded-xl border border-border bg-card overflow-hidden" data-testid="card-charter-party-terms">
@@ -524,7 +598,7 @@ export default function LaytimeCalculator() {
               <h2 className="font-bold text-sm">Charter Party Terms</h2>
             </div>
             <div className="p-5">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Allowed Time (Days)</Label>
                   <Input type="number" min="0" placeholder="e.g. 4" value={terms.allowedDays} onChange={e => setTerm("allowedDays", e.target.value)} className="h-9" data-testid="input-allowed-days" />
@@ -589,7 +663,7 @@ export default function LaytimeCalculator() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-xs sm:text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/10">
                     <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-muted-foreground w-8">#</th>
@@ -649,7 +723,7 @@ export default function LaytimeCalculator() {
         </div>
 
         {/* ── RIGHT COLUMN ──────────────────────────────────────────────── */}
-        <div className="w-80 shrink-0">
+        <div className="w-full lg:w-80 shrink-0 order-3">
           <div className="sticky top-6 flex flex-col gap-4">
 
             {/* Calculation Summary */}

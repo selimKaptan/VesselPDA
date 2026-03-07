@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Banknote, Plus, X, CreditCard, CheckCircle2, Clock, XCircle, AlertCircle, ChevronDown } from "lucide-react";
+import { Banknote, Plus, X, CreditCard, CheckCircle2, Clock, XCircle, AlertCircle, ChevronDown, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -173,7 +173,7 @@ export default function DaAdvancesPage() {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-3 gap-4 mt-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
           <div className="rounded-lg border border-border bg-card px-4 py-3">
             <p className="text-xs text-muted-foreground">Total Requested</p>
             <p className="text-xl font-bold mt-0.5" data-testid="text-total-requested">${totalRequested.toLocaleString("en-US", { minimumFractionDigits: 0 })}</p>
@@ -189,9 +189,9 @@ export default function DaAdvancesPage() {
         </div>
 
         {/* Filter chips */}
-        <div className="flex gap-2 mt-4 flex-wrap">
+        <div className="flex gap-2 mt-4 flex-wrap overflow-x-auto pb-1 no-scrollbar">
           {["all", "pending", "partially_received", "fully_received", "cancelled"].map(s => (
-            <Button key={s} variant={filterStatus === s ? "default" : "outline"} size="sm" onClick={() => setFilterStatus(s)} data-testid={`filter-${s}`} className="h-7 text-xs">
+            <Button key={s} variant={filterStatus === s ? "default" : "outline"} size="sm" onClick={() => setFilterStatus(s)} data-testid={`filter-${s}`} className="h-7 text-xs whitespace-nowrap">
               {s === "all" ? "All" : STATUS_LABELS[s]}
             </Button>
           ))}
@@ -220,8 +220,8 @@ export default function DaAdvancesPage() {
               const voyage = voyages.find((v: any) => v.id === adv.voyageId);
               return (
                 <div key={adv.id} className="rounded-xl border border-border bg-card p-5 hover:shadow-md transition-shadow" data-testid={`card-advance-${adv.id}`}>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
+                  <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0 w-full">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-semibold text-base" data-testid={`text-advance-title-${adv.id}`}>{adv.title}</h3>
                         <Badge className={`text-xs border ${STATUS_COLORS[adv.status] || ""}`} data-testid={`badge-status-${adv.id}`}>
@@ -232,15 +232,15 @@ export default function DaAdvancesPage() {
                           <Badge className="text-xs border bg-red-500/10 text-red-600 border-red-500/30">Overdue</Badge>
                         )}
                       </div>
-                      <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground flex-wrap">
+                      <div className="flex items-center gap-x-4 gap-y-1 mt-1 text-sm text-muted-foreground flex-wrap">
                         {adv.principalName && <span>{adv.principalName}</span>}
                         {voyage && <span className="text-primary">📋 {voyage.vesselName || `Voyage #${adv.voyageId}`}</span>}
                         {adv.dueDate && <span>Due: {new Date(adv.dueDate).toLocaleDateString("en-GB")}</span>}
-                        {adv.recipientEmail && <span className="text-xs">{adv.recipientEmail}</span>}
+                        {adv.recipientEmail && <span className="text-xs break-all">{adv.recipientEmail}</span>}
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0">
+                    <div className="text-left sm:text-right shrink-0 w-full sm:w-auto">
                       <p className="text-lg font-bold" data-testid={`text-amount-${adv.id}`}>{fmtAmt(adv.requestedAmount, adv.currency)}</p>
                       <p className="text-xs text-muted-foreground">Received: <span className="text-emerald-500 font-semibold">{fmtAmt(adv.receivedAmount || 0, adv.currency)}</span></p>
                     </div>
@@ -267,6 +267,15 @@ export default function DaAdvancesPage() {
                         <CreditCard className="w-3 h-3" /> Record Payment
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => window.open(`/api/da-advances/${adv.id}/pdf`, '_blank')}
+                      className="gap-1.5 h-7 text-xs"
+                      data-testid={`button-download-advance-pdf-${adv.id}`}
+                    >
+                      <FileDown className="w-3 h-3" /> PDF
+                    </Button>
                     {adv.status === "pending" && (
                       <Button
                         size="sm"

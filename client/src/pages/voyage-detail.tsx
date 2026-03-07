@@ -35,7 +35,10 @@ import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/hooks/use-auth";
 import { fmtDate, fmtDateTime } from "@/lib/formatDate";
 import { useSocket } from "@/hooks/use-socket";
-import type { Port } from "@shared/schema";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { insertPortExpenseSchema, type PortExpense, type Voyage } from "@shared/schema";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   planned:         { label: "Planned",         color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",       icon: Clock },
@@ -300,6 +303,38 @@ export default function VoyageDetail() {
   const [generatingCount, setGeneratingCount] = useState(0);
   const [loadingTemplateId, setLoadingTemplateId] = useState<string | null>(null);
   const [reviewForm, setReviewForm] = useState({ rating: 0, comment: "" });
+  const [isAddExpenseDialogOpen, setIsAddExpenseDialogOpen] = useState(false);
+
+  const form = useForm({
+    resolver: zodResolver(insertPortExpenseSchema),
+    defaultValues: {
+      category: "other",
+      description: "",
+      amount: 0,
+      currency: "USD",
+      vendor: "",
+      receiptNumber: "",
+      expenseDate: new Date().toISOString().split('T')[0],
+      notes: "",
+      voyageId: voyageId,
+      isPaid: false,
+    },
+  });
+
+  const createExpenseMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/port-expenses", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/port-expenses", "voyage", voyageId] });
+      setIsAddExpenseDialogOpen(false);
+      toast({ title: "Success", description: "Port expense added successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
 
   // ── Husbandry: Crew Logistics Board ────────────────────────────────────────
   type CrewTimelineStep = { id: number; icon: string; label: string; time: string };
@@ -1189,6 +1224,17 @@ export default function VoyageDetail() {
     enabled: !!voyageId,
   });
 
+  const { data: voyagePortExpenses = [] } = useQuery<any[]>({
+    queryKey: ["/api/port-expenses", "voyage", voyageId],
+    queryFn: async () => {
+      const res = await fetch(`/api/port-expenses?voyageId=${voyageId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      const d = await res.json();
+      return Array.isArray(d) ? d : [];
+    },
+    enabled: !!voyageId,
+  });
+
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
@@ -1776,7 +1822,7 @@ export default function VoyageDetail() {
   const reviews: any[] = reviewData?.reviews || [];
 
   return (
-    <div className="px-3 py-5 space-y-6 max-w-6xl mx-auto">
+    <div className="px-3 sm:px-4 py-5 space-y-6 max-w-6xl mx-auto">
       <PageMeta title={`Voyage — ${voyage.vesselName || "Detail"} | VesselPDA`} description="Voyage detail and operation file" />
 
       {/* ── Global AI Drag Overlay ─────────────────────────────────────────── */}
@@ -2166,7 +2212,7 @@ export default function VoyageDetail() {
       </Card>
 
       {/* Tab Bar */}
-      <div className="flex gap-1 bg-muted/40 p-1 rounded-xl">
+      <div className="flex gap-1 bg-muted/40 p-1 rounded-xl overflow-x-auto no-scrollbar whitespace-nowrap scroll-smooth">
         {([
           { key: "operation",   label: "Operation",  icon: ClipboardList },
           { key: "cargo_ops",   label: "Cargo Ops",  icon: Package },
@@ -2180,7 +2226,7 @@ export default function VoyageDetail() {
           <button
             key={key}
             onClick={() => setActiveTab(key)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex-1 min-w-[100px] sm:min-w-0 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
               activeTab === key
                 ? "bg-background shadow-sm text-foreground"
                 : "text-muted-foreground hover:text-foreground"
@@ -5180,6 +5226,89 @@ export default function VoyageDetail() {
       {/* ── Tab: Financial ──────────────────────────────────────── */}
       {activeTab === "financial" && (
         <div className="space-y-5" data-testid="tab-content-financial">
+          <Card className="p-5 space-y-4" data-testid="section-port-expenses">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                <h2 className="font-semibold text-sm">Port Expenses</h2>
+                {voyagePortExpenses.length > 0 && (
+                  <span className="text-xs text-muted-foreground">({voyagePortExpenses.length})</span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="h-7 px-2.5 text-xs gap-1" 
+                  onClick={() => {
+                    form.reset({
+                      category: "other",
+                      description: "",
+                      amount: 0,
+                      currency: "USD",
+                      vendor: "",
+                      receiptNumber: "",
+                      expenseDate: new Date().toISOString().split('T')[0],
+                      notes: "",
+                      voyageId: voyageId,
+                      isPaid: false,
+                    });
+                    setIsAddExpenseDialogOpen(true);
+                  }}
+                  data-testid="button-add-voyage-expense"
+                >
+                  <Plus className="w-3 h-3" /> Add Expense
+                </Button>
+                <Link href={`/port-expenses?voyageId=${voyageId}`}>
+                  <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" data-testid="button-view-all-expenses">
+                    <ExternalLink className="w-3 h-3" /> View All
+                  </Button>
+                </Link>
+              </div>
+            </div>
+
+            {voyagePortExpenses.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground" data-testid="section-expenses-empty">
+                No port expenses recorded for this voyage.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/30">
+                      <TableHead className="text-[10px] h-8">Date</TableHead>
+                      <TableHead className="text-[10px] h-8">Category</TableHead>
+                      <TableHead className="text-[10px] h-8">Vendor</TableHead>
+                      <TableHead className="text-[10px] h-8 text-right">Amount</TableHead>
+                      <TableHead className="text-[10px] h-8 text-center">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {voyagePortExpenses.slice(0, 5).map((exp: any) => (
+                      <TableRow key={exp.id} className="hover:bg-muted/10">
+                        <TableCell className="py-2 text-[11px]">{exp.expenseDate ? fmtDate(exp.expenseDate) : 'N/A'}</TableCell>
+                        <TableCell className="py-2">
+                          <Badge variant="outline" className="text-[9px] px-1.5 h-4 uppercase">
+                            {exp.category.replace('_', ' ')}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="py-2 text-[11px]">{exp.vendor || '-'}</TableCell>
+                        <TableCell className="py-2 text-[11px] text-right font-mono font-bold">
+                          {exp.currency} {exp.amount.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="py-2 text-center">
+                          <Badge className={`text-[9px] px-1.5 h-4 ${exp.isPaid ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-amber-500/10 text-amber-500 border-amber-500/20"}`}>
+                            {exp.isPaid ? "Paid" : "Unpaid"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </Card>
+
           {/* Invoices Section */}
           <Card className="p-5 space-y-4">
             <div className="flex items-center justify-between">
@@ -5963,6 +6092,119 @@ export default function VoyageDetail() {
           </Card>
         </div>
       )}
+
+      <Dialog open={isAddExpenseDialogOpen} onOpenChange={setIsAddExpenseDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Port Expense</DialogTitle>
+            <DialogDescription>Record a new expense for this voyage.</DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit((data) => createExpenseMutation.mutate(data))} className="space-y-4 py-4">
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="port_dues">Port Dues</SelectItem>
+                        <SelectItem value="pilotage">Pilotage</SelectItem>
+                        <SelectItem value="towage">Towage</SelectItem>
+                        <SelectItem value="agency_fee">Agency Fee</SelectItem>
+                        <SelectItem value="mooring">Mooring</SelectItem>
+                        <SelectItem value="anchorage">Anchorage</SelectItem>
+                        <SelectItem value="launch_hire">Launch Hire</SelectItem>
+                        <SelectItem value="garbage">Garbage</SelectItem>
+                        <SelectItem value="fresh_water">Fresh Water</SelectItem>
+                        <SelectItem value="bunker">Bunker</SelectItem>
+                        <SelectItem value="survey">Survey</SelectItem>
+                        <SelectItem value="customs">Customs</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="amount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Amount</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="currency"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Currency</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="USD" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="USD">USD</SelectItem>
+                          <SelectItem value="EUR">EUR</SelectItem>
+                          <SelectItem value="TRY">TRY</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="vendor"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Vendor</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Vendor name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="expenseDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Date</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button type="submit" disabled={createExpenseMutation.isPending} className="w-full">
+                  {createExpenseMutation.isPending ? "Saving..." : "Save Expense"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
 
       {/* Voyage Invite Dialog */}
       <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog} data-testid="dialog-invite-participant">

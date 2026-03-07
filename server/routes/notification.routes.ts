@@ -2,11 +2,35 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { isAdmin, authLimiter } from "./shared";
-import { insertFeedbackSchema } from "@shared/schema";
+import { insertFeedbackSchema, insertNotificationPreferenceSchema } from "@shared/schema";
 import { sendContactEmail } from "../email";
 import { logAction } from "../audit";
 
 const router = Router();
+
+router.get("/api/notification-preferences", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user.claims.sub;
+    const prefs = await storage.getNotificationPreferences(userId);
+    res.json(prefs || {});
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch notification preferences" });
+  }
+});
+
+router.patch("/api/notification-preferences", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user.claims.sub;
+    const parsed = insertNotificationPreferenceSchema.partial().safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid input", details: parsed.error.errors });
+    }
+    const prefs = await storage.upsertNotificationPreferences(userId, parsed.data);
+    res.json(prefs);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to update notification preferences" });
+  }
+});
 
 router.post("/api/contact", authLimiter, async (req: any, res: any, next: any) => {
   try {

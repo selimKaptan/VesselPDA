@@ -43,6 +43,7 @@ import q88Routes from "./routes/q88.routes";
 import laytimeRoutes from "./routes/laytime.routes";
 import daAdvanceRoutes from "./routes/da-advance.routes";
 import analyticsRoutes from "./routes/analytics.routes";
+import portExpenseRoutes from "./routes/port-expense.routes";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -97,6 +98,7 @@ export async function registerRoutes(
   app.use("/api/nor", norRoutes);
   app.use("/api/ai", aiRoutes);
   app.use("/api/vessel-schedule", vesselScheduleRoutes);
+  app.use("/api/port-expenses", portExpenseRoutes);
   app.use("/api/organizations", orgRouter);
   app.use("/api/invites", inviteRouter);
   app.use("/api", voyageInviteRouter);

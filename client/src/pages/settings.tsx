@@ -10,8 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle, CheckCircle2, AlertCircle, User, Lock, Mail, Shield, Building2, ShieldCheck, Clock, XCircle, Loader2, Compass } from "lucide-react";
-import type { CompanyProfile } from "@shared/schema";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CheckCircle, CheckCircle2, AlertCircle, User, Lock, Mail, Shield, Building2, ShieldCheck, Clock, XCircle, Loader2, Compass, Bell } from "lucide-react";
+import type { CompanyProfile, NotificationPreference } from "@shared/schema";
 
 const AGENT_COMPLETION_FIELDS = [
   { key: "logoUrl", label: "Company Logo", hint: "Upload a logo to build trust", isArray: false },
@@ -159,6 +161,32 @@ export default function Settings() {
     },
   });
 
+  const { data: notificationPrefs } = useQuery<NotificationPreference>({
+    queryKey: ["/api/notification-preferences"],
+  });
+
+  const updateNotificationPrefsMutation = useMutation({
+    mutationFn: async (data: Partial<NotificationPreference>) => {
+      const res = await apiRequest("PATCH", "/api/notification-preferences", data);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to update notification preferences");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notification-preferences"] });
+      toast({ title: "Preferences saved", description: "Your notification settings have been updated." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Update failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleTogglePreference = (key: keyof NotificationPreference, value: boolean) => {
+    updateNotificationPrefsMutation.mutate({ [key]: value });
+  };
+
   const completionFields = userRole === "agent" ? AGENT_COMPLETION_FIELDS : PROVIDER_COMPLETION_FIELDS;
   const completionItems = showCompletion && myProfile
     ? completionFields.map((f) => {
@@ -173,12 +201,25 @@ export default function Settings() {
   return (
     <div className="max-w-2xl mx-auto px-3 py-5 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Account Settings</h1>
-        <p className="text-muted-foreground text-sm mt-1">Manage your profile, password and account details.</p>
+        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+        <p className="text-muted-foreground text-sm mt-1">Manage your profile, preferences, and account details.</p>
       </div>
 
-      {/* Profile Completion — agent & provider only */}
-      {showCompletion && myProfile && (
+      <Tabs defaultValue="account" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsTrigger value="account" className="flex items-center gap-2">
+            <User className="w-4 h-4" />
+            Account
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="flex items-center gap-2">
+            <Bell className="w-4 h-4" />
+            Notifications
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="account" className="space-y-6">
+          {/* Profile Completion — agent & provider only */}
+          {showCompletion && myProfile && (
         <Card data-testid="card-profile-completion">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-4">
@@ -538,6 +579,132 @@ export default function Settings() {
           </Button>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="notifications" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Mail className="w-4 h-4 text-muted-foreground" />
+                Email Notifications
+              </CardTitle>
+              <CardDescription>
+                Choose which events you want to receive email notifications for.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Proforma Approvals</Label>
+                  <p className="text-xs text-muted-foreground">Receive email when a proforma is approved or rejected.</p>
+                </div>
+                <Switch 
+                  checked={!!notificationPrefs?.emailOnProformaApproval} 
+                  onCheckedChange={(checked) => handleTogglePreference("emailOnProformaApproval", checked)}
+                  data-testid="switch-email-proforma"
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>FDA Ready</Label>
+                  <p className="text-xs text-muted-foreground">Receive email when a Final Disbursement Account is ready.</p>
+                </div>
+                <Switch 
+                  checked={!!notificationPrefs?.emailOnFdaReady} 
+                  onCheckedChange={(checked) => handleTogglePreference("emailOnFdaReady", checked)}
+                  data-testid="switch-email-fda"
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>New Invoices</Label>
+                  <p className="text-xs text-muted-foreground">Receive email when a new invoice is created for you.</p>
+                </div>
+                <Switch 
+                  checked={!!notificationPrefs?.emailOnInvoiceCreated} 
+                  onCheckedChange={(checked) => handleTogglePreference("emailOnInvoiceCreated", checked)}
+                  data-testid="switch-email-invoice"
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>DA Advances</Label>
+                  <p className="text-xs text-muted-foreground">Notifications about cash advances and funding requests.</p>
+                </div>
+                <Switch 
+                  checked={!!notificationPrefs?.emailOnDaAdvance} 
+                  onCheckedChange={(checked) => handleTogglePreference("emailOnDaAdvance", checked)}
+                  data-testid="switch-email-da"
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Certificate Expiry</Label>
+                  <p className="text-xs text-muted-foreground">Alerts for vessel certificates that are about to expire.</p>
+                </div>
+                <Switch 
+                  checked={!!notificationPrefs?.emailOnCertExpiry} 
+                  onCheckedChange={(checked) => handleTogglePreference("emailOnCertExpiry", checked)}
+                  data-testid="switch-email-cert"
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>New Messages</Label>
+                  <p className="text-xs text-muted-foreground">Receive email when you get a new direct message.</p>
+                </div>
+                <Switch 
+                  checked={!!notificationPrefs?.emailOnNewMessage} 
+                  onCheckedChange={(checked) => handleTogglePreference("emailOnNewMessage", checked)}
+                  data-testid="switch-email-message"
+                />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Voyage Updates</Label>
+                  <p className="text-xs text-muted-foreground">Receive email for every major update in active voyages.</p>
+                </div>
+                <Switch 
+                  checked={!!notificationPrefs?.emailOnVoyageUpdate} 
+                  onCheckedChange={(checked) => handleTogglePreference("emailOnVoyageUpdate", checked)}
+                  data-testid="switch-email-voyage"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Bell className="w-4 h-4 text-muted-foreground" />
+                In-App Notifications
+              </CardTitle>
+              <CardDescription>
+                Control how you see notifications within the VesselPDA platform.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>All Notifications</Label>
+                  <p className="text-xs text-muted-foreground">Show all alerts in the notification center.</p>
+                </div>
+                <Switch 
+                  checked={!!notificationPrefs?.inAppOnAll} 
+                  onCheckedChange={(checked) => handleTogglePreference("inAppOnAll", checked)}
+                  data-testid="switch-inapp-all"
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

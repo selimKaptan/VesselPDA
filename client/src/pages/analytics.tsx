@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import {
   BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -79,6 +80,8 @@ export default function AnalyticsPage() {
     },
   });
 
+  const [, setLocation] = useLocation();
+
   const kpis = data?.kpis || {};
   const monthlyVoyages = data?.monthlyVoyages || [];
   const monthlyRevenue = data?.monthlyInvoiceRevenue || [];
@@ -103,14 +106,14 @@ export default function AnalyticsPage() {
               <p className="text-sm text-muted-foreground">Operational performance overview</p>
             </div>
           </div>
-          <div className="flex gap-1 p-1 bg-muted rounded-lg" data-testid="period-selector">
+          <div className="flex gap-1 p-1 bg-muted rounded-lg w-full sm:w-auto overflow-x-auto" data-testid="period-selector">
             {PERIOD_OPTIONS.map(opt => (
               <Button
                 key={opt.value}
                 variant={period === opt.value ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setPeriod(opt.value)}
-                className="h-7 text-xs"
+                className="h-7 text-xs flex-1 sm:flex-none"
                 data-testid={`period-${opt.value}`}
               >
                 {opt.label}
@@ -124,7 +127,7 @@ export default function AnalyticsPage() {
       <div className="p-6 space-y-6">
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4" data-testid="section-kpis">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4" data-testid="section-kpis">
           <KpiCard icon={Ship} label="Total Voyages" value={isLoading ? "—" : kpis.totalVoyages ?? 0} />
           <KpiCard icon={FileText} label="PDA Value" value={isLoading ? "—" : fmtUSD(kpis.totalPdaValueUsd || 0)} />
           <KpiCard icon={Activity} label="Avg FDA Variance" value={isLoading ? "—" : `${(kpis.avgFdaVariancePct || 0).toFixed(1)}%`} subValue="vs estimated" />
@@ -143,15 +146,28 @@ export default function AnalyticsPage() {
             {monthlyVoyages.length === 0 && !isLoading ? (
               <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">No voyage data for this period</div>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={monthlyVoyages} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="count" name="Voyages" fill="hsl(214 60% 35%)" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="h-[180px] sm:h-[220px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyVoyages} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar
+                      dataKey="count"
+                      name="Voyages"
+                      fill="hsl(214 60% 35%)"
+                      radius={[4, 4, 0, 0]}
+                      className="cursor-pointer"
+                      onClick={(data) => {
+                        if (data?.month) {
+                          setLocation(`/voyages?month=${data.month}`);
+                        }
+                      }}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </div>
 
@@ -163,17 +179,19 @@ export default function AnalyticsPage() {
             {monthlyRevenue.length === 0 && !isLoading ? (
               <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">No invoice data for this period</div>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={monthlyRevenue} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={v => fmtUSD(v)} />
-                  <Tooltip content={<CustomTooltip />} formatter={(v: any) => fmtUSD(v)} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Area type="monotone" dataKey="paid" name="Paid" stroke="#10b981" fill="#10b981" fillOpacity={0.15} strokeWidth={2} />
-                  <Area type="monotone" dataKey="pending" name="Pending" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.1} strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
+              <div className="h-[180px] sm:h-[220px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={monthlyRevenue} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={v => fmtUSD(v)} />
+                    <Tooltip content={<CustomTooltip />} formatter={(v: any) => fmtUSD(v)} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Area type="monotone" dataKey="paid" name="Paid" stroke="#10b981" fill="#10b981" fillOpacity={0.15} strokeWidth={2} />
+                    <Area type="monotone" dataKey="pending" name="Pending" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.1} strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </div>
         </div>
@@ -189,15 +207,28 @@ export default function AnalyticsPage() {
             {topPorts.length === 0 && !isLoading ? (
               <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">No port data for this period</div>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={topPorts} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
-                  <YAxis dataKey="portName" type="category" tick={{ fontSize: 10 }} width={90} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="count" name="Voyages" fill="hsl(214 60% 35%)" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="h-[180px] sm:h-[220px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topPorts} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+                    <YAxis dataKey="portName" type="category" tick={{ fontSize: 10 }} width={90} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar
+                      dataKey="count"
+                      name="Voyages"
+                      fill="hsl(214 60% 35%)"
+                      radius={[0, 4, 4, 0]}
+                      className="cursor-pointer"
+                      onClick={(data) => {
+                        if (data?.portName) {
+                          setLocation(`/voyages?port=${encodeURIComponent(data.portName)}`);
+                        }
+                      }}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </div>
 
@@ -209,27 +240,35 @@ export default function AnalyticsPage() {
             {invoiceStatus.length === 0 && !isLoading ? (
               <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">No invoice data for this period</div>
             ) : (
-              <div className="flex items-center gap-4">
-                <ResponsiveContainer width="55%" height={200}>
-                  <PieChart>
-                    <Pie
-                      data={invoiceStatus}
-                      dataKey="count"
-                      nameKey="status"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={85}
-                      paddingAngle={2}
-                    >
-                      {invoiceStatus.map((entry: any, i: number) => (
-                        <Cell key={i} fill={STATUS_PIE_COLORS[entry.status] || `hsl(${i * 60}, 60%, 50%)`} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(v: any, name: any) => [v, name]} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex-1 space-y-2">
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="h-[180px] sm:h-[200px] w-full sm:w-[55%]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={invoiceStatus}
+                        dataKey="count"
+                        nameKey="status"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={85}
+                        paddingAngle={2}
+                        className="cursor-pointer"
+                        onClick={(data) => {
+                          if (data?.status) {
+                            setLocation(`/invoices?status=${data.status}`);
+                          }
+                        }}
+                      >
+                        {invoiceStatus.map((entry: any, i: number) => (
+                          <Cell key={i} fill={STATUS_PIE_COLORS[entry.status] || `hsl(${i * 60}, 60%, 50%)`} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(v: any, name: any) => [v, name]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex-1 w-full space-y-2">
                   {invoiceStatus.map((s: any, i: number) => (
                     <div key={i} className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-1.5">
@@ -262,7 +301,15 @@ export default function AnalyticsPage() {
                 const pct = total > 0 ? (s.count / total) * 100 : 0;
                 const color = VOYAGE_STATUS_COLORS[s.status] || "#94a3b8";
                 return (
-                  <div key={i} className="space-y-1">
+                  <div
+                    key={i}
+                    className="space-y-1 cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => {
+                      if (s.status) {
+                        setLocation(`/voyages?status=${s.status}`);
+                      }
+                    }}
+                  >
                     <div className="flex items-center justify-between text-xs">
                       <span className="capitalize font-medium">{(s.status || "unknown").replace(/_/g, " ")}</span>
                       <span className="text-muted-foreground">{s.count} voyages ({pct.toFixed(0)}%)</span>
@@ -288,7 +335,18 @@ export default function AnalyticsPage() {
                   <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
                   <YAxis dataKey="vesselName" type="category" tick={{ fontSize: 10 }} width={100} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="voyageCount" name="Voyages" fill="#a855f7" radius={[0, 4, 4, 0]} />
+                  <Bar
+                    dataKey="voyageCount"
+                    name="Voyages"
+                    fill="#a855f7"
+                    radius={[0, 4, 4, 0]}
+                    className="cursor-pointer"
+                    onClick={(data) => {
+                      if (data?.vesselName) {
+                        setLocation(`/voyages?vessel=${encodeURIComponent(data.vesselName)}`);
+                      }
+                    }}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>

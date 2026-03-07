@@ -3,6 +3,7 @@ import {
   type Vessel, type InsertVessel,
   type LaytimeSheet, type InsertLaytimeSheet,
   type DaAdvance, type InsertDaAdvance,
+  type NotificationPreference, type InsertNotificationPreference,
   laytimeSheets, daAdvances,
   type Port, type InsertPort,
   type TariffCategory, type InsertTariffCategory,
@@ -40,7 +41,9 @@ import {
   type PortAlert, type InsertPortAlert,
   type VesselQ88, type InsertVesselQ88,
   type VoyageCrewLogistic, type InsertVoyageCrewLogistic,
+  type PortExpense, type InsertPortExpense,
   voyageCrewLogistics,
+  portExpenses,
   vessels, ports, tariffCategories, tariffRates, proformas, proformaApprovalLogs,
   forumCategories, forumTopics, forumReplies, forumLikes, forumDislikes,
   portTenders, tenderBids, agentReviews, vesselWatchlist,
@@ -49,7 +52,7 @@ import {
   voyageDocuments, voyageReviews, conversations, messages,
   directNominations, voyageChatMessages, endorsements,
   vesselCertificates, portCallAppointments, fixtures, cargoPositions, bunkerPrices,
-  documentTemplates, invoices, portAlerts, vesselCrew, vesselQ88, fdaAccounts,
+  documentTemplates, invoices, portAlerts, vesselCrew, vesselQ88, fdaAccounts, notificationPreferences,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
@@ -157,6 +160,9 @@ export interface IStorage {
   getUnreadNotificationCount(userId: string): Promise<number>;
   markNotificationRead(id: number, userId: string): Promise<void>;
   markAllNotificationsRead(userId: string): Promise<void>;
+
+  getNotificationPreferences(userId: string): Promise<NotificationPreference | undefined>;
+  upsertNotificationPreferences(userId: string, data: Partial<InsertNotificationPreference>): Promise<NotificationPreference>;
 
   createFeedback(data: InsertFeedback): Promise<Feedback>;
   getAllFeedbacks(): Promise<Feedback[]>;
@@ -273,6 +279,12 @@ export interface IStorage {
   createDaAdvance(data: InsertDaAdvance): Promise<DaAdvance>;
   updateDaAdvance(id: number, data: Partial<InsertDaAdvance>): Promise<DaAdvance>;
   deleteDaAdvance(id: number): Promise<void>;
+
+  getPortExpensesByUser(userId: string): Promise<PortExpense[]>;
+  getPortExpensesByVoyage(voyageId: number): Promise<PortExpense[]>;
+  createPortExpense(data: InsertPortExpense): Promise<PortExpense>;
+  updatePortExpense(id: number, data: Partial<InsertPortExpense>): Promise<PortExpense | undefined>;
+  deletePortExpense(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1151,6 +1163,22 @@ export class DatabaseStorage implements IStorage {
     await db.update(notifications)
       .set({ isRead: true })
       .where(eq(notifications.userId, userId));
+  }
+
+  async getNotificationPreferences(userId: string): Promise<NotificationPreference | undefined> {
+    const [prefs] = await db.select().from(notificationPreferences).where(eq(notificationPreferences.userId, userId));
+    return prefs;
+  }
+
+  async upsertNotificationPreferences(userId: string, data: Partial<InsertNotificationPreference>): Promise<NotificationPreference> {
+    const [existing] = await db.select().from(notificationPreferences).where(eq(notificationPreferences.userId, userId));
+    if (existing) {
+      const [updated] = await db.update(notificationPreferences).set({ ...data, updatedAt: new Date() }).where(eq(notificationPreferences.userId, userId)).returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(notificationPreferences).values({ ...data, userId } as any).returning();
+      return created;
+    }
   }
 
   async createFeedback(data: InsertFeedback): Promise<Feedback> {
@@ -2362,6 +2390,36 @@ export class DatabaseStorage implements IStorage {
 
   async deleteDaAdvance(id: number): Promise<void> {
     await db.delete(daAdvances).where(eq(daAdvances.id, id));
+  }
+
+  async getPortExpensesByUser(userId: string): Promise<PortExpense[]> {
+    return db.select().from(portExpenses)
+      .where(eq(portExpenses.userId, userId))
+      .orderBy(desc(portExpenses.expenseDate));
+  }
+
+  async getPortExpensesByVoyage(voyageId: number): Promise<PortExpense[]> {
+    return db.select().from(portExpenses)
+      .where(eq(portExpenses.voyageId, voyageId))
+      .orderBy(desc(portExpenses.expenseDate));
+  }
+
+  async createPortExpense(data: InsertPortExpense): Promise<PortExpense> {
+    const [expense] = await db.insert(portExpenses).values(data).returning();
+    return expense;
+  }
+
+  async updatePortExpense(id: number, data: Partial<InsertPortExpense>): Promise<PortExpense | undefined> {
+    const [updated] = await db.update(portExpenses)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(portExpenses.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deletePortExpense(id: number): Promise<boolean> {
+    const result = await db.delete(portExpenses).where(eq(portExpenses.id, id)).returning();
+    return result.length > 0;
   }
 }
 
