@@ -303,6 +303,54 @@ export default function Voyages() {
   const activePurposes = PILL_ORDER.filter(p => purposeCounts[p]);
   const otherPurposes = Object.keys(purposeCounts).filter(p => !PILL_ORDER.includes(p));
 
+  // ── Glanceable Card Helpers ──────────────────────────────────────────────
+  const calcCountdown = (v: any): { text: string; urgent: boolean } => {
+    const st = v.status;
+    if (st === "cancelled")      return { text: "❌ Cancelled",      urgent: false };
+    if (st === "archived")       return { text: "🗄️ Archived",       urgent: false };
+    if (st === "pending_finance") return { text: "💰 Finance Review", urgent: false };
+    if (st === "completed")      return { text: "✅ Departed",        urgent: false };
+    const target = st === "active" && v.etd ? new Date(v.etd) : v.eta ? new Date(v.eta) : null;
+    if (!target) return st === "active" ? { text: "🟢 In Port", urgent: false } : { text: "—", urgent: false };
+    const diffMs = target.getTime() - now.getTime();
+    if (diffMs <= 0) return st === "active" ? { text: "🟢 In Port", urgent: false } : { text: "⏰ Overdue", urgent: true };
+    const diffH = Math.floor(diffMs / 3_600_000);
+    const diffM = Math.floor((diffMs % 3_600_000) / 60_000);
+    const diffD = Math.floor(diffH / 24);
+    if (diffH < 24) return { text: `⏰ ${diffH}h ${diffM}m Left`, urgent: true };
+    return { text: `⏳ ${diffD}d ${diffH % 24}h Left`, urgent: false };
+  };
+
+  const calcProgress = (v: any): number => {
+    if (v.status === "cancelled")       return 0;
+    if (v.status === "planned")         return 10;
+    if (v.status === "archived")        return 100;
+    if (v.status === "completed")       return 100;
+    if (v.status === "pending_finance") return 95;
+    if (v.status === "active") {
+      if (v.eta && v.etd) {
+        const start = new Date(v.eta).getTime();
+        const end   = new Date(v.etd).getTime();
+        const span  = end - start;
+        if (span > 0) {
+          const pct = Math.round(((now.getTime() - start) / span) * 100);
+          return Math.max(15, Math.min(90, pct));
+        }
+      }
+      return 50;
+    }
+    return 10;
+  };
+
+  const getPdaStatus = (v: any): { label: string; color: string } => {
+    if (v.status === "cancelled")       return { label: "—",             color: "text-slate-500" };
+    if (v.status === "archived")        return { label: "✅ Archived",   color: "text-slate-400" };
+    if (v.status === "pending_finance") return { label: "💰 In Review",  color: "text-amber-400" };
+    if (v.status === "completed")       return { label: "✅ Finalized",  color: "text-emerald-400" };
+    if (v.status === "active")          return { label: "⏳ Pending",    color: "text-amber-300" };
+    return                                     { label: "📝 Not Started", color: "text-slate-400" };
+  };
+
   return (
     <div className="px-3 py-5 space-y-5 max-w-7xl mx-auto">
       <PageMeta title="Voyages | VesselPDA" description="Voyage and operations management" />
@@ -385,79 +433,128 @@ export default function Voyages() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredVoyages.map((v: any) => {
             const s = STATUS_CONFIG[v.status] || STATUS_CONFIG.planned;
-            const Icon = s.icon;
+            const StatusIcon = s.icon;
             const rawPs = PURPOSE_STYLE[v.purposeOfCall] || DEFAULT_PURPOSE_STYLE;
             const ps = v.status?.toLowerCase() === "cancelled"
-              ? { ...rawPs, bg: "bg-slate-800/60", border: "border-slate-600/30", text: "text-slate-500", icon: "⬛" }
+              ? { ...rawPs, bg: "bg-slate-800/60", border: "border-slate-600/30", text: "text-slate-500", icon: "⬛", bar: "bg-slate-600" }
               : rawPs;
+            const countdown = calcCountdown(v);
+            const progress  = calcProgress(v);
+            const pdaSt     = getPdaStatus(v);
+            const stage     = PORT_CALL_STAGE[v.status] || PORT_CALL_STAGE.planned;
+            const isActive  = v.status === "active";
+
             return (
               <Link key={v.id} href={`/voyages/${v.id}`}>
-                <Card className="p-0 overflow-hidden hover:shadow-lg hover:shadow-black/30 transition-all cursor-pointer border border-slate-700/60 hover:border-slate-500/60 group bg-slate-800/60" data-testid={`card-voyage-${v.id}`}>
-
-                  {/* ── Colour-Coded Header Strip ── */}
+                <Card
+                  className="relative p-0 overflow-hidden hover:shadow-xl hover:shadow-black/40 transition-all cursor-pointer border border-slate-700/60 hover:border-slate-500/50 group bg-slate-800/70 rounded-xl"
+                  data-testid={`card-voyage-${v.id}`}
+                >
+                  {/* ── LAYER 1: CANLI ZİRVE ─────────────────────────────── */}
                   <div className={`${ps.bg} px-4 py-2.5 flex items-center justify-between border-b ${ps.border}`}>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm leading-none">{ps.icon}</span>
+                      {/* Pulsing indicator */}
+                      <span className="relative flex h-2 w-2 flex-shrink-0">
+                        {isActive && (
+                          <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-60 ${ps.bar}`} />
+                        )}
+                        <span className={`relative inline-flex rounded-full h-2 w-2 ${isActive ? ps.bar : "bg-slate-600"}`} />
+                      </span>
                       <span className={`text-[10px] font-bold tracking-widest uppercase ${ps.text}`}>{ps.label} OPERATION</span>
                     </div>
-                    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${s.color}`}>
-                      <Icon className="w-2.5 h-2.5" />{s.label}
+                    <span className={`text-[10px] font-semibold ${countdown.urgent ? "text-amber-300" : "text-slate-400"}`}>
+                      {countdown.text}
                     </span>
                   </div>
 
-                  {/* ── Card Body ── */}
-                  <div className="p-4 space-y-3">
-                    {/* Vessel name + IMO */}
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-lg bg-slate-700/60 border border-slate-600/50 flex items-center justify-center flex-shrink-0">
-                        <Ship className="w-4 h-4 text-slate-400" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-bold text-sm text-slate-100 leading-tight truncate">{v.vesselName || "Vessel TBN"}</p>
+                  {/* ── LAYER 2: KİMLİK VE LOKASYON ──────────────────────── */}
+                  <div className="px-4 pt-3.5 pb-2.5">
+                    {/* Vessel name + status badge */}
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-lg font-bold text-slate-100 leading-tight truncate">{v.vesselName || "Vessel TBN"}</p>
                         {v.imoNumber && (
-                          <span className="font-mono text-[10px] text-slate-500">IMO {v.imoNumber}</span>
+                          <span className="font-mono text-[10px] text-slate-500">IMO: {v.imoNumber}</span>
                         )}
                       </div>
+                      <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-full flex-shrink-0 mt-0.5 ${s.color}`}>
+                        <StatusIcon className="w-2.5 h-2.5" />{s.label}
+                      </span>
                     </div>
-
-                    {/* Port + ETA row */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                        <MapPin className="w-3.5 h-3.5 flex-shrink-0 text-slate-500" />
-                        <span className="truncate font-medium text-slate-300">{v.portName || `Port #${v.portId}`}</span>
-                      </div>
-                      {v.eta && (
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                          <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span>ETA: <span className="text-slate-400 font-medium">{fmtDate(v.eta)}</span></span>
-                          {/* Urgency indicator */}
+                    {/* Port + berth row */}
+                    <div className="flex items-center gap-1.5 text-xs text-slate-300 mb-1">
+                      <span className="text-slate-500">📍</span>
+                      <span className="truncate font-medium">
+                        {v.portName || `Port #${v.portId}`}
+                        {v.berthStayDays ? <span className="text-slate-500 font-normal ml-1">· {v.berthStayDays}d berth</span> : ""}
+                      </span>
+                    </div>
+                    {/* ETA formatted */}
+                    {v.eta && (
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                        <span>📅</span>
+                        <span>ETA: <span className="text-slate-400 font-medium">
                           {(() => {
-                            const eta = new Date(v.eta);
-                            if (eta >= now && eta <= next24h) {
-                              return <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-400 bg-amber-900/30 border border-amber-500/30 rounded-full px-1.5 py-0.5 ml-1">⏰ &lt;24h</span>;
-                            }
-                            return null;
+                            const d = new Date(v.eta);
+                            const dd = String(d.getDate()).padStart(2,"0");
+                            const mm = String(d.getMonth()+1).padStart(2,"0");
+                            const yyyy = d.getFullYear();
+                            const hh = String(d.getHours()).padStart(2,"0");
+                            const min = String(d.getMinutes()).padStart(2,"0");
+                            return `${dd}.${mm}.${yyyy} - ${hh}:${min}`;
                           })()}
-                        </div>
-                      )}
-                    </div>
+                        </span></span>
+                        {countdown.urgent && (
+                          <span className="inline-flex items-center text-[9px] font-bold text-amber-400 bg-amber-900/30 border border-amber-500/30 rounded-full px-1.5 py-0.5 ml-1">⏰ &lt;24h</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
-                    {/* Port call stage + arrow */}
-                    {(() => {
-                      const stage = PORT_CALL_STAGE[v.status] || PORT_CALL_STAGE.planned;
-                      return (
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-700/50" data-testid={`badge-stage-${v.id}`}>
-                          <div className="flex items-center gap-1.5">
-                            <span className={`inline-flex h-1.5 w-1.5 rounded-full ${stage.dot}`} />
-                            <span className={`text-[11px] font-semibold ${stage.text}`}>{stage.label}</span>
-                          </div>
-                          <div className="flex items-center gap-0.5 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <span className="text-[11px] font-medium">Open</span>
-                            <ChevronRight className="w-3.5 h-3.5" />
-                          </div>
+                  {/* ── LAYER 3: HAYATİ VERİ IZGARASI ────────────────────── */}
+                  <div className="px-4 pb-3">
+                    <div className="border-t border-slate-700/50 pt-2.5 grid grid-cols-3 gap-2">
+                      {/* Col 1: Cargo Info */}
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase text-slate-500 tracking-wide mb-0.5">📦 Cargo</p>
+                        <p className="text-[11px] font-semibold text-slate-200 truncate">
+                          {v.cargoType || (v.purposeOfCall === "Crew Change" || v.purposeOfCall === "Husbandry" ? "N/A" : "—")}
+                        </p>
+                      </div>
+                      {/* Col 2: PDA Status */}
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase text-slate-500 tracking-wide mb-0.5">💰 PDA</p>
+                        <p className={`text-[11px] font-semibold truncate ${pdaSt.color}`}>{pdaSt.label}</p>
+                      </div>
+                      {/* Col 3: Live Status */}
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase text-slate-500 tracking-wide mb-0.5">⚓ Live</p>
+                        <div className="flex items-center gap-1">
+                          <span className={`inline-flex h-1.5 w-1.5 rounded-full flex-shrink-0 ${stage.dot}`} />
+                          <p className={`text-[11px] font-semibold truncate ${stage.text}`}>{stage.label}</p>
                         </div>
-                      );
-                    })()}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── LAYER 4: DİNAMİK İLERLEME ÇUBUĞU ────────────────── */}
+                  <div className="px-4 pb-3.5" data-testid={`progress-voyage-${v.id}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[9px] text-slate-500 uppercase tracking-wide">İlerleme</span>
+                      <span className="text-[9px] font-bold text-slate-400">{progress}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-700/60 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ${ps.bar}`}
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* ── Hover Open hint ── */}
+                  <div className="absolute bottom-3.5 right-4 flex items-center gap-0.5 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[10px] font-medium">Open</span>
+                    <ChevronRight className="w-3 h-3" />
                   </div>
                 </Card>
               </Link>
