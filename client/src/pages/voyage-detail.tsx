@@ -2003,298 +2003,403 @@ export default function VoyageDetail() {
                     const spotlightZ = crewFilterMode === "action" ? (operationalWarns.length > 0 ? "relative z-20" : "") : "";
                     const aiGlow = cardSuggestions.length > 0 ? "ring-2 ring-blue-500/50 shadow-[0_0_16px_rgba(59,130,246,0.25)]" : "";
 
+                    // ── Adaptive mode: wide when hotel panel is closed ────────
+                    const wideMode = !isHotelPanelOpen;
+
+                    // ── MOD B: milestone data ─────────────────────────────────
+                    const _msItems = crew.side === "on" ? [
+                      { key: "flight",   icon: "✈️", label: "FLIGHT",   time: crew.flightEta || "—" },
+                      { key: "transfer", icon: "🚐", label: "TRANSFER", time: crew.timeline.find(s => /airport.*port|transfer/i.test(s.label))?.time || "—" },
+                      { key: "hotel",    icon: "🏨", label: "HOTEL",    time: crew.hotelCheckIn || "—" },
+                      { key: "vessel",   icon: "🚢", label: "VESSEL",   time: _vesselEtaTime || "—" },
+                    ] : [
+                      { key: "vessel",   icon: "🚢", label: "VESSEL",   time: _vesselEtdTime || "—" },
+                      { key: "hotel",    icon: "🏨", label: "HOTEL",    time: crew.hotelPickupTime || crew.hotelCheckOut || "—" },
+                      { key: "transfer", icon: "🚐", label: "TRANSFER", time: crew.timeline.find(s => /port.*airport|transfer/i.test(s.label))?.time || "—" },
+                      { key: "flight",   icon: "✈️", label: "FLIGHT",   time: crew.flightEta || "—" },
+                    ];
+                    const _getMS = (idx: number): "done" | "active" | "future" => {
+                      const terminal = crew.side === "on" ? crew.arrivalStatus === "arrived" : crew.arrivalStatus === "departed";
+                      if (terminal) return idx < _msItems.length - 1 ? "done" : "active";
+                      return idx === 0 ? "active" : "future";
+                    };
+                    const _msIconCls = (s: "done"|"active"|"future") =>
+                      s === "done"   ? "text-emerald-400" :
+                      s === "active" ? "text-blue-400 drop-shadow-[0_0_6px_rgba(96,165,250,0.8)]" :
+                                       "text-slate-600";
+                    const _msTimeCls = (s: "done"|"active"|"future") =>
+                      s === "done"   ? "text-emerald-300" :
+                      s === "active" ? "text-blue-400 font-bold" :
+                                       "text-slate-600";
+                    const _hotelPending = crew.requiresHotel && !crew.hotelName;
+                    const _hasHotelInfo = crew.requiresHotel && !!crew.hotelName;
+                    const _hasStrip     = hasCritical || hasWarning || _hotelPending || crew.flightDelayed;
+
                     return (
                       <DraggableCrewCard key={crew.id} id={crew.id}>
                       <div
-                        className={`group rounded-xl border bg-slate-800 transition-all duration-200 p-3 space-y-2.5 ${cardBorder} ${spotlightZ} ${aiGlow}`}
+                        className={`group rounded-xl border bg-slate-800 transition-all duration-200 relative overflow-hidden ${wideMode ? "p-4" : "p-3 space-y-2.5"} ${cardBorder} ${spotlightZ} ${aiGlow}`}
                         data-testid={`crew-card-${accent === "emerald" ? "on" : "off"}-${crew.id}`}
                       >
-                        {/* ── HEADER: Avatar | Name + Rank | Flag | Status | Expand | Remove ── */}
-                        <div className="flex items-center gap-2">
-                          <div className={`w-8 h-8 rounded-full ${accentColors.avatar} flex items-center justify-center text-[12px] font-bold flex-shrink-0`}>
-                            {crew.name[0]}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <p className="text-xs font-bold text-slate-100 truncate leading-tight">{crew.name}</p>
-                              {operationalWarns.length > 0 && (
-                                <span className="relative group/warn flex-shrink-0" data-testid={`warning-icon-${crew.id}`}>
-                                  <span className={`text-[11px] cursor-help leading-none ${hasCritical ? "text-red-400" : "text-amber-400"}`}>⚠</span>
-                                  <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/warn:block z-30 w-max max-w-[220px] bg-slate-900 border border-slate-600/80 rounded-lg px-2.5 py-2 text-[10px] text-slate-200 shadow-2xl whitespace-normal leading-snug">
-                                    {operationalWarns.map(w => w.replace("⚠️ ", "").replace("🚨 ", "")).join(" · ")}
-                                  </span>
-                                </span>
-                              )}
-                              {crew.arrivalStatus === "arrived" && (
-                                <span className="inline-flex items-center text-[8px] font-bold text-emerald-400 bg-emerald-900/30 border border-emerald-500/40 rounded-full px-1.5 py-0.5 flex-shrink-0">🟢 Arrived</span>
-                              )}
-                              {crew.arrivalStatus === "departed" && (
-                                <span className="inline-flex items-center text-[8px] font-bold text-rose-400 bg-rose-900/30 border border-rose-500/40 rounded-full px-1.5 py-0.5 flex-shrink-0">🔴 Departed</span>
-                              )}
-                            </div>
-                            <p className="text-[10px] text-slate-500 leading-tight">{crew.rank}</p>
-                          </div>
-                          {crew.nationality && (
-                            <div className="flex items-center gap-0.5 flex-shrink-0">
-                              <span className="text-sm leading-none">{getFlag(crew.nationality)}</span>
-                              <span className="text-[9px] text-slate-500 font-mono">{crew.nationality.toUpperCase()}</span>
-                            </div>
-                          )}
-                          <button
-                            className="p-1 text-slate-600 hover:text-blue-400 transition-colors flex-shrink-0"
-                            onClick={e => { e.stopPropagation(); openSlideOver(); }}
-                            data-testid={`button-expand-crew-${crew.id}`}
-                            title="Open details"
-                          >
-                            <Maximize2 className="w-3 h-3" />
-                          </button>
-                          <button
-                            className="p-1 text-slate-600 hover:text-rose-400 transition-colors flex-shrink-0"
-                            onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.filter(c => c.id !== crew.id)); }}
-                            data-testid={`button-remove-crew-${crew.id}`}
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-
-                        {/* ── VISA & CLEARANCE ROW: 3 micro-popover badges ── */}
-                        <div className="flex flex-wrap gap-1" data-testid={`crew-visa-row-${crew.id}`}>
-                          {/* Visa Req — DropdownMenu */}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
-                              <button className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-opacity ${
-                                crew.visaRequired
-                                  ? "text-rose-400 bg-rose-900/20 border-rose-500/50"
-                                  : "text-emerald-400 bg-emerald-900/20 border-emerald-500/50"
-                              }`} data-testid={`badge-visa-${crew.id}`}>
-                                Visa Req: {crew.visaRequired ? "Yes" : "No"}
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="bg-slate-800 border-slate-700 text-slate-200 min-w-[170px] p-1">
-                              <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, visaRequired: false })); }}>
-                                ✓ No Visa Required
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, visaRequired: true })); }}>
-                                ⚠ Visa Required
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                          {/* e-Visa — DropdownMenu */}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
-                              <button className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-opacity ${
-                                crew.eVisaStatus === "approved" ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" :
-                                crew.eVisaStatus === "pending"  ? "text-amber-400 bg-amber-900/20 border-amber-500/50"      :
-                                                                  "text-slate-500 bg-slate-700/40 border-slate-600/50"
-                              }`} data-testid={`badge-evisa-${crew.id}`}>
-                                {crew.eVisaStatus === "approved" ? "✅ e-Visa" : crew.eVisaStatus === "pending" ? "⏳ e-Visa" : "e-Visa: N/A"}
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="bg-slate-800 border-slate-700 text-slate-200 min-w-[170px] p-1">
-                              <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, eVisaStatus: "n/a" })); }}>
-                                e-Visa: N/A
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, eVisaStatus: "pending" })); }}>
-                                ⏳ Pending
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, eVisaStatus: "approved" })); }}>
-                                ✅ Approved
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-
-                        {/* ── HOTEL STATUS BADGE / PENDING WARNING ── */}
-                        {(() => {
-                          const vesselEtdTime = voyage.etd ? new Date(voyage.etd).toTimeString().substring(0, 5) : "";
-                          const vesselEtaTime = voyage.eta ? new Date(voyage.eta).toTimeString().substring(0, 5) : "";
-                          const allWarns = getCrewWarnings(crew, vesselEtdTime, vesselEtaTime);
-                          const hotelWarn = allWarns.find(isHotelWarning);
-                          const hotelPending = crew.requiresHotel && !crew.hotelName;
-                          const hasHotelInfo = crew.requiresHotel && crew.hotelName;
-                          return (
-                            <>
-                              {/* Yellow pending banner — shows when hotel required but not yet set */}
-                              {(hotelWarn || hotelPending) && !hasHotelInfo && (
-                                <button
-                                  className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[9px] font-semibold border bg-amber-950/40 border-amber-500/35 text-amber-300 hover:bg-amber-950/60 transition-colors text-left"
-                                  onClick={e => { e.stopPropagation(); openSlideOver(); }}
-                                  data-testid={`warning-hotel-pending-${crew.id}`}
-                                >
-                                  <span>🏨</span>
-                                  <span className="flex-1 min-w-0">{hotelWarn ? hotelWarn.replace("🏨 Hotel Required: ", "Hotel Required — ") : "Hotel Required"} · Tap to add hotel</span>
-                                </button>
-                              )}
-                              {/* Green badge — hotel info entered */}
-                              {hasHotelInfo && (
-                                <div className="flex">
-                                  <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 ${
-                                    crew.hotelStatus === "checked-in"  ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" :
-                                    crew.hotelStatus === "checked-out" ? "text-sky-400 bg-sky-900/20 border-sky-500/50"             :
-                                    crew.hotelStatus === "reserved"    ? "text-blue-400 bg-blue-900/20 border-blue-500/50"          :
-                                                                         "text-emerald-400 bg-emerald-900/20 border-emerald-500/50"
-                                  }`} data-testid={`badge-hotel-${crew.id}`}>
-                                    {crew.hotelStatus === "checked-in"  ? `🛏️ At Hotel: ${crew.hotelName}` :
-                                     crew.hotelStatus === "checked-out" ? `🧳 Checked-Out: ${crew.hotelName}` :
-                                     crew.hotelStatus === "reserved"    ? `🔖 Reserved: ${crew.hotelName}` :
-                                                                          `🏨 Hotel: ${crew.hotelName}`}
-                                  </span>
-                                </div>
-                              )}
-                            </>
-                          );
-                        })()}
-
-                        {/* ── FLIGHT ROW (inline editable) ── */}
-                        <div className="flex items-center gap-1 text-[11px] text-slate-400" onClick={e => e.stopPropagation()}>
-                          <span>✈️</span>
-                          {inlineEdit?.crewId === crew.id && inlineEdit?.field === "flight" ? (
-                            <input
-                              autoFocus
-                              value={inlineEdit.val}
-                              onChange={e => setInlineEdit(v => v ? { ...v, val: e.target.value } : v)}
-                              onBlur={() => { setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, flight: inlineEdit.val })); setInlineEdit(null); }}
-                              onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }}
-                              className="w-20 h-5 text-[11px] font-semibold bg-slate-700 border border-blue-500/70 rounded px-1.5 text-slate-100 outline-none"
-                              data-testid={`inline-edit-flight-${crew.id}`}
-                            />
-                          ) : (
-                            <span
-                              className="group/fedit inline-flex items-center gap-1 cursor-pointer hover:bg-slate-700/60 hover:text-slate-200 rounded px-1 py-0.5 transition-colors font-semibold text-slate-300"
-                              onClick={() => setInlineEdit({ crewId: crew.id, field: "flight", val: crew.flight || "" })}
-                              data-testid={`text-flight-${crew.id}`}
-                            >
-                              {crew.flight || "—"}
-                              <Pen className="w-2 h-2 opacity-0 group-hover/fedit:opacity-60 transition-opacity flex-shrink-0" />
-                            </span>
-                          )}
-                          <span className="text-slate-600 mx-0.5">·</span>
-                          <span className="text-slate-600 text-[10px]">ETA</span>
-                          {inlineEdit?.crewId === crew.id && inlineEdit?.field === "flightEta" ? (
-                            <input
-                              autoFocus
-                              value={inlineEdit.val}
-                              onChange={e => setInlineEdit(v => v ? { ...v, val: e.target.value } : v)}
-                              onBlur={() => { setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, flightEta: inlineEdit.val })); setInlineEdit(null); }}
-                              onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }}
-                              className="w-16 h-5 text-[11px] font-mono bg-slate-700 border border-blue-500/70 rounded px-1.5 text-slate-100 outline-none"
-                              placeholder="HH:MM"
-                              data-testid={`inline-edit-flighteta-${crew.id}`}
-                            />
-                          ) : (
-                            <span
-                              className="group/etaedit inline-flex items-center gap-1 cursor-pointer hover:bg-slate-700/60 hover:text-slate-200 rounded px-1 py-0.5 transition-colors font-mono"
-                              onClick={() => setInlineEdit({ crewId: crew.id, field: "flightEta", val: crew.flightEta || "" })}
-                              data-testid={`text-flighteta-${crew.id}`}
-                            >
-                              {crew.flightEta || "—"}
-                              <Pen className="w-2 h-2 opacity-0 group-hover/etaedit:opacity-60 transition-opacity flex-shrink-0" />
-                            </span>
-                          )}
-                          {crew.flightDelayed && (
-                            <span className="ml-auto inline-flex items-center text-[9px] font-bold text-rose-400 bg-rose-900/40 border border-rose-500/30 rounded-full px-1.5 py-0.5">
-                              ⚠ Delayed
-                            </span>
-                          )}
-                        </div>
-
-                        {/* ── MICRO-TIMELINE ── */}
-                        {crew.timeline.length > 0 && (
-                          <div className="flex items-center flex-wrap gap-x-0.5 gap-y-0.5 text-[10px]" onClick={e => e.stopPropagation()}>
-                            {crew.timeline.map((step, idx) => (
-                              <span key={step.id} className="inline-flex items-center gap-0.5">
-                                {idx > 0 && <span className="text-slate-600 select-none mx-0.5">›</span>}
-                                <span className="text-slate-500 leading-none">{step.icon}</span>
-                                {editingCrewTimeline?.crewId === crew.id && editingCrewTimeline?.stepId === step.id ? (
-                                  <input
-                                    autoFocus
-                                    value={crewTimelineEditVal}
-                                    onChange={e => setCrewTimelineEditVal(e.target.value)}
-                                    onBlur={() => {
-                                      setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : {
-                                        ...c,
-                                        timeline: c.timeline.map(s => s.id !== step.id ? s : { ...s, time: crewTimelineEditVal })
-                                      }));
-                                      setEditingCrewTimeline(null);
-                                    }}
-                                    onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }}
-                                    className="w-12 h-4 text-[10px] font-mono bg-slate-700 border border-blue-500/70 rounded px-1 text-slate-100 outline-none"
-                                    placeholder="HH:MM"
-                                    data-testid={`inline-edit-timeline-${crew.id}-${step.id}`}
-                                  />
-                                ) : (
-                                  <span
-                                    className="font-mono text-slate-400 cursor-pointer hover:text-slate-200 hover:bg-slate-700/60 rounded px-0.5 py-0.5 transition-colors leading-none"
-                                    title={step.label}
-                                    onClick={() => { setEditingCrewTimeline({ crewId: crew.id, stepId: step.id }); setCrewTimelineEditVal(step.time); }}
-                                    data-testid={`timeline-step-${crew.id}-${step.id}`}
-                                  >
-                                    {step.time || "—"}
-                                  </span>
-                                )}
-                              </span>
-                            ))}
-                          </div>
+                        {/* Right-edge warning colour strip (MOD B only) */}
+                        {wideMode && _hasStrip && (
+                          <div className={`absolute right-0 top-0 bottom-0 w-[3px] ${hasCritical ? "bg-red-500" : "bg-amber-500"}`} />
                         )}
 
-                        {/* ── QUICK ACTIONS ── */}
-                        <div className="flex gap-1.5 pt-1.5 border-t border-slate-700/40" onClick={e => e.stopPropagation()}>
-                          <button
-                            className="flex-1 flex items-center justify-center gap-1 h-6 text-[10px] font-medium rounded-md border border-slate-600 text-slate-400 hover:text-blue-400 hover:border-blue-500/50 hover:bg-blue-900/20 transition-colors"
-                            onClick={e => { e.stopPropagation(); setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
-                            data-testid={`button-update-flight-${crew.id}`}
-                          >
-                            <Plane className="w-3 h-3" /> Update Flight
-                          </button>
-                          {crew.side === "on" ? (
-                            <button
-                              className={`flex-1 flex items-center justify-center gap-1 h-6 text-[10px] font-medium rounded-md border transition-colors ${
-                                crew.arrivalStatus === "arrived"
-                                  ? "border-emerald-500/50 text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30"
-                                  : "border-slate-600 text-slate-400 hover:text-emerald-400 hover:border-emerald-500/40 hover:bg-emerald-900/10"
-                              }`}
-                              onClick={e => { e.stopPropagation(); const next = crew.arrivalStatus === "arrived" ? "pending" : "arrived"; setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, arrivalStatus: next })); if (next === "arrived") addActivityLog(`${crew.name} (${crew.rank}) marked as Arrived.`, "Agent"); }}
-                              data-testid={`button-mark-arrived-${crew.id}`}
-                            >
-                              <LogIn className="w-3 h-3" /> {crew.arrivalStatus === "arrived" ? "✓ Arrived" : "Mark Arrived"}
-                            </button>
-                          ) : (
-                            <button
-                              className={`flex-1 flex items-center justify-center gap-1 h-6 text-[10px] font-medium rounded-md border transition-colors ${
-                                crew.arrivalStatus === "departed"
-                                  ? "border-rose-500/50 text-rose-400 bg-rose-900/20 hover:bg-rose-900/30"
-                                  : "border-slate-600 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 hover:bg-rose-900/10"
-                              }`}
-                              onClick={e => { e.stopPropagation(); const next = crew.arrivalStatus === "departed" ? "pending" : "departed"; setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, arrivalStatus: next })); if (next === "departed") addActivityLog(`${crew.name} (${crew.rank}) marked as Departed.`, "Agent"); }}
-                              data-testid={`button-mark-departed-${crew.id}`}
-                            >
-                              <LogOut className="w-3 h-3" /> {crew.arrivalStatus === "departed" ? "✓ Departed" : "Mark Departed"}
-                            </button>
-                          )}
-                        </div>
-                        {/* ── AI Pending Suggestions ── */}
-                        {cardSuggestions.length > 0 && (
-                          <div className="space-y-1" onClick={e => e.stopPropagation()}>
-                            {cardSuggestions.map(suggestion => (
-                              <div key={`${suggestion.crewId}-${suggestion.field}`} className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-950/50 border border-blue-500/40 text-[9px]">
-                                <span className="text-blue-300 font-semibold flex-shrink-0">✨ AI:</span>
-                                <span className="text-blue-100 font-bold flex-1 truncate">{suggestion.label}</span>
-                                <button
-                                  className="text-emerald-400 hover:text-emerald-300 font-bold px-1.5 py-0.5 rounded hover:bg-emerald-900/30 transition-colors flex-shrink-0"
-                                  onClick={() => {
-                                    setCrewSigners(cs => cs.map(c => c.id !== suggestion.crewId ? c : { ...c, [suggestion.field]: suggestion.newVal }));
-                                    setAiPendingSuggestions(prev => prev.filter(s => !(s.crewId === suggestion.crewId && s.field === suggestion.field)));
-                                  }}
-                                  data-testid={`button-ai-accept-${crew.id}-${suggestion.field}`}
-                                >✓</button>
-                                <button
-                                  className="text-rose-400 hover:text-rose-300 font-bold px-1.5 py-0.5 rounded hover:bg-rose-900/30 transition-colors flex-shrink-0"
-                                  onClick={() => setAiPendingSuggestions(prev => prev.filter(s => !(s.crewId === suggestion.crewId && s.field === suggestion.field)))}
-                                  data-testid={`button-ai-reject-${crew.id}-${suggestion.field}`}
-                                >✕</button>
+                        {wideMode ? (
+                          /* ══════════════ MOD B: WIDE / DETAIL LAYOUT ══════════════ */
+                          <div className="flex items-start gap-4">
+
+                            {/* ── LEFT: Identity block ── */}
+                            <div className="flex items-start gap-2.5 flex-shrink-0" style={{ width: 160 }}>
+                              <div className={`w-9 h-9 rounded-full ${accentColors.avatar} flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5`}>
+                                {crew.name[0]}
                               </div>
-                            ))}
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-bold text-slate-100 leading-tight truncate">{crew.name}</p>
+                                <p className="text-[10px] text-slate-500 leading-tight">{crew.rank}</p>
+                                {crew.nationality && (
+                                  <div className="flex items-center gap-0.5 mt-0.5">
+                                    <span className="text-xs leading-none">{getFlag(crew.nationality)}</span>
+                                    <span className="text-[9px] text-slate-500 font-mono">{crew.nationality.toUpperCase()}</span>
+                                  </div>
+                                )}
+                                {/* Pre-check: visa badges */}
+                                <div className="flex flex-wrap gap-1 mt-2" data-testid={`crew-visa-row-${crew.id}`}>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+                                      <button className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-opacity ${crew.visaRequired ? "text-rose-400 bg-rose-900/20 border-rose-500/50" : "text-emerald-400 bg-emerald-900/20 border-emerald-500/50"}`} data-testid={`badge-visa-${crew.id}`}>
+                                        🛂 Visa: {crew.visaRequired ? "Req'd" : "OK"}
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="bg-slate-800 border-slate-700 text-slate-200 min-w-[170px] p-1">
+                                      <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, visaRequired: false })); }}>✓ No Visa Required</DropdownMenuItem>
+                                      <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, visaRequired: true })); }}>⚠ Visa Required</DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+                                      <button className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-opacity ${crew.eVisaStatus === "approved" ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" : crew.eVisaStatus === "pending" ? "text-amber-400 bg-amber-900/20 border-amber-500/50" : "text-slate-500 bg-slate-700/40 border-slate-600/50"}`} data-testid={`badge-evisa-${crew.id}`}>
+                                        {crew.eVisaStatus === "approved" ? "✅ e-Visa" : crew.eVisaStatus === "pending" ? "⏳ e-Visa" : "e-Visa: N/A"}
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="bg-slate-800 border-slate-700 text-slate-200 min-w-[170px] p-1">
+                                      <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, eVisaStatus: "n/a" })); }}>e-Visa: N/A</DropdownMenuItem>
+                                      <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, eVisaStatus: "pending" })); }}>⏳ Pending</DropdownMenuItem>
+                                      <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, eVisaStatus: "approved" })); }}>✅ Approved</DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* ── CENTER: Stepper + flight + hotel + AI suggestions ── */}
+                            <div className="flex-1 flex flex-col gap-2.5 min-w-0" onClick={e => e.stopPropagation()}>
+                              {/* Horizontal workflow stepper */}
+                              <div className="flex items-start justify-between gap-1">
+                                {_msItems.map((ms, idx) => {
+                                  const st = _getMS(idx);
+                                  const tlStep = crew.timeline.find(s => s.icon === ms.icon);
+                                  const isEditingThis =
+                                    ms.key === "flight"
+                                      ? inlineEdit?.crewId === crew.id && inlineEdit?.field === "flightEta"
+                                      : tlStep != null && editingCrewTimeline?.crewId === crew.id && editingCrewTimeline?.stepId === tlStep.id;
+                                  return (
+                                    <div key={ms.key} className="flex items-center">
+                                      {idx > 0 && <span className="text-slate-700 text-xs mx-1 mt-1">›</span>}
+                                      <div className="flex flex-col items-center gap-0.5" style={{ minWidth: 50 }}>
+                                        <span className={`text-lg leading-none ${_msIconCls(st)}`}>{ms.icon}</span>
+                                        <span className="text-[8px] text-slate-500 uppercase leading-tight text-center whitespace-nowrap">{ms.label}</span>
+                                        {isEditingThis ? (
+                                          ms.key === "flight" ? (
+                                            <input
+                                              autoFocus
+                                              value={inlineEdit!.val}
+                                              onChange={e => setInlineEdit(v => v ? { ...v, val: e.target.value } : v)}
+                                              onBlur={() => { setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, flightEta: inlineEdit!.val })); setInlineEdit(null); }}
+                                              onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }}
+                                              className="w-12 h-4 text-[10px] font-mono bg-slate-700 border border-blue-500/70 rounded px-1 text-slate-100 outline-none text-center"
+                                              placeholder="HH:MM"
+                                              data-testid={`inline-edit-flighteta-${crew.id}`}
+                                            />
+                                          ) : (
+                                            <input
+                                              autoFocus
+                                              value={crewTimelineEditVal}
+                                              onChange={e => setCrewTimelineEditVal(e.target.value)}
+                                              onBlur={() => { if (tlStep) { setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, timeline: c.timeline.map(s => s.id !== tlStep.id ? s : { ...s, time: crewTimelineEditVal }) })); } setEditingCrewTimeline(null); }}
+                                              onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }}
+                                              className="w-12 h-4 text-[10px] font-mono bg-slate-700 border border-blue-500/70 rounded px-1 text-slate-100 outline-none text-center"
+                                              placeholder="HH:MM"
+                                              data-testid={`inline-edit-timeline-${crew.id}-${tlStep?.id}`}
+                                            />
+                                          )
+                                        ) : (
+                                          <span
+                                            className={`text-[11px] font-mono ${_msTimeCls(st)} cursor-pointer hover:bg-slate-700/60 rounded px-0.5 py-0.5 transition-colors leading-none`}
+                                            title={`Edit ${ms.label} time`}
+                                            onClick={() => {
+                                              if (ms.key === "flight") {
+                                                setInlineEdit({ crewId: crew.id, field: "flightEta", val: crew.flightEta || "" });
+                                              } else if (tlStep) {
+                                                setEditingCrewTimeline({ crewId: crew.id, stepId: tlStep.id });
+                                                setCrewTimelineEditVal(tlStep.time);
+                                              } else {
+                                                openSlideOver();
+                                              }
+                                            }}
+                                            data-testid={`ms-time-${crew.id}-${ms.key}`}
+                                          >
+                                            {ms.time}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Flight number row + hotel mini-badge */}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[9px] text-slate-600 uppercase">Flight:</span>
+                                {inlineEdit?.crewId === crew.id && inlineEdit?.field === "flight" ? (
+                                  <input autoFocus value={inlineEdit.val} onChange={e => setInlineEdit(v => v ? { ...v, val: e.target.value } : v)} onBlur={() => { setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, flight: inlineEdit.val })); setInlineEdit(null); }} onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }} className="w-20 h-4 text-[10px] font-semibold bg-slate-700 border border-blue-500/70 rounded px-1 text-slate-100 outline-none" data-testid={`inline-edit-flight-${crew.id}`} />
+                                ) : (
+                                  <span className="text-[10px] font-semibold text-slate-300 cursor-pointer hover:bg-slate-700/60 rounded px-1 py-0.5 transition-colors" onClick={() => setInlineEdit({ crewId: crew.id, field: "flight", val: crew.flight || "" })} data-testid={`text-flight-${crew.id}`}>{crew.flight || "—"}</span>
+                                )}
+                                {crew.flightDelayed && (
+                                  <span className="inline-flex items-center text-[9px] font-bold text-rose-400 bg-rose-900/40 border border-rose-500/30 rounded-full px-1.5 py-0.5">⚠ Delayed</span>
+                                )}
+                                {_hasHotelInfo && (
+                                  <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 ${crew.hotelStatus === "checked-in" ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" : crew.hotelStatus === "checked-out" ? "text-sky-400 bg-sky-900/20 border-sky-500/50" : crew.hotelStatus === "reserved" ? "text-blue-400 bg-blue-900/20 border-blue-500/50" : "text-emerald-400 bg-emerald-900/20 border-emerald-500/50"}`} data-testid={`badge-hotel-${crew.id}`}>
+                                    {crew.hotelStatus === "checked-in" ? `🛏️ ${crew.hotelName}` : crew.hotelStatus === "checked-out" ? `🧳 ${crew.hotelName}` : crew.hotelStatus === "reserved" ? `🔖 ${crew.hotelName}` : `🏨 ${crew.hotelName}`}
+                                  </span>
+                                )}
+                                {_hotelPending && !_hasHotelInfo && (
+                                  <button className="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-300 bg-amber-950/40 border border-amber-500/35 rounded-full px-1.5 py-0.5 hover:bg-amber-950/60 transition-colors" onClick={e => { e.stopPropagation(); openSlideOver(); }} data-testid={`warning-hotel-pending-${crew.id}`}>🏨 Hotel Req. — Add</button>
+                                )}
+                              </div>
+
+                              {/* AI Pending Suggestions */}
+                              {cardSuggestions.length > 0 && (
+                                <div className="space-y-1">
+                                  {cardSuggestions.map(suggestion => (
+                                    <div key={`${suggestion.crewId}-${suggestion.field}`} className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-950/50 border border-blue-500/40 text-[9px]">
+                                      <span className="text-blue-300 font-semibold flex-shrink-0">✨ AI:</span>
+                                      <span className="text-blue-100 font-bold flex-1 truncate">{suggestion.label}</span>
+                                      <button className="text-emerald-400 hover:text-emerald-300 font-bold px-1.5 py-0.5 rounded hover:bg-emerald-900/30 transition-colors flex-shrink-0" onClick={() => { setCrewSigners(cs => cs.map(c => c.id !== suggestion.crewId ? c : { ...c, [suggestion.field]: suggestion.newVal })); setAiPendingSuggestions(prev => prev.filter(s => !(s.crewId === suggestion.crewId && s.field === suggestion.field))); }} data-testid={`button-ai-accept-${crew.id}-${suggestion.field}`}>✓</button>
+                                      <button className="text-rose-400 hover:text-rose-300 font-bold px-1.5 py-0.5 rounded hover:bg-rose-900/30 transition-colors flex-shrink-0" onClick={() => setAiPendingSuggestions(prev => prev.filter(s => !(s.crewId === suggestion.crewId && s.field === suggestion.field)))} data-testid={`button-ai-reject-${crew.id}-${suggestion.field}`}>✕</button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* ── RIGHT: Status badge + quick actions ── */}
+                            <div className="flex flex-col items-end gap-1.5 flex-shrink-0 pr-1.5" onClick={e => e.stopPropagation()}>
+                              {/* Big warning / status badge */}
+                              <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-2 py-1 whitespace-nowrap ${
+                                hasCritical        ? "text-red-400 bg-red-950/60 border-red-500/50" :
+                                hasWarning         ? "text-amber-400 bg-amber-950/40 border-amber-500/40" :
+                                _hotelPending      ? "text-amber-300 bg-amber-950/40 border-amber-500/40" :
+                                crew.flightDelayed ? "text-rose-400 bg-rose-950/40 border-rose-500/40" :
+                                                     "text-emerald-400 bg-emerald-950/30 border-emerald-500/30"
+                              }`} data-testid={`badge-status-${crew.id}`}>
+                                {hasCritical ? "🚨 CRITICAL" : hasWarning ? "⚠ Action Req." : _hotelPending ? "🏨 Hotel Req." : crew.flightDelayed ? "⚠ DELAYED" : "✓ Ready"}
+                              </span>
+                              {/* Arrival / departure status */}
+                              {crew.arrivalStatus === "arrived" && (
+                                <span className="inline-flex items-center text-[8px] font-bold text-emerald-400 bg-emerald-900/30 border border-emerald-500/40 rounded-full px-1.5 py-0.5">🟢 Arrived</span>
+                              )}
+                              {crew.arrivalStatus === "departed" && (
+                                <span className="inline-flex items-center text-[8px] font-bold text-rose-400 bg-rose-900/30 border border-rose-500/40 rounded-full px-1.5 py-0.5">🔴 Departed</span>
+                              )}
+                              {/* Quick action buttons */}
+                              <button
+                                className="flex items-center justify-center gap-1 h-6 px-2 w-full text-[10px] font-medium rounded-md border border-slate-600 text-slate-400 hover:text-blue-400 hover:border-blue-500/50 hover:bg-blue-900/20 transition-colors"
+                                onClick={e => { e.stopPropagation(); setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
+                                data-testid={`button-update-flight-${crew.id}`}
+                              >
+                                <Plane className="w-3 h-3" /> Edit
+                              </button>
+                              {crew.side === "on" ? (
+                                <button
+                                  className={`flex items-center justify-center gap-1 h-6 px-2 w-full text-[10px] font-medium rounded-md border transition-colors ${crew.arrivalStatus === "arrived" ? "border-emerald-500/50 text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30" : "border-slate-600 text-slate-400 hover:text-emerald-400 hover:border-emerald-500/40 hover:bg-emerald-900/10"}`}
+                                  onClick={e => { e.stopPropagation(); const next = crew.arrivalStatus === "arrived" ? "pending" : "arrived"; setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, arrivalStatus: next })); if (next === "arrived") addActivityLog(`${crew.name} (${crew.rank}) marked as Arrived.`, "Agent"); }}
+                                  data-testid={`button-mark-arrived-${crew.id}`}
+                                >
+                                  <LogIn className="w-3 h-3" /> {crew.arrivalStatus === "arrived" ? "✓ Arrived" : "Arrived"}
+                                </button>
+                              ) : (
+                                <button
+                                  className={`flex items-center justify-center gap-1 h-6 px-2 w-full text-[10px] font-medium rounded-md border transition-colors ${crew.arrivalStatus === "departed" ? "border-rose-500/50 text-rose-400 bg-rose-900/20 hover:bg-rose-900/30" : "border-slate-600 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 hover:bg-rose-900/10"}`}
+                                  onClick={e => { e.stopPropagation(); const next = crew.arrivalStatus === "departed" ? "pending" : "departed"; setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, arrivalStatus: next })); if (next === "departed") addActivityLog(`${crew.name} (${crew.rank}) marked as Departed.`, "Agent"); }}
+                                  data-testid={`button-mark-departed-${crew.id}`}
+                                >
+                                  <LogOut className="w-3 h-3" /> {crew.arrivalStatus === "departed" ? "✓ Departed" : "Departed"}
+                                </button>
+                              )}
+                              {/* Expand + Remove */}
+                              <div className="flex gap-0.5">
+                                <button className="p-1 text-slate-600 hover:text-blue-400 transition-colors" onClick={e => { e.stopPropagation(); openSlideOver(); }} data-testid={`button-expand-crew-${crew.id}`} title="Open details"><Maximize2 className="w-3 h-3" /></button>
+                                <button className="p-1 text-slate-600 hover:text-rose-400 transition-colors" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.filter(c => c.id !== crew.id)); }} data-testid={`button-remove-crew-${crew.id}`}><X className="w-3 h-3" /></button>
+                              </div>
+                            </div>
+
                           </div>
+                        ) : (
+                          /* ══════════════ MOD A: COMPACT LAYOUT (unchanged) ══════════════ */
+                          <>
+                            {/* ── HEADER: Avatar | Name + Rank | Flag | Status | Expand | Remove ── */}
+                            <div className="flex items-center gap-2">
+                              <div className={`w-8 h-8 rounded-full ${accentColors.avatar} flex items-center justify-center text-[12px] font-bold flex-shrink-0`}>
+                                {crew.name[0]}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <p className="text-xs font-bold text-slate-100 truncate leading-tight">{crew.name}</p>
+                                  {operationalWarns.length > 0 && (
+                                    <span className="relative group/warn flex-shrink-0" data-testid={`warning-icon-${crew.id}`}>
+                                      <span className={`text-[11px] cursor-help leading-none ${hasCritical ? "text-red-400" : "text-amber-400"}`}>⚠</span>
+                                      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/warn:block z-30 w-max max-w-[220px] bg-slate-900 border border-slate-600/80 rounded-lg px-2.5 py-2 text-[10px] text-slate-200 shadow-2xl whitespace-normal leading-snug">
+                                        {operationalWarns.map(w => w.replace("⚠️ ", "").replace("🚨 ", "")).join(" · ")}
+                                      </span>
+                                    </span>
+                                  )}
+                                  {crew.arrivalStatus === "arrived" && (
+                                    <span className="inline-flex items-center text-[8px] font-bold text-emerald-400 bg-emerald-900/30 border border-emerald-500/40 rounded-full px-1.5 py-0.5 flex-shrink-0">🟢 Arrived</span>
+                                  )}
+                                  {crew.arrivalStatus === "departed" && (
+                                    <span className="inline-flex items-center text-[8px] font-bold text-rose-400 bg-rose-900/30 border border-rose-500/40 rounded-full px-1.5 py-0.5 flex-shrink-0">🔴 Departed</span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-slate-500 leading-tight">{crew.rank}</p>
+                              </div>
+                              {crew.nationality && (
+                                <div className="flex items-center gap-0.5 flex-shrink-0">
+                                  <span className="text-sm leading-none">{getFlag(crew.nationality)}</span>
+                                  <span className="text-[9px] text-slate-500 font-mono">{crew.nationality.toUpperCase()}</span>
+                                </div>
+                              )}
+                              <button className="p-1 text-slate-600 hover:text-blue-400 transition-colors flex-shrink-0" onClick={e => { e.stopPropagation(); openSlideOver(); }} data-testid={`button-expand-crew-${crew.id}`} title="Open details"><Maximize2 className="w-3 h-3" /></button>
+                              <button className="p-1 text-slate-600 hover:text-rose-400 transition-colors flex-shrink-0" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.filter(c => c.id !== crew.id)); }} data-testid={`button-remove-crew-${crew.id}`}><X className="w-3 h-3" /></button>
+                            </div>
+
+                            {/* ── VISA & CLEARANCE ROW ── */}
+                            <div className="flex flex-wrap gap-1" data-testid={`crew-visa-row-${crew.id}`}>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+                                  <button className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-opacity ${crew.visaRequired ? "text-rose-400 bg-rose-900/20 border-rose-500/50" : "text-emerald-400 bg-emerald-900/20 border-emerald-500/50"}`} data-testid={`badge-visa-${crew.id}`}>
+                                    Visa Req: {crew.visaRequired ? "Yes" : "No"}
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="bg-slate-800 border-slate-700 text-slate-200 min-w-[170px] p-1">
+                                  <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, visaRequired: false })); }}>✓ No Visa Required</DropdownMenuItem>
+                                  <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, visaRequired: true })); }}>⚠ Visa Required</DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+                                  <button className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-opacity ${crew.eVisaStatus === "approved" ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" : crew.eVisaStatus === "pending" ? "text-amber-400 bg-amber-900/20 border-amber-500/50" : "text-slate-500 bg-slate-700/40 border-slate-600/50"}`} data-testid={`badge-evisa-${crew.id}`}>
+                                    {crew.eVisaStatus === "approved" ? "✅ e-Visa" : crew.eVisaStatus === "pending" ? "⏳ e-Visa" : "e-Visa: N/A"}
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="bg-slate-800 border-slate-700 text-slate-200 min-w-[170px] p-1">
+                                  <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, eVisaStatus: "n/a" })); }}>e-Visa: N/A</DropdownMenuItem>
+                                  <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, eVisaStatus: "pending" })); }}>⏳ Pending</DropdownMenuItem>
+                                  <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, eVisaStatus: "approved" })); }}>✅ Approved</DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+
+                            {/* ── HOTEL STATUS BADGE / PENDING WARNING ── */}
+                            {(() => {
+                              const vesselEtdTime = voyage.etd ? new Date(voyage.etd).toTimeString().substring(0, 5) : "";
+                              const vesselEtaTime = voyage.eta ? new Date(voyage.eta).toTimeString().substring(0, 5) : "";
+                              const allWarns = getCrewWarnings(crew, vesselEtdTime, vesselEtaTime);
+                              const hotelWarn = allWarns.find(isHotelWarning);
+                              const hotelPending = crew.requiresHotel && !crew.hotelName;
+                              const hasHotelInfo = crew.requiresHotel && crew.hotelName;
+                              return (
+                                <>
+                                  {(hotelWarn || hotelPending) && !hasHotelInfo && (
+                                    <button className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[9px] font-semibold border bg-amber-950/40 border-amber-500/35 text-amber-300 hover:bg-amber-950/60 transition-colors text-left" onClick={e => { e.stopPropagation(); openSlideOver(); }} data-testid={`warning-hotel-pending-${crew.id}`}>
+                                      <span>🏨</span>
+                                      <span className="flex-1 min-w-0">{hotelWarn ? hotelWarn.replace("🏨 Hotel Required: ", "Hotel Required — ") : "Hotel Required"} · Tap to add hotel</span>
+                                    </button>
+                                  )}
+                                  {hasHotelInfo && (
+                                    <div className="flex">
+                                      <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 ${crew.hotelStatus === "checked-in" ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" : crew.hotelStatus === "checked-out" ? "text-sky-400 bg-sky-900/20 border-sky-500/50" : crew.hotelStatus === "reserved" ? "text-blue-400 bg-blue-900/20 border-blue-500/50" : "text-emerald-400 bg-emerald-900/20 border-emerald-500/50"}`} data-testid={`badge-hotel-${crew.id}`}>
+                                        {crew.hotelStatus === "checked-in" ? `🛏️ At Hotel: ${crew.hotelName}` : crew.hotelStatus === "checked-out" ? `🧳 Checked-Out: ${crew.hotelName}` : crew.hotelStatus === "reserved" ? `🔖 Reserved: ${crew.hotelName}` : `🏨 Hotel: ${crew.hotelName}`}
+                                      </span>
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
+
+                            {/* ── FLIGHT ROW (inline editable) ── */}
+                            <div className="flex items-center gap-1 text-[11px] text-slate-400" onClick={e => e.stopPropagation()}>
+                              <span>✈️</span>
+                              {inlineEdit?.crewId === crew.id && inlineEdit?.field === "flight" ? (
+                                <input autoFocus value={inlineEdit.val} onChange={e => setInlineEdit(v => v ? { ...v, val: e.target.value } : v)} onBlur={() => { setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, flight: inlineEdit.val })); setInlineEdit(null); }} onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }} className="w-20 h-5 text-[11px] font-semibold bg-slate-700 border border-blue-500/70 rounded px-1.5 text-slate-100 outline-none" data-testid={`inline-edit-flight-${crew.id}`} />
+                              ) : (
+                                <span className="group/fedit inline-flex items-center gap-1 cursor-pointer hover:bg-slate-700/60 hover:text-slate-200 rounded px-1 py-0.5 transition-colors font-semibold text-slate-300" onClick={() => setInlineEdit({ crewId: crew.id, field: "flight", val: crew.flight || "" })} data-testid={`text-flight-${crew.id}`}>{crew.flight || "—"}<Pen className="w-2 h-2 opacity-0 group-hover/fedit:opacity-60 transition-opacity flex-shrink-0" /></span>
+                              )}
+                              <span className="text-slate-600 mx-0.5">·</span>
+                              <span className="text-slate-600 text-[10px]">ETA</span>
+                              {inlineEdit?.crewId === crew.id && inlineEdit?.field === "flightEta" ? (
+                                <input autoFocus value={inlineEdit.val} onChange={e => setInlineEdit(v => v ? { ...v, val: e.target.value } : v)} onBlur={() => { setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, flightEta: inlineEdit.val })); setInlineEdit(null); }} onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }} className="w-16 h-5 text-[11px] font-mono bg-slate-700 border border-blue-500/70 rounded px-1.5 text-slate-100 outline-none" placeholder="HH:MM" data-testid={`inline-edit-flighteta-${crew.id}`} />
+                              ) : (
+                                <span className="group/etaedit inline-flex items-center gap-1 cursor-pointer hover:bg-slate-700/60 hover:text-slate-200 rounded px-1 py-0.5 transition-colors font-mono" onClick={() => setInlineEdit({ crewId: crew.id, field: "flightEta", val: crew.flightEta || "" })} data-testid={`text-flighteta-${crew.id}`}>{crew.flightEta || "—"}<Pen className="w-2 h-2 opacity-0 group-hover/etaedit:opacity-60 transition-opacity flex-shrink-0" /></span>
+                              )}
+                              {crew.flightDelayed && (
+                                <span className="ml-auto inline-flex items-center text-[9px] font-bold text-rose-400 bg-rose-900/40 border border-rose-500/30 rounded-full px-1.5 py-0.5">⚠ Delayed</span>
+                              )}
+                            </div>
+
+                            {/* ── MICRO-TIMELINE ── */}
+                            {crew.timeline.length > 0 && (
+                              <div className="flex items-center flex-wrap gap-x-0.5 gap-y-0.5 text-[10px]" onClick={e => e.stopPropagation()}>
+                                {crew.timeline.map((step, idx) => (
+                                  <span key={step.id} className="inline-flex items-center gap-0.5">
+                                    {idx > 0 && <span className="text-slate-600 select-none mx-0.5">›</span>}
+                                    <span className="text-slate-500 leading-none">{step.icon}</span>
+                                    {editingCrewTimeline?.crewId === crew.id && editingCrewTimeline?.stepId === step.id ? (
+                                      <input autoFocus value={crewTimelineEditVal} onChange={e => setCrewTimelineEditVal(e.target.value)} onBlur={() => { setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, timeline: c.timeline.map(s => s.id !== step.id ? s : { ...s, time: crewTimelineEditVal }) })); setEditingCrewTimeline(null); }} onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }} className="w-12 h-4 text-[10px] font-mono bg-slate-700 border border-blue-500/70 rounded px-1 text-slate-100 outline-none" placeholder="HH:MM" data-testid={`inline-edit-timeline-${crew.id}-${step.id}`} />
+                                    ) : (
+                                      <span className="font-mono text-slate-400 cursor-pointer hover:text-slate-200 hover:bg-slate-700/60 rounded px-0.5 py-0.5 transition-colors leading-none" title={step.label} onClick={() => { setEditingCrewTimeline({ crewId: crew.id, stepId: step.id }); setCrewTimelineEditVal(step.time); }} data-testid={`timeline-step-${crew.id}-${step.id}`}>{step.time || "—"}</span>
+                                    )}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* ── QUICK ACTIONS ── */}
+                            <div className="flex gap-1.5 pt-1.5 border-t border-slate-700/40" onClick={e => e.stopPropagation()}>
+                              <button className="flex-1 flex items-center justify-center gap-1 h-6 text-[10px] font-medium rounded-md border border-slate-600 text-slate-400 hover:text-blue-400 hover:border-blue-500/50 hover:bg-blue-900/20 transition-colors" onClick={e => { e.stopPropagation(); setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }} data-testid={`button-update-flight-${crew.id}`}><Plane className="w-3 h-3" /> Update Flight</button>
+                              {crew.side === "on" ? (
+                                <button className={`flex-1 flex items-center justify-center gap-1 h-6 text-[10px] font-medium rounded-md border transition-colors ${crew.arrivalStatus === "arrived" ? "border-emerald-500/50 text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30" : "border-slate-600 text-slate-400 hover:text-emerald-400 hover:border-emerald-500/40 hover:bg-emerald-900/10"}`} onClick={e => { e.stopPropagation(); const next = crew.arrivalStatus === "arrived" ? "pending" : "arrived"; setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, arrivalStatus: next })); if (next === "arrived") addActivityLog(`${crew.name} (${crew.rank}) marked as Arrived.`, "Agent"); }} data-testid={`button-mark-arrived-${crew.id}`}><LogIn className="w-3 h-3" /> {crew.arrivalStatus === "arrived" ? "✓ Arrived" : "Mark Arrived"}</button>
+                              ) : (
+                                <button className={`flex-1 flex items-center justify-center gap-1 h-6 text-[10px] font-medium rounded-md border transition-colors ${crew.arrivalStatus === "departed" ? "border-rose-500/50 text-rose-400 bg-rose-900/20 hover:bg-rose-900/30" : "border-slate-600 text-slate-400 hover:text-rose-400 hover:border-rose-500/40 hover:bg-rose-900/10"}`} onClick={e => { e.stopPropagation(); const next = crew.arrivalStatus === "departed" ? "pending" : "departed"; setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, arrivalStatus: next })); if (next === "departed") addActivityLog(`${crew.name} (${crew.rank}) marked as Departed.`, "Agent"); }} data-testid={`button-mark-departed-${crew.id}`}><LogOut className="w-3 h-3" /> {crew.arrivalStatus === "departed" ? "✓ Departed" : "Mark Departed"}</button>
+                              )}
+                            </div>
+
+                            {/* ── AI Pending Suggestions ── */}
+                            {cardSuggestions.length > 0 && (
+                              <div className="space-y-1" onClick={e => e.stopPropagation()}>
+                                {cardSuggestions.map(suggestion => (
+                                  <div key={`${suggestion.crewId}-${suggestion.field}`} className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-950/50 border border-blue-500/40 text-[9px]">
+                                    <span className="text-blue-300 font-semibold flex-shrink-0">✨ AI:</span>
+                                    <span className="text-blue-100 font-bold flex-1 truncate">{suggestion.label}</span>
+                                    <button className="text-emerald-400 hover:text-emerald-300 font-bold px-1.5 py-0.5 rounded hover:bg-emerald-900/30 transition-colors flex-shrink-0" onClick={() => { setCrewSigners(cs => cs.map(c => c.id !== suggestion.crewId ? c : { ...c, [suggestion.field]: suggestion.newVal })); setAiPendingSuggestions(prev => prev.filter(s => !(s.crewId === suggestion.crewId && s.field === suggestion.field))); }} data-testid={`button-ai-accept-${crew.id}-${suggestion.field}`}>✓</button>
+                                    <button className="text-rose-400 hover:text-rose-300 font-bold px-1.5 py-0.5 rounded hover:bg-rose-900/30 transition-colors flex-shrink-0" onClick={() => setAiPendingSuggestions(prev => prev.filter(s => !(s.crewId === suggestion.crewId && s.field === suggestion.field)))} data-testid={`button-ai-reject-${crew.id}-${suggestion.field}`}>✕</button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                       </DraggableCrewCard>
@@ -2302,7 +2407,7 @@ export default function VoyageDetail() {
                   };
 
                   return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div className={`grid ${isHotelPanelOpen ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"} gap-5`}>
                       {/* ON-SIGNERS */}
                       <div className="space-y-2.5">
                         <div className="relative z-20 flex items-center gap-2 pb-2 border-b border-emerald-500/20">
