@@ -4,7 +4,7 @@ import { isAuthenticated } from "../replit_integrations/auth";
 import { isAdmin } from "./shared";
 import { db } from "../db";
 import { sql as drizzleSql, eq, desc } from "drizzle-orm";
-import { fdaAccounts, type FdaLineItem } from "@shared/schema";
+import { fdaAccounts, voyages, type FdaLineItem } from "@shared/schema";
 import { logAction } from "../audit";
 import { logVoyageActivity } from "../voyage-activity";
 import { addPdfHeader, addPdfFooter } from "../proforma-pdf";
@@ -114,13 +114,12 @@ router.post("/", isAuthenticated, async (req: any, res: any, next: any) => {
       try {
         let shipownerId: string | null = null;
         if (voyageId) {
-          const pool = (db as any).$client ?? (db as any).pool;
-          if (pool) {
-            const { rows } = await pool.query(
-              `SELECT user_id FROM voyages WHERE id = $1 LIMIT 1`, [voyageId]
-            );
-            if (rows?.[0]?.user_id) shipownerId = rows[0].user_id;
-          }
+          const [voyage] = await db
+            .select({ userId: voyages.userId })
+            .from(voyages)
+            .where(eq(voyages.id, voyageId))
+            .limit(1);
+          if (voyage?.userId) shipownerId = voyage.userId;
         }
         if (shipownerId) {
           const shipowner = await storage.getUser(shipownerId);

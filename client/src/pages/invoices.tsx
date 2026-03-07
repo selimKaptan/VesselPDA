@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useSearch } from "wouter";
 import { DollarSign, Plus, CheckCircle2, Clock, XCircle, AlertTriangle, FileText, Bell, X, Receipt } from "lucide-react";
@@ -70,6 +70,7 @@ export default function Invoices() {
   const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [fdaBannerDismissed, setFdaBannerDismissed] = useState(false);
+  const preFilledRef = useRef(false);
   const [form, setForm] = useState({
     title: "",
     invoiceType: "invoice",
@@ -99,9 +100,10 @@ export default function Invoices() {
     enabled: !!fdaId,
   });
 
-  // Pre-fill form when FDA is loaded from URL param
+  // Pre-fill form when FDA is loaded from URL param — only once per mount
   useEffect(() => {
-    if (linkedFda && !linkedFda.error && fdaId) {
+    if (linkedFda && !linkedFda.error && fdaId && !preFilledRef.current) {
+      preFilledRef.current = true;
       setForm(f => ({
         ...f,
         title: `Final Disbursement — ${linkedFda.vesselName || ""}${linkedFda.portName ? " / " + linkedFda.portName : ""}`,
@@ -330,6 +332,11 @@ export default function Invoices() {
                         <StatusIcon className="w-3 h-3 mr-1" />
                         {cfg.label}
                       </Badge>
+                      {inv.fdaId && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400" data-testid={`badge-fda-link-${inv.id}`}>
+                          FDA #{inv.fdaId}
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 mt-1 flex-wrap">
                       <span className="text-base font-bold">
