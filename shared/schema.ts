@@ -340,7 +340,6 @@ export type InsertTenderBid = z.infer<typeof insertTenderBidSchema>;
 export type TenderBid = typeof tenderBids.$inferSelect;
 
 // ─── AGENT REVIEWS ────────────────────────────────────────────────────────────
-
 export const agentReviews = pgTable("agent_reviews", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   companyProfileId: integer("company_profile_id").notNull().references(() => companyProfiles.id),
@@ -434,12 +433,6 @@ export const portExpenses = pgTable("port_expenses", {
 export const insertPortExpenseSchema = createInsertSchema(portExpenses).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertPortExpense = z.infer<typeof insertPortExpenseSchema>;
 export type PortExpense = typeof portExpenses.$inferSelect;
-
-export const portExpenseRelations = relations(portExpenses, ({ one }) => ({
-  user: one(users, { fields: [portExpenses.userId], references: [users.id] }),
-  voyage: one(voyages, { fields: [portExpenses.voyageId], references: [voyages.id] }),
-  fda: one(fdaAccounts, { fields: [portExpenses.fdaId], references: [fdaAccounts.id] }),
-}));
 
 export const notificationPreferences = pgTable("notification_preferences", {
   id: serial("id").primaryKey(),
@@ -1032,6 +1025,40 @@ export const insertFixtureSchema = createInsertSchema(fixtures).omit({ createdAt
 export type InsertFixture = z.infer<typeof insertFixtureSchema>;
 export type Fixture = typeof fixtures.$inferSelect;
 
+export const brokerCommissions = pgTable("broker_commissions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  fixtureId: integer("fixture_id").references(() => fixtures.id, { onDelete: "set null" }),
+  commissionRef: varchar("commission_ref", { length: 100 }),
+  dealDescription: varchar("deal_description", { length: 500 }),
+  counterparty: varchar("counterparty", { length: 300 }),
+  cargoType: varchar("cargo_type", { length: 200 }),
+  voyageDescription: varchar("voyage_description", { length: 300 }),
+  fixtureDate: timestamp("fixture_date"),
+  freightAmount: real("freight_amount"),
+  freightCurrency: varchar("freight_currency", { length: 10 }).default("USD"),
+  commissionRate: real("commission_rate").notNull(),
+  grossCommission: real("gross_commission").notNull(),
+  deductions: real("deductions").default(0),
+  netCommission: real("net_commission").notNull(),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  paymentDueDate: timestamp("payment_due_date"),
+  paymentReceivedDate: timestamp("payment_received_date"),
+  status: varchar("status", { length: 30 }).default("pending"),
+  invoiceNumber: varchar("invoice_number", { length: 100 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const brokerCommissionRelations = relations(brokerCommissions, ({ one }) => ({
+  user: one(users, { fields: [brokerCommissions.userId], references: [users.id] }),
+  fixture: one(fixtures, { fields: [brokerCommissions.fixtureId], references: [fixtures.id] }),
+}));
+
+export const insertBrokerCommissionSchema = createInsertSchema(brokerCommissions).omit({ id: true, createdAt: true });
+export type InsertBrokerCommission = z.infer<typeof insertBrokerCommissionSchema>;
+export type BrokerCommission = typeof brokerCommissions.$inferSelect;
+
 // ─── LAYTIME CALCULATIONS ────────────────────────────────────────────────────
 
 export const laytimeCalculations = pgTable("laytime_calculations", {
@@ -1094,6 +1121,109 @@ export const cargoPositionRelations = relations(cargoPositions, ({ one }) => ({
 export const insertCargoPositionSchema = createInsertSchema(cargoPositions).omit({ createdAt: true, status: true });
 export type InsertCargoPosition = z.infer<typeof insertCargoPositionSchema>;
 export type CargoPosition = typeof cargoPositions.$inferSelect;
+
+export const brokerContacts = pgTable("broker_contacts", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  contactType: varchar("contact_type", { length: 50 }).notNull(), // "shipowner" | "charterer" | "broker" | "operator" | "trader" | "other"
+  companyName: varchar("company_name", { length: 300 }).notNull(),
+  contactName: varchar("contact_name", { length: 200 }),
+  email: varchar("email", { length: 300 }),
+  phone: varchar("phone", { length: 100 }),
+  mobile: varchar("mobile", { length: 100 }),
+  country: varchar("country", { length: 100 }),
+  city: varchar("city", { length: 200 }),
+  address: text("address"),
+  website: varchar("website", { length: 300 }),
+  vesselTypes: varchar("vessel_types", { length: 500 }), // "Bulk Carrier, Tanker" — bu şirketin gemi tipleri
+  tradeRoutes: text("trade_routes"), // "Black Sea, Mediterranean"
+  pastDealCount: integer("past_deal_count").default(0),
+  lastDealDate: timestamp("last_deal_date"),
+  rating: integer("rating"), // 1-5 yıldız
+  isFavorite: boolean("is_favorite").default(false),
+  tags: text("tags"), // JSON array: ["reliable", "fast-response", "bulk-specialist"]
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const brokerContactRelations = relations(brokerContacts, ({ one }) => ({
+  user: one(users, { fields: [brokerContacts.userId], references: [users.id] }),
+}));
+
+export const insertBrokerContactSchema = createInsertSchema(brokerContacts).omit({ id: true, createdAt: true });
+export type InsertBrokerContact = z.infer<typeof insertBrokerContactSchema>;
+export type BrokerContact = typeof brokerContacts.$inferSelect;
+
+// ─── ORDER BOOK (Broker Module) ──────────────────────────────────────────────
+
+export const cargoOrders = pgTable("cargo_orders", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  orderRef: varchar("order_ref", { length: 100 }),
+  cargoType: varchar("cargo_type", { length: 200 }).notNull(),
+  quantity: real("quantity"),
+  quantityUnit: varchar("quantity_unit", { length: 20 }).default("MT"),
+  loadPort: varchar("load_port", { length: 300 }),
+  dischargePort: varchar("discharge_port", { length: 300 }),
+  laycanFrom: timestamp("laycan_from"),
+  laycanTo: timestamp("laycan_to"),
+  freightIdea: real("freight_idea"),
+  freightCurrency: varchar("freight_currency", { length: 10 }).default("USD"),
+  freightBasis: varchar("freight_basis", { length: 50 }), // "PWWD" | "PMPR" | "Lump Sum"
+  charterer: varchar("charterer", { length: 300 }),
+  chartererContact: varchar("charterer_contact", { length: 200 }),
+  vesselTypeRequired: varchar("vessel_type_required", { length: 200 }),
+  dwtMin: real("dwt_min"),
+  dwtMax: real("dwt_max"),
+  status: varchar("status", { length: 30 }).default("open"), // open | negotiating | fixed | failed | cancelled | expired
+  matchedFixtureId: integer("matched_fixture_id").references(() => fixtures.id, { onDelete: "set null" }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const vesselOpenings = pgTable("vessel_openings", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  openingRef: varchar("opening_ref", { length: 100 }),
+  vesselId: integer("vessel_id").references(() => vessels.id, { onDelete: "set null" }),
+  vesselName: varchar("vessel_name", { length: 200 }).notNull(),
+  vesselType: varchar("vessel_type", { length: 100 }),
+  dwt: real("dwt"),
+  builtYear: integer("built_year"),
+  flag: varchar("flag", { length: 100 }),
+  owner: varchar("owner", { length: 300 }),
+  ownerContact: varchar("owner_contact", { length: 200 }),
+  openDate: timestamp("open_date"),
+  openPort: varchar("open_port", { length: 300 }),
+  openArea: varchar("open_area", { length: 200 }), // "Mediterranean" | "Black Sea" | "US Gulf" etc.
+  hireIdea: real("hire_idea"),
+  hireCurrency: varchar("hire_currency", { length: 10 }).default("USD"),
+  hireBasis: varchar("hire_basis", { length: 50 }), // "per day" | "lump sum"
+  status: varchar("status", { length: 30 }).default("open"), // open | negotiating | fixed | withdrawn | expired
+  matchedFixtureId: integer("matched_fixture_id").references(() => fixtures.id, { onDelete: "set null" }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const cargoOrderRelations = relations(cargoOrders, ({ one }) => ({
+  user: one(users, { fields: [cargoOrders.userId], references: [users.id] }),
+  matchedFixture: one(fixtures, { fields: [cargoOrders.matchedFixtureId], references: [fixtures.id] }),
+}));
+
+export const vesselOpeningRelations = relations(vesselOpenings, ({ one }) => ({
+  user: one(users, { fields: [vesselOpenings.userId], references: [users.id] }),
+  vessel: one(vessels, { fields: [vesselOpenings.vesselId], references: [vessels.id] }),
+  matchedFixture: one(fixtures, { fields: [vesselOpenings.matchedFixtureId], references: [fixtures.id] }),
+}));
+
+export const insertCargoOrderSchema = createInsertSchema(cargoOrders).omit({ id: true, createdAt: true });
+export const insertVesselOpeningSchema = createInsertSchema(vesselOpenings).omit({ id: true, createdAt: true });
+
+export type InsertCargoOrder = z.infer<typeof insertCargoOrderSchema>;
+export type CargoOrder = typeof cargoOrders.$inferSelect;
+export type InsertVesselOpening = z.infer<typeof insertVesselOpeningSchema>;
+export type VesselOpening = typeof vesselOpenings.$inferSelect;
+
 
 // ─── BUNKER PRICES ──────────────────────────────────────────────────────────
 
@@ -2847,3 +2977,60 @@ export const sparePartRequisitionItems = pgTable("spare_part_requisition_items",
 export const insertSparePartRequisitionItemSchema = createInsertSchema(sparePartRequisitionItems).omit({ id: true, createdAt: true });
 export type InsertSparePartRequisitionItem = z.infer<typeof insertSparePartRequisitionItemSchema>;
 export type SparePartRequisitionItem = typeof sparePartRequisitionItems.$inferSelect;
+
+// ─── Sprint 9: Broker Modules ─────────────────────────────────────────────────
+
+// T001: Voyage Estimation / Freight P&L Calculator
+export const voyageEstimations = pgTable("voyage_estimations", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  vesselId: integer("vessel_id").references(() => vessels.id, { onDelete: "set null" }),
+  estimationName: varchar("estimation_name", { length: 300 }).notNull(),
+  vesselName: varchar("vessel_name", { length: 200 }),
+  vesselType: varchar("vessel_type", { length: 100 }),
+  dwt: real("dwt"),
+  speedLaden: real("speed_laden").default(12),
+  speedBallast: real("speed_ballast").default(13),
+  consumptionLaden: real("consumption_laden").default(28),
+  consumptionBallast: real("consumption_ballast").default(25),
+  consumptionPort: real("consumption_port").default(3),
+  fuelType: varchar("fuel_type", { length: 50 }).default("VLSFO"),
+  fuelPrice: real("fuel_price").default(600),
+  cargoType: varchar("cargo_type", { length: 200 }),
+  cargoQuantity: real("cargo_quantity"),
+  freightRate: real("freight_rate"),
+  freightCurrency: varchar("freight_currency", { length: 10 }).default("USD"),
+  freightBasis: varchar("freight_basis", { length: 50 }).default("PWWD"),
+  loadPort: varchar("load_port", { length: 300 }),
+  dischargePort: varchar("discharge_port", { length: 300 }),
+  distanceLaden: real("distance_laden"),
+  distanceBallast: real("distance_ballast"),
+  portDaysLoad: real("port_days_load").default(2),
+  portDaysDischarge: real("port_days_discharge").default(2),
+  portCostLoad: real("port_cost_load").default(0),
+  portCostDischarge: real("port_cost_discharge").default(0),
+  canalCost: real("canal_cost").default(0),
+  miscCosts: real("misc_costs").default(0),
+  addressCommission: real("address_commission").default(0),
+  brokerCommissionPct: real("broker_commission_pct").default(0),
+  grossFreight: real("gross_freight"),
+  totalVoyageCosts: real("total_voyage_costs"),
+  netProfit: real("net_profit"),
+  voyageDays: real("voyage_days"),
+  tce: real("tce"),
+  breakevenFreight: real("breakeven_freight"),
+  status: varchar("status", { length: 20 }).default("draft"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertVoyageEstimationSchema = createInsertSchema(voyageEstimations).omit({ id: true, createdAt: true });
+export type InsertVoyageEstimation = z.infer<typeof insertVoyageEstimationSchema>;
+export type VoyageEstimation = typeof voyageEstimations.$inferSelect;
+
+// T002: Order Book — Cargo Orders - ALREADY DEFINED ABOVE
+
+// T002: Order Book — Vessel Openings - ALREADY DEFINED ABOVE
+
+// T003: Broker Commissions - ALREADY DEFINED ABOVE
+
+// T005: Broker Contacts (CRM) - ALREADY DEFINED ABOVE

@@ -86,6 +86,10 @@ import Insurance from "@/pages/insurance";
 import Drydock from "@/pages/drydock";
 import DefectTracker from "@/pages/defect-tracker";
 import SpareParts from "@/pages/spare-parts";
+import VoyageEstimation from "@/pages/voyage-estimation";
+import OrderBook from "@/pages/order-book";
+import BrokerCommissions from "@/pages/broker-commissions";
+import Contacts from "@/pages/contacts";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -161,6 +165,10 @@ function AuthenticatedRouter() {
       <Route path="/drydock" component={Drydock} />
       <Route path="/defect-tracker" component={DefectTracker} />
       <Route path="/spare-parts" component={SpareParts} />
+      <Route path="/voyage-estimation" component={VoyageEstimation} />
+      <Route path="/order-book" component={OrderBook} />
+      <Route path="/broker-commissions" component={BrokerCommissions} />
+      <Route path="/contacts" component={Contacts} />
       <Route component={NotFound} />
     </Switch>
   );

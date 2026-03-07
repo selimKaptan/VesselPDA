@@ -62,6 +62,10 @@ import insuranceRoutes from "./routes/insurance.routes";
 import drydockRoutes from "./routes/drydock.routes";
 import defectRoutes from "./routes/defect.routes";
 import sparePartsRoutes from "./routes/spare-parts.routes";
+import voyageEstimationRoutes from "./routes/voyage-estimation.routes";
+import orderBookRoutes from "./routes/order-book.routes";
+import brokerCommissionRoutes from "./routes/broker-commission.routes";
+import brokerContactsRoutes from "./routes/broker-contacts.routes";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -143,6 +147,12 @@ export async function registerRoutes(
   app.use("/api/drydock", drydockRoutes);
   app.use("/api", defectRoutes);
   app.use("/api/spare-parts", sparePartsRoutes);
+
+  // ─── Sprint 9: Broker Modules ─────────────────────────────────────────────
+  app.use("/api/voyage-estimations", isAuthenticated, voyageEstimationRoutes);
+  app.use("/api/order-book", isAuthenticated, orderBookRoutes);
+  app.use("/api/broker-commissions", isAuthenticated, brokerCommissionRoutes);
+  app.use("/api/broker-contacts", isAuthenticated, brokerContactsRoutes);
 
   return httpServer;
 }

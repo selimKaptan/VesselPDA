@@ -40,6 +40,10 @@ import {
   AlertTriangle,
   Wrench,
   Warehouse,
+  Calculator,
+  BookOpen,
+  DollarSign,
+  Contact2,
 } from "lucide-react";
 
 export type BadgeSource = "messages" | "nominations" | "tenders" | "certs" | "voyageInvites";
@@ -102,6 +106,10 @@ export const NAV_CATEGORIES: NavCategory[] = [
       { label: "Fixtures", url: "/fixtures", icon: Paperclip },
       { label: "Cargo Positions", url: "/cargo-positions", icon: Package },
       { label: "Laytime Calculator", url: "/laytime-calculator", icon: Scale },
+      { label: "Voyage Estimation", url: "/voyage-estimation", icon: Calculator, isNew: true },
+      { label: "Order Book", url: "/order-book", icon: BookOpen, isNew: true },
+      { label: "Commissions", url: "/broker-commissions", icon: DollarSign, isNew: true },
+      { label: "Contacts", url: "/contacts", icon: Contact2, isNew: true },
     ],
   },
   {
@@ -254,6 +262,10 @@ export const URL_TO_CATEGORY: Record<string, string> = {
   "/invoices": "finance",
   "/port-expenses": "finance",
   "/da-advances": "finance",
+  "/voyage-estimation": "commercial",
+  "/order-book": "commercial",
+  "/broker-commissions": "commercial",
+  "/contacts": "commercial",
   "/analytics": "intelligence",
   "/port-calls": "operations",
   "/actions": "operations",
