@@ -10,7 +10,7 @@ import {
   LayoutGrid, Map as MapIcon,
   ShieldCheck, Pencil, AlertTriangle, CheckCircle2, Clock,
   ChevronLeft, Download, Upload, Eye, X,
-  Layers, Users2, FileSpreadsheet,
+  Layers, Users2, FileSpreadsheet, FolderLock,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -684,10 +684,22 @@ function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete, fleets, onAddT
               </div>
             )}
           </div>
-          <button className="flex items-center gap-1 text-xs text-[hsl(var(--maritime-primary))] font-medium hover:underline"
-            onClick={onSelect} data-testid={`button-detail-vessel-${vessel.id}`}>
-            Detail <ChevronRight className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <Link href={`/vessel-vault/${vessel.id}`}>
+              <button
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-[hsl(var(--maritime-primary))] font-medium transition-colors"
+                onClick={e => e.stopPropagation()}
+                data-testid={`button-vessel-vault-${vessel.id}`}
+                title="Vessel Vault"
+              >
+                <FolderLock className="w-3.5 h-3.5" /> Vault
+              </button>
+            </Link>
+            <button className="flex items-center gap-1 text-xs text-[hsl(var(--maritime-primary))] font-medium hover:underline"
+              onClick={onSelect} data-testid={`button-detail-vessel-${vessel.id}`}>
+              Detail <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

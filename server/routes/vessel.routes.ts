@@ -220,6 +220,25 @@ router.delete("/:vesselId/certificates/:id", isAuthenticated, async (req: any, r
 });
 
 
+router.get("/:vesselId/vault-stats", isAuthenticated, async (req: any, res) => {
+  try {
+    const STATUTORY_COUNT = 18;
+    const vesselId = parseInt(req.params.vesselId);
+    const certs = await storage.getVesselCertificates(vesselId);
+    const statutory = certs.filter((c: any) => c.category === "statutory" && c.vaultDocType);
+    const uploadedKeys = new Set(statutory.map((c: any) => c.vaultDocType));
+    const uploaded = uploadedKeys.size;
+    const now = new Date();
+    const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const expired = statutory.filter((c: any) => c.expiresAt && new Date(c.expiresAt) < now).length;
+    const expiring = statutory.filter((c: any) => c.expiresAt && new Date(c.expiresAt) >= now && new Date(c.expiresAt) <= thirtyDays).length;
+    res.json({ total: STATUTORY_COUNT, uploaded, expired, expiring, missing: STATUTORY_COUNT - uploaded });
+  } catch {
+    res.status(500).json({ message: "Failed to fetch vault stats" });
+  }
+});
+
+
 router.get("/crew-roster", isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user?.claims?.sub || req.user?.id;

@@ -8,7 +8,7 @@ import {
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
   FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings, Archive, X,
-  TrendingUp, TrendingDown, AlertTriangle, Mail, Plane, LogIn, LogOut, Maximize2, Calculator,
+  TrendingUp, TrendingDown, AlertTriangle, Mail, Plane, LogIn, LogOut, Maximize2, Calculator, FolderLock,
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
@@ -164,6 +164,77 @@ function DraggableCrewCard({ id, children }: { id: number; children: import("rea
     <div ref={setNodeRef} style={style} className={isDragging ? "opacity-60" : undefined} {...attributes} {...listeners}>
       {children}
     </div>
+  );
+}
+
+function VoyageVaultSection({ vesselId }: { vesselId: number }) {
+  const { data: vaultCerts = [] } = useQuery<any[]>({
+    queryKey: [`/api/vessels/${vesselId}/certificates`],
+    enabled: vesselId > 0,
+  });
+  const { data: vaultStats } = useQuery<any>({
+    queryKey: [`/api/vessels/${vesselId}/vault-stats`],
+    enabled: vesselId > 0,
+  });
+  const today = new Date();
+  const alerts = vaultCerts.filter((c: any) => {
+    if (!c.expiresAt) return false;
+    const exp = new Date(c.expiresAt);
+    return exp < today || (exp.getTime() - today.getTime()) / 86400000 <= 30;
+  });
+  const uploaded = vaultStats?.uploaded ?? 0;
+  const total = vaultStats?.total ?? 18;
+  return (
+    <Card className="p-4 space-y-3" data-testid="card-voyage-vault">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <FolderLock className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+          <h2 className="font-semibold text-sm">Vessel Vault Documents</h2>
+          <span className="text-xs text-muted-foreground">({uploaded}/{total} statutory)</span>
+        </div>
+        <a
+          href={`/vessel-vault/${vesselId}`}
+          className="flex items-center gap-1 text-xs text-[hsl(var(--maritime-primary))] font-medium hover:underline"
+          data-testid="button-open-vessel-vault"
+        >
+          Open Vault <ExternalLink className="w-3 h-3" />
+        </a>
+      </div>
+      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+        <div
+          className="h-full bg-[hsl(var(--maritime-primary))] rounded-full transition-all"
+          style={{ width: `${total > 0 ? Math.round((uploaded / total) * 100) : 0}%` }}
+        />
+      </div>
+      {alerts.length > 0 ? (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-amber-600">Certificates requiring attention:</p>
+          {alerts.slice(0, 5).map((c: any) => {
+            const exp = c.expiresAt ? new Date(c.expiresAt) : null;
+            const isExpired = exp && exp < today;
+            return (
+              <div key={c.id} className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs ${isExpired ? "bg-red-50 dark:bg-red-950/20" : "bg-amber-50 dark:bg-amber-950/20"}`} data-testid={`vault-alert-cert-${c.id}`}>
+                {isExpired ? <XCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />}
+                <span className="font-medium">{c.name}</span>
+                <span className="ml-auto text-muted-foreground">
+                  {isExpired ? "Expired" : `Expires ${new Date(c.expiresAt).toLocaleDateString("en-GB")}`}
+                </span>
+              </div>
+            );
+          })}
+          {alerts.length > 5 && <p className="text-xs text-muted-foreground pl-1">+{alerts.length - 5} more</p>}
+        </div>
+      ) : uploaded === 0 ? (
+        <p className="text-xs text-muted-foreground text-center py-2">
+          No documents uploaded yet.{" "}
+          <a href={`/vessel-vault/${vesselId}`} className="text-[hsl(var(--maritime-primary))] hover:underline">Open Vault →</a>
+        </p>
+      ) : (
+        <p className="text-xs text-emerald-600 flex items-center gap-1">
+          <CheckCircle2 className="w-3.5 h-3.5" /> All uploaded statutory documents are valid.
+        </p>
+      )}
+    </Card>
   );
 }
 
@@ -4716,6 +4787,9 @@ export default function VoyageDetail() {
       {/* ── Tab: Dokümanlar ────────────────────────────────────── */}
       {activeTab === "documents" && (
         <div className="space-y-6">
+
+          {/* ── Vessel Vault Documents ── */}
+          {voyage?.vesselId && <VoyageVaultSection vesselId={voyage.vesselId} />}
 
           {/* ── Existing Document Management ── */}
           <Card

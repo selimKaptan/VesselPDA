@@ -782,3 +782,49 @@ export async function sendInvoiceCreatedEmail(data: InvoiceCreatedEmailData): Pr
     return true;
   } catch (err) { console.error("[email] sendInvoiceCreatedEmail failed:", err); return false; }
 }
+
+export interface CertificateExpiryEmailData {
+  toEmail: string;
+  toName: string;
+  vesselName: string;
+  certName: string;
+  expiresAt: string;
+  daysLeft: number;
+}
+
+export async function sendCertificateExpiryEmail(data: CertificateExpiryEmailData): Promise<boolean> {
+  const creds = await getResendCredentials();
+  if (!creds) { console.warn("[email] No credentials — skipping sendCertificateExpiryEmail"); return false; }
+  const resend = new Resend(creds.apiKey);
+  const urgency = data.daysLeft <= 7 ? "🔴 URGENT" : data.daysLeft <= 14 ? "🟠 WARNING" : "🟡 REMINDER";
+  const subject = `${urgency}: ${data.certName} expires in ${data.daysLeft} day(s) — ${data.vesselName}`;
+  const html = `
+    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+      <div style="background:#1e3a5f;padding:20px;border-radius:8px 8px 0 0;">
+        <h1 style="color:white;margin:0;font-size:20px;">⚓ VesselPDA — Certificate Expiry Alert</h1>
+      </div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
+        <p style="font-size:16px;font-weight:600;color:#1e293b;">Dear ${data.toName},</p>
+        <p style="color:#475569;">The following certificate for your vessel is expiring soon:</p>
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:16px 0;">
+          <table style="width:100%;border-collapse:collapse;">
+            <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Vessel</td><td style="padding:6px 0;font-weight:600;color:#1e293b;">${data.vesselName}</td></tr>
+            <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Certificate</td><td style="padding:6px 0;font-weight:600;color:#1e293b;">${data.certName}</td></tr>
+            <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Expires On</td><td style="padding:6px 0;font-weight:600;color:#dc2626;">${data.expiresAt}</td></tr>
+            <tr><td style="padding:6px 0;color:#64748b;font-size:13px;">Days Remaining</td><td style="padding:6px 0;font-weight:700;color:#dc2626;font-size:16px;">${data.daysLeft} days</td></tr>
+          </table>
+        </div>
+        <p style="color:#475569;">Please renew this certificate before it expires to ensure compliance and uninterrupted operations.</p>
+        <a href="https://app.vesselpda.com/vessel-certificates" style="display:inline-block;background:#1e3a5f;color:white;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;margin-top:8px;">View Vessel Vault →</a>
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;">
+        <p style="color:#94a3b8;font-size:12px;">This is an automated reminder from VesselPDA. You are receiving this because you own a vessel registered on the platform.</p>
+      </div>
+    </div>
+  `;
+  try {
+    const { error } = await resend.emails.send({ from: `VesselPDA <${creds.fromEmail}>`, to: [data.toEmail], subject, html });
+    if (error) { console.error("[email] sendCertificateExpiryEmail error:", error); return false; }
+    console.log(`[email] Certificate expiry email sent to ${data.toEmail} (${data.certName}, ${data.daysLeft}d left)`);
+    return true;
+  } catch (err) { console.error("[email] sendCertificateExpiryEmail failed:", err); return false; }
+}

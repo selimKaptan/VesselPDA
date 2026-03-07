@@ -3,6 +3,7 @@ import { pool } from "./db";
 import { getPositionByMmsi } from "./ais-stream";
 import { fetchTCMBRates } from "./exchange-rates";
 import { checkAndSendReminders } from "./payment-reminders";
+import { sendCertificateExpiryEmail } from "./email";
 
 // ────────────────────────────────────────────────────────────────────────────
 // a) syncWatchlistPositions — Every 5 minutes
@@ -56,27 +57,37 @@ async function syncWatchlistPositions() {
 
 // ────────────────────────────────────────────────────────────────────────────
 // b) checkExpiringCertificates — Every day at 08:00
-//    Finds certificates expiring within 30 days and notifies the vessel owner.
+//    Finds certificates expiring within 30 days. Sends 30/14/7-day email alerts
+//    to vessel owners (tracked via reminder_sent_days column).
 // ────────────────────────────────────────────────────────────────────────────
 async function checkExpiringCertificates() {
   console.log("[cron] checkExpiringCertificates: starting...");
   try {
     const result = await pool.query(`
       SELECT vc.id, vc.user_id, vc.name, vc.cert_type, vc.expires_at,
+             vc.reminder_sent_days,
              v.name AS vessel_name
       FROM vessel_certificates vc
       JOIN vessels v ON v.id = vc.vessel_id
       WHERE vc.expires_at IS NOT NULL
-        AND vc.status = 'valid'
         AND vc.expires_at > NOW()
-        AND vc.expires_at <= NOW() + INTERVAL '30 days'
+        AND vc.expires_at <= NOW() + INTERVAL '31 days'
     `);
 
     let notified = 0;
+    let emailed = 0;
     for (const cert of result.rows) {
       const daysLeft = Math.ceil(
         (new Date(cert.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
       );
+
+      // Determine which threshold this cert hits: 30, 14, or 7
+      const hitThreshold = [7, 14, 30].find(t => daysLeft <= t);
+      if (!hitThreshold) continue;
+
+      const sentDays: number[] = (cert.reminder_sent_days || "").split(",").filter(Boolean).map(Number);
+
+      // Send DB notification (once per 24h)
       const existingNotif = await pool.query(
         `SELECT id FROM notifications
          WHERE user_id = $1 AND type = 'certificate_expiry'
@@ -84,22 +95,49 @@ async function checkExpiringCertificates() {
            AND created_at > NOW() - INTERVAL '24 hours'`,
         [cert.user_id, `%Certificate ID ${cert.id}%`]
       );
-      if (existingNotif.rows.length > 0) continue;
+      if (existingNotif.rows.length === 0) {
+        await pool.query(
+          `INSERT INTO notifications (user_id, type, title, message, link)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [
+            cert.user_id,
+            "certificate_expiry",
+            `Certificate Expiring Soon — ${cert.vessel_name}`,
+            `${cert.name} certificate for ${cert.vessel_name} expires in ${daysLeft} day(s). Certificate ID ${cert.id}`,
+            `/vessel-certificates`,
+          ]
+        );
+        notified++;
+      }
 
-      await pool.query(
-        `INSERT INTO notifications (user_id, type, title, message, link)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [
-          cert.user_id,
-          "certificate_expiry",
-          `Certificate Expiring Soon — ${cert.vessel_name}`,
-          `${cert.name} certificate for ${cert.vessel_name} expires in ${daysLeft} day(s). Certificate ID ${cert.id}`,
-          `/vessels`,
-        ]
-      );
-      notified++;
+      // Send email alert if this threshold hasn't been emailed yet
+      if (!sentDays.includes(hitThreshold)) {
+        const userRow = await pool.query(
+          "SELECT email, first_name, last_name FROM users WHERE id = $1",
+          [cert.user_id]
+        );
+        const user = userRow.rows[0];
+        if (user?.email) {
+          const sent = await sendCertificateExpiryEmail({
+            toEmail: user.email,
+            toName: `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email,
+            vesselName: cert.vessel_name,
+            certName: cert.name,
+            expiresAt: new Date(cert.expires_at).toLocaleDateString("en-GB"),
+            daysLeft,
+          });
+          if (sent) {
+            const newSentDays = [...sentDays, hitThreshold].join(",");
+            await pool.query(
+              "UPDATE vessel_certificates SET reminder_sent_days = $1 WHERE id = $2",
+              [newSentDays, cert.id]
+            );
+            emailed++;
+          }
+        }
+      }
     }
-    console.log(`[cron] checkExpiringCertificates: ${result.rows.length} expiring cert(s) found, ${notified} notification(s) sent.`);
+    console.log(`[cron] checkExpiringCertificates: ${result.rows.length} cert(s) checked, ${notified} notification(s) sent, ${emailed} email(s) sent.`);
   } catch (err: any) {
     console.error("[cron] checkExpiringCertificates error:", err?.message);
   }

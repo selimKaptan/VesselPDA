@@ -1,4 +1,4 @@
-import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, MessageCircle, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, Handshake, Package, TrendingUp, Wallet, ClipboardList, Calculator } from "lucide-react";
+import { Ship, FileText, LogOut, LayoutDashboard, Building2, Crown, MapPin, Shield, ChevronDown, MessageSquare, MessageCircle, Anchor, Gavel, Navigation, Languages, Settings, ChevronUp, Users, Wrench, UserCheck, ShieldAlert, Handshake, Package, TrendingUp, Wallet, ClipboardList, Calculator, FolderLock } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
 import { useLocation, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -90,6 +90,7 @@ export function AppSidebar() {
   const toolsNav: any[] = [];
   if (effectiveRole !== "provider" && !isAgent) {
     toolsNav.push({ title: t("nav.vessels"), url: "/vessels", icon: Ship });
+    toolsNav.push({ title: "Vessel Vault", url: "/vessels", icon: FolderLock });
   }
   if (effectiveRole !== "provider") {
     toolsNav.push({ title: t("nav.proformas"), url: "/proformas", icon: FileText });

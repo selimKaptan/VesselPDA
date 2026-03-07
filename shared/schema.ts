@@ -801,6 +801,9 @@ export const vesselCertificates = pgTable("vessel_certificates", {
   fileUrl: text("file_url"),
   fileSize: integer("file_size"),
   createdAt: timestamp("created_at").defaultNow(),
+  category: text("category").notNull().default("statutory"),
+  vaultDocType: text("vault_doc_type"),
+  reminderSentDays: text("reminder_sent_days"),
 });
 
 export const vesselCertificateRelations = relations(vesselCertificates, ({ one }) => ({
