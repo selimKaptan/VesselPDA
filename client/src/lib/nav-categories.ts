@@ -36,6 +36,10 @@ import {
   Zap,
   Users2,
   Activity,
+  Leaf,
+  AlertTriangle,
+  Wrench,
+  Warehouse,
 } from "lucide-react";
 
 export type BadgeSource = "messages" | "nominations" | "tenders" | "certs" | "voyageInvites";
@@ -117,6 +121,11 @@ export const NAV_CATEGORIES: NavCategory[] = [
       { label: "Maintenance", url: "/maintenance", icon: Settings, isNew: true },
       { label: "Bunker Management", url: "/bunker-management", icon: Zap, isNew: true },
       { label: "Crew Roster", url: "/crew-roster", icon: Users2 },
+      { label: "Environmental", url: "/environmental", icon: Leaf, isNew: true },
+      { label: "Insurance", url: "/insurance", icon: Shield, isNew: true },
+      { label: "Drydock", url: "/drydock", icon: Wrench, isNew: true },
+      { label: "Defect Tracker", url: "/defect-tracker", icon: AlertTriangle, isNew: true },
+      { label: "Spare Parts", url: "/spare-parts", icon: Warehouse, isNew: true },
     ],
   },
   {
@@ -232,6 +241,11 @@ export const URL_TO_CATEGORY: Record<string, string> = {
   "/charter-parties": "fleet",
   "/maintenance": "fleet",
   "/bunker-management": "fleet",
+  "/environmental": "fleet",
+  "/insurance": "fleet",
+  "/drydock": "fleet",
+  "/defect-tracker": "fleet",
+  "/spare-parts": "fleet",
   "/directory": "services",
   "/service-requests": "services",
   "/ports": "services",

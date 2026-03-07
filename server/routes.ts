@@ -57,6 +57,11 @@ import crewRoutes from "./routes/crew.routes";
 import portCallRoutes from "./routes/port-call.routes";
 import husbandryRoutes from "./routes/husbandry.routes";
 import agentReportRoutes from "./routes/agent-report.routes";
+import environmentalRoutes from "./routes/environmental.routes";
+import insuranceRoutes from "./routes/insurance.routes";
+import drydockRoutes from "./routes/drydock.routes";
+import defectRoutes from "./routes/defect.routes";
+import sparePartsRoutes from "./routes/spare-parts.routes";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -133,6 +138,11 @@ export async function registerRoutes(
   app.use("/api/port-calls", portCallRoutes);
   app.use("/api/husbandry", husbandryRoutes);
   app.use("/api/agent-report", agentReportRoutes);
+  app.use("/api/environmental", environmentalRoutes);
+  app.use("/api/insurance", insuranceRoutes);
+  app.use("/api/drydock", drydockRoutes);
+  app.use("/api", defectRoutes);
+  app.use("/api/spare-parts", sparePartsRoutes);
 
   return httpServer;
 }

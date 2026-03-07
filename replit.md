@@ -59,6 +59,11 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
 - **Agent Operations Dashboard**: Enhanced agent-specific dashboard with Active Port Calls widget, Husbandry Pending Services widget, updated Quick Access with Port Calls/Husbandry/Action Center shortcuts.
 - **Navigation Fixes (Agent Role)**: Port Expenses, DA Advances now in Finance nav; Analytics in Intelligence nav; Port Calls, Action Center, Husbandry in Port Operations nav — all accessible to agent role.
 - **Port Agent's Report PDF**: Comprehensive port agent report generated from voyage data (vessel movement log, financial summary, cargo operations, services arranged). PDF export and print functionality. Accessible from voyage detail. Route: `/agent-report/:voyageId`.
+- **Environmental Compliance (CII/EU ETS/IMO DCS)**: Carbon Intensity Indicator tracking with A-E ratings, EU ETS emissions & cost management (40%→70%→100% phase-in), IMO DCS annual fuel reporting. Fleet summary dashboard with Recharts. Route: `/environmental`.
+- **Insurance Management (P&I & H&M)**: Insurance policy lifecycle (P&I, H&M, FD&D, War), expiry alerts (30-day warnings), claim/incident tracking with surveyor/correspondent details, fleet-wide premium summary. Route: `/insurance`.
+- **Drydock Management**: Drydock project planning (special survey/intermediate/repair/emergency), job specification list with category grouping (Hull/Engine/Safety/Class/Owner), budget vs actual tracking, Recharts cost analysis, CSV spec export. Route: `/drydock`.
+- **Defect & PSC Tracking**: Vessel defect log (defect/non-conformity/near-miss), priority color-coding (critical/major/minor/routine), PSC inspection history (Paris MOU/Tokyo MOU/USCG), deficiency rectification tracking. Route: `/defect-tracker`.
+- **Spare Parts Inventory**: Parts catalog with stock level indicators (green/yellow/red), low-stock alerts, procurement requisitions workflow (pending→approved→ordered→received), multi-item req line items, monthly spend tracking. Route: `/spare-parts`.
 
 ## External Dependencies
 - **PostgreSQL**: Primary relational database.

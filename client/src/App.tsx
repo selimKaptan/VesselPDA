@@ -81,6 +81,11 @@ import NoonReports from "@/pages/noon-reports";
 import CharterParties from "@/pages/charter-parties";
 import Husbandry from "@/pages/husbandry";
 import AgentReport from "@/pages/agent-report";
+import Environmental from "@/pages/environmental";
+import Insurance from "@/pages/insurance";
+import Drydock from "@/pages/drydock";
+import DefectTracker from "@/pages/defect-tracker";
+import SpareParts from "@/pages/spare-parts";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -151,6 +156,11 @@ function AuthenticatedRouter() {
       <Route path="/port-calls" component={PortCalls} />
       <Route path="/husbandry" component={Husbandry} />
       <Route path="/agent-report/:voyageId" component={AgentReport} />
+      <Route path="/environmental" component={Environmental} />
+      <Route path="/insurance" component={Insurance} />
+      <Route path="/drydock" component={Drydock} />
+      <Route path="/defect-tracker" component={DefectTracker} />
+      <Route path="/spare-parts" component={SpareParts} />
       <Route component={NotFound} />
     </Switch>
   );

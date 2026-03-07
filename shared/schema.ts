@@ -2539,3 +2539,311 @@ export const crewChangeRelations = relations(crewChanges, ({ one }) => ({
 export const insertCrewChangeSchema = createInsertSchema(crewChanges).omit({ id: true, createdAt: true });
 export type InsertCrewChange = z.infer<typeof insertCrewChangeSchema>;
 export type CrewChange = typeof crewChanges.$inferSelect;
+
+// ─── Sprint 8: Environmental Compliance ──────────────────────────────────────
+
+export const ciiRecords = pgTable("cii_records", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  reportingYear: integer("reporting_year").notNull(),
+  shipType: varchar("ship_type", { length: 100 }),
+  dwt: real("dwt"),
+  totalCo2Mt: real("total_co2_mt").notNull().default(0),
+  distanceNm: real("distance_nm").notNull().default(0),
+  ciiAttained: real("cii_attained"),
+  ciiRequired: real("cii_required"),
+  ciiRating: varchar("cii_rating", { length: 5 }),
+  hfoConsumed: real("hfo_consumed").default(0),
+  mgoConsumed: real("mgo_consumed").default(0),
+  lsfoConsumed: real("lsfo_consumed").default(0),
+  vlsfoConsumed: real("vlsfo_consumed").default(0),
+  lngConsumed: real("lng_consumed").default(0),
+  correctionFactors: text("correction_factors"),
+  status: varchar("status", { length: 20 }).default("draft"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertCiiRecordSchema = createInsertSchema(ciiRecords).omit({ id: true, createdAt: true });
+export type InsertCiiRecord = z.infer<typeof insertCiiRecordSchema>;
+export type CiiRecord = typeof ciiRecords.$inferSelect;
+
+export const euEtsRecords = pgTable("eu_ets_records", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  reportingYear: integer("reporting_year").notNull(),
+  reportingPeriod: varchar("reporting_period", { length: 20 }),
+  voyageType: varchar("voyage_type", { length: 50 }),
+  co2Emissions: real("co2_emissions").notNull().default(0),
+  etsPercentage: real("ets_percentage").default(100),
+  etsLiableCo2: real("ets_liable_co2"),
+  allowancesPurchased: real("allowances_purchased").default(0),
+  allowancesSurrendered: real("allowances_surrendered").default(0),
+  etsPriceEur: real("ets_price_eur"),
+  totalCostEur: real("total_cost_eur"),
+  status: varchar("status", { length: 20 }).default("draft"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertEuEtsRecordSchema = createInsertSchema(euEtsRecords).omit({ id: true, createdAt: true });
+export type InsertEuEtsRecord = z.infer<typeof insertEuEtsRecordSchema>;
+export type EuEtsRecord = typeof euEtsRecords.$inferSelect;
+
+export const dcsReports = pgTable("dcs_reports", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  reportingYear: integer("reporting_year").notNull(),
+  hfoConsumed: real("hfo_consumed").default(0),
+  lfoConsumed: real("lfo_consumed").default(0),
+  mdoConsumed: real("mdo_consumed").default(0),
+  lngConsumed: real("lng_consumed").default(0),
+  totalFuel: real("total_fuel"),
+  distanceNm: real("distance_nm"),
+  hoursUnderway: real("hours_underway"),
+  transportWork: real("transport_work"),
+  verifier: varchar("verifier", { length: 200 }),
+  verificationDate: timestamp("verification_date"),
+  submissionDate: timestamp("submission_date"),
+  status: varchar("status", { length: 20 }).default("draft"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertDcsReportSchema = createInsertSchema(dcsReports).omit({ id: true, createdAt: true });
+export type InsertDcsReport = z.infer<typeof insertDcsReportSchema>;
+export type DcsReport = typeof dcsReports.$inferSelect;
+
+// ─── Sprint 8: Insurance Management ──────────────────────────────────────────
+
+export const insurancePolicies = pgTable("insurance_policies", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  policyType: varchar("policy_type", { length: 30 }).notNull(),
+  insurer: varchar("insurer", { length: 300 }).notNull(),
+  policyNumber: varchar("policy_number", { length: 200 }),
+  club: varchar("club", { length: 200 }),
+  insuredValue: real("insured_value"),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  premiumAmount: real("premium_amount"),
+  premiumFrequency: varchar("premium_frequency", { length: 20 }),
+  deductible: real("deductible").default(0),
+  coverageFrom: timestamp("coverage_from").notNull(),
+  coverageTo: timestamp("coverage_to").notNull(),
+  status: varchar("status", { length: 20 }).default("active"),
+  renewalReminderDays: integer("renewal_reminder_days").default(30),
+  coverageDescription: text("coverage_description"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertInsurancePolicySchema = createInsertSchema(insurancePolicies).omit({ id: true, createdAt: true });
+export type InsertInsurancePolicy = z.infer<typeof insertInsurancePolicySchema>;
+export type InsurancePolicy = typeof insurancePolicies.$inferSelect;
+
+export const insuranceClaims = pgTable("insurance_claims", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  policyId: integer("policy_id").notNull().references(() => insurancePolicies.id, { onDelete: "cascade" }),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  incidentDate: timestamp("incident_date").notNull(),
+  incidentType: varchar("incident_type", { length: 100 }),
+  incidentLocation: varchar("incident_location", { length: 300 }),
+  description: text("description").notNull(),
+  estimatedClaim: real("estimated_claim"),
+  actualSettlement: real("actual_settlement"),
+  deductibleApplied: real("deductible_applied"),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  status: varchar("status", { length: 30 }).default("reported"),
+  surveyor: varchar("surveyor", { length: 200 }),
+  surveyorContact: varchar("surveyor_contact", { length: 200 }),
+  correspondent: varchar("correspondent", { length: 200 }),
+  correspondentContact: varchar("correspondent_contact", { length: 200 }),
+  notes: text("notes"),
+  closedAt: timestamp("closed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertInsuranceClaimSchema = createInsertSchema(insuranceClaims).omit({ id: true, createdAt: true });
+export type InsertInsuranceClaim = z.infer<typeof insertInsuranceClaimSchema>;
+export type InsuranceClaim = typeof insuranceClaims.$inferSelect;
+
+// ─── Sprint 8: Drydock Management ────────────────────────────────────────────
+
+export const drydockProjects = pgTable("drydock_projects", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  projectName: varchar("project_name", { length: 300 }).notNull(),
+  dockType: varchar("dock_type", { length: 50 }).default("special_survey"),
+  shipyard: varchar("shipyard", { length: 300 }),
+  shipyardLocation: varchar("shipyard_location", { length: 200 }),
+  plannedStart: timestamp("planned_start"),
+  plannedEnd: timestamp("planned_end"),
+  actualStart: timestamp("actual_start"),
+  actualEnd: timestamp("actual_end"),
+  plannedBudget: real("planned_budget"),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  actualCost: real("actual_cost").default(0),
+  superintendent: varchar("superintendent", { length: 200 }),
+  classSurveyor: varchar("class_surveyor", { length: 200 }),
+  status: varchar("status", { length: 30 }).default("planned"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertDrydockProjectSchema = createInsertSchema(drydockProjects).omit({ id: true, createdAt: true });
+export type InsertDrydockProject = z.infer<typeof insertDrydockProjectSchema>;
+export type DrydockProject = typeof drydockProjects.$inferSelect;
+
+export const drydockJobs = pgTable("drydock_jobs", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  projectId: integer("project_id").notNull().references(() => drydockProjects.id, { onDelete: "cascade" }),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  jobNumber: varchar("job_number", { length: 50 }),
+  description: text("description").notNull(),
+  category: varchar("category", { length: 100 }),
+  estimatedCost: real("estimated_cost"),
+  actualCost: real("actual_cost"),
+  plannedDays: real("planned_days"),
+  priority: varchar("priority", { length: 20 }).default("normal"),
+  status: varchar("status", { length: 30 }).default("pending"),
+  contractor: varchar("contractor", { length: 200 }),
+  startDate: timestamp("start_date"),
+  completionDate: timestamp("completion_date"),
+  approvedBy: varchar("approved_by", { length: 200 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertDrydockJobSchema = createInsertSchema(drydockJobs).omit({ id: true, createdAt: true });
+export type InsertDrydockJob = z.infer<typeof insertDrydockJobSchema>;
+export type DrydockJob = typeof drydockJobs.$inferSelect;
+
+// ─── Sprint 8: Defect & PSC Tracking ─────────────────────────────────────────
+
+export const vesselDefects = pgTable("vessel_defects", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  defectNumber: varchar("defect_number", { length: 50 }),
+  title: varchar("title", { length: 300 }).notNull(),
+  description: text("description"),
+  location: varchar("location", { length: 200 }),
+  defectType: varchar("defect_type", { length: 50 }).default("defect"),
+  reportedDate: timestamp("reported_date").notNull(),
+  priority: varchar("priority", { length: 20 }).default("routine"),
+  status: varchar("status", { length: 30 }).default("open"),
+  assignedTo: varchar("assigned_to", { length: 200 }),
+  targetCloseDate: timestamp("target_close_date"),
+  actualCloseDate: timestamp("actual_close_date"),
+  rootCause: text("root_cause"),
+  correctiveAction: text("corrective_action"),
+  maintenanceJobId: integer("maintenance_job_id").references(() => maintenanceJobs.id, { onDelete: "set null" }),
+  estimatedCost: real("estimated_cost"),
+  actualCost: real("actual_cost"),
+  reportedBy: varchar("reported_by", { length: 200 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertVesselDefectSchema = createInsertSchema(vesselDefects).omit({ id: true, createdAt: true });
+export type InsertVesselDefect = z.infer<typeof insertVesselDefectSchema>;
+export type VesselDefect = typeof vesselDefects.$inferSelect;
+
+export const pscInspections = pgTable("psc_inspections", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  inspectionDate: timestamp("inspection_date").notNull(),
+  port: varchar("port", { length: 300 }).notNull(),
+  pscAuthority: varchar("psc_authority", { length: 200 }),
+  inspectorName: varchar("inspector_name", { length: 200 }),
+  result: varchar("result", { length: 20 }).default("pass"),
+  deficiencyCount: integer("deficiency_count").default(0),
+  detention: boolean("detention").default(false),
+  detentionReason: text("detention_reason"),
+  releasedDate: timestamp("released_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertPscInspectionSchema = createInsertSchema(pscInspections).omit({ id: true, createdAt: true });
+export type InsertPscInspection = z.infer<typeof insertPscInspectionSchema>;
+export type PscInspection = typeof pscInspections.$inferSelect;
+
+export const pscDeficiencies = pgTable("psc_deficiencies", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  inspectionId: integer("inspection_id").notNull().references(() => pscInspections.id, { onDelete: "cascade" }),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id),
+  deficiencyCode: varchar("deficiency_code", { length: 50 }),
+  description: text("description").notNull(),
+  actionRequired: text("action_required"),
+  rectificationDeadline: timestamp("rectification_deadline"),
+  rectifiedDate: timestamp("rectified_date"),
+  status: varchar("status", { length: 20 }).default("open"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertPscDeficiencySchema = createInsertSchema(pscDeficiencies).omit({ id: true, createdAt: true });
+export type InsertPscDeficiency = z.infer<typeof insertPscDeficiencySchema>;
+export type PscDeficiency = typeof pscDeficiencies.$inferSelect;
+
+// ─── Sprint 8: Spare Parts Inventory ─────────────────────────────────────────
+
+export const spareParts = pgTable("spare_parts", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  partNumber: varchar("part_number", { length: 200 }),
+  drawingNumber: varchar("drawing_number", { length: 200 }),
+  description: varchar("description", { length: 500 }).notNull(),
+  maker: varchar("maker", { length: 200 }),
+  makerRef: varchar("maker_ref", { length: 200 }),
+  equipmentId: integer("equipment_id").references(() => vesselEquipment.id, { onDelete: "set null" }),
+  locationOnboard: varchar("location_onboard", { length: 200 }),
+  unitOfMeasure: varchar("unit_of_measure", { length: 50 }).default("piece"),
+  quantityOnboard: integer("quantity_onboard").default(0),
+  minimumStock: integer("minimum_stock").default(1),
+  quantityOrdered: integer("quantity_ordered").default(0),
+  unitPrice: real("unit_price"),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertSparePartSchema = createInsertSchema(spareParts).omit({ id: true, createdAt: true });
+export type InsertSparePart = z.infer<typeof insertSparePartSchema>;
+export type SparePart = typeof spareParts.$inferSelect;
+
+export const sparePartRequisitions = pgTable("spare_part_requisitions", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  requisitionNumber: varchar("requisition_number", { length: 100 }),
+  requestedDate: timestamp("requested_date").notNull(),
+  requiredBy: timestamp("required_by"),
+  priority: varchar("priority", { length: 20 }).default("normal"),
+  status: varchar("status", { length: 30 }).default("pending"),
+  approvedBy: varchar("approved_by", { length: 200 }),
+  supplier: varchar("supplier", { length: 200 }),
+  orderNumber: varchar("order_number", { length: 200 }),
+  totalCost: real("total_cost"),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertSparePartRequisitionSchema = createInsertSchema(sparePartRequisitions).omit({ id: true, createdAt: true });
+export type InsertSparePartRequisition = z.infer<typeof insertSparePartRequisitionSchema>;
+export type SparePartRequisition = typeof sparePartRequisitions.$inferSelect;
+
+export const sparePartRequisitionItems = pgTable("spare_part_requisition_items", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  requisitionId: integer("requisition_id").notNull().references(() => sparePartRequisitions.id, { onDelete: "cascade" }),
+  sparePartId: integer("spare_part_id").references(() => spareParts.id, { onDelete: "set null" }),
+  description: varchar("description", { length: 500 }).notNull(),
+  quantityRequested: integer("quantity_requested").notNull(),
+  quantityReceived: integer("quantity_received").default(0),
+  unitPrice: real("unit_price"),
+  totalPrice: real("total_price"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertSparePartRequisitionItemSchema = createInsertSchema(sparePartRequisitionItems).omit({ id: true, createdAt: true });
+export type InsertSparePartRequisitionItem = z.infer<typeof insertSparePartRequisitionItemSchema>;
+export type SparePartRequisitionItem = typeof sparePartRequisitionItems.$inferSelect;
