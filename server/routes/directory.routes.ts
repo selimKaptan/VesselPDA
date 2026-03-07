@@ -461,7 +461,9 @@ router.get("/api/stats/dashboard", isAuthenticated, async (req: any, res) => {
           (SELECT COUNT(*) FROM port_tenders WHERE user_id = $1 AND status = 'nominated')::int as my_completed_tenders,
           (SELECT COUNT(*) FROM voyages WHERE user_id = $1 AND status = 'in_progress')::int as my_active_voyages,
           (SELECT COUNT(*) FROM proformas WHERE user_id = $1)::int as my_proformas,
-          (SELECT COALESCE(SUM(total_usd::numeric), 0) FROM proformas WHERE user_id = $1) as my_total_spend
+          (SELECT COALESCE(SUM(total_usd::numeric), 0) FROM proformas WHERE user_id = $1) as my_total_spend,
+          (SELECT COUNT(*) FROM proformas WHERE user_id = $1 AND status = 'sent')::int as pending_pda_approvals,
+          (SELECT COUNT(*) FROM fda_accounts fa JOIN voyages v ON fa.voyage_id = v.id WHERE v.user_id = $1)::int as my_fda_count
       `, [userId]);
       stats = rows[0];
     } else if (role === 'agent') {
@@ -472,7 +474,12 @@ router.get("/api/stats/dashboard", isAuthenticated, async (req: any, res) => {
           (SELECT COUNT(*) FROM voyages WHERE agent_user_id = $1 AND status = 'in_progress')::int as active_voyages,
           (SELECT COUNT(*) FROM voyages WHERE agent_user_id = $1 AND status = 'completed')::int as completed_voyages,
           (SELECT COUNT(*) FROM direct_nominations WHERE agent_user_id = $1 AND status = 'pending')::int as pending_nominations,
-          (SELECT COALESCE(AVG(ar.rating), 0) FROM agent_reviews ar JOIN company_profiles cp ON ar.company_profile_id = cp.id WHERE cp.user_id = $1) as avg_rating
+          (SELECT COALESCE(AVG(ar.rating), 0) FROM agent_reviews ar JOIN company_profiles cp ON ar.company_profile_id = cp.id WHERE cp.user_id = $1) as avg_rating,
+          (SELECT COUNT(*) FROM fda_accounts WHERE user_id = $1 AND status = 'draft')::int as draft_fda_count,
+          (SELECT COUNT(*) FROM fda_accounts WHERE user_id = $1 AND status = 'approved')::int as approved_fda_count,
+          (SELECT COUNT(*) FROM voyages v WHERE (v.user_id = $1 OR v.agent_user_id = $1)
+            AND EXISTS (SELECT 1 FROM proformas p WHERE p.voyage_id = v.id AND p.approval_status IN ('approved','finalized'))
+            AND NOT EXISTS (SELECT 1 FROM fda_accounts f WHERE f.voyage_id = v.id))::int as needs_fda_count
       `, [userId]);
       stats = rows[0];
     } else if (role === 'provider') {

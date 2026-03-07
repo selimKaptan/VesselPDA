@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Anchor, Gavel, Star, TrendingUp, ArrowRight, Building2, Navigation, MapPin, FileText, MessageSquare, ShieldCheck, AlertTriangle, Clock, XCircle, Ship, Plus, Zap, BarChart3, Bell, Calendar } from "lucide-react";
+import { Anchor, Gavel, Star, TrendingUp, ArrowRight, Building2, Navigation, MapPin, FileText, MessageSquare, ShieldCheck, AlertTriangle, Clock, XCircle, Ship, Plus, Zap, BarChart3, Bell, Calendar, Receipt, CheckCircle2, ChevronRight } from "lucide-react";
 import { BidWinRateChart, ProformaTrendChart, VoyageTrendChart } from "./dashboard-charts";
 import { AiSmartDropMini } from "@/components/ai-smart-drop";
 import { Card } from "@/components/ui/card";
@@ -237,12 +237,19 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
 
   const { data: voyages, isLoading: voyagesLoading } = useQuery<any[]>({ queryKey: ["/api/voyages"] });
   const { data: proformas, isLoading: proformasLoading } = useQuery<any[]>({ queryKey: ["/api/proformas"] });
+  const { data: fdas, isLoading: fdasLoading } = useQuery<any[]>({ queryKey: ["/api/fda"] });
   const { data: dashData } = useQuery<any>({ queryKey: ["/api/stats/dashboard"] });
 
-  const activeVoyages = (voyages || []).filter((v: any) => ["in_progress", "scheduled"].includes(v.status)).length;
+  const activeVoyages = (voyages || []).filter((v: any) => ["in_progress", "scheduled", "planned"].includes(v.status)).length;
   const pendingPDAs = (proformas || []).filter((p: any) => ["pending", "draft"].includes(p.status)).length;
-  const approvedProformas = (proformas || []).filter((p: any) => ["approved", "finalized"].includes(p.status)).length;
+  const approvedProformas = (proformas || []).filter((p: any) => ["approved", "finalized"].includes(p.approval_status || p.approvalStatus)).length;
+  const draftFdas = (fdas || []).filter((f: any) => f.status === "draft").length;
   const unreadMessages = notificationsData?.unreadCount ?? 0;
+
+  const activeVoyageList = (voyages || []).filter((v: any) => ["in_progress", "scheduled", "planned"].includes(v.status));
+  const needsFdaVoyages = (voyages || []).filter((v: any) =>
+    ["approved", "finalized"].includes(v.proformaLatestApprovalStatus) && !v.fdaLatestId
+  );
 
   const openTenders = (tenders || []).filter((t: any) => t.status === "open");
   const allBids: any[] = Array.isArray(myBidsData) ? myBidsData : [];
@@ -254,8 +261,9 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
   const verificationNote = (myProfile as any)?.verificationNote;
 
   const recentItems: any[] = [
-    ...(voyages || []).slice(0, 3).map((v: any) => ({ type: "voyage", label: `Voyage #${v.id}`, sub: v.status, date: v.createdAt || v.created_at, href: `/voyages/${v.id}` })),
+    ...(voyages || []).slice(0, 3).map((v: any) => ({ type: "voyage", label: v.vesselName || `Voyage #${v.id}`, sub: v.status, date: v.createdAt || v.created_at, href: `/voyages/${v.id}` })),
     ...(proformas || []).slice(0, 3).map((p: any) => ({ type: "proforma", label: p.vesselName || `Proforma #${p.id}`, sub: p.portName || p.status, date: p.createdAt || p.created_at, href: `/proformas/${p.id}` })),
+    ...(fdas || []).slice(0, 2).map((f: any) => ({ type: "fda", label: f.referenceNumber || `FDA #${f.id}`, sub: f.status, date: f.createdAt || f.created_at, href: `/fda/${f.id}` })),
   ]
     .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
     .slice(0, 5);
@@ -308,13 +316,37 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
         </>
       )}
 
-      {/* 4 Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* 5 Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard label="Active Voyages" value={voyagesLoading ? "…" : activeVoyages} loading={voyagesLoading} icon={Ship} color="var(--maritime-primary)" href="/voyages" testId="stat-active-voyages" />
         <StatCard label="Pending PDAs" value={proformasLoading ? "…" : pendingPDAs} loading={proformasLoading} icon={FileText} color="220 13% 46%" href="/proformas" testId="stat-pending-pdas" />
         <StatCard label="Approved Proformas" value={proformasLoading ? "…" : approvedProformas} loading={proformasLoading} icon={Anchor} color="142 71% 35%" href="/proformas" testId="stat-approved-proformas" />
-        <StatCard label="Messages" value={unreadMessages > 0 ? unreadMessages : "0"} icon={MessageSquare} color="38 92% 40%" href="/messages" testId="stat-messages" />
+        <StatCard label="Draft FDAs" value={fdasLoading ? "…" : draftFdas} loading={fdasLoading} icon={Receipt} color="38 92% 40%" href="/fda" testId="stat-draft-fdas" />
+        <StatCard label="Messages" value={unreadMessages > 0 ? unreadMessages : "0"} icon={MessageSquare} color="270 70% 50%" href="/messages" testId="stat-messages" />
       </div>
+
+      {/* Needs FDA Alert */}
+      {needsFdaVoyages.length > 0 && (
+        <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30" data-testid="banner-needs-fda">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+              <Receipt className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                {needsFdaVoyages.length} voyage{needsFdaVoyages.length > 1 ? "s have" : " has"} an approved PDA awaiting FDA creation
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400">Create the Final Disbursement Account to complete the financial cycle.</p>
+            </div>
+          </div>
+          <Link href="/fda">
+            <Button size="sm" className="flex-shrink-0 h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1" data-testid="button-create-needed-fda">
+              Create FDA <ChevronRight className="w-3 h-3" />
+            </Button>
+          </Link>
+        </div>
+      )}
+
       <AccuracyWidget />
 
       {/* Charts */}
@@ -327,11 +359,11 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
       {/* Main grid */}
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          {/* Recent Activity */}
-          <Card className="p-5 space-y-3" data-testid="card-recent-activity">
+          {/* Active Voyage Watchlist */}
+          <Card className="p-5 space-y-3" data-testid="card-voyage-watchlist">
             <div className="flex items-center justify-between">
               <h2 className="font-serif font-semibold text-base flex items-center gap-2">
-                <Clock className="w-4 h-4 text-muted-foreground/60" /> Recent Activity
+                <Navigation className="w-4 h-4 text-[hsl(var(--maritime-primary))]" /> Active Voyages
               </h2>
               <Link href="/voyages">
                 <Button variant="ghost" size="sm" className="gap-1 text-xs h-7">
@@ -339,29 +371,83 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
                 </Button>
               </Link>
             </div>
-            {voyagesLoading || proformasLoading ? (
-              <div className="space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
-            ) : recentItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">No recent activity yet</p>
+            {voyagesLoading ? (
+              <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+            ) : activeVoyageList.length === 0 ? (
+              <div className="text-center py-6 space-y-2">
+                <Ship className="w-8 h-8 text-muted-foreground/30 mx-auto" />
+                <p className="text-sm text-muted-foreground">No active voyages</p>
+                <Link href="/voyages">
+                  <Button variant="outline" size="sm" className="gap-1.5 mt-1">
+                    <Plus className="w-3.5 h-3.5" /> Create Voyage
+                  </Button>
+                </Link>
+              </div>
             ) : (
               <div className="space-y-1.5">
-                {recentItems.map((item, i) => (
-                  <Link key={i} href={item.href}>
-                    <div className="flex items-center justify-between p-2.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer" data-testid={`row-activity-${i}`}>
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-7 h-7 rounded-md flex items-center justify-center text-white ${item.type === "voyage" ? "bg-[hsl(var(--maritime-primary))]" : "bg-slate-500"}`}>
-                          {item.type === "voyage" ? <Navigation className="w-3.5 h-3.5" /> : <FileText className="w-3.5 h-3.5" />}
+                {activeVoyageList.slice(0, 6).map((v: any) => {
+                  const needsFda = ["approved", "finalized"].includes(v.proformaLatestApprovalStatus) && !v.fdaLatestId;
+                  const statusColors: Record<string, string> = {
+                    in_progress: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+                    scheduled: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                    planned: "bg-slate-100 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400",
+                  };
+                  return (
+                    <Link key={v.id} href={`/voyages/${v.id}`}>
+                      <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group" data-testid={`row-voyage-${v.id}`}>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-7 h-7 rounded-md bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0">
+                            <Ship className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{v.vesselName || `Voyage #${v.id}`}</p>
+                            <p className="text-[11px] text-muted-foreground truncate">{v.portName || "—"}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-medium leading-none">{item.label}</p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5 capitalize">{item.sub}</p>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {needsFda && (
+                            <Badge className="text-[9px] px-1.5 py-0 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 gap-0.5" data-testid={`badge-needs-fda-${v.id}`}>
+                              ⚠ FDA
+                            </Badge>
+                          )}
+                          {v.proformaLatestStatus && (
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0">
+                              PDA: {v.proformaLatestApprovalStatus || v.proformaLatestStatus}
+                            </Badge>
+                          )}
+                          <Badge className={`text-[9px] px-1.5 py-0 ${statusColors[v.status] || "bg-muted text-muted-foreground"}`}>
+                            {v.status?.replace("_", " ")}
+                          </Badge>
                         </div>
                       </div>
-                      <Badge variant="outline" className="text-[10px] capitalize">{item.type}</Badge>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
+            )}
+            {/* Fallback: recent activity when no active voyages */}
+            {!voyagesLoading && activeVoyageList.length === 0 && recentItems.length > 0 && (
+              <>
+                <div className="border-t border-border/50 pt-3">
+                  <p className="text-xs text-muted-foreground font-medium mb-2">Recent Activity</p>
+                  <div className="space-y-1">
+                    {recentItems.map((item, i) => (
+                      <Link key={i} href={item.href}>
+                        <div className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer" data-testid={`row-activity-${i}`}>
+                          <div className={`w-6 h-6 rounded-md flex items-center justify-center text-white flex-shrink-0 ${item.type === "voyage" ? "bg-[hsl(var(--maritime-primary))]" : item.type === "fda" ? "bg-emerald-600" : "bg-slate-500"}`}>
+                            {item.type === "voyage" ? <Navigation className="w-3 h-3" /> : item.type === "fda" ? <Receipt className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{item.label}</p>
+                            <p className="text-[10px] text-muted-foreground capitalize">{item.sub}</p>
+                          </div>
+                          <Badge variant="outline" className="text-[9px] capitalize flex-shrink-0">{item.type}</Badge>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
           </Card>
 
@@ -461,11 +547,11 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
             </h2>
             <div className="space-y-1.5">
               {[
+                { href: "/voyages", icon: Navigation, label: "New Voyage", desc: "Create a voyage record", color: "var(--maritime-secondary)", testId: "qa-new-voyage" },
                 { href: "/proformas/new", icon: Plus, label: "New Proforma", desc: "Generate a proforma D/A", color: "var(--maritime-primary)", testId: "qa-new-proforma" },
+                { href: "/fda", icon: Receipt, label: "New FDA", desc: "Create final disbursement", color: "142 71% 35%", testId: "qa-new-fda" },
                 { href: "/proformas", icon: Zap, label: "Quick Estimate", desc: "Instant proforma estimate", color: "38 92% 50%", testId: "qa-quick-proforma" },
-                { href: "/voyages", icon: Navigation, label: "My Voyages", desc: "Manage active voyages", color: "var(--maritime-secondary)", testId: "qa-voyages" },
                 { href: "/tenders", icon: Gavel, label: "Open Tenders", desc: "Browse port call tenders", color: "var(--maritime-accent)", testId: "qa-tenders" },
-                { href: "/company-profile", icon: Building2, label: "My Profile", desc: "Edit your company listing", color: "142 71% 30%", testId: "qa-profile" },
                 { href: "/port-info", icon: MapPin, label: "Port Information", desc: "Turkish port details", color: "217 91% 40%", testId: "qa-ports" },
               ].map((action) => (
                 <Link key={action.href} href={action.href}>

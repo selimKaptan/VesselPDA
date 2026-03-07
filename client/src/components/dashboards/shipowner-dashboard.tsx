@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Ship, FileText, Gavel, Bell, Plus, ArrowRight, Crown, Zap, Navigation, Users, Building2, Activity, Fuel, Clock, Calendar, Anchor } from "lucide-react";
+import { Ship, FileText, Gavel, Bell, Plus, ArrowRight, Crown, Zap, Navigation, Users, Building2, Activity, Fuel, Clock, Calendar, Anchor, CheckCircle2, AlertCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -158,9 +158,17 @@ export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, p
   proformaCount: number; proformaLimit: number;
 }) {
   const { data: voyages, isLoading: voyagesLoading } = useQuery<any[]>({ queryKey: ["/api/voyages"] });
+  const { data: pendingApprovalList, isLoading: pendingLoading } = useQuery<any[]>({ queryKey: ["/api/proformas/pending-approval"] });
 
-  const activeVoyages = (voyages || []).filter((v: any) => ["in_progress", "scheduled"].includes(v.status)).length;
-  const pendingApprovals = (proformas || []).filter((p: any) => p.status === "pending").length;
+  const activeVoyages = (voyages || []).filter((v: any) => ["in_progress", "scheduled", "planned"].includes(v.status)).length;
+  const pendingApprovals = (pendingApprovalList || []).length;
+
+  const fleetStatus = {
+    in_progress: (voyages || []).filter((v: any) => v.status === "in_progress").length,
+    scheduled: (voyages || []).filter((v: any) => v.status === "scheduled").length,
+    planned: (voyages || []).filter((v: any) => v.status === "planned").length,
+    completed: (voyages || []).filter((v: any) => v.status === "completed").length,
+  };
   const openTenders = (tenders || []).filter((t: any) => t.status === "open");
   const recentVessels = vessels?.slice(0, 5) || [];
   const recentProformas = proformas?.slice(0, 5) || [];
@@ -185,9 +193,70 @@ export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, p
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="Total Vessels" value={vessels?.length ?? 0} loading={vesselsLoading} icon={Ship} color="var(--maritime-primary)" href="/vessels" testId="stat-fleet" />
         <StatCard label="Active Voyages" value={voyagesLoading ? "…" : activeVoyages} loading={voyagesLoading} icon={Navigation} color="var(--maritime-secondary)" href="/voyages" testId="stat-active-voyages" />
-        <StatCard label="Pending Approvals" value={pendingApprovals} icon={FileText} color="38 92% 50%" href="/proformas" testId="stat-pending-approvals" />
+        <StatCard label="Pending Approvals" value={pendingLoading ? "…" : pendingApprovals} loading={pendingLoading} icon={FileText} color="38 92% 50%" href="/proformas" testId="stat-pending-approvals" />
         <StatCard label="Notifications" value={unread} icon={Bell} color="var(--maritime-accent)" href="/messages" testId="stat-notifications" />
       </div>
+
+      {/* Fleet Status Breakdown */}
+      {!voyagesLoading && (fleetStatus.in_progress + fleetStatus.scheduled + fleetStatus.planned + fleetStatus.completed) > 0 && (
+        <div className="flex flex-wrap items-center gap-2 px-1" data-testid="widget-fleet-status">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-1">Fleet:</span>
+          {fleetStatus.in_progress > 0 && (
+            <Link href="/voyages">
+              <Badge className="gap-1.5 text-xs cursor-pointer bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400" data-testid="fleet-badge-in-progress">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                {fleetStatus.in_progress} In Progress
+              </Badge>
+            </Link>
+          )}
+          {fleetStatus.scheduled > 0 && (
+            <Link href="/voyages">
+              <Badge className="gap-1.5 text-xs cursor-pointer bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400" data-testid="fleet-badge-scheduled">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
+                {fleetStatus.scheduled} Scheduled
+              </Badge>
+            </Link>
+          )}
+          {fleetStatus.planned > 0 && (
+            <Link href="/voyages">
+              <Badge className="gap-1.5 text-xs cursor-pointer bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800/50 dark:text-slate-400" data-testid="fleet-badge-planned">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block" />
+                {fleetStatus.planned} Planned
+              </Badge>
+            </Link>
+          )}
+          {fleetStatus.completed > 0 && (
+            <Link href="/voyages">
+              <Badge className="gap-1.5 text-xs cursor-pointer bg-muted text-muted-foreground hover:bg-muted/80" data-testid="fleet-badge-completed">
+                <CheckCircle2 className="w-3 h-3" />
+                {fleetStatus.completed} Completed
+              </Badge>
+            </Link>
+          )}
+        </div>
+      )}
+
+      {/* Pending PDA Approvals Alert */}
+      {pendingApprovals > 0 && (
+        <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30" data-testid="banner-pending-approvals">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                {pendingApprovals} Proforma{pendingApprovals > 1 ? "s" : ""} awaiting your approval
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400">Review and approve the disbursement accounts sent to you by agents.</p>
+            </div>
+          </div>
+          <Link href="/proformas">
+            <Button size="sm" className="flex-shrink-0 h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1" data-testid="button-review-approvals">
+              Review <ArrowRight className="w-3 h-3" />
+            </Button>
+          </Link>
+        </div>
+      )}
 
       {/* Trend Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -233,6 +302,49 @@ export function ShipownerDashboard({ user, vessels, vesselsLoading, proformas, p
       {/* Main content grid */}
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
+          {/* Pending PDA Approvals */}
+          {(pendingLoading || (pendingApprovalList || []).length > 0) && (
+            <Card className="p-5 space-y-3" data-testid="card-pending-approvals">
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif font-semibold text-base flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-500" /> Pending PDA Approvals
+                </h2>
+                <Link href="/proformas">
+                  <Button variant="ghost" size="sm" className="gap-1 text-xs h-7">
+                    All Proformas <ArrowRight className="w-3 h-3" />
+                  </Button>
+                </Link>
+              </div>
+              {pendingLoading ? (
+                <div className="space-y-2">{[1,2].map(i => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}</div>
+              ) : (
+                <div className="space-y-1.5">
+                  {(pendingApprovalList || []).slice(0, 5).map((pda: any) => (
+                    <Link key={pda.id} href={`/proformas/${pda.id}`}>
+                      <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group border border-amber-200/50 dark:border-amber-800/30 bg-amber-50/50 dark:bg-amber-950/10" data-testid={`row-pda-approval-${pda.id}`}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-7 h-7 rounded-md bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+                            <FileText className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{pda.vesselName || `Proforma #${pda.id}`}</p>
+                            <p className="text-xs text-muted-foreground truncate">{pda.portName || pda.purposeOfCall || "—"}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {pda.totalUsd && <span className="text-sm font-bold text-[hsl(var(--maritime-primary))]">${Number(pda.totalUsd).toLocaleString()}</span>}
+                          <Button size="sm" variant="outline" className="h-6 text-[10px] px-2 border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-400" data-testid={`button-review-pda-${pda.id}`}>
+                            Review →
+                          </Button>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
+
           {/* Fleet Summary */}
           <Card className="p-5 space-y-3" data-testid="card-fleet">
             <div className="flex items-center justify-between">
