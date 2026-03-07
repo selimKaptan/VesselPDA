@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
 import { EmptyState } from "@/components/empty-state";
+import { fmtDate } from "@/lib/formatDate";
 
 const CERT_TYPES: Record<string, string> = {
   ism: "ISM",
@@ -45,7 +46,7 @@ function statusBadge(status: string, expiresAt: string | null) {
 
 function formatDate(dt: string | null) {
   if (!dt) return "—";
-  return new Date(dt).toLocaleDateString("en-GB");
+  return fmtDate(dt);
 }
 
 const defaultForm = {

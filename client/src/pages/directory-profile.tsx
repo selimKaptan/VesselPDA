@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Port, CompanyProfile } from "@shared/schema";
+import { fmtDate } from "@/lib/formatDate";
 
 function StarRating({ value, onChange, readonly = false }: { value: number; onChange?: (v: number) => void; readonly?: boolean }) {
   const [hovered, setHovered] = useState(0);
@@ -60,7 +61,7 @@ function ReviewCard({ review }: { review: any }) {
           <div>
             <p className="font-medium text-sm">{displayName}</p>
             <p className="text-xs text-muted-foreground">
-              {new Date(review.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+              {fmtDate(review.createdAt)}
             </p>
           </div>
         </div>
@@ -643,7 +644,7 @@ export default function DirectoryProfilePage() {
                       <p className="text-xs text-muted-foreground">{e.relationship}</p>
                     </div>
                   </div>
-                  <span className="text-xs text-muted-foreground">{new Date(e.createdAt).toLocaleDateString("en-GB")}</span>
+                  <span className="text-xs text-muted-foreground">{fmtDate(e.createdAt)}</span>
                 </div>
                 {e.message && (
                   <p className="text-sm text-muted-foreground mt-2 pl-10 leading-relaxed italic">"{e.message}"</p>

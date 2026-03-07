@@ -22,6 +22,7 @@ import { useState, useMemo, useEffect } from "react";
 import { PageMeta } from "@/components/page-meta";
 import { useAuth } from "@/hooks/use-auth";
 import type { Proforma, Vessel, Port } from "@shared/schema";
+import { fmtDate } from "@/lib/formatDate";
 
 export default function Proformas() {
   const [, navigate] = useLocation();
@@ -508,7 +509,7 @@ export default function Proformas() {
                     <WorkflowProgress approvalStatus={(pda as any).approvalStatus || "draft"} id={pda.id} />
                   </TableCell>
                   <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
-                    {pda.createdAt ? new Date(pda.createdAt).toLocaleDateString("en-GB") : "-"}
+                    {pda.createdAt ? fmtDate(pda.createdAt) : "-"}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
@@ -662,7 +663,7 @@ export default function Proformas() {
                         : "-"}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
-                      {bid.createdAt ? new Date(bid.createdAt).toLocaleDateString("tr-TR") : "-"}
+                      {bid.createdAt ? fmtDate(bid.createdAt) : "-"}
                     </TableCell>
                     <TableCell>
                       <Badge className={`text-[10px] border-0 ${badge.cls}`}>
@@ -671,7 +672,7 @@ export default function Proformas() {
                     </TableCell>
                     <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
                       {bid.nominatedAt
-                        ? new Date(bid.nominatedAt).toLocaleDateString("tr-TR")
+                        ? fmtDate(bid.nominatedAt)
                         : "-"}
                     </TableCell>
                     <TableCell className="text-right">

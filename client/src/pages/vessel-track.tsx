@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { PageMeta } from "@/components/page-meta";
+import { fmtDate, fmtDateTime } from "@/lib/formatDate";
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
 
@@ -69,7 +70,7 @@ function createPopupHtml(v: AISVessel): string {
   if (v.heading !== undefined && v.speed > 0) rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0">Heading</td><td>${v.heading}°</td></tr>`;
   if (v.destination) rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0">Dest.</td><td style="font-weight:600">${v.destination}</td></tr>`;
   if (v.eta) {
-    const etaStr = new Date(v.eta).toLocaleDateString("en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    const etaStr = fmtDateTime(v.eta);
     rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0">ETA</td><td>${etaStr}</td></tr>`;
   }
 
@@ -403,7 +404,7 @@ function VesselListView({
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">ETA</p>
                             <p className="text-sm font-medium">
                               {v.eta
-                                ? new Date(v.eta).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                                ? fmtDateTime(v.eta)
                                 : "—"}
                             </p>
                           </div>
@@ -718,7 +719,7 @@ export default function VesselTrack() {
           if (!f || !e.lngLat) return;
           const { speed, timestamp, destination } = f.properties as any;
           const dateStr = timestamp
-            ? new Date(timestamp).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+            ? fmtDateTime(timestamp)
             : "—";
           popup.setLngLat(e.lngLat).setHTML(
             `<div style="font-size:11px;font-family:system-ui;line-height:1.6;min-width:130px">

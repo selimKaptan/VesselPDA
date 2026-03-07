@@ -21,6 +21,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
 import {
+import { fmtDate } from "@/lib/formatDate";
   Gavel, ArrowLeft, Clock, Ship, FileText, Upload, CheckCircle2,
   XCircle, Building2, Trophy, Mail, AlertCircle, Eye, Send, Star, Users, Download,
   MessageCircle, Anchor
@@ -499,7 +500,7 @@ export default function TenderDetailPage() {
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Created</p>
-            <p>{new Date(tender.createdAt).toLocaleString("en-US")}</p>
+            <p>{fmtDate(tender.createdAt)}</p>
           </div>
         </div>
 

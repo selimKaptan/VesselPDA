@@ -18,6 +18,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/auth-utils";
 import { Link, useLocation } from "wouter";
 import type { Vessel, Port, ProformaLineItem, CompanyProfile } from "@shared/schema";
+import { fmtDate } from "@/lib/formatDate";
 
 const purposeOptions = ["Loading", "Discharging", "Loading/Discharging", "Transit", "Bunkering", "Repair", "Survey"];
 const cargoUnits = ["MT", "CBM", "TEU", "Units"];
@@ -749,7 +750,7 @@ export default function ProformaNew() {
                   <h2 className="font-serif font-semibold text-base leading-tight">Exchange Rates</h2>
                   {ratesUpdatedAt && (
                     <p className="text-[10px] text-muted-foreground leading-tight">
-                      TCMB · {new Date(ratesUpdatedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      TCMB · {fmtDateTime(ratesUpdatedAt)}
                     </p>
                   )}
                 </div>

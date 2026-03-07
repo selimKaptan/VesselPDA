@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { CompanyProfile } from "@shared/schema";
 import { VerificationRequestDialog } from "@/components/verification-request-dialog";
+import { fmtDate } from "@/lib/formatDate";
 
 function RecentActivityCard() {
   const { data } = useQuery<{ activities: any[] }>({
@@ -37,7 +38,7 @@ function RecentActivityCard() {
     if (mins < 60) return `${mins}m ago`;
     const hrs = Math.floor(mins / 60);
     if (hrs < 24) return `${hrs}h ago`;
-    return new Date(dt).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    return fmtDate(dt);
   }
 
   return (
@@ -137,7 +138,7 @@ function UpcomingPortCallsWidget() {
                 </div>
                 <div className="text-right flex-shrink-0">
                   <p className="text-xs text-muted-foreground">
-                    {item.eta ? new Date(item.eta).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
+                    {item.eta ? fmtDate(item.eta) : "—"}
                   </p>
                   <p className={`text-xs ${countdown.className}`}>{countdown.text}</p>
                 </div>
@@ -432,7 +433,7 @@ export function AgentDashboard({ user, tenders, myBidsData, myProfile, notificat
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{bid.portName || `Tender #${bid.tenderId}`}</p>
-                          <p className="text-xs text-muted-foreground">{bid.createdAt ? new Date(bid.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : ""}</p>
+                          <p className="text-xs text-muted-foreground">{bid.createdAt ? fmtDate(bid.createdAt) : ""}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">

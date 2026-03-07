@@ -20,6 +20,7 @@ import type { User } from "@shared/models/auth";
 import type { Vessel, Proforma, CompanyProfile } from "@shared/schema";
 import { PageMeta } from "@/components/page-meta";
 import {
+import { fmtDate, fmtDateTime } from "@/lib/formatDate";
   BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, LineChart, Line
 } from "recharts";
@@ -962,7 +963,7 @@ export default function AdminPanel() {
                           <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{p.description}</p>
                         )}
                         <p className="text-xs text-muted-foreground mt-1">
-                          Submitted {p.createdAt ? new Date(p.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "recently"}
+                          Submitted {p.createdAt ? fmtDate(p.createdAt) : "recently"}
                         </p>
                       </div>
                     </div>
@@ -1198,7 +1199,7 @@ export default function AdminPanel() {
                         <p><span className="font-medium text-foreground">MTO Reg:</span> {p.mtoRegistrationNumber || "—"}</p>
                         <p><span className="font-medium text-foreground">P&I Club:</span> {p.pandiClubName || "—"}</p>
                         {p.verificationRequestedAt && (
-                          <p><span className="font-medium text-foreground">Requested:</span> {new Date(p.verificationRequestedAt).toLocaleDateString("en-GB")}</p>
+                          <p><span className="font-medium text-foreground">Requested:</span> {fmtDate(p.verificationRequestedAt)}</p>
                         )}
                       </div>
                       {ofacResults[p.id]?.checked && !ofacResults[p.id]?.clear && (
@@ -1319,7 +1320,7 @@ export default function AdminPanel() {
                         <td className="p-3 text-right tabular-nums">{row.ifo380 != null ? `$${row.ifo380}` : "—"}</td>
                         <td className="p-3 text-right tabular-nums">{row.vlsfo != null ? `$${row.vlsfo}` : "—"}</td>
                         <td className="p-3 text-right tabular-nums">{row.mgo != null ? `$${row.mgo}` : "—"}</td>
-                        <td className="p-3 text-right text-xs text-muted-foreground">{new Date(row.updatedAt).toLocaleDateString("tr-TR")}</td>
+                        <td className="p-3 text-right text-xs text-muted-foreground">{fmtDate(row.updatedAt)}</td>
                         <td className="p-3 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => { setEditBunker(row); setBunkerForm({ portName: row.portName, portCode: row.portCode ?? "", region: row.region, ifo380: row.ifo380?.toString() ?? "", vlsfo: row.vlsfo?.toString() ?? "", mgo: row.mgo?.toString() ?? "" }); setBunkerDialog(true); }} data-testid={`button-edit-bunker-${row.id}`}><Edit2 className="w-3.5 h-3.5" /></Button>
@@ -1435,7 +1436,7 @@ export default function AdminPanel() {
                             <td className="p-3">
                               <Badge className={`text-[10px] ${v.status === "in_progress" ? "bg-emerald-100 text-emerald-700" : v.status === "completed" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>{v.status}</Badge>
                             </td>
-                            <td className="p-3 text-xs text-muted-foreground">{v.created_at ? new Date(v.created_at).toLocaleDateString("en-GB") : "—"}</td>
+                            <td className="p-3 text-xs text-muted-foreground">{v.created_at ? fmtDate(v.created_at) : "—"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1478,7 +1479,7 @@ export default function AdminPanel() {
                             <td className="p-3">
                               <Badge className={`text-[10px] ${s.status === "completed" ? "bg-emerald-100 text-emerald-700" : s.status === "open" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}`}>{s.status}</Badge>
                             </td>
-                            <td className="p-3 text-xs text-muted-foreground">{s.created_at ? new Date(s.created_at).toLocaleDateString("tr-TR") : "—"}</td>
+                            <td className="p-3 text-xs text-muted-foreground">{s.created_at ? fmtDate(s.created_at) : "—"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1551,7 +1552,7 @@ export default function AdminPanel() {
                         <Badge variant="outline" className="text-[10px] flex-shrink-0">{h.sent} people</Badge>
                       </div>
                       <p className="text-xs text-muted-foreground line-clamp-2">{h.message}</p>
-                      <p className="text-[10px] text-muted-foreground">{h.sentAt ? new Date(h.sentAt).toLocaleString("en-GB") : ""} · Target: {h.targetRole === "all" ? "All" : h.targetRole}</p>
+                      <p className="text-[10px] text-muted-foreground">{h.sentAt ? fmtDateTime(h.sentAt) : ""} · Target: {h.targetRole === "all" ? "All" : h.targetRole}</p>
                     </div>
                   ))}
                 </div>
@@ -1943,7 +1944,7 @@ export default function AdminPanel() {
                     {auditLogs.map((log: any) => (
                       <tr key={log.id} className="border-b last:border-0 hover:bg-muted/20" data-testid={`row-audit-${log.id}`}>
                         <td className="p-2.5 text-xs text-muted-foreground whitespace-nowrap">
-                          {log.created_at ? new Date(log.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
+                          {log.created_at ? fmtDateTime(log.created_at) : "—"}
                         </td>
                         <td className="p-2.5 text-xs">
                           <div className="font-medium">{`${log.first_name || ""} ${log.last_name || ""}`.trim() || "—"}</div>
@@ -2086,7 +2087,7 @@ export default function AdminPanel() {
                       <div key={i} className="flex items-center gap-2 text-xs p-2.5 rounded-lg border">
                         <span>{a.type === "proforma" ? "📄" : a.type === "voyage" ? "🚢" : "🔧"}</span>
                         <span className="flex-1">{a.label}</span>
-                        <span className="text-muted-foreground">{a.createdAt ? new Date(a.createdAt).toLocaleDateString("tr-TR") : ""}</span>
+                        <span className="text-muted-foreground">{a.createdAt ? fmtDate(a.createdAt) : ""}</span>
                       </div>
                     ))}
                   </div>

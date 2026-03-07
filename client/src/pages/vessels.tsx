@@ -39,6 +39,7 @@ import { PageMeta } from "@/components/page-meta";
 import type { Vessel } from "@shared/schema";
 import { useLocation, Link } from "wouter";
 import { EmptyState } from "@/components/empty-state";
+import { fmtDate } from "@/lib/formatDate";
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
 
@@ -610,8 +611,8 @@ function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete, fleets, onAddT
               <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: cfg.bar }} />
             </div>
             <div className="flex justify-between mt-1">
-              {voyage.etd && <span className="text-[10px] text-muted-foreground">ETD: {new Date(voyage.etd).toLocaleDateString("tr-TR")}</span>}
-              {voyage.eta && <span className="text-[10px] text-muted-foreground">ETA: {new Date(voyage.eta).toLocaleDateString("tr-TR")}</span>}
+              {voyage.etd && <span className="text-[10px] text-muted-foreground">ETD: {fmtDate(voyage.etd)}</span>}
+              {voyage.eta && <span className="text-[10px] text-muted-foreground">ETA: {fmtDate(voyage.eta)}</span>}
             </div>
           </div>
         ) : (
@@ -757,7 +758,7 @@ function certStatusBadge(status: string, expiresAt: string | null) {
 }
 function fmtDate(dt: string | null) {
   if (!dt) return "—";
-  return new Date(dt).toLocaleDateString("en-GB");
+  return fmtDate(dt);
 }
 
 export default function Vessels() {
@@ -1519,8 +1520,8 @@ export default function Vessels() {
                                 {[
                                   { label: "Voyage",  value: voy.name || voy.purposeOfCall || "—" },
                                   { label: "Purpose", value: voy.purposeOfCall || "—" },
-                                  { label: "ETA",     value: voy.eta ? new Date(voy.eta).toLocaleDateString("en-GB") : "—" },
-                                  { label: "ETD",     value: voy.etd ? new Date(voy.etd).toLocaleDateString("en-GB") : "—" },
+                                  { label: "ETA",     value: voy.eta ? fmtDate(voy.eta) : "—" },
+                                  { label: "ETD",     value: voy.etd ? fmtDate(voy.etd) : "—" },
                                 ].map(({ label, value }) => (
                                   <div key={label} className="flex items-center justify-between gap-1 text-[11px]">
                                     <span className="text-muted-foreground shrink-0">{label}</span>
@@ -1569,7 +1570,7 @@ export default function Vessels() {
                                 <div className="text-center">
                                   <p className="text-xs text-muted-foreground">Departure</p>
                                   <p className="text-sm font-bold">{voy.portName || "—"}</p>
-                                  {voy.etd && <p className="text-xs text-muted-foreground">{new Date(voy.etd).toLocaleDateString("en-GB")}</p>}
+                                  {voy.etd && <p className="text-xs text-muted-foreground">{fmtDate(voy.etd)}</p>}
                                 </div>
                                 <div className="flex-1 mx-4 relative">
                                   <div className="h-0.5 bg-muted rounded-full" />
@@ -1580,7 +1581,7 @@ export default function Vessels() {
                                 <div className="text-center">
                                   <p className="text-xs text-muted-foreground">Arrival</p>
                                   <p className="text-sm font-bold">{voy.portName || "—"}</p>
-                                  {voy.eta && <p className="text-xs text-muted-foreground">{new Date(voy.eta).toLocaleDateString("en-GB")}</p>}
+                                  {voy.eta && <p className="text-xs text-muted-foreground">{fmtDate(voy.eta)}</p>}
                                 </div>
                               </div>
                             </div>
@@ -1819,7 +1820,7 @@ export default function Vessels() {
                           onClick={() => {
                             if (!vesselCrewList.length) return;
                             const fmtCSV = (v: any) => v ? String(v).replace(/,/g, ";") : "";
-                            const fmt = (dt: any) => dt ? new Date(dt).toLocaleDateString("en-GB") : "";
+                            const fmt = (dt: any) => fmtDate(dt);
                             const header = "Name,Rank,Nationality,Status,Contract End,Passport No,Passport Exp,Seaman Book No,Book Exp,Medical Fitness Exp";
                             const rows = vesselCrewList.map((m: any) =>
                               [fmtCSV(`${m.firstName} ${m.lastName}`), fmtCSV(m.rank), fmtCSV(m.nationality), fmtCSV(m.status === "on_leave" ? "On Leave" : "On Board"), fmt(m.contractEndDate), fmtCSV(m.passportNumber), fmt(m.passportExpiry), fmtCSV(m.seamansBookNumber), fmt(m.seamansBookExpiry), fmt(m.medicalFitnessExpiry)].join(",")

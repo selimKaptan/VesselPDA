@@ -16,6 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Users, Plus, MoreVertical, Mail, Shield, Building2, UserCheck, Loader2, RefreshCw, Trash2, UserX, UserCheck2, Edit3 } from "lucide-react";
+import { fmtDate } from "@/lib/formatDate";
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "bg-amber-500/15 text-amber-500 border-amber-500/30",
@@ -379,7 +380,7 @@ function MembersTab({ org, myRole }: { org: any; myRole: string }) {
                   </td>
                   <td className="p-3 hidden md:table-cell text-muted-foreground">{m.department ?? "—"}</td>
                   <td className="p-3 hidden lg:table-cell text-muted-foreground text-xs">
-                    {m.joinedAt ? new Date(m.joinedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                    {m.joinedAt ? fmtDate(m.joinedAt) : "—"}
                   </td>
                   <td className="p-3">
                     <div className="flex items-center gap-1.5">
@@ -514,7 +515,7 @@ function InvitationsTab({ org, myRole }: { org: any; myRole: string }) {
                     {inv.inviterFirstName} {inv.inviterLastName}
                   </td>
                   <td className="p-3 hidden lg:table-cell text-muted-foreground text-xs">
-                    {inv.expiresAt ? new Date(inv.expiresAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
+                    {inv.expiresAt ? fmtDate(inv.expiresAt) : "—"}
                   </td>
                   <td className="p-3">{statusBadge(inv.status)}</td>
                   <td className="p-3">

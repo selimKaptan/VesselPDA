@@ -33,6 +33,7 @@ import { DndContext, DragOverlay, useDraggable, useDroppable, PointerSensor, use
 import type { DragEndEvent } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/hooks/use-auth";
+import { fmtDate, fmtDateTime } from "@/lib/formatDate";
 import { useSocket } from "@/hooks/use-socket";
 import type { Port } from "@shared/schema";
 
@@ -82,26 +83,6 @@ function getStepperIndex(status: string): number {
   if (status === "active")    return 3;
   if (status === "completed") return 4;
   return -1;
-}
-
-// ── Global date/time formatters (DD.MM.YYYY / HH:MM) ─────────────────────
-function fmtDate(dt?: string | Date | null): string {
-  if (!dt) return "—";
-  const d = new Date(dt);
-  if (isNaN(d.getTime())) return "—";
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${dd}.${mm}.${d.getFullYear()}`;
-}
-function fmtDateTime(dt?: string | Date | null): string {
-  if (!dt) return "—";
-  const d = new Date(dt);
-  if (isNaN(d.getTime())) return "—";
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const HH = String(d.getHours()).padStart(2, "0");
-  const MM = String(d.getMinutes()).padStart(2, "0");
-  return `${dd}.${mm}.${d.getFullYear()} / ${HH}:${MM}`;
 }
 
 function getDateTag(dt: string | null | undefined): {
@@ -5614,7 +5595,7 @@ export default function VoyageDetail() {
             </div>
             <div className="space-y-1.5">
               <Label>Signature Date</Label>
-              <Input value={new Date().toLocaleDateString("en-GB")} disabled className="bg-muted" />
+              <Input value={fmtDate(new Date())} disabled className="bg-muted" />
             </div>
           </div>
           <DialogFooter>

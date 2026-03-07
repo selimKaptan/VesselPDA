@@ -20,13 +20,14 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useSocket } from "@/hooks/use-socket";
+import { fmtDate } from "@/lib/formatDate";
 
 function formatTime(dateStr: string) {
   return new Date(dateStr).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+  return fmtDate(dateStr);
 }
 
 function sameDay(a: string, b: string) {

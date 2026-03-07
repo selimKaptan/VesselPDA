@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Nor } from "@shared/schema";
+import { fmtDate, fmtDateTime } from "@/lib/formatDate";
 
 type NorStatus = "draft" | "tendered" | "accepted" | "rejected";
 
@@ -31,14 +32,11 @@ const statusConfig: Record<NorStatus, { label: string; className: string }> = {
 
 function fmtDT(d: string | Date | null | undefined) {
   if (!d) return "—";
-  return new Date(d).toLocaleString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
+  return fmtDateTime(d);
 }
 function fmtDate(d: string | Date | null | undefined) {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return fmtDate(d);
 }
 function toDatetimeLocal(d: string | Date | null | undefined) {
   if (!d) return "";

@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
+import { fmtDate } from "@/lib/formatDate";
 
 interface ServicePortCompany {
   id: number;
@@ -406,7 +407,7 @@ export default function ServicePorts() {
 
                 {companyDetail.createdAt && (
                   <p className="text-[11px] text-muted-foreground text-right pt-2">
-                    Member since {new Date(companyDetail.createdAt).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
+                    Member since {fmtDate(companyDetail.createdAt)}
                   </p>
                 )}
               </div>

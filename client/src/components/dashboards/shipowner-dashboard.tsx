@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Vessel, Proforma } from "@shared/schema";
 import { ProformaTrendChart, TenderTrendChart, VoyageTrendChart, StatusDistributionChart } from "./dashboard-charts";
 import { AiSmartDropMini } from "@/components/ai-smart-drop";
+import { fmtDate } from "@/lib/formatDate";
 
 function formatCountdown(etaStr: string): { text: string; className: string } {
   const diff = new Date(etaStr).getTime() - Date.now();
@@ -46,7 +47,7 @@ function UpcomingPortCallsWidget() {
                   <p className="text-xs text-muted-foreground truncate">{item.portName} · {item.operation}</p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-xs text-muted-foreground">{item.eta ? new Date(item.eta).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}</p>
+                  <p className="text-xs text-muted-foreground">{item.eta ? fmtDate(item.eta) : "—"}</p>
                   <p className={`text-xs ${countdown.className}`}>{countdown.text}</p>
                 </div>
               </div>
@@ -84,7 +85,7 @@ function RecentActivityCard() {
     if (mins < 60) return `${mins}m ago`;
     const hrs = Math.floor(mins / 60);
     if (hrs < 24) return `${hrs}h ago`;
-    return new Date(dt).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    return fmtDate(dt);
   }
 
   return (

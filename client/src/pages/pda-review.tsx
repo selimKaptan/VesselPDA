@@ -14,6 +14,7 @@ import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
+import { fmtDate } from "@/lib/formatDate";
 
 export default function PdaReview() {
   const [selectedPda, setSelectedPda] = useState<any>(null);
@@ -148,7 +149,7 @@ export default function PdaReview() {
                   <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
                     <div className="flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5" />
-                      {pda.sent_at ? new Date(pda.sent_at).toLocaleDateString("en-GB") : "-"}
+                      {pda.sent_at ? fmtDate(pda.sent_at) : "-"}
                     </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">

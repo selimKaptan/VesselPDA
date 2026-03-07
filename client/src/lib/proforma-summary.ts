@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { fmtDate } from "@/lib/formatDate";
 
 type GroupedItem = {
   category: string;
@@ -35,10 +36,6 @@ function fmt(n: number) {
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function fmtDate(iso?: string) {
-  if (!iso) return new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-}
 
 export function generateProformaSummaryHtml(data: QuickEstimateResult): string {
   const grouped: GroupedItem[] = data.groupedBreakdown ?? [];

@@ -17,15 +17,7 @@ import { PageMeta } from "@/components/page-meta";
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
 import type { Vessel, Port } from "@shared/schema";
-
-function fmtDate(dt?: string | Date | null): string {
-  if (!dt) return "—";
-  const d = new Date(dt);
-  if (isNaN(d.getTime())) return "—";
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${dd}.${mm}.${d.getFullYear()}`;
-}
+import { fmtDate } from "@/lib/formatDate";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   planned:   { label: "Planned",    color: "bg-blue-900/30 text-blue-400 border border-blue-500/30",    icon: Clock },

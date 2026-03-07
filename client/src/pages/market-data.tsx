@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
 import { useAuth } from "@/hooks/use-auth";
+import { fmtDate } from "@/lib/formatDate";
 
 type FreightIndex = {
   code: string;
@@ -404,7 +405,7 @@ export default function MarketData() {
                         {row.mgo != null ? `$${row.mgo.toLocaleString("en-GB")}` : "—"}
                       </td>
                       <td className="p-3 text-right text-xs text-muted-foreground hidden md:table-cell">
-                        {new Date(row.updatedAt).toLocaleDateString("en-GB")}
+                        {fmtDate(row.updatedAt)}
                       </td>
                       {isAdmin && (
                         <td className="p-3 text-right">

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { AiSmartDropMini } from "@/components/ai-smart-drop";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { fmtDate } from "@/lib/formatDate";
 
 function RecentActivityCard() {
   const { data } = useQuery<{ activities: any[] }>({
@@ -33,7 +34,7 @@ function RecentActivityCard() {
     if (mins < 60) return `${mins}m ago`;
     const hrs = Math.floor(mins / 60);
     if (hrs < 24) return `${hrs}h ago`;
-    return new Date(dt).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    return fmtDate(dt);
   }
 
   return (

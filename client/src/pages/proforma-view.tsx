@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import type { Proforma, Vessel, Port, CompanyProfile } from "@shared/schema";
+import { fmtDate, fmtDateTime } from "@/lib/formatDate";
 
 async function downloadProformaPDF(refNumber: string) {
   const el = document.getElementById("proforma-document");
@@ -409,7 +410,7 @@ export default function ProformaView() {
           <span className={`text-sm font-medium ${banner.text}`}>{banner.label}</span>
           {approvalStatus === "sent" && (proforma as any).sentAt && (
             <p className={`text-xs mt-0.5 ${banner.text} opacity-80`}>
-              Sent on {new Date((proforma as any).sentAt).toLocaleDateString("en-GB")}
+              Sent on {fmtDate((proforma as any).sentAt)}
               {(proforma as any).recipientEmail && ` · To: ${(proforma as any).recipientEmail}`}
             </p>
           )}
@@ -442,7 +443,7 @@ export default function ProformaView() {
             </div>
           </div>
           <div className="text-right text-sm flex-shrink-0">
-            <p className="font-medium">{proforma.createdAt ? new Date(proforma.createdAt).toLocaleDateString("en-GB") : ""}</p>
+            <p className="font-medium">{proforma.createdAt ? fmtDate(proforma.createdAt) : ""}</p>
             <p className="text-muted-foreground text-xs">{proforma.referenceNumber}</p>
           </div>
         </div>
@@ -486,7 +487,7 @@ export default function ProformaView() {
 
         <div className="space-y-1">
           <div className="text-xs text-muted-foreground text-right mb-2">
-            Exchange Rate: $1 = €{(1 / exchangeRate).toFixed(4)} &nbsp;|&nbsp; Date: {proforma.createdAt ? new Date(proforma.createdAt).toLocaleDateString("en-GB") : ""}
+            Exchange Rate: $1 = €{(1 / exchangeRate).toFixed(4)} &nbsp;|&nbsp; Date: {proforma.createdAt ? fmtDate(proforma.createdAt) : ""}
           </div>
           <div className="overflow-x-auto border rounded-md">
             <table className="w-full text-xs sm:text-sm">
@@ -592,7 +593,7 @@ export default function ProformaView() {
                       <span className={`text-sm font-medium ${cfg.color}`}>{cfg.label}</span>
                       <span className="text-xs text-muted-foreground">by {log.user_name?.trim() || "Unknown"}</span>
                       <span className="text-xs text-muted-foreground">
-                        {log.created_at ? new Date(log.created_at).toLocaleString("en-GB") : ""}
+                        {log.created_at ? fmtDateTime(log.created_at) : ""}
                       </span>
                     </div>
                     {log.note && (

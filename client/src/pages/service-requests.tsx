@@ -24,6 +24,7 @@ import { PageMeta } from "@/components/page-meta";
 import { useAuth } from "@/hooks/use-auth";
 import { EmptyState } from "@/components/empty-state";
 import type { Port, Vessel } from "@shared/schema";
+import { fmtDate } from "@/lib/formatDate";
 
 const SERVICE_TYPE_CONFIG: Record<string, { label: string; icon: any; color: string; bg: string }> = {
   fuel:         { label: "Fuel / Bunker",  icon: Fuel,         color: "text-orange-500", bg: "bg-orange-100 dark:bg-orange-900/20" },
@@ -227,7 +228,7 @@ function ServiceRequestCard({ req, showOffer, onOfferClick }: { req: any; showOf
 
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
         {req.portName && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{req.portName}</span>}
-        {req.preferredDate && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(req.preferredDate).toLocaleDateString("en-GB")}</span>}
+        {req.preferredDate && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{fmtDate(req.preferredDate)}</span>}
         {req.quantity && <span>{req.quantity} {req.unit}</span>}
       </div>
 

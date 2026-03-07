@@ -13,6 +13,7 @@ import {
   Lightbulb, Download, AlertCircle, CheckCircle2, ArrowUpRight, ArrowDownRight
 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
+import { fmtDate } from "@/lib/formatDate";
 
 interface ComparisonItem {
   description: string;
@@ -223,7 +224,7 @@ function ListMode() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground text-xs">
-                      {new Date(row.createdAt).toLocaleDateString("en-GB")}
+                      {fmtDate(row.createdAt)}
                     </td>
                   </tr>
                 ))}

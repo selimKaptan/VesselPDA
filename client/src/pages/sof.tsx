@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/empty-state";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { fmtDate } from "@/lib/formatDate";
 
 type SofStatus = "draft" | "finalized" | "signed";
 
@@ -25,7 +26,7 @@ const statusConfig: Record<SofStatus, { label: string; className: string }> = {
 
 function fmtDate(d: string | null) {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return fmtDate(d);
 }
 
 const DEFAULT_FORM = {

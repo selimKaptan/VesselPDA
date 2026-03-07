@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageMeta } from "@/components/page-meta";
+import { fmtDate } from "@/lib/formatDate";
 
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -16,7 +17,7 @@ function timeAgo(dateStr: string) {
   if (mins < 60) return `${mins}m`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h`;
-  return new Date(dateStr).toLocaleDateString("en-GB");
+  return fmtDate(dateStr);
 }
 
 export default function Messages() {

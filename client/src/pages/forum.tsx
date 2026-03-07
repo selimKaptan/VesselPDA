@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
+import { fmtDate } from "@/lib/formatDate";
 
 interface ForumCategory {
   id: number;
@@ -74,7 +75,7 @@ function timeAgo(timestamp: string | null): string {
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d`;
   const d = new Date(timestamp);
-  return new Date(d).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+  return fmtDate(d);
 }
 
 function getUrlParams() {

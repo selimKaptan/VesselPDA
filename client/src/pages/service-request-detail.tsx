@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
 import { useAuth } from "@/hooks/use-auth";
+import { fmtDate } from "@/lib/formatDate";
 
 const SERVICE_TYPE_CONFIG: Record<string, { label: string; icon: any; color: string; bg: string }> = {
   fuel:         { label: "Fuel / Bunker",  icon: Fuel,         color: "text-orange-500", bg: "bg-orange-100 dark:bg-orange-900/20" },
@@ -121,7 +122,7 @@ export default function ServiceRequestDetail() {
           <p className="text-sm">{request.description}</p>
           <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
             {request.portName && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{request.portName}</span>}
-            {request.preferredDate && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{new Date(request.preferredDate).toLocaleDateString("en-GB")}</span>}
+            {request.preferredDate && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{fmtDate(request.preferredDate)}</span>}
             {request.quantity && <span>{request.quantity} {request.unit}</span>}
           </div>
         </div>

@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { fmtDate } from "@/lib/formatDate";
 
 function StatCard({ label, value, loading, icon: Icon, color, href, testId }: {
   label: string; value: React.ReactNode; loading?: boolean;
@@ -158,7 +159,7 @@ function CurrentVoyageCard({ voyages, loading }: { voyages: any[] | undefined; l
           {active.eta && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Clock className="w-3 h-3" />
-              ETA: {new Date(active.eta).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+              ETA: {fmtDate(active.eta)}
             </div>
           )}
           <Link href={`/voyages/${active.id}`}>

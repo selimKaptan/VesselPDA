@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { PageMeta } from "@/components/page-meta";
 import type { Port } from "@shared/schema";
+import { fmtDate } from "@/lib/formatDate";
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
 
@@ -105,9 +106,9 @@ function PortDetailPanel({
                 <p className="text-xs opacity-80 mt-0.5">{alert.message}</p>
                 {(alert.startsAt || alert.endsAt) && (
                   <p className="text-[10px] opacity-60 mt-1">
-                    {alert.startsAt && `${new Date(alert.startsAt).toLocaleDateString("tr-TR")}`}
+                    {alert.startsAt && `${fmtDate(alert.startsAt)}`}
                     {alert.startsAt && alert.endsAt && " – "}
-                    {alert.endsAt && `${new Date(alert.endsAt).toLocaleDateString("tr-TR")}`}
+                    {alert.endsAt && `${fmtDate(alert.endsAt)}`}
                   </p>
                 )}
               </div>

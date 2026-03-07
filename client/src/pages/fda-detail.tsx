@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageMeta } from "@/components/page-meta";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { fmtDate } from "@/lib/formatDate";
 
 interface FdaLineItem {
   id: string;
@@ -258,7 +259,7 @@ export default function FdaDetail() {
             {fda.approvedBy && (
               <p className="text-xs text-muted-foreground pt-1 border-t">
                 Approved by <strong>{fda.approvedBy}</strong>
-                {fda.approvedAt ? ` on ${new Date(fda.approvedAt).toLocaleDateString("en-GB")}` : ""}
+                {fda.approvedAt ? ` on ${fmtDate(fda.approvedAt)}` : ""}
               </p>
             )}
           </div>

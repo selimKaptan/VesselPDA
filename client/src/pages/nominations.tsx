@@ -11,6 +11,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { PageMeta } from "@/components/page-meta";
 import { EmptyState } from "@/components/empty-state";
+import { fmtDate } from "@/lib/formatDate";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   pending:  { label: "Pending",   color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",   icon: Clock },
@@ -72,17 +73,17 @@ function NominationCard({ nom, role, onRespond }: { nom: any; role: "sent" | "re
         {nom.eta && (
           <span className="flex items-center gap-1.5">
             <Calendar className="w-3 h-3 flex-shrink-0" />
-            ETA: {new Date(nom.eta).toLocaleDateString("en-GB")}
+            ETA: {fmtDate(nom.eta)}
           </span>
         )}
         {nom.etd && (
           <span className="flex items-center gap-1.5">
             <Calendar className="w-3 h-3 flex-shrink-0" />
-            ETD: {new Date(nom.etd).toLocaleDateString("en-GB")}
+            ETD: {fmtDate(nom.etd)}
           </span>
         )}
         <span className="col-span-2 text-[11px]">
-          {new Date(nom.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+          {fmtDate(nom.createdAt)}
         </span>
       </div>
 

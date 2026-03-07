@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
 import { EmptyState } from "@/components/empty-state";
+import { fmtDate, fmtDateTime } from "@/lib/formatDate";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -61,8 +62,7 @@ const UNIT_OPTIONS = ["MT", "CBM", "TEU", "Units"];
 const CURRENCY_OPTIONS = ["USD", "EUR", "TRY"];
 
 function formatDate(dt: string | null) {
-  if (!dt) return "—";
-  return new Date(dt).toLocaleDateString("en-GB");
+  return fmtDate(dt);
 }
 
 function formatDateTimeLocal(dt: string | null | undefined): string {
@@ -509,13 +509,13 @@ function LaytimeTab({ fixture }: { fixture: any }) {
                       {c.nor_started_at && (
                         <div className="flex justify-between">
                           <span>NOR:</span>
-                          <span className="font-mono text-foreground">{new Date(c.nor_started_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                          <span className="font-mono text-foreground">{fmtDateTime(c.nor_started_at)}</span>
                         </div>
                       )}
                       {c.departed_at && (
                         <div className="flex justify-between">
                           <span>Departed:</span>
-                          <span className="font-mono text-foreground">{new Date(c.departed_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                          <span className="font-mono text-foreground">{fmtDateTime(c.departed_at)}</span>
                         </div>
                       )}
                     </div>

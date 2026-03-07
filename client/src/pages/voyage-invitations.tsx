@@ -10,6 +10,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { PageMeta } from "@/components/page-meta";
 import { Link } from "wouter";
+import { fmtDate } from "@/lib/formatDate";
 
 const ROLE_COLORS: Record<string, string> = {
   agent: "bg-sky-500/15 text-sky-500 border-sky-500/30",
@@ -57,7 +58,7 @@ function InvitationCard({
             {invite.eta && (
               <span className="flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5" />
-                ETA: {new Date(invite.eta).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                ETA: {fmtDate(invite.eta)}
               </span>
             )}
           </div>

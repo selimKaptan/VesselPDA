@@ -17,6 +17,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import type { Nor } from "@shared/schema";
+import { fmtDate } from "@/lib/formatDate";
 
 type NorStatus = "draft" | "tendered" | "accepted" | "rejected";
 
@@ -29,7 +30,7 @@ const statusConfig: Record<NorStatus, { label: string; className: string }> = {
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return fmtDate(d);
 }
 
 const READY_TO_OPTIONS = ["Load", "Discharge", "Receive Cargo"];

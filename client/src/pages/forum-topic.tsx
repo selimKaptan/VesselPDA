@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
+import { fmtDate, fmtDateTime } from "@/lib/formatDate";
 
 interface Reply {
   id: number;
@@ -61,9 +62,7 @@ interface MyLikes {
 
 function formatDateTime(timestamp: string | null): string {
   if (!timestamp) return "";
-  return new Date(timestamp).toLocaleDateString("en-GB", {
-    day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
-  });
+  return fmtDateTime(timestamp);
 }
 
 function timeAgo(timestamp: string | null): string {
@@ -76,7 +75,7 @@ function timeAgo(timestamp: string | null): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
-  return new Date(timestamp).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+  return fmtDate(timestamp);
 }
 
 export default function ForumTopic() {

@@ -7,6 +7,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { fmtDate } from "@/lib/formatDate";
 
 interface MarineWeather {
   waveHeight: number; waveDirection: number; wavePeriod: number; windWaveHeight: number;
@@ -178,8 +179,7 @@ function useEtaForecast(lat: number | null | undefined, lng: number | null | und
 }
 
 function formatDateTR(dateStr: string): string {
-  const d = new Date(dateStr + "T12:00:00");
-  return d.toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long" });
+  return fmtDate(dateStr);
 }
 
 export function EtaWeatherAlert({ lat, lng, eta }: { lat: number; lng: number; eta: string | null }) {

@@ -15,6 +15,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
 import { formatDistanceToNow, isPast, isWithinInterval, addDays } from "date-fns";
 import { EmptyState } from "@/components/empty-state";
+import { fmtDate } from "@/lib/formatDate";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   pending:   { label: "Pending",   color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",  icon: Clock },
@@ -50,9 +51,9 @@ function getDueDateBadge(dueDateStr: string | null, status: string): { label: st
     return { label: `Due in ${diffDays}d`, className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" };
   }
   if (diffDays <= 7) {
-    return { label: `Due ${due.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`, className: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" };
+    return { label: `Due ${fmtDate(due)}`, className: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" };
   }
-  return { label: `Due ${due.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`, className: "bg-muted text-muted-foreground" };
+  return { label: `Due ${fmtDate(due)}`, className: "bg-muted text-muted-foreground" };
 }
 
 export default function Invoices() {

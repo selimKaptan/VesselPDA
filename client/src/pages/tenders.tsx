@@ -20,6 +20,7 @@ import {
   Building2, Trophy, Calendar
 } from "lucide-react";
 import type { Vessel } from "@shared/schema";
+import { fmtDate } from "@/lib/formatDate";
 
 function useCountdown(createdAt: string, expiryHours: number) {
   const [remaining, setRemaining] = useState("");
@@ -720,11 +721,11 @@ function MyBidCard({ bid }: { bid: any }) {
     "—";
 
   const bidDate = bid.createdAt
-    ? new Date(bid.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+    ? fmtDate(bid.createdAt)
     : null;
 
   const wonDate = bid.status === "selected" && bid.nominatedAt
-    ? new Date(bid.nominatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+    ? fmtDate(bid.nominatedAt)
     : null;
 
   return (

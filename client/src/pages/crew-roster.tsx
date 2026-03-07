@@ -6,10 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { fmtDate } from "@/lib/formatDate";
 
 function fmtDate(dt: string | null) {
   if (!dt) return null;
-  return new Date(dt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return fmtDate(dt);
 }
 
 function ExpCell({ dt }: { dt: string | null }) {

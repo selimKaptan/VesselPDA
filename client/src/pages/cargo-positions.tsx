@@ -16,12 +16,13 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
 import { useAuth } from "@/hooks/use-auth";
 import { EmptyState } from "@/components/empty-state";
+import { fmtDate } from "@/lib/formatDate";
 
 const UNIT_OPTIONS = ["MT", "CBM", "TEU", "Units", "BBL", "Lot"];
 
 function formatDate(dt: string | null) {
   if (!dt) return null;
-  return new Date(dt).toLocaleDateString("en-GB");
+  return fmtDate(dt);
 }
 
 const defaultForm = {

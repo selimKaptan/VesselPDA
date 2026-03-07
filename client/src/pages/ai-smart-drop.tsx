@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import type { AiAnalysisEntry } from "@shared/schema";
+import { fmtDateTime } from "@/lib/formatDate";
 
 const EVENT_COLORS: Record<string, string> = {
   crew_change: "bg-blue-500/20 text-blue-300 border-blue-500/30",
@@ -30,7 +31,7 @@ function ConfidenceDot({ value }: { value: number }) {
 
 function HistoryCard({ entry, onReopen }: { entry: AiAnalysisEntry; onReopen: (e: AiAnalysisEntry) => void }) {
   const eventClass = EVENT_COLORS[entry.detectedEvent || "general_note"] || EVENT_COLORS.general_note;
-  const date = entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "—";
+  const date = entry.createdAt ? fmtDateTime(entry.createdAt) : "—";
 
   return (
     <div
