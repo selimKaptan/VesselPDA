@@ -1,0 +1,20 @@
+Sen bir Senior Frontend Animasyon Uzmanı ve UX Mühendisisin. 'Crew Logistics Board' ekranındaki personel kartlarının yatay (geniş) görünümündeki 'Micro-Timeline' (İş Akışı) yapısını güncelliyoruz. Statik okları dinamik SVG bağlantılarıyla değiştiriyor, "Neon Rozet" sistemini kuruyor ve en önemlisi EKSİK OLAN TARİH FORMATLARINI düzeltiyoruz.
+
+Lütfen timeline bileşenini şu 3 mimari kurala göre GÜNCELLE:
+
+1. TAM TARİH VE SAAT FORMATI ZORUNLULUĞU (DD.MM.YYYY / HH:MM):
+- Şu an timeline üzerindeki Flight, Transfer ve Hotel adımlarında sadece saat (Örn: "14:30") veya eksik veri görünüyor. Bunu KESİNLİKLE düzelt.
+- Tüm duraklardaki (Node) veriler zorunlu olarak "DD.MM.YYYY / HH:MM" formatında olmalıdır.
+- Tasarım Zarafeti: Uzun metinlerin yatayda ekranı bozmaması için, Tarih kısmını üstte biraz daha küçük (text-xs text-slate-400), Saat kısmını ise onun hemen altında daha büyük (text-sm font-bold) olacak şekilde, kutu içinde 2 satır halinde (flex-col) düzenle.
+
+2. DİNAMİK SVG BAĞLANTILARI (Fluid Pipeline):
+- İkonlar arasındaki standart ok (>) işaretlerini tamamen kaldır. Bunların yerine ikonları birbirine bağlayan SVG çizgileri (veya absolute div'ler) ekle.
+- 'Completed': Çizgi kalın, kesintisiz, parlak yeşil (bg-emerald-500) olsun.
+- 'Pending/Future': Çizgi ince, yarı saydam gri ve KESİKLİ (border-dashed, border-slate-600) olsun.
+- 'Delayed/Error': Çizgi turuncu (bg-orange-500) olsun ve CSS Keyframes ile hafifçe yanıp sönsün (pulse effect: opacity 0.5 ile 1.0 arası).
+- Animasyon: Durum değiştiğinde yeşil çizgi soldan sağa sıvı gibi dolsun (transition).
+
+3. NEON ODAK VE VURGU KUTUCUĞU (Neon Badge):
+- İkonların altındaki Tarih/Saat bilgisini düz metin olarak bırakma. Arka planı karttan hafif açık (bg-slate-800) yuvarlatılmış şık bir "Rozet" (Badge) içine al.
+- AKTİF (Şu anki veya bir sonraki) adımın saat/tarih rozeti "Neon Odak" kuralıyla fosforlu Cam Göbeği (text-cyan-400) veya Amber (text-amber-400) renginde parlasın (shadow-[0_0_8px_rgba(34,211,238,0.3)] efektiyle).
+- "TRANSFER", "HOTEL" gibi etiket metinlerini ikonların hemen üstünde çok küçük bırak (uppercase, text-[10px]), kullanıcının gözü tamamen parlayan rozet içindeki "Tarih/Saat" bilgisinde olsun.
