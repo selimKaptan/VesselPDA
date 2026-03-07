@@ -16,9 +16,12 @@ router.get("/", isAuthenticated, async (req: any, res: any, next: any) => {
     const userId = req.user.claims.sub;
     const user = await storage.getUser(userId);
     const proformaId = req.query.proformaId ? parseInt(req.query.proformaId as string) : null;
+    const voyageId = req.query.voyageId ? parseInt(req.query.voyageId as string) : null;
 
     let fdas;
-    if (proformaId) {
+    if (voyageId) {
+      fdas = await db.select().from(fdaAccounts).where(eq(fdaAccounts.voyageId, voyageId)).orderBy(desc(fdaAccounts.createdAt));
+    } else if (proformaId) {
       fdas = await db.select().from(fdaAccounts).where(eq(fdaAccounts.proformaId, proformaId)).orderBy(desc(fdaAccounts.createdAt));
     } else if (user?.userRole === "admin") {
       fdas = await db.select().from(fdaAccounts).orderBy(desc(fdaAccounts.createdAt));

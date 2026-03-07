@@ -46,7 +46,7 @@ import {
   voyageDocuments, voyageReviews, conversations, messages,
   directNominations, voyageChatMessages, endorsements,
   vesselCertificates, portCallAppointments, fixtures, cargoPositions, bunkerPrices,
-  documentTemplates, invoices, portAlerts, vesselCrew, vesselQ88,
+  documentTemplates, invoices, portAlerts, vesselCrew, vesselQ88, fdaAccounts,
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
@@ -1214,8 +1214,24 @@ export class DatabaseStorage implements IStorage {
         .groupBy((proformas as any).voyageId);
 
       const pMap = new Map(proformaRows.map((p: any) => [p.voyageId, p]));
+
+      // Enrich with FDA summary
+      const fdaRows = await db
+        .select({
+          voyageId: fdaAccounts.voyageId,
+          fdaCount: sql<number>`COUNT(*)::int`,
+          fdaTotalActualUsd: sql<number>`COALESCE(SUM(${fdaAccounts.totalActualUsd}), 0)::float`,
+          fdaLatestStatus: sql<string>`(array_agg(${fdaAccounts.status} ORDER BY ${fdaAccounts.id} DESC))[1]`,
+          fdaLatestId: sql<number>`MAX(${fdaAccounts.id})::int`,
+        })
+        .from(fdaAccounts)
+        .where(inArray(fdaAccounts.voyageId, voyageIds))
+        .groupBy(fdaAccounts.voyageId);
+      const fMap = new Map(fdaRows.map((f: any) => [f.voyageId, f]));
+
       return voyageRows.map((v: any) => {
         const ps = pMap.get(v.id);
+        const fs = fMap.get(v.id);
         return {
           ...v,
           proformaCount: ps?.proformaCount ?? 0,
@@ -1223,6 +1239,10 @@ export class DatabaseStorage implements IStorage {
           proformaLatestStatus: ps?.proformaLatestStatus ?? null,
           proformaLatestApprovalStatus: ps?.proformaLatestApprovalStatus ?? null,
           proformaLatestId: ps?.proformaLatestId ?? null,
+          fdaCount: fs?.fdaCount ?? 0,
+          fdaTotalActualUsd: fs?.fdaTotalActualUsd ?? 0,
+          fdaLatestStatus: fs?.fdaLatestStatus ?? null,
+          fdaLatestId: fs?.fdaLatestId ?? null,
         };
       });
     }
@@ -1233,6 +1253,10 @@ export class DatabaseStorage implements IStorage {
       proformaLatestStatus: null,
       proformaLatestApprovalStatus: null,
       proformaLatestId: null,
+      fdaCount: 0,
+      fdaTotalActualUsd: 0,
+      fdaLatestStatus: null,
+      fdaLatestId: null,
     }));
   }
 

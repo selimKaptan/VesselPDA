@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { Plus, Eye, Download, Trash2, Loader2, Calculator, FileText, ChevronDown } from "lucide-react";
+import { Plus, Eye, Download, Trash2, Loader2, Calculator, FileText, ChevronDown, Link2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -47,12 +47,59 @@ export default function FdaPage() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
+  // ── URL params: ?voyageId= and ?proformaId= ──────────────────────────────
+  const linkedVoyageId = useMemo(() => {
+    const p = new URLSearchParams(window.location.search).get("voyageId");
+    return p ? parseInt(p) : null;
+  }, []);
+  const linkedProformaId = useMemo(() => {
+    const p = new URLSearchParams(window.location.search).get("proformaId");
+    return p ? parseInt(p) : null;
+  }, []);
+
   const [fromProformaOpen, setFromProformaOpen] = useState(false);
   const [selectedProformaId, setSelectedProformaId] = useState("__none__");
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  // Pre-open dialog if URL params present (run once)
+  useEffect(() => {
+    if (linkedProformaId) {
+      setSelectedProformaId(String(linkedProformaId));
+      setFromProformaOpen(true);
+    } else if (linkedVoyageId) {
+      setFromProformaOpen(true);
+    }
+  }, []);
+
+  // Linked voyage data
+  const { data: linkedVoyage } = useQuery<any>({
+    queryKey: ["/api/voyages", linkedVoyageId],
+    queryFn: async () => {
+      const res = await fetch(`/api/voyages/${linkedVoyageId}`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!linkedVoyageId,
+  });
+
+  // Voyage-specific proformas (for the dialog dropdown)
+  const { data: voyageProformas = [] } = useQuery<any[]>({
+    queryKey: ["/api/proformas", "voyage", linkedVoyageId],
+    queryFn: async () => {
+      const res = await fetch(`/api/proformas?voyageId=${linkedVoyageId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      const d = await res.json();
+      return Array.isArray(d) ? d : [];
+    },
+    enabled: !!linkedVoyageId,
+  });
 
   const { data: fdas = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/fda"] });
-  const { data: proformas = [] } = useQuery<any[]>({ queryKey: ["/api/proformas"] });
+  const { data: allProformas = [] } = useQuery<any[]>({ queryKey: ["/api/proformas"] });
+
+  // Use voyage-specific proformas in dialog if voyageId present, else all proformas
+  const dialogProformas = linkedVoyageId ? voyageProformas : allProformas;
 
   const createMutation = useMutation({
     mutationFn: (body: any) => apiRequest("POST", "/api/fda", body),
@@ -76,12 +123,15 @@ export default function FdaPage() {
   });
 
   const handleCreateBlank = () => {
-    createMutation.mutate({});
+    createMutation.mutate(linkedVoyageId ? { voyageId: linkedVoyageId } : {});
   };
 
   const handleCreateFromProforma = () => {
     const proformaId = selectedProformaId !== "__none__" ? parseInt(selectedProformaId) : undefined;
-    createMutation.mutate({ proformaId });
+    createMutation.mutate({
+      proformaId,
+      voyageId: linkedVoyageId ?? undefined,
+    });
   };
 
   return (
@@ -113,6 +163,23 @@ export default function FdaPage() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+
+        {/* Voyage Linked Banner */}
+        {linkedVoyageId && linkedVoyage && !bannerDismissed && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[hsl(var(--maritime-primary)/0.08)] border border-[hsl(var(--maritime-primary)/0.25)] text-[hsl(var(--maritime-primary))]" data-testid="banner-voyage-linked-fda">
+            <Link2 className="w-4 h-4 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-semibold">Linked to voyage: </span>
+              <span className="text-sm">
+                {linkedVoyage.vesselName || "Vessel"} → {linkedVoyage.portName || "Port"}
+                {linkedVoyage.purposeOfCall ? ` · ${linkedVoyage.purposeOfCall}` : ""}
+              </span>
+            </div>
+            <button onClick={() => setBannerDismissed(true)} className="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity" data-testid="button-dismiss-fda-banner">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Content */}
         {isLoading ? (
@@ -169,32 +236,38 @@ export default function FdaPage() {
                   <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y">
                 {fdas.map((fda: any) => {
-                  const st = (fda.status as FdaStatus) || "draft";
+                  const st = (fda.status || "draft") as FdaStatus;
                   const cfg = statusCfg[st] || statusCfg.draft;
                   return (
-                    <tr key={fda.id} className="border-b hover:bg-muted/20 transition-colors" data-testid={`row-fda-${fda.id}`}>
-                      <td className="px-4 py-3 font-mono text-xs font-medium">{fda.referenceNumber || `FDA-${fda.id}`}</td>
-                      <td className="px-4 py-3 font-medium">{fda.vesselName || "—"}</td>
+                    <tr key={fda.id} className="hover:bg-muted/20 transition-colors" data-testid={`fda-row-${fda.id}`}>
+                      <td className="px-4 py-3 font-medium">
+                        <Link href={`/fda/${fda.id}`} className="hover:underline text-maritime-primary">
+                          {fda.referenceNumber || `FDA-${fda.id}`}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground">{fda.vesselName || "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{fda.portName || "—"}</td>
-                      <td className="px-4 py-3 text-right font-mono text-xs">{fmtUsd(fda.totalEstimatedUsd)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-xs">{fmtUsd(fda.totalActualUsd)}</td>
-                      <td className="px-4 py-3 text-center"><VariancePill pct={fda.variancePercent} /></td>
+                      <td className="px-4 py-3 text-right font-mono text-sm">{fmtUsd(fda.totalEstimatedUsd)}</td>
+                      <td className="px-4 py-3 text-right font-mono text-sm font-semibold">{fmtUsd(fda.totalActualUsd)}</td>
+                      <td className="px-4 py-3 text-center">
+                        <VariancePill pct={fda.variancePercent} />
+                      </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.className}`}>
                           {cfg.label}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           <Link href={`/fda/${fda.id}`}>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" title="View" data-testid={`button-view-fda-${fda.id}`}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`button-view-fda-${fda.id}`}>
                               <Eye className="h-4 w-4" />
                             </Button>
                           </Link>
-                          <a href={`/api/fda/${fda.id}/pdf`} target="_blank" rel="noopener noreferrer">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600" title="Export PDF" data-testid={`button-pdf-fda-${fda.id}`}>
+                          <a href={`/api/fda/${fda.id}/pdf`} target="_blank" rel="noreferrer">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" data-testid={`button-pdf-fda-${fda.id}`}>
                               <Download className="h-4 w-4" />
                             </Button>
                           </a>
@@ -226,6 +299,12 @@ export default function FdaPage() {
             <p className="text-sm text-muted-foreground">
               Select a Proforma (PDA) to import its estimated line items into the FDA. You'll then enter the actual amounts.
             </p>
+            {linkedVoyageId && linkedVoyage && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-[hsl(var(--maritime-primary)/0.06)] border border-[hsl(var(--maritime-primary)/0.2)] text-xs text-[hsl(var(--maritime-primary))]">
+                <Link2 className="w-3 h-3 flex-shrink-0" />
+                <span>Voyage: <strong>{linkedVoyage.vesselName || "Vessel"}</strong> → {linkedVoyage.portName || "Port"}</span>
+              </div>
+            )}
             <div>
               <Label>Proforma (PDA)</Label>
               <Select value={selectedProformaId} onValueChange={setSelectedProformaId}>
@@ -234,7 +313,7 @@ export default function FdaPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Select a proforma…</SelectItem>
-                  {proformas.map((p: any) => (
+                  {dialogProformas.map((p: any) => (
                     <SelectItem key={p.id} value={String(p.id)}>
                       {p.referenceNumber || `PDA-${p.id}`}
                       {p.vesselName || p.vessel?.name ? ` — ${p.vesselName || p.vessel?.name}` : ""}
@@ -242,6 +321,9 @@ export default function FdaPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {linkedVoyageId && voyageProformas.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-1.5">No proformas found for this voyage. You can still create a blank FDA.</p>
+              )}
             </div>
           </div>
           <DialogFooter>

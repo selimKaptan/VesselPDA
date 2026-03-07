@@ -8,7 +8,7 @@ import {
   FileText, Upload, Download, Star, MessageCircle, FolderOpen, Anchor, Cloud,
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
   FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings, Archive, X,
-  TrendingUp, TrendingDown, AlertTriangle, Mail, Plane, LogIn, LogOut, Maximize2,
+  TrendingUp, TrendingDown, AlertTriangle, Mail, Plane, LogIn, LogOut, Maximize2, Calculator,
 } from "lucide-react";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
@@ -1080,6 +1080,17 @@ export default function VoyageDetail() {
       if (!res.ok) return [];
       const data = await res.json();
       return Array.isArray(data) ? data : [];
+    },
+    enabled: !!voyageId,
+  });
+
+  const { data: voyageFdas = [] } = useQuery<any[]>({
+    queryKey: ["/api/fda", "voyage", voyageId],
+    queryFn: async () => {
+      const res = await fetch(`/api/fda?voyageId=${voyageId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      const d = await res.json();
+      return Array.isArray(d) ? d : [];
     },
     enabled: !!voyageId,
   });
@@ -5183,6 +5194,82 @@ export default function VoyageDetail() {
                       </div>
                       <Link href={`/proformas/${p.id}`}>
                         <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs gap-1 flex-shrink-0" data-testid={`button-view-pda-${p.id}`}>
+                          View →
+                        </Button>
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+
+          {/* FDA Section */}
+          <Card className="p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calculator className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                <h2 className="font-semibold text-sm">Final Disbursement Accounts</h2>
+                {voyageFdas.length > 0 && (
+                  <span className="text-xs text-muted-foreground">({voyageFdas.length})</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5">
+                {voyageProformas.length > 0 && (
+                  <Link href={`/fda?voyageId=${voyageId}&proformaId=${voyageProformas[voyageProformas.length - 1]?.id}`}>
+                    <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" data-testid="button-create-fda-from-pda">
+                      <Plus className="w-3 h-3" /> From PDA
+                    </Button>
+                  </Link>
+                )}
+                <Link href={`/fda?voyageId=${voyageId}`}>
+                  <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" data-testid="button-create-fda">
+                    <Plus className="w-3 h-3" /> Create FDA
+                  </Button>
+                </Link>
+              </div>
+            </div>
+            {voyageFdas.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground" data-testid="section-fdas-empty">
+                <Calculator className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">Create a Final Disbursement Account to compare estimated vs actual costs.</p>
+                <Link href={`/fda?voyageId=${voyageId}`}>
+                  <Button size="sm" variant="default" className="mt-3 gap-1.5" data-testid="button-create-fda-cta">
+                    <Plus className="w-3.5 h-3.5" /> New FDA
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-2" data-testid="section-fdas">
+                {voyageFdas.map((f: any) => {
+                  const fdaStatusColors: Record<string, string> = {
+                    draft: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+                    pending_approval: "bg-amber-500/10 text-amber-300 border-amber-500/20",
+                    approved: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+                    sent: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+                  };
+                  const stBadge = fdaStatusColors[f.status] || "bg-slate-500/10 text-slate-400 border-slate-500/20";
+                  const varUsd = f.varianceUsd || 0;
+                  const varPct = f.variancePercent || 0;
+                  return (
+                    <div key={f.id} className="flex items-center gap-3 p-3 rounded-lg border border-border/40 bg-card/50 hover:bg-card/80 transition-colors" data-testid={`fda-row-${f.id}`}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-xs font-semibold text-foreground">{f.referenceNumber || `FDA-${f.id}`}</span>
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${stBadge}`}>{(f.status || "draft").toUpperCase()}</span>
+                          {varPct !== 0 && (
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${varUsd > 0 ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"}`}>
+                              {varUsd > 0 ? "+" : ""}{varPct.toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span>Est: <span className="text-foreground/70">${(f.totalEstimatedUsd || 0).toLocaleString()}</span></span>
+                          <span>Act: <span className="font-semibold text-emerald-400">${(f.totalActualUsd || 0).toLocaleString()}</span></span>
+                        </div>
+                      </div>
+                      <Link href={`/fda/${f.id}`}>
+                        <Button size="sm" variant="ghost" className="h-7 px-2.5 text-xs gap-1 flex-shrink-0" data-testid={`button-view-fda-${f.id}`}>
                           View →
                         </Button>
                       </Link>

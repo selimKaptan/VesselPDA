@@ -349,6 +349,14 @@ export default function Voyages() {
     return 10;
   };
 
+  const getFdaStatus = (v: any): { label: string; color: string } | null => {
+    if (!v.fdaCount || v.fdaCount === 0) return null;
+    const totalK = v.fdaTotalActualUsd ? `$${Math.round(v.fdaTotalActualUsd / 1000)}K` : "";
+    if (v.fdaLatestStatus === "approved") return { label: `✅ FDA ${totalK}`, color: "text-emerald-400" };
+    if (v.fdaLatestStatus === "sent")     return { label: `📤 FDA ${totalK}`, color: "text-sky-400" };
+    return { label: "🧾 FDA Draft", color: "text-violet-300" };
+  };
+
   const getPdaStatus = (v: any): { label: string; color: string } => {
     if (v.status === "cancelled") return { label: "—", color: "text-slate-500" };
     if (v.proformaCount > 0) {
@@ -457,6 +465,7 @@ export default function Voyages() {
             const countdown = calcCountdown(v);
             const progress  = calcProgress(v);
             const pdaSt     = getPdaStatus(v);
+            const fdaSt     = getFdaStatus(v);
             const stage     = PORT_CALL_STAGE[v.status] || PORT_CALL_STAGE.planned;
             const isActive  = v.status === "active";
 
@@ -537,14 +546,25 @@ export default function Voyages() {
                           {v.cargoType || (v.purposeOfCall === "Crew Change" || v.purposeOfCall === "Husbandry" ? "N/A" : "—")}
                         </p>
                       </div>
-                      {/* Col 2: PDA Status */}
-                      <div
-                        className={`min-w-0 ${v.proformaLatestId ? "cursor-pointer group/pda" : ""}`}
-                        onClick={v.proformaLatestId ? (e) => { e.preventDefault(); e.stopPropagation(); setLocation(`/proformas/${v.proformaLatestId}`); } : undefined}
-                        data-testid={`pda-status-${v.id}`}
-                      >
-                        <p className="text-[10px] uppercase text-slate-500 tracking-wide mb-0.5">💰 PDA</p>
-                        <p className={`text-[11px] font-semibold truncate ${pdaSt.color} ${v.proformaLatestId ? "group-hover/pda:underline" : ""}`}>{pdaSt.label}</p>
+                      {/* Col 2: PDA / FDA Status */}
+                      <div className="min-w-0 space-y-0.5">
+                        <div
+                          className={`${v.proformaLatestId ? "cursor-pointer group/pda" : ""}`}
+                          onClick={v.proformaLatestId ? (e) => { e.preventDefault(); e.stopPropagation(); setLocation(`/proformas/${v.proformaLatestId}`); } : undefined}
+                          data-testid={`pda-status-${v.id}`}
+                        >
+                          <p className="text-[10px] uppercase text-slate-500 tracking-wide mb-0.5">💰 PDA</p>
+                          <p className={`text-[11px] font-semibold truncate ${pdaSt.color} ${v.proformaLatestId ? "group-hover/pda:underline" : ""}`}>{pdaSt.label}</p>
+                        </div>
+                        {fdaSt && (
+                          <div
+                            className={`${v.fdaLatestId ? "cursor-pointer group/fda" : ""}`}
+                            onClick={v.fdaLatestId ? (e) => { e.preventDefault(); e.stopPropagation(); setLocation(`/fda/${v.fdaLatestId}`); } : undefined}
+                            data-testid={`fda-status-${v.id}`}
+                          >
+                            <p className={`text-[11px] font-semibold truncate ${fdaSt.color} ${v.fdaLatestId ? "group-hover/fda:underline" : ""}`}>{fdaSt.label}</p>
+                          </div>
+                        )}
                       </div>
                       {/* Col 3: Live Status */}
                       <div className="min-w-0">
