@@ -17,6 +17,7 @@ import Dashboard from "@/pages/dashboard";
 import Vessels from "@/pages/vessels";
 import Ports from "@/pages/ports";
 import PortCalls from "@/pages/port-calls";
+import PortCallDetail from "@/pages/port-call-detail";
 import Proformas from "@/pages/proformas";
 import ProformaNew from "@/pages/proforma-new";
 import ProformaView from "@/pages/proforma-view";
@@ -107,6 +108,7 @@ function AuthenticatedRouter() {
       <Route path="/vessels" component={Vessels} />
       <Route path="/ports" component={Ports} />
       <Route path="/port-calls" component={PortCalls} />
+      <Route path="/port-calls/:id" component={PortCallDetail} />
       <Route path="/proformas" component={Proformas} />
       <Route path="/proformas/new" component={ProformaNew} />
       <Route path="/proformas/:id" component={ProformaView} />

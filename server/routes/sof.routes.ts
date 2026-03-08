@@ -15,11 +15,25 @@ router.get("/", isAuthenticated, async (req: any, res: any, next: any) => {
   try {
     const userId = req.user.claims.sub;
     const user = await storage.getUser(userId);
+    const portCallId = req.query.portCallId ? parseInt(req.query.portCallId as string) : undefined;
+    const voyageId = req.query.voyageId ? parseInt(req.query.voyageId as string) : undefined;
     let sofs;
     if (user?.userRole === "admin") {
-      sofs = await db.select().from(statementOfFacts).orderBy(desc(statementOfFacts.createdAt));
+      if (portCallId) {
+        sofs = await db.select().from(statementOfFacts).where(eq(statementOfFacts.portCallId, portCallId)).orderBy(desc(statementOfFacts.createdAt));
+      } else if (voyageId) {
+        sofs = await db.select().from(statementOfFacts).where(eq(statementOfFacts.voyageId, voyageId)).orderBy(desc(statementOfFacts.createdAt));
+      } else {
+        sofs = await db.select().from(statementOfFacts).orderBy(desc(statementOfFacts.createdAt));
+      }
     } else {
-      sofs = await db.select().from(statementOfFacts).where(eq(statementOfFacts.userId, userId)).orderBy(desc(statementOfFacts.createdAt));
+      if (portCallId) {
+        sofs = await db.select().from(statementOfFacts).where(and(eq(statementOfFacts.userId, userId), eq(statementOfFacts.portCallId, portCallId))).orderBy(desc(statementOfFacts.createdAt));
+      } else if (voyageId) {
+        sofs = await db.select().from(statementOfFacts).where(and(eq(statementOfFacts.userId, userId), eq(statementOfFacts.voyageId, voyageId))).orderBy(desc(statementOfFacts.createdAt));
+      } else {
+        sofs = await db.select().from(statementOfFacts).where(eq(statementOfFacts.userId, userId)).orderBy(desc(statementOfFacts.createdAt));
+      }
     }
     res.json(sofs);
   } catch (error) { next(error); }

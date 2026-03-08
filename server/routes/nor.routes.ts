@@ -24,10 +24,15 @@ router.get("/", isAuthenticated, async (req: any, res: any, next: any) => {
     const userId = req.user.claims.sub;
     const user = await storage.getUser(userId);
     const voyageId = req.query.voyageId ? parseInt(req.query.voyageId as string) : undefined;
+    const portCallId = req.query.portCallId ? parseInt(req.query.portCallId as string) : undefined;
 
     let nors;
     if (user?.userRole === "admin") {
-      if (voyageId) {
+      if (portCallId) {
+        nors = await db.select().from(noticeOfReadiness)
+          .where(eq(noticeOfReadiness.portCallId, portCallId))
+          .orderBy(desc(noticeOfReadiness.createdAt));
+      } else if (voyageId) {
         nors = await db.select().from(noticeOfReadiness)
           .where(eq(noticeOfReadiness.voyageId, voyageId))
           .orderBy(desc(noticeOfReadiness.createdAt));
@@ -36,7 +41,14 @@ router.get("/", isAuthenticated, async (req: any, res: any, next: any) => {
           .orderBy(desc(noticeOfReadiness.createdAt));
       }
     } else {
-      if (voyageId) {
+      if (portCallId) {
+        nors = await db.select().from(noticeOfReadiness)
+          .where(and(
+            eq(noticeOfReadiness.userId, userId),
+            eq(noticeOfReadiness.portCallId, portCallId),
+          ))
+          .orderBy(desc(noticeOfReadiness.createdAt));
+      } else if (voyageId) {
         nors = await db.select().from(noticeOfReadiness)
           .where(and(
             eq(noticeOfReadiness.userId, userId),

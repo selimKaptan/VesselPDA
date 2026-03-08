@@ -282,6 +282,29 @@ export const insertPortCallSchema = createInsertSchema(portCalls).omit({ id: tru
 export type InsertPortCall = z.infer<typeof insertPortCallSchema>;
 export type PortCall = typeof portCalls.$inferSelect;
 
+// ─── PORT CALL PARTICIPANTS ───────────────────────────────────────────────────
+
+export const portCallParticipants = pgTable("port_call_participants", {
+  id: serial("id").primaryKey(),
+  portCallId: integer("port_call_id").notNull().references(() => portCalls.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 200 }).notNull(),
+  email: varchar("email", { length: 300 }),
+  role: varchar("role", { length: 50 }).notNull(),
+  company: varchar("company", { length: 200 }),
+  phone: varchar("phone", { length: 50 }),
+  notes: text("notes"),
+  inviteStatus: varchar("invite_status", { length: 20 }).default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const portCallParticipantRelations = relations(portCallParticipants, ({ one }) => ({
+  portCall: one(portCalls, { fields: [portCallParticipants.portCallId], references: [portCalls.id] }),
+}));
+
+export const insertPortCallParticipantSchema = createInsertSchema(portCallParticipants).omit({ id: true, createdAt: true });
+export type InsertPortCallParticipant = z.infer<typeof insertPortCallParticipantSchema>;
+export type PortCallParticipant = typeof portCallParticipants.$inferSelect;
+
 // ─── PORT CALL TENDER SYSTEM ─────────────────────────────────────────────────
 
 export const portTenders = pgTable("port_tenders", {
@@ -414,6 +437,7 @@ export const portExpenses = pgTable("port_expenses", {
   userId: varchar("user_id").notNull().references(() => users.id),
   voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
   fdaId: integer("fda_id").references(() => fdaAccounts.id, { onDelete: "set null" }),
+  portCallId: integer("port_call_id").references(() => portCalls.id, { onDelete: "set null" }),
   category: text("category").notNull(),
   // "port_dues" | "pilotage" | "towage" | "agency_fee" | "mooring" | "anchorage" | 
   // "launch_hire" | "garbage" | "fresh_water" | "bunker" | "survey" | "customs" | "other"
@@ -1584,6 +1608,7 @@ export const statementOfFacts = pgTable("statement_of_facts", {
   voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "cascade" }),
   vesselId: integer("vessel_id").references(() => vessels.id),
   portId: integer("port_id").references(() => ports.id),
+  portCallId: integer("port_call_id").references(() => portCalls.id, { onDelete: "set null" }),
   userId: varchar("user_id").notNull().references(() => users.id),
   vesselName: varchar("vessel_name", { length: 200 }),
   portName: varchar("port_name", { length: 200 }),
@@ -1780,6 +1805,7 @@ export const noticeOfReadiness = pgTable("notice_of_readiness", {
   voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "cascade" }),
   vesselId: integer("vessel_id").references(() => vessels.id),
   portId: integer("port_id").references(() => ports.id),
+  portCallId: integer("port_call_id").references(() => portCalls.id, { onDelete: "set null" }),
   userId: varchar("user_id").notNull().references(() => users.id),
   vesselName: varchar("vessel_name", { length: 200 }),
   portName: varchar("port_name", { length: 200 }),
@@ -1813,6 +1839,7 @@ export const insertNorSchema = z.object({
   voyageId: z.number().int().optional().nullable(),
   vesselId: z.number().int().optional().nullable(),
   portId: z.number().int().optional().nullable(),
+  portCallId: z.number().int().optional().nullable(),
   userId: z.string(),
   vesselName: z.string().max(200).optional().nullable(),
   portName: z.string().max(200).optional().nullable(),

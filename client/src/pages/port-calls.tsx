@@ -4,8 +4,9 @@ import {
   Anchor, Plus, Clock, CheckCircle2, PlayCircle, AlertCircle, 
   Search, Filter, MoreVertical, Calendar, Ship, MapPin, 
   User, ClipboardCheck, ArrowUpRight, CheckCircle, ListChecks,
-  Trash2
+  Trash2, ExternalLink
 } from "lucide-react";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -418,9 +419,17 @@ export default function PortCalls() {
                 </div>
 
                 <div className="flex items-center justify-between pt-2">
-                  <Button variant="ghost" size="sm" className="h-8 text-xs text-sky-400 hover:text-sky-300 gap-1 px-2">
-                    Manage Details <ArrowUpRight className="w-3 h-3" />
-                  </Button>
+                  <Link href={`/port-calls/${call.id}`}>
+                    <Button
+                      data-testid={`btn-detail-${call.id}`}
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-xs text-sky-400 hover:text-sky-300 gap-1 px-2"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Detay
+                    </Button>
+                  </Link>
                   <Button
                     data-testid={`btn-checklist-${call.id}`}
                     variant="ghost"

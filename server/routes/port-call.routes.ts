@@ -127,4 +127,17 @@ router.get("/stats", isAuthenticated, async (req: any, res) => {
   }
 });
 
+// GET /api/port-calls/:id - Get single port call
+router.get("/:id", isAuthenticated, async (req: any, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [portCall] = await db.select().from(portCalls).where(eq(portCalls.id, id));
+    if (!portCall) return res.status(404).json({ message: "Port call not found" });
+    res.json(portCall);
+  } catch (error) {
+    console.error("[port-calls:GET/:id] fetch failed:", error);
+    res.status(500).json({ message: "Failed to fetch port call" });
+  }
+});
+
 export default router;

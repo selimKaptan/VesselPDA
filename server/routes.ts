@@ -70,6 +70,7 @@ import brokerCommissionRoutes from "./routes/broker-commission.routes";
 import brokerContactsRoutes from "./routes/broker-contacts.routes";
 import cargoOpsRoutes from "./routes/cargo-operations.routes";
 import portCallChecklistRoutes from "./routes/port-call-checklist.routes";
+import portCallParticipantsRoutes from "./routes/port-call-participants.routes";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -163,6 +164,7 @@ export async function registerRoutes(
   // ─── Sprint 11: Agent Modules ─────────────────────────────────────────────
   app.use("/api/cargo-operations", isAuthenticated, cargoOpsRoutes);
   app.use("/api/port-call-checklists", isAuthenticated, portCallChecklistRoutes);
+  app.use("/api/port-call-participants", isAuthenticated, portCallParticipantsRoutes);
 
   return httpServer;
 }

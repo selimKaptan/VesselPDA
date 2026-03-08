@@ -91,8 +91,7 @@ export const NAV_CATEGORIES: NavCategory[] = [
     subPages: [
       { label: "Voyages", url: "/voyages", icon: Map },
       { label: "Proformas", url: "/proformas", icon: FileText },
-      { label: "Notice of Readiness", url: "/nor", icon: FileCheck },
-      { label: "Statement of Facts", url: "/sof", icon: ClipboardList },
+
       { label: "Nominations", url: "/nominations", icon: UserCheck, badge: "nominations" },
       { label: "PDA Review", url: "/pda-review", icon: CheckSquare },
       { label: "Port Calls", url: "/port-calls", icon: Anchor },
@@ -238,8 +237,7 @@ export const URL_TO_CATEGORY: Record<string, string> = {
   "/voyages": "operations",
   "/voyage-workflow": "operations",
   "/proformas": "operations",
-  "/nor": "operations",
-  "/sof": "operations",
+  "/port-calls": "operations",
   "/nominations": "operations",
   "/pda-review": "operations",
   "/tenders": "commercial",
@@ -276,7 +274,6 @@ export const URL_TO_CATEGORY: Record<string, string> = {
   "/broker-commissions": "commercial",
   "/contacts": "commercial",
   "/analytics": "intelligence",
-  "/port-calls": "operations",
   "/actions": "operations",
   "/husbandry": "operations",
   "/agent-report": "operations",

@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { storage } from "../storage";
-import { insertPortExpenseSchema } from "@shared/schema";
+import { insertPortExpenseSchema, portExpenses } from "@shared/schema";
+import { db } from "../db";
+import { eq, desc } from "drizzle-orm";
 
 const router = Router();
 
@@ -10,9 +12,14 @@ router.get("/", isAuthenticated, async (req: any, res: any) => {
     const userId = req.user.claims.sub;
     const voyageId = req.query.voyageId ? parseInt(req.query.voyageId as string) : undefined;
     const fdaId = req.query.fdaId ? parseInt(req.query.fdaId as string) : undefined;
+    const portCallId = req.query.portCallId ? parseInt(req.query.portCallId as string) : undefined;
 
     if (fdaId) {
       const expenses = await storage.getPortExpensesByFda(fdaId);
+      return res.json(expenses);
+    }
+    if (portCallId) {
+      const expenses = await db.select().from(portExpenses).where(eq(portExpenses.portCallId, portCallId)).orderBy(desc(portExpenses.expenseDate));
       return res.json(expenses);
     }
     if (voyageId) {
