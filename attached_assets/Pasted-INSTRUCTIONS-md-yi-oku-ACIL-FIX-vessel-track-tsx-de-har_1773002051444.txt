@@ -1,0 +1,156 @@
+INSTRUCTIONS.md'yi oku. ACIL FIX: vessel-track.tsx'de harita boş görünüyor. Sorun: Mapbox token async olarak çekiliyor ama harita oluşturulurken token henüz hazır değil. Leaflet + Mapbox tile kombinasyonu düzgün çalışsın.
+
+=== SORUN TEŞHİSİ ===
+Satır 596: L.map oluşturuluyor
+Satır 608: Mapbox tile URL'de token lazım ama getMapboxToken() async — token gelmeden tile ekleniyor
+Sonuç: Tile yüklenemez → harita boş
+
+=== FIX: vessel-track.tsx satır 590-640 civarını düzelt ===
+
+Harita oluşturma bloğunu şununla değiştir:
+
+useEffect(() => {
+  if (!mapContainerRef.current || mapInstanceRef.current) return;
+  
+  let cancelled = false;
+  
+  async function initMap() {
+    // Önce token'ı al
+    const token = await getMapboxToken();
+    
+    if (cancelled || !mapContainerRef.current) return;
+    
+    const map = L.map(mapContainerRef.current, {
+      center: [39.0, 27.0],
+      zoom: 6,
+      zoomControl: false,
+      attributionControl: true,
+    });
+    
+    // Token varsa Mapbox premium tile kullan
+    if (token && token.length > 10) {
+      L.tileLayer(
+        `https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/256/{z}/{x}/{y}@2x?access_token=${token}`,
+        {
+          attribution: '© <a href="https://www.mapbox.com/">Mapbox</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          maxZoom: 19,
+          tileSize: 256,
+        }
+      ).addTo(map);
+      console.log('Map: Using Mapbox premium tiles');
+    } else {
+      // Fallback: CartoDB dark tiles (ücretsiz)
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© OpenStreetMap © CARTO',
+        maxZoom: 19,
+        subdomains: 'abcd',
+      }).addTo(map);
+      console.log('Map: Using CartoDB fallback tiles');
+    }
+    
+    // OpenSeaMap deniz işaretleri overlay
+    L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+      attribution: '© OpenSeaMap',
+      maxZoom: 18,
+      opacity: 0.7,
+    }).addTo(map);
+    
+    // Kontroller
+    L.control.zoom({ position: 'topright' }).addTo(map);
+    L.control.scale({ maxWidth: 100, imperial: false, position: 'bottomleft' }).addTo(map);
+    
+    mapInstanceRef.current = map;
+    
+    // Container boyutu geç hesaplanırsa fix
+    setTimeout(() => map.invalidateSize(), 300);
+    setTimeout(() => map.invalidateSize(), 1000);
+  }
+  
+  initMap();
+  
+  return () => {
+    cancelled = true;
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.remove();
+      mapInstanceRef.current = null;
+    }
+  };
+}, []);
+
+=== EK: getMapboxToken FONKSİYONUNU DA DÜZELT ===
+
+Dosyanın üstündeki getMapboxToken fonksiyonunu kontrol et — /api/config/mapbox endpoint'i var mı? Yoksa sadece env'den oku:
+
+async function getMapboxToken(): Promise<string> {
+  // 1. Vite env'den oku (en hızlı)
+  const envToken = (import.meta.env.VITE_MAPBOX_TOKEN as string) || "";
+  if (envToken && envToken.length > 10) {
+    console.log('Mapbox token: from env');
+    return envToken;
+  }
+  
+  // 2. Backend'den çek (fallback)
+  try {
+    const r = await fetch("/api/config/mapbox", { credentials: "include" });
+    if (r.ok) {
+      const data = await r.json();
+      if (data.token && data.token.length > 10) {
+        console.log('Mapbox token: from backend');
+        return data.token;
+      }
+    }
+  } catch (e) {
+    console.log('Mapbox token: backend fetch failed');
+  }
+  
+  console.log('Mapbox token: not found, will use fallback tiles');
+  return "";
+}
+
+=== EK: BACKEND MAPBOX CONFIG ENDPOINT ===
+
+/api/config/mapbox endpoint'i yoksa ekle (server/routes/ içinde):
+
+router.get("/config/mapbox", (req, res) => {
+  const token = process.env.MAPBOX_TOKEN || process.env.VITE_MAPBOX_TOKEN || "";
+  res.json({ token });
+});
+
+Ayrıca MAPBOX_TOKEN'ı da Replit Secrets'a ekle (VITE_MAPBOX_TOKEN ile aynı değer):
+Key: MAPBOX_TOKEN  
+Value: (aynı pk.eyJ1Ijo... token)
+
+=== EK: HARITA CONTAINER HEIGHT ===
+
+Harita div'in height'ı olmalı. Eğer height 0 ise harita görünmez:
+
+<div 
+  ref={mapContainerRef}
+  className="rounded-xl overflow-hidden border border-slate-700/50"
+  style={{ width: '100%', height: 'calc(100vh - 200px)', minHeight: '500px' }}
+/>
+
+=== EK: DİĞER HARİTA SAYFALARI ===
+
+Aynı async token fix'i diğer sayfalarda da uygula:
+
+1. client/src/pages/passage-planning.tsx:
+   - mapboxgl.Map oluşturmadan önce: const token = await ensureMapboxToken();
+   - Token yoksa harita oluşturma, "Mapbox token required" mesajı göster
+
+2. client/src/pages/port-info.tsx:
+   - Aynı pattern: önce token al, sonra harita oluştur
+
+3. client/src/pages/vessels.tsx:
+   - Harita varsa aynı fix
+
+=== IMPORTANT ===
+
+- VITE_MAPBOX_TOKEN env'de var (test edildi: pk.eyJ1Ijo...)
+- MAPBOX_TOKEN backend'e de eklenmeli (aynı token)
+- Async token fetch TAMAMLANMADAN harita tile eklenmemeli
+- Token yoksa CartoDB dark tiles fallback (ücretsiz)
+- OpenSeaMap overlay her durumda eklensin (deniz haritası)
+- map.invalidateSize() — container geç render olursa fix
+- Mevcut UI elementlerini (sidebar, search, filters) BOZMA
+- Sadece harita init bloğunu düzelt
