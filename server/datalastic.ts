@@ -198,3 +198,73 @@ export async function resolveUuid(
   }
   return null;
 }
+
+export async function getVesselBulk(imoList: string[]): Promise<DatalasticVessel[]> {
+  if (!apiKey()) return [];
+  if (imoList.length === 0) return [];
+  try {
+    const joined = imoList.slice(0, 100).join(",");
+    const json = await datalasticFetch(`/vessel_bulk?imo=${encodeURIComponent(joined)}`);
+    const raw = json?.data ?? json?.vessels ?? [];
+    const arr = Array.isArray(raw) ? raw : [raw].filter(Boolean);
+    return arr.map(normalizeVessel);
+  } catch (error: any) {
+    console.error("Datalastic bulk error:", error.message);
+    return [];
+  }
+}
+
+export interface DatalasticPortVessel {
+  uuid: string;
+  name: string;
+  imo: string;
+  mmsi: string;
+  flag: string;
+  vessel_type: string;
+  latitude: number | null;
+  longitude: number | null;
+  speed: number | null;
+  course: number | null;
+  destination: string | null;
+  navigation_status: string | null;
+}
+
+export async function getVesselsInPort(params: {
+  portUnlocode?: string;
+  lat?: number;
+  lon?: number;
+  radius?: number;
+}): Promise<DatalasticPortVessel[]> {
+  if (!apiKey()) return [];
+  try {
+    const radius = params.radius ?? 5;
+    let path: string;
+    if (params.portUnlocode) {
+      path = `/vessel_inradius?port_unlocode=${encodeURIComponent(params.portUnlocode)}&radius=${radius}`;
+    } else if (params.lat !== undefined && params.lon !== undefined) {
+      path = `/vessel_inradius?lat=${params.lat}&lon=${params.lon}&radius=${radius}`;
+    } else {
+      throw new Error("portUnlocode veya lat/lon gerekli");
+    }
+    const json = await datalasticFetch(path);
+    const raw = json?.data ?? json?.vessels ?? [];
+    const arr = Array.isArray(raw) ? raw : [raw].filter(Boolean);
+    return arr.map((d: any): DatalasticPortVessel => ({
+      uuid: d.uuid ?? "",
+      name: d.name ?? "",
+      imo: d.imo ? String(d.imo) : "",
+      mmsi: d.mmsi ? String(d.mmsi) : "",
+      flag: d.flag ?? d.country_iso ?? "",
+      vessel_type: d.vessel_type ?? d.type ?? d.type_specific ?? "",
+      latitude: d.latitude ?? d.lat ?? null,
+      longitude: d.longitude ?? d.lon ?? null,
+      speed: d.speed ?? null,
+      course: d.course ?? null,
+      destination: d.destination ?? null,
+      navigation_status: d.navigation_status ?? d.status ?? null,
+    }));
+  } catch (error: any) {
+    console.error("Datalastic port vessels error:", error.message);
+    return [];
+  }
+}
