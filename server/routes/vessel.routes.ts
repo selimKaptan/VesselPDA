@@ -192,9 +192,24 @@ router.get("/lookup", isAuthenticated, async (req, res) => {
       if (results.length) {
         const d = results[0];
         let specs = d;
+        // Enrich with uuid-based full record
         if (d.uuid) {
           const full = await datalastic.getVesselByUuid(d.uuid).catch(() => null);
           if (full) specs = { ...d, ...full };
+        }
+        // Enrich with vessel_info for technical specs (GRT/NRT/DWT/LOA/Beam)
+        const info = await datalastic.getVesselInfo({ imo }).catch(() => null);
+        if (info) {
+          specs = {
+            ...specs,
+            grt: info.gross_tonnage ?? info.grt ?? specs.grt,
+            nrt: info.net_tonnage ?? info.nrt ?? specs.nrt,
+            dwt: info.deadweight ?? info.dwt ?? specs.dwt,
+            loa: info.length_overall ?? info.loa ?? info.length ?? specs.loa,
+            beam: info.beam ?? info.breadth ?? info.width ?? specs.beam,
+            year_built: info.year_built ?? info.built ?? specs.year_built,
+            call_sign: info.call_sign ?? info.callsign ?? specs.call_sign,
+          };
         }
         return res.json(mapDatalasticVessel(specs, imo));
       }
@@ -223,7 +238,33 @@ router.get("/finder", isAuthenticated, async (req, res) => {
   if (!process.env.DATALASTIC_API_KEY) return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
   try {
     const results = await datalastic.findVessel(q, type);
-    res.json(results.slice(0, 15).map(d => mapDatalasticVessel(d)));
+    if (!results.length) return res.json([]);
+
+    // Enrich first result with vessel_info for technical specs (GRT/NRT/DWT/LOA/Beam)
+    const enriched = await Promise.all(
+      results.slice(0, 15).map(async (d, i) => {
+        let specs = d;
+        // Only enrich first result or exact IMO match to avoid excess API calls
+        const isExact = type === "imo" || i === 0;
+        if (isExact && d.imo) {
+          const info = await datalastic.getVesselInfo({ imo: String(d.imo) }).catch(() => null);
+          if (info) {
+            specs = {
+              ...specs,
+              grt: info.gross_tonnage ?? info.grt ?? specs.grt,
+              nrt: info.net_tonnage ?? info.nrt ?? specs.nrt,
+              dwt: info.deadweight ?? info.dwt ?? specs.dwt,
+              loa: info.length_overall ?? info.loa ?? info.length ?? specs.loa,
+              beam: info.beam ?? info.breadth ?? info.width ?? specs.beam,
+              year_built: info.year_built ?? info.built ?? specs.year_built,
+              call_sign: info.call_sign ?? info.callsign ?? specs.call_sign,
+            };
+          }
+        }
+        return mapDatalasticVessel(specs);
+      })
+    );
+    res.json(enriched);
   } catch (error: any) {
     console.error("Vessel finder error:", error.message);
     res.status(502).json({ message: "Arama başarısız. IMO numarası veya MMSI kullanın." });
