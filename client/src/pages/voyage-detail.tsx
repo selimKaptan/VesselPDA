@@ -308,8 +308,6 @@ function VoyageLiveTracker({ voyage, portName, imoNumber }: {
     };
   }, [pos]);
 
-  if (!eta && !etd && !portName) return null;
-
   const hasLiveData = !!pos;
   const showMap = hasLiveData || (imoNumber && isLoading);
 
@@ -2551,7 +2549,7 @@ export default function VoyageDetail() {
       {/* ── Canlı Konum Widget ──────────────────────────────────────────────── */}
       <VoyageLiveTracker
         voyage={voyage}
-        portName={portData?.name || ""}
+        portName={voyage.portName || portData?.name || ""}
         imoNumber={voyage.imoNumber || vesselData?.imoNumber || null}
       />
 
