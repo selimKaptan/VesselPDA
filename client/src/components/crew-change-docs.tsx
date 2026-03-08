@@ -395,10 +395,10 @@ function doc6_ekimTur(opts: DocGeneratorOptions, docDate: string): string {
 // ─── Ana Belge Üretici ────────────────────────────────────────────────────────
 const DOC_STYLES = `
   <style>
-    @page { size: A4 portrait; margin: 20mm 20mm 15mm 20mm; }
+    @page { size: 210mm 297mm; margin: 20mm 20mm 15mm 20mm; }
     * { box-sizing: border-box; }
-    body { font-family: "Times New Roman", Times, serif; font-size: 11pt; color: #000; }
-    .doc-page { page-break-after: always; min-height: 240mm; display: flex; flex-direction: column; }
+    body { font-family: "Times New Roman", Times, serif; font-size: 11pt; color: #000; max-width: 170mm; }
+    .doc-page { page-break-after: always; min-height: 240mm; max-width: 170mm; display: flex; flex-direction: column; }
     .doc-page:last-child { page-break-after: auto; }
     .company-header { text-align: center; margin-bottom: 20px; }
     .company-name { font-size: 16pt; font-weight: bold; letter-spacing: 4px; }
@@ -410,11 +410,16 @@ const DOC_STYLES = `
     .body-text { font-size: 10.5pt; line-height: 1.6; text-align: justify; margin: 10px 0; }
     .salutation { text-align: center; margin: 15px 0 10px 0; font-size: 10.5pt; }
     .section-title { font-size: 10.5pt; font-weight: bold; margin: 12px 0 6px 0; }
-    .crew-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-top: 5px; }
-    .crew-table th { border: 1px solid #000; padding: 3px 5px; background: #f5f5f5; font-weight: bold; text-align: left; font-size: 9pt; }
-    .crew-table td { border: 1px solid #000; padding: 3px 5px; }
-    .crew-table td.seq { width: 25px; }
-    .crew-table td.name { font-weight: bold; }
+    .crew-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-top: 5px; table-layout: fixed; }
+    .crew-table th { border: 1px solid #000; padding: 2px 3px; background: #f5f5f5; font-weight: bold; text-align: left; font-size: 8pt; }
+    .crew-table td { border: 1px solid #000; padding: 2px 3px; word-break: break-word; }
+    .crew-table td.seq { width: 18px; }
+    .crew-table td.name { font-weight: bold; width: 22%; }
+    .crew-table td.nat { width: 10%; }
+    .crew-table td.rank { width: 12%; }
+    .crew-table td.dob { width: 13%; }
+    .crew-table td.passno { width: 16%; }
+    .crew-table td.gcno { width: 16%; }
     .agent-person { margin: 8px 0; font-size: 10.5pt; }
     .agent-person div { margin: 2px 0; }
     .vehicle-list { font-size: 10.5pt; margin-left: 10px; }
@@ -431,7 +436,11 @@ const DOC_STYLES = `
     .flight-info { font-size: 9pt; }
     .declaration-text { font-size: 8.5pt; font-style: italic; }
     .print-btn { position: fixed; top: 10px; right: 10px; padding: 10px 20px; background: #003366; color: white; border: none; cursor: pointer; font-size: 14px; border-radius: 4px; z-index: 9999; }
-    @media print { .print-btn { display: none !important; } }
+    @media print {
+      .print-btn { display: none !important; }
+      body { width: 210mm !important; max-width: 210mm !important; }
+      .doc-page { max-width: 170mm !important; }
+    }
   </style>
 `;
 
@@ -492,7 +501,7 @@ export function generateAndPrintCrewDocs(
     </html>
   `;
 
-  const printWindow = window.open("", "_blank", "width=794,height=1123");
+  const printWindow = window.open("", "_blank", "width=800,height=1130");
   if (printWindow) {
     printWindow.document.write(html);
     printWindow.document.close();
