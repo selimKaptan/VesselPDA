@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { EmptyState } from "@/components/empty-state";
 import { PortLookupInput } from "@/components/port-lookup-input";
-import { Ship, Plus, MapPin, Calendar, ChevronRight, Anchor, CheckCircle2, Clock, XCircle, PlayCircle, Search, X, CheckCircle, AlertCircle, Loader2, FileDown, Check } from "lucide-react";
+import { Ship, Plus, MapPin, Calendar, ChevronRight, Anchor, CheckCircle2, Clock, XCircle, PlayCircle, Search, X, CheckCircle, AlertCircle, Loader2, FileDown, Check, GitBranch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -170,6 +170,12 @@ export default function Voyages() {
   const { data: voyageList, isLoading } = useQuery<any[]>({
     queryKey: ["/api/voyages"],
   });
+
+  const { data: pipelineStatus } = useQuery<{ voyageId: number; hasNor: boolean; hasSof: boolean; hasPda: boolean; hasFda: boolean; hasInvoice: boolean }[]>({
+    queryKey: ["/api/voyages/pipeline-status"],
+    staleTime: 60000,
+  });
+  const pipelineMap = new Map((pipelineStatus || []).map(p => [p.voyageId, p]));
 
   const { data: vessels } = useQuery<Vessel[]>({
     queryKey: ["/api/vessels"],
@@ -653,10 +659,43 @@ export default function Voyages() {
                     </div>
                   </div>
 
-                  {/* ── Hover Open hint ── */}
-                  <div className="absolute bottom-3.5 right-4 flex items-center gap-0.5 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <span className="text-[10px] font-medium">Open</span>
-                    <ChevronRight className="w-3 h-3" />
+                  {/* ── LAYER 5: PİPELİNE DURUM ÇUBUĞU ─────────────── */}
+                  <div className="px-4 pb-3 border-t border-slate-700/30 pt-2.5">
+                    {(() => {
+                      const ps = pipelineMap.get(v.id);
+                      const dots = [
+                        { key: "NOR", done: ps?.hasNor || false },
+                        { key: "SOF", done: ps?.hasSof || false },
+                        { key: "PDA", done: !!(ps?.hasPda || v.proformaLatestId) },
+                        { key: "FDA", done: !!(ps?.hasFda || v.fdaLatestId) },
+                        { key: "INV", done: !!(ps?.hasInvoice || v.invoiceCount > 0) },
+                      ];
+                      const completedCount = dots.filter(d => d.done).length;
+                      return (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            {dots.map((d, i) => (
+                              <div key={d.key} className="flex items-center gap-1">
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <div className={`w-2 h-2 rounded-full ${d.done ? "bg-emerald-400" : "bg-slate-600"}`} />
+                                  <span className="text-[8px] text-slate-500 leading-none">{d.key}</span>
+                                </div>
+                                {i < dots.length - 1 && <div className="w-3 h-px bg-slate-700" />}
+                              </div>
+                            ))}
+                            <span className="ml-1 text-[9px] text-slate-500">{completedCount}/5</span>
+                          </div>
+                          <button
+                            data-testid={`btn-workflow-${v.id}`}
+                            className="flex items-center gap-1 text-[10px] font-semibold text-sky-400 hover:text-sky-300 bg-sky-900/20 hover:bg-sky-900/30 border border-sky-500/20 hover:border-sky-500/40 px-2 py-1 rounded-md transition-all"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setLocation(`/voyage-workflow/${v.id}`); }}
+                          >
+                            <GitBranch className="w-2.5 h-2.5" />
+                            Workflow
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </Card>
               </Link>

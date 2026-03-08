@@ -1,12 +1,13 @@
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { getCategoryByKey } from "@/lib/nav-categories";
+import { getCategoryByKey, getFilteredSubPages } from "@/lib/nav-categories";
 
 interface SidebarPanelProps {
   activeCategory: string;
+  userRole?: string;
 }
 
-export function SidebarPanel({ activeCategory }: SidebarPanelProps) {
+export function SidebarPanel({ activeCategory, userRole = "shipowner" }: SidebarPanelProps) {
   const [location] = useLocation();
   const category = getCategoryByKey(activeCategory);
 
@@ -51,6 +52,7 @@ export function SidebarPanel({ activeCategory }: SidebarPanelProps) {
   if (!category) return null;
 
   const CategoryIcon = category.icon;
+  const visiblePages = getFilteredSubPages(userRole, category);
 
   function isPageActive(url: string, exact?: boolean): boolean {
     if (exact) return location === url;
@@ -77,7 +79,7 @@ export function SidebarPanel({ activeCategory }: SidebarPanelProps) {
 
       {/* Sub-pages */}
       <nav className="flex-1 px-2 pb-3 space-y-0.5">
-        {category.subPages.map((page) => {
+        {visiblePages.map((page) => {
           const PageIcon = page.icon;
           const active = isPageActive(page.url, page.exact);
           const badgeCount = page.badge && page.badge !== "certs" ? badgeCounts[page.badge] || 0 : 0;

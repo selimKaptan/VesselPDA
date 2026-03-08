@@ -59,6 +59,7 @@ export interface NavSubPage {
   isNew?: boolean;
   isPro?: boolean;
   exact?: boolean;
+  roles?: string[];
 }
 
 export interface NavCategory {
@@ -113,8 +114,8 @@ export const NAV_CATEGORIES: NavCategory[] = [
       { label: "Cargo Positions", url: "/cargo-positions", icon: Package },
       { label: "Laytime Calculator", url: "/laytime-calculator", icon: Scale },
       { label: "Voyage Estimation", url: "/voyage-estimation", icon: Calculator },
-      { label: "Order Book", url: "/order-book", icon: BookOpen },
-      { label: "Commissions", url: "/broker-commissions", icon: DollarSign },
+      { label: "Order Book", url: "/order-book", icon: BookOpen, roles: ["admin", "broker"] },
+      { label: "Commissions", url: "/broker-commissions", icon: DollarSign, roles: ["admin", "broker"] },
       { label: "Contacts", url: "/contacts", icon: Contact2 },
     ],
   },
@@ -131,15 +132,15 @@ export const NAV_CATEGORIES: NavCategory[] = [
       { label: "Vessel Tracking", url: "/vessel-track", icon: Navigation },
       { label: "Crew Roster", url: "/crew-roster", icon: Users2 },
       { label: "Performance", url: "/noon-reports", icon: Activity },
-      { label: "Passage Planning", url: "/passage-planning", icon: Compass, isNew: true },
+      { label: "Passage Planning", url: "/passage-planning", icon: Compass, isNew: true, roles: ["admin", "master"] },
       { label: "Charter Party & Hire", url: "/charter-parties", icon: ScrollText },
-      { label: "Maintenance", url: "/maintenance", icon: Settings },
-      { label: "Bunker Management", url: "/bunker-management", icon: Zap },
-      { label: "Environmental", url: "/environmental", icon: Leaf },
-      { label: "Insurance", url: "/insurance", icon: Shield },
-      { label: "Drydock", url: "/drydock", icon: Wrench },
-      { label: "Defect Tracker", url: "/defect-tracker", icon: AlertTriangle },
-      { label: "Spare Parts", url: "/spare-parts", icon: Warehouse },
+      { label: "Maintenance", url: "/maintenance", icon: Settings, roles: ["admin", "master", "shipowner"] },
+      { label: "Bunker Management", url: "/bunker-management", icon: Zap, roles: ["admin", "master", "shipowner"] },
+      { label: "Environmental", url: "/environmental", icon: Leaf, roles: ["admin", "master", "shipowner"] },
+      { label: "Insurance", url: "/insurance", icon: Shield, roles: ["admin", "shipowner"] },
+      { label: "Drydock", url: "/drydock", icon: Wrench, roles: ["admin", "master", "shipowner"] },
+      { label: "Defect Tracker", url: "/defect-tracker", icon: AlertTriangle, roles: ["admin", "master"] },
+      { label: "Spare Parts", url: "/spare-parts", icon: Warehouse, roles: ["admin", "master", "shipowner"] },
     ],
   },
   {
@@ -235,6 +236,7 @@ export const URL_TO_CATEGORY: Record<string, string> = {
   "/dashboard": "dashboard",
   "/": "dashboard",
   "/voyages": "operations",
+  "/voyage-workflow": "operations",
   "/proformas": "operations",
   "/nor": "operations",
   "/sof": "operations",
@@ -314,6 +316,13 @@ export function getCategoryByKey(key: string): NavCategory | undefined {
 export function getVisibleCategories(role: string): NavCategory[] {
   const keys = ROLE_CATEGORIES[role] || ROLE_CATEGORIES["shipowner"];
   return NAV_CATEGORIES.filter((c) => keys.includes(c.key));
+}
+
+export function getFilteredSubPages(role: string, category: NavCategory): NavSubPage[] {
+  return category.subPages.filter(page => {
+    if (!page.roles) return true;
+    return page.roles.includes(role);
+  });
 }
 
 export function getCurrentPageLabel(pathname: string): string {

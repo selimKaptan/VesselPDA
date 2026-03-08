@@ -15,6 +15,7 @@ import {
   getCategoryByKey,
   getCurrentPageLabel,
   getVisibleCategories,
+  getFilteredSubPages,
   type NavCategory,
 } from "@/lib/nav-categories";
 
@@ -87,7 +88,7 @@ function MobileNavSheet({
                 </button>
                 {isExpanded && (
                   <div className="ml-2 mr-2 mb-1">
-                    {cat.subPages.map((page) => {
+                    {getFilteredSubPages(userRole, cat).map((page) => {
                       const PageIcon = page.icon;
                       const active = isPageActive(page.url, page.exact);
                       return (
@@ -186,7 +187,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           isAdmin={isAdmin}
         />
         <div className="w-px flex-shrink-0 bg-gradient-to-b from-transparent via-slate-700/50 to-transparent self-stretch hidden md:block" />
-        <SidebarPanel activeCategory={activeCategory} />
+        <SidebarPanel activeCategory={activeCategory} userRole={effectiveRole} />
 
         {/* Main content */}
         <main key={location} className="flex-1 overflow-auto pb-16 md:pb-0 bg-[#0B1120] page-fade-in">

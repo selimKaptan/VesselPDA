@@ -10,7 +10,7 @@ import { db } from "../db";
 import { eq, desc, asc, inArray } from "drizzle-orm";
 import multer from "multer";
 import { logVoyageActivity } from "../voyage-activity";
-import { voyageActivities, voyageCargoLogs, voyageCargoReceivers, voyages, voyageContacts, fdaAccounts, invoices, daAdvances, statementOfFacts, noticeOfReadiness } from "@shared/schema";
+import { voyageActivities, voyageCargoLogs, voyageCargoReceivers, voyages, voyageContacts, fdaAccounts, invoices, daAdvances, statementOfFacts, noticeOfReadiness, proformas } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import path from "path";
 import fs from "fs";
@@ -94,6 +94,44 @@ router.post("/:id/activities", isAuthenticated, async (req: any, res: any, next:
     }).returning();
     res.status(201).json(activity);
   } catch (error) { next(error); }
+});
+
+router.get("/pipeline-status", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const role = req.user?.activeRole || req.user?.userRole || "shipowner";
+
+    const allVoyages = await storage.getVoyagesByUser(userId, role);
+    const voyageIds = allVoyages.map((v: any) => v.id);
+    if (voyageIds.length === 0) return res.json([]);
+
+    const [norRows, sofRows, pdaRows, fdaRows, invRows] = await Promise.all([
+      db.select({ voyageId: noticeOfReadiness.voyageId }).from(noticeOfReadiness).where(inArray(noticeOfReadiness.voyageId, voyageIds)),
+      db.select({ voyageId: statementOfFacts.voyageId }).from(statementOfFacts).where(inArray(statementOfFacts.voyageId, voyageIds)),
+      db.select({ voyageId: proformas.voyageId }).from(proformas).where(inArray(proformas.voyageId, voyageIds)),
+      db.select({ voyageId: fdaAccounts.voyageId }).from(fdaAccounts).where(inArray(fdaAccounts.voyageId, voyageIds)),
+      db.select({ voyageId: invoices.voyageId }).from(invoices).where(inArray(invoices.voyageId, voyageIds)),
+    ]);
+
+    const norSet = new Set(norRows.map(r => r.voyageId));
+    const sofSet = new Set(sofRows.map(r => r.voyageId));
+    const pdaSet = new Set(pdaRows.map(r => r.voyageId));
+    const fdaSet = new Set(fdaRows.map(r => r.voyageId));
+    const invSet = new Set(invRows.map(r => r.voyageId));
+
+    const result = voyageIds.map(id => ({
+      voyageId: id,
+      hasNor: norSet.has(id),
+      hasSof: sofSet.has(id),
+      hasPda: pdaSet.has(id),
+      hasFda: fdaSet.has(id),
+      hasInvoice: invSet.has(id),
+    }));
+    res.json(result);
+  } catch (error) {
+    console.error("pipeline-status error:", error);
+    res.json([]);
+  }
 });
 
 router.get("/:id", isAuthenticated, async (req: any, res) => {
