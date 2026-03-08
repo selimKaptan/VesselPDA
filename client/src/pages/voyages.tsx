@@ -185,7 +185,7 @@ export default function Voyages() {
   const handleImoLookup = async () => {
     const imo = imoQuery.replace(/\D/g, "");
     if (imo.length < 5) {
-      setLookupError("Enter a valid IMO number (5-7 digits).");
+      setLookupError("Geçerli bir IMO numarası girin (5-7 rakam).");
       return;
     }
     setLookupLoading(true);
@@ -195,13 +195,13 @@ export default function Voyages() {
       const res = await fetch(`/api/vessels/lookup?imo=${imo}`);
       const data = await res.json();
       if (!res.ok) {
-        setLookupError(data.message || "Vessel not found. You can enter details manually.");
+        setLookupError(data.message || "Gemi bulunamadı. Bilgileri manuel girebilirsiniz.");
         return;
       }
       setVesselInfo(data);
       setForm(f => ({ ...f, vesselName: data.name, vesselId: null }));
     } catch {
-      setLookupError("Connection error. Try again or enter manually.");
+      setLookupError("Bağlantı hatası. Tekrar deneyin veya bilgileri manuel girin.");
     } finally {
       setLookupLoading(false);
     }

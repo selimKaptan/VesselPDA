@@ -204,7 +204,7 @@ function VesselForm({
   const [form, setForm] = useState<VesselFormData>(vessel ? vesselToForm(vessel) : emptyForm());
   const [lookupDone, setLookupDone] = useState(false);
   const [finderQuery, setFinderQuery] = useState("");
-  const [finderType, setFinderType] = useState<"name" | "imo" | "mmsi">("name");
+  const [finderType, setFinderType] = useState<"imo" | "mmsi">("imo");
   const [finderResults, setFinderResults] = useState<LookupResult[]>([]);
   const [showFinder, setShowFinder] = useState(false);
 
@@ -302,13 +302,12 @@ function VesselForm({
               <Select value={finderType} onValueChange={v => setFinderType(v as any)}>
                 <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="name">Ad</SelectItem>
                   <SelectItem value="imo">IMO</SelectItem>
                   <SelectItem value="mmsi">MMSI</SelectItem>
                 </SelectContent>
               </Select>
               <Input value={finderQuery} onChange={e => { setFinderQuery(e.target.value); setFinderResults([]); }}
-                placeholder={finderType === "name" ? "Örn: ALSU" : finderType === "imo" ? "Örn: 9808742" : "Örn: 271000001"}
+                placeholder={finderType === "imo" ? "Örn: 9808742" : "Örn: 271000001"}
                 className="flex-1 h-8 text-sm" data-testid="input-vessel-finder"
                 onKeyDown={e => e.key === "Enter" && (e.preventDefault(), finderMutation.mutate())} />
               <Button type="button" size="sm" className="h-8" onClick={() => finderMutation.mutate()}
@@ -330,7 +329,7 @@ function VesselForm({
                 ))}
               </div>
             )}
-            <p className="text-xs text-slate-500">Gemi adı, IMO veya MMSI ile arayın, seçince form otomatik dolar</p>
+            <p className="text-xs text-slate-500">IMO veya MMSI ile arayın, seçince form otomatik dolar</p>
           </div>
         )}
         {lookupDone && <div className="flex items-center gap-1.5 text-xs text-green-400"><span>✓</span> Datalastic ile dolduruldu</div>}

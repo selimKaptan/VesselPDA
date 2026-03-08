@@ -118,41 +118,115 @@ function mapDatalasticVessel(d: datalastic.DatalasticVessel, fallbackImo?: strin
   };
 }
 
+function isNetworkError(err: any): boolean {
+  const msg = (err?.message || err?.cause?.message || "").toLowerCase();
+  return msg.includes("fetch failed") || msg.includes("enotfound") ||
+    msg.includes("could not resolve") || msg.includes("econnrefused") ||
+    msg.includes("etimedout") || msg.includes("network");
+}
+
+async function zylaVesselLookup(imo: string): Promise<any | null> {
+  const apiKey = process.env.VESSEL_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const response = await fetch(
+      `https://vessel-information.p.rapidapi.com/vessel?imo=${imo}`,
+      {
+        headers: {
+          "X-RapidAPI-Key": apiKey,
+          "X-RapidAPI-Host": "vessel-information.p.rapidapi.com",
+        },
+        signal: AbortSignal.timeout(8000),
+      }
+    );
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      console.warn(`Zyla Labs vessel lookup failed: ${response.status} ${response.statusText} — ${body.slice(0, 200)}`);
+      return null;
+    }
+    const raw = await response.json();
+    if (!raw) return null;
+    const data = raw.data ?? raw.vessel ?? raw.result ?? raw;
+    if (!data || typeof data !== "object" || data.message) return null;
+    const typeMap: Record<string, string> = {
+      "bulk": "Bulk Carrier", "container": "Container Ship", "tanker": "Tanker",
+      "ro-ro": "Ro-Ro", "passenger": "Passenger", "chemical": "Chemical Tanker",
+      "lpg": "LPG Carrier", "lng": "LNG Carrier", "cargo": "General Cargo",
+      "tug": "Tug", "supply": "Supply Vessel", "fishing": "Fishing Vessel",
+    };
+    const rawType = (data.vessel_type || data.type || "").toLowerCase();
+    const vesselType = Object.entries(typeMap).find(([k]) => rawType.includes(k))?.[1] || "General Cargo";
+    return {
+      name: data.name || data.vessel_name || "",
+      flag: data.flag || data.country || "Turkey",
+      vesselType,
+      imoNumber: imo,
+      mmsi: data.mmsi ? String(data.mmsi) : null,
+      callSign: data.call_sign || data.callsign || null,
+      yearBuilt: data.year_built || data.built || null,
+      grt: data.gross_tonnage || data.grt || null,
+      nrt: data.net_tonnage || data.nrt || null,
+      dwt: data.deadweight || data.dwt || null,
+      loa: data.length || data.loa || null,
+      beam: data.beam || data.width || null,
+      datalasticUuid: null,
+      enginePower: null,
+      engineType: null,
+      classificationSociety: data.class_society || null,
+    };
+  } catch (err: any) {
+    console.error("Zyla Labs vessel lookup error:", err.message);
+    return null;
+  }
+}
+
 router.get("/lookup", isAuthenticated, async (req, res) => {
   const imo = (req.query.imo as string || "").replace(/\D/g, "");
   if (!imo || imo.length < 5) {
     return res.status(400).json({ message: "Geçerli bir IMO numarası girin (5–7 rakam)" });
   }
-  if (!process.env.DATALASTIC_API_KEY) {
-    return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
-  }
-  try {
-    const results = await datalastic.findVessel(imo, "imo");
-    if (!results.length) return res.status(404).json({ message: "Gemi bulunamadı" });
-    const d = results[0];
-    let specs = d;
-    if (d.uuid) {
-      const full = await datalastic.getVesselByUuid(d.uuid).catch(() => null);
-      if (full) specs = { ...d, ...full };
+
+  if (process.env.DATALASTIC_API_KEY) {
+    try {
+      const results = await datalastic.findVessel(imo, "imo");
+      if (results.length) {
+        const d = results[0];
+        let specs = d;
+        if (d.uuid) {
+          const full = await datalastic.getVesselByUuid(d.uuid).catch(() => null);
+          if (full) specs = { ...d, ...full };
+        }
+        return res.json(mapDatalasticVessel(specs, imo));
+      }
+    } catch (error: any) {
+      if (!isNetworkError(error)) {
+        console.error("Vessel lookup (Datalastic) error:", error.message);
+        return res.status(502).json({ message: "Sorgulama başarısız. Tekrar deneyin veya bilgileri manuel girin." });
+      }
+      console.warn("Datalastic unreachable, falling back to Zyla Labs:", error.message);
     }
-    res.json(mapDatalasticVessel(specs, imo));
-  } catch (error: any) {
-    console.error("Vessel lookup error:", error.message);
-    res.status(502).json({ message: "Sorgulama başarısız. Tekrar deneyin veya bilgileri manuel girin." });
   }
+
+  const zylaData = await zylaVesselLookup(imo);
+  if (zylaData) return res.json(zylaData);
+
+  return res.status(502).json({ message: "Gemi bilgisi alınamadı. İnternet bağlantısını kontrol edin veya bilgileri manuel girin." });
 });
 
 router.get("/finder", isAuthenticated, async (req, res) => {
   const q = (req.query.q as string || "").trim();
-  const type = (req.query.type as string || "name") as "name" | "imo" | "mmsi";
+  const type = (req.query.type as string || "imo") as "name" | "imo" | "mmsi";
   if (!q || q.length < 2) return res.status(400).json({ message: "En az 2 karakter girin" });
+  if (type === "name") {
+    return res.status(400).json({ message: "Datalastic ad aramasını desteklemiyor. IMO veya MMSI ile arayın." });
+  }
   if (!process.env.DATALASTIC_API_KEY) return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
   try {
     const results = await datalastic.findVessel(q, type);
     res.json(results.slice(0, 15).map(d => mapDatalasticVessel(d)));
   } catch (error: any) {
     console.error("Vessel finder error:", error.message);
-    res.status(502).json({ message: "Arama başarısız." });
+    res.status(502).json({ message: "Arama başarısız. IMO numarası veya MMSI kullanın." });
   }
 });
 

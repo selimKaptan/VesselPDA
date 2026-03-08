@@ -1,4 +1,4 @@
-const BASE = "https://app.datalastic.com/api/v0";
+const BASE = "https://api.datalastic.com/api/v0";
 
 function apiKey() {
   return process.env.DATALASTIC_API_KEY || "";
@@ -83,19 +83,55 @@ export interface DatalasticPort {
   longitude: number | null;
 }
 
+function normalizeVessel(d: any): DatalasticVessel {
+  return {
+    uuid: d.uuid ?? "",
+    name: d.name ?? "",
+    imo: d.imo ? String(d.imo) : "",
+    mmsi: d.mmsi ? String(d.mmsi) : "",
+    flag: d.flag ?? d.country_iso ?? d.country ?? "",
+    vessel_type: d.vessel_type ?? d.type ?? d.type_specific ?? "",
+    year_built: d.year_built ?? d.built ?? null,
+    dwt: d.dwt ?? d.deadweight ?? null,
+    grt: d.grt ?? d.gross_tonnage ?? null,
+    nrt: d.nrt ?? d.net_tonnage ?? null,
+    loa: d.loa ?? d.length ?? null,
+    beam: d.beam ?? d.width ?? null,
+    call_sign: d.call_sign ?? d.callsign ?? null,
+    status: d.navigation_status ?? d.status ?? null,
+    latitude: d.latitude ?? d.lat ?? null,
+    longitude: d.longitude ?? d.lon ?? null,
+    speed: d.speed ?? null,
+    course: d.course ?? null,
+    heading: d.heading ?? null,
+    destination: d.destination ?? null,
+    eta: d.eta_UTC ?? d.eta ?? null,
+    engine_power: d.engine_power ?? null,
+    engine_type: d.engine_type ?? null,
+    classification_society: d.classification_society ?? null,
+  };
+}
+
 async function datalasticFetch(path: string): Promise<any> {
   const key = apiKey();
   if (!key) throw new Error("DATALASTIC_API_KEY not configured");
 
-  const url = `${BASE}${path}${path.includes("?") ? "&" : "?"}api_key=${key}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  const url = `${BASE}${path}`;
+  const res = await fetch(url, {
+    headers: { "Authorization": `Bearer ${key}` },
+    signal: AbortSignal.timeout(10000),
+  });
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`Datalastic API error ${res.status}: ${text.slice(0, 200)}`);
   }
 
-  return res.json();
+  const json = await res.json();
+  if (json?.meta?.success === false) {
+    throw new Error(`Datalastic API: ${json?.meta?.message || "Unknown error"}`);
+  }
+  return json;
 }
 
 export async function findVessel(
@@ -103,13 +139,15 @@ export async function findVessel(
   type: "name" | "imo" | "mmsi" = "name"
 ): Promise<DatalasticVessel[]> {
   const json = await datalasticFetch(`/vessel?${type}=${encodeURIComponent(query)}`);
-  const data = json?.data ?? json?.vessel ?? [];
-  return Array.isArray(data) ? data : [data].filter(Boolean);
+  const raw = json?.data ?? json?.vessel ?? [];
+  const arr = Array.isArray(raw) ? raw : [raw].filter(Boolean);
+  return arr.map(normalizeVessel);
 }
 
 export async function getVesselByUuid(uuid: string): Promise<DatalasticVessel | null> {
   const json = await datalasticFetch(`/vessel_uuid/${uuid}`);
-  return json?.data ?? json?.vessel ?? null;
+  const raw = json?.data ?? json?.vessel ?? null;
+  return raw ? normalizeVessel(raw) : null;
 }
 
 export async function getCurrentPosition(uuid: string): Promise<DatalasticPosition | null> {
