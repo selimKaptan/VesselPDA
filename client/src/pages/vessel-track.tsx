@@ -589,8 +589,9 @@ export default function VesselTrack() {
     });
 
     // CartoDB dark tiles — free, no API key required
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", {
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: "abcd",
       maxZoom: 19,
     }).addTo(map);
 
@@ -920,8 +921,8 @@ export default function VesselTrack() {
             </div>
           </div>
         )}
-        {/* Demo data banner */}
-        {!demoBarDismissed && (
+        {/* Demo data banner — only show when not live */}
+        {!demoBarDismissed && !isLive && (
           <div className="absolute bottom-0 left-0 right-0 z-[1000] bg-amber-50 dark:bg-amber-950/40 border-t border-amber-200 dark:border-amber-800 px-4 py-2 flex items-center gap-2 text-xs">
             <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
             <span className="text-amber-800 dark:text-amber-300 flex-1">
