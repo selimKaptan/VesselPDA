@@ -19,9 +19,14 @@ export const vessels = pgTable("vessels", {
   loa: real("loa"),
   beam: real("beam"),
   imoNumber: text("imo_number"),
+  mmsi: text("mmsi"),
   callSign: text("call_sign"),
   yearBuilt: integer("year_built"),
   fleetStatus: text("fleet_status").default("idle"),
+  datalasticUuid: text("datalastic_uuid"),
+  enginePower: real("engine_power"),
+  engineType: text("engine_type"),
+  classificationSociety: text("classification_society"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -159,27 +159,35 @@ function getProgress(voyage: any): number {
 
 type VesselFormData = {
   name: string; flag: string; vesselType: string; imoNumber: string;
-  callSign: string; yearBuilt: string; grt: string; nrt: string; dwt: string; loa: string; beam: string;
+  mmsi: string; callSign: string; yearBuilt: string; grt: string; nrt: string; dwt: string; loa: string; beam: string;
+  datalasticUuid: string; enginePower: string; engineType: string; classificationSociety: string;
 };
 
 const emptyForm = (): VesselFormData => ({
-  name: "", flag: "", vesselType: "", imoNumber: "", callSign: "", yearBuilt: "",
+  name: "", flag: "", vesselType: "", imoNumber: "", mmsi: "", callSign: "", yearBuilt: "",
   grt: "", nrt: "", dwt: "", loa: "", beam: "",
+  datalasticUuid: "", enginePower: "", engineType: "", classificationSociety: "",
 });
 
 const vesselToForm = (v: Vessel): VesselFormData => ({
   name: v.name || "", flag: v.flag || "", vesselType: v.vesselType || "",
-  imoNumber: v.imoNumber || "", callSign: v.callSign || "",
+  imoNumber: v.imoNumber || "", mmsi: (v as any).mmsi || "", callSign: v.callSign || "",
   yearBuilt: (v as any).yearBuilt != null ? String((v as any).yearBuilt) : "",
   grt: v.grt != null ? String(v.grt) : "", nrt: v.nrt != null ? String(v.nrt) : "",
   dwt: v.dwt != null ? String(v.dwt) : "", loa: v.loa != null ? String(v.loa) : "",
   beam: v.beam != null ? String(v.beam) : "",
+  datalasticUuid: (v as any).datalasticUuid || "",
+  enginePower: (v as any).enginePower != null ? String((v as any).enginePower) : "",
+  engineType: (v as any).engineType || "",
+  classificationSociety: (v as any).classificationSociety || "",
 });
 
 type LookupResult = {
-  name: string; flag: string; vesselType: string; imoNumber: string;
-  callSign: string; grt: number | null; nrt: number | null;
+  name: string; flag: string; vesselType: string; imoNumber: string; mmsi: string | null;
+  callSign: string | null; grt: number | null; nrt: number | null;
   dwt: number | null; loa: number | null; beam: number | null;
+  datalasticUuid?: string; yearBuilt?: number | null;
+  enginePower?: number | null; engineType?: string | null; classificationSociety?: string | null;
 };
 
 // ─── VesselForm ───────────────────────────────────────────────────────────────
@@ -195,9 +203,36 @@ function VesselForm({
   const { toast } = useToast();
   const [form, setForm] = useState<VesselFormData>(vessel ? vesselToForm(vessel) : emptyForm());
   const [lookupDone, setLookupDone] = useState(false);
+  const [finderQuery, setFinderQuery] = useState("");
+  const [finderType, setFinderType] = useState<"name" | "imo" | "mmsi">("name");
+  const [finderResults, setFinderResults] = useState<LookupResult[]>([]);
+  const [showFinder, setShowFinder] = useState(false);
 
   const set = (field: keyof VesselFormData, value: string) =>
     setForm((f) => ({ ...f, [field]: value }));
+
+  function applyLookupResult(data: LookupResult) {
+    setForm((f) => ({
+      ...f,
+      name: data.name || f.name,
+      flag: data.flag || f.flag,
+      vesselType: data.vesselType || f.vesselType,
+      imoNumber: data.imoNumber || f.imoNumber,
+      mmsi: data.mmsi || f.mmsi,
+      callSign: data.callSign || f.callSign,
+      yearBuilt: data.yearBuilt != null ? String(data.yearBuilt) : f.yearBuilt,
+      grt: data.grt != null ? String(data.grt) : f.grt,
+      nrt: data.nrt != null ? String(data.nrt) : f.nrt,
+      dwt: data.dwt != null ? String(data.dwt) : f.dwt,
+      loa: data.loa != null ? String(data.loa) : f.loa,
+      beam: data.beam != null ? String(data.beam) : f.beam,
+      datalasticUuid: data.datalasticUuid || f.datalasticUuid,
+      enginePower: data.enginePower != null ? String(data.enginePower) : f.enginePower,
+      engineType: data.engineType || f.engineType,
+      classificationSociety: data.classificationSociety || f.classificationSociety,
+    }));
+    setLookupDone(true);
+  }
 
   const lookupMutation = useMutation({
     mutationFn: async (imo: string) => {
@@ -206,21 +241,26 @@ function VesselForm({
       return res.json() as Promise<LookupResult>;
     },
     onSuccess: (data) => {
-      setForm({
-        name: data.name || form.name, flag: data.flag || form.flag,
-        vesselType: data.vesselType || form.vesselType, imoNumber: data.imoNumber || form.imoNumber,
-        callSign: data.callSign || form.callSign,
-        grt: data.grt != null ? String(data.grt) : form.grt,
-        nrt: data.nrt != null ? String(data.nrt) : form.nrt,
-        dwt: data.dwt != null ? String(data.dwt) : form.dwt,
-        loa: data.loa != null ? String(data.loa) : form.loa,
-        beam: data.beam != null ? String(data.beam) : form.beam,
-      });
-      setLookupDone(true);
-      toast({ title: "Vessel details auto-filled", description: `Found: ${data.name}` });
+      applyLookupResult(data);
+      toast({ title: "Gemi bilgileri dolduruldu", description: `Bulundu: ${data.name}` });
     },
     onError: (err: Error) => {
-      toast({ title: "Lookup failed", description: err.message, variant: "destructive" });
+      toast({ title: "Sorgulama başarısız", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const finderMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("GET", `/api/vessels/finder?q=${encodeURIComponent(finderQuery)}&type=${finderType}`);
+      if (!res.ok) { const err = await res.json(); throw new Error(err.message || "Search failed"); }
+      return res.json() as Promise<LookupResult[]>;
+    },
+    onSuccess: (data) => {
+      setFinderResults(data);
+      if (!data.length) toast({ title: "Sonuç bulunamadı", description: "Farklı bir terim deneyin" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Arama başarısız", description: err.message, variant: "destructive" });
     },
   });
 
@@ -233,13 +273,69 @@ function VesselForm({
       dwt: form.dwt ? parseFloat(form.dwt) : null,
       loa: form.loa ? parseFloat(form.loa) : null,
       beam: form.beam ? parseFloat(form.beam) : null,
-      imoNumber: form.imoNumber || null, callSign: form.callSign || null,
+      imoNumber: form.imoNumber || null,
+      mmsi: form.mmsi || null,
+      callSign: form.callSign || null,
       yearBuilt: form.yearBuilt ? parseInt(form.yearBuilt) : null,
+      datalasticUuid: form.datalasticUuid || null,
+      enginePower: form.enginePower ? parseFloat(form.enginePower) : null,
+      engineType: form.engineType || null,
+      classificationSociety: form.classificationSociety || null,
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Datalastic Vessel Finder */}
+      <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3 space-y-3">
+        <div className="flex items-center gap-2">
+          <Search className="w-4 h-4 text-blue-400" />
+          <span className="text-sm font-medium text-blue-300">Datalastic Gemi Arama</span>
+          <Button type="button" variant="ghost" size="sm" className="ml-auto h-6 text-xs text-muted-foreground"
+            onClick={() => setShowFinder(v => !v)}>
+            {showFinder ? "Gizle" : "Göster"}
+          </Button>
+        </div>
+        {showFinder && (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Select value={finderType} onValueChange={v => setFinderType(v as any)}>
+                <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Ad</SelectItem>
+                  <SelectItem value="imo">IMO</SelectItem>
+                  <SelectItem value="mmsi">MMSI</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input value={finderQuery} onChange={e => { setFinderQuery(e.target.value); setFinderResults([]); }}
+                placeholder={finderType === "name" ? "Örn: ALSU" : finderType === "imo" ? "Örn: 9808742" : "Örn: 271000001"}
+                className="flex-1 h-8 text-sm" data-testid="input-vessel-finder"
+                onKeyDown={e => e.key === "Enter" && (e.preventDefault(), finderMutation.mutate())} />
+              <Button type="button" size="sm" className="h-8" onClick={() => finderMutation.mutate()}
+                disabled={!finderQuery.trim() || finderMutation.isPending} data-testid="button-vessel-search">
+                {finderMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
+              </Button>
+            </div>
+            {finderResults.length > 0 && (
+              <div className="max-h-48 overflow-y-auto rounded border border-slate-700 bg-slate-900 divide-y divide-slate-800">
+                {finderResults.map((r, i) => (
+                  <button key={i} type="button" onClick={() => { applyLookupResult(r); setFinderResults([]); setShowFinder(false); toast({ title: "Gemi bilgileri dolduruldu", description: r.name }); }}
+                    className="w-full text-left px-3 py-2 hover:bg-slate-800 transition-colors" data-testid={`button-finder-result-${i}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-white">{r.name}</span>
+                      <span className="text-xs text-slate-400">{r.flag}</span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">IMO: {r.imoNumber || "—"} · MMSI: {r.mmsi || "—"} · {r.vesselType}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-slate-500">Gemi adı, IMO veya MMSI ile arayın, seçince form otomatik dolar</p>
+          </div>
+        )}
+        {lookupDone && <div className="flex items-center gap-1.5 text-xs text-green-400"><span>✓</span> Datalastic ile dolduruldu</div>}
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="imoNumber">
@@ -251,7 +347,7 @@ function VesselForm({
               onChange={(e) => { set("imoNumber", e.target.value); setLookupDone(false); }}
               className="flex-1" data-testid="input-imo" />
             <Button type="button" variant="outline" size="icon"
-              title="Auto-fill from vessel registry"
+              title="IMO ile Datalastic'ten otomatik doldur"
               disabled={!form.imoNumber.trim() || lookupMutation.isPending}
               onClick={() => lookupMutation.mutate(form.imoNumber.trim())}
               data-testid="button-lookup-imo">
@@ -322,6 +418,26 @@ function VesselForm({
           <Input id="yearBuilt" type="number" placeholder="e.g. 2005" value={form.yearBuilt}
             onChange={(e) => set("yearBuilt", e.target.value)} data-testid="input-year-built" />
         </div>
+        <div className="space-y-2">
+          <Label htmlFor="mmsi">MMSI</Label>
+          <Input id="mmsi" placeholder="e.g. 271000001" value={form.mmsi}
+            onChange={(e) => set("mmsi", e.target.value)} data-testid="input-mmsi" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="classificationSociety">Classification Society</Label>
+          <Input id="classificationSociety" placeholder="e.g. Bureau Veritas" value={form.classificationSociety}
+            onChange={(e) => set("classificationSociety", e.target.value)} data-testid="input-class-society" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="engineType">Engine Type</Label>
+          <Input id="engineType" placeholder="e.g. MAN B&W" value={form.engineType}
+            onChange={(e) => set("engineType", e.target.value)} data-testid="input-engine-type" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="enginePower">Engine Power (kW)</Label>
+          <Input id="enginePower" type="number" placeholder="e.g. 4900" value={form.enginePower}
+            onChange={(e) => set("enginePower", e.target.value)} data-testid="input-engine-power" />
+        </div>
       </div>
       <div className="flex justify-end gap-3 pt-2">
         <Button type="button" variant="outline" onClick={onCancel} data-testid="button-cancel-vessel">Cancel</Button>
@@ -330,6 +446,134 @@ function VesselForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+// ─── DatalasticPanel ──────────────────────────────────────────────────────────
+
+function DatalasticPanel({ vessel }: { vessel: Vessel }) {
+
+  const posQuery = useQuery({
+    queryKey: ["/api/vessels/live-position", vessel.imoNumber, (vessel as any).mmsi],
+    queryFn: async () => {
+      const param = vessel.imoNumber ? `imo=${vessel.imoNumber}` : `mmsi=${(vessel as any).mmsi}`;
+      const res = await fetch(`/api/vessels/live-position?${param}`);
+      if (!res.ok) { const e = await res.json(); throw new Error(e.message); }
+      return res.json() as Promise<{
+        latitude: number; longitude: number; speed: number; course: number;
+        heading: number; destination: string | null; eta: string | null;
+        navigation_status: string | null; timestamp: string; port_name: string | null; country: string | null;
+      }>;
+    },
+    enabled: !!(vessel.imoNumber || (vessel as any).mmsi),
+    retry: false,
+  });
+
+  const portCallQuery = useQuery({
+    queryKey: ["/api/vessels/port-call-history", vessel.imoNumber],
+    queryFn: async () => {
+      const res = await fetch(`/api/vessels/port-call-history?imo=${vessel.imoNumber}`);
+      if (!res.ok) { const e = await res.json(); throw new Error(e.message); }
+      return res.json() as Promise<{
+        port_name: string; country: string; locode: string | null;
+        arrival: string | null; departure: string | null; terminal: string | null;
+      }[]>;
+    },
+    enabled: !!vessel.imoNumber,
+    retry: false,
+  });
+
+  const trackVesselLink = vessel.imoNumber
+    ? `/vessel-track?searchImo=${vessel.imoNumber}`
+    : null;
+
+  return (
+    <div className="space-y-4" data-testid="datalastic-panel">
+      {/* Header */}
+      <div className="flex items-center gap-2 pb-1 border-b">
+        <span className="text-base">🛰</span>
+        <span className="text-sm font-bold">Datalastic Canlı Veri</span>
+        {trackVesselLink && (
+          <Link href={trackVesselLink} className="ml-auto">
+            <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 border-blue-500/30 text-blue-400">
+              <MapPin className="w-3 h-3" /> Haritada Göster
+            </Button>
+          </Link>
+        )}
+      </div>
+
+      {/* Live Position */}
+      <div className="rounded-lg border bg-card/50 p-3">
+        <div className="flex items-center gap-1.5 pb-2 border-b mb-2">
+          <MapPin className="w-3 h-3 text-primary" />
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Canlı Konum</p>
+          {posQuery.isLoading && <Loader2 className="w-3 h-3 animate-spin ml-auto text-muted-foreground" />}
+        </div>
+        {posQuery.isError ? (
+          <p className="text-xs text-muted-foreground py-2">{(posQuery.error as Error).message}</p>
+        ) : posQuery.data ? (
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              { label: "Enlem", value: posQuery.data.latitude?.toFixed(4) ?? "—" },
+              { label: "Boylam", value: posQuery.data.longitude?.toFixed(4) ?? "—" },
+              { label: "Sürat", value: posQuery.data.speed != null ? `${posQuery.data.speed} kn` : "—" },
+              { label: "Rota", value: posQuery.data.course != null ? `${posQuery.data.course}°` : "—" },
+              { label: "Varış Yeri", value: posQuery.data.destination || "—" },
+              { label: "ETA", value: posQuery.data.eta ? new Date(posQuery.data.eta).toLocaleDateString("tr-TR") : "—" },
+              { label: "Durum", value: posQuery.data.navigation_status || "—" },
+              { label: "Güncelleme", value: posQuery.data.timestamp ? new Date(posQuery.data.timestamp).toLocaleString("tr-TR") : "—" },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between gap-2 text-xs">
+                <span className="text-muted-foreground shrink-0">{label}</span>
+                <span className="font-semibold text-right truncate">{value}</span>
+              </div>
+            ))}
+          </div>
+        ) : posQuery.isLoading ? (
+          <div className="py-3 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" /> Konum alınıyor...
+          </div>
+        ) : !vessel.imoNumber && !(vessel as any).mmsi ? (
+          <p className="text-xs text-muted-foreground py-2">Bu gemi için IMO veya MMSI numarası girilmemiş.</p>
+        ) : null}
+      </div>
+
+      {/* Port Call History */}
+      <div className="rounded-lg border bg-card/50 p-3">
+        <div className="flex items-center gap-1.5 pb-2 border-b mb-2">
+          <Ship className="w-3 h-3 text-primary" />
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Liman Çağrısı Geçmişi</p>
+          {portCallQuery.isLoading && <Loader2 className="w-3 h-3 animate-spin ml-auto text-muted-foreground" />}
+        </div>
+        {portCallQuery.isError ? (
+          <p className="text-xs text-muted-foreground py-2">{(portCallQuery.error as Error).message}</p>
+        ) : portCallQuery.data && portCallQuery.data.length > 0 ? (
+          <div className="space-y-1.5 max-h-56 overflow-y-auto">
+            {portCallQuery.data.map((call, i) => (
+              <div key={i} className="flex items-start justify-between gap-2 text-xs border-b border-border/50 pb-1.5 last:border-0 last:pb-0">
+                <div className="min-w-0">
+                  <p className="font-semibold truncate">{call.port_name || "—"}</p>
+                  <p className="text-muted-foreground">{call.country || ""}{call.locode ? ` (${call.locode})` : ""}</p>
+                  {call.terminal && <p className="text-muted-foreground text-[10px]">{call.terminal}</p>}
+                </div>
+                <div className="text-right shrink-0">
+                  {call.arrival && <p className="text-green-400 text-[10px]">▶ {new Date(call.arrival).toLocaleDateString("tr-TR")}</p>}
+                  {call.departure && <p className="text-red-400 text-[10px]">◀ {new Date(call.departure).toLocaleDateString("tr-TR")}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : portCallQuery.isLoading ? (
+          <div className="py-3 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" /> Geçmiş alınıyor...
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground py-2">
+            {!vessel.imoNumber ? "IMO numarası gerekli." : "Liman çağrısı geçmişi bulunamadı."}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -779,7 +1023,7 @@ export default function Vessels() {
   const [editingVessel, setEditingVessel] = useState<Vessel | null>(null);
   const [deleteVesselId, setDeleteVesselId] = useState<number | null>(null);
   const [selectedVessel, setSelectedVessel] = useState<Vessel | null>(null);
-  const [detailTab, setDetailTab] = useState<"general" | "voyage" | "technical" | "certificates" | "crew">("general");
+  const [detailTab, setDetailTab] = useState<"general" | "voyage" | "technical" | "certificates" | "crew" | "datalastic">("general");
   const [statusFilter, setStatusFilter] = useState<FilterGroup>("all");
   const [search, setSearch] = useState("");
   const { toast } = useToast();
@@ -1436,13 +1680,13 @@ export default function Vessels() {
                   </div>
                 </div>
                   <div className="flex gap-1 bg-muted/40 p-1 rounded-xl flex-wrap">
-                    {(["general", "voyage", "technical", "certificates", "crew"] as const).map((tab) => (
+                    {(["general", "voyage", "technical", "certificates", "crew", "datalastic"] as const).map((tab) => (
                       <button
                         key={tab}
                         onClick={() => setDetailTab(tab)}
-                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all min-w-[60px] ${detailTab === tab ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                        className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all min-w-[56px] ${detailTab === tab ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"} ${tab === "datalastic" ? "text-blue-400" : ""}`}
                       >
-                        {{ general: "General", voyage: "Voyage", technical: "Technical", certificates: "Certificates", crew: "Crew" }[tab]}
+                        {{ general: "General", voyage: "Voyage", technical: "Technical", certificates: "Certs", crew: "Crew", datalastic: "🛰 Live" }[tab]}
                       </button>
                     ))}
                   </div>
@@ -2118,6 +2362,11 @@ export default function Vessels() {
                     </div>
                   )}
                 </div>
+
+                  {/* ── Datalastic Live Tab ── */}
+                  {detailTab === "datalastic" && (
+                    <DatalasticPanel vessel={v} />
+                  )}
 
               {/* ── Sticky Footer Actions ── */}
               <div className="flex-shrink-0 border-t p-4 flex gap-2 bg-background">

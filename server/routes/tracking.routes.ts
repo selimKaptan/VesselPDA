@@ -5,6 +5,7 @@ import { isAdmin, seededRandom } from "./shared";
 import { startAISStream, getPositions, searchVessels, isConnected, getDataSource, getCacheSize } from "../ais-stream";
 import { db, pool } from "../db";
 import { sql as drizzleSql, eq, desc } from "drizzle-orm";
+import * as datalastic from "../datalastic";
 
 const router = Router();
 
@@ -231,5 +232,56 @@ router.get("/api/vessel-track/history/:mmsi", isAuthenticated, async (req, res) 
   }
 });
 
+
+router.get("/datalastic-search", isAuthenticated, async (req, res) => {
+  const q = (req.query.q as string || "").trim();
+  const type = (req.query.type as string || "name") as "name" | "imo" | "mmsi";
+  if (!q) return res.status(400).json({ message: "q gerekli" });
+  if (!process.env.DATALASTIC_API_KEY) return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
+  try {
+    const results = await datalastic.findVessel(q, type);
+    res.json(results.slice(0, 10).map(v => ({
+      uuid: v.uuid, name: v.name, imo: v.imo, mmsi: v.mmsi, flag: v.flag,
+      vessel_type: v.vessel_type, latitude: v.latitude, longitude: v.longitude,
+      speed: v.speed, destination: v.destination,
+    })));
+  } catch (error: any) {
+    console.error("Datalastic search error:", error.message);
+    res.status(502).json({ message: "Datalastic arama başarısız." });
+  }
+});
+
+router.get("/datalastic-track", isAuthenticated, async (req, res) => {
+  const imo = (req.query.imo as string || "").trim();
+  const mmsi = (req.query.mmsi as string || "").trim();
+  if (!imo && !mmsi) return res.status(400).json({ message: "imo veya mmsi gerekli" });
+  if (!process.env.DATALASTIC_API_KEY) return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
+  try {
+    const uuid = await datalastic.resolveUuid(imo || null, mmsi || null);
+    if (!uuid) return res.status(404).json({ message: "Gemi bulunamadı" });
+    const track = await datalastic.getHistoricalTrack(uuid);
+    if (!track.length) return res.json({ type: "FeatureCollection", features: [], line: null, count: 0 });
+    const pointFeatures = track.map(p => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [p.longitude, p.latitude] },
+      properties: { speed: p.speed, course: p.course, timestamp: p.timestamp },
+    }));
+    const lineCoords = track.map(p => [p.longitude, p.latitude]);
+    res.json({
+      type: "FeatureCollection",
+      count: track.length,
+      source: "datalastic",
+      features: pointFeatures,
+      line: lineCoords.length >= 2 ? {
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: lineCoords },
+        properties: {},
+      } : null,
+    });
+  } catch (error: any) {
+    console.error("Datalastic track error:", error.message);
+    res.status(502).json({ message: "Rota geçmişi alınamadı." });
+  }
+});
 
 export default router;

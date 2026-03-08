@@ -479,6 +479,7 @@ export default function VesselTrack() {
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
   const [selectedHistoryMmsi, setSelectedHistoryMmsi] = useState<string | null>(null);
   const [historyRange, setHistoryRange] = useState<"1" | "3" | "7">("1");
+  const [useDatalasticTrack, setUseDatalasticTrack] = useState(false);
   const historyPopupRef = useRef<mapboxgl.Popup | null>(null);
 
   const { data: aisStatus } = useQuery<{ connected: boolean; vesselCount: number; mode: "live" | "demo" }>({
@@ -504,9 +505,26 @@ export default function VesselTrack() {
       );
       return res.json();
     },
-    enabled: !!selectedHistoryMmsi,
+    enabled: !!selectedHistoryMmsi && !useDatalasticTrack,
     staleTime: 60000,
   });
+
+  const { data: datalasticTrackData, isFetching: fetchingDatalasticTrack } = useQuery<{
+    type: string; count: number; features: any[]; line: any | null; source?: string;
+  }>({
+    queryKey: ["/api/vessel-track/datalastic-track", selectedHistoryMmsi],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/vessel-track/datalastic-track?mmsi=${encodeURIComponent(selectedHistoryMmsi!)}`,
+        { credentials: "include" }
+      );
+      return res.json();
+    },
+    enabled: !!selectedHistoryMmsi && useDatalasticTrack,
+    staleTime: 300000,
+  });
+
+  const activeHistoryData = useDatalasticTrack ? datalasticTrackData : historyData;
 
   const handleFocus = useCallback((v: AISVessel) => {
     const id = String(v.mmsi || v.id || "");
@@ -690,7 +708,7 @@ export default function VesselTrack() {
       } catch { /* map might be mid-removal */ }
     }
 
-    if (!selectedHistoryMmsi || !historyData || historyData.count === 0 || !historyData.line) {
+    if (!selectedHistoryMmsi || !activeHistoryData || activeHistoryData.count === 0 || !activeHistoryData.line) {
       safeRemove();
       return;
     }
@@ -698,16 +716,19 @@ export default function VesselTrack() {
     const doAdd = () => {
       safeRemove();
       try {
-        map.addSource(LINE_SRC, { type: "geojson", data: historyData.line });
+        const lineColor = useDatalasticTrack ? "#A78BFA" : "#60A5FA";
+        const ptColor = useDatalasticTrack ? "#EDE9FE" : "#BFDBFE";
+        const strokeColor = useDatalasticTrack ? "#7C3AED" : "#2563EB";
+        map.addSource(LINE_SRC, { type: "geojson", data: activeHistoryData.line });
         map.addLayer({
           id: LINE_LAYER, type: "line", source: LINE_SRC,
           layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-color": "#60A5FA", "line-width": 2.5, "line-opacity": 0.85 },
+          paint: { "line-color": lineColor, "line-width": 2.5, "line-opacity": 0.85 },
         });
-        map.addSource(PTS_SRC, { type: "geojson", data: { type: "FeatureCollection", features: historyData.features } });
+        map.addSource(PTS_SRC, { type: "geojson", data: { type: "FeatureCollection", features: activeHistoryData.features } });
         map.addLayer({
           id: PTS_LAYER, type: "circle", source: PTS_SRC,
-          paint: { "circle-radius": 5, "circle-color": "#BFDBFE", "circle-stroke-width": 1.5, "circle-stroke-color": "#2563EB", "circle-opacity": 0.9 },
+          paint: { "circle-radius": 5, "circle-color": ptColor, "circle-stroke-width": 1.5, "circle-stroke-color": strokeColor, "circle-opacity": 0.9 },
         });
 
         const popup = new mapboxgl.Popup({ closeButton: false, offset: 10 });
@@ -740,7 +761,7 @@ export default function VesselTrack() {
 
     if (map.loaded()) doAdd(); else map.once("load", doAdd);
     return safeRemove;
-  }, [selectedHistoryMmsi, historyData]);
+  }, [selectedHistoryMmsi, activeHistoryData, useDatalasticTrack]);
 
   // Resize map when switching back to map view
   useEffect(() => {
@@ -893,32 +914,47 @@ export default function VesselTrack() {
 
         {/* History route control panel */}
         {selectedHistoryMmsi && (
-          <div className="absolute top-3 left-3 z-[1000] bg-background/95 backdrop-blur border rounded-lg shadow-lg px-3 py-2 flex items-center gap-2" data-testid="panel-history-controls">
+          <div className="absolute top-3 left-3 z-[1000] bg-background/95 backdrop-blur border rounded-lg shadow-lg px-3 py-2 flex items-center gap-2 flex-wrap max-w-sm" data-testid="panel-history-controls">
             <Clock className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
             <span className="text-xs font-semibold text-foreground whitespace-nowrap">Route History</span>
-            <div className="flex gap-1">
-              {(["1", "3", "7"] as const).map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setHistoryRange(d)}
-                  data-testid={`button-history-range-${d}`}
-                  className={`px-2 py-0.5 text-[11px] rounded font-semibold transition-colors ${
-                    historyRange === d
-                      ? "bg-blue-600 text-white"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  }`}
-                >
-                  {d === "1" ? "24h" : d === "3" ? "3d" : "7d"}
-                </button>
-              ))}
-            </div>
-            {historyData && (
+            {!useDatalasticTrack && (
+              <div className="flex gap-1">
+                {(["1", "3", "7"] as const).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setHistoryRange(d)}
+                    data-testid={`button-history-range-${d}`}
+                    className={`px-2 py-0.5 text-[11px] rounded font-semibold transition-colors ${
+                      historyRange === d
+                        ? "bg-blue-600 text-white"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    {d === "1" ? "24h" : d === "3" ? "3d" : "7d"}
+                  </button>
+                ))}
+              </div>
+            )}
+            {activeHistoryData && (
               <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                {historyData.count} pts
+                {useDatalasticTrack && <span>🛰 </span>}{activeHistoryData.count} pts
               </span>
             )}
             <button
-              onClick={() => setSelectedHistoryMmsi(null)}
+              onClick={() => { setUseDatalasticTrack(v => !v); }}
+              data-testid="button-toggle-datalastic-track"
+              title={useDatalasticTrack ? "AIS geçmişine dön" : "Datalastic geçmiş rotası"}
+              className={`px-2 py-0.5 text-[11px] rounded font-semibold transition-colors flex items-center gap-1 ${
+                useDatalasticTrack
+                  ? "bg-violet-600 text-white"
+                  : "bg-muted text-muted-foreground hover:bg-violet-600 hover:text-white"
+              }`}
+            >
+              {fetchingDatalasticTrack ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <span>🛰</span>}
+              {useDatalasticTrack ? "Datalastic ✓" : "Datalastic"}
+            </button>
+            <button
+              onClick={() => { setSelectedHistoryMmsi(null); setUseDatalasticTrack(false); }}
               data-testid="button-clear-history"
               className="ml-1 text-muted-foreground hover:text-foreground transition-colors"
             >

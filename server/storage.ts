@@ -97,6 +97,7 @@ export interface IStorage {
 
   getVesselsByUser(userId: string): Promise<Vessel[]>;
   getVessel(id: number, userId: string): Promise<Vessel | undefined>;
+  getVesselById(id: number): Promise<Vessel | undefined>;
   createVessel(vessel: InsertVessel): Promise<Vessel>;
   updateVessel(id: number, userId: string, data: Partial<InsertVessel>): Promise<Vessel | undefined>;
   updateVesselById(id: number, data: Partial<InsertVessel>): Promise<Vessel | undefined>;
@@ -420,6 +421,11 @@ export class DatabaseStorage implements IStorage {
 
   async getVessel(id: number, userId: string): Promise<Vessel | undefined> {
     const [vessel] = await db.select().from(vessels).where(and(eq(vessels.id, id), eq(vessels.userId, userId)));
+    return vessel;
+  }
+
+  async getVesselById(id: number): Promise<Vessel | undefined> {
+    const [vessel] = await db.select().from(vessels).where(eq(vessels.id, id));
     return vessel;
   }
 

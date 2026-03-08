@@ -6,6 +6,7 @@ import { saveBase64File } from "../file-storage";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import * as datalastic from "../datalastic";
 
 const router = Router();
 
@@ -86,71 +87,158 @@ router.delete("/:id", isAuthenticated, async (req: any, res) => {
 });
 
 
+function mapDatalasticVessel(d: datalastic.DatalasticVessel, fallbackImo?: string) {
+  const typeMap: Record<string, string> = {
+    "bulk carrier": "Bulk Carrier", "container": "Container Ship",
+    "tanker": "Tanker", "ro-ro": "Ro-Ro", "passenger": "Passenger",
+    "chemical": "Chemical Tanker", "lpg": "LPG Carrier",
+    "lng": "LNG Carrier", "reefer": "Reefer",
+    "general cargo": "General Cargo", "cargo": "General Cargo",
+    "tug": "Tug", "supply": "Supply Vessel", "fishing": "Fishing Vessel",
+  };
+  const rawType = (d.vessel_type || "").toLowerCase();
+  const mappedType = Object.entries(typeMap).find(([k]) => rawType.includes(k))?.[1] || "General Cargo";
+  return {
+    datalasticUuid: d.uuid,
+    name: d.name || "",
+    flag: d.flag || "Turkey",
+    vesselType: mappedType,
+    imoNumber: d.imo ? String(d.imo) : fallbackImo || "",
+    mmsi: d.mmsi ? String(d.mmsi) : null,
+    callSign: d.call_sign || null,
+    yearBuilt: d.year_built || null,
+    grt: d.grt || null,
+    nrt: d.nrt || null,
+    dwt: d.dwt || null,
+    loa: d.loa || null,
+    beam: d.beam || null,
+    enginePower: d.engine_power || null,
+    engineType: d.engine_type || null,
+    classificationSociety: d.classification_society || null,
+  };
+}
+
 router.get("/lookup", isAuthenticated, async (req, res) => {
   const imo = (req.query.imo as string || "").replace(/\D/g, "");
   if (!imo || imo.length < 5) {
-    return res.status(400).json({ message: "Please enter a valid IMO number (5–7 digits)" });
+    return res.status(400).json({ message: "Geçerli bir IMO numarası girin (5–7 rakam)" });
   }
-  const apiKey = process.env.VESSEL_API_KEY;
-  if (!apiKey) {
-    return res.status(503).json({
-      message: "Vessel lookup is not configured. Add a RapidAPI key as VESSEL_API_KEY to enable auto-fill.",
-      setupUrl: "https://rapidapi.com/zyla-labs-zyla-labs-default/api/vessel-information-api",
-    });
+  if (!process.env.DATALASTIC_API_KEY) {
+    return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
   }
   try {
-    const response = await fetch(
-      `https://vessel-information-api.p.rapidapi.com/1498/get%2Bvessel%2Binfo?imoCode=${imo}`,
-      {
-        headers: {
-          "X-RapidAPI-Key": apiKey,
-          "X-RapidAPI-Host": "vessel-information-api.p.rapidapi.com",
-        },
-        signal: AbortSignal.timeout(8000),
-      }
-    );
-    const json: any = await response.json();
-    if (!response.ok || !json.success || !json.data) {
-      const msg = json?.message || "Vessel not found";
-      return res.status(404).json({ message: msg });
+    const results = await datalastic.findVessel(imo, "imo");
+    if (!results.length) return res.status(404).json({ message: "Gemi bulunamadı" });
+    const d = results[0];
+    let specs = d;
+    if (d.uuid) {
+      const full = await datalastic.getVesselByUuid(d.uuid).catch(() => null);
+      if (full) specs = { ...d, ...full };
     }
-    const d = json.data;
-    const knownFlags = [
-      "Turkey", "Malta", "Panama", "Liberia", "Marshall Islands", "Bahamas",
-      "Greece", "Cyprus", "Singapore", "Hong Kong", "Norway", "United Kingdom",
-      "Antigua & Barbuda", "Belize", "Comoros", "Cook Islands", "Tuvalu",
-      "Vanuatu", "Tanzania", "Palau",
-    ];
-    const typeMap: Record<string, string> = {
-      "Bulk Carrier": "Bulk Carrier", "Container Ship": "Container Ship",
-      "Container": "Container Ship", "Tanker": "Tanker", "Ro-Ro": "Ro-Ro",
-      "Ro-Ro Cargo": "Ro-Ro", "Passenger": "Passenger",
-      "Chemical Tanker": "Chemical Tanker", "LPG Tanker": "LPG Carrier",
-      "LNG Tanker": "LNG Carrier", "Reefer": "Reefer",
-      "General Cargo": "General Cargo", "Cargo": "General Cargo",
-    };
-    const rawType = d.ship_type || d.vessel_type || "";
-    const mappedType = Object.entries(typeMap).find(([k]) =>
-      rawType.toLowerCase().includes(k.toLowerCase())
-    )?.[1] || "General Cargo";
-    const rawFlag = d.flag || "";
-    const mappedFlag = knownFlags.find(f => f.toLowerCase() === rawFlag.toLowerCase()) || rawFlag || "Turkey";
-    res.json({
-      name: d.vessel_name || "",
-      flag: mappedFlag,
-      vesselType: mappedType,
-      imoNumber: String(d.imo_number || imo),
-      mmsi: d.mmsi ? String(d.mmsi) : null,
-      callSign: d.call_sign || d.callsign || "",
-      grt: d.gross_tonnage ? parseFloat(d.gross_tonnage) : null,
-      nrt: d.net_tonnage ? parseFloat(d.net_tonnage) : null,
-      dwt: d.summer_deadweight_t ? parseFloat(d.summer_deadweight_t) : null,
-      loa: d.length_overall_m ? parseFloat(d.length_overall_m) : null,
-      beam: d.beam_m ? parseFloat(d.beam_m) : null,
-    });
+    res.json(mapDatalasticVessel(specs, imo));
   } catch (error: any) {
     console.error("Vessel lookup error:", error.message);
-    res.status(502).json({ message: "Lookup failed. Please try again or enter details manually." });
+    res.status(502).json({ message: "Sorgulama başarısız. Tekrar deneyin veya bilgileri manuel girin." });
+  }
+});
+
+router.get("/finder", isAuthenticated, async (req, res) => {
+  const q = (req.query.q as string || "").trim();
+  const type = (req.query.type as string || "name") as "name" | "imo" | "mmsi";
+  if (!q || q.length < 2) return res.status(400).json({ message: "En az 2 karakter girin" });
+  if (!process.env.DATALASTIC_API_KEY) return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
+  try {
+    const results = await datalastic.findVessel(q, type);
+    res.json(results.slice(0, 15).map(d => mapDatalasticVessel(d)));
+  } catch (error: any) {
+    console.error("Vessel finder error:", error.message);
+    res.status(502).json({ message: "Arama başarısız." });
+  }
+});
+
+router.get("/live-position", isAuthenticated, async (req, res) => {
+  const imo = (req.query.imo as string || "").trim();
+  const mmsi = (req.query.mmsi as string || "").trim();
+  if (!imo && !mmsi) return res.status(400).json({ message: "imo veya mmsi gerekli" });
+  if (!process.env.DATALASTIC_API_KEY) return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
+  try {
+    const uuid = await datalastic.resolveUuid(imo || null, mmsi || null);
+    if (!uuid) return res.status(404).json({ message: "Gemi bulunamadı" });
+    const pos = await datalastic.getCurrentPosition(uuid);
+    if (!pos) return res.status(404).json({ message: "Konum verisi yok" });
+    res.json({ ...pos, uuid });
+  } catch (error: any) {
+    console.error("Live position error:", error.message);
+    res.status(502).json({ message: "Konum alınamadı." });
+  }
+});
+
+router.get("/port-call-history", isAuthenticated, async (req, res) => {
+  const imo = (req.query.imo as string || "").trim();
+  if (!imo) return res.status(400).json({ message: "imo gerekli" });
+  if (!process.env.DATALASTIC_API_KEY) return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
+  try {
+    const uuid = await datalastic.resolveUuid(imo);
+    if (!uuid) return res.status(404).json({ message: "Gemi bulunamadı" });
+    const calls = await datalastic.getPortCalls(uuid);
+    res.json(calls.slice(0, 20));
+  } catch (error: any) {
+    console.error("Port call history error:", error.message);
+    res.status(502).json({ message: "Liman geçmişi alınamadı." });
+  }
+});
+
+router.get("/:vesselId/datalastic-inspections", isAuthenticated, async (req: any, res) => {
+  const vesselId = parseInt(req.params.vesselId);
+  if (!process.env.DATALASTIC_API_KEY) return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
+  try {
+    const vessel = await storage.getVesselById(vesselId);
+    if (!vessel) return res.status(404).json({ message: "Gemi bulunamadı" });
+    let uuid = (vessel as any).datalasticUuid;
+    if (!uuid) {
+      uuid = await datalastic.resolveUuid(vessel.imoNumber, (vessel as any).mmsi, vessel.name);
+    }
+    if (!uuid) return res.status(404).json({ message: "Datalastic'te bu gemi bulunamadı" });
+    const inspections = await datalastic.getInspections(uuid);
+    res.json(inspections);
+  } catch (error: any) {
+    console.error("Datalastic inspections error:", error.message);
+    res.status(502).json({ message: "Denetim kayıtları alınamadı." });
+  }
+});
+
+router.get("/:vesselId/datalastic-track", isAuthenticated, async (req: any, res) => {
+  const vesselId = parseInt(req.params.vesselId);
+  if (!process.env.DATALASTIC_API_KEY) return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
+  try {
+    const vessel = await storage.getVesselById(vesselId);
+    if (!vessel) return res.status(404).json({ message: "Gemi bulunamadı" });
+    let uuid = (vessel as any).datalasticUuid;
+    if (!uuid) {
+      uuid = await datalastic.resolveUuid(vessel.imoNumber, (vessel as any).mmsi, vessel.name);
+    }
+    if (!uuid) return res.status(404).json({ message: "Datalastic'te bu gemi bulunamadı" });
+    const track = await datalastic.getHistoricalTrack(uuid);
+    if (!track.length) return res.json({ type: "FeatureCollection", features: [], line: null, count: 0 });
+    const pointFeatures = track.map((p: datalastic.DatalasticTrackPoint) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [p.longitude, p.latitude] },
+      properties: { speed: p.speed, course: p.course, timestamp: p.timestamp },
+    }));
+    const lineCoords = track.map((p: datalastic.DatalasticTrackPoint) => [p.longitude, p.latitude]);
+    res.json({
+      type: "FeatureCollection",
+      count: track.length,
+      features: pointFeatures,
+      line: lineCoords.length >= 2 ? {
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: lineCoords },
+        properties: {},
+      } : null,
+    });
+  } catch (error: any) {
+    console.error("Datalastic track error:", error.message);
+    res.status(502).json({ message: "Rota geçmişi alınamadı." });
   }
 });
 

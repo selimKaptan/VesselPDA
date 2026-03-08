@@ -395,7 +395,7 @@ function doc6_ekimTur(opts: DocGeneratorOptions, docDate: string): string {
 // ─── Ana Belge Üretici ────────────────────────────────────────────────────────
 const DOC_STYLES = `
   <style>
-    @page { size: A4; margin: 20mm 20mm 15mm 20mm; }
+    @page { size: A4 portrait; margin: 20mm 20mm 15mm 20mm; }
     * { box-sizing: border-box; }
     body { font-family: "Times New Roman", Times, serif; font-size: 11pt; color: #000; }
     .doc-page { page-break-after: always; min-height: 240mm; display: flex; flex-direction: column; }
@@ -492,7 +492,7 @@ export function generateAndPrintCrewDocs(
     </html>
   `;
 
-  const printWindow = window.open("", "_blank", "width=900,height=700");
+  const printWindow = window.open("", "_blank", "width=794,height=1123");
   if (printWindow) {
     printWindow.document.write(html);
     printWindow.document.close();

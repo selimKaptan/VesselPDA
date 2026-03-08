@@ -12,7 +12,9 @@ import {
   Shield,
   FileText,
   MapPin,
-  ClipboardList
+  ClipboardList,
+  Download,
+  Loader2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,6 +35,9 @@ export default function DefectTracker() {
   const { toast } = useToast();
   const [selectedVesselId, setSelectedVesselId] = useState<string>("");
   const [activeTab, setActiveTab] = useState("defects");
+  const [showDatalasticImport, setShowDatalasticImport] = useState(false);
+  const [datalasticInspections, setDatalasticInspections] = useState<any[]>([]);
+  const [importingIdx, setImportingIdx] = useState<number | null>(null);
 
   const { data: vessels = [] } = useQuery<Vessel[]>({
     queryKey: ["/api/vessels"],
@@ -375,18 +380,40 @@ export default function DefectTracker() {
         </TabsContent>
 
         <TabsContent value="psc" className="mt-6">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
             <div className="relative w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
               <Input placeholder="Search inspections..." className="pl-10 bg-slate-900 border-slate-800 text-white" />
             </div>
             
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button className="bg-sky-600 hover:bg-sky-700 text-white">
-                  <Plus className="h-4 w-4 mr-2" /> Record PSC Inspection
+            <div className="flex gap-2">
+              {/* Datalastic Import Button */}
+              {selectedVesselId && (
+                <Button variant="outline" className="border-blue-500/40 text-blue-400 hover:bg-blue-500/10"
+                  data-testid="button-datalastic-psc-import"
+                  onClick={async () => {
+                    setDatalasticInspections([]);
+                    setShowDatalasticImport(true);
+                    try {
+                      const res = await fetch(`/api/vessels/${selectedVesselId}/datalastic-inspections`);
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.message || "Failed");
+                      setDatalasticInspections(Array.isArray(data) ? data : []);
+                    } catch (err: any) {
+                      toast({ title: "Datalastic bağlantısı başarısız", description: err.message, variant: "destructive" });
+                      setShowDatalasticImport(false);
+                    }
+                  }}>
+                  <Download className="h-4 w-4 mr-2" /> Datalastic'ten İçe Aktar
                 </Button>
-              </DialogTrigger>
+              )}
+
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button className="bg-sky-600 hover:bg-sky-700 text-white">
+                    <Plus className="h-4 w-4 mr-2" /> Record PSC Inspection
+                  </Button>
+                </DialogTrigger>
               <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-2xl">
                 <DialogHeader>
                   <DialogTitle>Record PSC Inspection</DialogTitle>
@@ -454,7 +481,83 @@ export default function DefectTracker() {
                 </form>
               </DialogContent>
             </Dialog>
+            </div>{/* end flex gap-2 */}
           </div>
+
+          {/* Datalastic Import Modal */}
+          <Dialog open={showDatalasticImport} onOpenChange={setShowDatalasticImport}>
+            <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-3xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <span>🛰</span> Datalastic PSC Denetim Geçmişi
+                </DialogTitle>
+              </DialogHeader>
+              {datalasticInspections.length === 0 ? (
+                <div className="py-8 text-center text-slate-400">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                  <p className="text-sm">Datalastic'ten kayıtlar alınıyor...</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-400">{datalasticInspections.length} kayıt bulundu. İçe aktarmak istediklerinizi seçin.</p>
+                  {datalasticInspections.map((ins: any, i: number) => (
+                    <div key={i} className="rounded-lg border border-slate-700 bg-slate-800/50 p-3 flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Shield className="h-4 w-4 text-sky-400 shrink-0" />
+                          <span className="font-semibold text-sm">{ins.port || "—"}</span>
+                          {ins.country && <span className="text-xs text-slate-400">{ins.country}</span>}
+                          {ins.detained && <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px]">DETAINED</Badge>}
+                        </div>
+                        <div className="text-xs text-slate-400 flex gap-3 flex-wrap">
+                          <span>📅 {ins.inspection_date ? new Date(ins.inspection_date).toLocaleDateString("tr-TR") : "—"}</span>
+                          <span>🏛 {ins.authority || "—"}</span>
+                          <span>Sonuç: <span className={ins.detained ? "text-red-400" : ins.deficiencies_count > 0 ? "text-amber-400" : "text-green-400"}>{ins.result || "—"}</span></span>
+                          {ins.deficiencies_count > 0 && <span>⚠ {ins.deficiencies_count} eksiklik</span>}
+                        </div>
+                        {ins.deficiencies && ins.deficiencies.length > 0 && (
+                          <div className="mt-1.5 space-y-0.5">
+                            {ins.deficiencies.slice(0, 3).map((d: any, j: number) => (
+                              <p key={j} className="text-xs text-slate-500">• {d.text || d.code}</p>
+                            ))}
+                            {ins.deficiencies.length > 3 && <p className="text-xs text-slate-600">+{ins.deficiencies.length - 3} daha...</p>}
+                          </div>
+                        )}
+                      </div>
+                      <Button size="sm" variant="outline" className="shrink-0 border-blue-500/30 text-blue-400 h-7 text-xs"
+                        disabled={importingIdx === i}
+                        data-testid={`button-import-inspection-${i}`}
+                        onClick={async () => {
+                          setImportingIdx(i);
+                          try {
+                            const body = {
+                              inspectionDate: ins.inspection_date || new Date().toISOString(),
+                              port: ins.port || "Unknown",
+                              pscAuthority: ins.authority || "Unknown",
+                              result: ins.detained ? "detention" : ins.deficiencies_count > 0 ? "deficiencies" : "pass",
+                              deficiencyCount: ins.deficiencies_count || 0,
+                              detention: !!ins.detained,
+                              notes: `Datalastic'ten aktarıldı. ${ins.deficiencies?.map((d: any) => d.text || d.code).join("; ") || ""}`.trim(),
+                            };
+                            const res = await apiRequest("POST", `/api/psc/vessels/${selectedVesselId}/inspections`, body);
+                            if (!res.ok) throw new Error((await res.json()).message);
+                            queryClient.invalidateQueries({ queryKey: [`/api/psc/vessels/${selectedVesselId}/inspections`] });
+                            toast({ title: "Denetim kaydedildi", description: `${ins.port} - ${ins.inspection_date}` });
+                          } catch (err: any) {
+                            toast({ title: "Kaydetme başarısız", description: err.message, variant: "destructive" });
+                          } finally {
+                            setImportingIdx(null);
+                          }
+                        }}>
+                        {importingIdx === i ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3 mr-1" />}
+                        İçe Aktar
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
