@@ -493,15 +493,42 @@ export function generateAndPrintCrewDocs(
       <meta charset="UTF-8">
       <title>Personel Değişikliği Belgeleri — ${opts.vessel.name}</title>
       ${DOC_STYLES}
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
+      <script>
+        async function savePDF() {
+          var btn = document.getElementById('pdfBtn');
+          btn.textContent = '\u23f3 Haz\u0131rlan\u0131yor...';
+          btn.disabled = true;
+          try {
+            var jsPDF = window.jspdf.jsPDF;
+            var pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            var docPages = document.querySelectorAll('.doc-page');
+            for (var i = 0; i < docPages.length; i++) {
+              if (i > 0) pdf.addPage();
+              var canvas = await html2canvas(docPages[i], { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
+              var imgData = canvas.toDataURL('image/jpeg', 0.92);
+              pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+            }
+            pdf.save('personel-degisikligi-belgeleri.pdf');
+            btn.textContent = '\u2705 \u0130ndirildi';
+            setTimeout(function() { btn.textContent = '\ud83d\udce5 PDF \u0130ndir'; btn.disabled = false; }, 2000);
+          } catch(err) {
+            alert('PDF hatas\u0131: ' + (err.message || err));
+            btn.textContent = '\ud83d\udce5 PDF \u0130ndir';
+            btn.disabled = false;
+          }
+        }
+      <\/script>
     </head>
     <body>
-      <button class="print-btn" onclick="window.print()">🖨 Yazdır / PDF Kaydet</button>
+      <button id="pdfBtn" class="print-btn" onclick="savePDF()">&#128229; PDF \u0130ndir</button>
       ${pages.join("\n")}
     </body>
     </html>
   `;
 
-  const printWindow = window.open("", "_blank", "width=800,height=1130");
+  const printWindow = window.open("", "_blank", "width=820,height=1160");
   if (printWindow) {
     printWindow.document.write(html);
     printWindow.document.close();
