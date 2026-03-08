@@ -25,6 +25,14 @@ function fmtDate(v: any): string {
   try { return new Date(v).toLocaleDateString("tr-TR"); } catch { return fmt(v); }
 }
 
+function fmtDateTime(v: any): string {
+  if (!v) return "—";
+  try {
+    const d = new Date(v);
+    return d.toLocaleDateString("tr-TR") + " " + d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  } catch { return String(v); }
+}
+
 function fmtNum(v: any, suffix = ""): string {
   if (v == null) return "—";
   const n = Number(v);
@@ -192,12 +200,27 @@ export default function VesselReport() {
       heading:           p.heading,
       navigation_status: p.navigation_status,
       destination:       p.destination ?? p.dest_port,
+      dest_port_name:    p.dest_port ?? null,
+      dest_unlocode:     p.dest_port_unlocode ?? null,
+      dep_port_name:     p.dep_port ?? null,
+      dep_unlocode:      p.dep_port_unlocode ?? null,
+      atd:               p.atd_UTC ?? null,
       eta:               p.eta_UTC,
       timestamp:         p.last_position_UTC,
       draught:           p.current_draught,
     } : null
   );
   const posIsFromPro = !posQ.data && posData != null;
+
+  // ── Voyage progress (0–100) from ATD→now→ETA ──────────────────────────────
+  const voyageProgress = (() => {
+    if (!posData?.atd || !posData?.eta) return null;
+    const start = Date.parse(posData.atd);
+    const end   = Date.parse(posData.eta);
+    const now   = Date.now();
+    if (end <= start) return null;
+    return Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100));
+  })();
 
   // ── Leaflet mini-map refs ─────────────────────────────────────────────────
   const miniMapContainerRef = useRef<HTMLDivElement>(null);
@@ -333,27 +356,99 @@ export default function VesselReport() {
             emptyText="Konum verisi bulunamadı."
           >
             {posData && (
-              <div className="space-y-3">
-                {/* Mini Leaflet map */}
+              <div className="-mx-4 -mt-4">
+                {/* ── Leaflet map — full bleed ── */}
                 <div
                   ref={miniMapContainerRef}
-                  className="w-full rounded-lg overflow-hidden border border-border/40"
-                  style={{ height: 180 }}
+                  className="w-full overflow-hidden"
+                  style={{ height: 220 }}
                 />
 
-                <InfoGrid rows={[
-                  { label: "Enlem",          value: posData.latitude?.toFixed(5)  ?? "—" },
-                  { label: "Boylam",         value: posData.longitude?.toFixed(5) ?? "—" },
-                  { label: "Hız",            value: posData.speed    != null ? `${posData.speed} kn`  : "—" },
-                  { label: "Rota",           value: posData.course   != null ? `${posData.course}°`   : "—" },
-                  { label: "Baş İstikameti", value: posData.heading  != null ? `${posData.heading}°`  : "—" },
-                  { label: "Su Kesimi",      value: posData.draught  != null ? `${posData.draught} m` : "—" },
-                  { label: "Durum",          value: fmt(posData.navigation_status) },
-                  { label: "Varış Yeri",     value: fmt(posData.destination) },
-                  { label: "ETA",            value: fmtDate(posData.eta) },
-                ]} />
+                {/* ── Voyage strip ── */}
+                {(posData.dep_port_name || posData.dest_port_name || posData.destination || posData.atd || posData.eta) && (
+                  <div className="border-t border-border/40 px-4 pt-3 pb-1">
+                    {/* Port row */}
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Kalkış</span>
+                        <span className="text-sm font-bold leading-tight">
+                          {posData.dep_port_name ?? "—"}
+                        </span>
+                        {posData.dep_unlocode && (
+                          <span className="text-[10px] font-mono text-primary">{posData.dep_unlocode}</span>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-0.5 items-end text-right">
+                        <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Varış</span>
+                        <span className="text-sm font-bold leading-tight">
+                          {posData.dest_port_name ?? posData.destination ?? "—"}
+                        </span>
+                        {posData.dest_unlocode && (
+                          <span className="text-[10px] font-mono text-primary">{posData.dest_unlocode}</span>
+                        )}
+                      </div>
+                    </div>
 
-                <div className="flex items-center justify-between">
+                    {/* Progress bar */}
+                    <div className="relative flex items-center gap-0 h-5">
+                      {/* Start dot */}
+                      <div className="w-2.5 h-2.5 rounded-full bg-primary border-2 border-background shrink-0 z-10" />
+
+                      {/* Track */}
+                      <div className="flex-1 relative flex items-center mx-1">
+                        {voyageProgress != null ? (
+                          <>
+                            {/* Solid part */}
+                            <div
+                              className="h-1 bg-primary rounded-l-full shrink-0"
+                              style={{ width: `${voyageProgress}%` }}
+                            />
+                            {/* Ship icon at current position */}
+                            <div className="shrink-0 z-10 -mx-1.5">
+                              <svg viewBox="0 0 24 24" width="14" height="14" xmlns="http://www.w3.org/2000/svg"
+                                style={{ filter: "drop-shadow(0 0 3px #3b82f6)" }}>
+                                <polygon points="12,2 20,22 12,17 4,22" fill="#3b82f6" stroke="#93c5fd" strokeWidth="1"/>
+                              </svg>
+                            </div>
+                            {/* Dotted part */}
+                            <div className="flex-1 border-t-2 border-dashed border-primary/40" />
+                          </>
+                        ) : (
+                          <div className="flex-1 border-t-2 border-dashed border-primary/30" />
+                        )}
+                      </div>
+
+                      {/* End pin */}
+                      <MapPin className="w-3.5 h-3.5 text-primary shrink-0 z-10" />
+                    </div>
+
+                    {/* ATD / ETA row */}
+                    <div className="flex justify-between mt-1.5">
+                      <span className="text-[10px] text-muted-foreground">
+                        {posData.atd ? `Kalkış: ${fmtDateTime(posData.atd)}` : ""}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {posData.eta ? `ETA: ${fmtDateTime(posData.eta)}` : ""}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Technical grid ── */}
+                <div className="px-4 pt-3 pb-0">
+                  <InfoGrid rows={[
+                    { label: "Enlem",          value: posData.latitude?.toFixed(5)  ?? "—" },
+                    { label: "Boylam",         value: posData.longitude?.toFixed(5) ?? "—" },
+                    { label: "Hız",            value: posData.speed    != null ? `${posData.speed} kn`  : "—" },
+                    { label: "Rota",           value: posData.course   != null ? `${posData.course}°`   : "—" },
+                    { label: "Baş İstikameti", value: posData.heading  != null ? `${posData.heading}°`  : "—" },
+                    { label: "Su Kesimi",      value: posData.draught  != null ? `${posData.draught} m` : "—" },
+                    { label: "Durum",          value: fmt(posData.navigation_status) },
+                  ]} />
+                </div>
+
+                {/* ── Footer: timestamp + link ── */}
+                <div className="px-4 pt-3 pb-4 flex items-center justify-between">
                   <div className="flex flex-col gap-0.5">
                     {posData.timestamp && (
                       <p className="text-[10px] text-muted-foreground flex items-center gap-1">
@@ -362,9 +457,7 @@ export default function VesselReport() {
                       </p>
                     )}
                     {posIsFromPro && (
-                      <p className="text-[10px] text-muted-foreground/60">
-                        Kaynak: Datalastic vessel_pro
-                      </p>
+                      <p className="text-[10px] text-muted-foreground/60">Kaynak: Datalastic vessel_pro</p>
                     )}
                   </div>
                   <Link href={`/vessel-track?imo=${imo}`}>
