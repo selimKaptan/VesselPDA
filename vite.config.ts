@@ -30,6 +30,21 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/jspdf") || id.includes("node_modules/jspdf-autotable")) {
+            return "vendor-pdf";
+          }
+          if (id.includes("node_modules/mapbox-gl")) {
+            return "vendor-maps";
+          }
+          if (id.includes("node_modules/jszip")) {
+            return "vendor-jszip";
+          }
+        },
+      },
+    },
   },
   server: {
     fs: {
