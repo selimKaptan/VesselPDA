@@ -11,6 +11,7 @@ import {
   TrendingUp, TrendingDown, AlertTriangle, Mail, Plane, LogIn, LogOut, Maximize2, Calculator, FolderLock,
   Scale, Banknote, CreditCard, Percent,
 } from "lucide-react";
+import "leaflet/dist/leaflet.css";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -240,6 +241,160 @@ function VoyageVaultSection({ vesselId }: { vesselId: number }) {
           <CheckCircle2 className="w-3.5 h-3.5" /> All uploaded statutory documents are valid.
         </p>
       )}
+    </Card>
+  );
+}
+
+// ─── VoyageLiveTracker ────────────────────────────────────────────────────────
+function VoyageLiveTracker({ voyage, portName, imoNumber }: {
+  voyage: any;
+  portName: string;
+  imoNumber: string | null;
+}) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const leafletMap = useRef<any>(null);
+
+  const { data: pos, isLoading } = useQuery<any>({
+    queryKey: ["/api/vessels/live-position", imoNumber],
+    queryFn: async () => {
+      const res = await fetch(`/api/vessels/live-position?imo=${encodeURIComponent(imoNumber!)}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!imoNumber,
+    staleTime: 2 * 60 * 1000,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (!pos || !mapRef.current) return;
+    let destroyed = false;
+    import("leaflet").then((LM) => {
+      if (destroyed || !mapRef.current) return;
+      const L = LM.default;
+      if (leafletMap.current) { leafletMap.current.remove(); leafletMap.current = null; }
+      const map = L.map(mapRef.current, {
+        center: [pos.latitude, pos.longitude],
+        zoom: 10,
+        zoomControl: true,
+        attributionControl: false,
+        scrollWheelZoom: false,
+      });
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        subdomains: "abcd",
+        maxZoom: 18,
+      }).addTo(map);
+      const rotation = pos.course || pos.heading || 0;
+      const icon = L.divIcon({
+        html: `<svg width="26" height="26" viewBox="0 0 24 24" style="transform:rotate(${rotation}deg)" xmlns="http://www.w3.org/2000/svg"><polygon points="12,2 20,20 12,15 4,20" fill="#3b82f6" stroke="white" stroke-width="1.5"/></svg>`,
+        className: "",
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
+      });
+      L.marker([pos.latitude, pos.longitude], { icon }).addTo(map);
+      leafletMap.current = map;
+    });
+    return () => {
+      destroyed = true;
+      if (leafletMap.current) { leafletMap.current.remove(); leafletMap.current = null; }
+    };
+  }, [pos]);
+
+  if (!imoNumber) return null;
+
+  if (isLoading) return (
+    <Card className="overflow-hidden border-border bg-card px-4 py-3">
+      <div className="flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+        <span className="text-xs text-muted-foreground">Canlı konum yükleniyor...</span>
+      </div>
+    </Card>
+  );
+
+  if (!pos) return null;
+
+  const eta = voyage.eta ? new Date(voyage.eta) : null;
+  const etd = voyage.etd ? new Date(voyage.etd) : null;
+  const now = new Date();
+  let progress = 0;
+  if (eta && etd && etd > eta) {
+    progress = Math.min(1, Math.max(0, (now.getTime() - eta.getTime()) / (etd.getTime() - eta.getTime())));
+  }
+
+  return (
+    <Card className="overflow-hidden border-border bg-card" data-testid="card-voyage-live-tracker">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+            <Navigation className="w-3.5 h-3.5 text-blue-400" />
+          </div>
+          <span className="text-sm font-semibold">Canlı Konum</span>
+        </div>
+        <span className="flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+          </span>
+          CANLI
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2">
+        <div ref={mapRef} style={{ height: "220px", minHeight: "220px" }} className="w-full bg-slate-900" />
+
+        <div className="px-4 py-4 flex flex-col gap-3 justify-between">
+          <div className="flex justify-between items-start gap-3">
+            <div className="min-w-0">
+              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Kalkış</p>
+              <p className="text-sm font-bold truncate">{pos.port_name || "—"}</p>
+              {pos.country && <p className="text-[10px] text-muted-foreground uppercase">{pos.country}</p>}
+            </div>
+            <div className="text-muted-foreground/50 text-base pt-2 shrink-0">→</div>
+            <div className="min-w-0 text-right">
+              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Varış</p>
+              <p className="text-sm font-bold truncate">{portName || pos.destination || "—"}</p>
+            </div>
+          </div>
+
+          {eta && etd && (
+            <div>
+              <div className="relative h-2 bg-muted/60 rounded-full overflow-hidden">
+                <div
+                  className="absolute left-0 top-0 h-full bg-blue-500 rounded-full transition-all duration-700"
+                  style={{ width: `${Math.round(progress * 100)}%` }}
+                />
+              </div>
+              <div className="flex justify-between mt-1.5">
+                <span className="text-[9px] text-muted-foreground">ETA {eta.toLocaleDateString("tr-TR")}</span>
+                <span className="text-[9px] text-blue-400 font-semibold">{Math.round(progress * 100)}%</span>
+                <span className="text-[9px] text-muted-foreground">ETD {etd.toLocaleDateString("tr-TR")}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+            {[
+              { label: "Enlem",          value: pos.latitude?.toFixed(5) ?? "—" },
+              { label: "Boylam",         value: pos.longitude?.toFixed(5) ?? "—" },
+              { label: "Hız",            value: `${pos.speed ?? "—"} kn` },
+              { label: "Rota",           value: `${pos.course ?? "—"}°` },
+              { label: "Baş İstikameti", value: `${pos.heading ?? "—"}°` },
+              { label: "Durum",          value: pos.navigation_status || "—" },
+            ].map(({ label, value }) => (
+              <div key={label}>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none mb-0.5">{label}</p>
+                <p className="text-xs font-semibold leading-tight">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/60 border-t border-border/40 pt-2">
+            <Clock className="w-2.5 h-2.5 shrink-0" />
+            <span>Güncelleme: {pos.timestamp ? fmtDateTime(new Date(pos.timestamp)) : "—"}</span>
+            <span className="ml-auto shrink-0">Kaynak: Datalastic</span>
+          </div>
+        </div>
+      </div>
     </Card>
   );
 }
@@ -2352,6 +2507,13 @@ export default function VoyageDetail() {
         </div>
 
       </Card>
+
+      {/* ── Canlı Konum Widget ──────────────────────────────────────────────── */}
+      <VoyageLiveTracker
+        voyage={voyage}
+        portName={portData?.name || ""}
+        imoNumber={voyage.imoNumber || vesselData?.imoNumber || null}
+      />
 
       {/* Tab Bar */}
       <div className="flex gap-1 bg-muted/40 p-1 rounded-xl overflow-x-auto no-scrollbar whitespace-nowrap scroll-smooth">
