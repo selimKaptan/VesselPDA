@@ -71,6 +71,7 @@ import brokerContactsRoutes from "./routes/broker-contacts.routes";
 import cargoOpsRoutes from "./routes/cargo-operations.routes";
 import portCallChecklistRoutes from "./routes/port-call-checklist.routes";
 import portCallParticipantsRoutes from "./routes/port-call-participants.routes";
+import configRoutes from "./routes/config.routes";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -107,6 +108,7 @@ export async function registerRoutes(
   app.use(miscRoutes);        // /api/invoices, /api/document-templates, /api/port-alerts, /api/certificates
   app.use(searchRoutes);      // /api/search
   app.use("/api", q88Routes); // /api/vessels/:id/q88, /api/q88/public/:id
+  app.use("/api/config", configRoutes); // /api/config/mapbox
 
   // ─── Prefix-mounted (paths stripped inside router) ────────────────────────
   app.use("/api/vessels", vesselRoutes);

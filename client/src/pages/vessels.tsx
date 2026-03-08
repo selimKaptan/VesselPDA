@@ -42,7 +42,7 @@ import { useLocation, Link } from "wouter";
 import { EmptyState } from "@/components/empty-state";
 import { fmtDate } from "@/lib/formatDate";
 
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
+import { ensureMapboxToken } from "@/lib/mapbox-init";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -646,20 +646,28 @@ function FleetMap({
   // init map
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
-    const map = new mapboxgl.Map({
-      container: mapContainerRef.current,
-      style: "mapbox://styles/mapbox/dark-v11",
-      center: [35.0, 39.0],
-      zoom: 5,
+    if (!mapboxgl.supported()) return;
+    let destroyed = false;
+    ensureMapboxToken().then((token) => {
+      if (destroyed || !token || !mapContainerRef.current || mapRef.current) return;
+      const map = new mapboxgl.Map({
+        container: mapContainerRef.current,
+        style: "mapbox://styles/mapbox/dark-v11",
+        center: [35.0, 39.0],
+        zoom: 5,
+      });
+      map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), "top-right");
+      map.addControl(new mapboxgl.ScaleControl({ maxWidth: 80, unit: "nautical" }), "bottom-left");
+      mapRef.current = map;
     });
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), "top-right");
-    map.addControl(new mapboxgl.ScaleControl({ maxWidth: 80, unit: "nautical" }), "bottom-left");
-    mapRef.current = map;
     return () => {
-      markersRef.current.forEach((m) => m.remove());
-      markersRef.current.clear();
-      map.remove();
-      mapRef.current = null;
+      destroyed = true;
+      if (mapRef.current) {
+        markersRef.current.forEach((m) => m.remove());
+        markersRef.current.clear();
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
     };
   }, []);
 

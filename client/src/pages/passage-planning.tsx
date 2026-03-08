@@ -17,8 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { fmtDate } from "@/lib/formatDate";
 import type { PassagePlan, PassageWaypoint } from "@shared/schema";
 import jsPDF from "jspdf";
-
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
+import { ensureMapboxToken } from "@/lib/mapbox-init";
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-slate-500/20 text-slate-400 border-slate-500/30",
@@ -382,25 +381,23 @@ export default function PassagePlanningPage() {
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
     if (!mapboxgl.supported()) return;
-
-    let map: mapboxgl.Map;
-    try {
-      map = new mapboxgl.Map({
-        container: mapContainerRef.current,
-        style: "mapbox://styles/mapbox/dark-v11",
-        center: [28.97, 41.01],
-        zoom: 4,
-      });
-
-      map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), "top-right");
-      map.addControl(new mapboxgl.ScaleControl({ maxWidth: 80, unit: "nautical" }), "bottom-left");
-
-      mapRef.current = map;
-    } catch {
-      return;
-    }
-
+    let destroyed = false;
+    ensureMapboxToken().then((token) => {
+      if (destroyed || !token || !mapContainerRef.current || mapRef.current) return;
+      try {
+        const map = new mapboxgl.Map({
+          container: mapContainerRef.current,
+          style: "mapbox://styles/mapbox/dark-v11",
+          center: [28.97, 41.01],
+          zoom: 4,
+        });
+        map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), "top-right");
+        map.addControl(new mapboxgl.ScaleControl({ maxWidth: 80, unit: "nautical" }), "bottom-left");
+        mapRef.current = map;
+      } catch { /* ignore */ }
+    });
     return () => {
+      destroyed = true;
       mapRef.current?.remove();
       mapRef.current = null;
     };

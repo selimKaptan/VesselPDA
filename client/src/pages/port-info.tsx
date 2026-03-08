@@ -17,8 +17,7 @@ import { Button } from "@/components/ui/button";
 import { PageMeta } from "@/components/page-meta";
 import type { Port } from "@shared/schema";
 import { fmtDate } from "@/lib/formatDate";
-
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
+import { ensureMapboxToken } from "@/lib/mapbox-init";
 
 interface Agent {
   id: number; companyName: string; companyType: string;
@@ -346,19 +345,24 @@ export default function PortInfo() {
       portMarkerRef.current?.setLngLat([lng!, lat!]);
       return;
     }
-    const map = new mapboxgl.Map({
-      container: portMapContainerRef.current,
-      style: "mapbox://styles/mapbox/dark-v11",
-      center: [lng!, lat!],
-      zoom: 12,
-      interactive: true,
+    let destroyed = false;
+    ensureMapboxToken().then((token) => {
+      if (destroyed || !token || !portMapContainerRef.current) return;
+      const map = new mapboxgl.Map({
+        container: portMapContainerRef.current,
+        style: "mapbox://styles/mapbox/dark-v11",
+        center: [lng!, lat!],
+        zoom: 12,
+        interactive: true,
+      });
+      map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+      const marker = new mapboxgl.Marker({ color: "#003D7A" }).setLngLat([lng!, lat!]).addTo(map);
+      portMapInstanceRef.current = map;
+      portMarkerRef.current = marker;
     });
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
-    const marker = new mapboxgl.Marker({ color: "#003D7A" }).setLngLat([lng!, lat!]).addTo(map);
-    portMapInstanceRef.current = map;
-    portMarkerRef.current = marker;
     return () => {
-      map.remove();
+      destroyed = true;
+      portMapInstanceRef.current?.remove();
       portMapInstanceRef.current = null;
       portMarkerRef.current = null;
     };

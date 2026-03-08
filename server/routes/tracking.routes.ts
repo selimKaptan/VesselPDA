@@ -233,10 +233,11 @@ router.get("/api/vessel-track/history/:mmsi", isAuthenticated, async (req, res) 
 });
 
 
-router.get("/datalastic-search", isAuthenticated, async (req, res) => {
+router.get("/api/vessel-track/datalastic-search", isAuthenticated, async (req, res) => {
   const q = (req.query.q as string || "").trim();
-  const type = (req.query.type as string || "name") as "name" | "imo" | "mmsi";
+  const type = (req.query.type as string || "imo") as "name" | "imo" | "mmsi";
   if (!q) return res.status(400).json({ message: "q gerekli" });
+  if (type === "name") return res.status(400).json({ message: "Datalastic ad aramasını desteklemiyor. IMO veya MMSI kullanın." });
   if (!process.env.DATALASTIC_API_KEY) return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
   try {
     const results = await datalastic.findVessel(q, type);
@@ -251,7 +252,7 @@ router.get("/datalastic-search", isAuthenticated, async (req, res) => {
   }
 });
 
-router.get("/datalastic-track", isAuthenticated, async (req, res) => {
+router.get("/api/vessel-track/datalastic-track", isAuthenticated, async (req, res) => {
   const imo = (req.query.imo as string || "").trim();
   const mmsi = (req.query.mmsi as string || "").trim();
   if (!imo && !mmsi) return res.status(400).json({ message: "imo veya mmsi gerekli" });

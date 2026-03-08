@@ -2,15 +2,14 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Navigation, Search, X, Ship, MapPin, ArrowRight, AlertTriangle, Loader2, List, Map as MapIcon, ChevronDown, ChevronUp, SlidersHorizontal, Clock } from "lucide-react";
+import { Navigation, Search, X, Ship, MapPin, ArrowRight, AlertTriangle, Loader2, List, Map as MapIcon, ChevronDown, ChevronUp, SlidersHorizontal, Clock, Satellite } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { PageMeta } from "@/components/page-meta";
 import { fmtDate, fmtDateTime } from "@/lib/formatDate";
-
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
+import { ensureMapboxToken } from "@/lib/mapbox-init";
 
 interface AISVessel {
   id?: string | number;
@@ -476,6 +475,8 @@ export default function VesselTrack() {
   const [mapSearchResults, setMapSearchResults] = useState<AISVessel[]>([]);
   const [isMapSearching, setIsMapSearching] = useState(false);
   const mapSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
+  const [datalasticSearchResults, setDatalasticSearchResults] = useState<{name:string;imo:string|null;mmsi:string|null;flag:string;vessel_type:string;latitude:number;longitude:number}[]>([]);
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
   const [selectedHistoryMmsi, setSelectedHistoryMmsi] = useState<string | null>(null);
   const [historyRange, setHistoryRange] = useState<"1" | "3" | "7">("1");
@@ -533,12 +534,22 @@ export default function VesselTrack() {
   }, []);
 
   const doSearch = useCallback(async (q: string, setResults: (r: AISVessel[]) => void, setLoading: (b: boolean) => void) => {
-    if (!q.trim()) { setResults([]); return; }
+    if (!q.trim()) { setResults([]); setDatalasticSearchResults([]); return; }
     setLoading(true);
+    setDatalasticSearchResults([]);
     try {
       const res = await fetch(`/api/vessel-track/search?q=${encodeURIComponent(q)}`, { credentials: "include" });
       const data = await res.json();
-      setResults(Array.isArray(data) ? data : []);
+      const aisResults = Array.isArray(data) ? data : [];
+      setResults(aisResults);
+      if (aisResults.length === 0 && /^\d{7,9}$/.test(q.trim())) {
+        const type = q.trim().length === 9 ? "mmsi" : "imo";
+        try {
+          const dr = await fetch(`/api/vessel-track/datalastic-search?q=${encodeURIComponent(q)}&type=${type}`, { credentials: "include" });
+          const dd = await dr.json();
+          if (Array.isArray(dd)) setDatalasticSearchResults(dd);
+        } catch { /* ignore datalastic errors */ }
+      }
     } catch {
       setResults([]);
     } finally {
@@ -561,16 +572,32 @@ export default function VesselTrack() {
   // Initialize Mapbox map
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
-    const map = new mapboxgl.Map({
-      container: mapContainerRef.current,
-      style: "mapbox://styles/mapbox/dark-v11",
-      center: [35.5, 38.5],
-      zoom: 6,
-    });
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
-    map.addControl(new mapboxgl.ScaleControl({ maxWidth: 100, unit: "nautical" }), "bottom-left");
-    map.on("load", () => {
-      mapReadyRef.current = true;
+    if (!mapboxgl.supported()) {
+      setMapError("Tarayıcınız WebGL desteklemiyor. Lütfen farklı bir tarayıcı deneyin.");
+      return;
+    }
+    let destroyed = false;
+    ensureMapboxToken().then((token) => {
+      if (destroyed || !token || !mapContainerRef.current || mapRef.current) {
+        if (!token) setMapError("Harita token'ı yüklenemedi. Lütfen sayfayı yenileyin.");
+        return;
+      }
+      const map = new mapboxgl.Map({
+        container: mapContainerRef.current,
+        style: "mapbox://styles/mapbox/dark-v11",
+        center: [35.5, 38.5],
+        zoom: 6,
+      });
+      map.on("error", (e: any) => {
+        const msg = e?.error?.message || "";
+        if (msg.includes("401") || msg.includes("Unauthorized") || msg.includes("token")) {
+          setMapError("Mapbox token geçersiz veya yetkisiz. Yöneticinizle iletişime geçin.");
+        }
+      });
+      map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
+      map.addControl(new mapboxgl.ScaleControl({ maxWidth: 100, unit: "nautical" }), "bottom-left");
+      map.on("load", () => {
+        mapReadyRef.current = true;
 
       // Su katmanlarını lacivert yap — dark-v11 varsayılan rengi çok koyu/gri
       const fillWaterLayers = ["water", "water-shadow"];
@@ -601,12 +628,16 @@ export default function VesselTrack() {
       });
     });
     mapRef.current = map;
+    });
     return () => {
-      markersRef.current.forEach(m => m.remove());
-      markersRef.current.clear();
-      map.remove();
-      mapRef.current = null;
-      mapReadyRef.current = false;
+      destroyed = true;
+      if (mapRef.current) {
+        markersRef.current.forEach(m => m.remove());
+        markersRef.current.clear();
+        mapRef.current.remove();
+        mapRef.current = null;
+        mapReadyRef.current = false;
+      }
     };
   }, []);
 
@@ -826,8 +857,10 @@ export default function VesselTrack() {
             )}
             {mapSearch && (
               <div className="absolute left-0 right-0 top-full z-[2000] mt-1 bg-background border rounded-lg shadow-xl overflow-hidden" data-testid="map-search-results">
-                {mapSearchResults.length === 0 && !isMapSearching ? (
-                  <p className="text-xs text-muted-foreground text-center py-4">No vessels found for "{mapSearch}"</p>
+                {mapSearchResults.length === 0 && datalasticSearchResults.length === 0 && !isMapSearching ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">
+                    "{mapSearch}" için gemi bulunamadı.{/^\d{7,9}$/.test(mapSearch.trim()) ? "" : " IMO veya MMSI ile aratmayı deneyin."}
+                  </p>
                 ) : (
                   <div className="max-h-72 overflow-y-auto divide-y divide-border">
                     {mapSearchResults.slice(0, 20).map((v) => {
@@ -836,7 +869,7 @@ export default function VesselTrack() {
                         <button
                           key={v.mmsi || String(v.id)}
                           className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-muted/40 transition-colors text-left"
-                          onClick={() => { handleFocus(v); setMapSearch(""); setMapSearchResults([]); }}
+                          onClick={() => { handleFocus(v); setMapSearch(""); setMapSearchResults([]); setDatalasticSearchResults([]); }}
                           data-testid={`search-result-${v.mmsi}`}
                         >
                           <div className={`w-2 h-2 rounded-full flex-shrink-0 ${v.status === "underway" ? "bg-blue-500" : v.status === "anchored" ? "bg-amber-500" : "bg-emerald-500"}`} />
@@ -848,6 +881,34 @@ export default function VesselTrack() {
                         </button>
                       );
                     })}
+                    {datalasticSearchResults.length > 0 && (
+                      <>
+                        {mapSearchResults.length > 0 && <div className="px-3 py-1 bg-muted/30 text-[10px] text-muted-foreground font-medium flex items-center gap-1"><Satellite className="w-3 h-3" /> Datalastic</div>}
+                        {mapSearchResults.length === 0 && <div className="px-3 py-1 bg-violet-500/10 text-[10px] text-violet-400 font-medium flex items-center gap-1"><Satellite className="w-3 h-3" /> Datalastic Sonuçları</div>}
+                        {datalasticSearchResults.map((v, i) => (
+                          <button
+                            key={v.imo || v.mmsi || i}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-violet-500/10 transition-colors text-left"
+                            onClick={() => {
+                              if (v.latitude && v.longitude) {
+                                setFlyTarget([v.latitude, v.longitude]);
+                              }
+                              setMapSearch("");
+                              setMapSearchResults([]);
+                              setDatalasticSearchResults([]);
+                            }}
+                            data-testid={`datalastic-result-${v.imo || i}`}
+                          >
+                            <Satellite className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold truncate">{v.name}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">{v.flag} · {v.vessel_type}{v.imo ? ` · IMO ${v.imo}` : ""}{v.mmsi ? ` · ${v.mmsi}` : ""}</p>
+                            </div>
+                            <MapPin className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" />
+                          </button>
+                        ))}
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -895,6 +956,16 @@ export default function VesselTrack() {
 
       {/* Map view — full width, hidden in list mode */}
       <div className={`${viewMode === "list" ? "hidden" : "flex-1"} relative overflow-hidden`} data-testid="panel-map">
+        {/* Map error overlay */}
+        {mapError && (
+          <div className="absolute inset-0 z-[3000] flex items-center justify-center bg-background/90">
+            <div className="text-center p-6 max-w-sm">
+              <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
+              <p className="text-sm font-medium">{mapError}</p>
+              <p className="text-xs text-muted-foreground mt-1">Mapbox erişim token'ı kontrol edilmeli.</p>
+            </div>
+          </div>
+        )}
         {/* Demo data banner */}
         {!demoBarDismissed && (
           <div className="absolute bottom-0 left-0 right-0 z-[1000] bg-amber-50 dark:bg-amber-950/40 border-t border-amber-200 dark:border-amber-800 px-4 py-2 flex items-center gap-2 text-xs">
