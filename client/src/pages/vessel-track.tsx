@@ -546,9 +546,18 @@ export default function VesselTrack() {
         const type = q.trim().length === 9 ? "mmsi" : "imo";
         try {
           const dr = await fetch(`/api/vessel-track/datalastic-search?q=${encodeURIComponent(q)}&type=${type}`, { credentials: "include" });
-          const dd = await dr.json();
-          if (Array.isArray(dd)) setDatalasticSearchResults(dd);
-        } catch { /* ignore datalastic errors */ }
+          if (dr.ok) {
+            const dd = await dr.json();
+            if (Array.isArray(dd)) setDatalasticSearchResults(dd);
+          } else {
+            console.warn("Datalastic search returned", dr.status, await dr.text().catch(() => ""));
+          }
+        } catch (e) {
+          console.warn("Datalastic search error:", e);
+        } finally {
+          setLoading(false);
+        }
+        return;
       }
     } catch {
       setResults([]);
@@ -588,10 +597,18 @@ export default function VesselTrack() {
         center: [35.5, 38.5],
         zoom: 6,
       });
+      let tileErrorCount = 0;
       map.on("error", (e: any) => {
-        const msg = e?.error?.message || "";
-        if (msg.includes("401") || msg.includes("Unauthorized") || msg.includes("token")) {
-          setMapError("Mapbox token geçersiz veya yetkisiz. Yöneticinizle iletişime geçin.");
+        const msg = (e?.error?.message || e?.error?.toString() || "").toLowerCase();
+        const status = e?.error?.status;
+        console.error("Mapbox error:", e?.error);
+        if (status === 401 || status === 403 || msg.includes("401") || msg.includes("403") || msg.includes("unauthorized") || msg.includes("forbidden") || msg.includes("token")) {
+          setMapError("Harita yüklenemedi: Mapbox token'ı geçersiz veya domain kısıtlaması aktif. Mapbox hesabınızda (account.mapbox.com/access-tokens) token'ın izin verilen URL'lerine 'https://vesselpda.com' ekleyin.");
+          return;
+        }
+        tileErrorCount++;
+        if (tileErrorCount >= 3) {
+          setMapError("Harita tile'ları yüklenemedi. Mapbox hesabınızda (account.mapbox.com/access-tokens) token için 'https://vesselpda.com' domain iznini ekleyin.");
         }
       });
       map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
@@ -959,10 +976,14 @@ export default function VesselTrack() {
         {/* Map error overlay */}
         {mapError && (
           <div className="absolute inset-0 z-[3000] flex items-center justify-center bg-background/90">
-            <div className="text-center p-6 max-w-sm">
+            <div className="text-center p-6 max-w-md rounded-xl border bg-card shadow-xl">
               <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-3" />
-              <p className="text-sm font-medium">{mapError}</p>
-              <p className="text-xs text-muted-foreground mt-1">Mapbox erişim token'ı kontrol edilmeli.</p>
+              <p className="text-sm font-semibold mb-2">Harita Yüklenemedi</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">{mapError}</p>
+              <a href="https://account.mapbox.com/access-tokens" target="_blank" rel="noopener noreferrer"
+                className="mt-3 inline-block text-xs text-blue-400 underline hover:text-blue-300">
+                account.mapbox.com/access-tokens →
+              </a>
             </div>
           </div>
         )}
