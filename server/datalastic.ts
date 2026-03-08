@@ -199,6 +199,29 @@ export async function resolveUuid(
   return null;
 }
 
+export function isDatalasticConfigured(): boolean {
+  return !!process.env.DATALASTIC_API_KEY;
+}
+
+export async function getVesselPosition(
+  params: { imo?: string; mmsi?: string }
+): Promise<DatalasticVessel | null> {
+  try {
+    if (params.imo) {
+      const results = await findVessel(params.imo, "imo");
+      return results[0] ?? null;
+    }
+    if (params.mmsi) {
+      const results = await findVessel(params.mmsi, "mmsi");
+      return results[0] ?? null;
+    }
+    return null;
+  } catch (err: any) {
+    console.error("Datalastic getVesselPosition error:", err?.message);
+    return null;
+  }
+}
+
 export async function getVesselBulk(imoList: string[]): Promise<DatalasticVessel[]> {
   if (!apiKey()) return [];
   if (imoList.length === 0) return [];

@@ -6,6 +6,7 @@ import { startAISStream, getPositions, searchVessels, isConnected, getDataSource
 import { db, pool } from "../db";
 import { sql as drizzleSql, eq, desc } from "drizzle-orm";
 import * as datalastic from "../datalastic";
+import { isDatalasticConfigured, getVesselPosition } from "../datalastic";
 
 const router = Router();
 
@@ -55,9 +56,45 @@ router.get("/api/vessel-track/positions", isAuthenticated, async (_req: any, res
 
 router.get("/api/vessel-track/search", isAuthenticated, async (req: any, res: any, next: any) => {
   try {
-    const q = (req.query.q as string || "").toLowerCase().trim();
+    const q = (req.query.q as string || "").trim();
     if (!q) return res.json([]);
-    const liveResults = searchVessels(q);
+
+    // 1) AIS stream search (works if key configured, otherwise empty)
+    const liveResults = searchVessels(q.toLowerCase());
+
+    if (liveResults.length > 0) return res.json(liveResults);
+
+    // 2) Datalastic fallback when AIS has no results
+    if (isDatalasticConfigured()) {
+      const isDigits = /^\d{7,9}$/.test(q);
+      const type: "imo" | "mmsi" = isDigits && q.length === 9 ? "mmsi" : isDigits ? "imo" : "imo";
+
+      if (isDigits) {
+        try {
+          const results = await datalastic.findVessel(q, type);
+          const mapped = results.slice(0, 20).map(v => ({
+            mmsi: v.mmsi ?? null,
+            name: v.name,
+            vesselName: v.name,
+            flag: v.flag ?? "",
+            vesselType: v.vessel_type ?? "",
+            lat: v.latitude ?? 0,
+            lng: v.longitude ?? 0,
+            heading: v.heading ?? 0,
+            speed: v.speed ?? 0,
+            destination: v.destination ?? "",
+            eta: v.eta ?? null,
+            status: "underway" as const,
+            imo: v.imo ?? null,
+            source: "datalastic",
+          }));
+          return res.json(mapped);
+        } catch (e: any) {
+          console.warn("Datalastic search fallback error:", e?.message);
+        }
+      }
+    }
+
     res.json(liveResults);
   } catch (error) {
     console.error("[vessel-track/search:GET] failed:", error);
@@ -108,41 +145,61 @@ router.get("/api/vessel-track/fleet", isAuthenticated, async (req: any, res) => 
     const userId = req.user.claims.sub;
     const userVessels = await storage.getVesselsByUser(userId);
 
-    // Try Datalastic bulk lookup for vessels with IMO numbers
-    if (process.env.DATALASTIC_API_KEY) {
-      const imoList = userVessels.filter(v => v.imoNumber).map(v => v.imoNumber as string);
-      if (imoList.length > 0) {
-        const bulkData = await datalastic.getVesselBulk(imoList);
-        if (bulkData.length > 0) {
-          const posMap = new Map(bulkData.map(d => [d.imo, d]));
-          const result = userVessels.map((v, i) => {
-            const live = v.imoNumber ? posMap.get(v.imoNumber) : null;
-            const mock = MOCK_AIS_DATA[i % MOCK_AIS_DATA.length];
-            return {
-              id: v.id,
-              vesselName: v.name,
-              mmsi: live?.mmsi ?? null,
-              imo: v.imoNumber,
-              flag: v.flag,
-              vesselType: v.vesselType,
-              grt: v.grt,
-              lat: live?.latitude ?? mock.lat + (seededRandom(v.id * 1000 + 1) - 0.5) * 2,
-              lng: live?.longitude ?? mock.lng + (seededRandom(v.id * 1000 + 2) - 0.5) * 2,
-              heading: live?.heading ?? Math.floor(seededRandom(v.id * 1000 + 3) * 360),
-              speed: live?.speed ?? Math.round(seededRandom(v.id * 1000 + 4) * 14 * 10) / 10,
-              destination: live?.destination ?? mock.destination,
-              eta: live?.eta ?? mock.eta,
-              status: live?.status ?? (["underway", "anchored", "moored"][Math.floor(seededRandom(v.id * 1000 + 5) * 3)] as string),
-              isOwnVessel: true,
-              source: live ? "datalastic" : "mock",
-            };
-          });
-          return res.json(result);
-        }
+    if (userVessels.length === 0) return res.json([]);
+
+    // Datalastic: individual lookups per vessel (5 concurrent max)
+    if (isDatalasticConfigured()) {
+      const CHUNK = 5;
+      const posMap = new Map<number, any>();
+
+      for (let i = 0; i < userVessels.length; i += CHUNK) {
+        const chunk = userVessels.slice(i, i + CHUNK);
+        const settled = await Promise.allSettled(
+          chunk.map(v => {
+            if (v.imoNumber) return getVesselPosition({ imo: v.imoNumber });
+            if (v.mmsiNumber) return getVesselPosition({ mmsi: v.mmsiNumber });
+            return Promise.resolve(null);
+          })
+        );
+        settled.forEach((r, idx) => {
+          if (r.status === "fulfilled" && r.value) {
+            posMap.set(chunk[idx].id, r.value);
+          }
+        });
       }
+
+      const result = userVessels.map((v, i) => {
+        const live = posMap.get(v.id);
+        const mock = MOCK_AIS_DATA[i % MOCK_AIS_DATA.length];
+        const navSt = live?.status ?? null;
+        const normalizedStatus =
+          navSt && /moor/i.test(navSt) ? "moored"
+          : navSt && /anchor/i.test(navSt) ? "anchored"
+          : navSt && /(under way|underway|sailing)/i.test(navSt) ? "underway"
+          : ["underway", "anchored", "moored"][Math.floor(seededRandom(v.id * 1000 + 5) * 3)];
+        return {
+          id: v.id,
+          vesselName: live?.name ?? v.name,
+          mmsi: live?.mmsi ?? null,
+          imo: live?.imo ?? v.imoNumber,
+          flag: live?.flag ?? v.flag,
+          vesselType: live?.vessel_type ?? v.vesselType,
+          grt: v.grt,
+          lat: live?.latitude ?? mock.lat + (seededRandom(v.id * 1000 + 1) - 0.5) * 2,
+          lng: live?.longitude ?? mock.lng + (seededRandom(v.id * 1000 + 2) - 0.5) * 2,
+          heading: live?.heading ?? Math.floor(seededRandom(v.id * 1000 + 3) * 360),
+          speed: live?.speed ?? Math.round(seededRandom(v.id * 1000 + 4) * 14 * 10) / 10,
+          destination: live?.destination ?? mock.destination,
+          eta: live?.eta ?? mock.eta,
+          status: normalizedStatus as "underway" | "anchored" | "moored",
+          isOwnVessel: true,
+          source: live ? "datalastic" : "mock",
+        };
+      });
+      return res.json(result);
     }
 
-    // Fallback: mock data
+    // Fallback: deterministic mock positions
     const fleetWithPositions = userVessels.map((v, i) => {
       const mock = MOCK_AIS_DATA[i % MOCK_AIS_DATA.length];
       return {
@@ -159,7 +216,7 @@ router.get("/api/vessel-track/fleet", isAuthenticated, async (req: any, res) => 
         speed: Math.round(seededRandom(v.id * 1000 + 4) * 14 * 10) / 10,
         destination: mock.destination,
         eta: mock.eta,
-        status: ["underway", "anchored", "moored"][Math.floor(seededRandom(v.id * 1000 + 5) * 3)] as string,
+        status: ["underway", "anchored", "moored"][Math.floor(seededRandom(v.id * 1000 + 5) * 3)] as "underway" | "anchored" | "moored",
         isOwnVessel: true,
         source: "mock",
       };
