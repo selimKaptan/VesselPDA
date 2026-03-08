@@ -387,7 +387,7 @@ export default function PassagePlanningPage() {
       try {
         const map = new mapboxgl.Map({
           container: mapContainerRef.current,
-          style: "mapbox://styles/mapbox/dark-v11",
+          style: "mapbox://styles/mapbox/navigation-night-v1",
           center: [28.97, 41.01],
           zoom: 4,
         });

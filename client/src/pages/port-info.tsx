@@ -350,7 +350,7 @@ export default function PortInfo() {
       if (destroyed || !token || !portMapContainerRef.current) return;
       const map = new mapboxgl.Map({
         container: portMapContainerRef.current,
-        style: "mapbox://styles/mapbox/dark-v11",
+        style: "mapbox://styles/mapbox/navigation-night-v1",
         center: [lng!, lat!],
         zoom: 12,
         interactive: true,

@@ -930,7 +930,7 @@ function FleetMap({
       if (destroyed || !token || !mapContainerRef.current || mapRef.current) return;
       const map = new mapboxgl.Map({
         container: mapContainerRef.current,
-        style: "mapbox://styles/mapbox/dark-v11",
+        style: "mapbox://styles/mapbox/navigation-night-v1",
         center: [35.0, 39.0],
         zoom: 5,
       });
