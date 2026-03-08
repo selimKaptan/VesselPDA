@@ -1,0 +1,199 @@
+INSTRUCTIONS.md'yi oku. ACIL FIX: Vessel Tracking sayfasında 2 sorun var:
+1. Harita tamamen boş/beyaz — tile'lar yüklenmiyor
+2. Datalastic API key bağlı olmasına rağmen hala "DEMO" gösteriyor
+
+=== FIX 1: HARİTA TILE SORUNU ===
+
+client/src/pages/vessel-track.tsx dosyasını kontrol et.
+
+Harita için Leaflet + OpenStreetMap kullanılmalı (ücretsiz, API key gerektirmez):
+
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Leaflet CSS import edilmemiş olabilir — kontrol et ve ekle
+// client/src/main.tsx veya vessel-track.tsx'in başına:
+import 'leaflet/dist/leaflet.css';
+
+// Harita oluşturma:
+useEffect(() => {
+  if (!mapRef.current) return;
+  
+  const map = L.map(mapRef.current).setView([38.5, 28.0], 6); // Türkiye merkez
+  
+  // OpenStreetMap tile'ları (ÜCRETSİZ, key gerektirmez)
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 18,
+  }).addTo(map);
+  
+  mapInstanceRef.current = map;
+  
+  return () => { map.remove(); };
+}, []);
+
+Eğer Mapbox kullanılıyorsa ve token yoksa, OpenStreetMap'e geç:
+- mapbox-gl yerine leaflet kullan
+- Mapbox token gerektirmez
+- Alternatif dark theme tile: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+
+Dark tema harita (platformun temasına uygun):
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap contributors, © CARTO',
+  maxZoom: 19,
+}).addTo(map);
+
+=== FIX 2: DATALASTIC API KEY OKUMA ===
+
+server/routes/tracking.routes.ts veya server/datalastic.ts'de kontrol et:
+
+1. process.env.DATALASTIC_API_KEY okunuyor mu?
+   console.log('Datalastic key:', process.env.DATALASTIC_API_KEY ? 'SET' : 'NOT SET');
+
+2. Replit Secrets'a eklendi mi? "DATALASTIC_API_KEY" key adı doğru mu?
+
+3. Status endpoint'ini güncelle:
+   GET /api/vessel-track/status
+   
+   router.get("/status", (req, res) => {
+     const hasDatalastic = !!process.env.DATALASTIC_API_KEY;
+     const hasAisStream = !!process.env.AIS_STREAM_API_KEY;
+     
+     res.json({
+       datalastic: hasDatalastic,
+       aisStream: hasAisStream,
+       source: hasDatalastic ? 'datalastic' : hasAisStream ? 'ais_stream' : 'mock',
+       connected: hasDatalastic || hasAisStream,
+     });
+   });
+
+4. Fleet endpoint Datalastic kullanmalı:
+   GET /api/vessel-track/fleet
+   
+   - Kullanıcının gemilerinin IMO numaralarını çek
+   - Datalastic bulk endpoint ile toplu pozisyon al
+   - Cache ile sarmalama (1 dakika)
+
+5. Frontend'de status'e göre badge:
+   - datalastic true → "🟢 Live AIS" (yeşil)
+   - aisStream true → "🟡 AIS Stream" (sarı)
+   - ikisi de false → "🟠 DEMO" (turuncu)
+
+=== FIX 3: LEAFLET MARKER İKONLARI ===
+
+Leaflet default marker ikonları genelde bozuk olur. Custom gemi ikonu kullan:
+
+// Gemi marker ikonu
+const vesselIcon = L.divIcon({
+  className: 'vessel-marker',
+  html: `<div style="
+    width: 24px; height: 24px; 
+    background: #38BDF8; 
+    border-radius: 50%; 
+    border: 2px solid white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  ">🚢</div>`,
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+});
+
+// Rotasyona göre dönen gemi ikonu (heading/course kullanarak)
+function createVesselIcon(heading: number, speed: number) {
+  const color = speed > 0.5 ? '#38BDF8' : '#F59E0B'; // hareket eden mavi, duran sarı
+  return L.divIcon({
+    className: 'vessel-marker',
+    html: `<div style="
+      width: 28px; height: 28px;
+      transform: rotate(${heading || 0}deg);
+      display: flex; align-items: center; justify-content: center;
+    ">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="${color}">
+        <path d="M12 2L4 20h16L12 2z" opacity="0.9"/>
+      </svg>
+    </div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
+}
+
+=== FIX 4: GEMİLERİ HARİTAYA EKLE ===
+
+Gemiler haritada görünsün:
+
+// Pozisyonları çek
+const { data: vessels } = useQuery({
+  queryKey: ['/api/vessel-track/fleet'],
+  refetchInterval: 60000, // her 1 dakikada güncelle
+});
+
+// Marker'ları haritaya ekle
+useEffect(() => {
+  if (!mapInstanceRef.current || !vessels?.length) return;
+  
+  const map = mapInstanceRef.current;
+  
+  // Eski marker'ları temizle
+  markersRef.current.forEach(m => map.removeLayer(m));
+  markersRef.current = [];
+  
+  vessels.forEach(vessel => {
+    if (!vessel.latitude || !vessel.longitude) return;
+    
+    const icon = createVesselIcon(vessel.heading || vessel.course || 0, vessel.speed || 0);
+    
+    const marker = L.marker([vessel.latitude, vessel.longitude], { icon })
+      .addTo(map)
+      .bindPopup(`
+        <div style="min-width: 200px; font-family: sans-serif;">
+          <strong>${vessel.name || 'Unknown'}</strong><br/>
+          <small>IMO: ${vessel.imo || 'N/A'} | MMSI: ${vessel.mmsi || 'N/A'}</small><br/>
+          <hr style="margin: 4px 0"/>
+          Speed: ${vessel.speed || 0} kn<br/>
+          Course: ${vessel.course || 0}°<br/>
+          Destination: ${vessel.destination || 'N/A'}<br/>
+          ETA: ${vessel.eta || 'N/A'}<br/>
+          Status: ${vessel.navStatus || 'N/A'}<br/>
+          <small>Updated: ${vessel.lastUpdate || 'N/A'}</small>
+        </div>
+      `);
+    
+    markersRef.current.push(marker);
+  });
+  
+  // Tüm gemileri görecek şekilde zoom
+  if (vessels.length > 0) {
+    const bounds = L.latLngBounds(vessels.filter(v => v.latitude && v.longitude).map(v => [v.latitude, v.longitude]));
+    map.fitBounds(bounds, { padding: [50, 50] });
+  }
+}, [vessels]);
+
+=== FIX 5: CSS ===
+
+Leaflet harita container'ın yüksekliği olmalı:
+
+// vessel-track.tsx'de harita div:
+<div ref={mapRef} className="w-full h-[calc(100vh-200px)] rounded-xl" />
+
+// Veya client/src/index.css'e:
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  z-index: 1;
+}
+
+=== IMPORTANT ===
+
+- Leaflet CSS import edilmeli (import 'leaflet/dist/leaflet.css')
+- Harita div'in HEIGHT'ı olmalı (0 ise harita görünmez)
+- OpenStreetMap tile'ları ücretsiz ve key gerektirmez
+- Dark tema için CartoDB dark tiles kullan
+- Datalastic API key: process.env.DATALASTIC_API_KEY
+- Fallback: API yoksa mock data göster
+- Cache: her istek 1 dakika cache (kredi tasarrufu)
+- Gemi ikonu heading'e göre dönsün (ok yönü = kurs)
+- Popup'ta gemi detayları göster
+- Her 60 saniyede otomatik güncelle (refetchInterval)
+- Mevcut sayfa yapısını bozma — sadece harita ve veri bağlantısını düzelt
