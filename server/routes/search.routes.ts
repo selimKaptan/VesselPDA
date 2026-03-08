@@ -171,7 +171,7 @@ router.get("/api/search", isAuthenticated, async (req: any, res: any, next: any)
           title: dp.name || "Liman",
           subtitle: `${dp.country || ""}${dp.locode ? " — " + dp.locode : ""}`,
           icon: "🛰",
-          href: `/port-info?q=${encodeURIComponent(dp.locode || dp.name || "")}`,
+          href: `/port-info?q=${encodeURIComponent(dp.name || dp.locode || "")}&auto=1`,
         })),
         ...proformaResults.map(p => ({
           type: "proforma",

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import {
   Anchor, Search, MapPin, Globe, Info, Loader2,
   Waves, Building2, X, Users, FileText,
@@ -396,13 +396,22 @@ function getCountryFlag(country: string): string {
 }
 
 export default function PortInfo() {
-  const [searchQuery, setSearchQuery] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("q") || "";
-  });
+  const searchString = useSearch();
+  const urlParams = new URLSearchParams(searchString);
+  const urlQ = urlParams.get("q") || "";
+  const autoSelect = urlParams.get("auto") === "1";
+
+  const [searchQuery, setSearchQuery] = useState(urlQ);
   const [selectedPort, setSelectedPort] = useState<Port | null>(null);
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const isSearching = searchQuery.trim().length >= 2;
+
+  useEffect(() => {
+    if (urlQ) {
+      setSearchQuery(urlQ);
+      setSelectedPort(null);
+    }
+  }, [urlQ]);
 
   const { data: turkishPorts = [], isLoading: turkishLoading } = useQuery<Port[]>({
     queryKey: ["/api/ports", "Turkey"],
@@ -422,6 +431,13 @@ export default function PortInfo() {
     enabled: isSearching,
     staleTime: 60 * 1000,
   });
+
+  useEffect(() => {
+    if (autoSelect && searchResults.length > 0 && !selectedPort) {
+      setSelectedPort(searchResults[0]);
+      if (window.innerWidth < 768) setMobileView("detail");
+    }
+  }, [autoSelect, searchResults, selectedPort]);
 
   const portsLoading = isSearching ? searchLoading : turkishLoading;
   const filteredPorts = isSearching ? searchResults : turkishPorts;
