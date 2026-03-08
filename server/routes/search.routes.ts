@@ -163,7 +163,7 @@ router.get("/api/search", isAuthenticated, async (req: any, res: any, next: any)
           title: p.name,
           subtitle: `${p.country || ""}${p.code ? " — " + p.code : ""}`,
           icon: "⚓",
-          href: "/port-info",
+          href: `/port-info?q=${encodeURIComponent(p.name)}&auto=1`,
         })),
         ...filteredDatalasticPorts.map((dp: any, idx: number) => ({
           type: "port_datalastic",
