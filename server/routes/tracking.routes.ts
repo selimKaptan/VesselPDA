@@ -29,11 +29,15 @@ const MOCK_AIS_DATA = [
 
 
 router.get("/api/vessel-track/status", isAuthenticated, (_req, res) => {
+  const hasDatalastic = !!process.env.DATALASTIC_API_KEY;
+  const aisLive = isConnected();
   res.json({
-    connected: isConnected(),
+    connected: aisLive || hasDatalastic,
     vesselCount: getCacheSize(),
-    source: getDataSource(),
-    mode: getDataSource() === "live" ? "live" : "demo",
+    source: hasDatalastic ? "datalastic" : aisLive ? "ais_stream" : "mock",
+    mode: hasDatalastic || aisLive ? "live" : "demo",
+    datalastic: hasDatalastic,
+    aisStream: aisLive,
   });
 });
 

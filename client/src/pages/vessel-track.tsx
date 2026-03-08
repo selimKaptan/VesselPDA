@@ -1,5 +1,5 @@
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Navigation, Search, X, Ship, MapPin, ArrowRight, AlertTriangle, Loader2, List, Map as MapIcon, ChevronDown, ChevronUp, SlidersHorizontal, Clock, Satellite } from "lucide-react";
@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { PageMeta } from "@/components/page-meta";
 import { fmtDate, fmtDateTime } from "@/lib/formatDate";
-import { ensureMapboxToken } from "@/lib/mapbox-init";
 
 interface AISVessel {
   id?: string | number;
@@ -464,9 +463,8 @@ export default function VesselTrack() {
   const isAgent = effectiveRole === "agent";
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
-  const mapReadyRef = useRef(false);
+  const mapRef = useRef<L.Map | null>(null);
+  const markersRef = useRef<Map<string, L.Marker>>(new Map());
 
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -481,7 +479,9 @@ export default function VesselTrack() {
   const [selectedHistoryMmsi, setSelectedHistoryMmsi] = useState<string | null>(null);
   const [historyRange, setHistoryRange] = useState<"1" | "3" | "7">("1");
   const [useDatalasticTrack, setUseDatalasticTrack] = useState(false);
-  const historyPopupRef = useRef<mapboxgl.Popup | null>(null);
+  const historyPopupRef = useRef<L.Popup | null>(null);
+  const historyPolylineRef = useRef<L.Polyline | null>(null);
+  const historyCirclesRef = useRef<L.CircleMarker[]>([]);
 
   const { data: aisStatus } = useQuery<{ connected: boolean; vesselCount: number; mode: "live" | "demo" }>({
     queryKey: ["/api/vessel-track/status"],
@@ -578,83 +578,38 @@ export default function VesselTrack() {
     ...agencyVessels.filter(a => !positions.some(p => p.mmsi && p.mmsi === (a as any).mmsi)),
   ];
 
-  // Initialize Mapbox map
+  // Initialize Leaflet map
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
-    if (!mapboxgl.supported()) {
-      setMapError("Tarayıcınız WebGL desteklemiyor. Lütfen farklı bir tarayıcı deneyin.");
-      return;
-    }
-    let destroyed = false;
-    ensureMapboxToken().then((token) => {
-      if (destroyed || !token || !mapContainerRef.current || mapRef.current) {
-        if (!token) setMapError("Harita token'ı yüklenemedi. Lütfen sayfayı yenileyin.");
-        return;
-      }
-      const map = new mapboxgl.Map({
-        container: mapContainerRef.current,
-        style: "mapbox://styles/mapbox/dark-v11",
-        center: [35.5, 38.5],
-        zoom: 6,
-      });
-      let tileErrorCount = 0;
-      map.on("error", (e: any) => {
-        const msg = (e?.error?.message || e?.error?.toString() || "").toLowerCase();
-        const status = e?.error?.status;
-        console.error("Mapbox error:", e?.error);
-        if (status === 401 || status === 403 || msg.includes("401") || msg.includes("403") || msg.includes("unauthorized") || msg.includes("forbidden") || msg.includes("token")) {
-          setMapError("Harita yüklenemedi: Mapbox token'ı geçersiz veya domain kısıtlaması aktif. Mapbox hesabınızda (account.mapbox.com/access-tokens) token'ın izin verilen URL'lerine 'https://vesselpda.com' ekleyin.");
-          return;
-        }
-        tileErrorCount++;
-        if (tileErrorCount >= 3) {
-          setMapError("Harita tile'ları yüklenemedi. Mapbox hesabınızda (account.mapbox.com/access-tokens) token için 'https://vesselpda.com' domain iznini ekleyin.");
-        }
-      });
-      map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
-      map.addControl(new mapboxgl.ScaleControl({ maxWidth: 100, unit: "nautical" }), "bottom-left");
-      map.on("load", () => {
-        mapReadyRef.current = true;
 
-      // Su katmanlarını lacivert yap — dark-v11 varsayılan rengi çok koyu/gri
-      const fillWaterLayers = ["water", "water-shadow"];
-      fillWaterLayers.forEach(layerId => {
-        if (map.getLayer(layerId)) {
-          map.setPaintProperty(layerId, "fill-color", "#0d2d48");
-        }
-      });
-      if (map.getLayer("waterway")) {
-        map.setPaintProperty("waterway", "line-color", "#0e3352");
-      }
-      if (map.getLayer("waterway-shadow")) {
-        map.setPaintProperty("waterway-shadow", "line-color", "#0e3352");
-      }
-
-      // OpenSeaMap denizcilik sembolleri
-      map.addSource("openseamap", {
-        type: "raster",
-        tiles: ["https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png"],
-        tileSize: 256,
-        attribution: "© <a href='https://www.openseamap.org' target='_blank'>OpenSeaMap</a> contributors",
-      });
-      map.addLayer({
-        id: "openseamap-layer",
-        type: "raster",
-        source: "openseamap",
-        paint: { "raster-opacity": 0.9 },
-      });
+    const map = L.map(mapContainerRef.current, {
+      center: [38.5, 35.5],
+      zoom: 6,
+      zoomControl: false,
     });
+
+    // CartoDB dark tiles — free, no API key required
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions">CARTO</a>',
+      maxZoom: 19,
+    }).addTo(map);
+
+    // OpenSeaMap maritime symbols overlay
+    L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
+      attribution: '© <a href="https://www.openseamap.org" target="_blank">OpenSeaMap</a> contributors',
+      opacity: 0.85,
+    }).addTo(map);
+
+    L.control.zoom({ position: "topright" }).addTo(map);
+    L.control.scale({ maxWidth: 100, imperial: false, position: "bottomleft" }).addTo(map);
+
     mapRef.current = map;
-    });
+
     return () => {
-      destroyed = true;
-      if (mapRef.current) {
-        markersRef.current.forEach(m => m.remove());
-        markersRef.current.clear();
-        mapRef.current.remove();
-        mapRef.current = null;
-        mapReadyRef.current = false;
-      }
+      markersRef.current.forEach(m => m.remove());
+      markersRef.current.clear();
+      map.remove();
+      mapRef.current = null;
     };
   }, []);
 
@@ -663,97 +618,72 @@ export default function VesselTrack() {
     const map = mapRef.current;
     if (!map) return;
 
-    const addMarkersWhenReady = () => {
-      // Remove stale markers
-      const currentIds = new Set(allMapVessels.map((v, i) => String(v.mmsi || v.id || i)));
-      markersRef.current.forEach((marker, id) => {
-        if (!currentIds.has(id)) {
-          marker.remove();
-          markersRef.current.delete(id);
-        }
+    // Remove stale markers
+    const currentIds = new Set(allMapVessels.map((v, i) => String(v.mmsi || v.id || i)));
+    markersRef.current.forEach((marker, id) => {
+      if (!currentIds.has(id)) {
+        marker.remove();
+        markersRef.current.delete(id);
+      }
+    });
+
+    // Add/update markers
+    allMapVessels.forEach((v, i) => {
+      const id = String(v.mmsi || v.id || i);
+      const isHighlighted = highlightedId === id;
+      const svgHtml = createShipSvg(v.heading, v.status, isHighlighted);
+      const svgSize = isHighlighted ? 32 : 26;
+
+      const existing = markersRef.current.get(id);
+      if (existing) {
+        existing.setLatLng([v.lat, v.lng]);
+        existing.setIcon(L.divIcon({
+          html: svgHtml,
+          iconSize: [svgSize, svgSize],
+          iconAnchor: [svgSize / 2, svgSize / 2],
+          className: "",
+        }));
+        return;
+      }
+
+      const icon = L.divIcon({
+        html: svgHtml,
+        iconSize: [svgSize, svgSize],
+        iconAnchor: [svgSize / 2, svgSize / 2],
+        className: "",
       });
 
-      // Add/update markers
-      allMapVessels.forEach((v, i) => {
-        const id = String(v.mmsi || v.id || i);
-        const isHighlighted = highlightedId === id;
-
-        const existing = markersRef.current.get(id);
-        if (existing) {
-          existing.setLngLat([v.lng, v.lat]);
-          const el = existing.getElement();
-          el.innerHTML = createShipSvg(v.heading, v.status, isHighlighted);
-          el.style.zIndex = isHighlighted ? "10" : "1";
-          return;
-        }
-
-        const el = document.createElement("div");
-        el.innerHTML = createShipSvg(v.heading, v.status, isHighlighted);
-        el.style.cursor = "pointer";
-        el.style.zIndex = isHighlighted ? "10" : "1";
-
-        const popup = new mapboxgl.Popup({
-          offset: 14,
-          closeButton: true,
-          maxWidth: "260px",
-          className: "vessel-popup",
-        }).setHTML(createPopupHtml(v));
-
-        const marker = new mapboxgl.Marker({ element: el, anchor: "center" })
-          .setLngLat([v.lng, v.lat])
-          .setPopup(popup)
-          .addTo(map);
-
-        el.addEventListener("click", () => {
+      const marker = L.marker([v.lat, v.lng], { icon })
+        .addTo(map)
+        .bindPopup(createPopupHtml(v), { maxWidth: 260 })
+        .on("click", () => {
           setHighlightedId(id);
           setFlyTarget([v.lat, v.lng]);
           setSelectedHistoryMmsi(v.mmsi || null);
           if (v.mmsi) setHistoryRange("1");
         });
 
-        markersRef.current.set(id, marker);
-      });
-    };
-
-    if (map.loaded()) {
-      addMarkersWhenReady();
-    } else {
-      map.once("load", addMarkersWhenReady);
-    }
+      markersRef.current.set(id, marker);
+    });
   }, [allMapVessels, highlightedId]);
 
   // flyTo when target changes
   useEffect(() => {
     if (flyTarget && mapRef.current) {
-      mapRef.current.flyTo({
-        center: [flyTarget[1], flyTarget[0]],
-        zoom: 10,
-        duration: 1200,
-        essential: true,
-      });
+      mapRef.current.flyTo([flyTarget[0], flyTarget[1]], 10, { animate: true, duration: 1.2 });
     }
   }, [flyTarget]);
 
-  // History route layers
+  // History route layers (Leaflet polyline + circle markers)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    const LINE_SRC = "vessel-history-line";
-    const PTS_SRC = "vessel-history-points";
-    const LINE_LAYER = "vessel-history-line-layer";
-    const PTS_LAYER = "vessel-history-points-layer";
-
     function safeRemove() {
-      try {
-        historyPopupRef.current?.remove();
-        const m = mapRef.current;
-        if (!m) return;
-        if (m.getLayer(LINE_LAYER)) m.removeLayer(LINE_LAYER);
-        if (m.getLayer(PTS_LAYER)) m.removeLayer(PTS_LAYER);
-        if (m.getSource(LINE_SRC)) m.removeSource(LINE_SRC);
-        if (m.getSource(PTS_SRC)) m.removeSource(PTS_SRC);
-      } catch { /* map might be mid-removal */ }
+      if (historyPolylineRef.current) { historyPolylineRef.current.remove(); historyPolylineRef.current = null; }
+      historyCirclesRef.current.forEach(c => c.remove());
+      historyCirclesRef.current = [];
+      if (historyPopupRef.current) { map.closePopup(historyPopupRef.current); historyPopupRef.current = null; }
     }
 
     if (!selectedHistoryMmsi || !activeHistoryData || activeHistoryData.count === 0 || !activeHistoryData.line) {
@@ -761,60 +691,63 @@ export default function VesselTrack() {
       return;
     }
 
-    const doAdd = () => {
-      safeRemove();
-      try {
-        const lineColor = useDatalasticTrack ? "#A78BFA" : "#60A5FA";
-        const ptColor = useDatalasticTrack ? "#EDE9FE" : "#BFDBFE";
-        const strokeColor = useDatalasticTrack ? "#7C3AED" : "#2563EB";
-        map.addSource(LINE_SRC, { type: "geojson", data: activeHistoryData.line });
-        map.addLayer({
-          id: LINE_LAYER, type: "line", source: LINE_SRC,
-          layout: { "line-cap": "round", "line-join": "round" },
-          paint: { "line-color": lineColor, "line-width": 2.5, "line-opacity": 0.85 },
-        });
-        map.addSource(PTS_SRC, { type: "geojson", data: { type: "FeatureCollection", features: activeHistoryData.features } });
-        map.addLayer({
-          id: PTS_LAYER, type: "circle", source: PTS_SRC,
-          paint: { "circle-radius": 5, "circle-color": ptColor, "circle-stroke-width": 1.5, "circle-stroke-color": strokeColor, "circle-opacity": 0.9 },
-        });
+    safeRemove();
 
-        const popup = new mapboxgl.Popup({ closeButton: false, offset: 10 });
-        historyPopupRef.current = popup;
+    const lineColor = useDatalasticTrack ? "#A78BFA" : "#60A5FA";
+    const ptColor = useDatalasticTrack ? "#EDE9FE" : "#BFDBFE";
+    const strokeColor = useDatalasticTrack ? "#7C3AED" : "#2563EB";
 
-        map.on("mouseenter", PTS_LAYER, (e) => {
-          map.getCanvas().style.cursor = "pointer";
-          const f = e.features?.[0];
-          if (!f || !e.lngLat) return;
-          const { speed, timestamp, destination } = f.properties as any;
-          const dateStr = timestamp
-            ? fmtDateTime(timestamp)
-            : "—";
-          popup.setLngLat(e.lngLat).setHTML(
-            `<div style="font-size:11px;font-family:system-ui;line-height:1.6;min-width:130px">
-              <div style="font-weight:700;color:#1d4ed8;margin-bottom:3px">${dateStr}</div>
-              ${speed != null ? `<div>Speed: <strong>${speed} kn</strong></div>` : ""}
-              ${destination ? `<div>Dest: ${destination}</div>` : ""}
-            </div>`
-          ).addTo(map);
-        });
-        map.on("mouseleave", PTS_LAYER, () => {
-          map.getCanvas().style.cursor = "";
-          popup.remove();
-        });
-      } catch (err: any) {
-        console.error("History layer error:", err?.message);
-      }
-    };
+    // Draw polyline
+    if (activeHistoryData.line?.geometry?.coordinates?.length >= 2) {
+      const coords: [number, number][] = activeHistoryData.line.geometry.coordinates.map(
+        ([lng, lat]: [number, number]) => [lat, lng]
+      );
+      historyPolylineRef.current = L.polyline(coords, {
+        color: lineColor, weight: 2.5, opacity: 0.85,
+      }).addTo(map);
+    }
 
-    if (map.loaded()) doAdd(); else map.once("load", doAdd);
+    // Draw point markers
+    activeHistoryData.features.forEach((f: any) => {
+      const [lng, lat] = f.geometry.coordinates;
+      const { speed, timestamp, destination } = f.properties as any;
+      const dateStr = timestamp ? fmtDateTime(timestamp) : "—";
+      const popupHtml = `<div style="font-size:11px;font-family:system-ui;line-height:1.6;min-width:130px">
+        <div style="font-weight:700;color:#1d4ed8;margin-bottom:3px">${dateStr}</div>
+        ${speed != null ? `<div>Speed: <strong>${speed} kn</strong></div>` : ""}
+        ${destination ? `<div>Dest: ${destination}</div>` : ""}
+      </div>`;
+
+      const circle = L.circleMarker([lat, lng], {
+        radius: 5,
+        fillColor: ptColor,
+        color: strokeColor,
+        weight: 1.5,
+        opacity: 0.9,
+        fillOpacity: 0.9,
+      })
+        .on("mouseover", function() {
+          const popup = L.popup({ closeButton: false })
+            .setLatLng([lat, lng])
+            .setContent(popupHtml)
+            .openOn(map);
+          historyPopupRef.current = popup;
+        })
+        .on("mouseout", function() {
+          if (historyPopupRef.current) { map.closePopup(historyPopupRef.current); historyPopupRef.current = null; }
+        })
+        .addTo(map);
+
+      historyCirclesRef.current.push(circle);
+    });
+
     return safeRemove;
   }, [selectedHistoryMmsi, activeHistoryData, useDatalasticTrack]);
 
   // Resize map when switching back to map view
   useEffect(() => {
     if (viewMode === "map" && mapRef.current) {
-      setTimeout(() => mapRef.current?.resize(), 50);
+      setTimeout(() => mapRef.current?.invalidateSize(), 50);
     }
   }, [viewMode]);
 
