@@ -34,6 +34,7 @@ import TenderDetail from "@/pages/tender-detail";
 import DirectoryProfile from "@/pages/directory-profile";
 import Contact from "@/pages/contact";
 import VesselTrack from "@/pages/vessel-track";
+import VesselReport from "@/pages/vessel-report";
 import VesselSchedule from "@/pages/vessel-schedule";
 import PortInfo from "@/pages/port-info";
 import Settings from "@/pages/settings";
@@ -123,6 +124,7 @@ function AuthenticatedRouter() {
       <Route path="/tenders" component={Tenders} />
       <Route path="/tenders/:id" component={TenderDetail} />
       <Route path="/vessel-track" component={VesselTrack} />
+      <Route path="/vessel-report/:imo" component={VesselReport} />
       <Route path="/vessel-schedule" component={VesselSchedule} />
       <Route path="/port-info" component={PortInfo} />
       <Route path="/settings" component={Settings} />

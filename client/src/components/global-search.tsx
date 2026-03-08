@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { Clock, Loader2 } from "lucide-react";
+import { Clock, Loader2, Radio } from "lucide-react";
+
+const IMO_RE = /^\d{7,9}$/;
+function isImoQuery(q: string): boolean { return IMO_RE.test(q.trim()); }
 
 interface SearchResult {
   type: string;
@@ -117,9 +120,16 @@ export function GlobalSearch({ open, query, onClose }: GlobalSearchProps) {
       e.preventDefault();
       setSelectedIndex(i => Math.max(i - 1, 0));
     }
-    if (e.key === "Enter" && results.length > 0) {
-      const item = results[selectedIndex];
-      if (item) handleNavigate(item.href, query);
+    if (e.key === "Enter") {
+      if (isImoQuery(query)) {
+        e.preventDefault();
+        handleNavigate(`/vessel-report/${query.trim()}`, query);
+        return;
+      }
+      if (results.length > 0) {
+        const item = results[selectedIndex];
+        if (item) handleNavigate(item.href, query);
+      }
     }
   }, [open, results, selectedIndex, query, handleNavigate]);
 
@@ -166,6 +176,29 @@ export function GlobalSearch({ open, query, onClose }: GlobalSearchProps) {
             <Loader2 className="w-3 h-3 animate-spin" />
             Searching…
           </div>
+        )}
+
+        {/* IMO Datalastic suggestion */}
+        {isImoQuery(query) && (
+          <button
+            onMouseDown={(e) => { e.preventDefault(); }}
+            onClick={() => handleNavigate(`/vessel-report/${query.trim()}`, query)}
+            className="w-full flex items-center gap-3 px-4 py-3 bg-violet-600/10 hover:bg-violet-600/20 border-b border-violet-500/20 transition-colors text-left group"
+            data-testid="button-imo-datalastic-search"
+          >
+            <span className="w-8 h-8 rounded-lg bg-violet-500/20 border border-violet-500/30 flex items-center justify-center flex-shrink-0 group-hover:bg-violet-500/30 transition-colors">
+              <Radio className="w-4 h-4 text-violet-400" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-violet-300">
+                IMO {query.trim()} — Datalastic ile Gemi Sorgula
+              </p>
+              <p className="text-xs text-violet-400/70">
+                Teknik özellikler, PSC, motor, klas, sahiplik ve daha fazlası
+              </p>
+            </div>
+            <kbd className="text-[10px] bg-violet-800/40 border border-violet-600/40 px-1.5 py-0.5 rounded text-violet-400 flex-shrink-0">↵</kbd>
+          </button>
         )}
 
         {/* Recent searches */}
