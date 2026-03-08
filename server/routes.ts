@@ -68,6 +68,8 @@ import crewDocConfigRoutes from "./routes/crew-doc-config.routes";
 import orderBookRoutes from "./routes/order-book.routes";
 import brokerCommissionRoutes from "./routes/broker-commission.routes";
 import brokerContactsRoutes from "./routes/broker-contacts.routes";
+import cargoOpsRoutes from "./routes/cargo-operations.routes";
+import portCallChecklistRoutes from "./routes/port-call-checklist.routes";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -157,6 +159,10 @@ export async function registerRoutes(
   app.use("/api/order-book", isAuthenticated, orderBookRoutes);
   app.use("/api/broker-commissions", isAuthenticated, brokerCommissionRoutes);
   app.use("/api/broker-contacts", isAuthenticated, brokerContactsRoutes);
+
+  // ─── Sprint 11: Agent Modules ─────────────────────────────────────────────
+  app.use("/api/cargo-operations", isAuthenticated, cargoOpsRoutes);
+  app.use("/api/port-call-checklists", isAuthenticated, portCallChecklistRoutes);
 
   return httpServer;
 }

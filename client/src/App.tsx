@@ -93,6 +93,8 @@ import Contacts from "@/pages/contacts";
 import PassagePlanning from "@/pages/passage-planning";
 import NotificationsPage from "@/pages/notifications";
 import CrewDocSettings from "@/pages/crew-doc-settings";
+import AgentReports from "@/pages/agent-reports";
+import CargoOps from "@/pages/cargo-ops";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -160,6 +162,8 @@ function AuthenticatedRouter() {
       <Route path="/charter-parties" component={CharterParties} />
       <Route path="/husbandry" component={Husbandry} />
       <Route path="/agent-report/:voyageId" component={AgentReport} />
+      <Route path="/agent-reports" component={AgentReports} />
+      <Route path="/cargo-ops" component={CargoOps} />
       <Route path="/environmental" component={Environmental} />
       <Route path="/insurance" component={Insurance} />
       <Route path="/drydock" component={Drydock} />

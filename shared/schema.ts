@@ -3101,3 +3101,43 @@ export const crewDocConfig = pgTable("crew_doc_config", {
 export const insertCrewDocConfigSchema = createInsertSchema(crewDocConfig).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertCrewDocConfig = z.infer<typeof insertCrewDocConfigSchema>;
 export type CrewDocConfig = typeof crewDocConfig.$inferSelect;
+
+// ─── Cargo Operations ────────────────────────────────────────────────────────
+export const cargoOperations = pgTable("cargo_operations", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  portCallId: integer("port_call_id").references(() => portCalls.id, { onDelete: "set null" }),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
+  vesselId: integer("vessel_id").references(() => vessels.id, { onDelete: "set null" }),
+  cargoName: text("cargo_name").notNull(),
+  cargoType: text("cargo_type").notNull().default("bulk"),
+  operation: text("operation").notNull().default("loading"),
+  quantity: real("quantity"),
+  unit: text("unit").notNull().default("MT"),
+  blNumber: text("bl_number"),
+  hatchNo: text("hatch_no"),
+  status: text("status").notNull().default("planned"),
+  startTime: timestamp("start_time"),
+  endTime: timestamp("end_time"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertCargoOperationSchema = createInsertSchema(cargoOperations).omit({ id: true, createdAt: true });
+export type InsertCargoOperation = z.infer<typeof insertCargoOperationSchema>;
+export type CargoOperation = typeof cargoOperations.$inferSelect;
+
+// ─── Port Call Checklists ────────────────────────────────────────────────────
+export const portCallChecklists = pgTable("port_call_checklists", {
+  id: serial("id").primaryKey(),
+  portCallId: integer("port_call_id").notNull().references(() => portCalls.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  category: text("category").notNull().default("arrival"),
+  item: text("item").notNull(),
+  isCompleted: boolean("is_completed").notNull().default(false),
+  completedAt: timestamp("completed_at"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertPortCallChecklistSchema = createInsertSchema(portCallChecklists).omit({ id: true, createdAt: true });
+export type InsertPortCallChecklist = z.infer<typeof insertPortCallChecklistSchema>;
+export type PortCallChecklist = typeof portCallChecklists.$inferSelect;

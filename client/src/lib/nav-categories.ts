@@ -45,6 +45,8 @@ import {
   DollarSign,
   Contact2,
   Compass,
+  FileBarChart2,
+  ArrowUpDown,
 } from "lucide-react";
 
 export type BadgeSource = "messages" | "nominations" | "tenders" | "certs" | "voyageInvites";
@@ -95,6 +97,8 @@ export const NAV_CATEGORIES: NavCategory[] = [
       { label: "Port Calls", url: "/port-calls", icon: Anchor },
       { label: "Action Center", url: "/actions", icon: Zap },
       { label: "Husbandry", url: "/husbandry", icon: Package },
+      { label: "Cargo Operations", url: "/cargo-ops", icon: ArrowUpDown, isNew: true },
+      { label: "Agent Reports", url: "/agent-reports", icon: FileBarChart2 },
     ],
   },
   {
@@ -274,6 +278,8 @@ export const URL_TO_CATEGORY: Record<string, string> = {
   "/actions": "operations",
   "/husbandry": "operations",
   "/agent-report": "operations",
+  "/agent-reports": "operations",
+  "/cargo-ops": "operations",
   "/messages": "communication",
   "/forum": "communication",
   "/notifications": "communication",

@@ -3,12 +3,14 @@ import { useState } from "react";
 import { 
   Anchor, Plus, Clock, CheckCircle2, PlayCircle, AlertCircle, 
   Search, Filter, MoreVertical, Calendar, Ship, MapPin, 
-  User, ClipboardCheck, ArrowUpRight, CheckCircle
+  User, ClipboardCheck, ArrowUpRight, CheckCircle, ListChecks,
+  Trash2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, 
   DialogFooter, DialogTrigger 
@@ -21,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertPortCallSchema, type PortCall, type Vessel, type Voyage } from "@shared/schema";
+import { insertPortCallSchema, type PortCall, type PortCallChecklist, type Vessel, type Voyage } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { fmtDate } from "@/lib/formatDate";
@@ -44,6 +46,10 @@ export default function PortCalls() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [checklistPortCallId, setChecklistPortCallId] = useState<number | null>(null);
+  const [isChecklistOpen, setIsChecklistOpen] = useState(false);
+  const [newItem, setNewItem] = useState("");
+  const [newItemCategory, setNewItemCategory] = useState("arrival");
 
   const { data: portCalls, isLoading } = useQuery<PortCall[]>({
     queryKey: ["/api/port-calls"],
@@ -76,6 +82,53 @@ export default function PortCalls() {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
+
+  const { data: checklistItems } = useQuery<PortCallChecklist[]>({
+    queryKey: ["/api/port-call-checklists", checklistPortCallId],
+    queryFn: async () => {
+      if (!checklistPortCallId) return [];
+      const res = await apiRequest("GET", `/api/port-call-checklists/${checklistPortCallId}`);
+      return res.json();
+    },
+    enabled: !!checklistPortCallId,
+  });
+
+  const initChecklistMutation = useMutation({
+    mutationFn: (portCallId: number) => apiRequest("POST", `/api/port-call-checklists/${portCallId}/init`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/port-call-checklists", checklistPortCallId] }),
+  });
+
+  const toggleChecklistMutation = useMutation({
+    mutationFn: ({ id, isCompleted }: { id: number; isCompleted: boolean }) =>
+      apiRequest("PATCH", `/api/port-call-checklists/item/${id}`, { isCompleted }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/port-call-checklists", checklistPortCallId] }),
+  });
+
+  const addChecklistItemMutation = useMutation({
+    mutationFn: ({ portCallId, item, category }: { portCallId: number; item: string; category: string }) =>
+      apiRequest("POST", `/api/port-call-checklists/${portCallId}/item`, { item, category }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/port-call-checklists", checklistPortCallId] });
+      setNewItem("");
+    },
+  });
+
+  const deleteChecklistItemMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/port-call-checklists/item/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/port-call-checklists", checklistPortCallId] }),
+  });
+
+  const openChecklist = (portCallId: number) => {
+    setChecklistPortCallId(portCallId);
+    setIsChecklistOpen(true);
+    setTimeout(() => initChecklistMutation.mutate(portCallId), 100);
+  };
+
+  const arrivalItems = (checklistItems || []).filter(i => i.category === "arrival").sort((a, b) => a.sortOrder - b.sortOrder);
+  const departureItems = (checklistItems || []).filter(i => i.category === "departure").sort((a, b) => a.sortOrder - b.sortOrder);
+  const totalItems = (checklistItems || []).length;
+  const completedItems = (checklistItems || []).filter(i => i.isCompleted).length;
+  const progress = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
 
   const form = useForm({
     resolver: zodResolver(insertPortCallSchema),
@@ -368,16 +421,126 @@ export default function PortCalls() {
                   <Button variant="ghost" size="sm" className="h-8 text-xs text-sky-400 hover:text-sky-300 gap-1 px-2">
                     Manage Details <ArrowUpRight className="w-3 h-3" />
                   </Button>
-                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                    <Clock className="w-3 h-3" />
-                    Updated 2h ago
-                  </div>
+                  <Button
+                    data-testid={`btn-checklist-${call.id}`}
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs text-emerald-400 hover:text-emerald-300 gap-1 px-2"
+                    onClick={() => openChecklist(call.id)}
+                  >
+                    <ListChecks className="w-3 h-3" />
+                    Checklist
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           );
         })}
       </div>
+      {/* Checklist Dialog */}
+      <Dialog open={isChecklistOpen} onOpenChange={open => { setIsChecklistOpen(open); if (!open) { setChecklistPortCallId(null); setNewItem(""); } }}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ListChecks className="h-5 w-5 text-emerald-400" />
+              Port Call Checklist
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 mb-4">
+            <div className="flex items-center justify-between text-sm text-slate-400">
+              <span>{completedItems} / {totalItems} tamamlandı</span>
+              <span className="font-medium text-emerald-400">%{progress}</span>
+            </div>
+            <Progress value={progress} className="h-2" />
+          </div>
+
+          {[
+            { key: "arrival", label: "Varış Kontrol Listesi", items: arrivalItems },
+            { key: "departure", label: "Kalkış Kontrol Listesi", items: departureItems },
+          ].map(section => (
+            <div key={section.key} className="space-y-2 mb-6">
+              <h3 className="font-semibold text-sky-400 text-sm uppercase tracking-wide">{section.label}</h3>
+              {section.items.length === 0 ? (
+                <p className="text-slate-500 text-sm py-2">Yükleniyor...</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {section.items.map(item => (
+                    <div
+                      key={item.id}
+                      data-testid={`checklist-item-${item.id}`}
+                      className="flex items-center gap-3 p-2.5 rounded-lg bg-slate-800/50 hover:bg-slate-800 group"
+                    >
+                      <Checkbox
+                        id={`cl-${item.id}`}
+                        checked={item.isCompleted}
+                        onCheckedChange={checked => toggleChecklistMutation.mutate({ id: item.id, isCompleted: !!checked })}
+                        className="border-slate-500 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                      />
+                      <label
+                        htmlFor={`cl-${item.id}`}
+                        className={`flex-1 text-sm cursor-pointer ${item.isCompleted ? "line-through text-slate-500" : "text-slate-200"}`}
+                      >
+                        {item.item}
+                      </label>
+                      {item.isCompleted && (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                      )}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400"
+                        onClick={() => deleteChecklistItemMutation.mutate(item.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+
+          <div className="border-t border-slate-700 pt-4 space-y-2">
+            <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Özel Madde Ekle</p>
+            <div className="flex gap-2">
+              <Select value={newItemCategory} onValueChange={setNewItemCategory}>
+                <SelectTrigger className="w-36 bg-slate-800 border-slate-600 text-slate-300 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="arrival">Varış</SelectItem>
+                  <SelectItem value="departure">Kalkış</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                data-testid="input-new-checklist-item"
+                placeholder="Yeni madde..."
+                value={newItem}
+                onChange={e => setNewItem(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter" && newItem.trim() && checklistPortCallId) {
+                    addChecklistItemMutation.mutate({ portCallId: checklistPortCallId, item: newItem.trim(), category: newItemCategory });
+                  }
+                }}
+                className="bg-slate-800 border-slate-600 text-white flex-1"
+              />
+              <Button
+                data-testid="btn-add-checklist-item"
+                size="sm"
+                className="bg-sky-600 hover:bg-sky-500"
+                disabled={!newItem.trim() || !checklistPortCallId}
+                onClick={() => {
+                  if (newItem.trim() && checklistPortCallId) {
+                    addChecklistItemMutation.mutate({ portCallId: checklistPortCallId, item: newItem.trim(), category: newItemCategory });
+                  }
+                }}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
