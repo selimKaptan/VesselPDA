@@ -603,21 +603,35 @@ export default function VesselTrack() {
         zoomControl: false,
       });
 
-      if (token) {
-        L.tileLayer(
-          `https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/256/{z}/{x}/{y}@2x?access_token=${token}`,
-          {
-            attribution: '© <a href="https://www.mapbox.com/about/maps/">Mapbox</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-            tileSize: 256,
-            maxZoom: 22,
-          }
-        ).addTo(map);
-      } else {
-        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", {
+      const addCartoDark = () => {
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
           attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions">CARTO</a>',
           subdomains: "abcd",
           maxZoom: 19,
         }).addTo(map);
+      };
+
+      if (token) {
+        const mbLayer = L.tileLayer(
+          `https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/{z}/{x}/{y}@2x?access_token=${token}`,
+          {
+            attribution: '© <a href="https://www.mapbox.com/about/maps/">Mapbox</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            tileSize: 512,
+            zoomOffset: -1,
+            maxZoom: 22,
+          }
+        );
+        let fallbackAdded = false;
+        mbLayer.on("tileerror", () => {
+          if (!fallbackAdded) {
+            fallbackAdded = true;
+            mbLayer.remove();
+            addCartoDark();
+          }
+        });
+        mbLayer.addTo(map);
+      } else {
+        addCartoDark();
       }
 
       L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
