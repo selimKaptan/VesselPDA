@@ -211,7 +211,18 @@ router.get("/lookup", isAuthenticated, async (req, res) => {
             call_sign: info.call_sign ?? info.callsign ?? specs.call_sign,
           };
         }
-        return res.json(mapDatalasticVessel(specs, imo));
+        const mapped = mapDatalasticVessel(specs, imo);
+        if (!mapped.grt && process.env.VESSEL_API_KEY) {
+          const zyla = await zylaVesselLookup(imo);
+          if (zyla) {
+            if (!mapped.grt  && zyla.grt)  mapped.grt  = zyla.grt;
+            if (!mapped.nrt  && zyla.nrt)  mapped.nrt  = zyla.nrt;
+            if (!mapped.dwt  && zyla.dwt)  mapped.dwt  = zyla.dwt;
+            if (!mapped.loa  && zyla.loa)  mapped.loa  = zyla.loa;
+            if (!mapped.beam && zyla.beam) mapped.beam = zyla.beam;
+          }
+        }
+        return res.json(mapped);
       }
     } catch (error: any) {
       if (!isNetworkError(error)) {

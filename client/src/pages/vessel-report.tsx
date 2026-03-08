@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useRef, useEffect } from "react";
 import { useRoute } from "wouter";
 import { Link } from "wouter";
 import {
@@ -9,6 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageMeta } from "@/components/page-meta";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -196,6 +199,54 @@ export default function VesselReport() {
   );
   const posIsFromPro = !posQ.data && posData != null;
 
+  // ── Leaflet mini-map refs ─────────────────────────────────────────────────
+  const miniMapContainerRef = useRef<HTMLDivElement>(null);
+  const miniMapInstanceRef  = useRef<L.Map | null>(null);
+
+  useEffect(() => {
+    if (!miniMapContainerRef.current || !posData?.latitude) return;
+
+    if (miniMapInstanceRef.current) {
+      miniMapInstanceRef.current.remove();
+      miniMapInstanceRef.current = null;
+    }
+
+    const map = L.map(miniMapContainerRef.current, {
+      zoomControl: true,
+      scrollWheelZoom: false,
+      attributionControl: false,
+    });
+    miniMapInstanceRef.current = map;
+
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+    }).addTo(map);
+    L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
+      maxZoom: 18, opacity: 0.7,
+    }).addTo(map);
+
+    map.setView([posData.latitude, posData.longitude], 11);
+
+    const course = posData.course ?? 0;
+    const shipIcon = L.divIcon({
+      html: `<svg viewBox="0 0 24 24" width="28" height="28" xmlns="http://www.w3.org/2000/svg" style="transform:rotate(${course}deg);filter:drop-shadow(0 0 4px #3b82f6)"><polygon points="12,2 20,22 12,17 4,22" fill="#3b82f6" stroke="#93c5fd" stroke-width="1"/></svg>`,
+      className: "",
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+    });
+
+    const navStatus = posData.navigation_status ?? "";
+    const dest      = posData.destination ? ` → ${posData.destination}` : "";
+    L.marker([posData.latitude, posData.longitude], { icon: shipIcon })
+      .addTo(map)
+      .bindPopup(`<b>${vesselName}</b><br/>${navStatus}${dest}`, { closeButton: false });
+
+    return () => {
+      miniMapInstanceRef.current?.remove();
+      miniMapInstanceRef.current = null;
+    };
+  }, [posData?.latitude, posData?.longitude, posData?.course]);
+
   return (
     <div className="min-h-screen bg-background">
       <PageMeta title={`${vesselName} — Gemi Raporu | VesselPDA`} />
@@ -283,6 +334,13 @@ export default function VesselReport() {
           >
             {posData && (
               <div className="space-y-3">
+                {/* Mini Leaflet map */}
+                <div
+                  ref={miniMapContainerRef}
+                  className="w-full rounded-lg overflow-hidden border border-border/40"
+                  style={{ height: 180 }}
+                />
+
                 <InfoGrid rows={[
                   { label: "Enlem",          value: posData.latitude?.toFixed(5)  ?? "—" },
                   { label: "Boylam",         value: posData.longitude?.toFixed(5) ?? "—" },
@@ -294,18 +352,26 @@ export default function VesselReport() {
                   { label: "Varış Yeri",     value: fmt(posData.destination) },
                   { label: "ETA",            value: fmtDate(posData.eta) },
                 ]} />
-                <div className="flex flex-col gap-0.5">
-                  {posData.timestamp && (
-                    <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                      <Clock className="w-2.5 h-2.5" />
-                      Güncelleme: {new Date(posData.timestamp).toLocaleString("tr-TR")}
-                    </p>
-                  )}
-                  {posIsFromPro && (
-                    <p className="text-[10px] text-muted-foreground/60">
-                      Kaynak: Datalastic vessel_pro
-                    </p>
-                  )}
+
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-0.5">
+                    {posData.timestamp && (
+                      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <Clock className="w-2.5 h-2.5" />
+                        Güncelleme: {new Date(posData.timestamp).toLocaleString("tr-TR")}
+                      </p>
+                    )}
+                    {posIsFromPro && (
+                      <p className="text-[10px] text-muted-foreground/60">
+                        Kaynak: Datalastic vessel_pro
+                      </p>
+                    )}
+                  </div>
+                  <Link href={`/vessel-track?imo=${imo}`}>
+                    <Button variant="ghost" size="sm" className="h-6 text-[11px] gap-1 text-primary">
+                      <ExternalLink className="w-3 h-3" /> Haritada Gör
+                    </Button>
+                  </Link>
                 </div>
               </div>
             )}
