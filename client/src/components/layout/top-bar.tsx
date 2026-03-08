@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useTheme } from "@/components/theme-provider";
 import { useLanguage } from "@/lib/i18n";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -206,6 +206,7 @@ export function TopBar({ user, onMenuClick }: TopBarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [, navigate] = useLocation();
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -262,6 +263,14 @@ export function TopBar({ user, onMenuClick }: TopBarProps) {
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setSearchOpen(true); }}
             onFocus={() => setSearchOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && /^\d{7,9}$/.test(searchQuery.trim())) {
+                e.preventDefault();
+                navigate(`/vessel-report/${searchQuery.trim()}`);
+                setSearchOpen(false);
+                setSearchQuery("");
+              }
+            }}
             data-testid="button-open-search"
             autoComplete="off"
             spellCheck={false}

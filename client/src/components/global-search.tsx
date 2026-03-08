@@ -67,6 +67,8 @@ export function GlobalSearch({ open, query, onClose }: GlobalSearchProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const latestQueryRef = useRef<string>("");
   const [, navigate] = useLocation();
 
   useEffect(() => {
@@ -78,27 +80,37 @@ export function GlobalSearch({ open, query, onClose }: GlobalSearchProps) {
   const fetchResults = useCallback(async (q: string) => {
     if (q.length < 2) { setResults([]); setLoading(false); return; }
     if (isImoQuery(q)) { setResults([]); setLoading(false); return; }
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    latestQueryRef.current = q;
     setLoading(true);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=5`, { credentials: "include" });
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=5`, { credentials: "include", signal: controller.signal });
       if (!res.ok) throw new Error("Search failed");
       const data = await res.json();
+      if (latestQueryRef.current !== q) return;
       setResults(data.results || []);
-    } catch {
+    } catch (err: any) {
+      if (err?.name === "AbortError") return;
+      if (latestQueryRef.current !== q) return;
       setResults([]);
     } finally {
-      setLoading(false);
+      if (latestQueryRef.current === q) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (query.length < 2) {
+      if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
       setResults([]);
       setLoading(false);
       return;
     }
     if (isImoQuery(query)) {
+      if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
+      latestQueryRef.current = "";
       setResults([]);
       setLoading(false);
       return;
