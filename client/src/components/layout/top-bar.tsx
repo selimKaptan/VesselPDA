@@ -43,6 +43,7 @@ const ADMIN_ROLE_OPTIONS = [
   { value: "shipowner", label: "Shipowner" },
   { value: "broker", label: "Ship Broker" },
   { value: "provider", label: "Ship Provider" },
+  { value: "master", label: "Ship Master" },
 ];
 
 function DarkModeToggle() {
