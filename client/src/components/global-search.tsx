@@ -39,10 +39,11 @@ function saveRecent(query: string) {
   } catch {}
 }
 
-const TYPE_ORDER = ["vessel", "voyage", "proforma", "fda", "invoice", "tender", "port", "company", "forum"];
+const TYPE_ORDER = ["vessel", "voyage", "proforma", "fda", "invoice", "tender", "port", "port_datalastic", "company", "forum"];
 const TYPE_LABELS: Record<string, string> = {
   vessel: "Vessels",
   port: "Ports",
+  port_datalastic: "Limanlar — Datalastic",
   proforma: "Proformas",
   tender: "Tenders",
   voyage: "Voyages",
@@ -289,7 +290,12 @@ export function GlobalSearch({ open, query, onClose }: GlobalSearchProps) {
           <div>
             {groups.map(group => (
               <div key={group.type}>
-                <div className="px-4 py-1.5 text-[10px] uppercase tracking-wider text-slate-500 bg-slate-800/40 font-semibold sticky top-0 z-10">
+                <div className={`px-4 py-1.5 text-[10px] uppercase tracking-wider font-semibold sticky top-0 z-10 flex items-center gap-1.5 ${
+                  group.type === "port_datalastic"
+                    ? "text-violet-400 bg-violet-950/60 border-b border-violet-500/20"
+                    : "text-slate-500 bg-slate-800/40"
+                }`}>
+                  {group.type === "port_datalastic" && <Radio className="w-3 h-3 shrink-0" />}
                   {TYPE_LABELS[group.type] || group.type}
                 </div>
                 {group.items.map(item => {
@@ -301,16 +307,22 @@ export function GlobalSearch({ open, query, onClose }: GlobalSearchProps) {
                       onMouseDown={(e) => { e.preventDefault(); }}
                       onClick={() => handleNavigate(item.href, query)}
                       className={`w-full flex items-center gap-3 px-4 py-2.5 transition-colors text-left ${
-                        isSelected ? "bg-slate-800/70" : "hover:bg-slate-800/50"
+                        item.type === "port_datalastic"
+                          ? isSelected ? "bg-violet-900/30" : "hover:bg-violet-900/20"
+                          : isSelected ? "bg-slate-800/70" : "hover:bg-slate-800/50"
                       }`}
                       data-testid={`search-result-${item.type}-${item.id}`}
                     >
-                      <span className="text-base flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-slate-800">
+                      <span className={`text-base flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg ${
+                        item.type === "port_datalastic" ? "bg-violet-900/50 border border-violet-500/30" : "bg-slate-800"
+                      }`}>
                         {item.icon}
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-white truncate">{item.title}</p>
-                        <p className="text-xs text-slate-400 truncate">{item.subtitle}</p>
+                        <p className={`text-xs truncate ${item.type === "port_datalastic" ? "text-violet-300/70" : "text-slate-400"}`}>
+                          {item.subtitle}
+                        </p>
                       </div>
                       {isSelected && (
                         <kbd className="text-[10px] bg-slate-700 border border-slate-600 px-1.5 py-0.5 rounded text-slate-400 flex-shrink-0">↵</kbd>

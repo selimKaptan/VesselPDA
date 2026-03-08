@@ -6,6 +6,7 @@ import { storage } from "../storage";
 import { ilike, or, and, eq } from "drizzle-orm";
 import { vessels, ports, proformas, portTenders, voyages, forumTopics, invoices, fdaAccounts } from "@shared/schema";
 import { companyProfiles } from "@shared/models/auth";
+import { findPorts, isDatalasticConfigured } from "../datalastic";
 
 const router = Router();
 
@@ -33,6 +34,7 @@ router.get("/api/search", isAuthenticated, async (req: any, res: any, next: any)
         forumResults,
         invoiceResults,
         fdaResults,
+        datalasticPortResults,
       ] = await Promise.all([
         // Vessels — search name, IMO, callSign
         db
@@ -129,7 +131,22 @@ router.get("/api/search", isAuthenticated, async (req: any, res: any, next: any)
               : and(eq(fdaAccounts.userId, userId), ilike(fdaAccounts.referenceNumber, searchTerm))
           )
           .limit(limit),
+
+        // Datalastic port search — worldwide ports
+        isDatalasticConfigured()
+          ? findPorts(rawQuery).catch(() => [] as any[])
+          : Promise.resolve([] as any[]),
       ]);
+
+      const dbPortLocodes = new Set(portResults.map((p: any) => (p.code || "").toUpperCase()).filter(Boolean));
+      const dbPortNames = new Set(portResults.map((p: any) => (p.name || "").toLowerCase()).filter(Boolean));
+      const filteredDatalasticPorts = (datalasticPortResults || [])
+        .filter((dp: any) => {
+          const locode = (dp.locode || "").toUpperCase();
+          const name = (dp.name || "").toLowerCase();
+          return !dbPortLocodes.has(locode) && !dbPortNames.has(name);
+        })
+        .slice(0, 5);
 
       return [
         ...vesselResults.map(v => ({
@@ -147,6 +164,14 @@ router.get("/api/search", isAuthenticated, async (req: any, res: any, next: any)
           subtitle: `${p.country || ""}${p.code ? " — " + p.code : ""}`,
           icon: "⚓",
           href: "/port-info",
+        })),
+        ...filteredDatalasticPorts.map((dp: any, idx: number) => ({
+          type: "port_datalastic",
+          id: -(idx + 1),
+          title: dp.name || "Liman",
+          subtitle: `${dp.country || ""}${dp.locode ? " — " + dp.locode : ""}`,
+          icon: "🛰",
+          href: `/port-info?q=${encodeURIComponent(dp.locode || dp.name || "")}`,
         })),
         ...proformaResults.map(p => ({
           type: "proforma",

@@ -396,7 +396,10 @@ function getCountryFlag(country: string): string {
 }
 
 export default function PortInfo() {
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("q") || "";
+  });
   const [selectedPort, setSelectedPort] = useState<Port | null>(null);
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
   const isSearching = searchQuery.trim().length >= 2;

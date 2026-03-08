@@ -4,6 +4,7 @@ import { getOrFetchRates, fetchTCMBRates } from "../exchange-rates";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { isAdmin } from "./shared";
 import { cached, invalidateCache } from "../cache";
+import { findPorts, isDatalasticConfigured } from "../datalastic";
 
 const router = Router();
 
@@ -12,9 +13,42 @@ router.get("/api/ports", async (req: any, res: any, next: any) => {
     const q = req.query.q as string | undefined;
     const country = req.query.country as string | undefined;
     const cacheKey = `ports:list:${country || 'all'}:${q ? q.trim().toLowerCase() : ''}`;
-    const portList = await cached(cacheKey, 'daily', async () => {
+    const portList = await cached(cacheKey, 'short', async () => {
       if (q && q.trim().length > 0) {
-        return await storage.searchPorts(q.trim(), country);
+        const dbPorts = await storage.searchPorts(q.trim(), country);
+
+        if (isDatalasticConfigured() && dbPorts.length < 3) {
+          try {
+            const datalasticPorts = await findPorts(q.trim());
+            const existingLocodes = new Set(
+              dbPorts.map((p: any) => (p.code || "").toUpperCase()).filter(Boolean)
+            );
+            const existingNames = new Set(
+              dbPorts.map((p: any) => (p.name || "").toLowerCase()).filter(Boolean)
+            );
+            const extra = datalasticPorts
+              .filter(dp => {
+                const locode = (dp.locode || "").toUpperCase();
+                const name = (dp.name || "").toLowerCase();
+                return !existingLocodes.has(locode) && !existingNames.has(name);
+              })
+              .slice(0, 5)
+              .map((dp, idx) => ({
+                id: -(idx + 1),
+                name: dp.name || "",
+                code: dp.locode || "",
+                country: dp.country || "",
+                lat: dp.latitude ?? null,
+                lng: dp.longitude ?? null,
+                source: "datalastic",
+              }));
+            return [...dbPorts, ...extra];
+          } catch {
+            return dbPorts;
+          }
+        }
+
+        return dbPorts;
       }
       if (country) {
         return await storage.getPorts(undefined, country);
