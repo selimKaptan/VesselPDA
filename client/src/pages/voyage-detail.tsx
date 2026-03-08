@@ -254,6 +254,14 @@ function VoyageLiveTracker({ voyage, portName, imoNumber }: {
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<any>(null);
 
+  const eta = voyage.eta ? new Date(voyage.eta) : null;
+  const etd = voyage.etd ? new Date(voyage.etd) : null;
+  const now = new Date();
+  let progress = 0;
+  if (eta && etd && etd > eta) {
+    progress = Math.min(1, Math.max(0, (now.getTime() - eta.getTime()) / (etd.getTime() - eta.getTime())));
+  }
+
   const { data: pos, isLoading } = useQuery<any>({
     queryKey: ["/api/vessels/live-position", imoNumber],
     queryFn: async () => {
@@ -300,65 +308,75 @@ function VoyageLiveTracker({ voyage, portName, imoNumber }: {
     };
   }, [pos]);
 
-  if (!imoNumber) return null;
+  if (!eta && !etd && !portName) return null;
 
-  if (isLoading) return (
-    <Card className="overflow-hidden border-border bg-card px-4 py-3">
-      <div className="flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-        <span className="text-xs text-muted-foreground">Canlı konum yükleniyor...</span>
-      </div>
-    </Card>
-  );
-
-  if (!pos) return null;
-
-  const eta = voyage.eta ? new Date(voyage.eta) : null;
-  const etd = voyage.etd ? new Date(voyage.etd) : null;
-  const now = new Date();
-  let progress = 0;
-  if (eta && etd && etd > eta) {
-    progress = Math.min(1, Math.max(0, (now.getTime() - eta.getTime()) / (etd.getTime() - eta.getTime())));
-  }
+  const hasLiveData = !!pos;
+  const showMap = hasLiveData || (imoNumber && isLoading);
 
   return (
     <Card className="overflow-hidden border-border bg-card" data-testid="card-voyage-live-tracker">
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
             <Navigation className="w-3.5 h-3.5 text-blue-400" />
           </div>
-          <span className="text-sm font-semibold">Canlı Konum</span>
+          <span className="text-sm font-semibold">Yolculuk Durumu</span>
         </div>
-        <span className="flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+        {hasLiveData ? (
+          <span className="flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+            </span>
+            CANLI
           </span>
-          CANLI
-        </span>
+        ) : (
+          <span className="text-[10px] text-muted-foreground/60 px-2.5 py-1 rounded-full border border-border/40 bg-muted/20">
+            Planlı
+          </span>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2">
-        <div ref={mapRef} style={{ height: "220px", minHeight: "220px" }} className="w-full bg-slate-900" />
+      <div className={showMap ? "grid grid-cols-1 md:grid-cols-2" : "px-4 py-4 space-y-4"}>
 
-        <div className="px-4 py-4 flex flex-col gap-3 justify-between">
+        {/* ── Sol: harita (sadece live data varsa) veya boş/loading ── */}
+        {showMap && (
+          <div
+            ref={mapRef}
+            style={{ height: "220px", minHeight: "220px" }}
+            className="w-full bg-slate-900 flex items-center justify-center"
+          >
+            {isLoading && !pos && (
+              <div className="flex flex-col items-center gap-2 text-muted-foreground/50">
+                <div className="w-6 h-6 border-2 border-blue-400/50 border-t-blue-400 rounded-full animate-spin" />
+                <span className="text-[10px]">Konum alınıyor...</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Sağ: bilgi paneli ── */}
+        <div className={`flex flex-col gap-3 justify-between ${showMap ? "px-4 py-4" : ""}`}>
+
+          {/* Kalkış → Varış */}
           <div className="flex justify-between items-start gap-3">
             <div className="min-w-0">
               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Kalkış</p>
-              <p className="text-sm font-bold truncate">{pos.port_name || "—"}</p>
-              {pos.country && <p className="text-[10px] text-muted-foreground uppercase">{pos.country}</p>}
+              <p className="text-sm font-bold truncate">{pos?.port_name || "—"}</p>
+              {pos?.country && <p className="text-[10px] text-muted-foreground uppercase">{pos.country}</p>}
             </div>
-            <div className="text-muted-foreground/50 text-base pt-2 shrink-0">→</div>
+            <div className="text-muted-foreground/40 text-base pt-2 shrink-0">→</div>
             <div className="min-w-0 text-right">
               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Varış</p>
-              <p className="text-sm font-bold truncate">{portName || pos.destination || "—"}</p>
+              <p className="text-sm font-bold truncate">{portName || pos?.destination || "—"}</p>
             </div>
           </div>
 
-          {eta && etd && (
+          {/* İlerleme çubuğu */}
+          {eta && etd ? (
             <div>
-              <div className="relative h-2 bg-muted/60 rounded-full overflow-hidden">
+              <div className="relative h-2.5 bg-muted/60 rounded-full overflow-hidden">
                 <div
                   className="absolute left-0 top-0 h-full bg-blue-500 rounded-full transition-all duration-700"
                   style={{ width: `${Math.round(progress * 100)}%` }}
@@ -366,33 +384,55 @@ function VoyageLiveTracker({ voyage, portName, imoNumber }: {
               </div>
               <div className="flex justify-between mt-1.5">
                 <span className="text-[9px] text-muted-foreground">ETA {eta.toLocaleDateString("tr-TR")}</span>
-                <span className="text-[9px] text-blue-400 font-semibold">{Math.round(progress * 100)}%</span>
+                <span className="text-[9px] text-blue-400 font-bold">{Math.round(progress * 100)}% tamamlandı</span>
                 <span className="text-[9px] text-muted-foreground">ETD {etd.toLocaleDateString("tr-TR")}</span>
               </div>
             </div>
+          ) : (
+            <div className="text-[10px] text-muted-foreground/60 italic">ETA/ETD tarihi girilmemiş</div>
           )}
 
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-            {[
-              { label: "Enlem",          value: pos.latitude?.toFixed(5) ?? "—" },
-              { label: "Boylam",         value: pos.longitude?.toFixed(5) ?? "—" },
-              { label: "Hız",            value: `${pos.speed ?? "—"} kn` },
-              { label: "Rota",           value: `${pos.course ?? "—"}°` },
-              { label: "Baş İstikameti", value: `${pos.heading ?? "—"}°` },
-              { label: "Durum",          value: pos.navigation_status || "—" },
-            ].map(({ label, value }) => (
-              <div key={label}>
-                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none mb-0.5">{label}</p>
-                <p className="text-xs font-semibold leading-tight">{value}</p>
+          {/* Canlı pozisyon detayları */}
+          {hasLiveData && (
+            <>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+                {[
+                  { label: "Enlem",          value: pos.latitude?.toFixed(5) ?? "—" },
+                  { label: "Boylam",         value: pos.longitude?.toFixed(5) ?? "—" },
+                  { label: "Hız",            value: `${pos.speed ?? "—"} kn` },
+                  { label: "Rota",           value: `${pos.course ?? "—"}°` },
+                  { label: "Baş İstikameti", value: `${pos.heading ?? "—"}°` },
+                  { label: "Durum",          value: pos.navigation_status || "—" },
+                ].map(({ label, value }) => (
+                  <div key={label}>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none mb-0.5">{label}</p>
+                    <p className="text-xs font-semibold leading-tight">{value}</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+              <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/60 border-t border-border/40 pt-2">
+                <Clock className="w-2.5 h-2.5 shrink-0" />
+                <span>Güncelleme: {pos.timestamp ? fmtDateTime(new Date(pos.timestamp)) : "—"}</span>
+                <span className="ml-auto shrink-0">Kaynak: Datalastic</span>
+              </div>
+            </>
+          )}
 
-          <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/60 border-t border-border/40 pt-2">
-            <Clock className="w-2.5 h-2.5 shrink-0" />
-            <span>Güncelleme: {pos.timestamp ? fmtDateTime(new Date(pos.timestamp)) : "—"}</span>
-            <span className="ml-auto shrink-0">Kaynak: Datalastic</span>
-          </div>
+          {/* Mesajlar: IMO yok veya veri yok */}
+          {!hasLiveData && !isLoading && (
+            <div className={`flex items-start gap-2 rounded-lg px-3 py-2.5 text-[11px] ${
+              !imoNumber
+                ? "bg-muted/30 border border-border/40 text-muted-foreground"
+                : "bg-amber-500/8 border border-amber-500/20 text-amber-400/80"
+            }`}>
+              <Navigation className="w-3.5 h-3.5 shrink-0 mt-0.5 opacity-60" />
+              <span>
+                {!imoNumber
+                  ? "Canlı konum için IMO numarası gerekli. Gemiler sayfasından IMO ekleyebilirsiniz."
+                  : "Bu gemi için şu anda canlı konum verisi mevcut değil."}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </Card>
