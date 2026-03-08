@@ -1,0 +1,316 @@
+INSTRUCTIONS.md'yi oku. ACIL FIX: Datalastic API çalışıyor (test edildi, gerçek veri geliyor) ama vessel tracking sayfasında harita boş ve hala DEMO gösteriyor. Frontend-backend bağlantısını düzelt.
+
+TEST SONUCU — API çalışıyor:
+curl: https://api.datalastic.com/api/v0/vessel?api-key=xxx&imo=9525338
+Response: MAERSK CHENNAI, lat: -33.91, lon: 18.45, speed: 0, status: Moored, destination: ZACPT>AEJAL
+
+=== FIX 1: TRACKING ROUTES KONTROL VE DÜZELT ===
+
+server/routes/tracking.routes.ts dosyasını aç ve şu endpoint'lerin doğru çalıştığından emin ol:
+
+A) GET /api/vessel-track/status — Datalastic durumu döndürmeli:
+router.get("/status", (req, res) => {
+  const hasDatalastic = !!process.env.DATALASTIC_API_KEY;
+  res.json({
+    connected: hasDatalastic,
+    source: hasDatalastic ? 'datalastic' : 'mock',
+    datalastic: hasDatalastic,
+  });
+});
+
+B) GET /api/vessel-track/fleet — Kullanıcının gemilerini Datalastic'ten çekmeli:
+
+import { getVesselPosition, getVesselBulk, isDatalasticConfigured } from '../datalastic';
+
+router.get("/fleet", isAuthenticated, async (req: any, res: any, next: any) => {
+  try {
+    const userId = req.user.claims.sub;
+    
+    // Kullanıcının gemilerini DB'den çek
+    const userVessels = await db.select().from(vessels).where(eq(vessels.userId, userId));
+    
+    if (userVessels.length === 0) {
+      return res.json([]);
+    }
+    
+    // Datalastic varsa gerçek pozisyonları çek
+    if (isDatalasticConfigured()) {
+      const positions = [];
+      
+      for (const vessel of userVessels) {
+        if (!vessel.imoNumber && !vessel.mmsiNumber) continue;
+        
+        try {
+          const params = vessel.imoNumber ? { imo: vessel.imoNumber } : { mmsi: vessel.mmsiNumber };
+          const data = await getVesselPosition(params);
+          
+          if (data) {
+            positions.push({
+              vesselId: vessel.id,
+              name: data.name || vessel.name,
+              imo: data.imo || vessel.imoNumber,
+              mmsi: data.mmsi,
+              latitude: data.lat,
+              longitude: data.lon,
+              speed: data.speed,
+              course: data.course,
+              heading: data.heading,
+              destination: data.destination,
+              navStatus: data.navigation_status,
+              lastUpdate: data.last_position_UTC,
+              eta: data.eta_UTC,
+              source: 'datalastic',
+            });
+          }
+        } catch (e) {
+          console.error(`Failed to get position for ${vessel.name}:`, e);
+        }
+      }
+      
+      return res.json(positions);
+    }
+    
+    // Fallback: mock data
+    const mockPositions = userVessels.map((v, i) => ({
+      vesselId: v.id,
+      name: v.name,
+      imo: v.imoNumber,
+      latitude: 38.4 + (Math.random() - 0.5) * 5,
+      longitude: 27.1 + (Math.random() - 0.5) * 10,
+      speed: Math.random() * 12,
+      course: Math.random() * 360,
+      heading: Math.random() * 360,
+      destination: 'DEMO',
+      navStatus: ['Under way', 'Moored', 'At anchor'][i % 3],
+      lastUpdate: new Date().toISOString(),
+      source: 'mock',
+    }));
+    
+    res.json(mockPositions);
+  } catch (error) { next(error); }
+});
+
+C) GET /api/vessel-track/positions — Tüm pozisyonlar (fleet ile aynı olabilir):
+Eğer bu endpoint ayrıca varsa, fleet ile aynı Datalastic logic'i kullanmalı.
+
+D) GET /api/vessel-track/search — Gemi arama:
+router.get("/search", isAuthenticated, async (req: any, res: any, next: any) => {
+  try {
+    const query = req.query.q as string;
+    if (!query || query.length < 2) return res.json([]);
+    
+    if (isDatalasticConfigured()) {
+      // Datalastic vessel_find ile ara
+      const { findVessels } = require('../datalastic');
+      const results = await findVessels({ name: query });
+      return res.json(results.slice(0, 20));
+    }
+    
+    res.json([]);
+  } catch (error) { next(error); }
+});
+
+E) GET /api/vessel-track/position/:identifier — Tek gemi pozisyonu:
+router.get("/position/:identifier", isAuthenticated, async (req: any, res: any, next: any) => {
+  try {
+    const id = req.params.identifier;
+    
+    if (isDatalasticConfigured()) {
+      // IMO mu MMSI mi kontrol et
+      const params = id.length === 7 ? { imo: id } : { mmsi: id };
+      const data = await getVesselPosition(params);
+      
+      if (data) {
+        return res.json({
+          name: data.name,
+          imo: data.imo,
+          mmsi: data.mmsi,
+          latitude: data.lat,
+          longitude: data.lon,
+          speed: data.speed,
+          course: data.course,
+          heading: data.heading,
+          destination: data.destination,
+          navStatus: data.navigation_status,
+          lastUpdate: data.last_position_UTC,
+          eta: data.eta_UTC,
+          source: 'datalastic',
+        });
+      }
+    }
+    
+    res.status(404).json({ error: "Vessel not found" });
+  } catch (error) { next(error); }
+});
+
+=== FIX 2: DATALASTIC.TS KONTROL ===
+
+server/datalastic.ts'de fetch çağrılarının doğru yapıldığını kontrol et:
+
+export async function getVesselPosition(params: { imo?: string; mmsi?: string }): Promise<any | null> {
+  const apiKey = process.env.DATALASTIC_API_KEY;
+  if (!apiKey) return null;
+  
+  try {
+    const queryParam = params.imo ? `imo=${params.imo}` : `mmsi=${params.mmsi}`;
+    const url = `https://api.datalastic.com/api/v0/vessel?api-key=${apiKey}&${queryParam}`;
+    
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (data.meta?.success && data.data) {
+      return data.data;
+    }
+    console.log('Datalastic response not successful:', data);
+    return null;
+  } catch (error) {
+    console.error('Datalastic error:', error);
+    return null;
+  }
+}
+
+export function isDatalasticConfigured(): boolean {
+  return !!process.env.DATALASTIC_API_KEY;
+}
+
+=== FIX 3: FRONTEND HARİTA DÜZELT ===
+
+client/src/pages/vessel-track.tsx dosyasını kontrol et ve düzelt:
+
+A) Leaflet CSS import edilmeli:
+import 'leaflet/dist/leaflet.css';
+
+Eğer leaflet kurulu değilse: npm install leaflet @types/leaflet
+
+B) Harita container'ın HEIGHT'ı olmalı:
+<div ref={mapRef} style={{ width: '100%', height: 'calc(100vh - 200px)', minHeight: '500px' }} className="rounded-xl overflow-hidden" />
+
+C) Harita tile'ları OpenStreetMap dark theme kullanmalı (ücretsiz):
+useEffect(() => {
+  if (!mapContainerRef.current || mapInstanceRef.current) return;
+  
+  const map = L.map(mapContainerRef.current, {
+    center: [38.5, 28.0], // Türkiye merkez
+    zoom: 6,
+    zoomControl: true,
+  });
+  
+  // Dark theme harita tile (ÜCRETSİZ, key gerektirmez)
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap contributors, © CARTO',
+    maxZoom: 19,
+    subdomains: 'abcd',
+  }).addTo(map);
+  
+  mapInstanceRef.current = map;
+  
+  return () => {
+    map.remove();
+    mapInstanceRef.current = null;
+  };
+}, []);
+
+D) Status badge güncelle:
+const { data: status } = useQuery({ queryKey: ['/api/vessel-track/status'] });
+
+{status?.datalastic ? (
+  <span className="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+    🟢 Live AIS
+  </span>
+) : (
+  <span className="text-xs px-2 py-1 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+    🟠 DEMO
+  </span>
+)}
+
+E) Gemileri haritaya ekle:
+const { data: fleetPositions } = useQuery({
+  queryKey: ['/api/vessel-track/fleet'],
+  refetchInterval: 60000, // her 1 dakikada güncelle
+});
+
+useEffect(() => {
+  const map = mapInstanceRef.current;
+  if (!map || !fleetPositions?.length) return;
+  
+  // Eski marker'ları temizle
+  if (markersLayerRef.current) {
+    map.removeLayer(markersLayerRef.current);
+  }
+  
+  const markersLayer = L.layerGroup();
+  
+  fleetPositions.forEach((vessel: any) => {
+    if (!vessel.latitude || !vessel.longitude) return;
+    
+    // Gemi ikonu (heading'e göre dönen üçgen)
+    const color = vessel.speed > 0.5 ? '#38BDF8' : '#F59E0B';
+    const rotation = vessel.heading || vessel.course || 0;
+    
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="
+        transform: rotate(${rotation}deg);
+        width: 24px; height: 24px;
+        display: flex; align-items: center; justify-content: center;
+      ">
+        <svg width="24" height="24" viewBox="0 0 24 24">
+          <path d="M12 2L6 20h12L12 2z" fill="${color}" stroke="white" stroke-width="1"/>
+        </svg>
+      </div>`,
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
+    });
+    
+    const marker = L.marker([vessel.latitude, vessel.longitude], { icon });
+    
+    // Popup
+    marker.bindPopup(`
+      <div style="font-family: system-ui; min-width: 220px; padding: 4px;">
+        <div style="font-weight: bold; font-size: 14px; margin-bottom: 4px;">
+          🚢 ${vessel.name || 'Unknown'}
+        </div>
+        <div style="font-size: 11px; color: #666; margin-bottom: 8px;">
+          IMO: ${vessel.imo || 'N/A'} | MMSI: ${vessel.mmsi || 'N/A'}
+        </div>
+        <table style="font-size: 12px; width: 100%;">
+          <tr><td style="color:#888">Speed:</td><td><b>${vessel.speed?.toFixed(1) || 0} kn</b></td></tr>
+          <tr><td style="color:#888">Course:</td><td>${vessel.course?.toFixed(0) || 0}°</td></tr>
+          <tr><td style="color:#888">Status:</td><td>${vessel.navStatus || 'N/A'}</td></tr>
+          <tr><td style="color:#888">Destination:</td><td>${vessel.destination || 'N/A'}</td></tr>
+          <tr><td style="color:#888">ETA:</td><td>${vessel.eta ? new Date(vessel.eta).toLocaleDateString('en-GB') : 'N/A'}</td></tr>
+        </table>
+        <div style="font-size: 10px; color: #999; margin-top: 6px;">
+          Updated: ${vessel.lastUpdate ? new Date(vessel.lastUpdate).toLocaleString() : 'N/A'}
+          <br/>Source: ${vessel.source === 'datalastic' ? '🟢 Live AIS' : '🟠 Demo'}
+        </div>
+      </div>
+    `);
+    
+    markersLayer.addLayer(marker);
+  });
+  
+  markersLayer.addTo(map);
+  markersLayerRef.current = markersLayer;
+  
+  // Tüm gemileri görecek şekilde zoom
+  const validPositions = fleetPositions.filter((v: any) => v.latitude && v.longitude);
+  if (validPositions.length > 0) {
+    const bounds = L.latLngBounds(validPositions.map((v: any) => [v.latitude, v.longitude]));
+    map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
+  }
+}, [fleetPositions]);
+
+F) Refs tanımla:
+const mapContainerRef = useRef<HTMLDivElement>(null);
+const mapInstanceRef = useRef<L.Map | null>(null);
+const markersLayerRef = useRef<L.LayerGroup | null>(null);
+
+=== FIX 4: LEAFLET KURULU MU KONTROL ===
+
+package.json'da leaflet var mı kontrol et. Yoksa:
+npm install leaflet
+
+@types/leaflet zaten var (package.json'da gördüm).
+
+=== FIX 5: MAPBOX VAR
