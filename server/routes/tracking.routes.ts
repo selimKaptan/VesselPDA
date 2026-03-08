@@ -102,8 +102,44 @@ router.delete("/api/vessel-track/watchlist/:id", isAuthenticated, async (req: an
 router.get("/api/vessel-track/fleet", isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user.claims.sub;
-    const vessels = await storage.getVesselsByUser(userId);
-    const fleetWithPositions = vessels.map((v, i) => {
+    const userVessels = await storage.getVesselsByUser(userId);
+
+    // Try Datalastic bulk lookup for vessels with IMO numbers
+    if (process.env.DATALASTIC_API_KEY) {
+      const imoList = userVessels.filter(v => v.imoNumber).map(v => v.imoNumber as string);
+      if (imoList.length > 0) {
+        const bulkData = await datalastic.getVesselBulk(imoList);
+        if (bulkData.length > 0) {
+          const posMap = new Map(bulkData.map(d => [d.imo, d]));
+          const result = userVessels.map((v, i) => {
+            const live = v.imoNumber ? posMap.get(v.imoNumber) : null;
+            const mock = MOCK_AIS_DATA[i % MOCK_AIS_DATA.length];
+            return {
+              id: v.id,
+              vesselName: v.name,
+              mmsi: live?.mmsi ?? null,
+              imo: v.imoNumber,
+              flag: v.flag,
+              vesselType: v.vesselType,
+              grt: v.grt,
+              lat: live?.latitude ?? mock.lat + (seededRandom(v.id * 1000 + 1) - 0.5) * 2,
+              lng: live?.longitude ?? mock.lng + (seededRandom(v.id * 1000 + 2) - 0.5) * 2,
+              heading: live?.heading ?? Math.floor(seededRandom(v.id * 1000 + 3) * 360),
+              speed: live?.speed ?? Math.round(seededRandom(v.id * 1000 + 4) * 14 * 10) / 10,
+              destination: live?.destination ?? mock.destination,
+              eta: live?.eta ?? mock.eta,
+              status: live?.status ?? (["underway", "anchored", "moored"][Math.floor(seededRandom(v.id * 1000 + 5) * 3)] as string),
+              isOwnVessel: true,
+              source: live ? "datalastic" : "mock",
+            };
+          });
+          return res.json(result);
+        }
+      }
+    }
+
+    // Fallback: mock data
+    const fleetWithPositions = userVessels.map((v, i) => {
       const mock = MOCK_AIS_DATA[i % MOCK_AIS_DATA.length];
       return {
         id: v.id,
@@ -121,6 +157,7 @@ router.get("/api/vessel-track/fleet", isAuthenticated, async (req: any, res) => 
         eta: mock.eta,
         status: ["underway", "anchored", "moored"][Math.floor(seededRandom(v.id * 1000 + 5) * 3)] as string,
         isOwnVessel: true,
+        source: "mock",
       };
     });
     res.json(fleetWithPositions);
@@ -229,6 +266,77 @@ router.get("/api/vessel-track/history/:mmsi", isAuthenticated, async (req, res) 
     });
   } catch {
     res.status(500).json({ message: "Failed to fetch vessel track history" });
+  }
+});
+
+
+// GET /api/vessel-track/position/:imo — single vessel live position via Datalastic
+router.get("/api/vessel-track/position/:imo", isAuthenticated, async (req: any, res) => {
+  const imo = req.params.imo?.trim();
+  if (!imo) return res.status(400).json({ message: "imo gerekli" });
+  if (!process.env.DATALASTIC_API_KEY) return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
+  try {
+    const results = await datalastic.findVessel(imo, "imo");
+    if (!results.length) return res.status(404).json({ message: "Gemi bulunamadı" });
+    const vessel = results[0];
+    // Try live position; gracefully fall back to findVessel data if endpoint unavailable
+    let position: any = null;
+    if (vessel.uuid) {
+      try {
+        position = await datalastic.getCurrentPosition(vessel.uuid);
+      } catch {
+        // getCurrentPosition not available on this plan — use findVessel data
+      }
+    }
+    res.json({
+      source: "datalastic",
+      name: vessel.name,
+      imo: vessel.imo,
+      mmsi: vessel.mmsi,
+      flag: vessel.flag,
+      vesselType: vessel.vessel_type,
+      latitude: position?.latitude ?? vessel.latitude,
+      longitude: position?.longitude ?? vessel.longitude,
+      speed: position?.speed ?? vessel.speed,
+      course: position?.course ?? vessel.course,
+      heading: position?.heading ?? vessel.heading,
+      destination: position?.destination ?? vessel.destination,
+      eta: position?.eta ?? vessel.eta,
+      navStatus: position?.navigation_status ?? vessel.status,
+      lastUpdate: position?.timestamp ?? null,
+    });
+  } catch (error: any) {
+    console.error("Datalastic position error:", error.message);
+    res.status(502).json({ message: "Gemi pozisyonu alınamadı." });
+  }
+});
+
+
+// GET /api/vessel-track/port-traffic/:unlocode — vessels currently in/near a port
+router.get("/api/vessel-track/port-traffic/:unlocode", isAuthenticated, async (req: any, res) => {
+  const unlocode = req.params.unlocode?.trim().toUpperCase();
+  if (!unlocode) return res.status(400).json({ message: "unlocode gerekli" });
+  const radius = Math.min(parseInt(req.query.radius as string) || 5, 50);
+  if (!process.env.DATALASTIC_API_KEY) return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
+  try {
+    const vessels = await datalastic.getVesselsInPort({ portUnlocode: unlocode, radius });
+    res.json(vessels.map(v => ({
+      uuid: v.uuid,
+      name: v.name,
+      imo: v.imo,
+      mmsi: v.mmsi,
+      flag: v.flag,
+      vesselType: v.vessel_type,
+      latitude: v.latitude,
+      longitude: v.longitude,
+      speed: v.speed,
+      course: v.course,
+      destination: v.destination,
+      navStatus: v.navigation_status,
+    })));
+  } catch (error: any) {
+    console.error("Port traffic error:", error.message);
+    res.status(502).json({ message: "Liman trafiği alınamadı." });
   }
 });
 

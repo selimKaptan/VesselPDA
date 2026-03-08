@@ -249,20 +249,22 @@ export async function getVesselsInPort(params: {
     const json = await datalasticFetch(path);
     const raw = json?.data ?? json?.vessels ?? [];
     const arr = Array.isArray(raw) ? raw : [raw].filter(Boolean);
-    return arr.map((d: any): DatalasticPortVessel => ({
-      uuid: d.uuid ?? "",
-      name: d.name ?? "",
-      imo: d.imo ? String(d.imo) : "",
-      mmsi: d.mmsi ? String(d.mmsi) : "",
-      flag: d.flag ?? d.country_iso ?? "",
-      vessel_type: d.vessel_type ?? d.type ?? d.type_specific ?? "",
-      latitude: d.latitude ?? d.lat ?? null,
-      longitude: d.longitude ?? d.lon ?? null,
-      speed: d.speed ?? null,
-      course: d.course ?? null,
-      destination: d.destination ?? null,
-      navigation_status: d.navigation_status ?? d.status ?? null,
-    }));
+    return arr
+      .filter((d: any) => d && (d.name || d.imo || d.mmsi))
+      .map((d: any): DatalasticPortVessel => ({
+        uuid: d.uuid ?? "",
+        name: d.name ?? "",
+        imo: d.imo ? String(d.imo) : "",
+        mmsi: d.mmsi ? String(d.mmsi) : "",
+        flag: d.flag ?? d.country_iso ?? "",
+        vessel_type: d.vessel_type ?? d.type ?? d.type_specific ?? "",
+        latitude: d.latitude ?? d.lat ?? null,
+        longitude: d.longitude ?? d.lon ?? null,
+        speed: d.speed ?? null,
+        course: d.course ?? null,
+        destination: d.destination ?? null,
+        navigation_status: d.navigation_status ?? d.status ?? null,
+      }));
   } catch (error: any) {
     console.error("Datalastic port vessels error:", error.message);
     return [];
