@@ -112,10 +112,13 @@ function normalizeVessel(d: any): DatalasticVessel {
   };
 }
 
+let monthlyUsage = 0;
+
 async function datalasticFetch(path: string): Promise<any> {
   const key = apiKey();
   if (!key) throw new Error("DATALASTIC_API_KEY not configured");
 
+  monthlyUsage++;
   const url = `${BASE}${path}`;
   const res = await fetch(url, {
     headers: { "Authorization": `Bearer ${key}` },
@@ -132,6 +135,10 @@ async function datalasticFetch(path: string): Promise<any> {
     throw new Error(`Datalastic API: ${json?.meta?.message || "Unknown error"}`);
   }
   return json;
+}
+
+export function getDatalasticUsage() {
+  return { monthlyUsage, limit: 20000, remaining: 20000 - monthlyUsage };
 }
 
 export async function findVessel(
@@ -251,6 +258,169 @@ export interface DatalasticPortVessel {
   destination: string | null;
   navigation_status: string | null;
 }
+
+// ─── NEW ENDPOINT FUNCTIONS ───────────────────────────────────────────────────
+
+export async function getVesselPositionPro(
+  params: { imo?: string; mmsi?: string }
+): Promise<any | null> {
+  try {
+    const q = params.imo ? `imo=${encodeURIComponent(params.imo)}` : params.mmsi ? `mmsi=${encodeURIComponent(params.mmsi)}` : null;
+    if (!q) return null;
+    const json = await datalasticFetch(`/vessel_pro?${q}`);
+    return json?.data ?? null;
+  } catch (err: any) { console.error("Datalastic vessel_pro error:", err?.message); return null; }
+}
+
+export async function getVesselInfo(
+  params: { imo?: string; mmsi?: string }
+): Promise<any | null> {
+  try {
+    const q = params.imo ? `imo=${encodeURIComponent(params.imo)}` : params.mmsi ? `mmsi=${encodeURIComponent(params.mmsi)}` : null;
+    if (!q) return null;
+    const json = await datalasticFetch(`/vessel_info?${q}`);
+    return json?.data ?? null;
+  } catch (err: any) { console.error("Datalastic vessel_info error:", err?.message); return null; }
+}
+
+export async function findVessels(
+  params: { name?: string; type?: string; country_iso?: string }
+): Promise<any[]> {
+  try {
+    const parts: string[] = [];
+    if (params.name) parts.push(`name=${encodeURIComponent(params.name)}`);
+    if (params.type) parts.push(`type=${encodeURIComponent(params.type)}`);
+    if (params.country_iso) parts.push(`country_iso=${encodeURIComponent(params.country_iso)}`);
+    if (!parts.length) return [];
+    const json = await datalasticFetch(`/vessel_find?${parts.join("&")}`);
+    const raw = json?.data ?? json?.results ?? [];
+    return Array.isArray(raw) ? raw : [raw].filter(Boolean);
+  } catch (err: any) { console.error("Datalastic vessel_find error:", err?.message); return []; }
+}
+
+export async function getVesselHistory(
+  params: { imo?: string; mmsi?: string; days?: number }
+): Promise<any[]> {
+  try {
+    const parts: string[] = [];
+    if (params.imo) parts.push(`imo=${encodeURIComponent(params.imo)}`);
+    if (params.mmsi) parts.push(`mmsi=${encodeURIComponent(params.mmsi)}`);
+    if (params.days) parts.push(`days=${params.days}`);
+    if (!params.imo && !params.mmsi) return [];
+    const json = await datalasticFetch(`/vessel_history?${parts.join("&")}`);
+    const raw = json?.data ?? json?.history ?? [];
+    return Array.isArray(raw) ? raw : [];
+  } catch (err: any) { console.error("Datalastic vessel_history error:", err?.message); return []; }
+}
+
+export async function getVesselsInRadius(params: {
+  port_unlocode?: string; lat?: number; lon?: number; radius?: number;
+}): Promise<DatalasticPortVessel[]> {
+  return getVesselsInPort({
+    portUnlocode: params.port_unlocode,
+    lat: params.lat, lon: params.lon,
+    radius: params.radius ?? 5,
+  });
+}
+
+export async function findPorts(
+  params: { name?: string; country_iso?: string }
+): Promise<any[]> {
+  try {
+    const parts: string[] = [];
+    if (params.name) parts.push(`name=${encodeURIComponent(params.name)}`);
+    if (params.country_iso) parts.push(`country_iso=${encodeURIComponent(params.country_iso)}`);
+    if (!parts.length) return [];
+    const json = await datalasticFetch(`/port_find?${parts.join("&")}`);
+    const raw = json?.data ?? json?.ports ?? [];
+    return Array.isArray(raw) ? raw : [raw].filter(Boolean);
+  } catch (err: any) { console.error("Datalastic port_find error:", err?.message); return []; }
+}
+
+export async function getVesselOwnership(params: { imo: string }): Promise<any | null> {
+  try {
+    const json = await datalasticFetch(`/vessel_ownership?imo=${encodeURIComponent(params.imo)}`);
+    return json?.data ?? null;
+  } catch (err: any) { console.error("Datalastic vessel_ownership error:", err?.message); return null; }
+}
+
+export async function getVesselInspections(params: { imo: string }): Promise<any[]> {
+  try {
+    const json = await datalasticFetch(`/vessel_inspections?imo=${encodeURIComponent(params.imo)}`);
+    const raw = json?.data ?? json?.inspections ?? [];
+    return Array.isArray(raw) ? raw : [raw].filter(Boolean);
+  } catch (err: any) { console.error("Datalastic vessel_inspections error:", err?.message); return []; }
+}
+
+export async function getDryDockDates(params: { imo: string }): Promise<any[]> {
+  try {
+    const json = await datalasticFetch(`/drydock_dates?imo=${encodeURIComponent(params.imo)}`);
+    const raw = json?.data ?? json?.drydocks ?? [];
+    return Array.isArray(raw) ? raw : [raw].filter(Boolean);
+  } catch (err: any) { console.error("Datalastic drydock_dates error:", err?.message); return []; }
+}
+
+export async function getClassificationData(params: { imo: string }): Promise<any | null> {
+  try {
+    const json = await datalasticFetch(`/classification_society?imo=${encodeURIComponent(params.imo)}`);
+    return json?.data ?? null;
+  } catch (err: any) { console.error("Datalastic classification_society error:", err?.message); return null; }
+}
+
+export async function getVesselEngine(params: { imo: string }): Promise<any | null> {
+  try {
+    const json = await datalasticFetch(`/vessel_engine?imo=${encodeURIComponent(params.imo)}`);
+    return json?.data ?? null;
+  } catch (err: any) { console.error("Datalastic vessel_engine error:", err?.message); return null; }
+}
+
+export async function getMaritimeCompany(
+  params: { imo?: string; name?: string }
+): Promise<any | null> {
+  try {
+    const parts: string[] = [];
+    if (params.imo) parts.push(`imo=${encodeURIComponent(params.imo)}`);
+    if (params.name) parts.push(`name=${encodeURIComponent(params.name)}`);
+    if (!parts.length) return null;
+    const json = await datalasticFetch(`/maritime_companies?${parts.join("&")}`);
+    return json?.data ?? null;
+  } catch (err: any) { console.error("Datalastic maritime_companies error:", err?.message); return null; }
+}
+
+export async function getShipCasualties(params: { imo: string }): Promise<any[]> {
+  try {
+    const json = await datalasticFetch(`/ship_casualties?imo=${encodeURIComponent(params.imo)}`);
+    const raw = json?.data ?? json?.casualties ?? [];
+    return Array.isArray(raw) ? raw : [raw].filter(Boolean);
+  } catch (err: any) { console.error("Datalastic ship_casualties error:", err?.message); return []; }
+}
+
+export async function getRoute(params: {
+  from_port?: string; to_port?: string;
+  from_lat?: number; from_lon?: number; to_lat?: number; to_lon?: number;
+}): Promise<any | null> {
+  try {
+    const parts: string[] = [];
+    if (params.from_port) parts.push(`from_port=${encodeURIComponent(params.from_port)}`);
+    if (params.to_port) parts.push(`to_port=${encodeURIComponent(params.to_port)}`);
+    if (params.from_lat !== undefined) parts.push(`from_lat=${params.from_lat}`);
+    if (params.from_lon !== undefined) parts.push(`from_lon=${params.from_lon}`);
+    if (params.to_lat !== undefined) parts.push(`to_lat=${params.to_lat}`);
+    if (params.to_lon !== undefined) parts.push(`to_lon=${params.to_lon}`);
+    if (!parts.length) return null;
+    const json = await datalasticFetch(`/route?${parts.join("&")}`);
+    return json?.data ?? null;
+  } catch (err: any) { console.error("Datalastic route error:", err?.message); return null; }
+}
+
+export async function getShipDemolitions(params: { imo: string }): Promise<any | null> {
+  try {
+    const json = await datalasticFetch(`/ship_demolitions?imo=${encodeURIComponent(params.imo)}`);
+    return json?.data ?? null;
+  } catch (err: any) { console.error("Datalastic ship_demolitions error:", err?.message); return null; }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function getVesselsInPort(params: {
   portUnlocode?: string;

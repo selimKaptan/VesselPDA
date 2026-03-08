@@ -72,6 +72,7 @@ import cargoOpsRoutes from "./routes/cargo-operations.routes";
 import portCallChecklistRoutes from "./routes/port-call-checklist.routes";
 import portCallParticipantsRoutes from "./routes/port-call-participants.routes";
 import configRoutes from "./routes/config.routes";
+import datalasticRoutes from "./routes/datalastic.routes";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -102,6 +103,7 @@ export async function registerRoutes(
   app.use(paymentRoutes);     // /api/payment/*, /api/subscription/*
   app.use(directoryRoutes);   // /api/directory, /api/trust-score, /api/reviews, etc.
   app.use(trackingRoutes);    // /api/vessel-track/*, /api/vessel-positions/*
+  app.use(datalasticRoutes);  // /api/datalastic/*, /api/admin/datalastic-usage
   app.use(notificationRoutes); // /api/notifications/*, /api/feedback
   app.use(messageRoutes);     // /api/messages/*, /api/conversations/*
   app.use(commercialRoutes);  // /api/fixtures, /api/laytime, /api/cargo-positions

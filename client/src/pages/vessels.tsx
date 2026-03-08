@@ -12,6 +12,7 @@ import {
   ShieldCheck, Pencil, AlertTriangle, CheckCircle2, Clock,
   ChevronLeft, Download, Upload, Eye, X,
   Layers, Users2, FileSpreadsheet, FolderLock,
+  Shield, ClipboardCheck, Building2, Zap,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -450,7 +451,114 @@ function VesselForm({
 
 // ─── DatalasticPanel ──────────────────────────────────────────────────────────
 
+function DatalasticFetchSection({
+  title, icon, imoNumber, endpoint, enabled, onFetch, children, isLoading, isError, error, isEmpty, emptyText,
+}: {
+  title: string; icon: React.ReactNode; imoNumber: string | null | undefined;
+  endpoint: string; enabled: boolean; onFetch: () => void;
+  children?: React.ReactNode; isLoading?: boolean; isError?: boolean;
+  error?: Error | null; isEmpty?: boolean; emptyText?: string;
+}) {
+  return (
+    <div className="rounded-lg border bg-card/50 p-3">
+      <div className="flex items-center gap-1.5 pb-2 border-b mb-2">
+        {icon}
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{title}</p>
+        {isLoading && <Loader2 className="w-3 h-3 animate-spin ml-auto text-muted-foreground" />}
+        {!enabled && imoNumber && (
+          <Button size="sm" variant="outline"
+            className="ml-auto h-6 text-[10px] gap-1 border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
+            onClick={onFetch} data-testid={`button-fetch-${endpoint}`}>
+            <Download className="w-2.5 h-2.5" /> Datalastic'ten Getir
+          </Button>
+        )}
+      </div>
+      {!imoNumber ? (
+        <p className="text-xs text-muted-foreground py-1">IMO numarası gerekli.</p>
+      ) : !enabled ? (
+        <p className="text-xs text-muted-foreground py-1">Butona tıklayarak veri çekin.</p>
+      ) : isError ? (
+        <p className="text-xs text-muted-foreground py-1">{(error as Error)?.message ?? "Veri alınamadı."}</p>
+      ) : isLoading ? (
+        <div className="py-3 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" /> Alınıyor...
+        </div>
+      ) : isEmpty ? (
+        <p className="text-xs text-muted-foreground py-1">{emptyText ?? "Veri bulunamadı."}</p>
+      ) : children}
+    </div>
+  );
+}
+
 function DatalasticPanel({ vessel }: { vessel: Vessel }) {
+  const [showEngine, setShowEngine] = useState(false);
+  const [showOwnership, setShowOwnership] = useState(false);
+  const [showClassification, setShowClassification] = useState(false);
+  const [showInspections, setShowInspections] = useState(false);
+  const [showDrydock, setShowDrydock] = useState(false);
+  const [showCasualties, setShowCasualties] = useState(false);
+
+  const imo = vessel.imoNumber ?? null;
+
+  const engineQuery = useQuery({
+    queryKey: ["/api/datalastic/vessel-engine", imo],
+    queryFn: async () => {
+      const res = await fetch(`/api/datalastic/vessel-engine/${imo}`);
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "Hata"); }
+      return res.json();
+    },
+    enabled: showEngine && !!imo, retry: false,
+  });
+
+  const ownershipQuery = useQuery({
+    queryKey: ["/api/datalastic/vessel-ownership", imo],
+    queryFn: async () => {
+      const res = await fetch(`/api/datalastic/vessel-ownership/${imo}`);
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "Hata"); }
+      return res.json();
+    },
+    enabled: showOwnership && !!imo, retry: false,
+  });
+
+  const classificationQuery = useQuery({
+    queryKey: ["/api/datalastic/classification", imo],
+    queryFn: async () => {
+      const res = await fetch(`/api/datalastic/classification/${imo}`);
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "Hata"); }
+      return res.json();
+    },
+    enabled: showClassification && !!imo, retry: false,
+  });
+
+  const inspectionsQuery = useQuery({
+    queryKey: ["/api/datalastic/inspections", imo],
+    queryFn: async () => {
+      const res = await fetch(`/api/datalastic/inspections/${imo}`);
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "Hata"); }
+      return res.json() as Promise<any[]>;
+    },
+    enabled: showInspections && !!imo, retry: false,
+  });
+
+  const drydockQuery = useQuery({
+    queryKey: ["/api/datalastic/drydock", imo],
+    queryFn: async () => {
+      const res = await fetch(`/api/datalastic/drydock/${imo}`);
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "Hata"); }
+      return res.json() as Promise<any[]>;
+    },
+    enabled: showDrydock && !!imo, retry: false,
+  });
+
+  const casualtiesQuery = useQuery({
+    queryKey: ["/api/datalastic/casualties", imo],
+    queryFn: async () => {
+      const res = await fetch(`/api/datalastic/casualties/${imo}`);
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "Hata"); }
+      return res.json() as Promise<any[]>;
+    },
+    enabled: showCasualties && !!imo, retry: false,
+  });
 
   const posQuery = useQuery({
     queryKey: ["/api/vessels/live-position", vessel.imoNumber, (vessel as any).mmsi],
@@ -572,6 +680,176 @@ function DatalasticPanel({ vessel }: { vessel: Vessel }) {
           </p>
         )}
       </div>
+
+      {/* ── Engine Data ─────────────────────────────────────────── */}
+      <DatalasticFetchSection
+        title="Motor Bilgileri" icon={<Zap className="w-3 h-3 text-yellow-400" />}
+        imoNumber={imo} endpoint="vessel-engine" enabled={showEngine} onFetch={() => setShowEngine(true)}
+        isLoading={engineQuery.isLoading} isError={engineQuery.isError} error={engineQuery.error as Error}
+        isEmpty={!engineQuery.data}
+        emptyText="Motor verisi bulunamadı."
+      >
+        {engineQuery.data && (
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              { label: "Motor Tipi", value: engineQuery.data.engine_type ?? engineQuery.data.main_engine_type ?? "—" },
+              { label: "Güç (kW)", value: engineQuery.data.power_kw ?? engineQuery.data.engine_power ?? "—" },
+              { label: "Yakıt Tipi", value: engineQuery.data.fuel_type ?? "—" },
+              { label: "Silindir Sayısı", value: engineQuery.data.cylinders ?? "—" },
+              { label: "Üretici", value: engineQuery.data.engine_builder ?? engineQuery.data.manufacturer ?? "—" },
+              { label: "Model", value: engineQuery.data.engine_model ?? engineQuery.data.model ?? "—" },
+              { label: "RPM", value: engineQuery.data.rpm ?? "—" },
+              { label: "Stroke Tipi", value: engineQuery.data.stroke_type ?? "—" },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between gap-2 text-xs">
+                <span className="text-muted-foreground shrink-0">{label}</span>
+                <span className="font-semibold text-right truncate">{String(value)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </DatalasticFetchSection>
+
+      {/* ── Classification ──────────────────────────────────────── */}
+      <DatalasticFetchSection
+        title="Klas Bilgileri" icon={<Shield className="w-3 h-3 text-blue-400" />}
+        imoNumber={imo} endpoint="classification" enabled={showClassification} onFetch={() => setShowClassification(true)}
+        isLoading={classificationQuery.isLoading} isError={classificationQuery.isError} error={classificationQuery.error as Error}
+        isEmpty={!classificationQuery.data}
+        emptyText="Klas verisi bulunamadı."
+      >
+        {classificationQuery.data && (
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              { label: "Klas Kuruluşu", value: classificationQuery.data.classification_society ?? classificationQuery.data.society ?? "—" },
+              { label: "Notasyon", value: classificationQuery.data.class_notation ?? classificationQuery.data.notation ?? "—" },
+              { label: "Son Sörvey", value: classificationQuery.data.last_survey_date ? new Date(classificationQuery.data.last_survey_date).toLocaleDateString("tr-TR") : "—" },
+              { label: "Sonraki Sörvey", value: classificationQuery.data.next_survey_date ? new Date(classificationQuery.data.next_survey_date).toLocaleDateString("tr-TR") : "—" },
+              { label: "Sörvey Tipi", value: classificationQuery.data.survey_type ?? "—" },
+              { label: "Durum", value: classificationQuery.data.class_status ?? "—" },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between gap-2 text-xs">
+                <span className="text-muted-foreground shrink-0">{label}</span>
+                <span className="font-semibold text-right truncate">{String(value)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </DatalasticFetchSection>
+
+      {/* ── PSC Inspections ─────────────────────────────────────── */}
+      <DatalasticFetchSection
+        title="PSC Denetimleri" icon={<ClipboardCheck className="w-3 h-3 text-orange-400" />}
+        imoNumber={imo} endpoint="inspections" enabled={showInspections} onFetch={() => setShowInspections(true)}
+        isLoading={inspectionsQuery.isLoading} isError={inspectionsQuery.isError} error={inspectionsQuery.error as Error}
+        isEmpty={!inspectionsQuery.data || inspectionsQuery.data.length === 0}
+        emptyText="PSC denetimi geçmişi bulunamadı."
+      >
+        {inspectionsQuery.data && inspectionsQuery.data.length > 0 && (
+          <div className="space-y-1.5 max-h-52 overflow-y-auto">
+            {inspectionsQuery.data.slice(0, 15).map((insp: any, i: number) => (
+              <div key={i} className="flex items-start justify-between gap-2 text-xs border-b border-border/50 pb-1.5 last:border-0 last:pb-0">
+                <div className="min-w-0">
+                  <p className="font-semibold truncate">{insp.port_name ?? insp.port ?? "—"}</p>
+                  <p className="text-muted-foreground text-[10px]">{insp.inspection_type ?? insp.authority ?? ""}</p>
+                  {insp.deficiencies != null && (
+                    <span className={`text-[10px] font-medium ${insp.deficiencies > 0 ? "text-red-400" : "text-green-400"}`}>
+                      {insp.deficiencies > 0 ? `⚠ ${insp.deficiencies} eksiklik` : "✓ Temiz"}
+                    </span>
+                  )}
+                </div>
+                <div className="text-right shrink-0">
+                  {insp.inspection_date && (
+                    <p className="text-muted-foreground text-[10px]">{new Date(insp.inspection_date).toLocaleDateString("tr-TR")}</p>
+                  )}
+                  {insp.detained && <span className="text-red-400 text-[10px] font-bold">GÖZALTI</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DatalasticFetchSection>
+
+      {/* ── Vessel Ownership ────────────────────────────────────── */}
+      <DatalasticFetchSection
+        title="Sahiplik Geçmişi" icon={<Building2 className="w-3 h-3 text-green-400" />}
+        imoNumber={imo} endpoint="vessel-ownership" enabled={showOwnership} onFetch={() => setShowOwnership(true)}
+        isLoading={ownershipQuery.isLoading} isError={ownershipQuery.isError} error={ownershipQuery.error as Error}
+        isEmpty={!ownershipQuery.data}
+        emptyText="Sahiplik verisi bulunamadı."
+      >
+        {ownershipQuery.data && (
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              { label: "Kayıtlı Sahip", value: ownershipQuery.data.registered_owner ?? ownershipQuery.data.owner ?? "—" },
+              { label: "İşletmeci", value: ownershipQuery.data.operator ?? "—" },
+              { label: "Teknik Yönetici", value: ownershipQuery.data.technical_manager ?? ownershipQuery.data.manager ?? "—" },
+              { label: "Donatan", value: ownershipQuery.data.shipowner ?? ownershipQuery.data.beneficial_owner ?? "—" },
+              { label: "Bayrak", value: ownershipQuery.data.flag ?? ownershipQuery.data.flag_state ?? "—" },
+              { label: "Liman Devleti", value: ownershipQuery.data.port_of_registry ?? ownershipQuery.data.home_port ?? "—" },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between gap-2 text-xs">
+                <span className="text-muted-foreground shrink-0">{label}</span>
+                <span className="font-semibold text-right truncate max-w-[120px]" title={String(value)}>{String(value)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </DatalasticFetchSection>
+
+      {/* ── Drydock History ─────────────────────────────────────── */}
+      <DatalasticFetchSection
+        title="Havuz Geçmişi" icon={<Anchor className="w-3 h-3 text-cyan-400" />}
+        imoNumber={imo} endpoint="drydock" enabled={showDrydock} onFetch={() => setShowDrydock(true)}
+        isLoading={drydockQuery.isLoading} isError={drydockQuery.isError} error={drydockQuery.error as Error}
+        isEmpty={!drydockQuery.data || drydockQuery.data.length === 0}
+        emptyText="Havuz geçmişi bulunamadı."
+      >
+        {drydockQuery.data && drydockQuery.data.length > 0 && (
+          <div className="space-y-1.5 max-h-44 overflow-y-auto">
+            {drydockQuery.data.map((dd: any, i: number) => (
+              <div key={i} className="flex items-center justify-between gap-2 text-xs border-b border-border/50 pb-1.5 last:border-0 last:pb-0">
+                <div className="min-w-0">
+                  <p className="font-semibold">{dd.shipyard ?? dd.yard_name ?? dd.type ?? `Havuz #${i + 1}`}</p>
+                  <p className="text-muted-foreground text-[10px]">{dd.country ?? dd.location ?? ""}</p>
+                </div>
+                <div className="text-right shrink-0 text-[10px] text-muted-foreground">
+                  {dd.in_date || dd.start_date ? <p>▶ {new Date(dd.in_date ?? dd.start_date).toLocaleDateString("tr-TR")}</p> : null}
+                  {dd.out_date || dd.end_date ? <p>◀ {new Date(dd.out_date ?? dd.end_date).toLocaleDateString("tr-TR")}</p> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DatalasticFetchSection>
+
+      {/* ── Casualty History ────────────────────────────────────── */}
+      <DatalasticFetchSection
+        title="Kaza Geçmişi" icon={<AlertTriangle className="w-3 h-3 text-red-400" />}
+        imoNumber={imo} endpoint="casualties" enabled={showCasualties} onFetch={() => setShowCasualties(true)}
+        isLoading={casualtiesQuery.isLoading} isError={casualtiesQuery.isError} error={casualtiesQuery.error as Error}
+        isEmpty={!casualtiesQuery.data || casualtiesQuery.data.length === 0}
+        emptyText="Kaza geçmişi bulunamadı."
+      >
+        {casualtiesQuery.data && casualtiesQuery.data.length > 0 && (
+          <div className="space-y-1.5 max-h-44 overflow-y-auto">
+            {casualtiesQuery.data.map((cas: any, i: number) => (
+              <div key={i} className="flex items-start justify-between gap-2 text-xs border-b border-border/50 pb-1.5 last:border-0 last:pb-0">
+                <div className="min-w-0">
+                  <p className="font-semibold text-red-300 truncate">{cas.casualty_type ?? cas.type ?? `Kaza #${i + 1}`}</p>
+                  <p className="text-muted-foreground text-[10px] truncate">{cas.location ?? cas.area ?? "—"}</p>
+                  {cas.description && <p className="text-[10px] text-muted-foreground line-clamp-2">{cas.description}</p>}
+                </div>
+                <div className="text-right shrink-0 text-[10px] text-muted-foreground">
+                  {cas.date && <p>{new Date(cas.date).toLocaleDateString("tr-TR")}</p>}
+                  {cas.severity && <span className={`font-medium ${cas.severity === "Very Serious" || cas.severity === "Total Loss" ? "text-red-400" : "text-orange-400"}`}>{cas.severity}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DatalasticFetchSection>
+
     </div>
   );
 }
