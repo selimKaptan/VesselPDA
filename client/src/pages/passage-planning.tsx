@@ -1,6 +1,8 @@
-import { useState } from "react";
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Navigation, Plus, Trash2, MapPin, Clock, Anchor, Download, ChevronDown, ChevronUp, Edit2, Check, X } from "lucide-react";
+import { Navigation, Plus, Trash2, MapPin, Clock, Anchor, Download, ChevronDown, ChevronUp, Edit2, Check, X, Map } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { fmtDate } from "@/lib/formatDate";
 import type { PassagePlan, PassageWaypoint } from "@shared/schema";
 import jsPDF from "jspdf";
+
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-slate-500/20 text-slate-400 border-slate-500/30",
@@ -60,33 +64,21 @@ function generatePDF(plan: PassagePlan, waypoints: PassageWaypoint[]) {
   y += 5;
 
   if (waypoints.length > 0) {
-    doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
     doc.text("Waypoints", 14, y);
     y += 6;
-
-    const colW = [8, 38, 20, 20, 20, 22, 22, 22, 26];
-    const headers = ["#", "Waypoint", "Lat", "Lon", "Course", "Dist (NM)", "Speed (kn)", "ETD", "ETA"];
-    doc.setFillColor(30, 60, 100);
-    doc.setTextColor(255, 255, 255);
-    doc.rect(14, y - 4, pageW - 28, 6, "F");
+    const headers = ["#", "Name", "Lat", "Lon", "Crs°", "Dist NM", "Spd kn", "ETD", "ETA"];
+    const colW = [8, 35, 20, 20, 14, 18, 14, 22, 22];
+    doc.setFontSize(8);
     let x = 14;
-    headers.forEach((h, i) => {
-      doc.text(h, x + 1, y);
-      x += colW[i];
-    });
-    doc.setTextColor(0, 0, 0);
-    y += 3;
-
-    waypoints.forEach((wp, idx) => {
-      if (y > 270) {
-        doc.addPage();
-        y = 20;
-      }
-      const bg = idx % 2 === 0 ? 245 : 255;
-      doc.setFillColor(bg, bg, bg);
-      doc.rect(14, y - 3.5, pageW - 28, 6, "F");
-      doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    headers.forEach((h, i) => { doc.text(h, x + 1, y); x += colW[i]; });
+    y += 2;
+    doc.line(14, y, pageW - 14, y);
+    y += 4;
+    doc.setFont("helvetica", "normal");
+    waypoints.forEach(wp => {
       x = 14;
       const row = [
         String(wp.sequence + 1),
@@ -204,38 +196,49 @@ function WaypointEditor({ planId, waypoints, onClose }: { planId: number; waypoi
             addMutation.mutate({
               waypointName: form.waypointName,
               sequence: waypoints.length,
-              latitude: form.latitude || null,
-              longitude: form.longitude || null,
-              courseToNext: form.courseToNext || null,
-              distanceToNextNm: form.distanceToNextNm || null,
-              speedKnots: form.speedKnots || null,
+              latitude: form.latitude ? parseFloat(form.latitude) : null,
+              longitude: form.longitude ? parseFloat(form.longitude) : null,
+              courseToNext: form.courseToNext ? parseFloat(form.courseToNext) : null,
+              distanceToNextNm: form.distanceToNextNm ? parseFloat(form.distanceToNextNm) : null,
+              speedKnots: form.speedKnots ? parseFloat(form.speedKnots) : null,
             });
           }}
           disabled={!form.waypointName || addMutation.isPending}
+          className="w-full text-xs"
           data-testid="button-add-waypoint"
-          className="text-xs h-8"
         >
-          <Plus className="w-3.5 h-3.5 mr-1" /> Add Waypoint
+          {addMutation.isPending ? "Adding..." : "Add Waypoint"}
         </Button>
       </div>
     </div>
   );
 }
 
-function PlanCard({ plan }: { plan: PassagePlan }) {
-  const { toast } = useToast();
+function PlanCard({
+  plan,
+  selected,
+  onSelect,
+}: {
+  plan: PassagePlan;
+  selected: boolean;
+  onSelect: (id: number) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
+  const { toast } = useToast();
 
-  const { data: waypointsData } = useQuery<PassageWaypoint[]>({
+  const { data: waypoints = [] } = useQuery<PassageWaypoint[]>({
     queryKey: ["/api/passage-plans", plan.id, "waypoints"],
-    enabled: expanded,
+    queryFn: async () => {
+      const res = await fetch(`/api/passage-plans/${plan.id}/waypoints`);
+      return res.json();
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => apiRequest("DELETE", `/api/passage-plans/${plan.id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/passage-plans"] });
-      toast({ title: "Passage plan deleted" });
+      toast({ title: "Plan deleted" });
     },
   });
 
@@ -244,38 +247,43 @@ function PlanCard({ plan }: { plan: PassagePlan }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/passage-plans"] }),
   });
 
-  const waypoints = waypointsData || [];
-
   return (
-    <Card className="overflow-hidden border-border/50" data-testid={`plan-card-${plan.id}`}>
-      <div
-        className="p-4 flex items-start gap-3 cursor-pointer hover:bg-muted/10"
-        onClick={() => setExpanded(e => !e)}
-      >
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-[hsl(var(--maritime-primary)/0.1)] flex-shrink-0">
-          <Navigation className="w-4.5 h-4.5 text-[hsl(var(--maritime-primary))]" />
+    <Card
+      className={`overflow-hidden transition-all cursor-pointer ${selected ? "ring-2 ring-blue-500 border-blue-500/50" : "hover:border-border"}`}
+      onClick={() => onSelect(plan.id)}
+      data-testid={`card-plan-${plan.id}`}
+    >
+      <div className="p-4 flex items-start gap-3">
+        <div className="mt-0.5 w-8 h-8 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)] flex items-center justify-center flex-shrink-0">
+          <Navigation className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-semibold text-sm">{plan.planName}</h3>
-            <span className={`text-[10px] px-2 py-0.5 rounded border font-medium ${STATUS_COLORS[plan.status || "draft"]}`}>
-              {plan.status?.toUpperCase() || "DRAFT"}
-            </span>
+            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${STATUS_COLORS[plan.status || "draft"]}`}>
+              {plan.status || "draft"}
+            </Badge>
+            {waypoints.length > 0 && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-blue-500/10 text-blue-400 border-blue-500/30">
+                {waypoints.length} waypoints
+              </Badge>
+            )}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {plan.origin} → {plan.destination}
-          </p>
-          <div className="flex items-center gap-4 mt-1.5 flex-wrap">
-            {plan.totalDistanceNm && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Anchor className="w-3 h-3" />
-                {plan.totalDistanceNm.toFixed(0)} NM
+          <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+            <MapPin className="w-3 h-3 flex-shrink-0" />
+            <span className="truncate">{plan.origin} → {plan.destination}</span>
+          </div>
+          <div className="flex items-center gap-3 mt-1 flex-wrap">
+            {plan.departureDate && (
+              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <Clock className="w-3 h-3" />
+                {fmtDate(plan.departureDate)}
               </span>
             )}
-            {plan.departureDate && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                Dep: {fmtDate(plan.departureDate)}
+            {plan.totalDistanceNm && (
+              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <Anchor className="w-3 h-3" />
+                {plan.totalDistanceNm.toFixed(0)} NM
               </span>
             )}
             {plan.totalDays && (
@@ -285,7 +293,7 @@ function PlanCard({ plan }: { plan: PassagePlan }) {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
           <Button
             size="icon"
             variant="ghost"
@@ -305,11 +313,17 @@ function PlanCard({ plan }: { plan: PassagePlan }) {
           >
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
-          {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+          <button
+            onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
+            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+            data-testid={`button-expand-plan-${plan.id}`}
+          >
+            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
         </div>
       </div>
       {expanded && (
-        <div className="border-t border-border/50 p-4">
+        <div className="border-t border-border/50 p-4" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-2 mb-4">
             <span className="text-xs text-muted-foreground">Status:</span>
             <Select value={plan.status || "draft"} onValueChange={s => statusMutation.mutate(s)}>
@@ -335,9 +349,24 @@ export default function PassagePlanningPage() {
   const { toast } = useToast();
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState({ planName: "", origin: "", destination: "", departureDate: "", arrivalDate: "", notes: "" });
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
+
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const popupsRef = useRef<mapboxgl.Popup[]>([]);
 
   const { data: plans, isLoading } = useQuery<PassagePlan[]>({
     queryKey: ["/api/passage-plans"],
+  });
+
+  const { data: selectedWaypoints = [] } = useQuery<PassageWaypoint[]>({
+    queryKey: ["/api/passage-plans", selectedPlanId, "waypoints"],
+    queryFn: async () => {
+      const res = await fetch(`/api/passage-plans/${selectedPlanId}/waypoints`);
+      return res.json();
+    },
+    enabled: !!selectedPlanId,
   });
 
   const createMutation = useMutation({
@@ -350,55 +379,244 @@ export default function PassagePlanningPage() {
     },
   });
 
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+    if (!mapboxgl.supported()) return;
+
+    let map: mapboxgl.Map;
+    try {
+      map = new mapboxgl.Map({
+        container: mapContainerRef.current,
+        style: "mapbox://styles/mapbox/dark-v11",
+        center: [28.97, 41.01],
+        zoom: 4,
+      });
+
+      map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false }), "top-right");
+      map.addControl(new mapboxgl.ScaleControl({ maxWidth: 80, unit: "nautical" }), "bottom-left");
+
+      mapRef.current = map;
+    } catch {
+      return;
+    }
+
+    return () => {
+      mapRef.current?.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const clearMap = () => {
+      markersRef.current.forEach(m => m.remove());
+      markersRef.current = [];
+      popupsRef.current.forEach(p => p.remove());
+      popupsRef.current = [];
+      if (map.getLayer("route-line")) map.removeLayer("route-line");
+      if (map.getLayer("route-line-bg")) map.removeLayer("route-line-bg");
+      if (map.getSource("route")) map.removeSource("route");
+    };
+
+    const plotWaypoints = () => {
+      clearMap();
+
+      const validWps = selectedWaypoints.filter(wp => wp.latitude != null && wp.longitude != null);
+      if (validWps.length === 0) return;
+
+      validWps.forEach((wp, i) => {
+        const el = document.createElement("div");
+        el.style.cssText = `
+          width: 28px; height: 28px; border-radius: 50%;
+          background: #3b82f6; border: 2px solid #fff;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 11px; font-weight: 700; color: #fff;
+          font-family: system-ui; cursor: pointer;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        `;
+        el.textContent = String(i + 1);
+
+        const popup = new mapboxgl.Popup({ offset: 16, closeButton: true, maxWidth: "220px" })
+          .setHTML(`
+            <div style="font-size:12px;font-family:system-ui;line-height:1.6;padding:2px 0">
+              <div style="font-weight:700;font-size:13px;margin-bottom:4px;color:#1e293b">${wp.waypointName}</div>
+              <div style="color:#64748b">Lat: ${wp.latitude?.toFixed(4)}</div>
+              <div style="color:#64748b">Lon: ${wp.longitude?.toFixed(4)}</div>
+              ${wp.courseToNext != null ? `<div style="color:#64748b">Course: ${wp.courseToNext}°</div>` : ""}
+              ${wp.distanceToNextNm != null ? `<div style="color:#64748b">Distance: ${wp.distanceToNextNm} NM</div>` : ""}
+              ${wp.speedKnots != null ? `<div style="color:#64748b">Speed: ${wp.speedKnots} kn</div>` : ""}
+            </div>
+          `);
+
+        const marker = new mapboxgl.Marker({ element: el })
+          .setLngLat([wp.longitude!, wp.latitude!])
+          .setPopup(popup)
+          .addTo(map);
+
+        markersRef.current.push(marker);
+        popupsRef.current.push(popup);
+      });
+
+      if (validWps.length >= 2) {
+        const coords = validWps.map(wp => [wp.longitude!, wp.latitude!]);
+
+        if (map.isStyleLoaded()) {
+          addRouteLine(coords);
+        } else {
+          map.once("load", () => addRouteLine(coords));
+        }
+      }
+
+      const bounds = new mapboxgl.LngLatBounds();
+      validWps.forEach(wp => bounds.extend([wp.longitude!, wp.latitude!]));
+      map.fitBounds(bounds, { padding: 80, maxZoom: 8, duration: 800 });
+    };
+
+    const addRouteLine = (coords: number[][]) => {
+      if (map.getSource("route")) {
+        (map.getSource("route") as mapboxgl.GeoJSONSource).setData({
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: coords },
+        });
+      } else {
+        map.addSource("route", {
+          type: "geojson",
+          data: {
+            type: "Feature",
+            properties: {},
+            geometry: { type: "LineString", coordinates: coords },
+          },
+        });
+        map.addLayer({
+          id: "route-line-bg",
+          type: "line",
+          source: "route",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "#1e3a5f", "line-width": 5, "line-opacity": 0.6 },
+        });
+        map.addLayer({
+          id: "route-line",
+          type: "line",
+          source: "route",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: {
+            "line-color": "#3b82f6",
+            "line-width": 2.5,
+            "line-opacity": 0.9,
+            "line-dasharray": [2, 1.5],
+          },
+        });
+      }
+    };
+
+    if (map.isStyleLoaded()) {
+      plotWaypoints();
+    } else {
+      map.once("load", plotWaypoints);
+    }
+
+  }, [selectedWaypoints, selectedPlanId]);
+
+  const handleSelectPlan = (id: number) => {
+    setSelectedPlanId(prev => prev === id ? null : id);
+  };
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex overflow-hidden bg-background" style={{ height: "calc(100vh - 56px)" }}>
       <PageMeta title="Passage Planning | VesselPDA" description="Create and manage voyage passage plans with waypoints" />
 
-      <div className="max-w-4xl mx-auto px-4 py-6 pb-20 md:pb-6 space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-[hsl(var(--maritime-primary)/0.1)]">
-              <Navigation className="w-5 h-5 text-[hsl(var(--maritime-primary))]" />
+      {/* ── Left Panel: Plans List ────────────────────────────────────── */}
+      <div className="w-[400px] flex-shrink-0 flex flex-col border-r border-border overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-[hsl(var(--maritime-primary)/0.1)]">
+              <Navigation className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
             </div>
             <div>
-              <h1 className="text-xl font-bold font-serif">Passage Planning</h1>
-              <p className="text-xs text-muted-foreground">Manage voyage route plans with waypoints and ETAs</p>
+              <h1 className="text-sm font-bold font-serif">Passage Planning</h1>
+              <p className="text-[10px] text-muted-foreground">Manage voyage route plans</p>
             </div>
           </div>
           <Button
+            size="sm"
             onClick={() => setShowNew(true)}
             data-testid="button-new-plan"
-            className="bg-[hsl(var(--maritime-primary))] text-white hover:opacity-90 text-sm"
+            className="h-7 px-2.5 text-xs bg-[hsl(var(--maritime-primary))] text-white hover:opacity-90"
           >
-            <Plus className="w-4 h-4 mr-1.5" />
+            <Plus className="w-3.5 h-3.5 mr-1" />
             New Plan
           </Button>
         </div>
 
-        {isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map(i => <div key={i} className="h-24 rounded-xl bg-muted/30 animate-pulse" />)}
-          </div>
-        ) : !plans || plans.length === 0 ? (
-          <div className="text-center py-16 space-y-3">
-            <div className="w-16 h-16 rounded-2xl bg-[hsl(var(--maritime-primary)/0.08)] border border-[hsl(var(--maritime-primary)/0.15)] flex items-center justify-center mx-auto">
-              <Navigation className="w-7 h-7 text-[hsl(var(--maritime-primary))]" />
+        {/* Plan list */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => <div key={i} className="h-20 rounded-xl bg-muted/30 animate-pulse" />)}
             </div>
-            <div>
-              <h3 className="font-semibold">No passage plans yet</h3>
-              <p className="text-sm text-muted-foreground mt-1">Create your first passage plan to start tracking voyages with waypoints.</p>
+          ) : !plans || plans.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full py-16 space-y-3 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-[hsl(var(--maritime-primary)/0.08)] border border-[hsl(var(--maritime-primary)/0.15)] flex items-center justify-center">
+                <Navigation className="w-6 h-6 text-[hsl(var(--maritime-primary))]" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm">No passage plans yet</h3>
+                <p className="text-xs text-muted-foreground mt-1">Create your first plan to visualize routes on the map.</p>
+              </div>
+              <Button size="sm" onClick={() => setShowNew(true)} data-testid="button-first-plan">
+                <Plus className="w-4 h-4 mr-1.5" /> Create First Plan
+              </Button>
             </div>
-            <Button onClick={() => setShowNew(true)} data-testid="button-first-plan">
-              <Plus className="w-4 h-4 mr-1.5" /> Create First Plan
-            </Button>
+          ) : (
+            plans.map(plan => (
+              <PlanCard
+                key={plan.id}
+                plan={plan}
+                selected={selectedPlanId === plan.id}
+                onSelect={handleSelectPlan}
+              />
+            ))
+          )}
+        </div>
+
+        {/* Map hint */}
+        {plans && plans.length > 0 && !selectedPlanId && (
+          <div className="flex items-center gap-2 px-4 py-2.5 border-t border-border bg-muted/20 flex-shrink-0">
+            <Map className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <p className="text-[11px] text-muted-foreground">Click a plan to view its route on the map</p>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {plans.map(plan => <PlanCard key={plan.id} plan={plan} />)}
+        )}
+        {selectedPlanId && (
+          <div className="flex items-center gap-2 px-4 py-2.5 border-t border-border bg-blue-900/20 flex-shrink-0">
+            <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse flex-shrink-0" />
+            <p className="text-[11px] text-blue-300">
+              {selectedWaypoints.filter(w => w.latitude != null).length} waypoint{selectedWaypoints.filter(w => w.latitude != null).length !== 1 ? "s" : ""} plotted on map
+            </p>
           </div>
         )}
       </div>
 
+      {/* ── Right Panel: Mapbox Map ───────────────────────────────────── */}
+      <div className="flex-1 relative overflow-hidden" data-testid="passage-map-container">
+        <div ref={mapContainerRef} className="absolute inset-0" />
+
+        {/* Map overlay: no plan selected hint */}
+        {!selectedPlanId && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="bg-slate-900/70 backdrop-blur-sm border border-slate-700/50 rounded-xl px-5 py-4 text-center max-w-xs">
+              <Navigation className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+              <p className="text-sm font-medium text-slate-200">Select a passage plan</p>
+              <p className="text-xs text-slate-400 mt-1">Choose a plan from the left panel to see its route on the map</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── New Plan Dialog ───────────────────────────────────────────── */}
       <Dialog open={showNew} onOpenChange={setShowNew}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
