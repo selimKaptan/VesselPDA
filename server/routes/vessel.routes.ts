@@ -7,8 +7,20 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import * as datalastic from "../datalastic";
+import { syncVesselStatuses } from "../vessel-status-sync";
 
 const router = Router();
+
+// POST /api/vessels/sync-statuses — auto-derive fleet_status from port_call + voyage
+router.post("/sync-statuses", isAuthenticated, async (_req: any, res: any) => {
+  try {
+    const result = await syncVesselStatuses();
+    res.json({ success: true, updated: result.updated });
+  } catch (error: any) {
+    console.error("[vessels:sync-statuses] error:", error?.message);
+    res.status(500).json({ message: "Senkronizasyon başarısız" });
+  }
+});
 
 router.get("/", isAuthenticated, async (req: any, res: any, next: any) => {
   try {

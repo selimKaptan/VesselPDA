@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { PortLookupInput } from "@/components/port-lookup-input";
 import {
-  Ship, Plus, Trash2, Edit2, Search, Loader2,
+  Ship, Plus, Trash2, Edit2, Search, Loader2, RefreshCw,
   ArrowRight, Anchor, MapPin, Calendar,
   FileText, ChevronRight, Activity, ChevronDown,
   LayoutGrid, Map as MapIcon,
@@ -1342,7 +1342,7 @@ export default function Vessels() {
   const [editingFleet, setEditingFleet] = useState<FleetItem | null>(null);
   const [fleetForm, setFleetForm] = useState({ name: "", description: "", color: "#2563EB" });
 
-  const { data: vessels = [], isLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
+  const { data: vessels = [], isLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"], refetchInterval: 60000 });
   const { data: voyages = [] } = useQuery<any[]>({ queryKey: ["/api/voyages"] });
   const { data: fleets = [] } = useQuery<FleetItem[]>({ queryKey: ["/api/fleets"] });
 
@@ -1576,6 +1576,15 @@ export default function Vessels() {
     },
   });
 
+  const syncStatusMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/vessels/sync-statuses"),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/vessels"] });
+      toast({ title: "Statüler güncellendi", description: data?.updated > 0 ? `${data.updated} gemi güncellendi` : "Değişiklik yok" });
+    },
+    onError: () => toast({ title: "Hata", description: "Senkronizasyon başarısız", variant: "destructive" }),
+  });
+
   const activeFleet = fleetFilter !== null ? fleets.find(f => f.id === fleetFilter) ?? null : null;
 
   const filtered = useMemo(() => vessels.filter((v) => {
@@ -1730,6 +1739,22 @@ export default function Vessels() {
               Map
             </button>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => syncStatusMutation.mutate()}
+            disabled={syncStatusMutation.isPending}
+            className="gap-1.5 text-xs"
+            data-testid="button-sync-vessel-statuses"
+            title="Port çağrısı verisinden statüleri otomatik güncelle"
+          >
+            {syncStatusMutation.isPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
+            Statüleri Senkronize Et
+          </Button>
           <Button onClick={() => { setEditingVessel(null); setShowForm(true); }} className="gap-2" data-testid="button-add-vessel">
             <Plus className="w-4 h-4" /> Add Vessel
           </Button>

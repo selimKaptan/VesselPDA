@@ -3,6 +3,7 @@ import { isAuthenticated } from "../replit_integrations/auth";
 import { db } from "../db";
 import { portCalls, vessels, voyages } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { syncVesselStatuses } from "../vessel-status-sync";
 
 const router = Router();
 
@@ -76,6 +77,11 @@ router.patch("/:id", isAuthenticated, async (req: any, res) => {
       .returning();
 
     if (!updated) return res.status(404).json({ message: "Port call not found" });
+
+    if (data.status !== undefined && updated.vesselId) {
+      syncVesselStatuses([updated.vesselId]).catch(() => {});
+    }
+
     res.json(updated);
   } catch (error) {
     console.error("[port-calls:PATCH] update failed:", error);

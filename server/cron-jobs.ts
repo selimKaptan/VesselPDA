@@ -5,6 +5,7 @@ import { fetchTCMBRates } from "./exchange-rates";
 import { checkAndSendReminders } from "./payment-reminders";
 import { sendCertificateExpiryEmail } from "./email";
 import { checkInvoiceDueDates, checkCertificateExpiry as checkCertificateExpiryAlert, checkDaAdvanceDue } from "./cron";
+import { syncVesselStatuses } from "./vessel-status-sync";
 
 // ────────────────────────────────────────────────────────────────────────────
 // a) syncWatchlistPositions — Every 5 minutes
@@ -289,6 +290,19 @@ async function checkPaymentReminders() {
   await checkDaAdvanceDue();
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// i) autoSyncVesselStatuses — Every 10 minutes
+//    Derives fleet_status from active voyage + port_call status
+// ────────────────────────────────────────────────────────────────────────────
+async function autoSyncVesselStatusesCron() {
+  try {
+    const { updated } = await syncVesselStatuses();
+    if (updated > 0) console.log(`[cron] autoSyncVesselStatuses: updated ${updated} vessel(s)`);
+  } catch (err: any) {
+    console.error("[cron] autoSyncVesselStatuses error:", err?.message);
+  }
+}
+
 export function startCronJobs() {
   cron.schedule("*/5 * * * *", syncWatchlistPositions);
   cron.schedule("0 8 * * *", checkExpiringCertificates);
@@ -298,8 +312,9 @@ export function startCronJobs() {
   cron.schedule("30 12 * * *", refreshExchangeRates);
   cron.schedule("0 2 * * 0", cleanOldPositions);
   cron.schedule("0 9 * * *", checkPaymentReminders);
+  cron.schedule("*/10 * * * *", autoSyncVesselStatusesCron);
 
-  console.log("[cron] All 8 scheduled jobs registered:");
+  console.log("[cron] All 9 scheduled jobs registered:");
   console.log("[cron]   */5 * * * *  — syncWatchlistPositions");
   console.log("[cron]   0 8 * * *    — checkExpiringCertificates");
   console.log("[cron]   0 0 * * *    — autoCloseTenders");
@@ -308,4 +323,7 @@ export function startCronJobs() {
   console.log("[cron]   30 12 * * *  — refreshExchangeRates (15:30 TRT)");
   console.log("[cron]   0 2 * * 0    — cleanOldPositions");
   console.log("[cron]   0 9 * * *    — checkPaymentReminders");
+  console.log("[cron]   */10 * * * * — autoSyncVesselStatuses");
+
+  setTimeout(() => autoSyncVesselStatusesCron(), 3000);
 }
