@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useRoute } from "wouter";
 import { Link } from "wouter";
 import {
@@ -129,6 +129,14 @@ export default function VesselReport() {
     queryKey: ["/api/vessels/port-call-history", imo],
     queryFn: () => apiFetch(`/api/vessels/port-call-history?imo=${encodeURIComponent(imo)}`),
     enabled: !!imo, retry: false,
+  });
+
+  const [showTrack, setShowTrack] = useState(false);
+  const trackQ = useQuery({
+    queryKey: ["/api/vessel-track/datalastic-track", imo],
+    queryFn: () => apiFetch(`/api/vessel-track/datalastic-track?imo=${encodeURIComponent(imo)}`),
+    enabled: !!imo && showTrack,
+    retry: false,
   });
 
   const engineQ = useQuery({
@@ -269,6 +277,53 @@ export default function VesselReport() {
       miniMapInstanceRef.current = null;
     };
   }, [posData?.latitude, posData?.longitude, posData?.course]);
+
+  // ── Track / Voyage History map refs ──────────────────────────────────────
+  const trackMapContainerRef = useRef<HTMLDivElement>(null);
+  const trackMapInstanceRef  = useRef<L.Map | null>(null);
+
+  useEffect(() => {
+    if (!trackMapContainerRef.current) return;
+
+    if (trackMapInstanceRef.current) {
+      trackMapInstanceRef.current.remove();
+      trackMapInstanceRef.current = null;
+    }
+
+    const map = L.map(trackMapContainerRef.current, {
+      zoomControl: true,
+      scrollWheelZoom: false,
+      attributionControl: false,
+    });
+    trackMapInstanceRef.current = map;
+
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", { maxZoom: 18 }).addTo(map);
+    L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", { maxZoom: 18, opacity: 0.6 }).addTo(map);
+
+    const trackData = trackQ.data;
+    if (trackData?.line?.geometry?.coordinates?.length >= 2) {
+      const coords: [number, number][] = trackData.line.geometry.coordinates.map(([lng, lat]: [number, number]) => [lat, lng]);
+      const poly = L.polyline(coords, { color: "#8b5cf6", weight: 2.5, opacity: 0.85 }).addTo(map);
+      map.fitBounds(poly.getBounds(), { padding: [24, 24] });
+
+      if (Array.isArray(trackData.features)) {
+        trackData.features.forEach((f: any) => {
+          const [lng, lat] = f.geometry.coordinates;
+          L.circleMarker([lat, lng], {
+            radius: 2.5, color: "#8b5cf6", fillColor: "#a78bfa",
+            fillOpacity: 0.9, weight: 1,
+          }).addTo(map);
+        });
+      }
+    } else {
+      map.setView([20, 10], 2);
+    }
+
+    return () => {
+      trackMapInstanceRef.current?.remove();
+      trackMapInstanceRef.current = null;
+    };
+  }, [trackQ.data]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -531,8 +586,8 @@ export default function VesselReport() {
           </ReportCard>
         </div>
 
-        {/* ── Row 3: PSC + Drydock + Port Calls ── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* ── Row 3: PSC + Drydock ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
           <ReportCard
             title="PSC Denetimleri" icon={<ClipboardCheck className="w-4 h-4 text-orange-400" />}
@@ -589,34 +644,109 @@ export default function VesselReport() {
             )}
           </ReportCard>
 
-          <ReportCard
-            title="Liman Çağrıları" icon={<MapPin className="w-4 h-4 text-primary" />}
-            isLoading={portCallsQ.isLoading}
-            error={portCallsQ.error as Error | null}
-            isEmpty={Array.isArray(portCallsQ.data) && portCallsQ.data.length === 0}
-            emptyText="Liman çağrısı geçmişi yok."
-          >
-            {Array.isArray(portCallsQ.data) && portCallsQ.data.length > 0 && (
-              <div className="space-y-2 max-h-52 overflow-y-auto">
-                {portCallsQ.data.slice(0, 15).map((call: any, i: number) => (
-                  <div key={i} className="flex items-start justify-between gap-2 pb-2 border-b border-border/40 last:border-0 last:pb-0">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold truncate">{call.port_name ?? "—"}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {call.country ?? ""}
-                        {call.locode ? ` (${call.locode})` : ""}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0 text-[10px]">
-                      {call.arrival   && <p className="text-green-400">▶ {fmtDate(call.arrival)}</p>}
-                      {call.departure && <p className="text-red-400">◀ {fmtDate(call.departure)}</p>}
-                    </div>
-                  </div>
-                ))}
+        </div>
+
+        {/* ── Rota Geçmişi (full width) ── */}
+        <div className="rounded-xl border border-border/60 bg-card/60 backdrop-blur-sm overflow-hidden">
+          <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border/40 bg-muted/20">
+            <Navigation className="w-4 h-4 text-violet-400" />
+            <h3 className="text-sm font-semibold tracking-wide">Rota Geçmişi</h3>
+            {trackQ.isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin ml-2 text-muted-foreground" />}
+            {!showTrack && (
+              <Button
+                size="sm"
+                onClick={() => setShowTrack(true)}
+                className="ml-auto h-7 gap-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs"
+              >
+                <Navigation className="w-3 h-3" /> Rota Geçmişini Getir
+              </Button>
+            )}
+            {showTrack && trackQ.data?.count > 0 && (
+              <span className="ml-auto text-[10px] text-muted-foreground">
+                {trackQ.data.count} pozisyon • Datalastic
+              </span>
+            )}
+          </div>
+
+          {/* Track map — always mounted so Leaflet ref works */}
+          <div className="relative">
+            <div
+              ref={trackMapContainerRef}
+              className="w-full"
+              style={{ height: 300 }}
+            />
+            {!showTrack && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 gap-3">
+                <p className="text-sm text-muted-foreground">Datalastic'ten geçmiş rota verisi yüklemek için tıklayın.</p>
+                <Button
+                  onClick={() => setShowTrack(true)}
+                  className="gap-2 bg-violet-600 hover:bg-violet-700 text-white"
+                >
+                  <Navigation className="w-4 h-4" /> Rota Geçmişini Getir
+                </Button>
               </div>
             )}
-          </ReportCard>
+            {showTrack && trackQ.isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <Loader2 className="w-8 h-8 animate-spin text-violet-400" />
+              </div>
+            )}
+            {showTrack && !trackQ.isLoading && trackQ.data?.count === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                <p className="text-sm text-muted-foreground">Bu gemi için rota verisi bulunamadı.</p>
+              </div>
+            )}
+            {showTrack && trackQ.isError && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                <p className="text-sm text-muted-foreground">Rota geçmişi alınamadı.</p>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* ── Liman Çağrıları (full width) ── */}
+        <ReportCard
+          title="Liman Çağrıları" icon={<Anchor className="w-4 h-4 text-primary" />}
+          isLoading={portCallsQ.isLoading}
+          error={portCallsQ.error as Error | null}
+          isEmpty={Array.isArray(portCallsQ.data) && portCallsQ.data.length === 0}
+          emptyText="Liman çağrısı geçmişi yok."
+        >
+          {Array.isArray(portCallsQ.data) && portCallsQ.data.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {portCallsQ.data.slice(0, 20).map((call: any, i: number) => {
+                const durationDays = call.arrival && call.departure
+                  ? Math.round((Date.parse(call.departure) - Date.parse(call.arrival)) / 86400000)
+                  : null;
+                return (
+                  <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-muted/20 border border-border/40">
+                    <Anchor className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-xs font-semibold">{call.port_name ?? "—"}</p>
+                        {call.locode && (
+                          <span className="text-[9px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                            {call.locode}
+                          </span>
+                        )}
+                      </div>
+                      {call.country && (
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{call.country}</p>
+                      )}
+                      <div className="flex gap-3 mt-1.5 text-[10px]">
+                        {call.arrival   && <span className="text-green-400">▶ {fmtDateTime(call.arrival)}</span>}
+                        {call.departure && <span className="text-red-400">◀ {fmtDateTime(call.departure)}</span>}
+                        {durationDays != null && durationDays > 0 && (
+                          <span className="text-muted-foreground">{durationDays}g</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </ReportCard>
 
         {/* ── Row 4: Casualties (full width) ── */}
         <ReportCard
