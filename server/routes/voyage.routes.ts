@@ -626,6 +626,9 @@ router.put("/:id/crew-logistics", isAuthenticated, async (req: any, res) => {
       hotelCheckOut: c.hotelCheckOut ?? "",
       hotelStatus: c.hotelStatus ?? "none",
       hotelPickupTime: c.hotelPickupTime ?? "",
+      dob: c.dob ?? "",
+      seamanBookNo: c.seamanBookNo ?? "",
+      birthPlace: c.birthPlace ?? "",
     })));
     res.json(saved);
   } catch (err) {

@@ -40,6 +40,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { insertPortExpenseSchema, type PortExpense, type Voyage, type Port } from "@shared/schema";
+import { generateAndPrintCrewDocs, type DocSelection } from "@/components/crew-change-docs";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   planned:         { label: "Planned",         color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",       icon: Clock },
@@ -420,6 +421,9 @@ export default function VoyageDetail() {
     id: number; name: string; rank: string; side: "on" | "off";
     nationality: string;
     passportNo: string;
+    dob: string;
+    seamanBookNo: string;
+    birthPlace: string;
     flight: string; flightEta: string; flightDelayed: boolean;
     visaRequired: boolean;
     eVisaStatus: "pending" | "approved" | "n/a";
@@ -448,7 +452,7 @@ export default function VoyageDetail() {
   ];
   const EMPTY_CREW_DOCS: CrewDocs = { passport: null, seamansBook: null, medicalCert: null };
   const HOTEL_DEFAULTS = { requiresHotel: false, hotelName: "", hotelCheckIn: "", hotelCheckOut: "", hotelStatus: "none" as const, hotelPickupTime: "" };
-  const EMPTY_CREW_SLIDE_FORM: CrewSlideFormType = { name: "", rank: "", side: "on", nationality: "", passportNo: "", flight: "", flightEta: "", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a", okToBoard: "pending" as const, ...HOTEL_DEFAULTS };
+  const EMPTY_CREW_SLIDE_FORM: CrewSlideFormType = { name: "", rank: "", side: "on", nationality: "", passportNo: "", dob: "", seamanBookNo: "", birthPlace: "", flight: "", flightEta: "", flightDelayed: false, visaRequired: false, eVisaStatus: "n/a", okToBoard: "pending" as const, ...HOTEL_DEFAULTS };
   const [crewSigners, setCrewSigners] = useState<CrewSigner[]>([]);
   const [crewSaveStatus, setCrewSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const crewHydrated = useRef(false);
@@ -464,6 +468,8 @@ export default function VoyageDetail() {
   const [editingCrewTimeline, setEditingCrewTimeline] = useState<{ crewId: number; stepId: number } | null>(null);
   const [crewTimelineEditVal, setCrewTimelineEditVal] = useState("");
   const [showCrewPanel, setShowCrewPanel] = useState(false);
+  const [showCrewDocDialog, setShowCrewDocDialog] = useState(false);
+  const [docSel, setDocSel] = useState<DocSelection>({ gumruk: true, polisYurttan: true, polisYurda: true, vize: false, acente: false, ekimTur: false });
   const [crewPanelMode, setCrewPanelMode] = useState<"add_on" | "add_off" | "edit">("add_on");
   const [editingCrewId, setEditingCrewId] = useState<number | null>(null);
   const [crewSlideForm, setCrewSlideForm] = useState<CrewSlideFormType>(EMPTY_CREW_SLIDE_FORM);
@@ -1060,6 +1066,20 @@ export default function VoyageDetail() {
     enabled: !!voyageId,
   });
 
+  const { data: crewDocConfig } = useQuery<any>({
+    queryKey: ["/api/crew-doc-config"],
+  });
+
+  const { data: vesselData } = useQuery<any>({
+    queryKey: ["/api/vessels", "detail", voyage?.vesselId],
+    queryFn: async () => {
+      const res = await fetch(`/api/vessels/${voyage?.vesselId}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!voyage?.vesselId,
+  });
+
   useEffect(() => {
     if (!crewFromDb || crewHydrated.current) return;
     crewHydrated.current = true;
@@ -1070,6 +1090,9 @@ export default function VoyageDetail() {
       side: row.side as "on" | "off",
       nationality: row.nationality ?? "",
       passportNo: row.passportNo ?? "",
+      dob: row.dob ?? "",
+      seamanBookNo: row.seamanBookNo ?? "",
+      birthPlace: row.birthPlace ?? "",
       flight: row.flight ?? "",
       flightEta: row.flightEta ?? "",
       flightDelayed: row.flightDelayed ?? false,
@@ -2475,6 +2498,15 @@ export default function VoyageDetail() {
                     >
                       📧 Send Ops Summary
                     </button>
+                    <button
+                      onClick={() => setShowCrewDocDialog(true)}
+                      disabled={crewSigners.length === 0}
+                      className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-semibold bg-teal-700/20 hover:bg-teal-700/35 border border-teal-600/40 text-teal-300 hover:text-teal-200 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      data-testid="button-generate-crew-docs"
+                    >
+                      <FileText className="w-3 h-3" />
+                      <span className="hidden sm:inline">Belge Oluştur</span>
+                    </button>
                     <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1 border-slate-600 text-slate-300 hover:bg-slate-700/50" onClick={() => { setCrewPanelMode("add_on"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "on" }); setSlideFormTimeline(ON_TIMELINE_DEFAULT.map(s => ({ ...s }))); setEditingCrewId(null); setShowCrewPanel(true); }} data-testid="button-add-crew">
                       <Plus className="w-3 h-3" /> Add Crew
                     </Button>
@@ -2564,7 +2596,7 @@ export default function VoyageDetail() {
                         ? "border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.15)] hover:border-amber-500/70"
                         : "border-slate-700 hover:border-slate-600";
 
-                    const openSlideOver = () => { setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); };
+                    const openSlideOver = () => { setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime, dob: crew.dob, seamanBookNo: crew.seamanBookNo, birthPlace: crew.birthPlace }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); };
 
                     const cardSuggestions = aiPendingSuggestions.filter(s => s.crewId === crew.id);
                     const spotlightZ = crewFilterMode === "action" ? (operationalWarns.length > 0 ? "relative z-20" : "") : "";
@@ -2843,7 +2875,7 @@ export default function VoyageDetail() {
                               {/* Quick action buttons */}
                               <button
                                 className="flex items-center justify-center gap-1 h-6 px-2 w-full text-[10px] font-medium rounded-md border border-slate-600 text-slate-400 hover:text-blue-400 hover:border-blue-500/50 hover:bg-blue-900/20 transition-colors"
-                                onClick={e => { e.stopPropagation(); setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
+                                onClick={e => { e.stopPropagation(); setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime, dob: crew.dob, seamanBookNo: crew.seamanBookNo, birthPlace: crew.birthPlace }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
                                 data-testid={`button-update-flight-${crew.id}`}
                               >
                                 <Plane className="w-3 h-3" /> Edit
@@ -3004,7 +3036,7 @@ export default function VoyageDetail() {
 
                             {/* ── QUICK ACTIONS ── */}
                             <div className="flex gap-1.5 pt-1.5 border-t border-slate-700/40" onClick={e => e.stopPropagation()}>
-                              <button className="flex-1 flex items-center justify-center gap-1 h-6 text-[10px] font-medium rounded-md border border-slate-600 text-slate-400 hover:text-blue-400 hover:border-blue-500/50 hover:bg-blue-900/20 transition-colors" onClick={e => { e.stopPropagation(); setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }} data-testid={`button-update-flight-${crew.id}`}><Plane className="w-3 h-3" /> Update Flight</button>
+                              <button className="flex-1 flex items-center justify-center gap-1 h-6 text-[10px] font-medium rounded-md border border-slate-600 text-slate-400 hover:text-blue-400 hover:border-blue-500/50 hover:bg-blue-900/20 transition-colors" onClick={e => { e.stopPropagation(); setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime, dob: crew.dob, seamanBookNo: crew.seamanBookNo, birthPlace: crew.birthPlace }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }} data-testid={`button-update-flight-${crew.id}`}><Plane className="w-3 h-3" /> Update Flight</button>
                               {crew.side === "on" ? (
                                 <button className={`flex-1 flex items-center justify-center gap-1 h-6 text-[10px] font-medium rounded-md border transition-colors ${crew.arrivalStatus === "arrived" ? "border-emerald-500/50 text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/30" : "border-slate-600 text-slate-400 hover:text-emerald-400 hover:border-emerald-500/40 hover:bg-emerald-900/10"}`} onClick={e => { e.stopPropagation(); const next = crew.arrivalStatus === "arrived" ? "pending" : "arrived"; setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, arrivalStatus: next })); if (next === "arrived") addActivityLog(`${crew.name} (${crew.rank}) marked as Arrived.`, "Agent"); }} data-testid={`button-mark-arrived-${crew.id}`}><LogIn className="w-3 h-3" /> {crew.arrivalStatus === "arrived" ? "✓ Arrived" : "Mark Arrived"}</button>
                               ) : (
@@ -3156,7 +3188,7 @@ export default function VoyageDetail() {
                           <div
                             key={crew.id}
                             className="rounded-xl border border-slate-700 bg-slate-800 p-3 space-y-2.5 cursor-pointer hover:border-indigo-500/40 hover:bg-slate-700/50 transition-colors"
-                            onClick={() => { setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
+                            onClick={() => { setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime, dob: crew.dob, seamanBookNo: crew.seamanBookNo, birthPlace: crew.birthPlace }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
                             data-testid={`hotel-card-${crew.id}`}
                           >
                             {/* Row 1: Name + status badge + delete */}
@@ -3501,6 +3533,18 @@ export default function VoyageDetail() {
                     <div>
                       <Label className="text-xs text-slate-400">Passport No.</Label>
                       <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="TR12345678" value={crewSlideForm.passportNo} onChange={e => setCrewSlideForm(f => ({ ...f, passportNo: e.target.value }))} data-testid="input-crew-passport" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-slate-400">Doğum Tarihi (DOB)</Label>
+                      <Input type="date" className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" value={crewSlideForm.dob} onChange={e => setCrewSlideForm(f => ({ ...f, dob: e.target.value }))} data-testid="input-crew-dob" />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-slate-400">Cüzdan No (Seaman Book)</Label>
+                      <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="T-123456" value={crewSlideForm.seamanBookNo} onChange={e => setCrewSlideForm(f => ({ ...f, seamanBookNo: e.target.value }))} data-testid="input-crew-seamanbook" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label className="text-xs text-slate-400">Doğum Yeri (Birth Place)</Label>
+                      <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="İstanbul" value={crewSlideForm.birthPlace} onChange={e => setCrewSlideForm(f => ({ ...f, birthPlace: e.target.value }))} data-testid="input-crew-birthplace" />
                     </div>
                   </div>
                 </div>
@@ -7081,6 +7125,107 @@ export default function VoyageDetail() {
               data-testid="button-ops-close"
             >
               Close
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Crew Document Generator Dialog ───────────────────────────────────── */}
+      <Dialog open={showCrewDocDialog} onOpenChange={setShowCrewDocDialog}>
+        <DialogContent className="max-w-md bg-slate-900 border-slate-700 text-slate-100">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-100">
+              <FileText className="w-5 h-5 text-teal-400" />
+              Resmi Belgeler Oluştur
+            </DialogTitle>
+            <DialogDescription className="text-slate-400 text-sm">
+              {crewSigners.filter(c => c.side === "on").length} katılan, {crewSigners.filter(c => c.side === "off").length} ayrılan mürettebat için belge seçin.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            {[
+              { key: "gumruk",      label: "Gümrük – Personel Değişikliği",        desc: `${crewSigners.filter(c => c.side === "on").length} katılım, ${crewSigners.filter(c => c.side === "off").length} ayrılış` },
+              { key: "polisYurttan", label: "Polis – Yurttan Çıkış",                desc: `${crewSigners.filter(c => c.side === "on").length} kişi`, disabled: crewSigners.filter(c => c.side === "on").length === 0 },
+              { key: "polisYurda",  label: "Polis – Yurda Giriş",                  desc: `${crewSigners.filter(c => c.side === "off").length} kişi`, disabled: crewSigners.filter(c => c.side === "off").length === 0 },
+              { key: "vize",        label: "Vize Talep Formu",                     desc: `${crewSigners.filter(c => c.visaRequired).length} kişi`, disabled: crewSigners.filter(c => c.visaRequired).length === 0 },
+              { key: "acente",      label: "Acente Personeli Liman Giriş İzni",    desc: "Acente personeli" },
+              { key: "ekimTur",     label: "Ekim Tur Giriş İzni",                  desc: "Transfer acentesi" },
+            ].map(opt => (
+              <label key={opt.key} className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${opt.disabled ? "opacity-40 cursor-not-allowed border-slate-700/40 bg-slate-800/20" : docSel[opt.key as keyof DocSelection] ? "border-teal-500/50 bg-teal-900/20" : "border-slate-700 bg-slate-800/40 hover:border-slate-600"}`}>
+                <Checkbox
+                  checked={docSel[opt.key as keyof DocSelection]}
+                  disabled={opt.disabled}
+                  onCheckedChange={v => setDocSel(s => ({ ...s, [opt.key]: !!v }))}
+                  className="border-slate-600"
+                  data-testid={`check-doc-${opt.key}`}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-200">{opt.label}</p>
+                  <p className="text-xs text-slate-500">{opt.desc}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+          <DialogFooter className="gap-2">
+            <button
+              onClick={() => setShowCrewDocDialog(false)}
+              className="h-9 px-4 rounded-lg text-sm font-medium bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition-all"
+              data-testid="button-crew-doc-cancel"
+            >
+              İptal
+            </button>
+            <button
+              onClick={() => {
+                const docDate = new Date().toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" });
+                const mappedCrew = crewSigners.map(c => ({
+                  id: c.id,
+                  husbandryOrderId: 0,
+                  vesselId: voyage?.vesselId ?? 0,
+                  changeType: c.side === "on" ? "sign_on" : "sign_off",
+                  seafarerName: c.name,
+                  rank: c.rank ?? null,
+                  nationality: c.nationality ?? null,
+                  passportNumber: c.passportNo ?? null,
+                  seamanBookNumber: c.seamanBookNo ?? null,
+                  dateOfBirth: c.dob ? new Date(c.dob) : null,
+                  birthPlace: c.birthPlace ?? null,
+                  visaRequired: c.visaRequired ?? false,
+                  port: voyage?.portName ?? null,
+                  passportIssueDate: null,
+                  passportExpiry: null,
+                  seamanBookIssueDate: null,
+                  seamanBookExpiry: null,
+                  departureDate: null,
+                  arrivalDate: null,
+                  visaStatus: null,
+                  flightDetails: c.flight ?? null,
+                  hotelRequired: c.requiresHotel ?? false,
+                  hotelName: c.hotelName ?? null,
+                  changeDate: null,
+                  notes: null,
+                  createdAt: new Date(),
+                }));
+                generateAndPrintCrewDocs(
+                  {
+                    crewChanges: mappedCrew as any,
+                    vessel: {
+                      name: voyage?.vesselName ?? "",
+                      flag: vesselData?.flag ?? "",
+                      imoNumber: voyage?.imoNumber ?? null,
+                    },
+                    config: crewDocConfig ?? null,
+                  },
+                  docSel,
+                  docDate
+                );
+                setShowCrewDocDialog(false);
+              }}
+              disabled={!Object.values(docSel).some(Boolean)}
+              className="h-9 px-5 rounded-lg text-sm font-semibold bg-teal-600 hover:bg-teal-500 text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              data-testid="button-crew-doc-generate"
+            >
+              <FileText className="w-4 h-4 inline mr-1.5" />
+              Belgeleri Oluştur
             </button>
           </DialogFooter>
         </DialogContent>

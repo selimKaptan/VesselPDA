@@ -2433,6 +2433,9 @@ export const voyageCrewLogistics = pgTable("voyage_crew_logistics", {
   hotelCheckOut: varchar("hotel_check_out", { length: 10 }).default(""),
   hotelStatus: varchar("hotel_status", { length: 20 }).default("none").notNull(),
   hotelPickupTime: varchar("hotel_pickup_time", { length: 10 }).default(""),
+  dob: varchar("dob", { length: 20 }).default(""),
+  seamanBookNo: varchar("seaman_book_no", { length: 50 }).default(""),
+  birthPlace: varchar("birth_place", { length: 100 }).default(""),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

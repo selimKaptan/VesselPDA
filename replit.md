@@ -44,7 +44,7 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
 -   **PWA Support**: Installable app experience with manifest.json and service worker.
 -   **Provider Workflow**: Provider Invoice Review Workflow.
 -   **Multi-Currency**: Support for multiple currencies with live exchange rates and Port LOCODE Autocomplete.
--   **Crew Change Document Generator**: Automated generation of 6 official Turkish maritime port documents from crew change data in Husbandry module — Gümrük Personel Değişikliği, Polis Yurttan Çıkış, Polis Yurda Giriş, Vize Talep Formu, Acente Personeli Giriş İzni, Ekim Tur Giriş İzni. Configurable at `/crew-doc-settings`. DB tables: `crew_doc_config`. Extended `crew_changes` with DOB, birthplace, seaman book fields.
+-   **Crew Change Document Generator**: Automated generation of 6 official Turkish maritime port documents — Gümrük Personel Değişikliği, Polis Yurttan Çıkış, Polis Yurda Giriş, Vize Talep Formu, Acente Personeli Giriş İzni, Ekim Tur Giriş İzni. Available in two places: (1) Husbandry module (`/husbandry`) for husbandry-linked crew changes; (2) **Voyage Detail page** (`/voyages/:id`) Crew Logistics Board — "Belge Oluştur" button generates documents directly from ON-SIGNERS / OFF-SIGNERS. Configurable at `/crew-doc-settings`. DB tables: `crew_doc_config`. Extended `crew_changes` and `voyage_crew_logistics` with DOB (`dob`), birthplace (`birth_place`), seaman book (`seaman_book_no`) fields.
 
 ## External Dependencies
 -   **PostgreSQL**: Primary relational database.
