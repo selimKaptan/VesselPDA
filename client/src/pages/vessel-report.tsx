@@ -179,6 +179,23 @@ export default function VesselReport() {
   const vesselName    = merged.name || `IMO ${imo}`;
   const isAllLoading  = basicQ.isLoading && posQ.isLoading && engineQ.isLoading;
 
+  // ── Merged position: posQ first, vessel_pro as fallback ───────────────────
+  const posData = posQ.data ?? (
+    p?.lat != null ? {
+      latitude:          p.lat as number,
+      longitude:         p.lon as number,
+      speed:             p.speed,
+      course:            p.course,
+      heading:           p.heading,
+      navigation_status: p.navigation_status,
+      destination:       p.destination ?? p.dest_port,
+      eta:               p.eta_UTC,
+      timestamp:         p.last_position_UTC,
+      draught:           p.current_draught,
+    } : null
+  );
+  const posIsFromPro = !posQ.data && posData != null;
+
   return (
     <div className="min-h-screen bg-background">
       <PageMeta title={`${vesselName} — Gemi Raporu | VesselPDA`} />
@@ -259,29 +276,37 @@ export default function VesselReport() {
 
           <ReportCard
             title="Canlı Konum" icon={<MapPin className="w-4 h-4" />}
-            isLoading={posQ.isLoading}
-            error={posQ.error as Error | null}
-            isEmpty={!posQ.data && !posQ.isLoading && !posQ.isError}
+            isLoading={posQ.isLoading && proQ.isLoading}
+            error={posQ.error && !posData ? (posQ.error as Error) : null}
+            isEmpty={!posData && !posQ.isLoading && !proQ.isLoading}
             emptyText="Konum verisi bulunamadı."
           >
-            {posQ.data && (
+            {posData && (
               <div className="space-y-3">
                 <InfoGrid rows={[
-                  { label: "Enlem",        value: posQ.data.latitude?.toFixed(5)  ?? "—" },
-                  { label: "Boylam",       value: posQ.data.longitude?.toFixed(5) ?? "—" },
-                  { label: "Hız",          value: posQ.data.speed    != null ? `${posQ.data.speed} kn`  : "—" },
-                  { label: "Rota",         value: posQ.data.course   != null ? `${posQ.data.course}°`   : "—" },
-                  { label: "Baş İstikameti", value: posQ.data.heading != null ? `${posQ.data.heading}°` : "—" },
-                  { label: "Durum",        value: fmt(posQ.data.navigation_status) },
-                  { label: "Varış Yeri",   value: fmt(posQ.data.destination) },
-                  { label: "ETA",          value: fmtDate(posQ.data.eta) },
+                  { label: "Enlem",          value: posData.latitude?.toFixed(5)  ?? "—" },
+                  { label: "Boylam",         value: posData.longitude?.toFixed(5) ?? "—" },
+                  { label: "Hız",            value: posData.speed    != null ? `${posData.speed} kn`  : "—" },
+                  { label: "Rota",           value: posData.course   != null ? `${posData.course}°`   : "—" },
+                  { label: "Baş İstikameti", value: posData.heading  != null ? `${posData.heading}°`  : "—" },
+                  { label: "Su Kesimi",      value: posData.draught  != null ? `${posData.draught} m` : "—" },
+                  { label: "Durum",          value: fmt(posData.navigation_status) },
+                  { label: "Varış Yeri",     value: fmt(posData.destination) },
+                  { label: "ETA",            value: fmtDate(posData.eta) },
                 ]} />
-                {posQ.data.timestamp && (
-                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                    <Clock className="w-2.5 h-2.5" />
-                    Güncelleme: {new Date(posQ.data.timestamp).toLocaleString("tr-TR")}
-                  </p>
-                )}
+                <div className="flex flex-col gap-0.5">
+                  {posData.timestamp && (
+                    <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                      <Clock className="w-2.5 h-2.5" />
+                      Güncelleme: {new Date(posData.timestamp).toLocaleString("tr-TR")}
+                    </p>
+                  )}
+                  {posIsFromPro && (
+                    <p className="text-[10px] text-muted-foreground/60">
+                      Kaynak: Datalastic vessel_pro
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </ReportCard>
