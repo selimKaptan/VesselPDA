@@ -301,10 +301,36 @@ router.get("/live-position", isAuthenticated, async (req, res) => {
   if (!process.env.DATALASTIC_API_KEY) return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
   try {
     const uuid = await datalastic.resolveUuid(imo || null, mmsi || null);
-    if (!uuid) return res.status(404).json({ message: "Gemi bulunamadı" });
-    const pos = await datalastic.getCurrentPosition(uuid);
-    if (!pos) return res.status(404).json({ message: "Konum verisi yok" });
-    res.json({ ...pos, uuid });
+    let pos = uuid ? await datalastic.getCurrentPosition(uuid) : null;
+
+    if (pos) {
+      return res.json({ ...pos, uuid });
+    }
+
+    // Fallback: vessel_pro endpoint (returns lat/lon with different field names)
+    const pro = await datalastic.getVesselPositionPro({
+      imo: imo || undefined,
+      mmsi: mmsi || undefined,
+    });
+    if (pro?.lat != null) {
+      return res.json({
+        latitude:          pro.lat,
+        longitude:         pro.lon,
+        speed:             pro.speed             ?? null,
+        course:            pro.course            ?? null,
+        heading:           pro.heading           ?? null,
+        navigation_status: pro.navigation_status ?? null,
+        destination:       pro.destination       ?? pro.dest_port ?? null,
+        eta:               pro.eta_UTC           ?? null,
+        timestamp:         pro.last_position_UTC ?? null,
+        port_name:         pro.dep_port          ?? null,
+        country:           null,
+        uuid:              uuid ?? null,
+        source:            "vessel_pro",
+      });
+    }
+
+    return res.status(404).json({ message: "Konum verisi yok" });
   } catch (error: any) {
     console.error("Live position error:", error.message);
     res.status(502).json({ message: "Konum alınamadı." });
