@@ -591,19 +591,19 @@ export default function VesselTrack() {
   // Initialize Leaflet map
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
-    let destroyed = false;
+    let cancelled = false;
 
-    const map = L.map(mapContainerRef.current, {
-      center: [38.5, 35.5],
-      zoom: 6,
-      zoomControl: false,
-    });
+    async function initMap() {
+      const token = await getMapboxToken();
+      if (cancelled || !mapContainerRef.current) return;
 
-    // Fetch Mapbox token then add tile layer
-    getMapboxToken().then((token) => {
-      if (destroyed) return;
+      const map = L.map(mapContainerRef.current, {
+        center: [38.5, 35.5],
+        zoom: 6,
+        zoomControl: false,
+      });
+
       if (token) {
-        // Mapbox navigation-night-v1 raster tiles — crisp dark maritime style
         L.tileLayer(
           `https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/256/{z}/{x}/{y}@2x?access_token=${token}`,
           {
@@ -613,7 +613,6 @@ export default function VesselTrack() {
           }
         ).addTo(map);
       } else {
-        // Fallback: CartoDB dark tiles
         L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", {
           attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions">CARTO</a>',
           subdomains: "abcd",
@@ -621,24 +620,30 @@ export default function VesselTrack() {
         }).addTo(map);
       }
 
-      // OpenSeaMap maritime symbols overlay
       L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
         attribution: '© <a href="https://www.openseamap.org" target="_blank">OpenSeaMap</a> contributors',
         opacity: 0.85,
       }).addTo(map);
-    });
 
-    L.control.zoom({ position: "topright" }).addTo(map);
-    L.control.scale({ maxWidth: 100, imperial: false, position: "bottomleft" }).addTo(map);
+      L.control.zoom({ position: "topright" }).addTo(map);
+      L.control.scale({ maxWidth: 100, imperial: false, position: "bottomleft" }).addTo(map);
 
-    mapRef.current = map;
+      mapRef.current = map;
+
+      setTimeout(() => map.invalidateSize(), 300);
+      setTimeout(() => map.invalidateSize(), 1000);
+    }
+
+    initMap();
 
     return () => {
-      destroyed = true;
+      cancelled = true;
       markersRef.current.forEach(m => m.remove());
       markersRef.current.clear();
-      map.remove();
-      mapRef.current = null;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
     };
   }, []);
 
@@ -1019,7 +1024,7 @@ export default function VesselTrack() {
 
         <div
           ref={mapContainerRef}
-          style={{ height: "100%", width: "100%" }}
+          style={{ height: "100%", width: "100%", minHeight: "500px" }}
           data-testid="map-container"
         />
       </div>
