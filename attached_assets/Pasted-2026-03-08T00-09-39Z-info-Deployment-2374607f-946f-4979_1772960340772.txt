@@ -1,0 +1,68 @@
+2026-03-08T00:09:39Z info: Deployment: 2374607f-946f-4979-8289-07800da598c0
+2026-03-08T00:09:39Z info: Running Security Scan
+2026-03-08T00:09:51Z info: Security Scan Complete
+2026-03-08T00:09:51Z info: Connecting to builder
+2026-03-08T00:09:51Z info: Builder connected
+2026-03-08T00:09:52Z info: Installing packages
+2026-03-08T00:09:53Z info: Starting Build
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+
+building client...
+
+vite v7.3.0 building client environment for production...
+
+transforming...
+
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+
+✓ 4054 modules transformed.
+
+rendering chunks...
+
+[plugin vite:reporter] 
+(!) /home/runner/workspace/node_modules/jszip/dist/jszip.min.js?commonjs-es-import is dynamically imported by /home/runner/workspace/client/src/pages/voyage-detail.tsx but also statically imported by /home/runner/workspace/client/src/pages/vessels.tsx, dynamic import will not move module into another chunk.
+
+
+[plugin vite:reporter] 
+(!) /home/runner/workspace/node_modules/jspdf/dist/jspdf.es.min.js is dynamically imported by /home/runner/workspace/client/src/pages/agent-report.tsx, /home/runner/workspace/client/src/pages/laytime-calculator.tsx, /home/runner/workspace/client/src/pages/proforma-view.tsx, /home/runner/workspace/client/src/pages/vessel-q88.tsx but also statically imported by /home/runner/workspace/client/src/lib/proforma-summary.ts, /home/runner/workspace/client/src/pages/bunker-management.tsx, /home/runner/workspace/client/src/pages/charter-parties.tsx, /home/runner/workspace/client/src/pages/drydock.tsx, /home/runner/workspace/client/src/pages/environmental.tsx, /home/runner/workspace/client/src/pages/insurance.tsx, /home/runner/workspace/client/src/pages/passage-planning.tsx, dynamic import will not move module into another chunk.
+
+
+✗ Build failed in 24.10s
+
+[vite:build-import-analysis] [plugin vite:build-import-analysis] assets/index-BA6YlvXY.js (1:0): Parse error @:1:1
+file: assets/index-BA6YlvXY.js:1:0
+
+1  |  function sje(t,r){for(var s=0;s<r.length;s++){const n=r[s];if(typeof n!="string"&&!Array.isArray(n)){for(const i in n...
+   |  ^
+2  |  `+ke+k}var be=!1;function qe(k,D){if(!k||be)return"";be=!0;var U=Error.prepareStackTrace;Error.prepareStackTrace=void...
+3  |  `),Oe=ae.stack.split(`
+
+Error: [plugin vite:build-import-analysis] assets/index-BA6YlvXY.js (1:0): Parse error @:1:1
+    at parse (/home/runner/workspace/node_modules/vite/dist/node/chunks/config.js:7165:112)
+    at Object.generateBundle (/home/runner/workspace/node_modules/vite/dist/node/chunks/config.js:23512:17)
+    at Object.handler (/home/runner/workspace/node_modules/vite/dist/node/chunks/config.js:33742:13)
+    at <anonymous> (/home/runner/workspace/node_modules/rollup/dist/es/shared/node-entry.js:22494:40) {
+  name: 'RollupError',
+  cause: undefined,
+  pos: 0,
+  loc: { line: 1, column: 0, file: 'assets/index-BA6YlvXY.js' },
+  frame: '1  |  function sje(t,r){for(var s=0;s<r.length;s++){const n=r[s];if(typeof n!="string"&&!Array.isArray(n)){for(const i in n...\n' +
+    '   |  ^\n' +
+    '2  |  `+ke+k}var be=!1;function qe(k,D){if(!k||be)return"";be=!0;var U=Error.prepareStackTrace;Error.prepareStackTrace=void...\n' +
+    '3  |  `),Oe=ae.stack.split(`',
+  code: 'PLUGIN_ERROR',
+  plugin: 'vite:build-import-analysis',
+  hook: 'generateBundle',
+  [Symbol(augmented)]: true
+}
+
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.11.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+npm notice To update run: npm install -g npm@11.11.0
+npm notice
+
