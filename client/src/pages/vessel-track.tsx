@@ -10,6 +10,16 @@ import { useAuth } from "@/hooks/use-auth";
 import { PageMeta } from "@/components/page-meta";
 import { fmtDate, fmtDateTime } from "@/lib/formatDate";
 
+async function getMapboxToken(): Promise<string> {
+  const env = (import.meta.env.VITE_MAPBOX_TOKEN as string) || "";
+  if (env && env.length > 10) return env;
+  try {
+    const r = await fetch("/api/config/mapbox", { credentials: "include" });
+    const data = await r.json();
+    return (data.token as string) || "";
+  } catch { return ""; }
+}
+
 interface AISVessel {
   id?: string | number;
   mmsi: string | null;
@@ -581,6 +591,7 @@ export default function VesselTrack() {
   // Initialize Leaflet map
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
+    let destroyed = false;
 
     const map = L.map(mapContainerRef.current, {
       center: [38.5, 35.5],
@@ -588,18 +599,34 @@ export default function VesselTrack() {
       zoomControl: false,
     });
 
-    // CartoDB dark tiles — free, no API key required
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", {
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: "abcd",
-      maxZoom: 19,
-    }).addTo(map);
+    // Fetch Mapbox token then add tile layer
+    getMapboxToken().then((token) => {
+      if (destroyed) return;
+      if (token) {
+        // Mapbox navigation-night-v1 raster tiles — crisp dark maritime style
+        L.tileLayer(
+          `https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/256/{z}/{x}/{y}@2x?access_token=${token}`,
+          {
+            attribution: '© <a href="https://www.mapbox.com/about/maps/">Mapbox</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            tileSize: 256,
+            maxZoom: 22,
+          }
+        ).addTo(map);
+      } else {
+        // Fallback: CartoDB dark tiles
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", {
+          attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions">CARTO</a>',
+          subdomains: "abcd",
+          maxZoom: 19,
+        }).addTo(map);
+      }
 
-    // OpenSeaMap maritime symbols overlay
-    L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
-      attribution: '© <a href="https://www.openseamap.org" target="_blank">OpenSeaMap</a> contributors',
-      opacity: 0.85,
-    }).addTo(map);
+      // OpenSeaMap maritime symbols overlay
+      L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
+        attribution: '© <a href="https://www.openseamap.org" target="_blank">OpenSeaMap</a> contributors',
+        opacity: 0.85,
+      }).addTo(map);
+    });
 
     L.control.zoom({ position: "topright" }).addTo(map);
     L.control.scale({ maxWidth: 100, imperial: false, position: "bottomleft" }).addTo(map);
@@ -607,6 +634,7 @@ export default function VesselTrack() {
     mapRef.current = map;
 
     return () => {
+      destroyed = true;
       markersRef.current.forEach(m => m.remove());
       markersRef.current.clear();
       map.remove();
