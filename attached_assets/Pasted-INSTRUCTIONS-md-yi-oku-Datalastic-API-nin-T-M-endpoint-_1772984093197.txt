@@ -1,0 +1,632 @@
+INSTRUCTIONS.md'yi oku. Datalastic API'nin TÜM endpoint'lerini platforma entegre et. API key: process.env.DATALASTIC_API_KEY (test edildi, çalışıyor). Base URL: https://api.datalastic.com/api/v0/
+
+=== 1. DATALASTIC SERVICE GENİŞLET ===
+
+server/datalastic.ts dosyasını genişlet — TÜM endpoint'leri ekle:
+
+const BASE = 'https://api.datalastic.com/api/v0';
+const apiKey = () => process.env.DATALASTIC_API_KEY;
+
+// Helper
+async function datalasticGet(endpoint: string, params: Record<string, string>): Promise<any> {
+  const key = apiKey();
+  if (!key) return null;
+  
+  try {
+    const queryParams = new URLSearchParams({ 'api-key': key, ...params });
+    const url = `${BASE}/${endpoint}?${queryParams.toString()}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (data.meta?.success) return data.data;
+    console.log(`Datalastic ${endpoint} failed:`, data);
+    return null;
+  } catch (error) {
+    console.error(`Datalastic ${endpoint} error:`, error);
+    return null;
+  }
+}
+
+// 1. SHIP TRACKING — Gerçek zamanlı pozisyon
+export async function getVesselPosition(params: { imo?: string; mmsi?: string }) {
+  const p: any = {};
+  if (params.imo) p.imo = params.imo;
+  if (params.mmsi) p.mmsi = params.mmsi;
+  return datalasticGet('vessel', p);
+}
+
+// 2. SHIP TRACKING PRO — ETA, ATD, draft dahil
+export async function getVesselPositionPro(params: { imo?: string; mmsi?: string }) {
+  const p: any = {};
+  if (params.imo) p.imo = params.imo;
+  if (params.mmsi) p.mmsi = params.mmsi;
+  return datalasticGet('vessel_pro', p);
+}
+
+// 3. BULK TRACKING — 100 gemiye kadar toplu
+export async function getVesselBulk(imoList: string[]) {
+  const key = apiKey();
+  if (!key || imoList.length === 0) return [];
+  try {
+    const url = `${BASE}/vessel_bulk?api-key=${key}&imo=${imoList.join(',')}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (data.meta?.success) return Array.isArray(data.data) ? data.data : [data.data];
+    return [];
+  } catch { return []; }
+}
+
+// 4. SHIP SPECS INFO — Gemi teknik bilgileri
+export async function getVesselInfo(params: { imo?: string; mmsi?: string }) {
+  const p: any = {};
+  if (params.imo) p.imo = params.imo;
+  if (params.mmsi) p.mmsi = params.mmsi;
+  return datalasticGet('vessel_info', p);
+}
+
+// 5. VESSEL FINDER — İsim/tip/ülke ile gemi ara
+export async function findVessels(params: { name?: string; type?: string; country_iso?: string }) {
+  const p: any = {};
+  if (params.name) p.name = params.name;
+  if (params.type) p.type = params.type;
+  if (params.country_iso) p.country_iso = params.country_iso;
+  const result = await datalasticGet('vessel_find', p);
+  return result?.results || [];
+}
+
+// 6. HISTORICAL TRACKING — Geçmiş pozisyonlar
+export async function getVesselHistory(params: { imo?: string; mmsi?: string; days?: number }) {
+  const p: any = {};
+  if (params.imo) p.imo = params.imo;
+  if (params.mmsi) p.mmsi = params.mmsi;
+  if (params.days) p.days = String(params.days);
+  return datalasticGet('vessel_history', p);
+}
+
+// 7. LOCATION TRACKING — Belirli alandaki gemiler (radius)
+export async function getVesselsInRadius(params: { port_unlocode?: string; lat?: number; lon?: number; radius?: number }) {
+  const p: any = {};
+  if (params.port_unlocode) p.port_unlocode = params.port_unlocode;
+  if (params.lat) p.lat = String(params.lat);
+  if (params.lon) p.lon = String(params.lon);
+  p.radius = String(params.radius || 5);
+  const result = await datalasticGet('vessel_inradius', p);
+  return Array.isArray(result) ? result : result ? [result] : [];
+}
+
+// 8. PORT FIND — Liman arama
+export async function findPorts(params: { name?: string; country_iso?: string }) {
+  const p: any = {};
+  if (params.name) p.name = params.name;
+  if (params.country_iso) p.country_iso = params.country_iso;
+  const result = await datalasticGet('port_find', p);
+  return Array.isArray(result) ? result : result ? [result] : [];
+}
+
+// 9. PORT INFO — Liman detayları
+export async function getPortInfo(params: { unlocode?: string; name?: string }) {
+  const p: any = {};
+  if (params.unlocode) p.unlocode = params.unlocode;
+  if (params.name) p.name = params.name;
+  return datalasticGet('port_find', p);
+}
+
+// 10. VESSEL OWNERSHIP — Sahiplik bilgileri
+export async function getVesselOwnership(params: { imo?: string }) {
+  if (!params.imo) return null;
+  return datalasticGet('vessel_ownership', { imo: params.imo });
+}
+
+// 11. INSPECTIONS & DETENTION — Denetim geçmişi
+export async function getVesselInspections(params: { imo?: string }) {
+  if (!params.imo) return null;
+  return datalasticGet('vessel_inspections', { imo: params.imo });
+}
+
+// 12. DRY DOCK DATES — Havuz tarihleri
+export async function getDryDockDates(params: { imo?: string }) {
+  if (!params.imo) return null;
+  return datalasticGet('drydock_dates', { imo: params.imo });
+}
+
+// 13. CLASSIFICATION SOCIETIES — Klas bilgisi
+export async function getClassificationData(params: { imo?: string }) {
+  if (!params.imo) return null;
+  return datalasticGet('classification_society', { imo: params.imo });
+}
+
+// 14. VESSEL ENGINE DATA — Motor bilgileri
+export async function getVesselEngine(params: { imo?: string }) {
+  if (!params.imo) return null;
+  return datalasticGet('vessel_engine', { imo: params.imo });
+}
+
+// 15. MARITIME COMPANIES — Şirket bilgileri
+export async function getMaritimeCompany(params: { imo?: string; name?: string }) {
+  const p: any = {};
+  if (params.imo) p.imo = params.imo;
+  if (params.name) p.name = params.name;
+  return datalasticGet('maritime_companies', p);
+}
+
+// 16. SHIP CASUALTIES — Kaza geçmişi
+export async function getShipCasualties(params: { imo?: string }) {
+  if (!params.imo) return null;
+  return datalasticGet('ship_casualties', { imo: params.imo });
+}
+
+// 17. ROUTE TRACKING — Rota hesaplama
+export async function getRoute(params: { from_port?: string; to_port?: string; from_lat?: number; from_lon?: number; to_lat?: number; to_lon?: number }) {
+  const p: any = {};
+  if (params.from_port) p.from_port = params.from_port;
+  if (params.to_port) p.to_port = params.to_port;
+  if (params.from_lat) p.from_lat = String(params.from_lat);
+  if (params.from_lon) p.from_lon = String(params.from_lon);
+  if (params.to_lat) p.to_lat = String(params.to_lat);
+  if (params.to_lon) p.to_lon = String(params.to_lon);
+  return datalasticGet('route', p);
+}
+
+// 18. SHIP DEMOLITIONS — Hurdaya çıkış bilgisi
+export async function getShipDemolitions(params: { imo?: string }) {
+  if (!params.imo) return null;
+  return datalasticGet('ship_demolitions', { imo: params.imo });
+}
+
+export function isDatalasticConfigured(): boolean {
+  return !!process.env.DATALASTIC_API_KEY;
+}
+
+=== 2. API ROUTES — TÜM ENDPOINT'LER ===
+
+server/routes/tracking.routes.ts'i genişlet veya server/routes/datalastic.routes.ts oluştur:
+
+import * as datalastic from '../datalastic';
+import { cached } from '../cache';
+
+// ====== VESSEL TRACKING ======
+
+// Status
+router.get("/vessel-track/status", (req, res) => {
+  res.json({
+    connected: datalastic.isDatalasticConfigured(),
+    source: datalastic.isDatalasticConfigured() ? 'datalastic' : 'mock',
+    datalastic: datalastic.isDatalasticConfigured(),
+  });
+});
+
+// Fleet pozisyonları (toplu)
+router.get("/vessel-track/fleet", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const userId = req.user.claims.sub;
+    const userVessels = await db.select().from(vessels).where(eq(vessels.userId, userId));
+    if (userVessels.length === 0) return res.json([]);
+    
+    if (datalastic.isDatalasticConfigured()) {
+      const cacheKey = `fleet_pos:${userId}`;
+      const positions = await cached(cacheKey, 'short', async () => {
+        const results = [];
+        for (const v of userVessels) {
+          if (!v.imoNumber && !v.mmsiNumber) continue;
+          try {
+            const params = v.imoNumber ? { imo: v.imoNumber } : { mmsi: v.mmsiNumber };
+            const data = await datalastic.getVesselPosition(params);
+            if (data) {
+              results.push({
+                vesselId: v.id, name: data.name || v.name,
+                imo: data.imo, mmsi: data.mmsi,
+                latitude: data.lat, longitude: data.lon,
+                speed: data.speed, course: data.course, heading: data.heading,
+                destination: data.destination, navStatus: data.navigation_status,
+                lastUpdate: data.last_position_UTC, eta: data.eta_UTC,
+                source: 'datalastic',
+              });
+            }
+          } catch (e) { console.error(`Position error ${v.name}:`, e); }
+        }
+        return results;
+      });
+      return res.json(positions);
+    }
+    
+    // Mock fallback
+    res.json(userVessels.map(v => ({
+      vesselId: v.id, name: v.name, imo: v.imoNumber,
+      latitude: 38.4 + Math.random() * 5, longitude: 27 + Math.random() * 10,
+      speed: Math.random() * 12, course: Math.random() * 360,
+      destination: 'DEMO', navStatus: 'Demo Mode', source: 'mock',
+    })));
+  } catch (error) { next(error); }
+});
+
+// Tek gemi pozisyonu
+router.get("/vessel-track/position/:identifier", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const id = req.params.identifier;
+    if (datalastic.isDatalasticConfigured()) {
+      const cacheKey = `vessel_pos:${id}`;
+      const data = await cached(cacheKey, 'short', async () => {
+        const params = id.length === 7 ? { imo: id } : { mmsi: id };
+        return await datalastic.getVesselPositionPro(params);
+      });
+      if (data) return res.json({
+        name: data.name, imo: data.imo, mmsi: data.mmsi,
+        latitude: data.lat, longitude: data.lon,
+        speed: data.speed, course: data.course, heading: data.heading,
+        destination: data.destination, navStatus: data.navigation_status,
+        lastUpdate: data.last_position_UTC, eta: data.eta_UTC,
+        draught: data.current_draught, source: 'datalastic',
+      });
+    }
+    res.status(404).json({ error: "Not found" });
+  } catch (error) { next(error); }
+});
+
+// Gemi geçmiş rotası
+router.get("/vessel-track/history/:imo", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const imo = req.params.imo;
+    const days = parseInt(req.query.days as string) || 7;
+    if (datalastic.isDatalasticConfigured()) {
+      const cacheKey = `vessel_hist:${imo}:${days}`;
+      const history = await cached(cacheKey, 'long', async () => {
+        return await datalastic.getVesselHistory({ imo, days });
+      });
+      return res.json(history || []);
+    }
+    res.json([]);
+  } catch (error) { next(error); }
+});
+
+// Limandaki gemiler
+router.get("/vessel-track/port-traffic/:unlocode", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const unlocode = req.params.unlocode;
+    const radius = parseInt(req.query.radius as string) || 5;
+    if (datalastic.isDatalasticConfigured()) {
+      const cacheKey = `port_traffic:${unlocode}`;
+      const vessels = await cached(cacheKey, 'medium', async () => {
+        return await datalastic.getVesselsInRadius({ port_unlocode: unlocode, radius });
+      });
+      return res.json(vessels || []);
+    }
+    res.json([]);
+  } catch (error) { next(error); }
+});
+
+// ====== VESSEL INFO & LOOKUP ======
+
+// Gemi detaylı bilgi (specs)
+router.get("/datalastic/vessel-info/:imo", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const imo = req.params.imo;
+    if (datalastic.isDatalasticConfigured()) {
+      const cacheKey = `vessel_info:${imo}`;
+      const info = await cached(cacheKey, 'daily', async () => {
+        return await datalastic.getVesselInfo({ imo });
+      });
+      if (info) return res.json(info);
+    }
+    res.status(404).json({ error: "Not found" });
+  } catch (error) { next(error); }
+});
+
+// Gemi arama (isim/tip/ülke)
+router.get("/datalastic/vessel-find", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const { name, type, country } = req.query;
+    if (datalastic.isDatalasticConfigured()) {
+      const results = await datalastic.findVessels({ name: name as string, type: type as string, country_iso: country as string });
+      return res.json(results.slice(0, 50));
+    }
+    res.json([]);
+  } catch (error) { next(error); }
+});
+
+// Gemi motor bilgileri
+router.get("/datalastic/vessel-engine/:imo", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const imo = req.params.imo;
+    if (datalastic.isDatalasticConfigured()) {
+      const cacheKey = `vessel_engine:${imo}`;
+      const data = await cached(cacheKey, 'daily', async () => {
+        return await datalastic.getVesselEngine({ imo });
+      });
+      if (data) return res.json(data);
+    }
+    res.status(404).json({ error: "Not found" });
+  } catch (error) { next(error); }
+});
+
+// Gemi sahiplik bilgileri
+router.get("/datalastic/vessel-ownership/:imo", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const imo = req.params.imo;
+    if (datalastic.isDatalasticConfigured()) {
+      const cacheKey = `vessel_ownership:${imo}`;
+      const data = await cached(cacheKey, 'daily', async () => {
+        return await datalastic.getVesselOwnership({ imo });
+      });
+      if (data) return res.json(data);
+    }
+    res.status(404).json({ error: "Not found" });
+  } catch (error) { next(error); }
+});
+
+// ====== PORT INFO ======
+
+// Liman arama
+router.get("/datalastic/port-find", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const { name, country } = req.query;
+    if (datalastic.isDatalasticConfigured()) {
+      const results = await datalastic.findPorts({ name: name as string, country_iso: country as string });
+      return res.json(results);
+    }
+    res.json([]);
+  } catch (error) { next(error); }
+});
+
+// ====== INSPECTIONS & CERTIFICATES ======
+
+// Gemi denetim geçmişi (PSC inspections)
+router.get("/datalastic/inspections/:imo", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const imo = req.params.imo;
+    if (datalastic.isDatalasticConfigured()) {
+      const cacheKey = `inspections:${imo}`;
+      const data = await cached(cacheKey, 'long', async () => {
+        return await datalastic.getVesselInspections({ imo });
+      });
+      if (data) return res.json(data);
+    }
+    res.status(404).json({ error: "Not found" });
+  } catch (error) { next(error); }
+});
+
+// Klas bilgisi
+router.get("/datalastic/classification/:imo", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const imo = req.params.imo;
+    if (datalastic.isDatalasticConfigured()) {
+      const cacheKey = `classification:${imo}`;
+      const data = await cached(cacheKey, 'daily', async () => {
+        return await datalastic.getClassificationData({ imo });
+      });
+      if (data) return res.json(data);
+    }
+    res.status(404).json({ error: "Not found" });
+  } catch (error) { next(error); }
+});
+
+// ====== DRYDOCK ======
+
+router.get("/datalastic/drydock/:imo", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const imo = req.params.imo;
+    if (datalastic.isDatalasticConfigured()) {
+      const cacheKey = `drydock:${imo}`;
+      const data = await cached(cacheKey, 'long', async () => {
+        return await datalastic.getDryDockDates({ imo });
+      });
+      if (data) return res.json(data);
+    }
+    res.status(404).json({ error: "Not found" });
+  } catch (error) { next(error); }
+});
+
+// ====== CASUALTIES & SAFETY ======
+
+router.get("/datalastic/casualties/:imo", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const imo = req.params.imo;
+    if (datalastic.isDatalasticConfigured()) {
+      const cacheKey = `casualties:${imo}`;
+      const data = await cached(cacheKey, 'daily', async () => {
+        return await datalastic.getShipCasualties({ imo });
+      });
+      if (data) return res.json(data);
+    }
+    res.status(404).json({ error: "Not found" });
+  } catch (error) { next(error); }
+});
+
+// ====== MARITIME COMPANIES ======
+
+router.get("/datalastic/company", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const { imo, name } = req.query;
+    if (datalastic.isDatalasticConfigured()) {
+      const data = await datalastic.getMaritimeCompany({ imo: imo as string, name: name as string });
+      if (data) return res.json(data);
+    }
+    res.status(404).json({ error: "Not found" });
+  } catch (error) { next(error); }
+});
+
+// ====== ROUTE CALCULATION ======
+
+router.get("/datalastic/route", isAuthenticated, async (req: any, res, next) => {
+  try {
+    const { from_port, to_port } = req.query;
+    if (datalastic.isDatalasticConfigured()) {
+      const cacheKey = `route:${from_port}:${to_port}`;
+      const data = await cached(cacheKey, 'daily', async () => {
+        return await datalastic.getRoute({ from_port: from_port as string, to_port: to_port as string });
+      });
+      if (data) return res.json(data);
+    }
+    res.status(404).json({ error: "Not found" });
+  } catch (error) { next(error); }
+});
+
+Bu route'ları server/routes.ts'de mount et.
+
+=== 3. FRONTEND — HARİTA DÜZELT ===
+
+client/src/pages/vessel-track.tsx dosyasında haritayı düzelt:
+
+A) Leaflet CSS import:
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+leaflet paketi kurulu değilse: npm install leaflet
+
+B) Eğer Mapbox GL JS kullanılıyorsa → Leaflet'e GEÇ. Mapbox token olmadan çalışmaz.
+Tüm mapboxgl referanslarını Leaflet ile değiştir.
+
+C) Harita init:
+const mapRef = useRef<HTMLDivElement>(null);
+const mapInstance = useRef<L.Map | null>(null);
+const markersLayer = useRef<L.LayerGroup | null>(null);
+
+useEffect(() => {
+  if (!mapRef.current || mapInstance.current) return;
+  
+  const map = L.map(mapRef.current).setView([39.0, 27.0], 6);
+  
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap, &copy; CARTO',
+    maxZoom: 19,
+    subdomains: 'abcd',
+  }).addTo(map);
+  
+  mapInstance.current = map;
+  markersLayer.current = L.layerGroup().addTo(map);
+  
+  return () => { map.remove(); mapInstance.current = null; };
+}, []);
+
+D) Harita container:
+<div ref={mapRef} style={{ width: '100%', height: 'calc(100vh - 200px)', minHeight: '500px' }} className="rounded-xl overflow-hidden" />
+
+E) Gemileri haritaya çiz:
+const { data: fleetPositions, isLoading } = useQuery({
+  queryKey: ['/api/vessel-track/fleet'],
+  refetchInterval: 60000,
+});
+
+useEffect(() => {
+  if (!mapInstance.current || !markersLayer.current || !fleetPositions?.length) return;
+  markersLayer.current.clearLayers();
+  
+  fleetPositions.forEach((v: any) => {
+    if (!v.latitude || !v.longitude) return;
+    const color = v.speed > 0.5 ? '#38BDF8' : '#F59E0B';
+    const rot = v.heading || v.course || 0;
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="transform:rotate(${rot}deg)"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 2L6 20h12L12 2z" fill="${color}" stroke="#fff" stroke-width="1"/></svg></div>`,
+      iconSize: [24, 24], iconAnchor: [12, 12],
+    });
+    L.marker([v.latitude, v.longitude], { icon })
+      .bindPopup(`<b>${v.name}</b><br>IMO: ${v.imo}<br>Speed: ${v.speed?.toFixed(1)} kn<br>Status: ${v.navStatus}<br>Dest: ${v.destination}<br>ETA: ${v.eta || 'N/A'}<br><small>${v.source === 'datalastic' ? '🟢 Live' : '🟠 Demo'}</small>`)
+      .addTo(markersLayer.current!);
+  });
+  
+  const valid = fleetPositions.filter((v: any) => v.latitude && v.longitude);
+  if (valid.length > 0) {
+    mapInstance.current.fitBounds(L.latLngBounds(valid.map((v: any) => [v.latitude, v.longitude])), { padding: [50, 50], maxZoom: 12 });
+  }
+}, [fleetPositions]);
+
+F) Status badge:
+const { data: status } = useQuery({ queryKey: ['/api/vessel-track/status'] });
+// Harita üstünde:
+{status?.datalastic ? <span className="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-full">🟢 Live AIS</span> : <span className="bg-amber-500/20 text-amber-400 text-xs px-2 py-1 rounded-full">🟠 DEMO</span>}
+
+=== 4. FRONTEND — SAYFALARA DATALASTIC VERİSİ EKLE ===
+
+A) /vessels — Gemi ekleme (mevcut auto-fill zaten çalışıyor ✅)
+
+B) /vessel-q88/:vesselId — Motor bilgisi otomatik doldur:
+- Q88 açılınca "Auto-fill from Datalastic" butonu
+- Tıklayınca GET /api/datalastic/vessel-engine/:imo
+- Motor tipi, gücü, yakıt tüketimi otomatik doldur
+
+C) /vessel-certificates — Klas ve denetim bilgisi:
+- "Fetch from Datalastic" butonu
+- GET /api/datalastic/classification/:imo → klas kuruluşu, klas notasyonu
+- GET /api/datalastic/inspections/:imo → PSC denetim geçmişi
+- Denetim listesi tablo olarak göster (tarih, liman, deficiency sayısı)
+
+D) /drydock — Havuz tarihleri:
+- "Fetch Drydock History" butonu
+- GET /api/datalastic/drydock/:imo
+- Geçmiş ve planlı havuz tarihleri
+
+E) /port-info — Liman bilgisi zenginleştir:
+- Liman aranınca GET /api/datalastic/port-find?name=xxx
+- Liman seçilince GET /api/vessel-track/port-traffic/:unlocode
+- "X vessels currently in port" göster
+- Limandaki gemiler listesi (isim, tip, hız)
+
+F) /passage-planning — Rota hesaplama:
+- Çıkış ve varış limanı seçilince GET /api/datalastic/route?from_port=X&to_port=Y
+- Mesafe (NM), tahmini süre (hız bazlı) göster
+- Harita üzerinde rota çiz (polyline)
+
+G) /insurance — Kaza geçmişi:
+- "Fetch Casualty History" butonu
+- GET /api/datalastic/casualties/:imo
+- Kaza listesi tablo (tarih, tip, detay)
+
+H) /directory — Şirket bilgileri:
+- Şirket profilinde "Verify from Datalastic" butonu
+- GET /api/datalastic/company?name=xxx
+- Doğrulanmış şirket bilgileri badge
+
+I) /vessels — Gemi sahiplik:
+- Gemi detayında "Ownership History" tab/bölüm
+- GET /api/datalastic/vessel-ownership/:imo
+- Sahiplik geçmişi listesi
+
+=== 5. CACHE STRATEJİSİ ===
+
+Kredi tasarrufu için agresif cache:
+- Pozisyon (vessel, fleet): 1 dakika (short)
+- Port traffic: 5 dakika (medium)
+- Gemi geçmişi: 1 saat (long)
+- Gemi info/specs: 24 saat (daily)
+- Motor, klas, ownership: 24 saat (daily)
+- Denetim, drydock, kaza: 24 saat (daily)
+- Rota: 24 saat (daily)
+- Liman bilgisi: 24 saat (daily)
+
+=== 6. KREDİ KULLANIMI TAKİBİ ===
+
+Her Datalastic API çağrısını logla:
+
+// datalastic.ts'e ekle:
+let monthlyUsage = 0;
+
+async function datalasticGet(endpoint: string, params: Record<string, string>): Promise<any> {
+  // ... mevcut kod
+  monthlyUsage++;
+  console.log(`Datalastic [${endpoint}] — Monthly usage: ${monthlyUsage}`);
+  // ...
+}
+
+export function getDatalasticUsage() {
+  return { monthlyUsage, limit: 20000, remaining: 20000 - monthlyUsage };
+}
+
+// Admin panelinde göster:
+GET /api/admin/datalastic-usage → { monthlyUsage, limit, remaining }
+
+=== 7. IMPORTANT ===
+
+- API key: process.env.DATALASTIC_API_KEY (test edildi, çalışıyor)
+- Base URL: https://api.datalastic.com/api/v0/
+- Response format: { data: {...}, meta: { success: true } }
+- API yoksa CRASH ETMEMELİ — her yerde fallback
+- Cache agresif kullan — kredi sınırlı (20,000/ay)
+- Leaflet kullan, Mapbox DEĞİL (token gerektirmez)
+- Dark tema harita: CartoDB dark tiles
+- Harita div'in height'ı olmalı (min 500px)
+- leaflet CSS import şart
+- Her 60 saniyede fleet pozisyon güncelle
+- Mevcut sayfa yapılarını BOZMA — sadece Datalastic verisi EKLE
+- "Fetch from Datalastic" butonları optional — kullanıcı tıklarsa çalışsın
+- Her endpoint için try-catch — hata olursa graceful fallback
+- Route'ları server/routes.ts'de mount et
