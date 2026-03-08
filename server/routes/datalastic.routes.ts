@@ -137,10 +137,17 @@ router.get("/api/datalastic/company", isAuthenticated, async (req, res, next) =>
 router.get("/api/datalastic/route", isAuthenticated, async (req, res, next) => {
   try {
     if (!datalastic.isDatalasticConfigured()) return notConfigured(res);
-    const { from_port, to_port } = req.query as Record<string, string>;
-    const cacheKey = `route:${from_port ?? ""}:${to_port ?? ""}`;
+    const { from_port, to_port, from_lat, from_lon, to_lat, to_lon } = req.query as Record<string, string>;
+    const cacheKey = `route:${from_port ?? ""}:${to_port ?? ""}:${from_lat ?? ""}:${from_lon ?? ""}:${to_lat ?? ""}:${to_lon ?? ""}`;
     const data = await cached(cacheKey, "daily", () =>
-      datalastic.getRoute({ from_port, to_port })
+      datalastic.getRoute({
+        from_port: from_port || undefined,
+        to_port: to_port || undefined,
+        from_lat: from_lat ? parseFloat(from_lat) : undefined,
+        from_lon: from_lon ? parseFloat(from_lon) : undefined,
+        to_lat: to_lat ? parseFloat(to_lat) : undefined,
+        to_lon: to_lon ? parseFloat(to_lon) : undefined,
+      })
     );
     if (!data) return res.status(404).json({ error: "Route not found" });
     res.json(data);

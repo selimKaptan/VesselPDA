@@ -344,10 +344,113 @@ function PlanCard({
   );
 }
 
+// ─── DatalasticPortSearch ─────────────────────────────────────────────────────
+interface PortOption { name: string; locode: string | null; lat: number | null; lon: number | null; country: string; }
+
+function DatalasticPortSearch({
+  label, placeholder, value, onSelect,
+}: {
+  label: string;
+  placeholder?: string;
+  value: string;
+  onSelect: (port: PortOption) => void;
+}) {
+  const [query, setQuery] = useState(value);
+  const [open, setOpen] = useState(false);
+  const [results, setResults] = useState<PortOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => { setQuery(value); }, [value]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const search = (q: string) => {
+    if (!q || q.length < 2) { setResults([]); setOpen(false); return; }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/datalastic/port-find?name=${encodeURIComponent(q)}`);
+        if (res.ok) {
+          const data = await res.json();
+          const ports: PortOption[] = (Array.isArray(data) ? data : []).slice(0, 10).map((p: any) => ({
+            name: p.name ?? p.port_name ?? "",
+            locode: p.locode ?? p.unlocode ?? null,
+            lat: p.latitude ?? p.lat ?? null,
+            lon: p.longitude ?? p.lon ?? null,
+            country: p.country ?? p.country_iso ?? "",
+          }));
+          setResults(ports);
+          setOpen(ports.length > 0);
+          if (ports.length === 1) { onSelect(ports[0]); setQuery(`${ports[0].locode ? ports[0].locode + " — " : ""}${ports[0].name}`); setOpen(false); }
+        } else {
+          const fb = await fetch(`/api/ports?q=${encodeURIComponent(q)}`);
+          if (fb.ok) {
+            const fbData = await fb.json();
+            const ports: PortOption[] = (Array.isArray(fbData) ? fbData : []).slice(0, 10).map((p: any) => ({
+              name: p.name ?? "", locode: p.locode ?? null, lat: p.latitude ?? null, lon: p.longitude ?? null, country: p.country ?? "",
+            }));
+            setResults(ports); setOpen(ports.length > 0);
+          }
+        }
+      } catch { /* ignore */ } finally { setLoading(false); }
+    }, 380);
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <Label className="text-xs mb-1 block">{label}</Label>
+      <div className="relative">
+        <Input
+          value={query}
+          onChange={e => { setQuery(e.target.value); search(e.target.value); }}
+          onFocus={() => { if (results.length > 0) setOpen(true); }}
+          placeholder={placeholder ?? "Liman adı yazın..."}
+          className="h-9 text-sm pr-7"
+          data-testid={`input-port-search-${label.toLowerCase().replace(/\s/g, "-")}`}
+          autoComplete="off"
+        />
+        {loading && <div className="absolute right-2 top-2.5 w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />}
+        {!loading && query && <MapPin className="absolute right-2 top-2.5 w-3.5 h-3.5 text-muted-foreground/50" />}
+      </div>
+      {open && results.length > 0 && (
+        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-popover border border-border rounded-lg shadow-xl overflow-hidden">
+          {results.map((p, i) => (
+            <button
+              key={i}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-muted/60 flex items-center gap-2 border-b border-border/30 last:border-0 transition-colors"
+              onMouseDown={e => { e.preventDefault(); onSelect(p); setQuery(`${p.locode ? p.locode + " — " : ""}${p.name}`); setOpen(false); }}
+              data-testid={`port-option-${i}`}
+            >
+              <MapPin className="w-3 h-3 text-blue-400 shrink-0" />
+              <span className="font-medium truncate">{p.name}</span>
+              {p.locode && <span className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded font-mono">{p.locode}</span>}
+              {p.country && <span className="text-[10px] text-muted-foreground ml-auto shrink-0">{p.country}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PassagePlanningPage() {
   const { toast } = useToast();
   const [showNew, setShowNew] = useState(false);
-  const [form, setForm] = useState({ planName: "", origin: "", destination: "", departureDate: "", arrivalDate: "", notes: "" });
+  const [form, setForm] = useState({
+    planName: "", departureDate: "", arrivalDate: "", notes: "",
+    origin: "", originLat: null as number | null, originLon: null as number | null,
+    via: "", viaLat: null as number | null, viaLon: null as number | null,
+    destination: "", destLat: null as number | null, destLon: null as number | null,
+  });
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -370,11 +473,108 @@ export default function PassagePlanningPage() {
 
   const createMutation = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/api/passage-plans", data),
-    onSuccess: () => {
+    onSuccess: async (newPlan: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/passage-plans"] });
       setShowNew(false);
-      setForm({ planName: "", origin: "", destination: "", departureDate: "", arrivalDate: "", notes: "" });
-      toast({ title: "Passage plan created" });
+      const savedForm = { ...form };
+      setForm({
+        planName: "", departureDate: "", arrivalDate: "", notes: "",
+        origin: "", originLat: null, originLon: null,
+        via: "", viaLat: null, viaLon: null,
+        destination: "", destLat: null, destLon: null,
+      });
+
+      const planId = newPlan?.id;
+      if (!planId) { toast({ title: "Passage plan created" }); return; }
+
+      try {
+        const extractWaypoints = (routeData: any): Array<{ lat: number; lon: number }> => {
+          if (!routeData) return [];
+          const candidates = [
+            routeData.waypoints, routeData.coordinates, routeData.path,
+            routeData.points, routeData.route, routeData.legs,
+          ];
+          for (const c of candidates) {
+            if (!Array.isArray(c) || c.length === 0) continue;
+            const first = c[0];
+            if (Array.isArray(first) && first.length >= 2) {
+              return c.map((p: number[]) => ({ lat: p[1] ?? p[0], lon: p[0] ?? p[1] }));
+            }
+            if (typeof first === "object" && (first.lat !== undefined || first.latitude !== undefined)) {
+              return c.map((p: any) => ({ lat: p.lat ?? p.latitude, lon: p.lon ?? p.longitude }));
+            }
+          }
+          return [];
+        };
+
+        const fetchSegment = async (
+          fromName: string, fromLat: number | null, fromLon: number | null,
+          toName: string, toLat: number | null, toLon: number | null,
+        ): Promise<Array<{ lat: number; lon: number }>> => {
+          const params = new URLSearchParams();
+          if (fromName) params.set("from_port", fromName);
+          if (toName) params.set("to_port", toName);
+          if (fromLat != null) params.set("from_lat", String(fromLat));
+          if (fromLon != null) params.set("from_lon", String(fromLon));
+          if (toLat != null) params.set("to_lat", String(toLat));
+          if (toLon != null) params.set("to_lon", String(toLon));
+          try {
+            const res = await fetch(`/api/datalastic/route?${params}`);
+            if (!res.ok) return [];
+            const data = await res.json();
+            return extractWaypoints(data);
+          } catch { return []; }
+        };
+
+        let allPoints: Array<{ lat: number; lon: number; label?: string }> = [];
+
+        if (savedForm.via && (savedForm.viaLat || savedForm.viaLon || savedForm.via)) {
+          const seg1 = await fetchSegment(savedForm.origin, savedForm.originLat, savedForm.originLon, savedForm.via, savedForm.viaLat, savedForm.viaLon);
+          const seg2 = await fetchSegment(savedForm.via, savedForm.viaLat, savedForm.viaLon, savedForm.destination, savedForm.destLat, savedForm.destLon);
+          allPoints = [...seg1, ...seg2];
+        } else {
+          const pts = await fetchSegment(savedForm.origin, savedForm.originLat, savedForm.originLon, savedForm.destination, savedForm.destLat, savedForm.destLon);
+          allPoints = pts;
+        }
+
+        if (allPoints.length === 0 && savedForm.originLat != null && savedForm.destLat != null) {
+          allPoints = [
+            { lat: savedForm.originLat, lon: savedForm.originLon!, label: savedForm.origin },
+            ...(savedForm.via && savedForm.viaLat != null ? [{ lat: savedForm.viaLat, lon: savedForm.viaLon!, label: savedForm.via }] : []),
+            { lat: savedForm.destLat, lon: savedForm.destLon!, label: savedForm.destination },
+          ];
+        }
+
+        const deduplicated = allPoints.filter((p, i, arr) =>
+          i === 0 || Math.abs(p.lat - arr[i - 1].lat) > 0.001 || Math.abs(p.lon - arr[i - 1].lon) > 0.001
+        );
+
+        let addedCount = 0;
+        for (let i = 0; i < deduplicated.length; i++) {
+          const p = deduplicated[i];
+          let wpName = p.label ?? `WP-${String(i + 1).padStart(2, "0")}`;
+          if (i === 0) wpName = savedForm.origin || "Origin";
+          if (i === deduplicated.length - 1) wpName = savedForm.destination || "Destination";
+          try {
+            await apiRequest("POST", `/api/passage-plans/${planId}/waypoints`, {
+              waypointName: wpName,
+              latitude: p.lat,
+              longitude: p.lon,
+              sequence: i,
+            });
+            addedCount++;
+          } catch { /* skip */ }
+        }
+
+        queryClient.invalidateQueries({ queryKey: ["/api/passage-plans", planId, "waypoints"] });
+        setSelectedPlanId(planId);
+        toast({
+          title: "Rota oluşturuldu",
+          description: addedCount > 0 ? `${addedCount} waypoint deniz rotasına eklendi` : "Plan oluşturuldu (waypoint yok)",
+        });
+      } catch {
+        toast({ title: "Passage plan created" });
+      }
     },
   });
 
@@ -617,46 +817,92 @@ export default function PassagePlanningPage() {
       <Dialog open={showNew} onOpenChange={setShowNew}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>New Passage Plan</DialogTitle>
+            <DialogTitle>Yeni Passage Plan</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div>
-              <Label className="text-xs">Plan Name *</Label>
-              <Input value={form.planName} onChange={e => setForm(f => ({ ...f, planName: e.target.value }))} placeholder="e.g. Istanbul → Novorossiysk" data-testid="input-plan-name" className="mt-1" />
+              <Label className="text-xs">Plan Adı *</Label>
+              <Input
+                value={form.planName}
+                onChange={e => setForm(f => ({ ...f, planName: e.target.value }))}
+                placeholder="ör. Istanbul → Novorossiysk"
+                data-testid="input-plan-name"
+                className="mt-1"
+              />
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <DatalasticPortSearch
+                label="Kalkış Limanı *"
+                placeholder="Liman ara (Datalastic)..."
+                value={form.origin}
+                onSelect={p => {
+                  const label = `${p.locode ? p.locode + " — " : ""}${p.name}`;
+                  setForm(f => {
+                    const newOrigin = label;
+                    const newDest = f.destination;
+                    const autoName = newOrigin && newDest ? `${p.name} → ${f.destination.split(" — ").pop() || f.destination}` : f.planName;
+                    return { ...f, origin: label, originLat: p.lat, originLon: p.lon, planName: f.planName || autoName };
+                  });
+                }}
+              />
+              <DatalasticPortSearch
+                label="Varış Limanı *"
+                placeholder="Liman ara (Datalastic)..."
+                value={form.destination}
+                onSelect={p => {
+                  const label = `${p.locode ? p.locode + " — " : ""}${p.name}`;
+                  setForm(f => {
+                    const originShort = f.origin.split(" — ").pop() || f.origin;
+                    const autoName = originShort && p.name ? `${originShort} → ${p.name}` : f.planName;
+                    return { ...f, destination: label, destLat: p.lat, destLon: p.lon, planName: f.planName || autoName };
+                  });
+                }}
+              />
+            </div>
+
+            <DatalasticPortSearch
+              label="Ara Liman (opsiyonel — Via Port)"
+              placeholder="Ara liman ekle..."
+              value={form.via}
+              onSelect={p => {
+                const label = `${p.locode ? p.locode + " — " : ""}${p.name}`;
+                setForm(f => ({ ...f, via: label, viaLat: p.lat, viaLon: p.lon }));
+              }}
+            />
+
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs">Origin Port *</Label>
-                <Input value={form.origin} onChange={e => setForm(f => ({ ...f, origin: e.target.value }))} placeholder="TRIST — Istanbul" data-testid="input-plan-origin" className="mt-1" />
-              </div>
-              <div>
-                <Label className="text-xs">Destination Port *</Label>
-                <Input value={form.destination} onChange={e => setForm(f => ({ ...f, destination: e.target.value }))} placeholder="UANOV — Novorossiysk" data-testid="input-plan-dest" className="mt-1" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Departure Date</Label>
+                <Label className="text-xs">Kalkış Tarihi</Label>
                 <Input type="datetime-local" value={form.departureDate} onChange={e => setForm(f => ({ ...f, departureDate: e.target.value }))} data-testid="input-plan-departure" className="mt-1" />
               </div>
               <div>
-                <Label className="text-xs">Estimated Arrival</Label>
+                <Label className="text-xs">Tahmini Varış</Label>
                 <Input type="datetime-local" value={form.arrivalDate} onChange={e => setForm(f => ({ ...f, arrivalDate: e.target.value }))} data-testid="input-plan-arrival" className="mt-1" />
               </div>
             </div>
+
             <div>
-              <Label className="text-xs">Notes</Label>
-              <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Additional remarks, speed restrictions, weather notes..." data-testid="input-plan-notes" className="mt-1 resize-none" />
+              <Label className="text-xs">Notlar</Label>
+              <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Ek notlar, hız kısıtlamaları, hava notları..." data-testid="input-plan-notes" className="mt-1 resize-none" />
             </div>
+
+            {(form.originLat || form.destLat) && (
+              <div className="flex items-center gap-2 text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
+                <Navigation className="w-3.5 h-3.5 shrink-0" />
+                <span>Limanlar seçildi — plan oluşturulunca deniz rotası otomatik hesaplanacak</span>
+              </div>
+            )}
           </div>
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNew(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setShowNew(false)}>İptal</Button>
             <Button
-              onClick={() => createMutation.mutate(form)}
+              onClick={() => createMutation.mutate({ planName: form.planName, origin: form.origin, destination: form.destination, departureDate: form.departureDate, arrivalDate: form.arrivalDate, notes: form.notes })}
               disabled={!form.planName || !form.origin || !form.destination || createMutation.isPending}
               data-testid="button-create-plan"
             >
-              Create Plan
+              {createMutation.isPending ? "Oluşturuluyor..." : "Plan Oluştur"}
             </Button>
           </DialogFooter>
         </DialogContent>
