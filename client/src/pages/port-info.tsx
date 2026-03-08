@@ -6,7 +6,8 @@ import { Link } from "wouter";
 import {
   Anchor, Search, MapPin, Globe, Info, Loader2,
   Waves, Building2, X, Users, FileText,
-  ExternalLink, Ship, AlertTriangle, ChevronLeft
+  ExternalLink, Ship, AlertTriangle, ChevronLeft,
+  Radio, Navigation, ArrowRight,
 } from "lucide-react";
 import { WeatherPanel } from "@/components/port-weather-panel";
 import { Card, CardContent } from "@/components/ui/card";
@@ -54,7 +55,7 @@ function InfoCard({ icon, label, value }: { icon: React.ReactNode; label: string
 
 function PortDetailPanel({
   selectedPort, portInfoData, isLoadingInfo,
-  portMapContainerRef, lat, lng, hasCoords, facilityList, onClose, portAlerts,
+  portMapContainerRef, lat, lng, hasCoords, facilityList, onClose, portAlerts, portCode,
 }: {
   selectedPort: Port;
   portInfoData: PortInfoData | undefined;
@@ -64,7 +65,23 @@ function PortDetailPanel({
   facilityList: string[];
   onClose: () => void;
   portAlerts: any[];
+  portCode: string;
 }) {
+  const [showTraffic, setShowTraffic] = useState(false);
+  const [radius, setRadius] = useState(10);
+
+  const { data: trafficVessels, isLoading: trafficLoading, error: trafficError } = useQuery<any[]>({
+    queryKey: ["/api/vessel-track/port-traffic", portCode, radius],
+    queryFn: async () => {
+      const r = await fetch(`/api/vessel-track/port-traffic/${encodeURIComponent(portCode)}?radius=${radius}`, { credentials: "include" });
+      if (r.status === 503) throw Object.assign(new Error("NOT_CONFIGURED"), { status: 503 });
+      if (!r.ok) throw Object.assign(new Error("FETCH_ERROR"), { status: r.status });
+      return r.json();
+    },
+    enabled: showTraffic && !!portCode,
+    retry: false,
+  });
+
   const SEVERITY_STYLES: Record<string, string> = {
     info: "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950/30 dark:border-blue-700 dark:text-blue-300",
     warning: "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-300",
@@ -243,6 +260,117 @@ function PortDetailPanel({
                 <p className="text-xs text-muted-foreground">No registered agents or active tenders found for this port.</p>
               </div>
             )}
+
+            {/* ── Datalastic: Limandaki Gemiler ── */}
+            <Card className="border-violet-500/20 overflow-hidden" data-testid="card-datalastic-port-traffic">
+              {/* Card header */}
+              <div className="px-4 py-3 border-b border-violet-500/20 bg-violet-600/5 flex items-center gap-2 flex-wrap">
+                <Radio className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" />
+                <span className="text-xs font-semibold text-violet-300 flex-1">Datalastic — Limandaki Gemiler</span>
+
+                {/* Radius selector */}
+                <select
+                  value={radius}
+                  onChange={(e) => { setRadius(Number(e.target.value)); if (showTraffic) setShowTraffic(false); }}
+                  className="text-[10px] bg-slate-800 border border-slate-600 rounded px-1.5 py-1 text-slate-300 focus:outline-none"
+                  data-testid="select-port-traffic-radius"
+                >
+                  <option value={5}>5 km</option>
+                  <option value={10}>10 km</option>
+                  <option value={25}>25 km</option>
+                  <option value={50}>50 km</option>
+                </select>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowTraffic(true)}
+                  disabled={trafficLoading}
+                  className="h-7 text-[10px] border-violet-500/40 text-violet-300 hover:bg-violet-500/10 gap-1"
+                  data-testid="button-fetch-port-traffic"
+                >
+                  {trafficLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Radio className="w-3 h-3" />}
+                  {trafficLoading ? "Yükleniyor…" : showTraffic ? "Yenile" : "Getir"}
+                </Button>
+              </div>
+
+              <CardContent className="p-3">
+                {/* Initial state */}
+                {!showTraffic && !trafficLoading && (
+                  <p className="text-xs text-muted-foreground text-center py-3">
+                    Liman çevresindeki gemileri Datalastic'ten görüntülemek için "Getir"e basın.
+                  </p>
+                )}
+
+                {/* Loading */}
+                {trafficLoading && (
+                  <div className="flex items-center gap-2 py-3 text-xs text-violet-300">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Datalastic'ten liman trafiği alınıyor…
+                  </div>
+                )}
+
+                {/* Error */}
+                {trafficError && !trafficLoading && (
+                  <div className="flex items-center gap-2 px-2 py-2.5 rounded-lg bg-red-500/5 border border-red-500/15 text-xs text-red-400">
+                    <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                    {(trafficError as any)?.message === "NOT_CONFIGURED"
+                      ? "Datalastic API anahtarı yapılandırılmamış."
+                      : "Liman trafiği alınamadı. Daha sonra tekrar deneyin."}
+                  </div>
+                )}
+
+                {/* Empty */}
+                {showTraffic && !trafficLoading && !trafficError && Array.isArray(trafficVessels) && trafficVessels.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-3">
+                    {portCode} için {radius} km yarıçapında gemi bulunamadı.
+                  </p>
+                )}
+
+                {/* Vessel list */}
+                {showTraffic && !trafficLoading && !trafficError && Array.isArray(trafficVessels) && trafficVessels.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] text-muted-foreground">{trafficVessels.length} gemi • {radius} km yarıçap</span>
+                      <Link href="/vessel-track">
+                        <span className="text-[10px] text-violet-400 hover:underline flex items-center gap-1 cursor-pointer">
+                          <Navigation className="w-2.5 h-2.5" /> Haritada Gör
+                        </span>
+                      </Link>
+                    </div>
+
+                    {trafficVessels.slice(0, 15).map((v: any, i: number) => (
+                      <div key={v.uuid ?? i} className="flex items-center gap-2.5 p-2 rounded-lg border border-border/40 bg-muted/20 hover:bg-muted/40 transition-colors" data-testid={`card-traffic-vessel-${i}`}>
+                        <Ship className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="font-semibold text-xs truncate">{v.name ?? "—"}</p>
+                            {v.flag && <span className="text-[10px] text-muted-foreground">{v.flag}</span>}
+                            {v.vesselType && (
+                              <Badge variant="secondary" className="text-[9px] px-1 py-0">{v.vesselType}</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {v.speed != null && <span className="text-[10px] text-muted-foreground">{v.speed} kn</span>}
+                            {v.navStatus && <span className="text-[10px] text-muted-foreground truncate">{v.navStatus}</span>}
+                            {v.destination && <span className="text-[10px] text-muted-foreground truncate">→ {v.destination}</span>}
+                          </div>
+                        </div>
+                        {v.imo ? (
+                          <Link href={`/vessel-report/${v.imo}`}>
+                            <span className="flex items-center gap-1 text-[10px] text-violet-400 hover:underline cursor-pointer whitespace-nowrap">
+                              Rapor <ArrowRight className="w-2.5 h-2.5" />
+                            </span>
+                          </Link>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground/40">IMO yok</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </>
         ) : (
           <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -545,6 +673,7 @@ export default function PortInfo() {
             facilityList={facilityList}
             onClose={handleClose}
             portAlerts={activePortAlerts}
+            portCode={selectedPort?.code ?? ""}
           />
         )}
       </div>
