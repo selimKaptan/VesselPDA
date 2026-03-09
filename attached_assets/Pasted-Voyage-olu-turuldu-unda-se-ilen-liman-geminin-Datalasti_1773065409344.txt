@@ -1,0 +1,103 @@
+Voyage oluşturulduğunda seçilen liman, geminin Datalastic/AIS'ten gelen gerçek destination bilgisinin üzerine yazıyor. İkisi farklı veriler ve ayrı gösterilmeli.
+
+DÜZELTME 1 — Backend: server/routes/tracking.routes.ts dosyasında "/api/vessels/live-position" endpoint'ini bul. Response JSON'ına voyage bilgisini de ekle:
+
+Mevcut response'un sonuna şu alanları ekle (res.json bloğunun içine):
+
+// Voyage bilgisi — kullanıcının oluşturduğu sefer
+let activeVoyage = null;
+try {
+  const { voyages, ports } = await import("@shared/schema");
+  const { eq, and, or, desc } = await import("drizzle-orm");
+  const { db } = await import("../db");
+  
+  // Bu IMO'ya sahip vessel'ın aktif voyage'ını bul
+  const vesselRecord = await db.select().from(
+    (await import("@shared/schema")).vessels
+  ).where(
+    eq((await import("@shared/schema")).vessels.imoNumber, imo)
+  ).limit(1);
+  
+  if (vesselRecord.length > 0) {
+    const [voy] = await db.select().from(voyages).where(
+      and(
+        eq(voyages.vesselId, vesselRecord[0].id),
+        or(
+          eq(voyages.status, "planned"),
+          eq(voyages.status, "in_progress"),
+          eq(voyages.status, "active")
+        )
+      )
+    ).orderBy(desc(voyages.createdAt)).limit(1);
+    
+    if (voy) {
+      let portName = null;
+      if (voy.portId) {
+        const [p] = await db.select({ name: ports.name }).from(ports).where(eq(ports.id, voy.portId));
+        portName = p?.name || null;
+      }
+      activeVoyage = {
+        id: voy.id,
+        portName: portName,
+        eta: voy.eta,
+        etd: voy.etd,
+        status: voy.status,
+        purposeOfCall: voy.purposeOfCall,
+        cargoType: voy.cargoType,
+      };
+    }
+  }
+} catch (err) {
+  // Voyage bilgisi opsiyonel, hata olursa sessizce devam et
+}
+
+Sonra res.json() bloğuna şu alanları ekle:
+res.json({
+  // ... mevcut alanlar (latitude, longitude, speed, course, heading, eta, navStatus vs.) ...
+  
+  // Datalastic'ten gelen GERÇEK destination (AIS verisi)
+  aisDestination: position?.destination ?? vessel.destination ?? null,
+  aisEta: position?.eta ?? vessel.eta ?? null,
+  
+  // Kullanıcının oluşturduğu voyage bilgisi
+  voyage: activeVoyage,
+});
+
+NOT: Mevcut "destination" ve "eta" alanlarını KALDIRMA — geriye uyumluluk için kalsın. Sadece yeni alanlar ekle.
+
+DÜZELTME 2 — Frontend: client/src/pages/vessel-report.tsx dosyasında gemi bilgilerini gösteren bölümü bul. Destination ve ETA gösterilen yerde iki ayrı bilgi göster:
+
+Destination bölümünde şu pattern'ı uygula:
+
+{/* AIS Destination — geminin gerçek hedefi */}
+<div>
+  <span className="text-muted-foreground text-xs">AIS Destination</span>
+  <p className="font-medium">{posQ.data?.aisDestination || posQ.data?.destination || "Unknown"}</p>
+  {posQ.data?.aisEta && (
+    <p className="text-xs text-muted-foreground">ETA: {new Date(posQ.data.aisEta).toLocaleDateString()}</p>
+  )}
+</div>
+
+{/* Planlanan Sefer — kullanıcının girdiği voyage */}
+{posQ.data?.voyage && (
+  <div className="border-l-2 border-blue-500 pl-3">
+    <span className="text-muted-foreground text-xs">Planned Voyage</span>
+    <p className="font-medium text-blue-600">{posQ.data.voyage.portName}</p>
+    <div className="flex gap-2 text-xs text-muted-foreground">
+      {posQ.data.voyage.eta && <span>ETA: {new Date(posQ.data.voyage.eta).toLocaleDateString()}</span>}
+      {posQ.data.voyage.purposeOfCall && <span>• {posQ.data.voyage.purposeOfCall}</span>}
+      {posQ.data.voyage.cargoType && <span>• {posQ.data.voyage.cargoType}</span>}
+    </div>
+    <span className={`text-xs px-1.5 py-0.5 rounded ${
+      posQ.data.voyage.status === "in_progress" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+    }`}>
+      {posQ.data.voyage.status === "in_progress" ? "In Progress" : "Planned"}
+    </span>
+  </div>
+)}
+
+DÜZELTME 3 — vessel-track.tsx harita sayfasında da aynı mantık: Eğer gemi üzerine tıklandığında popup'ta destination gösteriliyorsa, orada da ikisini ayrı göster. Popup'ta:
+- "AIS Dest: PIRAEUS" (Datalastic'ten)
+- "Planned: Alsancak — Loading" (Voyage'dan)
+
+Bu sayede kullanıcı hem geminin AIS'ten bildirdiği gerçek hedefini hem de kendi planladığı seferi görebilir.
