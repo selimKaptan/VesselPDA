@@ -1,0 +1,59 @@
+4 kalan sorun var, hepsini düzelt:
+
+SORUN 1 — AIS Stream kalıntıları:
+a) server/routes.ts dosyasında şu satırı bul ve SİL:
+   import { startAISStream } from "./ais-stream";
+   Ve şu çağrıyı da SİL:
+   startAISStream();
+
+b) server/index.ts'deki helmet CSP connectSrc dizisinden "https://stream.aisstream.io" değerini kaldır.
+
+c) server/ais-stream.ts dosyası hâlâ varsa tamamen SİL.
+
+d) Tüm projede kontrol et: grep -rn "ais-stream\|startAISStream" server/ --include="*.ts"
+   Bulunan her referansı kaldır.
+
+SORUN 2 — shared/models/chat.ts tablo çakışması:
+shared/models/chat.ts dosyasının hâlâ var olup olmadığını kontrol et.
+- Eğer varsa ve içinde "conversations" ve "messages" tablo adları varsa, bunları "aiConversations" ve "aiMessages" olarak değiştir.
+- Type export'ları da güncelle: Conversation → AiConversation, Message → AiMessage, InsertConversation → InsertAiConversation, InsertMessage → InsertAiMessage
+- Bu dosyadan import yapan tüm dosyaları güncelle (server/replit_integrations/chat/ klasörü)
+- Eğer dosya zaten silinmişse veya isimler zaten değiştirilmişse bu adımı atla.
+
+SORUN 3 — Demo seed alan adları:
+server/demo-seed.ts dosyasını kontrol et. Eğer aşağıdaki YANLIŞ alan adları hâlâ kullanılıyorsa düzelt:
+
+Noon Reports bölümünde:
+- latitude: "35.12 N" → latitude: 35.12
+- longitude: "024.45 E" → longitude: 24.45
+- speed → speedOverGround
+- distanceLast24h → distanceLastNoon
+- foRob → hfoRob
+- doRob → mgoRob
+- fwRob → kaldır
+- status: "submitted" → kaldır
+- course → kaldır
+
+CII Records bölümünde:
+- year → reportingYear
+- attainedCii → ciiAttained
+- requiredCii → ciiRequired
+- rating → ciiRating
+- co2Emissions → totalCo2Mt
+- distanceTraveled → distanceNm
+
+EU ETS Records bölümünde:
+- periodStart/periodEnd → kaldır
+- totalEmissions → co2Emissions
+- taxableEmissions → etsLiableCo2
+- allowancesNeeded → kaldır
+
+SORUN 4 — rejectCompanyProfile her zaman true döndürüyor:
+server/storage/company.storage.ts dosyasında rejectCompanyProfile metodunu bul ve şöyle düzelt:
+
+async rejectCompanyProfile(id: number): Promise<boolean> {
+    const result = await db.delete(companyProfiles)
+      .where(eq(companyProfiles.id, id))
+      .returning();
+    return result.length > 0;
+}

@@ -54,12 +54,11 @@ async function approveCompanyProfile(id: number): Promise<CompanyProfile | undef
   return updated;
 }
 
-async function rejectCompanyProfile(id: number): Promise<CompanyProfile | undefined> {
-  const [updated] = await db.update(companyProfiles)
-    .set({ approvalStatus: "rejected", updatedAt: new Date() } as any)
+async function rejectCompanyProfile(id: number): Promise<boolean> {
+  const result = await db.delete(companyProfiles)
     .where(eq(companyProfiles.id, id))
     .returning();
-  return updated;
+  return result.length > 0;
 }
 
 async function getAllCompanyProfiles(): Promise<CompanyProfile[]> {

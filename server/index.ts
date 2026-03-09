@@ -41,7 +41,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com", "data:"],
       imgSrc: ["'self'", "data:", "blob:", "https:", "http:", "https://*.basemaps.cartocdn.com", "https://tiles.openseamap.org"],
-      connectSrc: ["'self'", "ws:", "wss:", "https://api.anthropic.com", "https://nominatim.openstreetmap.org", "https://stream.aisstream.io", "https://tiles.stadiamaps.com", "https://*.tile.openstreetmap.org", "https://api.mapbox.com", "https://events.mapbox.com", "https://*.mapbox.com", "https://*.basemaps.cartocdn.com", "https://tiles.openseamap.org", "https://api.datalastic.com"],
+      connectSrc: ["'self'", "ws:", "wss:", "https://api.anthropic.com", "https://nominatim.openstreetmap.org", "https://tiles.stadiamaps.com", "https://*.tile.openstreetmap.org", "https://api.mapbox.com", "https://events.mapbox.com", "https://*.mapbox.com", "https://*.basemaps.cartocdn.com", "https://tiles.openseamap.org", "https://api.datalastic.com"],
       frameSrc: ["'self'"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],

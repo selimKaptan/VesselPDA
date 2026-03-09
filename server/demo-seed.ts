@@ -800,35 +800,29 @@ export async function seedDemoData(userId: string, userRole: string) {
           userId,
           vesselId: vesselRows[0].id,
           reportDate: new Date(Date.now() - 86400000),
-          latitude: "35.12 N",
-          longitude: "024.45 E",
-          course: 275,
-          speed: 14.5,
-          distanceLast24h: 348,
+          latitude: 35.12,
+          longitude: 24.45,
+          speedOverGround: 14.5,
+          distanceLastNoon: 348,
           distanceToGo: 1250,
           windForce: 4,
           seaState: 3,
-          foRob: 450.5,
-          doRob: 85.2,
-          fwRob: 120.0,
-          status: "submitted"
+          hfoRob: 450.5,
+          mgoRob: 85.2,
         },
         {
           userId,
           vesselId: vesselRows[0].id,
           reportDate: new Date(Date.now() - 2 * 86400000),
-          latitude: "34.55 N",
-          longitude: "028.10 E",
-          course: 272,
-          speed: 14.2,
-          distanceLast24h: 340,
+          latitude: 34.55,
+          longitude: 28.10,
+          speedOverGround: 14.2,
+          distanceLastNoon: 340,
           distanceToGo: 1598,
           windForce: 3,
           seaState: 2,
-          foRob: 475.2,
-          doRob: 88.5,
-          fwRob: 125.0,
-          status: "submitted"
+          hfoRob: 475.2,
+          mgoRob: 88.5,
         }
       ];
       await db.insert(noonReports).values(noonData);
@@ -842,22 +836,19 @@ export async function seedDemoData(userId: string, userRole: string) {
     if (vesselRows.length > 0) {
       await db.insert(ciiRecords).values({
         vesselId: vesselRows[0].id,
-        year: 2023,
-        attainedCii: 4.85,
-        requiredCii: 5.12,
-        rating: "B",
-        co2Emissions: 12500.5,
-        distanceTraveled: 45000,
+        reportingYear: 2023,
+        ciiAttained: 4.85,
+        ciiRequired: 5.12,
+        ciiRating: "B",
+        totalCo2Mt: 12500.5,
+        distanceNm: 45000,
         status: "finalized"
       });
 
       await db.insert(euEtsRecords).values({
         vesselId: vesselRows[0].id,
-        periodStart: new Date("2023-01-01"),
-        periodEnd: new Date("2023-12-31"),
-        totalEmissions: 8500.2,
-        taxableEmissions: 3400.08, // 40% for 2024 scope in 2023 demo
-        allowancesNeeded: 3400,
+        co2Emissions: 8500.2,
+        etsLiableCo2: 3400.08,
         status: "reported"
       });
     }
