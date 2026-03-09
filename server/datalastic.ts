@@ -181,33 +181,87 @@ export async function getVesselByUuid(uuid: string): Promise<DatalasticVessel | 
   return raw ? normalizeVessel(raw) : null;
 }
 
-export async function getCurrentPosition(uuid: string): Promise<DatalasticPosition | null> {
-  const json = await datalasticFetch(`/vessel_pro?uuid=${encodeURIComponent(uuid)}`);
-  return json?.data ?? null;
+export async function getCurrentPosition(
+  identifier: string,
+  type: "uuid" | "imo" | "mmsi" = "uuid"
+): Promise<DatalasticPosition | null> {
+  try {
+    const json = await datalasticFetch(`/vessel_pro?${type}=${encodeURIComponent(identifier)}`);
+    const d = json?.data;
+    if (!d) return null;
+    // vessel_pro alanlarını DatalasticPosition alanlarına normalize et
+    return {
+      uuid:              d.uuid              ?? "",
+      latitude:          d.latitude          ?? d.lat        ?? 0,
+      longitude:         d.longitude         ?? d.lon        ?? 0,
+      speed:             d.speed             ?? 0,
+      course:            d.course            ?? 0,
+      heading:           d.heading           ?? 0,
+      destination:       d.destination       ?? null,
+      eta:               d.eta_UTC           ?? d.eta        ?? null,
+      navigation_status: d.navigation_status ?? d.status     ?? null,
+      timestamp:         d.last_position_UTC ?? d.timestamp  ?? new Date().toISOString(),
+      port_name:         d.port_name         ?? d.dep_port   ?? null,
+      country:           d.country_name      ?? d.country    ?? null,
+    };
+  } catch (err: any) {
+    console.warn("[datalastic] getCurrentPosition error:", err?.message);
+    return null;
+  }
 }
 
-export async function getHistoricalTrack(uuid: string): Promise<DatalasticTrackPoint[]> {
-  const json = await datalasticFetch(`/vessel_history?uuid=${encodeURIComponent(uuid)}`);
-  const data = json?.data ?? json?.track ?? [];
-  return Array.isArray(data) ? data : [];
+export async function getHistoricalTrack(
+  identifier: string,
+  type: "uuid" | "imo" | "mmsi" = "uuid",
+  days: number = 7
+): Promise<DatalasticTrackPoint[]> {
+  try {
+    const json = await datalasticFetch(`/vessel_history?${type}=${encodeURIComponent(identifier)}&days=${days}`);
+    const data = json?.data ?? json?.track ?? [];
+    return Array.isArray(data) ? data : [];
+  } catch (err: any) {
+    console.warn("[datalastic] getHistoricalTrack error:", err?.message);
+    return [];
+  }
 }
 
-export async function getPortCalls(uuid: string): Promise<DatalasticPortCall[]> {
-  const json = await datalasticFetch(`/port_call?uuid=${encodeURIComponent(uuid)}`);
-  const data = json?.data ?? json?.port_calls ?? [];
-  return Array.isArray(data) ? data : [];
+export async function getPortCalls(
+  identifier: string,
+  type: "uuid" | "imo" | "mmsi" = "uuid"
+): Promise<DatalasticPortCall[]> {
+  try {
+    const json = await datalasticFetch(`/port_call?${type}=${encodeURIComponent(identifier)}`);
+    const data = json?.data ?? json?.port_calls ?? [];
+    return Array.isArray(data) ? data : [];
+  } catch (err: any) {
+    console.warn("[datalastic] getPortCalls error:", err?.message);
+    return [];
+  }
 }
 
-export async function getInspections(uuid: string): Promise<DatalasticInspection[]> {
-  const json = await datalasticFetch(`/vessel_inspections?uuid=${encodeURIComponent(uuid)}`);
-  const data = json?.data ?? json?.inspections ?? [];
-  return Array.isArray(data) ? data : [];
+export async function getInspections(
+  identifier: string,
+  type: "uuid" | "imo" = "uuid"
+): Promise<DatalasticInspection[]> {
+  try {
+    const json = await datalasticFetch(`/vessel_inspections?${type}=${encodeURIComponent(identifier)}`);
+    const data = json?.data ?? json?.inspections ?? [];
+    return Array.isArray(data) ? data : [];
+  } catch (err: any) {
+    console.warn("[datalastic] getInspections error:", err?.message);
+    return [];
+  }
 }
 
 export async function findPort(name: string): Promise<DatalasticPort[]> {
-  const json = await datalasticFetch(`/port_find?name=${encodeURIComponent(name)}`);
-  const data = json?.data ?? json?.ports ?? [];
-  return Array.isArray(data) ? data : [data].filter(Boolean);
+  try {
+    const json = await datalasticFetch(`/port_find?name=${encodeURIComponent(name)}`);
+    const data = json?.data ?? json?.ports ?? [];
+    return Array.isArray(data) ? data : [data].filter(Boolean);
+  } catch (err: any) {
+    console.warn("[datalastic] findPort error:", err?.message);
+    return [];
+  }
 }
 
 export async function resolveUuid(

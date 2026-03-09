@@ -309,42 +309,56 @@ router.get("/finder", isAuthenticated, async (req, res) => {
 });
 
 router.get("/live-position", isAuthenticated, async (req, res) => {
-  const imo = (req.query.imo as string || "").trim();
+  const imo  = (req.query.imo  as string || "").trim();
   const mmsi = (req.query.mmsi as string || "").trim();
   if (!imo && !mmsi) return res.status(400).json({ message: "imo veya mmsi gerekli" });
   if (!process.env.DATALASTIC_API_KEY) return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
   try {
-    const uuid = await datalastic.resolveUuid(imo || null, mmsi || null);
-    let pos = uuid ? await datalastic.getCurrentPosition(uuid) : null;
+    // 1. Önce gemi bul → uuid
+    const vessels = await datalastic.findVessel(imo || mmsi, imo ? "imo" : "mmsi");
+    if (!vessels.length) return res.status(404).json({ message: "Gemi bulunamadı" });
+    const vessel = vessels[0];
+    const uuid   = vessel.uuid;
 
-    if (pos) {
-      return res.json({ ...pos, uuid });
+    // 2. Canlı pozisyon (getCurrentPosition artık normalize ediyor)
+    let livePosition: any = null;
+    if (uuid) {
+      livePosition = await datalastic.getCurrentPosition(uuid);
     }
 
-    // Fallback: vessel_pro endpoint (returns lat/lon with different field names)
-    const pro = await datalastic.getVesselPositionPro({
-      imo: imo || undefined,
-      mmsi: mmsi || undefined,
+    // 3. Koordinat doğrulama
+    if (livePosition) {
+      const { latitude: lat, longitude: lng } = livePosition;
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        livePosition.latitude  = null;
+        livePosition.longitude = null;
+      }
+    }
+
+    // 4. findVessel verisinden de fallback koordinat al
+    const finalLat = livePosition?.latitude  ?? vessel.latitude;
+    const finalLng = livePosition?.longitude ?? vessel.longitude;
+
+    res.json({
+      uuid,
+      name:             vessel.name,
+      imo:              vessel.imo,
+      mmsi:             vessel.mmsi,
+      flag:             vessel.flag,
+      vesselType:       vessel.vessel_type,
+      latitude:         finalLat,
+      longitude:        finalLng,
+      speed:            livePosition?.speed             ?? vessel.speed,
+      course:           livePosition?.course            ?? vessel.course,
+      heading:          livePosition?.heading           ?? vessel.heading,
+      destination:      livePosition?.destination       ?? vessel.destination,
+      eta:              livePosition?.eta               ?? vessel.eta,
+      navStatus:        livePosition?.navigation_status ?? vessel.status,
+      portName:         livePosition?.port_name         ?? null,
+      country:          livePosition?.country           ?? null,
+      lastUpdate:       livePosition?.timestamp         ?? null,
+      source:           "datalastic",
     });
-    if (pro?.lat != null) {
-      return res.json({
-        latitude:          pro.lat,
-        longitude:         pro.lon,
-        speed:             pro.speed             ?? null,
-        course:            pro.course            ?? null,
-        heading:           pro.heading           ?? null,
-        navigation_status: pro.navigation_status ?? null,
-        destination:       pro.destination       ?? pro.dest_port ?? null,
-        eta:               pro.eta_UTC           ?? null,
-        timestamp:         pro.last_position_UTC ?? null,
-        port_name:         pro.dep_port          ?? null,
-        country:           null,
-        uuid:              uuid ?? null,
-        source:            "vessel_pro",
-      });
-    }
-
-    return res.status(404).json({ message: "Konum verisi yok" });
   } catch (error: any) {
     console.error("Live position error:", error.message);
     res.status(502).json({ message: "Konum alınamadı." });

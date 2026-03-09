@@ -1,0 +1,144 @@
+Gemi IMO ile bulunuyor ama detay sayfasında canlı konum, ETA, ATD ve harita görünmüyor. Datalastic API endpoint fonksiyonları düzeltilmeli.
+
+server/datalastic.ts dosyasında şu fonksiyonları kontrol et ve yoksa ekle, varsa düzelt. Datalastic API'de path parameter YOKTUR, her şey query parameter olmalı:
+
+1. getCurrentPosition — Geminin canlı konumunu getirir:
+export async function getCurrentPosition(identifier: string, type: "uuid" | "imo" | "mmsi" = "uuid"): Promise<DatalasticPosition | null> {
+  try {
+    const json = await datalasticFetch(`/vessel_pro?${type}=${encodeURIComponent(identifier)}`);
+    const d = json?.data;
+    if (!d) return null;
+    return {
+      uuid: d.uuid ?? "",
+      latitude: d.latitude ?? d.lat ?? 0,
+      longitude: d.longitude ?? d.lon ?? 0,
+      speed: d.speed ?? 0,
+      course: d.course ?? 0,
+      heading: d.heading ?? 0,
+      destination: d.destination ?? null,
+      eta: d.eta_UTC ?? d.eta ?? null,
+      navigation_status: d.navigation_status ?? d.status ?? null,
+      timestamp: d.last_position_UTC ?? d.timestamp ?? new Date().toISOString(),
+      port_name: d.port_name ?? null,
+      country: d.country_name ?? d.country ?? null,
+    };
+  } catch (err: any) {
+    console.error("[datalastic] getCurrentPosition error:", err?.message);
+    return null;
+  }
+}
+
+2. getVesselByUuid — UUID ile gemi detayı getirir:
+export async function getVesselByUuid(uuid: string): Promise<DatalasticVessel | null> {
+  try {
+    const json = await datalasticFetch(`/vessel_info?uuid=${encodeURIComponent(uuid)}`);
+    const raw = json?.data ?? null;
+    return raw ? normalizeVessel(raw) : null;
+  } catch (err: any) {
+    console.error("[datalastic] getVesselByUuid error:", err?.message);
+    return null;
+  }
+}
+
+3. getHistoricalTrack — Geminin geçmiş rotasını getirir:
+export async function getHistoricalTrack(identifier: string, type: "uuid" | "imo" | "mmsi" = "uuid", days: number = 7): Promise<DatalasticTrackPoint[]> {
+  try {
+    const json = await datalasticFetch(`/vessel_history?${type}=${encodeURIComponent(identifier)}&days=${days}`);
+    const data = json?.data ?? [];
+    return Array.isArray(data) ? data : [];
+  } catch (err: any) {
+    console.error("[datalastic] getHistoricalTrack error:", err?.message);
+    return [];
+  }
+}
+
+4. getPortCalls — Geminin liman uğrakları:
+export async function getPortCalls(identifier: string, type: "uuid" | "imo" | "mmsi" = "uuid"): Promise<DatalasticPortCall[]> {
+  try {
+    const json = await datalasticFetch(`/port_call?${type}=${encodeURIComponent(identifier)}`);
+    const data = json?.data ?? [];
+    return Array.isArray(data) ? data : [];
+  } catch (err: any) {
+    console.error("[datalastic] getPortCalls error:", err?.message);
+    return [];
+  }
+}
+
+5. getInspections — PSC inspections:
+export async function getInspections(identifier: string, type: "uuid" | "imo" = "uuid"): Promise<DatalasticInspection[]> {
+  try {
+    const json = await datalasticFetch(`/vessel_inspections?${type}=${encodeURIComponent(identifier)}`);
+    const data = json?.data ?? [];
+    return Array.isArray(data) ? data : [];
+  } catch (err: any) {
+    console.error("[datalastic] getInspections error:", err?.message);
+    return [];
+  }
+}
+
+6. findPort — Liman arama:
+export async function findPort(name: string): Promise<DatalasticPort[]> {
+  try {
+    const json = await datalasticFetch(`/port_find?name=${encodeURIComponent(name)}`);
+    const data = json?.data ?? [];
+    return Array.isArray(data) ? data : [data].filter(Boolean);
+  } catch (err: any) {
+    console.error("[datalastic] findPort error:", err?.message);
+    return [];
+  }
+}
+
+SONRA: Bu fonksiyonları çağıran route handler'ları kontrol et.
+
+server/routes/tracking.routes.ts ve server/routes/datalastic.routes.ts dosyalarında gemi detay endpoint'lerini bul. Muhtemelen şöyle bir pattern var:
+
+// Gemi canlı pozisyon
+router.get("/vessel-position/:id", async (req, res) => { ... });
+// veya
+router.get("/vessel/:imoOrMmsi", async (req, res) => { ... });
+
+Bu endpoint'lerin getCurrentPosition, getVesselByUuid ve getHistoricalTrack fonksiyonlarını DOĞRU çağırdığından emin ol. Özellikle:
+
+a) Eğer client IMO ile istek yapıyorsa, route handler IMO'yu alıp önce findVessel ile UUID'yi çözmeli, sonra getCurrentPosition'ı çağırmalı:
+
+// Örnek pattern:
+const { imo } = req.params;
+// Önce vessel bul
+const vessels = await findVessel(imo, "imo");
+if (!vessels.length) return res.status(404).json({ message: "Vessel not found" });
+const vessel = vessels[0];
+
+// Canlı pozisyon
+let livePosition = null;
+if (vessel.uuid) {
+  livePosition = await getCurrentPosition(vessel.uuid);
+}
+
+// Geçmiş rota
+let track: any[] = [];
+if (vessel.uuid) {
+  track = await getHistoricalTrack(vessel.uuid);
+}
+
+// Port calls
+let portCalls: any[] = [];
+if (vessel.uuid) {
+  portCalls = await getPortCalls(vessel.uuid);
+}
+
+res.json({
+  vessel,
+  livePosition,
+  track,
+  portCalls,
+});
+
+b) Response'ta null koordinat kontrolü ekle:
+if (livePosition) {
+  if (livePosition.latitude < -90 || livePosition.latitude > 90 || livePosition.longitude < -180 || livePosition.longitude > 180) {
+    livePosition.latitude = null;
+    livePosition.longitude = null;
+  }
+}
+
+c) Client tarafında (vessel detail/track sayfası) API response'tan livePosition, track ve portCalls verilerini okuyan component'ları kontrol et. Eğer eski field isimleri kullanılıyorsa (örn: response.position yerine response.livePosition), client'ı da güncelle.
