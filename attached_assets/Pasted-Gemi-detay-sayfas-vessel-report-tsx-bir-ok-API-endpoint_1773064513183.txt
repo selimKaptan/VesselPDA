@@ -1,0 +1,97 @@
+Gemi detay sayfası (vessel-report.tsx) birçok API endpoint çağırıyor ama bazıları backend'de yok veya farklı path'te. Bu yüzden canlı konum, ETA, harita görünmüyor.
+
+Client'ın çağırdığı endpoint'ler ve backend'deki karşılıkları eşleşmiyor. İki seçenek var — eksik backend route'larını ekle:
+
+server/routes/tracking.routes.ts dosyasına şu endpoint'leri ekle (yoksa):
+
+1. Live position endpoint — client /api/vessels/live-position?imo=... çağırıyor:
+router.get("/api/vessels/live-position", isAuthenticated, async (req: any, res) => {
+  const imo = (req.query.imo as string)?.trim();
+  if (!imo) return res.status(400).json({ message: "imo query parameter gerekli" });
+  try {
+    const results = await datalastic.findVessel(imo, "imo");
+    if (!results.length) return res.status(404).json({ message: "Vessel not found" });
+    const vessel = results[0];
+    let position: any = null;
+    if (vessel.uuid) {
+      try { position = await datalastic.getCurrentPosition(vessel.uuid); } catch {}
+    }
+    let lat = position?.latitude ?? vessel.latitude;
+    let lng = position?.longitude ?? vessel.longitude;
+    if (lat != null && lng != null && (lat < -90 || lat > 90 || lng < -180 || lng > 180)) {
+      lat = null; lng = null;
+    }
+    res.json({
+      latitude: lat,
+      longitude: lng,
+      speed: position?.speed ?? vessel.speed ?? null,
+      course: position?.course ?? vessel.course ?? null,
+      heading: position?.heading ?? vessel.heading ?? null,
+      destination: position?.destination ?? vessel.destination ?? null,
+      eta: position?.eta ?? vessel.eta ?? null,
+      atd: position?.atd ?? null,
+      navStatus: position?.navigation_status ?? vessel.status ?? null,
+      lastUpdate: position?.timestamp ?? null,
+      draught: position?.draught ?? position?.current_draught ?? null,
+      portName: position?.port_name ?? null,
+      country: position?.country ?? null,
+    });
+  } catch (error: any) {
+    console.error("[live-position]", error.message);
+    res.status(500).json({ message: "Position fetch failed" });
+  }
+});
+
+2. Datalastic track endpoint — client /api/vessel-track/datalastic-track?imo=... çağırıyor. Zaten yoksa ekle:
+router.get("/api/vessel-track/datalastic-track", isAuthenticated, async (req: any, res) => {
+  const imo = (req.query.imo as string)?.trim();
+  if (!imo) return res.status(400).json({ message: "imo gerekli" });
+  try {
+    const results = await datalastic.findVessel(imo, "imo");
+    if (!results.length) return res.json({ track: [] });
+    const vessel = results[0];
+    let track: any[] = [];
+    if (vessel.uuid) {
+      try { track = await datalastic.getHistoricalTrack(vessel.uuid); } catch {}
+    }
+    // Geçersiz koordinatları filtrele
+    const validTrack = (Array.isArray(track) ? track : []).filter((p: any) =>
+      p.latitude != null && p.longitude != null &&
+      p.latitude >= -90 && p.latitude <= 90 &&
+      p.longitude >= -180 && p.longitude <= 180
+    );
+    res.json({ track: validTrack, vessel: { name: vessel.name, imo: vessel.imo } });
+  } catch (error: any) {
+    console.error("[datalastic-track]", error.message);
+    res.json({ track: [] });
+  }
+});
+
+3. server/routes/datalastic.routes.ts dosyasında şu endpoint'lerin var olduğunu kontrol et, yoksa ekle:
+
+a) Vessel Pro:
+router.get("/api/datalastic/vessel-pro/:imo", isAuthenticated, async (req: any, res) => {
+  try {
+    const data = await datalastic.getVesselPositionPro({ imo: req.params.imo });
+    res.json(data || {});
+  } catch (e: any) { res.status(500).json({ message: e.message }); }
+});
+
+b) Port Calls (gemi bazlı):
+router.get("/api/datalastic/port-calls/:imo", isAuthenticated, async (req: any, res) => {
+  try {
+    const results = await datalastic.findVessel(req.params.imo, "imo");
+    if (!results.length) return res.json([]);
+    const calls = await datalastic.getPortCalls(results[0].uuid);
+    res.json(calls);
+  } catch (e: any) { res.json([]); }
+});
+
+4. vessel-report.tsx'teki portCallsQ queryKey ve queryFn'ini kontrol et. Eğer path client'ta farklı yazılmışsa (örn: /api/datalastic/port-calls/${imo}), backend'deki route path'i bununla eşleşmeli.
+
+Kontrol komutu: grep -n "portCallsQ" client/src/pages/vessel-report.tsx
+Bu satırdaki URL'in backend'de karşılığı olduğundan emin ol.
+
+5. client/src/pages/vessel-report.tsx'te haritayı render eden kısmı kontrol et. Eğer posQ.data'dan latitude/longitude okuyor ama null geliyorsa harita render edilmiyor olabilir. Null kontrolü ekle:
+- Harita bölümünde: posQ.data?.latitude && posQ.data?.longitude koşulu ile haritayı göster
+- Yoksa "Konum bilgisi bulunamadı" mesajı göster

@@ -480,4 +480,93 @@ router.get("/api/vessel-track/datalastic-track", isAuthenticated, async (req, re
   }
 });
 
+// ─── /api/vessels/* compat routes (vessel-report.tsx uses /api/vessels/ prefix) ────
+
+// GET /api/vessels/lookup?imo=... — IMO'dan temel gemi bilgisi
+router.get("/api/vessels/lookup", isAuthenticated, async (req: any, res) => {
+  const imo = (req.query.imo as string || "").trim();
+  if (!imo) return res.status(400).json({ message: "imo gerekli" });
+  if (!datalastic.isDatalasticConfigured()) return res.status(503).json({ message: "Datalastic yapılandırılmamış" });
+  try {
+    const results = await datalastic.findVessel(imo, "imo");
+    if (!results.length) return res.status(404).json({ message: "Gemi bulunamadı" });
+    const v = results[0];
+    res.json({
+      name:       v.name,
+      imoNumber:  v.imo,
+      mmsi:       v.mmsi,
+      flag:       v.flag,
+      vesselType: v.vessel_type,
+      callSign:   v.call_sign,
+      yearBuilt:  v.year_built,
+      grt:        v.grt,
+      nrt:        v.nrt,
+      dwt:        v.dwt,
+      loa:        v.loa,
+      beam:       v.beam,
+    });
+  } catch (error: any) {
+    console.warn("[vessel-lookup]", error.message);
+    res.status(502).json({ message: "Gemi bilgisi alınamadı" });
+  }
+});
+
+// GET /api/vessels/live-position?imo=... — canlı konum (vessel-report.tsx compat)
+router.get("/api/vessels/live-position", isAuthenticated, async (req: any, res) => {
+  const imo  = (req.query.imo  as string || "").trim();
+  const mmsi = (req.query.mmsi as string || "").trim();
+  if (!imo && !mmsi) return res.status(400).json({ message: "imo veya mmsi gerekli" });
+  if (!datalastic.isDatalasticConfigured()) return res.status(503).json({ message: "Datalastic yapılandırılmamış" });
+  try {
+    const results = await datalastic.findVessel(imo || mmsi, imo ? "imo" : "mmsi");
+    if (!results.length) return res.status(404).json({ message: "Gemi bulunamadı" });
+    const vessel = results[0];
+    let position: any = null;
+    if (vessel.uuid) {
+      position = await datalastic.getCurrentPosition(vessel.uuid);
+    }
+    let lat = position?.latitude ?? vessel.latitude;
+    let lng = position?.longitude ?? vessel.longitude;
+    if (lat != null && lng != null && (lat < -90 || lat > 90 || lng < -180 || lng > 180)) {
+      lat = null; lng = null;
+    }
+    res.json({
+      latitude:          lat,
+      longitude:         lng,
+      speed:             position?.speed             ?? vessel.speed             ?? null,
+      course:            position?.course            ?? vessel.course            ?? null,
+      heading:           position?.heading           ?? vessel.heading           ?? null,
+      destination:       position?.destination       ?? vessel.destination       ?? null,
+      eta:               position?.eta               ?? vessel.eta               ?? null,
+      atd:               position?.atd               ?? null,
+      navigation_status: position?.navigation_status ?? vessel.status            ?? null,
+      timestamp:         position?.timestamp         ?? null,
+      draught:           position?.draught           ?? position?.current_draught ?? null,
+      port_name:         position?.port_name         ?? null,
+      country:           position?.country           ?? null,
+    });
+  } catch (error: any) {
+    console.warn("[vessels/live-position]", error.message);
+    res.status(502).json({ message: "Konum alınamadı" });
+  }
+});
+
+// GET /api/vessels/port-call-history?imo=... — liman uğrak geçmişi (vessel-report.tsx compat)
+router.get("/api/vessels/port-call-history", isAuthenticated, async (req: any, res) => {
+  const imo = (req.query.imo as string || "").trim();
+  if (!imo) return res.status(400).json({ message: "imo gerekli" });
+  if (!datalastic.isDatalasticConfigured()) return res.status(503).json({ message: "Datalastic yapılandırılmamış" });
+  try {
+    const results = await datalastic.findVessel(imo, "imo");
+    if (!results.length) return res.json([]);
+    const vessel = results[0];
+    if (!vessel.uuid) return res.json([]);
+    const calls = await datalastic.getPortCalls(vessel.uuid);
+    res.json(calls.slice(0, 20));
+  } catch (error: any) {
+    console.warn("[vessels/port-call-history]", error.message);
+    res.json([]);
+  }
+});
+
 export default router;
