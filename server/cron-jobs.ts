@@ -1,6 +1,5 @@
 import cron from "node-cron";
 import { pool } from "./db";
-import { getPositionByMmsi } from "./ais-stream";
 import { fetchTCMBRates } from "./exchange-rates";
 import { checkAndSendReminders } from "./payment-reminders";
 import { sendCertificateExpiryEmail } from "./email";
@@ -20,7 +19,7 @@ async function syncWatchlistPositions() {
     );
     let saved = 0;
     for (const row of watchlist.rows) {
-      const pos = getPositionByMmsi(row.mmsi);
+      const pos = null; // AIS stream removed — positions synced via Datalastic only
       if (!pos) continue;
 
       const lastRow = await pool.query(

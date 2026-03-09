@@ -2,7 +2,6 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import path from "path";
 import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
-import { startAISStream } from "./ais-stream";
 import { registerProformaApprovalRoutes } from "./proforma-approval";
 import { requireRole } from "./middleware/role-guard";
 import { attachOrgContext } from "./middleware/org-context";
@@ -90,8 +89,6 @@ export async function registerRoutes(
 
   registerAuthRoutes(app);
   registerProformaApprovalRoutes(app);
-  startAISStream();
-
   // Serve uploaded files
   const express = (await import("express")).default;
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));

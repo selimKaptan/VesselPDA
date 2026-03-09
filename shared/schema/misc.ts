@@ -107,7 +107,7 @@ export const vesselQ88 = pgTable("vessel_q88", {
   userId: varchar("user_id").notNull().references(() => users.id),
   vesselName: varchar("vessel_name", { length: 200 }),
   imoNumber: varchar("imo_number", { length: 20 }),
-  mmsi: varchar("mmsi", { length: 20 }),
+  mmsiNumber: varchar("mmsi_number", { length: 20 }),
   callSign: varchar("call_sign", { length: 20 }),
   flag: varchar("flag", { length: 100 }),
   portOfRegistry: varchar("port_of_registry", { length: 200 }),

@@ -2,7 +2,6 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { isAdmin, seededRandom } from "./shared";
-import { startAISStream, getPositions, searchVessels, isConnected, getDataSource, getCacheSize } from "../ais-stream";
 import { db, pool } from "../db";
 import { sql as drizzleSql, eq, desc } from "drizzle-orm";
 import * as datalastic from "../datalastic";
@@ -28,6 +27,18 @@ const MOCK_AIS_DATA = [
   { mmsi: "311000001", name: "MV BAHAMAS CHIEF", flag: "🇧🇸", vesselType: "Container Ship", lat: 36.8820, lng: 30.6870, heading: 315, speed: 15.2, destination: "ANTALYA", eta: "2026-02-26T19:00:00Z", status: "underway" },
 ];
 
+// AIS stream removed — all live tracking handled via Datalastic
+const isConnected = () => false;
+const getCacheSize = () => 0;
+const getPositions = () => [] as any[];
+const searchVessels = (q: string) => MOCK_AIS_DATA.filter(v =>
+  v.name.toLowerCase().includes(q) || v.mmsi.includes(q)
+).map(v => ({
+  mmsi: v.mmsi, name: v.name, vesselName: v.name, flag: v.flag,
+  vesselType: v.vesselType, lat: v.lat, lng: v.lng,
+  heading: v.heading, speed: v.speed, destination: v.destination,
+  eta: v.eta, status: v.status, source: "mock" as const,
+}));
 
 router.get("/api/vessel-track/status", isAuthenticated, (_req, res) => {
   const hasDatalastic = !!process.env.DATALASTIC_API_KEY;

@@ -176,36 +176,36 @@ export async function findVessel(
 }
 
 export async function getVesselByUuid(uuid: string): Promise<DatalasticVessel | null> {
-  const json = await datalasticFetch(`/vessel_uuid/${uuid}`);
+  const json = await datalasticFetch(`/vessel_info?uuid=${encodeURIComponent(uuid)}`);
   const raw = json?.data ?? json?.vessel ?? null;
   return raw ? normalizeVessel(raw) : null;
 }
 
 export async function getCurrentPosition(uuid: string): Promise<DatalasticPosition | null> {
-  const json = await datalasticFetch(`/vessel_current_data/${uuid}`);
+  const json = await datalasticFetch(`/vessel_pro?uuid=${encodeURIComponent(uuid)}`);
   return json?.data ?? null;
 }
 
 export async function getHistoricalTrack(uuid: string): Promise<DatalasticTrackPoint[]> {
-  const json = await datalasticFetch(`/vessel_track/${uuid}`);
+  const json = await datalasticFetch(`/vessel_history?uuid=${encodeURIComponent(uuid)}`);
   const data = json?.data ?? json?.track ?? [];
   return Array.isArray(data) ? data : [];
 }
 
 export async function getPortCalls(uuid: string): Promise<DatalasticPortCall[]> {
-  const json = await datalasticFetch(`/port_call/${uuid}`);
+  const json = await datalasticFetch(`/port_call?uuid=${encodeURIComponent(uuid)}`);
   const data = json?.data ?? json?.port_calls ?? [];
   return Array.isArray(data) ? data : [];
 }
 
 export async function getInspections(uuid: string): Promise<DatalasticInspection[]> {
-  const json = await datalasticFetch(`/inspections/${uuid}`);
+  const json = await datalasticFetch(`/vessel_inspections?uuid=${encodeURIComponent(uuid)}`);
   const data = json?.data ?? json?.inspections ?? [];
   return Array.isArray(data) ? data : [];
 }
 
 export async function findPort(name: string): Promise<DatalasticPort[]> {
-  const json = await datalasticFetch(`/port?name=${encodeURIComponent(name)}`);
+  const json = await datalasticFetch(`/port_find?name=${encodeURIComponent(name)}`);
   const data = json?.data ?? json?.ports ?? [];
   return Array.isArray(data) ? data : [data].filter(Boolean);
 }
