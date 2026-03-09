@@ -17,6 +17,7 @@ import { ProviderDashboard } from "@/components/dashboards/provider-dashboard";
 import { AdminDashboard } from "@/components/dashboards/admin-dashboard";
 import { BrokerDashboard } from "@/components/dashboards/broker-dashboard";
 import { MasterDashboard } from "@/components/dashboards/master-dashboard";
+import { DashboardHub } from "@/components/dashboards/dashboard-hub";
 
 function GettingStartedChecklist({ vessels, proformas, myProfile }: { vessels: Vessel[] | undefined; proformas: Proforma[] | undefined; myProfile: any }) {
   const hasProfile = !!myProfile && (!!myProfile.companyName || !!myProfile.email);
@@ -298,6 +299,8 @@ export default function Dashboard() {
       {/* ── Admin overview mode ── */}
       {effectiveRole === "admin" && (
         <>
+          <DashboardHub role="admin" />
+          <Separator className="my-2" />
           <AdminDashboard adminStats={adminStats} />
           {adminRoleSwitcher}
         </>
@@ -306,6 +309,8 @@ export default function Dashboard() {
       {/* ── Shipowner view ── */}
       {effectiveRole === "shipowner" && (
         <>
+          <DashboardHub role="shipowner" />
+          <Separator className="my-2" />
           <ShipownerDashboard
             user={user}
             vessels={vessels}
@@ -335,6 +340,8 @@ export default function Dashboard() {
       {/* ── Agent view ── */}
       {effectiveRole === "agent" && (
         <>
+          <DashboardHub role="agent" />
+          <Separator className="my-2" />
           <AgentDashboard
             user={user}
             tenders={tenders}
@@ -359,6 +366,8 @@ export default function Dashboard() {
       {/* ── Broker view ── */}
       {effectiveRole === "broker" && (
         <>
+          <DashboardHub role="broker" />
+          <Separator className="my-2" />
           <BrokerDashboard user={user} />
           {isAdmin && (
             <>
@@ -377,6 +386,8 @@ export default function Dashboard() {
       {/* ── Provider view ── */}
       {effectiveRole === "provider" && (
         <>
+          <DashboardHub role="provider" />
+          <Separator className="my-2" />
           <ProviderDashboard
             user={user}
             myProfile={myProfile}
@@ -398,6 +409,8 @@ export default function Dashboard() {
       {/* ── Master view ── */}
       {effectiveRole === "master" && (
         <>
+          <DashboardHub role="master" />
+          <Separator className="my-2" />
           <MasterDashboard user={user} />
           {isAdmin && (
             <>
