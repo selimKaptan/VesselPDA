@@ -290,6 +290,19 @@ function MapPanel({ waypoints, routeGeometry, onWpClick, vesselPosition }: {
     if (lineCoords.length > 1) {
       const poly = L.polyline(lineCoords, { color: "#3b82f6", weight: 2.5, opacity: 0.85, dashArray: "8, 5" }).addTo(map);
       polylineRef.current = poly;
+
+      // Rota çizildikten sonra haritayı tüm rotaya zoom yap
+      setTimeout(() => {
+        const allPoints: [number, number][] = [];
+        if (routeGeometry.length > 0) {
+          routeGeometry.forEach(([lat, lon]) => { if (lat && lon) allPoints.push([lat, lon]); });
+        }
+        waypoints.forEach(wp => { if (wp.latitude && wp.longitude) allPoints.push([wp.latitude, wp.longitude]); });
+        if (vesselPosition?.lat && vesselPosition?.lon) allPoints.push([vesselPosition.lat, vesselPosition.lon]);
+        if (allPoints.length > 1) {
+          try { map.fitBounds(L.latLngBounds(allPoints).pad(0.15), { maxZoom: 7, animate: true }); } catch {}
+        }
+      }, 300);
     }
 
     // Gemiden kalkış limanına gri kesikli çizgi
@@ -304,21 +317,6 @@ function MapPanel({ waypoints, routeGeometry, onWpClick, vesselPosition }: {
       }
     }
 
-    // Fit bounds — tüm rotayı kapsayacak şekilde zoom
-    const allPoints: [number, number][] = waypoints
-      .filter(wp => wp.latitude && wp.longitude)
-      .map(wp => [wp.latitude, wp.longitude] as [number, number]);
-    if (vesselPosition?.lat && vesselPosition?.lon) {
-      allPoints.push([vesselPosition.lat, vesselPosition.lon]);
-    }
-    if (allPoints.length > 1) {
-      try {
-        const bounds = L.latLngBounds(allPoints);
-        map.fitBounds(bounds.pad(0.15), { maxZoom: 8 });
-      } catch {}
-    } else if (allPoints.length === 1) {
-      map.setView(allPoints[0], 6);
-    }
   }, [waypoints, routeGeometry]);
 
   return (
