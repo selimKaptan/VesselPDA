@@ -1,0 +1,486 @@
+Passage Planning sayfasını tamamen yeniden tasarla. Tam otomatik, broker'ların kolayca kullanabileceği bir sistem olacak. Elle pilotlama yok — gemi seç, limanları seç, hız belirle, gerisini sistem hesaplasın.
+
+## ANA AKIŞ
+
+1. Gemi seç (IMO ile ara → Datalastic'ten otomatik bilgi doldur)
+2. Kalkış limanını seç (port search)
+3. Varış limanını seç (port search)
+4. Ara limanlar ekle (opsiyonel)
+5. Hız belirle (knot)
+6. SİSTEM OTOMATİK HESAPLASIN:
+   - Toplam mesafe (NM)
+   - Tahmini süre (gün/saat)
+   - Tahmini yakıt tüketimi (HFO/MGO ton)
+   - Geçilecek boğazlar/kanallar
+   - Waypoint'ler (otomatik rota noktaları)
+   - Her leg için mesafe, süre, yakıt
+   - ETA her liman için
+
+## ADIM 1 — Backend: Schema güncellemesi
+
+shared/schema/misc.ts dosyasındaki passagePlans ve passageWaypoints tablolarını şöyle değiştir:
+
+export const passagePlans = pgTable("passage_plans", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  vesselId: integer("vessel_id").references(() => vessels.id, { onDelete: "cascade" }),
+  voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
+  
+  // Plan bilgileri
+  title: varchar("title", { length: 300 }).notNull(),
+  status: varchar("status", { length: 20 }).default("draft"),
+  
+  // Gemi bilgileri (Datalastic'ten otomatik)
+  vesselName: varchar("vessel_name", { length: 200 }),
+  imoNumber: varchar("imo_number", { length: 20 }),
+  mmsi: varchar("mmsi", { length: 20 }),
+  vesselType: varchar("vessel_type", { length: 100 }),
+  flag: varchar("flag", { length: 50 }),
+  grossTonnage: real("gross_tonnage"),
+  deadweight: real("deadweight"),
+  loa: real("loa"),
+  beam: real("beam"),
+  maxDraft: real("max_draft"),
+  
+  // Rota bilgileri
+  departurePort: varchar("departure_port", { length: 200 }),
+  departurePortId: integer("departure_port_id"),
+  departureLat: real("departure_lat"),
+  departureLon: real("departure_lon"),
+  departureDate: timestamp("departure_date"),
+  
+  destinationPort: varchar("destination_port", { length: 200 }),
+  destinationPortId: integer("destination_port_id"),
+  destinationLat: real("destination_lat"),
+  destinationLon: real("destination_lon"),
+  arrivalDate: timestamp("arrival_date"),
+  
+  // Hesaplanan değerler
+  totalDistanceNm: real("total_distance_nm"),
+  totalDays: real("total_days"),
+  totalHours: real("total_hours"),
+  plannedSpeed: real("planned_speed"),
+  
+  // Yakıt hesaplama
+  dailyHfoConsumption: real("daily_hfo_consumption"),
+  dailyMgoConsumption: real("daily_mgo_consumption"),
+  totalHfoConsumption: real("total_hfo_consumption"),
+  totalMgoConsumption: real("total_mgo_consumption"),
+  ecaZoneDays: real("eca_zone_days"),
+  
+  // Geçilecek boğaz/kanallar (JSON array)
+  straitsAndCanals: jsonb("straits_and_canals"),
+  
+  // Operasyonel
+  masterName: varchar("master_name", { length: 200 }),
+  voyageNumber: varchar("voyage_number", { length: 100 }),
+  cargoType: varchar("cargo_type", { length: 200 }),
+  cargoQuantity: real("cargo_quantity"),
+  
+  // Güvenlik
+  weatherRouting: boolean("weather_routing").default(false),
+  ecdisApproved: boolean("ecdis_approved").default(false),
+  safetyBriefingDone: boolean("safety_briefing_done").default(false),
+  
+  notes: text("notes"),
+  hazards: text("hazards"),
+  contingencyPlan: text("contingency_plan"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const passageWaypoints = pgTable("passage_waypoints", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  planId: integer("plan_id").notNull().references(() => passagePlans.id, { onDelete: "cascade" }),
+  sequence: integer("sequence").notNull().default(0),
+  
+  // Konum
+  name: varchar("name", { length: 200 }),
+  waypointType: varchar("waypoint_type", { length: 50 }).default("waypoint"),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  
+  // Navigasyon
+  courseToNext: real("course_to_next"),
+  distanceToNextNm: real("distance_to_next_nm"),
+  speedKnots: real("speed_knots"),
+  legTimeHours: real("leg_time_hours"),
+  
+  // Zaman
+  eta: timestamp("eta"),
+  etd: timestamp("etd"),
+  
+  // Ekstra
+  isStrait: boolean("is_strait").default(false),
+  isCanal: boolean("is_canal").default(false),
+  isEcaZone: boolean("is_eca_zone").default(false),
+  isPort: boolean("is_port").default(false),
+  portStayHours: real("port_stay_hours"),
+  
+  notes: text("notes"),
+});
+
+Migration: npx drizzle-kit generate && npx drizzle-kit push
+
+## ADIM 2 — Backend: Route hesaplama endpoint'i
+
+server/routes/passage-plan.routes.ts dosyasına şu endpoint'i ekle:
+
+// POST /calculate-route — İki liman arası otomatik rota hesapla
+router.post("/calculate-route", isAuthenticated, async (req: any, res) => {
+  try {
+    const { departurePort, destinationPort, intermediatePortss, plannedSpeed, departureLat, departureLon, destinationLat, destinationLon } = req.body;
+    
+    // Boğaz ve kanal veritabanı
+    const STRAITS_AND_CANALS = [
+      { name: "Bosphorus (İstanbul Boğazı)", lat: 41.12, lon: 29.05, radius: 20, transitTimeHours: 2, type: "strait" },
+      { name: "Dardanelles (Çanakkale Boğazı)", lat: 40.20, lon: 26.40, radius: 30, transitTimeHours: 3, type: "strait" },
+      { name: "Suez Canal", lat: 30.45, lon: 32.35, radius: 50, transitTimeHours: 14, type: "canal" },
+      { name: "Panama Canal", lat: 9.08, lon: -79.68, radius: 30, transitTimeHours: 10, type: "canal" },
+      { name: "Strait of Gibraltar", lat: 35.97, lon: -5.50, radius: 20, transitTimeHours: 1.5, type: "strait" },
+      { name: "Strait of Hormuz", lat: 26.56, lon: 56.25, radius: 30, transitTimeHours: 2, type: "strait" },
+      { name: "Strait of Malacca", lat: 2.50, lon: 101.50, radius: 100, transitTimeHours: 12, type: "strait" },
+      { name: "Strait of Messina", lat: 38.20, lon: 15.63, radius: 10, transitTimeHours: 1, type: "strait" },
+      { name: "English Channel", lat: 50.50, lon: 0.50, radius: 50, transitTimeHours: 6, type: "strait" },
+      { name: "Kiel Canal", lat: 54.15, lon: 9.70, radius: 30, transitTimeHours: 8, type: "canal" },
+      { name: "Cape of Good Hope", lat: -34.35, lon: 18.50, radius: 50, transitTimeHours: 0, type: "waypoint" },
+      { name: "Strait of Bonifacio", lat: 41.25, lon: 9.15, radius: 15, transitTimeHours: 1, type: "strait" },
+      { name: "Strait of Sicily", lat: 37.00, lon: 11.50, radius: 40, transitTimeHours: 3, type: "strait" },
+      { name: "Bab el-Mandeb", lat: 12.58, lon: 43.33, radius: 20, transitTimeHours: 2, type: "strait" },
+      { name: "Strait of Taiwan", lat: 24.00, lon: 119.50, radius: 50, transitTimeHours: 4, type: "strait" },
+      { name: "Torres Strait", lat: -10.50, lon: 142.00, radius: 30, transitTimeHours: 3, type: "strait" },
+      { name: "Danish Straits (Øresund)", lat: 55.90, lon: 12.70, radius: 20, transitTimeHours: 2, type: "strait" },
+    ];
+    
+    // ECA (Emission Control Area) bölgeleri
+    const ECA_ZONES = [
+      { name: "Baltic Sea ECA", latMin: 53, latMax: 66, lonMin: 10, lonMax: 30 },
+      { name: "North Sea ECA", latMin: 48, latMax: 62, lonMin: -5, lonMax: 10 },
+      { name: "North America ECA", latMin: 25, latMax: 50, lonMin: -130, lonMax: -60 },
+      { name: "US Caribbean ECA", latMin: 17, latMax: 32, lonMin: -98, lonMax: -64 },
+      { name: "Mediterranean Sea (2025 SECA)", latMin: 30, latMax: 46, lonMin: -6, lonMax: 36 },
+    ];
+    
+    // Haversine mesafe hesaplama (NM)
+    function haversineNm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+      const R = 3440.065; // Dünya yarıçapı nautical mil
+      const toRad = (d: number) => d * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+    
+    // İki nokta arası bearing (derece)
+    function bearing(lat1: number, lon1: number, lat2: number, lon2: number): number {
+      const toRad = (d: number) => d * Math.PI / 180;
+      const toDeg = (r: number) => r * 180 / Math.PI;
+      const dLon = toRad(lon2 - lon1);
+      const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+      const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+      return (toDeg(Math.atan2(y, x)) + 360) % 360;
+    }
+    
+    // Rota noktaları oluştur
+    const allPorts = [
+      { name: departurePort, lat: departureLat, lon: departureLon, isPort: true },
+      ...(intermediatePorts || []).map((p: any) => ({ name: p.name, lat: p.lat, lon: p.lon, isPort: true })),
+      { name: destinationPort, lat: destinationLat, lon: destinationLon, isPort: true },
+    ];
+    
+    const speed = plannedSpeed || 12; // varsayılan 12 knot
+    const waypoints: any[] = [];
+    let totalDistance = 0;
+    let totalHours = 0;
+    let wpSequence = 0;
+    const passedStraits: any[] = [];
+    let ecaZoneHours = 0;
+    
+    for (let i = 0; i < allPorts.length; i++) {
+      const port = allPorts[i];
+      
+      // Port waypoint ekle
+      waypoints.push({
+        sequence: wpSequence++,
+        name: port.name,
+        latitude: port.lat,
+        longitude: port.lon,
+        waypointType: "port",
+        isPort: true,
+        speedKnots: 0,
+        distanceToNextNm: 0,
+        courseToNext: 0,
+        legTimeHours: 0,
+        eta: null,
+        etd: null,
+      });
+      
+      // Sonraki port'a git
+      if (i < allPorts.length - 1) {
+        const nextPort = allPorts[i + 1];
+        const legDistance = haversineNm(port.lat, port.lon, nextPort.lat, nextPort.lon);
+        
+        // Bu leg'de hangi boğazlar/kanallar var?
+        for (const strait of STRAITS_AND_CANALS) {
+          const distToStrait = haversineNm(port.lat, port.lon, strait.lat, strait.lon);
+          const distStraitToNext = haversineNm(strait.lat, strait.lon, nextPort.lat, nextPort.lon);
+          
+          // Eğer boğaz, kalkış ve varış arasındaysa (toplam mesafe %20'den fazla sapmıyorsa)
+          if (distToStrait + distStraitToNext < legDistance * 1.2 && distToStrait > 10 && distStraitToNext > 10) {
+            passedStraits.push(strait);
+            waypoints.push({
+              sequence: wpSequence++,
+              name: strait.name,
+              latitude: strait.lat,
+              longitude: strait.lon,
+              waypointType: strait.type,
+              isStrait: strait.type === "strait",
+              isCanal: strait.type === "canal",
+              isPort: false,
+              speedKnots: strait.type === "canal" ? 8 : speed,
+              distanceToNextNm: 0, // sonra hesaplanacak
+              courseToNext: 0,
+              legTimeHours: strait.transitTimeHours,
+              eta: null,
+              etd: null,
+              notes: `Transit time: ~${strait.transitTimeHours}h`,
+            });
+          }
+        }
+      }
+    }
+    
+    // Waypoint'ları sırala ve mesafe/kurs hesapla
+    waypoints.sort((a: any, b: any) => {
+      if (a.isPort && !b.isPort) return -1; // portlar önce... aslında sequence'a göre
+      return a.sequence - b.sequence;
+    });
+    
+    // Tekrar sırala: portlar ve boğazlar arası mesafeleri hesapla
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      const wp = waypoints[i];
+      const next = waypoints[i + 1];
+      if (wp.latitude && wp.longitude && next.latitude && next.longitude) {
+        wp.distanceToNextNm = Math.round(haversineNm(wp.latitude, wp.longitude, next.latitude, next.longitude) * 10) / 10;
+        wp.courseToNext = Math.round(bearing(wp.latitude, wp.longitude, next.latitude, next.longitude) * 10) / 10;
+        const wpSpeed = wp.speedKnots || speed;
+        wp.legTimeHours = wp.isStrait || wp.isCanal ? wp.legTimeHours : Math.round((wp.distanceToNextNm / wpSpeed) * 10) / 10;
+        totalDistance += wp.distanceToNextNm;
+        totalHours += wp.legTimeHours;
+      }
+      
+      // ECA zone kontrolü
+      for (const eca of ECA_ZONES) {
+        if (wp.latitude >= eca.latMin && wp.latitude <= eca.latMax && wp.longitude >= eca.lonMin && wp.longitude <= eca.lonMax) {
+          wp.isEcaZone = true;
+          ecaZoneHours += wp.legTimeHours || 0;
+          break;
+        }
+      }
+    }
+    
+    // ETA hesapla
+    const departureTime = req.body.departureDate ? new Date(req.body.departureDate) : new Date();
+    let currentTime = new Date(departureTime);
+    for (const wp of waypoints) {
+      wp.eta = new Date(currentTime);
+      if (wp.isPort && wp !== waypoints[0]) {
+        // Port'ta kalış süresi (varsayılan 0, ara limanlar için ayarlanabilir)
+        wp.portStayHours = wp.portStayHours || 0;
+      }
+      currentTime = new Date(currentTime.getTime() + (wp.legTimeHours || 0) * 3600000 + (wp.portStayHours || 0) * 3600000);
+      wp.etd = new Date(currentTime);
+    }
+    
+    const totalDays = Math.round((totalHours / 24) * 10) / 10;
+    const ecaZoneDays = Math.round((ecaZoneHours / 24) * 10) / 10;
+    
+    res.json({
+      waypoints,
+      summary: {
+        totalDistanceNm: Math.round(totalDistance * 10) / 10,
+        totalHours: Math.round(totalHours * 10) / 10,
+        totalDays,
+        plannedSpeed: speed,
+        straitsAndCanals: passedStraits.map(s => ({ name: s.name, type: s.type, transitTimeHours: s.transitTimeHours })),
+        ecaZoneDays,
+        arrivalDate: waypoints[waypoints.length - 1]?.etd || null,
+      },
+    });
+  } catch (e: any) {
+    console.error("[passage-plan] Route calculation error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /calculate-fuel — Yakıt hesaplama
+router.post("/calculate-fuel", isAuthenticated, async (req: any, res) => {
+  try {
+    const { totalDays, ecaZoneDays, plannedSpeed, vesselType, deadweight, grossTonnage } = req.body;
+    
+    // Basit yakıt tüketimi tahmini (ton/gün)
+    // Gerçek projede gemi motor bilgisine göre hesaplanır
+    const dwt = deadweight || 50000;
+    const gt = grossTonnage || 30000;
+    
+    // Yaklaşık günlük tüketim (DWT ve hıza göre)
+    let dailyHfo: number;
+    let dailyMgo: number;
+    
+    if (dwt < 10000) {
+      // Small vessel
+      dailyHfo = 8 + (plannedSpeed - 10) * 1.5;
+      dailyMgo = 1.5;
+    } else if (dwt < 30000) {
+      // Handysize
+      dailyHfo = 15 + (plannedSpeed - 12) * 2.5;
+      dailyMgo = 2.5;
+    } else if (dwt < 60000) {
+      // Supramax/Panamax
+      dailyHfo = 25 + (plannedSpeed - 13) * 3.5;
+      dailyMgo = 3.5;
+    } else if (dwt < 120000) {
+      // Capesize
+      dailyHfo = 40 + (plannedSpeed - 13) * 5;
+      dailyMgo = 4;
+    } else {
+      // VLCC/ULCC
+      dailyHfo = 55 + (plannedSpeed - 14) * 7;
+      dailyMgo = 5;
+    }
+    
+    dailyHfo = Math.max(dailyHfo, 5); // minimum
+    dailyMgo = Math.max(dailyMgo, 1);
+    
+    const nonEcaDays = (totalDays || 0) - (ecaZoneDays || 0);
+    const ecaDays = ecaZoneDays || 0;
+    
+    // ECA bölgelerinde MGO kullanılır, HFO kullanılmaz
+    const totalHfo = Math.round(nonEcaDays * dailyHfo * 10) / 10;
+    const totalMgo = Math.round((nonEcaDays * dailyMgo + ecaDays * (dailyHfo + dailyMgo)) * 10) / 10;
+    const totalFuel = Math.round((totalHfo + totalMgo) * 10) / 10;
+    
+    // Maliyet tahmini (yaklaşık fiyatlar)
+    const hfoPrice = 450; // USD/ton
+    const mgoPrice = 750; // USD/ton
+    const estimatedCost = Math.round(totalHfo * hfoPrice + totalMgo * mgoPrice);
+    
+    res.json({
+      dailyHfoConsumption: Math.round(dailyHfo * 10) / 10,
+      dailyMgoConsumption: Math.round(dailyMgo * 10) / 10,
+      totalHfoConsumption: totalHfo,
+      totalMgoConsumption: totalMgo,
+      totalFuelConsumption: totalFuel,
+      ecaZoneDays: ecaDays,
+      nonEcaDays: Math.round(nonEcaDays * 10) / 10,
+      estimatedFuelCost: estimatedCost,
+      fuelPrices: { hfo: hfoPrice, mgo: mgoPrice },
+    });
+  } catch (e: any) {
+    console.error("[passage-plan] Fuel calculation error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+## ADIM 3 — Frontend: Tam yeni sayfa
+
+client/src/pages/passage-planning.tsx dosyasını TAMAMEN SİL ve yeniden oluştur. Yeni sayfa şu yapıda olacak:
+
+### Sayfa Yapısı (Layout):
+- Sol panel (400px): Form + Waypoint listesi
+- Sağ panel (geri kalan): Harita (Leaflet + OpenStreetMap, Mapbox yoksa)
+
+### Sol Panel Bölümleri:
+
+**A) Gemi Seçimi:**
+- IMO arama input'u
+- IMO girilince /api/vessels/lookup?imo=XXX çağır
+- Bulunamazsa /api/datalastic/vessel-info/XXX çağır
+- Gemi bilgileri otomatik dolsun: Ad, IMO, Bayrak, Tip, DWT, GRT, LOA, Beam
+- Küçük gemi kartı göster (isim, bayrak, tip, dwt)
+
+**B) Rota Seçimi:**
+- Kalkış Limanı: Port arama input'u (/api/ports?search=xxx)
+  - Seçilince lat/lon otomatik dolsun
+- Ara Limanlar: "+" butonu ile ekle, sürükle-bırak sırala, "x" ile sil
+  - Her ara liman için kalış süresi (saat) input'u
+- Varış Limanı: Port arama input'u
+- Kalkış Tarihi: Date picker
+- Planlanan Hız: Input (knot), slider (8-20 knot arası)
+
+**C) Hesapla Butonu:**
+- "Calculate Route" büyük mavi buton
+- Tıklanınca /api/v1/passage-plans/calculate-route çağır
+- Sonra /api/v1/passage-plans/calculate-fuel çağır
+- Loading spinner göster
+
+**D) Sonuç Özeti (hesaplama sonrası):**
+- Toplam Mesafe: XXXX NM
+- Tahmini Süre: X gün Y saat
+- Planlanan Hız: XX knot
+- Tahmini Varış: DD/MM/YYYY
+- Yakıt Tüketimi:
+  - HFO: XX.X ton (günlük: XX ton/gün)
+  - MGO: XX.X ton (günlük: XX ton/gün)
+  - Toplam: XX.X ton
+  - Tahmini Maliyet: $XX,XXX
+- ECA Bölge Günleri: X gün
+- Geçilecek Boğazlar/Kanallar: (liste, badge'ler ile)
+  - 🔵 İstanbul Boğazı (~2 saat)
+  - 🔵 Çanakkale Boğazı (~3 saat)
+  - 🟡 Süveyş Kanalı (~14 saat)
+
+**E) Waypoint Tablosu:**
+- Sıra | İsim | Tip | Lat | Lon | Kurs° | Mesafe NM | Hız kn | Süre | ETA | Notlar
+- Port'lar mavi arka plan, boğazlar sarı, kanallar turuncu
+- Her satır tıklanınca haritada o noktaya zoom
+
+**F) Aksiyon Butonları:**
+- "Save Plan" — /api/v1/passage-plans POST
+- "Export PDF" — jsPDF ile detaylı PDF
+- "Export Excel" — CSV/Excel export
+- "Duplicate Plan" — kopyala
+
+### Sağ Panel (Harita):
+- Leaflet + OpenStreetMap tile'ları (Mapbox gerektirme)
+- Kalkış limanı: yeşil marker
+- Varış limanı: kırmızı marker
+- Ara limanlar: mavi marker
+- Boğazlar/kanallar: sarı/turuncu marker
+- Waypoint'ler arası mavi çizgi (polyline)
+- Toplam mesafe haritanın üstünde göster
+- Haritaya tıklayınca "Add Waypoint Here" popup'ı
+
+### Otomatik Hesaplamalar (Client tarafında da):
+- Hız değiştiğinde anlık yeniden hesapla (debounce 500ms)
+- Ara liman eklendiğinde yeniden hesapla
+- Kalkış tarihi değişince ETA'lar güncelle
+
+### Mevcut Planlar Listesi:
+- Sayfa üstünde tab: "New Plan" | "My Plans"
+- My Plans'ta kayıtlı planlar listesi
+- Her plana tıkla → yükle ve düzenle
+- Status badge'leri: Draft, Active, Completed
+
+### PDF Export İçeriği:
+- Başlık: "PASSAGE PLAN — [Vessel Name]"
+- Gemi bilgileri tablosu
+- Rota: Origin → Destination
+- Özet: Mesafe, Süre, Hız, Yakıt
+- Boğaz/Kanal listesi
+- Waypoint tablosu (tüm kolonlar)
+- Harita ekran görüntüsü (html2canvas ile)
+- Tarih, hazırlayan kişi
+
+### Teknik Notlar:
+- Leaflet kullan (Mapbox değil, token gerektirmesin)
+- Tile: https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
+- Deniz haritası overlay: https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png
+- Port arama debounce 300ms
+- IMO arama debounce 500ms
+- Tüm hesaplamalar client'ta da yapılsın (anlık güncelleme için), save'de backend'e gönderilsin
+- Responsive: mobilde sol panel üstte, harita altta
+- Tailwind + shadcn/ui kullan, mevcut tasarımla uyumlu
+
+SONRA: Deploy et ve npx drizzle-kit generate && npx drizzle-kit push çalıştır.
