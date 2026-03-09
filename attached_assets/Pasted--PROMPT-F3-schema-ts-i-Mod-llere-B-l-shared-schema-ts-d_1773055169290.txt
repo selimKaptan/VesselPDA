@@ -1,0 +1,61 @@
+## ⭐ PROMPT F3 — schema.ts'i Modüllere Böl
+
+```
+shared/schema.ts dosyası 2000+ satır. Bunu modüllere bölelim.
+
+Yeni yapı:
+shared/schema/
+  ├── index.ts           (re-export everything)
+  ├── vessel.ts          (vessels, vesselRelations, vesselQ88, vesselPositions, vesselWatchlist, fleets, fleetVessels)
+  ├── port.ts            (ports, tariffCategories, tariffRates, portAlerts, portCalls, portCallParticipants, portCallAppointments, portCallChecklists)
+  ├── proforma.ts        (proformas, proformaApprovalLogs, ProformaLineItem, BankDetails)
+  ├── voyage.ts          (voyages, voyageChecklists, voyageDocuments, voyageReviews, voyageChatMessages, voyageActivities, voyageCollaborators, voyageCargoLogs, voyageCargoReceivers, voyageContacts, voyageCrewLogistics, voyageNotes)
+  ├── crew.ts            (vesselCrew, crewStcwCertificates, crewPayroll, vesselCertificates, crewDocConfig)
+  ├── commercial.ts      (fixtures, laytimeCalculations, cargoPositions, brokerCommissions, brokerContacts, cargoOrders, vesselOpenings, voyageEstimations)
+  ├── finance.ts         (invoices, invoicePayments, daAdvances, fdaAccounts, fdaMappingTemplates, portExpenses, agentCommissions, exchangeRates, bunkerPrices)
+  ├── forum.ts           (forumCategories, forumTopics, forumReplies, forumLikes, forumDislikes)
+  ├── tender.ts          (portTenders, tenderBids, agentReviews, directNominations)
+  ├── messaging.ts       (conversations, messages, notifications, notificationPreferences, feedbacks)
+  ├── organization.ts    (organizations, organizationMembers, organizationInvites)
+  ├── service.ts         (serviceRequests, serviceOffers, endorsements)
+  ├── maintenance.ts     (vesselEquipment, maintenanceJobs, bunkerOrders, bunkerRobs, noonReports)
+  ├── environmental.ts   (ciiRecords, euEtsRecords, dcsReports)
+  ├── insurance.ts       (insurancePolicies, insuranceClaims)
+  ├── drydock.ts         (drydockProjects, drydockJobs, vesselDefects, pscInspections, pscDeficiencies, spareParts, sparePartRequisitions, sparePartRequisitionItems)
+  ├── husbandry.ts       (husbandryOrders, crewChanges)
+  ├── tariffs.ts         (pilotageTariffs, externalPilotageTariffs, agencyFees, marpolTariffs, lcbTariffs, tonnageTariffs, cargoHandlingTariffs, berthingTariffs, supervisionFees, customTariffSections, customTariffEntries, miscExpenses, chamberFreightShare, harbourMasterDues, sanitaryDues, vtsFees, portAuthorityFees, otherServices, chamberOfShippingFees, lightDues)
+  ├── misc.ts            (documentTemplates, sanctionsChecks, auditLogs, passagePlans, passageWaypoints, aiAnalysisHistory, cargoOperations)
+
+index.ts şöyle olacak:
+export * from "../models/auth";
+export * from "./vessel";
+export * from "./port";
+export * from "./proforma";
+export * from "./voyage";
+export * from "./crew";
+export * from "./commercial";
+export * from "./finance";
+export * from "./forum";
+export * from "./tender";
+export * from "./messaging";
+export * from "./organization";
+export * from "./service";
+export * from "./maintenance";
+export * from "./environmental";
+export * from "./insurance";
+export * from "./drydock";
+export * from "./husbandry";
+export * from "./tariffs";
+export * from "./misc";
+
+Her modül dosyasında gerekli cross-referanslar için diğer modüllerden import yapılacak. Örneğin proforma.ts'de vessels ve ports'a referans var, o yüzden:
+import { vessels } from "./vessel";
+import { ports } from "./port";
+import { users, companyProfiles } from "../models/auth";
+
+ÖNEMLİ: Mevcut shared/schema.ts'i sil ve yerine shared/schema/index.ts koy. Projede "@shared/schema" import path'i aynı kalacak çünkü tsconfig'de paths ayarı var.
+
+ÖNEMLİ: Circular dependency'lere dikkat et. Eğer A → B ve B → A referans varsa, ikisini aynı dosyaya koy.
+```
+
+---

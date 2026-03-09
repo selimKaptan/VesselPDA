@@ -60,6 +60,7 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
 
 ## Backend Architecture Improvements (F1–F10)
 -   **F1 – Validation Middleware**: `server/middleware/validate.ts` with `validate(schema, source)` applied to invoice POST route.
+-   **F2 – Modular Storage**: `server/storage.ts` (3087 satır) bölündü → `server/storage/` dizini altında ~19 etki alanı modülü. Her modül kendi veritabanı metodlarını içeriyor. `server/storage.ts` artık tek satırlık barrel export. Modüller: `user`, `vessel`, `port`, `proforma`, `company`, `forum`, `tender`, `notification`, `voyage`, `message`, `nomination`, `crew`, `invoice`, `bunker`, `charter-party`, `maintenance`, `husbandry`, `misc`. `server/storage/index.ts` tümünü birleştiriyor.
 -   **F5 – Event Bus**: `server/events/event-bus.ts` + `listeners/notification.listener.ts` + `listeners/audit.listener.ts`. Nomination, tender, and proforma routes emit typed events.
 -   **F6 – Soft Delete**: `deleted_at TIMESTAMP` added to vessels, proformas, voyages, fixtures, invoices. All delete methods update `deletedAt` instead of hard-deleting. List queries filter `IS NULL`. Restore endpoints added: `POST /api/v1/vessels/:id/restore`, `/api/v1/proformas/:id/restore`, `/api/v1/voyages/:id/restore`, `/api/v1/fixtures/:id/restore`, `/api/invoices/:id/restore`. Weekly purge cron (`0 3 * * 1`) hard-deletes records older than 30 days.
 -   **F7 – File Storage**: Base64 fallbacks removed; files stored on disk only (`server/file-storage.ts`). `saveBase64ToFile()` available for migration.
