@@ -10,13 +10,17 @@ import { Separator } from "@/components/ui/separator";
 import { fmtDate } from "@/lib/formatDate";
 
 interface MarineWeather {
-  waveHeight: number; waveDirection: number; wavePeriod: number; windWaveHeight: number;
+  waveHeight: number | null; waveDirection: number | null; wavePeriod: number | null; windWaveHeight: number | null;
 }
 interface CurrentWeather {
-  temperature: number; windSpeed: number; windDirection: number; weatherCode: number;
+  temperature: number | null; windSpeed: number | null; windDirection: number | null; weatherCode: number | null;
 }
 
-function windDir(deg: number): string {
+const fmt1 = (v: number | null | undefined): string => v != null ? v.toFixed(1) : "N/A";
+const fmt2 = (v: number | null | undefined): string => v != null ? v.toFixed(2) : "N/A";
+
+function windDir(deg: number | null | undefined): string {
+  if (deg == null) return "N/A";
   const dirs = ["K", "KD", "D", "GD", "G", "GB", "B", "KB"];
   return dirs[Math.round(deg / 45) % 8];
 }
@@ -45,17 +49,21 @@ function wmoIcon(code: number): string {
 
 type SafetyLevel = "excellent" | "good" | "moderate" | "rough" | "dangerous";
 
-function getSafetyLevel(waveHeight: number, windKnots: number): SafetyLevel {
-  if (waveHeight < 0.5 && windKnots < 10) return "excellent";
-  if (waveHeight < 1.0 && windKnots < 15) return "good";
-  if (waveHeight < 1.5 && windKnots < 22) return "moderate";
-  if (waveHeight < 2.5 && windKnots < 30) return "rough";
+function getSafetyLevel(waveHeight: number | null | undefined, windKnots: number | null | undefined): SafetyLevel {
+  const w = waveHeight ?? 0;
+  const k = windKnots ?? 0;
+  if (w < 0.5 && k < 10) return "excellent";
+  if (w < 1.0 && k < 15) return "good";
+  if (w < 1.5 && k < 22) return "moderate";
+  if (w < 2.5 && k < 30) return "rough";
   return "dangerous";
 }
 
-function getSafetyScore(waveHeight: number, windKnots: number): number {
-  const wavePenalty = Math.min(6, waveHeight * 2.4);
-  const windPenalty = Math.min(4, windKnots * 0.133);
+function getSafetyScore(waveHeight: number | null | undefined, windKnots: number | null | undefined): number {
+  const w = waveHeight ?? 0;
+  const k = windKnots ?? 0;
+  const wavePenalty = Math.min(6, w * 2.4);
+  const windPenalty = Math.min(4, k * 0.133);
   return Math.max(1, Math.min(10, Math.round(10 - wavePenalty - windPenalty)));
 }
 
@@ -213,7 +221,7 @@ export function EtaWeatherAlert({ lat, lng, eta }: { lat: number; lng: number; e
         <div className="min-w-0">
           <p className="font-semibold text-xs text-emerald-700 dark:text-emerald-400">ETA tarihinde yanaşma koşulları uygun</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Dalga: {waveMax.toFixed(2)} m · Rüzgar: {windMax.toFixed(1)} kn · Durum: {SAFETY_CONFIG[safety].label}
+            Dalga: {fmt2(waveMax)} m · Rüzgar: {fmt1(windMax)} kn · Durum: {SAFETY_CONFIG[safety].label}
           </p>
         </div>
         <CalendarCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
@@ -228,7 +236,7 @@ export function EtaWeatherAlert({ lat, lng, eta }: { lat: number; lng: number; e
         <div className="min-w-0">
           <p className="font-semibold text-xs text-amber-700 dark:text-amber-400">ETA tarihinde dikkatli yanaşma önerilir</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Dalga: {waveMax.toFixed(2)} m · Rüzgar: {windMax.toFixed(1)} kn — Kılavuz kaptan önerilir
+            Dalga: {fmt2(waveMax)} m · Rüzgar: {fmt1(windMax)} kn — Kılavuz kaptan önerilir
           </p>
           {nearestSafeDay && (
             <p className="text-xs text-amber-700 dark:text-amber-400 mt-1 flex items-center gap-1">
@@ -249,7 +257,7 @@ export function EtaWeatherAlert({ lat, lng, eta }: { lat: number; lng: number; e
           ⚠️ ETA tarihinde fırtına bekleniyor! Yanaşma güçlüğü yaşanabilir
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Dalga: {waveMax.toFixed(2)} m · Rüzgar: {windMax.toFixed(1)} kn · Durum: {SAFETY_CONFIG[safety].label}
+          Dalga: {fmt2(waveMax)} m · Rüzgar: {fmt1(windMax)} kn · Durum: {SAFETY_CONFIG[safety].label}
         </p>
         {nearestSafeDay ? (
           <div className="mt-2 flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/60 dark:bg-black/20 border border-red-200 dark:border-red-800/40 w-fit">
@@ -284,10 +292,10 @@ export function WeatherPanel({ lat, lng }: { lat: number; lng: number }) {
   const sc = SAFETY_CONFIG[safety];
   const score = getSafetyScore(marine.waveHeight, weather.windSpeed);
   const meteoItems = [
-    { icon: <span className="text-xl">{wmoIcon(weather.weatherCode)}</span>, label: "Hava",      value: wmoDescription(weather.weatherCode),    sub: `${weather.temperature.toFixed(1)}°C` },
-    { icon: <Wind className="w-4 h-4 text-blue-500" />,       label: "Rüzgar",    value: `${weather.windSpeed.toFixed(1)} kn`,   sub: `Yön: ${windDir(weather.windDirection)}` },
-    { icon: <Waves className="w-4 h-4 text-cyan-500" />,      label: "Dalga",     value: `${marine.waveHeight.toFixed(2)} m`,    sub: `Periyot: ${marine.wavePeriod.toFixed(1)}s` },
-    { icon: <Thermometer className="w-4 h-4 text-orange-400" />, label: "Sıcaklık", value: `${weather.temperature.toFixed(1)}°C`, sub: `Dalga yönü: ${windDir(marine.waveDirection)}` },
+    { icon: <span className="text-xl">{wmoIcon(weather.weatherCode ?? 0)}</span>, label: "Hava",      value: weather.weatherCode != null ? wmoDescription(weather.weatherCode) : "N/A", sub: `${fmt1(weather.temperature)}°C` },
+    { icon: <Wind className="w-4 h-4 text-blue-500" />,       label: "Rüzgar",    value: `${fmt1(weather.windSpeed)} kn`,             sub: `Yön: ${windDir(weather.windDirection)}` },
+    { icon: <Waves className="w-4 h-4 text-cyan-500" />,      label: "Dalga",     value: `${fmt2(marine.waveHeight)} m`,              sub: `Periyot: ${fmt1(marine.wavePeriod)}s` },
+    { icon: <Thermometer className="w-4 h-4 text-orange-400" />, label: "Sıcaklık", value: `${fmt1(weather.temperature)}°C`,        sub: `Dalga yönü: ${windDir(marine.waveDirection)}` },
   ];
   return (
     <Card>
