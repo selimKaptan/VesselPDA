@@ -18,13 +18,16 @@ router.get("/", isAuthenticated, async (req: any, res) => {
 
     const results = await query.orderBy(desc(portCalls.createdAt));
     
-    // Manual filtering for status and vesselId if provided
+    // Manual filtering for status, vesselId, voyageId if provided
     let filtered = results;
     if (status) {
       filtered = filtered.filter(pc => pc.status === status);
     }
     if (vesselId) {
-      filtered = filtered.filter(pc => pc.vesselId === parseInt(vesselId));
+      filtered = filtered.filter(pc => pc.vesselId === parseInt(vesselId as string));
+    }
+    if (req.query.voyageId) {
+      filtered = filtered.filter(pc => pc.voyageId === parseInt(req.query.voyageId as string));
     }
 
     res.json(filtered);
@@ -134,6 +137,33 @@ router.patch("/:id", isAuthenticated, async (req: any, res) => {
   } catch (error) {
     console.error("[port-calls:PATCH] update failed:", error);
     res.status(500).json({ message: "Failed to update port call" });
+  }
+});
+
+// POST /api/port-calls/:id/advance-step - Manuel adım onaylama
+router.post("/:id/advance-step", isAuthenticated, async (req: any, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const userId = req.user?.claims?.sub || req.user?.id;
+
+    const [portCall] = await db.select().from(portCalls)
+      .where(and(eq(portCalls.id, id), eq(portCalls.userId, userId)));
+
+    if (!portCall) return res.status(404).json({ message: "Port call not found" });
+
+    const currentStep = portCall.workflowStep ?? 1;
+    if (currentStep >= 8) return res.json(portCall);
+
+    const [updated] = await db
+      .update(portCalls)
+      .set({ workflowStep: currentStep + 1 })
+      .where(eq(portCalls.id, id))
+      .returning();
+
+    res.json(updated);
+  } catch (error) {
+    console.error("[port-calls:advance-step] failed:", error);
+    res.status(500).json({ message: "Failed to advance workflow step" });
   }
 });
 

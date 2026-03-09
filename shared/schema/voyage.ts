@@ -240,6 +240,7 @@ export const portCalls = pgTable("port_calls", {
   pdaIssued: boolean("pda_issued").default(false),
   fdaIssued: boolean("fda_issued").default(false),
   notes: text("notes"),
+  workflowStep: integer("workflow_step").default(1).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

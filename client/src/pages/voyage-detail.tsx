@@ -1447,6 +1447,27 @@ export default function VoyageDetail() {
   });
   const activeNor = (voyageNors as any[])[0];
 
+  const { data: voyagePortCalls = [] } = useQuery<any[]>({
+    queryKey: ["/api/port-calls", "voyage", voyageId],
+    queryFn: async () => {
+      const res = await fetch(`/api/port-calls?voyageId=${voyageId}`);
+      return res.ok ? res.json() : [];
+    },
+    enabled: !!voyageId,
+  });
+  const activePortCall = (voyagePortCalls as any[])[0] ?? null;
+
+  const advanceStepMutation = useMutation({
+    mutationFn: async (portCallId: number) => {
+      const res = await apiRequest("POST", `/api/port-calls/${portCallId}/advance-step`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/port-calls", "voyage", voyageId] });
+    },
+    onError: () => toast({ title: "Hata", description: "Adım onaylanamadı.", variant: "destructive" }),
+  });
+
   const { data: voyageSofs = [] } = useQuery<any[]>({
     queryKey: ["/api/sof", "voyage", voyageId],
     queryFn: async () => {
@@ -4093,13 +4114,16 @@ export default function VoyageDetail() {
             {/* LEFT: Live Port Call Workflow (col-span-2) */}
             <div className="lg:col-span-2">
               {(() => {
-                const portCallStep = (() => {
-                  if (voyage.status === "completed") return 8;
-                  if (activeNor?.status === "accepted") return 5;
-                  if (activeNor?.status === "tendered") return 4;
-                  if (voyage.status === "active") return 3;
-                  return 2;
-                })();
+                // Manuel onay: activePortCall.workflowStep varsa onu kullan, yoksa fallback
+                const portCallStep = activePortCall
+                  ? (activePortCall.workflowStep ?? 1)
+                  : (() => {
+                      if (voyage.status === "completed") return 8;
+                      if (activeNor?.status === "accepted") return 5;
+                      if (activeNor?.status === "tendered") return 4;
+                      if (voyage.status === "active") return 3;
+                      return 2;
+                    })();
 
                 const berthingDeadline = voyage.eta
                   ? (() => {
@@ -4109,14 +4133,16 @@ export default function VoyageDetail() {
                   : "Tomorrow, 14:30";
 
                 const STEPS = [
-                  { id: 1, emoji: "📡", title: "Arrival Declared", text: "Vessel arrival officially declared to Port Authority.", completedBadge: "✅ Arrival Declared (07:00 LT)" },
-                  { id: 2, emoji: "🛃", title: "Customs Arrival Control", text: "Customs inward clearance completed.", completedBadge: "✅ Arrival Approved & Customs Cleared (08:15 LT)" },
-                  { id: 3, emoji: "⚓", title: "Berthing Clearance", text: "Berthing ordino granted by Harbour Master. Valid for 24h.", completedBadge: null },
-                  { id: 4, emoji: "⏱️", title: "NOR Tendered", text: "Notice of Readiness will be tendered.", completedBadge: null },
-                  { id: 5, emoji: "🛬", title: "Vessel Berthed", text: "Waiting to be safely moored alongside.", completedBadge: null },
-                  { id: 6, emoji: "📋", title: "Survey Controls", text: "Initial draft and bunker surveys.", completedBadge: null },
-                  { id: 7, emoji: "🏗️", title: "Cargo Operations", text: "Waiting for survey completion.", completedBadge: null },
+                  { id: 1, emoji: "📡", title: "Arrival Declared", text: "Vessel arrival officially declared to Port Authority.", completedBadge: "✅ Arrival Declared" },
+                  { id: 2, emoji: "🛃", title: "Customs Arrival Control", text: "Customs inward clearance completed.", completedBadge: "✅ Arrival Approved & Customs Cleared" },
+                  { id: 3, emoji: "⚓", title: "Berthing Clearance", text: "Berthing ordino granted by Harbour Master. Valid for 24h.", completedBadge: "✅ Berthing Clearance Approved" },
+                  { id: 4, emoji: "⏱️", title: "NOR Tendered", text: "Notice of Readiness will be tendered.", completedBadge: "✅ NOR Tendered" },
+                  { id: 5, emoji: "🛬", title: "Vessel Berthed", text: "Waiting to be safely moored alongside.", completedBadge: "✅ Vessel Berthed" },
+                  { id: 6, emoji: "📋", title: "Survey Controls", text: "Initial draft and bunker surveys.", completedBadge: "✅ Survey Controls Completed" },
+                  { id: 7, emoji: "🏗️", title: "Cargo Operations", text: "Waiting for survey completion.", completedBadge: "✅ Cargo Operations Started" },
                 ];
+
+                const isAllDone = portCallStep > 7;
 
                 return (
                   <div className="rounded-xl border border-slate-700 bg-slate-800/40 backdrop-blur-sm p-6 space-y-5" data-testid="card-port-call-workflow">
@@ -4130,9 +4156,11 @@ export default function VoyageDetail() {
                           <p className="text-xs text-slate-500">{voyage.portName || "Port"} · Active Operation</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 bg-slate-900/60 border border-slate-700 rounded-full px-3 py-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                        <span className="text-xs font-semibold text-slate-300">Step {Math.min(portCallStep, 7)} of 7</span>
+                      <div className={`flex items-center gap-1.5 bg-slate-900/60 border border-slate-700 rounded-full px-3 py-1`}>
+                        {isAllDone
+                          ? <><CheckCircle2 className="w-3 h-3 text-emerald-400" /><span className="text-xs font-semibold text-emerald-400">Tamamlandı</span></>
+                          : <><span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><span className="text-xs font-semibold text-slate-300">Adım {Math.min(portCallStep, 7)} / 7</span></>
+                        }
                       </div>
                     </div>
 
@@ -4141,6 +4169,7 @@ export default function VoyageDetail() {
                         const isDone = portCallStep > step.id;
                         const isActive = portCallStep === step.id;
                         const isLast = idx === STEPS.length - 1;
+                        const canApprove = isActive && !!activePortCall && !advanceStepMutation.isPending;
                         return (
                           <div key={step.id} className="flex gap-4">
                             <div className="flex flex-col items-center">
@@ -4161,9 +4190,6 @@ export default function VoyageDetail() {
                             <div className={`flex-1 min-w-0 ${isLast ? "pb-0" : "pb-5"}`}>
                               <div className="flex items-center justify-between gap-2 mb-0.5">
                                 <span className={`text-sm font-semibold ${isDone ? "text-slate-400" : isActive ? "text-slate-50" : "text-slate-500"}`}>{step.title}</span>
-                                {isDone && step.id <= 2 && (
-                                  <span className="text-[10px] text-slate-500">{step.id === 1 ? "07:00 LT" : "08:15 LT"}</span>
-                                )}
                               </div>
                               <p className={`text-xs leading-relaxed ${isDone ? "text-slate-600" : isActive ? "text-slate-400" : "text-slate-600"}`}>{step.text}</p>
                               {isDone && step.completedBadge && (
@@ -4187,6 +4213,20 @@ export default function VoyageDetail() {
                                       <Plus className="w-3 h-3" /> Tender NOR Now
                                     </Button>
                                   </Link>
+                                </div>
+                              )}
+                              {canApprove && (
+                                <div className="mt-2.5">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => advanceStepMutation.mutate(activePortCall.id)}
+                                    disabled={advanceStepMutation.isPending}
+                                    className="h-7 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white border-0"
+                                    data-testid={`button-approve-step-${step.id}`}
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    {step.id === 7 ? "Tamamla" : "Onayla"}
+                                  </Button>
                                 </div>
                               )}
                             </div>
