@@ -200,6 +200,7 @@ export interface IStorage {
   getVoyageById(id: number): Promise<any | undefined>;
   getVoyageByTenderId(tenderId: number): Promise<Voyage | undefined>;
   updateVoyageStatus(id: number, status: string, completedAt?: Date): Promise<Voyage | undefined>;
+  updateVoyage(id: number, data: Partial<InsertVoyage>): Promise<Voyage | undefined>;
   createChecklistItem(data: InsertVoyageChecklist): Promise<VoyageChecklist>;
   getChecklistByVoyage(voyageId: number): Promise<VoyageChecklist[]>;
   toggleChecklistItem(id: number, voyageId: number): Promise<VoyageChecklist | undefined>;
@@ -326,9 +327,26 @@ export interface IStorage {
 
   updateChecklistItem(id: number, voyageId: number, data: Partial<InsertVoyageChecklist>): Promise<VoyageChecklist | undefined>;
 
+  // Invoices
+  createInvoice(data: InsertInvoice): Promise<Invoice>;
+  getInvoicesByUser(userId: string): Promise<any[]>;
+  updateInvoiceStatus(id: number, status: string, paidAt?: Date): Promise<void>;
+  getAllPendingInvoicesOverdue(): Promise<Invoice[]>;
   getInvoicePayments(invoiceId: number): Promise<InvoicePayment[]>;
   createInvoicePayment(data: InsertInvoicePayment): Promise<InvoicePayment>;
   getInvoiceBalance(invoiceId: number): Promise<{ total: number; paid: number; balance: number; status: string }>;
+
+  // Document Templates
+  getDocumentTemplates(): Promise<DocumentTemplate[]>;
+  signVoyageDocument(docId: number, signatureText: string, signedAt: Date): Promise<void>;
+  createNewDocumentVersion(parentDoc: any, newData: { name: string; fileBase64: string; notes?: string; uploadedByUserId: string }): Promise<any>;
+
+  // Port Alerts
+  getPortAlerts(portId?: number, portName?: string): Promise<PortAlert[]>;
+  getAllPortAlerts(): Promise<PortAlert[]>;
+  createPortAlert(data: InsertPortAlert): Promise<PortAlert>;
+  updatePortAlert(id: number, data: Partial<InsertPortAlert>): Promise<void>;
+  deletePortAlert(id: number): Promise<boolean>;
 
   getFdaMappingTemplates(userId: string): Promise<FdaMappingTemplate[]>;
   createFdaMappingTemplate(data: InsertFdaMappingTemplate): Promise<FdaMappingTemplate>;
@@ -734,8 +752,9 @@ export class DatabaseStorage implements IStorage {
 
   async rejectCompanyProfile(id: number): Promise<boolean> {
     const result = await db.delete(companyProfiles)
-      .where(eq(companyProfiles.id, id));
-    return true;
+      .where(eq(companyProfiles.id, id))
+      .returning();
+    return result.length > 0;
   }
 
   async getForumCategories(): Promise<ForumCategory[]> {
@@ -912,49 +931,53 @@ export class DatabaseStorage implements IStorage {
   }
 
   async toggleTopicLike(userId: string, topicId: number): Promise<{ liked: boolean; likeCount: number }> {
-    const existing = await db.select()
-      .from(forumLikes)
-      .where(and(eq(forumLikes.userId, userId), eq(forumLikes.topicId, topicId), isNull(forumLikes.replyId)))
-      .limit(1);
+    return db.transaction(async (tx) => {
+      const existing = await tx.select()
+        .from(forumLikes)
+        .where(and(eq(forumLikes.userId, userId), eq(forumLikes.topicId, topicId), isNull(forumLikes.replyId)))
+        .limit(1);
 
-    if (existing.length > 0) {
-      await db.delete(forumLikes).where(eq(forumLikes.id, existing[0].id));
-      const [updated] = await db.update(forumTopics)
-        .set({ likeCount: sql`GREATEST(${forumTopics.likeCount} - 1, 0)` })
-        .where(eq(forumTopics.id, topicId))
-        .returning({ likeCount: forumTopics.likeCount });
-      return { liked: false, likeCount: updated?.likeCount ?? 0 };
-    } else {
-      await db.insert(forumLikes).values({ userId, topicId });
-      const [updated] = await db.update(forumTopics)
-        .set({ likeCount: sql`${forumTopics.likeCount} + 1` })
-        .where(eq(forumTopics.id, topicId))
-        .returning({ likeCount: forumTopics.likeCount });
-      return { liked: true, likeCount: updated?.likeCount ?? 1 };
-    }
+      if (existing.length > 0) {
+        await tx.delete(forumLikes).where(eq(forumLikes.id, existing[0].id));
+        const [updated] = await tx.update(forumTopics)
+          .set({ likeCount: sql`GREATEST(${forumTopics.likeCount} - 1, 0)` })
+          .where(eq(forumTopics.id, topicId))
+          .returning({ likeCount: forumTopics.likeCount });
+        return { liked: false, likeCount: updated?.likeCount ?? 0 };
+      } else {
+        await tx.insert(forumLikes).values({ userId, topicId });
+        const [updated] = await tx.update(forumTopics)
+          .set({ likeCount: sql`${forumTopics.likeCount} + 1` })
+          .where(eq(forumTopics.id, topicId))
+          .returning({ likeCount: forumTopics.likeCount });
+        return { liked: true, likeCount: updated?.likeCount ?? 1 };
+      }
+    });
   }
 
   async toggleReplyLike(userId: string, replyId: number): Promise<{ liked: boolean; likeCount: number }> {
-    const existing = await db.select()
-      .from(forumLikes)
-      .where(and(eq(forumLikes.userId, userId), eq(forumLikes.replyId, replyId), isNull(forumLikes.topicId)))
-      .limit(1);
+    return db.transaction(async (tx) => {
+      const existing = await tx.select()
+        .from(forumLikes)
+        .where(and(eq(forumLikes.userId, userId), eq(forumLikes.replyId, replyId), isNull(forumLikes.topicId)))
+        .limit(1);
 
-    if (existing.length > 0) {
-      await db.delete(forumLikes).where(eq(forumLikes.id, existing[0].id));
-      const [updated] = await db.update(forumReplies)
-        .set({ likeCount: sql`GREATEST(${forumReplies.likeCount} - 1, 0)` })
-        .where(eq(forumReplies.id, replyId))
-        .returning({ likeCount: forumReplies.likeCount });
-      return { liked: false, likeCount: updated?.likeCount ?? 0 };
-    } else {
-      await db.insert(forumLikes).values({ userId, replyId });
-      const [updated] = await db.update(forumReplies)
-        .set({ likeCount: sql`${forumReplies.likeCount} + 1` })
-        .where(eq(forumReplies.id, replyId))
-        .returning({ likeCount: forumReplies.likeCount });
-      return { liked: true, likeCount: updated?.likeCount ?? 1 };
-    }
+      if (existing.length > 0) {
+        await tx.delete(forumLikes).where(eq(forumLikes.id, existing[0].id));
+        const [updated] = await tx.update(forumReplies)
+          .set({ likeCount: sql`GREATEST(${forumReplies.likeCount} - 1, 0)` })
+          .where(eq(forumReplies.id, replyId))
+          .returning({ likeCount: forumReplies.likeCount });
+        return { liked: false, likeCount: updated?.likeCount ?? 0 };
+      } else {
+        await tx.insert(forumLikes).values({ userId, replyId });
+        const [updated] = await tx.update(forumReplies)
+          .set({ likeCount: sql`${forumReplies.likeCount} + 1` })
+          .where(eq(forumReplies.id, replyId))
+          .returning({ likeCount: forumReplies.likeCount });
+        return { liked: true, likeCount: updated?.likeCount ?? 1 };
+      }
+    });
   }
 
   async getUserTopicDislikes(userId: string): Promise<number[]> {
@@ -972,49 +995,53 @@ export class DatabaseStorage implements IStorage {
   }
 
   async toggleTopicDislike(userId: string, topicId: number): Promise<{ disliked: boolean; dislikeCount: number }> {
-    const existing = await db.select()
-      .from(forumDislikes)
-      .where(and(eq(forumDislikes.userId, userId), eq(forumDislikes.topicId, topicId), isNull(forumDislikes.replyId)))
-      .limit(1);
+    return db.transaction(async (tx) => {
+      const existing = await tx.select()
+        .from(forumDislikes)
+        .where(and(eq(forumDislikes.userId, userId), eq(forumDislikes.topicId, topicId), isNull(forumDislikes.replyId)))
+        .limit(1);
 
-    if (existing.length > 0) {
-      await db.delete(forumDislikes).where(eq(forumDislikes.id, existing[0].id));
-      const [updated] = await db.update(forumTopics)
-        .set({ dislikeCount: sql`GREATEST(${forumTopics.dislikeCount} - 1, 0)` })
-        .where(eq(forumTopics.id, topicId))
-        .returning({ dislikeCount: forumTopics.dislikeCount });
-      return { disliked: false, dislikeCount: updated?.dislikeCount ?? 0 };
-    } else {
-      await db.insert(forumDislikes).values({ userId, topicId });
-      const [updated] = await db.update(forumTopics)
-        .set({ dislikeCount: sql`${forumTopics.dislikeCount} + 1` })
-        .where(eq(forumTopics.id, topicId))
-        .returning({ dislikeCount: forumTopics.dislikeCount });
-      return { disliked: true, dislikeCount: updated?.dislikeCount ?? 1 };
-    }
+      if (existing.length > 0) {
+        await tx.delete(forumDislikes).where(eq(forumDislikes.id, existing[0].id));
+        const [updated] = await tx.update(forumTopics)
+          .set({ dislikeCount: sql`GREATEST(${forumTopics.dislikeCount} - 1, 0)` })
+          .where(eq(forumTopics.id, topicId))
+          .returning({ dislikeCount: forumTopics.dislikeCount });
+        return { disliked: false, dislikeCount: updated?.dislikeCount ?? 0 };
+      } else {
+        await tx.insert(forumDislikes).values({ userId, topicId });
+        const [updated] = await tx.update(forumTopics)
+          .set({ dislikeCount: sql`${forumTopics.dislikeCount} + 1` })
+          .where(eq(forumTopics.id, topicId))
+          .returning({ dislikeCount: forumTopics.dislikeCount });
+        return { disliked: true, dislikeCount: updated?.dislikeCount ?? 1 };
+      }
+    });
   }
 
   async toggleReplyDislike(userId: string, replyId: number): Promise<{ disliked: boolean; dislikeCount: number }> {
-    const existing = await db.select()
-      .from(forumDislikes)
-      .where(and(eq(forumDislikes.userId, userId), eq(forumDislikes.replyId, replyId), isNull(forumDislikes.topicId)))
-      .limit(1);
+    return db.transaction(async (tx) => {
+      const existing = await tx.select()
+        .from(forumDislikes)
+        .where(and(eq(forumDislikes.userId, userId), eq(forumDislikes.replyId, replyId), isNull(forumDislikes.topicId)))
+        .limit(1);
 
-    if (existing.length > 0) {
-      await db.delete(forumDislikes).where(eq(forumDislikes.id, existing[0].id));
-      const [updated] = await db.update(forumReplies)
-        .set({ dislikeCount: sql`GREATEST(${forumReplies.dislikeCount} - 1, 0)` })
-        .where(eq(forumReplies.id, replyId))
-        .returning({ dislikeCount: forumReplies.dislikeCount });
-      return { disliked: false, dislikeCount: updated?.dislikeCount ?? 0 };
-    } else {
-      await db.insert(forumDislikes).values({ userId, replyId });
-      const [updated] = await db.update(forumReplies)
-        .set({ dislikeCount: sql`${forumReplies.dislikeCount} + 1` })
-        .where(eq(forumReplies.id, replyId))
-        .returning({ dislikeCount: forumReplies.dislikeCount });
-      return { disliked: true, dislikeCount: updated?.dislikeCount ?? 1 };
-    }
+      if (existing.length > 0) {
+        await tx.delete(forumDislikes).where(eq(forumDislikes.id, existing[0].id));
+        const [updated] = await tx.update(forumReplies)
+          .set({ dislikeCount: sql`GREATEST(${forumReplies.dislikeCount} - 1, 0)` })
+          .where(eq(forumReplies.id, replyId))
+          .returning({ dislikeCount: forumReplies.dislikeCount });
+        return { disliked: false, dislikeCount: updated?.dislikeCount ?? 0 };
+      } else {
+        await tx.insert(forumDislikes).values({ userId, replyId });
+        const [updated] = await tx.update(forumReplies)
+          .set({ dislikeCount: sql`${forumReplies.dislikeCount} + 1` })
+          .where(eq(forumReplies.id, replyId))
+          .returning({ dislikeCount: forumReplies.dislikeCount });
+        return { disliked: true, dislikeCount: updated?.dislikeCount ?? 1 };
+      }
+    });
   }
 
   // ─── TENDER SYSTEM ─────────────────────────────────────────────────────────
@@ -2845,49 +2872,6 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  // ── Bunker ─────────────────────────────────────────────────────────────────
-
-  async getBunkerOrders(vesselId: number): Promise<BunkerOrder[]> {
-    return db.select().from(bunkerOrders).where(eq(bunkerOrders.vesselId, vesselId)).orderBy(desc(bunkerOrders.orderDate));
-  }
-
-  async createBunkerOrder(data: InsertBunkerOrder): Promise<BunkerOrder> {
-    const [row] = await db.insert(bunkerOrders).values(data).returning();
-    return row;
-  }
-
-  async updateBunkerOrder(id: number, data: Partial<InsertBunkerOrder>): Promise<BunkerOrder | undefined> {
-    const [row] = await db.update(bunkerOrders).set(data).where(eq(bunkerOrders.id, id)).returning();
-    return row;
-  }
-
-  async deleteBunkerOrder(id: number): Promise<boolean> {
-    const [deleted] = await db.delete(bunkerOrders).where(eq(bunkerOrders.id, id)).returning();
-    return !!deleted;
-  }
-
-  async getBunkerRobs(vesselId: number): Promise<BunkerRob[]> {
-    return db.select().from(bunkerRobs).where(eq(bunkerRobs.vesselId, vesselId)).orderBy(desc(bunkerRobs.reportDate));
-  }
-
-  async createBunkerRob(data: InsertBunkerRob): Promise<BunkerRob> {
-    const [row] = await db.insert(bunkerRobs).values(data).returning();
-    return row;
-  }
-
-  async getBunkerStats(vesselId: number): Promise<any> {
-    const robs = await this.getBunkerRobs(vesselId);
-    const latest = robs[0];
-    const totalConsumed = robs.reduce((acc, r) => ({
-      hfo: acc.hfo + (Number(r.hfoConsumed) || 0),
-      mgo: acc.mgo + (Number(r.mgoConsumed) || 0),
-      lsfo: acc.lsfo + (Number(r.lsfoConsumed) || 0),
-      vlsfo: acc.vlsfo + (Number(r.vlsfoConsumed) || 0),
-    }), { hfo: 0, mgo: 0, lsfo: 0, vlsfo: 0 });
-
-    return { latestRob: latest, totalConsumed };
-  }
-
   // ── Charter Party ──────────────────────────────────────────────────────────
 
   async getCharterParties(userId: string): Promise<CharterParty[]> {
@@ -2961,20 +2945,6 @@ export class DatabaseStorage implements IStorage {
   async deleteCrewStcwCert(id: number): Promise<boolean> {
     const [deleted] = await db.delete(crewStcwCertificates).where(eq(crewStcwCertificates.id, id)).returning();
     return !!deleted;
-  }
-
-  async getCrewPayroll(vesselId: number): Promise<CrewPayroll[]> {
-    return db.select().from(crewPayroll).where(eq(crewPayroll.vesselId, vesselId)).orderBy(desc(crewPayroll.periodYear), desc(crewPayroll.periodMonth));
-  }
-
-  async createCrewPayroll(data: InsertCrewPayroll): Promise<CrewPayroll> {
-    const [row] = await db.insert(crewPayroll).values(data).returning();
-    return row;
-  }
-
-  async updateCrewPayroll(id: number, data: Partial<InsertCrewPayroll>): Promise<CrewPayroll | undefined> {
-    const [row] = await db.update(crewPayroll).set(data).where(eq(crewPayroll.id, id)).returning();
-    return row;
   }
 
   async getCrewSummary(vesselId: number): Promise<any> {
