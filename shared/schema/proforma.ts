@@ -3,6 +3,7 @@ import { pgTable, text, varchar, integer, real, timestamp, jsonb, boolean, index
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users, companyProfiles } from "../models/auth";
+import { organizations } from "./organization";
 import { vessels } from "./vessel";
 import { ports } from "./port";
 import { voyages } from "./voyage";
@@ -29,6 +30,7 @@ export const proformas = pgTable("proformas", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: varchar("user_id").notNull().references(() => users.id),
   companyProfileId: integer("company_profile_id").references(() => companyProfiles.id, { onDelete: "set null" }),
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: "set null" }),
   vesselId: integer("vessel_id").notNull().references(() => vessels.id),
   portId: integer("port_id").notNull().references(() => ports.id),
   referenceNumber: text("reference_number").notNull(),

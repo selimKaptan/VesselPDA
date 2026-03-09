@@ -45,7 +45,7 @@ async function restoreVoyage(id: number): Promise<boolean> {
   return !!updated;
 }
 
-async function getVoyagesByUser(userId: string, role: string): Promise<any[]> {
+async function getVoyagesByUser(userId: string, role: string, organizationId?: number): Promise<any[]> {
   let rows: any[];
   if (role === "admin") {
     rows = await db
@@ -60,6 +60,9 @@ async function getVoyagesByUser(userId: string, role: string): Promise<any[]> {
       .where(isNull(voyages.deletedAt))
       .orderBy(desc(voyages.createdAt));
   } else if (role === "agent") {
+    const agentFilter = organizationId
+      ? or(eq(voyages.agentUserId, userId), eq((voyages as any).organizationId, organizationId))
+      : eq(voyages.agentUserId, userId);
     rows = await db
       .select({
         voyage: voyages,
@@ -69,9 +72,12 @@ async function getVoyagesByUser(userId: string, role: string): Promise<any[]> {
       })
       .from(voyages)
       .leftJoin(ports, eq(voyages.portId, ports.id))
-      .where(and(eq(voyages.agentUserId, userId), isNull(voyages.deletedAt)))
+      .where(and(agentFilter, isNull(voyages.deletedAt)))
       .orderBy(desc(voyages.createdAt));
   } else {
+    const ownerFilter = organizationId
+      ? or(eq(voyages.userId, userId), eq((voyages as any).organizationId, organizationId))
+      : eq(voyages.userId, userId);
     rows = await db
       .select({
         voyage: voyages,
@@ -81,7 +87,7 @@ async function getVoyagesByUser(userId: string, role: string): Promise<any[]> {
       })
       .from(voyages)
       .leftJoin(ports, eq(voyages.portId, ports.id))
-      .where(and(eq(voyages.userId, userId), isNull(voyages.deletedAt)))
+      .where(and(ownerFilter, isNull(voyages.deletedAt)))
       .orderBy(desc(voyages.createdAt));
   }
   const voyageRows = rows.map(r => ({ ...r.voyage, portName: r.portName, portLat: r.portLat, portLng: r.portLng }));

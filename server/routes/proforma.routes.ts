@@ -81,7 +81,7 @@ router.get("/", isAuthenticated, async (req: any, res: any, next: any) => {
       }));
       return res.json(enrichedProformas);
     }
-    const proformas = await storage.getProformasByUser(userId);
+    const proformas = await storage.getProformasByUser(userId, req.organizationId);
     const enrichedProformas = await Promise.all(proformas.map(async (p: any) => {
       const logs = await storage.getProformaApprovalLogs(p.id);
       return { ...p, revisionCount: logs.filter((l: any) => l.action === "request_revision").length };
@@ -580,6 +580,7 @@ router.post("/", isAuthenticated, async (req: any, res: any, next: any) => {
 
     const proforma = await storage.createProforma({
       userId,
+      ...(req.organizationId ? { organizationId: req.organizationId } : {}),
       vesselId: Number(vesselId),
       portId: Number(portId),
       referenceNumber: req.body.referenceNumber || refNum,

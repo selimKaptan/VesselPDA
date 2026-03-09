@@ -3,6 +3,18 @@
 ## Overview
 VesselPDA is a professional web-based maritime platform designed to revolutionize interactions between ship agents, shipowners, and maritime service providers. Its primary purpose is to enable ship agents to generate instant proforma disbursement accounts efficiently and to connect shipowners with a comprehensive directory of maritime service providers. The platform aims to streamline maritime operations, enhance transparency, and foster a connected ecosystem within the shipping industry, ultimately becoming the leading digital hub for maritime professionals.
 
+## Backend Architecture Improvements (Completed)
+- **F1**: Validate middleware (`server/middleware/validate.ts`) — Zod request body validation
+- **F2**: Modular storage (`server/storage/` — 18 domain-specific storage files, barrel export)
+- **F3**: Modular schema (`shared/schema/` — 19 domain modules, barrel export `shared/schema.ts`)
+- **F4**: Multi-tenant org-based data access — `organizationId` added to `vessels`, `proformas`, `fda_accounts`, `invoices`; `attachOrgContext` middleware in `server/middleware/org-context.ts`; storage methods `getVesselsByUser`, `getVoyagesByUser`, `getProformasByUser`, `getInvoicesByUser` accept optional `organizationId`; route handlers pass `req.organizationId` to storage and record creation
+- **F5**: Event bus (`server/events/`)
+- **F6**: Soft delete (deletedAt columns + purge cron)
+- **F7**: File storage (`server/middleware/file-storage.ts`)
+- **F8**: Cache layer (`server/cache.ts`)
+- **F9**: API versioning — all new routes mounted under `/api/v1/`
+- **F10**: Cleanup — legacy routes removed
+
 ## User Preferences
 I prefer detailed explanations and iterative development. Ask before making major changes. I would like to see the agent work through the problem step-by-step. I prefer clear and concise communication.
 

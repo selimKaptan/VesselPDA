@@ -26,13 +26,16 @@ async function restoreInvoice(id: number): Promise<boolean> {
   return !!updated;
 }
 
-async function getInvoicesByUser(userId: string): Promise<any[]> {
+async function getInvoicesByUser(userId: string, organizationId?: number): Promise<any[]> {
+  const orgClause = organizationId
+    ? sql`(i.created_by_user_id = ${userId} OR i.organization_id = ${organizationId})`
+    : sql`i.created_by_user_id = ${userId}`;
   const rows = await db.execute(sql`
     SELECT i.*, v.vessel_name, v.port_id, p2.name as port_name_ref
     FROM invoices i
     LEFT JOIN voyages v ON v.id = i.voyage_id
     LEFT JOIN ports p2 ON p2.id = v.port_id
-    WHERE i.created_by_user_id = ${userId}
+    WHERE ${orgClause}
       AND i.deleted_at IS NULL
     ORDER BY i.created_at DESC
   `);

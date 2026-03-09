@@ -21,7 +21,7 @@ router.get("/", isAuthenticated, async (req: any, res: any, next: any) => {
   try {
     const userId = req.user?.claims?.sub || req.user?.id;
     const role = req.user?.activeRole || req.user?.userRole || "shipowner";
-    const voyageList = await storage.getVoyagesByUser(userId, role);
+    const voyageList = await storage.getVoyagesByUser(userId, role, req.organizationId);
     res.json(voyageList);
   } catch (error) {
     console.error("[voyages:GET] fetch failed:", error);
@@ -64,7 +64,7 @@ router.post("/", isAuthenticated, async (req: any, res: any, next: any) => {
     if (body.etd) body.etd = new Date(body.etd);
     const voyageParsed = insertVoyageSchema.partial().safeParse(body);
     if (!voyageParsed.success) return res.status(400).json({ error: "Invalid input", details: voyageParsed.error.errors });
-    const data = { ...body, userId };
+    const data = { ...body, userId, ...(req.organizationId ? { organizationId: req.organizationId } : {}) };
     const voyage = await storage.createVoyage(data);
     logAction(userId, "create", "voyage", voyage.id, { portId: voyage.portId, vesselName: voyage.vesselName, status: voyage.status }, getClientIp(req));
     logVoyageActivity({ voyageId: voyage.id, userId, activityType: 'voyage_created', title: 'Voyage created', description: voyage.purposeOfCall ? `Purpose: ${voyage.purposeOfCall}` : undefined });
@@ -127,7 +127,7 @@ router.get("/pipeline-status", isAuthenticated, async (req: any, res) => {
     const userId = req.user?.claims?.sub || req.user?.id;
     const role = req.user?.activeRole || req.user?.userRole || "shipowner";
 
-    const allVoyages = await storage.getVoyagesByUser(userId, role);
+    const allVoyages = await storage.getVoyagesByUser(userId, role, req.organizationId);
     const voyageIds = allVoyages.map((v: any) => v.id);
     if (voyageIds.length === 0) return res.json([]);
 

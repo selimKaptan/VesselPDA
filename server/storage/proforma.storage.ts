@@ -1,10 +1,13 @@
-import { db, eq, and, desc, isNull } from "./base";
+import { db, eq, and, or, desc, isNull } from "./base";
 import { vessels, ports, proformas, proformaApprovalLogs } from "@shared/schema";
 import type { Vessel, Port, Proforma, InsertProforma } from "@shared/schema";
 
-async function getProformasByUser(userId: string): Promise<Proforma[]> {
+async function getProformasByUser(userId: string, organizationId?: number): Promise<Proforma[]> {
+  const filter = organizationId
+    ? or(eq(proformas.userId, userId), eq((proformas as any).organizationId, organizationId))
+    : eq(proformas.userId, userId);
   return db.select().from(proformas)
-    .where(eq(proformas.userId, userId))
+    .where(filter)
     .orderBy(desc(proformas.createdAt));
 }
 

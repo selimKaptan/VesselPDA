@@ -29,7 +29,7 @@ router.get("/", isAuthenticated, async (req: any, res: any, next: any) => {
       const vessels = await storage.getAllVessels();
       return res.json(vessels);
     }
-    const vessels = await storage.getVesselsByUser(userId);
+    const vessels = await storage.getVesselsByUser(userId, req.organizationId);
     res.json(vessels);
   } catch (error) {
     console.error("[vessels:GET] fetch failed:", error);
@@ -50,6 +50,7 @@ router.post("/", isAuthenticated, async (req: any, res: any, next: any) => {
     const vessel = await storage.createVessel({
       ...req.body,
       userId,
+      ...(req.organizationId ? { organizationId: req.organizationId } : {}),
       grt: Number(grt),
       nrt: Number(nrt),
       dwt: req.body.dwt ? Number(req.body.dwt) : null,

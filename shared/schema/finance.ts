@@ -3,6 +3,7 @@ import { pgTable, text, varchar, integer, real, timestamp, boolean, jsonb, seria
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users } from "../models/auth";
+import { organizations } from "./organization";
 import { voyages } from "./voyage";
 import { proformas } from "./proforma";
 import { vessels } from "./vessel";
@@ -26,6 +27,7 @@ export interface FdaLineItem {
 export const fdaAccounts = pgTable("fda_accounts", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id),
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: "set null" }),
   proformaId: integer("proforma_id").references(() => proformas.id),
   voyageId: integer("voyage_id").references(() => voyages.id),
   vesselId: integer("vessel_id").references(() => vessels.id),
@@ -52,6 +54,7 @@ export const fdaAccounts = pgTable("fda_accounts", {
 
 export const invoices = pgTable("invoices", {
   id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: "set null" }),
   voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
   proformaId: integer("proforma_id").references(() => proformas.id, { onDelete: "set null" }),
   fdaId: integer("fda_id").references(() => fdaAccounts.id, { onDelete: "set null" }),

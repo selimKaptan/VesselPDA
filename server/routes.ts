@@ -5,6 +5,7 @@ import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integra
 import { startAISStream } from "./ais-stream";
 import { registerProformaApprovalRoutes } from "./proforma-approval";
 import { requireRole } from "./middleware/role-guard";
+import { attachOrgContext } from "./middleware/org-context";
 import { apiLimiter, authLimiter } from "./routes/shared";
 
 // Prefix-specific modules (paths stripped inside router)
@@ -84,6 +85,7 @@ export async function registerRoutes(
   app.use("/api/auth/login", authLimiter);
   app.use("/api/auth/register", authLimiter);
   app.use("/api/", apiLimiter);
+  app.use("/api/", attachOrgContext);
 
   registerAuthRoutes(app);
   registerProformaApprovalRoutes(app);

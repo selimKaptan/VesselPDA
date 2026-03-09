@@ -3,11 +3,13 @@ import { pgTable, text, varchar, integer, real, timestamp, boolean, serial, inde
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users, companyProfiles } from "../models/auth";
+import { organizations } from "./organization";
 
 export const vessels = pgTable("vessels", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   userId: varchar("user_id").notNull().references(() => users.id),
   companyProfileId: integer("company_profile_id").references(() => companyProfiles.id, { onDelete: "set null" }),
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   flag: text("flag").notNull(),
   vesselType: text("vessel_type").notNull(),

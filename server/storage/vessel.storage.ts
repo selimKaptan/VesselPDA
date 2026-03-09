@@ -1,4 +1,4 @@
-import { db, eq, and, asc, lte, gte, isNull } from "./base";
+import { db, eq, and, or, asc, lte, gte, isNull } from "./base";
 import {
   vessels, ports, vesselCertificates, vesselQ88,
   type Vessel, type InsertVessel,
@@ -6,8 +6,15 @@ import {
   type VesselQ88, type InsertVesselQ88,
 } from "@shared/schema";
 
-async function getVesselsByUser(userId: string): Promise<Vessel[]> {
-  return db.select().from(vessels).where(and(eq(vessels.userId, userId), isNull(vessels.deletedAt)));
+async function getVesselsByUser(userId: string, organizationId?: number): Promise<Vessel[]> {
+  const baseFilter = isNull(vessels.deletedAt);
+  if (organizationId) {
+    return db.select().from(vessels).where(and(
+      or(eq(vessels.userId, userId), eq((vessels as any).organizationId, organizationId)),
+      baseFilter
+    ));
+  }
+  return db.select().from(vessels).where(and(eq(vessels.userId, userId), baseFilter));
 }
 
 async function getVessel(id: number, userId: string): Promise<Vessel | undefined> {

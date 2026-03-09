@@ -159,7 +159,7 @@ router.get("/api/document-templates", isAuthenticated, async (_req, res) => {
 router.get("/api/invoices", isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user?.claims?.sub || req.user?.id;
-    const items = await storage.getInvoicesByUser(userId);
+    const items = await storage.getInvoicesByUser(userId, req.organizationId);
     const voyageIdFilter = req.query.voyageId ? Number(req.query.voyageId) : null;
     const proformaIdFilter = req.query.proformaId ? Number(req.query.proformaId) : null;
     const fdaIdFilter = req.query.fdaId ? Number(req.query.fdaId) : null;
@@ -181,6 +181,7 @@ router.post("/api/invoices", isAuthenticated, validate(insertInvoiceSchema.parti
 
     const invoice = await storage.createInvoice({
       createdByUserId: userId,
+      ...(req.organizationId ? { organizationId: req.organizationId } : {}),
       title,
       amount: parseFloat(amount),
       currency: currency || "USD",
