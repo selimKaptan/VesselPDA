@@ -4,7 +4,7 @@ import { isAuthenticated } from "../replit_integrations/auth";
 import { isAdmin, seededRandom } from "./shared";
 import { db, pool } from "../db";
 import { sql as drizzleSql, eq, desc, and, or } from "drizzle-orm";
-import { vessels as vesselTable, voyages, ports } from "@shared/schema";
+import { vessels as vesselTable, voyages, ports, portCalls as portCallsTable } from "@shared/schema";
 import * as datalastic from "../datalastic";
 import { isDatalasticConfigured, getVesselPosition } from "../datalastic";
 
@@ -625,21 +625,116 @@ router.get("/api/vessels/live-position", isAuthenticated, async (req: any, res) 
   }
 });
 
-// GET /api/vessels/port-call-history?imo=... — liman uğrak geçmişi (vessel-report.tsx compat)
+// GET /api/vessels/port-call-history?imo=... — liman uğrak geçmişi (çok kaynaklı)
 router.get("/api/vessels/port-call-history", isAuthenticated, async (req: any, res) => {
   const imo = (req.query.imo as string || "").trim();
   if (!imo) return res.status(400).json({ message: "imo gerekli" });
+
   try {
-    const results = await datalastic.findVessel(imo, "imo");
-    if (!results.length) return res.json([]);
-    const vessel = results[0];
-    let portCalls: any[] = [];
-    if (vessel.uuid) {
-      try {
-        portCalls = await datalastic.getPortCalls(vessel.uuid);
-      } catch {}
+    const results: any[] = [];
+
+    // 1. Kendi veritabanımızdaki port call kayıtları (en güvenilir)
+    try {
+      const [dbVessel] = await db.select({ id: vesselTable.id })
+        .from(vesselTable).where(eq(vesselTable.imoNumber, imo)).limit(1);
+      if (dbVessel) {
+        const dbCalls = await db.select().from(portCallsTable)
+          .where(eq(portCallsTable.vesselId, dbVessel.id))
+          .orderBy(desc(portCallsTable.eta))
+          .limit(20);
+        for (const pc of dbCalls) {
+          results.push({
+            port_name:  pc.portName || "Unknown",
+            country:    "",
+            locode:     null,
+            arrival:    pc.actualArrival ?? pc.eta ?? null,
+            departure:  pc.departure ?? null,
+            terminal:   pc.berth ?? null,
+            source:     "internal",
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("[port-call-history] DB lookup failed:", err);
     }
-    res.json(Array.isArray(portCalls) ? portCalls.slice(0, 20) : []);
+
+    // 2. Datalastic vessel_history + vessel_pro fallback
+    if (datalastic.isDatalasticConfigured()) {
+      try {
+        // vessel_pro'dan son liman + destination
+        const proData = await datalastic.getVesselPositionPro({ imo });
+        if (proData) {
+          const lastPortName = (proData as any).last_port_name ?? (proData as any).port_name;
+          if (lastPortName && !results.find(r => r.port_name === lastPortName)) {
+            results.unshift({
+              port_name:  lastPortName,
+              country:    (proData as any).last_port_country ?? (proData as any).country_name ?? "",
+              locode:     (proData as any).last_port_unlocode ?? null,
+              arrival:    (proData as any).last_port_time ?? null,
+              departure:  null,
+              terminal:   null,
+              source:     "vessel_pro",
+            });
+          }
+          const destination = (proData as any).destination;
+          if (destination && !results.find(r => r.port_name === destination)) {
+            results.push({
+              port_name:  destination,
+              country:    "",
+              locode:     null,
+              arrival:    (proData as any).eta_UTC ?? (proData as any).eta ?? null,
+              departure:  null,
+              terminal:   null,
+              source:     "destination",
+              isFuture:   true,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("[port-call-history] vessel_pro failed:", err);
+      }
+
+      // vessel_history'den pozisyon bazlı liman tespiti (sadece DB boşsa)
+      if (results.length === 0) {
+        try {
+          const dlVessels = await datalastic.findVessel(imo, "imo");
+          if (dlVessels.length > 0) {
+            const track = await datalastic.getHistoricalTrack(
+              dlVessels[0].uuid ?? imo,
+              dlVessels[0].uuid ? "uuid" : "imo",
+              30
+            );
+            let lastPort = "";
+            for (const point of track) {
+              const p = point as any;
+              if (p.speed !== undefined && p.speed < 1 && p.port_name && p.port_name !== lastPort) {
+                lastPort = p.port_name;
+                results.push({
+                  port_name:  p.port_name,
+                  country:    p.country_name ?? p.country ?? "",
+                  locode:     p.port_unlocode ?? null,
+                  arrival:    p.timestamp ?? null,
+                  departure:  null,
+                  terminal:   null,
+                  source:     "ais_history",
+                });
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("[port-call-history] vessel_history failed:", err);
+        }
+      }
+    }
+
+    // Tarihe göre sırala — en yeni en üstte
+    results.sort((a, b) => {
+      const tA = a.arrival ? new Date(a.arrival).getTime() : 0;
+      const tB = b.arrival ? new Date(b.arrival).getTime() : 0;
+      return tB - tA;
+    });
+
+    res.json(results.slice(0, 20));
   } catch (error: any) {
     console.warn("[vessels/port-call-history]", error.message);
     res.json([]);
