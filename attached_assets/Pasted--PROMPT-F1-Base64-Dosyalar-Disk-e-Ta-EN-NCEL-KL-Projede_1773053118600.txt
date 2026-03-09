@@ -1,0 +1,76 @@
+## ⭐ PROMPT F1 — Base64 Dosyaları Disk'e Taşı (EN ÖNCELİKLİ)
+
+```
+Projede birçok tabloda dosyalar Base64 olarak veritabanında saklanıyor. Bu veritabanını gereksiz yere şişiriyor ve performansı düşürüyor. Zaten /uploads klasörü ve express.static serve var. Base64 verilerini dosya sistemine taşıyalım.
+
+ADIM 1: server/file-storage.ts dosyasını güncelle veya oluştur — merkezi bir dosya kaydetme utility'si yap:
+
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
+
+const UPLOAD_DIR = path.join(process.cwd(), "uploads");
+
+export function ensureUploadDir(subDir?: string) {
+  const dir = subDir ? path.join(UPLOAD_DIR, subDir) : UPLOAD_DIR;
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+export function saveBase64ToFile(base64Data: string, subDir: string, originalFileName?: string): { fileUrl: string; fileName: string; fileSize: number } {
+  const dir = ensureUploadDir(subDir);
+  const ext = originalFileName ? path.extname(originalFileName) : ".pdf";
+  const uniqueName = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}${ext}`;
+  const filePath = path.join(dir, uniqueName);
+  
+  // Base64 prefix varsa kaldır (data:application/pdf;base64,...)
+  const cleanBase64 = base64Data.replace(/^data:[^;]+;base64,/, "");
+  const buffer = Buffer.from(cleanBase64, "base64");
+  
+  fs.writeFileSync(filePath, buffer);
+  
+  return {
+    fileUrl: `/uploads/${subDir}/${uniqueName}`,
+    fileName: originalFileName || uniqueName,
+    fileSize: buffer.length,
+  };
+}
+
+ADIM 2: Voyage Documents — upload endpoint'ini güncelle. server/routes/ içindeki voyage document oluşturma route'unda:
+- req.body.fileBase64 geliyorsa, saveBase64ToFile() ile dosyaya yaz
+- Dönen fileUrl'ü DB'ye kaydet
+- fileBase64'ü DB'ye KAYDETME (null olarak bırak)
+
+Örnek pattern:
+if (req.body.fileBase64) {
+  const { fileUrl, fileName, fileSize } = saveBase64ToFile(req.body.fileBase64, "voyage-docs", req.body.fileName);
+  req.body.fileUrl = fileUrl;
+  req.body.fileName = fileName;
+  req.body.fileSize = fileSize;
+  delete req.body.fileBase64; // DB'ye base64 kaydetme
+}
+
+ADIM 3: Aynı pattern'ı şu endpoint'lere de uygula:
+- Vessel certificates upload (subDir: "certificates")
+- Tender bid PDF upload (subDir: "tender-bids") 
+- Crew passport/seaman book upload (subDir: "crew-docs")
+- Q88 dosya upload (subDir: "q88")
+
+ADIM 4: Mevcut Base64 verileri taşımak için bir migration script oluştur:
+server/migrate-base64-to-files.ts
+
+Bu script:
+1. voyage_documents tablosundaki file_base64 dolu olan kayıtları çek
+2. Her birini saveBase64ToFile ile dosyaya yaz
+3. file_url alanını güncelle
+4. file_base64'ü NULL yap
+5. Aynısını vessel_certificates, tender_bids, vessel_crew için de yap
+6. İşlem sonunda kaç dosya taşındığını logla
+
+Script'i çalıştırmak için package.json'a ekle:
+"migrate-files": "npx tsx server/migrate-base64-to-files.ts"
+
+ÖNEMLİ: Base64 kolonlarını schema'dan henüz kaldırma — geriye uyumluluk için nullable olarak bırak. Sadece yeni kayıtlarda kullanmayı durdur.
+```
+
+---
