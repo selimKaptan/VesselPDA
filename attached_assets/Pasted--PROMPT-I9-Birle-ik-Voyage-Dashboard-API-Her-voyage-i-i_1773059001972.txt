@@ -1,0 +1,129 @@
+## ⭐ PROMPT I9 — Birleşik Voyage Dashboard API
+
+```
+Her voyage için tüm bağlı verileri tek endpoint'te dönen bir dashboard API oluştur.
+
+server/routes/voyage.routes.ts dosyasına yeni endpoint ekle:
+
+// GET /api/voyages/:id/dashboard — Birleşik voyage dashboard
+router.get("/:id/dashboard", isAuthenticated, async (req, res) => {
+  const voyageId = parseInt(req.params.id);
+  const userId = (req as any).user?.id;
+  
+  try {
+    const voyage = await storage.getVoyageById(voyageId);
+    if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+    
+    // Paralel olarak tüm ilişkili verileri çek
+    const [
+      proformas,
+      fdas,
+      invoices,
+      portExpenses,
+      daAdvances,
+      documents,
+      checklists,
+      portCallList,
+      norList,
+      sofList,
+      laytimeSheets,
+      noonReports,
+      collaborators,
+      chatMessages,
+      notes,
+    ] = await Promise.all([
+      storage.getProformasByVoyage(voyageId),
+      db.select().from(fdaAccounts).where(eq(fdaAccounts.voyageId, voyageId)),
+      db.select().from(invoices).where(eq(invoices.voyageId, voyageId)),
+      storage.getPortExpensesByVoyage(voyageId),
+      storage.getDaAdvancesByVoyage(voyageId),
+      storage.getVoyageDocuments(voyageId),
+      storage.getChecklistByVoyage(voyageId),
+      db.select().from(portCalls).where(eq(portCalls.voyageId, voyageId)),
+      db.select().from(noticeOfReadiness).where(eq(noticeOfReadiness.voyageId, voyageId)),
+      db.select().from(statementOfFacts).where(eq(statementOfFacts.voyageId, voyageId)),
+      storage.getLaytimeSheetsByVoyage(voyageId),
+      voyage.vesselId ? storage.getNoonReports(voyage.vesselId, { voyageId }) : [],
+      db.select().from(voyageCollaborators).where(eq(voyageCollaborators.voyageId, voyageId)),
+      storage.getVoyageChatMessages(voyageId),
+      db.select().from(voyageNotes).where(eq(voyageNotes.voyageId, voyageId)).orderBy(desc(voyageNotes.createdAt)),
+    ]);
+    
+    // Finansal özet
+    const totalPdaUsd = proformas.reduce((sum, p) => sum + (p.totalUsd || 0), 0);
+    const totalFdaActualUsd = fdas.reduce((sum, f) => sum + (f.totalActualUsd || 0), 0);
+    const totalInvoiced = invoices.reduce((sum, i) => sum + (i.amount || 0), 0);
+    const totalPaid = invoices.filter(i => i.status === "paid").reduce((sum, i) => sum + (i.amount || 0), 0);
+    const totalExpenses = portExpenses.reduce((sum, e) => sum + (e.amountUsd || e.amount || 0), 0);
+    const totalAdvanceReceived = daAdvances.reduce((sum, a) => sum + (a.receivedAmount || 0), 0);
+    const totalAdvanceRequested = daAdvances.reduce((sum, a) => sum + (a.requestedAmount || 0), 0);
+    
+    // Checklist progress
+    const checklistTotal = checklists.length;
+    const checklistDone = checklists.filter(c => c.isCompleted).length;
+    
+    // Operasyonel özet
+    const latestPortCall = portCallList[0];
+    const latestNor = norList[0];
+    const latestSof = sofList[0];
+    
+    res.json({
+      voyage,
+      
+      // Operasyonel
+      portCalls: portCallList,
+      nor: norList,
+      sof: sofList,
+      noonReports: noonReports.slice(0, 10), // Son 10
+      
+      // Finansal
+      financial: {
+        pdaTotal: totalPdaUsd,
+        fdaActualTotal: totalFdaActualUsd,
+        pdaFdaVariance: totalFdaActualUsd - totalPdaUsd,
+        pdaFdaVariancePercent: totalPdaUsd > 0 ? ((totalFdaActualUsd - totalPdaUsd) / totalPdaUsd * 100).toFixed(1) : 0,
+        totalInvoiced,
+        totalPaid,
+        outstanding: totalInvoiced - totalPaid,
+        totalExpenses,
+        advanceRequested: totalAdvanceRequested,
+        advanceReceived: totalAdvanceReceived,
+        advanceBalance: totalAdvanceRequested - totalAdvanceReceived,
+      },
+      proformas,
+      fdas,
+      invoices,
+      portExpenses: portExpenses.slice(0, 20),
+      daAdvances,
+      
+      // Belgeler & İletişim
+      documents: documents.slice(0, 20),
+      laytimeSheets,
+      notes: notes.slice(0, 20),
+      collaborators,
+      recentMessages: chatMessages.slice(-20),
+      
+      // İlerleme
+      progress: {
+        checklistTotal,
+        checklistDone,
+        checklistPercent: checklistTotal > 0 ? Math.round((checklistDone / checklistTotal) * 100) : 0,
+        documentsCount: documents.length,
+        hasNor: norList.length > 0,
+        norStatus: latestNor?.status || null,
+        hasSof: sofList.length > 0,
+        sofStatus: latestSof?.status || null,
+        hasProforma: proformas.length > 0,
+        hasFda: fdas.length > 0,
+        hasInvoice: invoices.length > 0,
+        portCallStatus: latestPortCall?.status || null,
+      },
+    });
+  } catch (err) {
+    console.error("[voyage-dashboard] Error:", err);
+    res.status(500).json({ message: "Failed to load voyage dashboard" });
+  }
+});
+```
+
+---
