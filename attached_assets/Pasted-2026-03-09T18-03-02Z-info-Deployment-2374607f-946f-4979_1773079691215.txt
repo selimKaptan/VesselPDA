@@ -1,0 +1,141 @@
+2026-03-09T18:03:02Z info: Deployment: 2374607f-946f-4979-8289-07800da598c0
+2026-03-09T18:03:02Z info: Running Security Scan
+2026-03-09T18:03:14Z info: Security Scan Complete
+2026-03-09T18:03:14Z info: Connecting to builder
+2026-03-09T18:03:15Z info: Builder connected
+2026-03-09T18:03:16Z info: Installing packages
+2026-03-09T18:03:17Z info: Starting Build
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+
+building client...
+
+vite v7.3.0 building client environment for production...
+
+transforming...
+
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+
+✓ 4087 modules transformed.
+
+rendering chunks...
+
+computing gzip size...
+
+../dist/public/index.html                                       4.96 kB │ gzip:   1.73 kB
+../dist/public/assets/leaflet-Dgihpmma.css                     15.04 kB │ gzip:   6.38 kB
+../dist/public/assets/vendor-maps-Dv_zA2cU.css                 40.99 kB │ gzip:   5.58 kB
+../dist/public/assets/index-O6MvEf2O.css                      221.53 kB │ gzip:  32.46 kB
+../dist/public/assets/auth-utils-CcDzk6i0.js                    0.08 kB │ gzip:   0.10 kB
+../dist/public/assets/minus-CZ3zjwz4.js                         0.12 kB │ gzip:   0.13 kB
+../dist/public/assets/message-circle-Bn_RVe6B.js                0.15 kB │ gzip:   0.16 kB
+../dist/public/assets/plus-CePHQmCz.js                          0.15 kB │ gzip:   0.15 kB
+
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+✓ built in 22.73s
+
+building server...
+
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    server/payment.ts:7:38:
+      7 │ const _metaUrl: string | undefined = (import.meta as any).url;
+        ╵                                       ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+
+1 warning
+
+
+  dist/index.cjs  2.2mb ⚠️
+
+⚡ Done in 1014ms
+
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.11.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+npm notice To update run: npm install -g npm@11.11.0
+npm notice
+
+2026-03-09T18:03:45Z info: Pushing pid1 binary layer...
+2026-03-09T18:03:47Z info: Pushing Repl layer...
+2026-03-09T18:03:47Z info: Pushing hosting layer...
+2026-03-09T18:03:47Z info: Created hosting layer
+2026-03-09T18:03:47Z info: Created pid1 binary layer
+2026-03-09T18:05:58Z info: Created Repl layer
+2026-03-09T18:05:58Z info: Pushing Repl (cache) layer...
+2026-03-09T18:05:59Z info: Created Repl (cache) layer
+2026-03-09T18:06:05Z info: Creating Autoscale service
+metasidecar: loaded enterprise status from environment is_enterprise=false
+    at Module._compile (node:internal/modules/cjs/loader:1503:5)
+Node.js v20.20.0
+    throw error;
+  url: 'file:///home/runner/workspace/node_modules/searoute-ts/dist/lib/utils'
+    at Object.<anonymous> (/home/runner/workspace/dist/index.cjs:1926:53698) {
+node:internal/modules/esm/resolve:1204
+  code: 'ERR_MODULE_NOT_FOUND',
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/runner/workspace/node_modules/searoute-ts/dist/lib/utils' imported from /home/runner/workspace/node_modules/searoute-ts/dist/index.js
+    at Module.require (node:internal/modules/cjs/loader:1289:19)
+
+    at finalizeResolution (node:internal/modules/esm/resolve:283:11)
+
+    at loadESMFromCJS (node:internal/modules/cjs/loader:1363:24)
+    at require (node:internal/modules/helpers:182:18)
+    at Module.load (node:internal/modules/cjs/loader:1266:32)
+    at finalizeResolution (node:internal/modules/esm/resolve:283:11)
+    at Module._compile (node:internal/modules/cjs/loader:1503:5)
+    at Module.require (node:internal/modules/cjs/loader:1289:19)
+    at defaultResolve (node:internal/modules/esm/resolve:1188:11)
+    at Object.<anonymous> (/home/runner/workspace/dist/index.cjs:1926:53698) {
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:657:25)
+
+    at ModuleLoader.getModuleJobForRequire (node:internal/modules/esm/loader:413:53)
+healthcheck failed error=healthcheck / returned status 500
+healthcheck failed error=healthcheck / returned status 500
+crash loop detected
+healthcheck failed error=healthcheck / returned status 500
+healthcheck failed error=healthcheck / returned status 500
+healthcheck failed error=healthcheck / returned status 500
+starting up user application
+healthcheck failed error=healthcheck / returned status 500
+    at defaultResolve (node:internal/modules/esm/resolve:1188:11)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+    at moduleResolve (node:internal/modules/esm/resolve:952:10)
+    at Module.require (node:internal/modules/cjs/loader:1289:19)
+node:internal/modules/esm/resolve:1204
+healthcheck failed error=healthcheck / returned status 500
+
+
+    at Module.require (node:internal/modules/cjs/loader:1289:19)
+    at moduleResolve (node:internal/modules/esm/resolve:952:10)
+    at Object.<anonymous> (/home/runner/workspace/dist/index.cjs:1926:53698) {
+  code: 'ERR_MODULE_NOT_FOUND',
+healthcheck failed error=healthcheck / returned status 500
+  code: 'ERR_MODULE_NOT_FOUND',
+command finished with error [node ./dist/index.cjs]: exit status 1
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:657:25)
+    at Module._load (node:internal/modules/cjs/loader:1091:12)
+  code: 'ERR_MODULE_NOT_FOUND',
+healthcheck failed error=healthcheck / returned status 500
+healthcheck failed error=healthcheck / returned status 500
+healthcheck failed error=healthcheck / returned status 500
+healthcheck failed error=healthcheck / returned status 500
+healthcheck failed error=healthcheck / returned status 500
+healthcheck failed error=healthcheck / returned status 500
+
+starting up user application
+forwarding local port 5000 to external port 80 (mapped as 1104)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+    at ModuleLoader.getModuleJobForRequire (node:internal/modules/esm/loader:413:53)
+    at loadESMFromCJS (node:internal/modules/cjs/loader:1363:24)
+  url: 'file:///home/runner/workspace/node_modules/searoute-ts/dist/lib/utils'
+2026-03-09T18:07:57Z error: The deployment is crash looping. This can happen if the run command fails or exits immediately after starting. Check the logs for more information.
