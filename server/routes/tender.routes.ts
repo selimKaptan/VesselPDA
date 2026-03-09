@@ -7,6 +7,7 @@ import { insertPortTenderSchema, insertTenderBidSchema } from "@shared/schema";
 import { sendBidReceivedEmail, sendBidSelectedEmail, sendNewTenderEmail, sendNominationEmail } from "../email";
 import { emitToUser, emitToConversation, emitToVoyage } from "../socket";
 import { logAction, getClientIp } from "../audit";
+import { eventBus } from "../events";
 import { logVoyageActivity } from "../voyage-activity";
 import { db, pool } from "../db";
 import { sql as drizzleSql, eq, desc } from "drizzle-orm";
@@ -301,13 +302,8 @@ router.post("/:id/bids", isAuthenticated, async (req: any, res) => {
           tenderId,
         });
       }
-      await storage.createNotification({
-        userId: tender.userId,
-        type: "bid_received",
-        title: "New Bid Received",
-        message: `${agentName} submitted a bid for ${portName}${tender.vesselName ? ` — ${tender.vesselName}` : ""}`,
-        link: `/tenders/${tenderId}`,
-      });
+      // Notify tender owner via event bus (handled by notification.listener)
+      eventBus.emitEvent("tender.bidReceived", { tenderId, bidId: bid.id, agentUserId: userId });
     } catch (emailErr) { console.warn("[email] sendBidReceivedEmail failed (non-critical):", emailErr); }
   } catch (error) {
     console.error("Create bid error:", error);

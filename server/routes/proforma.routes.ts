@@ -10,6 +10,7 @@ import { lookupPilotageFee, lookupTugboatFee, lookupMooringFee, lookupBerthingFe
 import { pool } from "../db";
 import { sendProformaEmail, sendApprovalRequestEmail } from "../email";
 import { logAction, getClientIp } from "../audit";
+import { eventBus } from "../events";
 import { generateProformaPdf } from "../proforma-pdf";
 import { getOrFetchRates } from "../exchange-rates";
 import { randomBytes } from "node:crypto";
@@ -794,6 +795,12 @@ router.post("/:id/review", isAuthenticated, async (req: any, res) => {
       link: `/proformas/${id}`,
 
     });
+
+    if (action === "approve") {
+      eventBus.emitEvent("proforma.approved", { proformaId: id, userId: proforma.userId, approvedBy: userId });
+    } else if (action === "reject") {
+      eventBus.emitEvent("proforma.rejected", { proformaId: id, userId: proforma.userId, reason: note || undefined });
+    }
 
     logAction(userId, action === "approve" ? "approve" : "update", "proforma", id, { action, newStatus }, getClientIp(req));
     res.json(updated);

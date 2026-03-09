@@ -1,0 +1,82 @@
+## PROMPT F8 — Caching Katmanı
+
+```
+Yavaş değişen veriler (portlar, exchange rates, bunker fiyatları) her istekte DB'den çekiliyor. Basit bir in-memory cache ekleyelim.
+
+ADIM 1: npm install node-cache
+
+ADIM 2: server/cache.ts oluştur:
+
+import NodeCache from "node-cache";
+
+// stdTTL: saniye cinsinden varsayılan ömür
+export const cache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
+
+export function cached<T>(key: string, ttlSeconds: number, fetcher: () => Promise<T>): Promise<T> {
+  const existing = cache.get<T>(key);
+  if (existing !== undefined) return Promise.resolve(existing);
+  
+  return fetcher().then(data => {
+    cache.set(key, data, ttlSeconds);
+    return data;
+  });
+}
+
+export function invalidate(keyPattern: string) {
+  const keys = cache.keys().filter(k => k.startsWith(keyPattern));
+  keys.forEach(k => cache.del(k));
+}
+
+ADIM 3: Storage metotlarında cache kullan:
+
+import { cached, invalidate } from "../cache";
+
+// Port listesi — 24 saat cache
+async getPorts(limit = 100, country?: string): Promise<Port[]> {
+  const cacheKey = `ports:${limit}:${country || "all"}`;
+  return cached(cacheKey, 86400, async () => {
+    if (country) {
+      return db.select().from(ports).where(eq(ports.country, country)).orderBy(ports.name);
+    }
+    return db.select().from(ports).orderBy(ports.name).limit(limit);
+  });
+}
+
+// Bunker fiyatları — 1 saat cache
+async getBunkerPrices(): Promise<BunkerPrice[]> {
+  return cached("bunker-prices", 3600, async () => {
+    return db.select().from(bunkerPrices).orderBy(asc(bunkerPrices.region), asc(bunkerPrices.portName));
+  });
+}
+
+// Forum kategorileri — 12 saat cache
+async getForumCategories(): Promise<ForumCategory[]> {
+  return cached("forum-categories", 43200, async () => {
+    return db.select().from(forumCategories).orderBy(asc(forumCategories.name));
+  });
+}
+
+// Company profiles (public) — 30 dakika cache
+async getPublicCompanyProfiles(filters?: ...): Promise<CompanyProfile[]> {
+  const cacheKey = `company-profiles:${JSON.stringify(filters || {})}`;
+  return cached(cacheKey, 1800, async () => {
+    // mevcut sorgu...
+  });
+}
+
+ADIM 4: Veri değiştiğinde cache'i invalidate et:
+
+async createPort(port: InsertPort): Promise<Port> {
+  const [created] = await db.insert(ports).values(port as any).returning();
+  invalidate("ports:"); // Tüm port cache'lerini temizle
+  return created;
+}
+
+async upsertBunkerPrice(data: InsertBunkerPrice): Promise<BunkerPrice> {
+  const [row] = await db.insert(bunkerPrices).values({ ...data, updatedAt: new Date() }).returning();
+  invalidate("bunker-prices");
+  return row;
+}
+```
+
+---

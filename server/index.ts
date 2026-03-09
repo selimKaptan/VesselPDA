@@ -3,6 +3,7 @@ import path from "path";
 import cors from "cors";
 import helmet from "helmet";
 
+import "./events"; // Event listener'ları yükle
 import { registerRoutes } from "./routes";
 import { serveStaticFiles, serveSpaFallback } from "./static";
 import { createServer } from "http";
@@ -227,9 +228,6 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
       ensureNewTariffTables()
         .then(() => seedTariffData())
         .catch((err: Error) => console.error("Tariff setup error:", err));
-    });
-    import("./ensure-bunker-tables").then(({ ensureBunkerTables }) => {
-      ensureBunkerTables().catch((err: Error) => console.error("Bunker tables error:", err));
     });
     import("./startup-checks").then(({ runStartupChecks }) => {
       runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));

@@ -5,6 +5,7 @@ import { insertDirectNominationSchema } from "@shared/schema";
 import { sendNominationEmail, sendNominationResponseEmail } from "../email";
 import { emitToUser } from "../socket";
 import { logAction } from "../audit";
+import { eventBus } from "../events";
 
 const router = Router();
 
@@ -54,14 +55,8 @@ router.post("/", isAuthenticated, async (req: any, res) => {
       etd: etd ? new Date(etd) : null,
       notes: notes ?? null,
     });
-    // Notify agent (in-app)
-    await storage.createNotification({
-      userId: agentUserId,
-      type: "nomination",
-      title: "New Nomination",
-      message: `You have been nominated for vessel ${vesselName}`,
-      link: "/nominations",
-    });
+    // Notify agent via event bus (handled by notification.listener)
+    eventBus.emitEvent("nomination.created", { nominationId: nom.id, agentUserId });
 
     // Notify agent (email)
     const agentUser = await storage.getUser(agentUserId);

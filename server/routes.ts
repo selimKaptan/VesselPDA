@@ -80,6 +80,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   await setupAuth(app);
 
+  // Rate limiters (apply to all /api/* regardless of version)
   app.use("/api/auth/login", authLimiter);
   app.use("/api/auth/register", authLimiter);
   app.use("/api/", apiLimiter);
@@ -88,16 +89,12 @@ export async function registerRoutes(
   registerProformaApprovalRoutes(app);
   startAISStream();
 
-  // Role guards
-  app.use("/api/admin", isAuthenticated, requireRole("admin"));
-  app.use("/api/fixtures", isAuthenticated, requireRole("shipowner", "broker", "admin"));
-  app.use("/api/service-offers", isAuthenticated, requireRole("provider", "admin"));
-
   // Serve uploaded files
   const express = (await import("express")).default;
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
-  // ─── Root-mounted (full /api/... paths inside) ────────────────────────────
+  // ─── Root-mounted routes (full /api/... paths inside; no version prefix) ─────
+  // These handle their own paths first, before the backward-compat redirect.
   app.use(authRoutes);        // /api/demo/login, /api/files/upload, /api/user/role
   app.use(portRoutes);        // /api/ports, /api/port-info, /api/exchange-rates, /api/service-ports
   app.use(paymentRoutes);     // /api/payment/*, /api/subscription/*
@@ -111,64 +108,79 @@ export async function registerRoutes(
   app.use(searchRoutes);      // /api/search
   app.use("/api", q88Routes); // /api/vessels/:id/q88, /api/q88/public/:id
   app.use("/api/config", configRoutes); // /api/config/mapbox
-
-  // ─── Prefix-mounted (paths stripped inside router) ────────────────────────
-  app.use("/api/vessels", vesselRoutes);
-  app.use("/api/proformas", proformaRoutes);
-  app.use("/api/company-profile", companyRoutes);
-  app.use("/api/admin", adminRoutes);
-  app.use("/api/forum", forumRoutes);
-  app.use("/api/tenders", tenderRoutes);
-  app.use("/api/voyages", voyageRoutes);
   app.use(commissionRoutes);
   app.use(voyageNotesRoutes);
-  app.use("/api/voyage-reports", voyageReportRoutes);
-  app.use("/api/service-requests", serviceRequestRoutes);
-  app.use("/api/nominations", nominationRoutes);
-  app.use("/api/market", marketRoutes);
-  app.use("/api/sof", sofRoutes);
-  app.use("/api/actions", actionRoutes);
-  app.use("/api/fda", fdaRoutes);
   app.use(fdaMappingRoutes);
-  app.use("/api/da-comparison", daComparisonRoutes);
-  app.use("/api/nor", norRoutes);
-  app.use("/api/ai", aiRoutes);
-  app.use("/api/vessel-schedule", vesselScheduleRoutes);
-  app.use("/api/port-expenses", portExpenseRoutes);
-  app.use("/api/organizations", orgRouter);
-  app.use("/api/invites", inviteRouter);
-  app.use("/api", voyageInviteRouter);
   app.use(demoRouter);
 
-  app.use("/api/laytime-sheets", laytimeRoutes);
-  app.use("/api/da-advances", daAdvanceRoutes);
-  app.use("/api/analytics", analyticsRoutes);
-  app.use("/api/maintenance", maintenanceRoutes);
-  app.use("/api/bunker", bunkerRoutes);
-  app.use("/api/noon-reports", noonReportRoutes);
-  app.use("/api/charter-parties", charterPartyRoutes);
-  app.use("/api/crew", crewRoutes);
-  app.use("/api/port-calls", portCallRoutes);
-  app.use("/api/husbandry", husbandryRoutes);
-  app.use("/api/agent-report", agentReportRoutes);
-  app.use("/api/environmental", environmentalRoutes);
-  app.use("/api/insurance", insuranceRoutes);
-  app.use("/api/drydock", drydockRoutes);
-  app.use("/api", defectRoutes);
-  app.use("/api/spare-parts", sparePartsRoutes);
+  // ─── Backward-compatibility redirect: /api/X → /api/v1/X ────────────────────
+  // Runs after root-mounted routes (those have already responded or passed).
+  // Only rewrites paths NOT already starting with /v1 or /health.
+  app.use("/api", (req: any, res: any, next: any) => {
+    if (req.path.startsWith("/v1")) return next();
+    if (req.path === "/health") return next();
+    req.url = `/v1${req.url}`;
+    next();
+  });
+
+  // ─── Role guards for versioned routes ────────────────────────────────────────
+  app.use("/api/v1/admin", isAuthenticated, requireRole("admin"));
+  app.use("/api/v1/fixtures", isAuthenticated, requireRole("shipowner", "broker", "admin"));
+  app.use("/api/v1/service-offers", isAuthenticated, requireRole("provider", "admin"));
+
+  // ─── Prefix-mounted routes at /api/v1/ ───────────────────────────────────────
+  app.use("/api/v1/vessels", vesselRoutes);
+  app.use("/api/v1/proformas", proformaRoutes);
+  app.use("/api/v1/company-profile", companyRoutes);
+  app.use("/api/v1/admin", adminRoutes);
+  app.use("/api/v1/forum", forumRoutes);
+  app.use("/api/v1/tenders", tenderRoutes);
+  app.use("/api/v1/voyages", voyageRoutes);
+  app.use("/api/v1/voyage-reports", voyageReportRoutes);
+  app.use("/api/v1/service-requests", serviceRequestRoutes);
+  app.use("/api/v1/nominations", nominationRoutes);
+  app.use("/api/v1/market", marketRoutes);
+  app.use("/api/v1/sof", sofRoutes);
+  app.use("/api/v1/actions", actionRoutes);
+  app.use("/api/v1/fda", fdaRoutes);
+  app.use("/api/v1/da-comparison", daComparisonRoutes);
+  app.use("/api/v1/nor", norRoutes);
+  app.use("/api/v1/ai", aiRoutes);
+  app.use("/api/v1/vessel-schedule", vesselScheduleRoutes);
+  app.use("/api/v1/port-expenses", portExpenseRoutes);
+  app.use("/api/v1/organizations", orgRouter);
+  app.use("/api/v1/invites", inviteRouter);
+  app.use("/api/v1", voyageInviteRouter);
+
+  app.use("/api/v1/laytime-sheets", laytimeRoutes);
+  app.use("/api/v1/da-advances", daAdvanceRoutes);
+  app.use("/api/v1/analytics", analyticsRoutes);
+  app.use("/api/v1/maintenance", maintenanceRoutes);
+  app.use("/api/v1/bunker", bunkerRoutes);
+  app.use("/api/v1/noon-reports", noonReportRoutes);
+  app.use("/api/v1/charter-parties", charterPartyRoutes);
+  app.use("/api/v1/crew", crewRoutes);
+  app.use("/api/v1/port-calls", portCallRoutes);
+  app.use("/api/v1/husbandry", husbandryRoutes);
+  app.use("/api/v1/agent-report", agentReportRoutes);
+  app.use("/api/v1/environmental", environmentalRoutes);
+  app.use("/api/v1/insurance", insuranceRoutes);
+  app.use("/api/v1/drydock", drydockRoutes);
+  app.use("/api/v1", defectRoutes);
+  app.use("/api/v1/spare-parts", sparePartsRoutes);
 
   // ─── Sprint 9: Broker Modules ─────────────────────────────────────────────
-  app.use("/api/voyage-estimations", isAuthenticated, voyageEstimationRoutes);
-  app.use("/api/passage-plans", isAuthenticated, passagePlanRoutes);
-  app.use("/api/crew-doc-config", isAuthenticated, crewDocConfigRoutes);
-  app.use("/api/order-book", isAuthenticated, orderBookRoutes);
-  app.use("/api/broker-commissions", isAuthenticated, brokerCommissionRoutes);
-  app.use("/api/broker-contacts", isAuthenticated, brokerContactsRoutes);
+  app.use("/api/v1/voyage-estimations", isAuthenticated, voyageEstimationRoutes);
+  app.use("/api/v1/passage-plans", isAuthenticated, passagePlanRoutes);
+  app.use("/api/v1/crew-doc-config", isAuthenticated, crewDocConfigRoutes);
+  app.use("/api/v1/order-book", isAuthenticated, orderBookRoutes);
+  app.use("/api/v1/broker-commissions", isAuthenticated, brokerCommissionRoutes);
+  app.use("/api/v1/broker-contacts", isAuthenticated, brokerContactsRoutes);
 
   // ─── Sprint 11: Agent Modules ─────────────────────────────────────────────
-  app.use("/api/cargo-operations", isAuthenticated, cargoOpsRoutes);
-  app.use("/api/port-call-checklists", isAuthenticated, portCallChecklistRoutes);
-  app.use("/api/port-call-participants", isAuthenticated, portCallParticipantsRoutes);
+  app.use("/api/v1/cargo-operations", isAuthenticated, cargoOpsRoutes);
+  app.use("/api/v1/port-call-checklists", isAuthenticated, portCallChecklistRoutes);
+  app.use("/api/v1/port-call-participants", isAuthenticated, portCallParticipantsRoutes);
 
   return httpServer;
 }
