@@ -4,7 +4,7 @@ import { isAuthenticated } from "../replit_integrations/auth";
 import { isAdmin } from "./shared";
 import { db } from "../db";
 import { sql as drizzleSql, eq, desc } from "drizzle-orm";
-import { fdaAccounts, voyages, type FdaLineItem } from "@shared/schema";
+import { fdaAccounts, voyages, invoices, type FdaLineItem } from "@shared/schema";
 import { logAction } from "../audit";
 import { logVoyageActivity } from "../voyage-activity";
 import { addPdfHeader, addPdfFooter } from "../proforma-pdf";
@@ -281,6 +281,59 @@ router.post("/:id/approve", isAuthenticated, async (req: any, res: any, next: an
     })();
 
     res.json(updated);
+
+    // FDA onaylandığında otomatik Invoice oluştur (DA Advance mutabakatıyla)
+    (async () => {
+      try {
+        const invoiceAmount = updated.totalActualUsd || 0;
+        if (invoiceAmount <= 0) return;
+
+        // Bu FDA için zaten invoice var mı?
+        const [existingInvoice] = await db.select().from(invoices)
+          .where(eq(invoices.fdaId, updated.id))
+          .limit(1);
+        if (existingInvoice) return;
+
+        // DA Advance tutarını hesapla
+        let totalAdvanceReceived = 0;
+        if (updated.voyageId) {
+          const advances = await storage.getDaAdvancesByVoyage(updated.voyageId);
+          totalAdvanceReceived = advances.reduce((sum, a) => sum + (a.receivedAmount || 0), 0);
+        }
+
+        const netAmount = invoiceAmount - totalAdvanceReceived;
+        const invoiceTitle = `FDA Settlement — ${updated.referenceNumber || `FDA-${updated.id}`}`;
+        const invoiceType = netAmount >= 0 ? "invoice" : "credit_note";
+        const notes = totalAdvanceReceived > 0
+          ? `FDA Total: $${invoiceAmount.toLocaleString()} | DA Advance Received: $${totalAdvanceReceived.toLocaleString()} | Net: $${netAmount.toLocaleString()}`
+          : null;
+
+        const invoice = await storage.createInvoice({
+          voyageId: updated.voyageId ?? null,
+          fdaId: updated.id,
+          proformaId: updated.proformaId ?? null,
+          createdByUserId: updated.userId,
+          title: invoiceTitle,
+          amount: Math.abs(netAmount),
+          currency: "USD",
+          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          invoiceType,
+          notes,
+        } as any);
+
+        console.log(`[fda] Auto-created invoice #${invoice.id} from FDA #${updated.id} (net: $${netAmount})`);
+
+        await storage.createNotification({
+          userId: updated.userId,
+          type: "invoice_created",
+          title: "Invoice Auto-Created",
+          message: `Invoice "${invoiceTitle}" for $${Math.abs(netAmount).toLocaleString()} has been auto-created from approved FDA.`,
+          link: `/invoices`,
+        });
+      } catch (err) {
+        console.error("[fda] Auto-invoice creation failed:", err);
+      }
+    })();
   } catch (error) { next(error); }
 });
 

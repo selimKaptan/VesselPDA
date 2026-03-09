@@ -1,0 +1,64 @@
+## ⭐ PROMPT I8 — Certificate Kontrolü + Voyage Risk Değerlendirmesi
+
+```
+Yeni voyage planlanırken geminin sertifika durumu kontrol edilsin.
+
+ADIM 1: server/routes/voyage.routes.ts dosyasında voyage oluşturma endpoint'inde, voyage oluşturulduktan SONRA:
+
+// Sertifika uyarı kontrolü
+if (voyage.vesselId) {
+  try {
+    const certs = await storage.getVesselCertificates(voyage.vesselId);
+    const now = new Date();
+    const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    
+    const expiredCerts = certs.filter(c => c.expiresAt && new Date(c.expiresAt) < now);
+    const expiringCerts = certs.filter(c => c.expiresAt && new Date(c.expiresAt) >= now && new Date(c.expiresAt) <= thirtyDays);
+    
+    const warnings: string[] = [];
+    
+    if (expiredCerts.length > 0) {
+      warnings.push(`⛔ ${expiredCerts.length} EXPIRED certificate(s): ${expiredCerts.map(c => c.name).join(", ")}`);
+    }
+    if (expiringCerts.length > 0) {
+      warnings.push(`⚠️ ${expiringCerts.length} certificate(s) expiring within 30 days: ${expiringCerts.map(c => c.name).join(", ")}`);
+    }
+    
+    // Son PSC inspection kontrolü
+    const pscResults = await db.select().from(pscInspections)
+      .where(eq(pscInspections.vesselId, voyage.vesselId))
+      .orderBy(desc(pscInspections.inspectionDate))
+      .limit(1);
+    
+    if (pscResults.length > 0 && pscResults[0].detention) {
+      warnings.push(`🚨 Last PSC inspection resulted in DETENTION at ${pscResults[0].port}`);
+    }
+    
+    if (warnings.length > 0) {
+      await storage.createNotification({
+        userId: voyage.userId,
+        type: "voyage_risk_alert",
+        title: `Voyage Risk Alert — ${voyage.vesselName || "Vessel"}`,
+        message: warnings.join(" | "),
+        link: `/voyages/${voyage.id}`,
+      });
+      
+      // Voyage'a da not ekle
+      if (voyage.id) {
+        await db.insert(voyageNotes).values({
+          voyageId: voyage.id,
+          authorId: voyage.userId,
+          content: `⚠️ SYSTEM ALERT:\n${warnings.join("\n")}`,
+          noteType: "alert",
+          isPrivate: false,
+        });
+      }
+    }
+    
+    // Response'a warnings ekle
+    return res.status(201).json({ ...voyage, warnings });
+  } catch (err) { console.error("[voyage] Certificate check failed:", err); }
+}
+```
+
+---
