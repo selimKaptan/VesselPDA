@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { db } from "../db";
-import { portCalls, vessels, voyages } from "@shared/schema";
+import { portCalls, vessels, voyages, noticeOfReadiness } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { syncVesselStatuses } from "../vessel-status-sync";
+import { storage } from "../storage";
 
 const router = Router();
 
@@ -83,6 +84,53 @@ router.patch("/:id", isAuthenticated, async (req: any, res) => {
     }
 
     res.json(updated);
+
+    // Port call status → Voyage status senkronu
+    if (data.status !== undefined && updated.voyageId) {
+      const statusMap: Record<string, string> = {
+        expected:   "planned",
+        arrived:    "in_progress",
+        in_port:    "in_progress",
+        operations: "in_progress",
+        departed:   "in_progress",
+        closed:     "completed",
+      };
+      const newVoyageStatus = statusMap[updated.status];
+      if (newVoyageStatus) {
+        storage.updateVoyageStatus(
+          updated.voyageId,
+          newVoyageStatus,
+          newVoyageStatus === "completed" ? new Date() : undefined,
+        ).catch(() => {});
+      }
+    }
+
+    // Port call "arrived" olduğunda otomatik NOR draft oluştur
+    if (data.status === "arrived") {
+      try {
+        const existingNor = await db.select().from(noticeOfReadiness)
+          .where(eq(noticeOfReadiness.portCallId, updated.id))
+          .limit(1);
+
+        if (existingNor.length === 0) {
+          await db.insert(noticeOfReadiness).values({
+            voyageId: updated.voyageId ?? null,
+            vesselId: updated.vesselId,
+            portId: null,
+            portCallId: updated.id,
+            userId: updated.userId,
+            portName: updated.portName,
+            cargoType: updated.cargoType ?? null,
+            cargoQuantity: updated.cargoQuantity ? String(updated.cargoQuantity) : null,
+            anchorageArrival: updated.actualArrival ?? new Date(),
+            status: "draft",
+          } as any);
+          console.log(`[port-call] Auto-created NOR draft for port call #${updated.id}`);
+        }
+      } catch (err) {
+        console.error("[port-call] NOR auto-creation failed:", err);
+      }
+    }
   } catch (error) {
     console.error("[port-calls:PATCH] update failed:", error);
     res.status(500).json({ message: "Failed to update port call" });

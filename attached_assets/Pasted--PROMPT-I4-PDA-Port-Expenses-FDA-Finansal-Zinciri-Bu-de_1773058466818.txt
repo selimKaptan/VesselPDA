@@ -1,0 +1,89 @@
+## ⭐ PROMPT I4 — PDA → Port Expenses → FDA Finansal Zinciri
+
+```
+Bu denizcilik yazılımının ASIL DEĞER ÖNERİSİ bu zincir. PDA (tahmin) → gerçek harcamalar → FDA (mutabakat) → fatura. Şu anda hepsi kopuk.
+
+ADIM 1: FDA oluşturulurken PDA kalemleri otomatik kopyalansın.
+server/routes/fda.routes.ts dosyasında FDA oluşturma endpoint'ini bul. Eğer proformaId varsa PDA verilerini çek:
+
+// FDA oluşturma sırasında
+if (req.body.proformaId) {
+  const proforma = await storage.getProformaById(req.body.proformaId);
+  if (proforma && proforma.lineItems) {
+    // PDA line item'larını FDA formatına dönüştür
+    const fdaLineItems = (proforma.lineItems as any[]).map((item, idx) => ({
+      id: `fda-${idx + 1}`,
+      description: item.description,
+      category: item.category || "other",
+      estimatedUsd: item.amountUsd || 0,
+      estimatedEur: item.amountEur || 0,
+      actualUsd: 0,  // Kullanıcı sonra dolduracak
+      actualEur: 0,
+      varianceUsd: -(item.amountUsd || 0),
+      variancePercent: -100,
+      remarks: "",
+    }));
+    
+    req.body.lineItems = fdaLineItems;
+    req.body.totalEstimatedUsd = proforma.totalUsd;
+    req.body.totalEstimatedEur = proforma.totalEur || 0;
+    req.body.totalActualUsd = 0;
+    req.body.totalActualEur = 0;
+    req.body.vesselName = req.body.vesselName || proforma.vessel?.name || "";
+    req.body.portName = req.body.portName || proforma.port?.name || "";
+    req.body.exchangeRate = proforma.exchangeRate || null;
+    req.body.bankDetails = proforma.bankDetails || null;
+  }
+}
+
+ADIM 2: Port Expense eklendiğinde FDA actual otomatik güncellensin.
+server/routes/port-expense.routes.ts dosyasında yeni expense oluşturulduktan sonra:
+
+// Port expense oluşturulduktan sonra, bağlı FDA varsa güncelle
+if (expense.fdaId) {
+  try {
+    const [fda] = await db.select().from(fdaAccounts).where(eq(fdaAccounts.id, expense.fdaId));
+    if (fda) {
+      // Tüm port expense'leri bu FDA için topla
+      const expenses = await storage.getPortExpensesByFda(expense.fdaId);
+      const totalActualUsd = expenses.reduce((sum, e) => sum + (e.amountUsd || e.amount || 0), 0);
+      
+      // FDA totalleri güncelle
+      const varianceUsd = totalActualUsd - (fda.totalEstimatedUsd || 0);
+      const variancePercent = fda.totalEstimatedUsd ? (varianceUsd / fda.totalEstimatedUsd) * 100 : 0;
+      
+      await db.update(fdaAccounts).set({
+        totalActualUsd,
+        varianceUsd,
+        variancePercent: Math.round(variancePercent * 10) / 10,
+        updatedAt: new Date(),
+      }).where(eq(fdaAccounts.id, expense.fdaId));
+      
+      // Varyans %10'u aştıysa uyarı
+      if (Math.abs(variancePercent) > 10) {
+        await storage.createNotification({
+          userId: fda.userId,
+          type: "fda_variance_alert",
+          title: "FDA Variance Alert",
+          message: `FDA ${fda.referenceNumber}: Actual expenses deviate ${variancePercent.toFixed(1)}% from PDA estimate.`,
+          link: `/fda/${fda.id}`,
+        });
+      }
+    }
+  } catch (err) { console.error("[port-expense] FDA sync failed:", err); }
+}
+
+ADIM 3: Eğer port expense eklenirken fdaId yoksa ama voyageId varsa, o voyage'ın FDA'sını otomatik bul ve bağla:
+
+if (!expense.fdaId && expense.voyageId) {
+  const [fda] = await db.select().from(fdaAccounts)
+    .where(eq(fdaAccounts.voyageId, expense.voyageId))
+    .orderBy(desc(fdaAccounts.createdAt))
+    .limit(1);
+  if (fda) {
+    await db.update(portExpenses).set({ fdaId: fda.id }).where(eq(portExpenses.id, expense.id));
+  }
+}
+```
+
+---

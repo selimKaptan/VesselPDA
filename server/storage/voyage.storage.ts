@@ -6,6 +6,7 @@ import {
   portCallAppointments, voyageCrewLogistics,
   documentTemplates, noonReports,
   bunkerRobs, vesselPositions, vessels,
+  portCalls,
   users,
   type Voyage, type InsertVoyage,
   type VoyageChecklist, type InsertVoyageChecklist,
@@ -22,6 +23,27 @@ import {
 
 async function createVoyage(data: InsertVoyage): Promise<Voyage> {
   const [row] = await db.insert(voyages).values(data).returning();
+
+  // Voyage oluşturulduğunda otomatik Port Call oluştur (vesselId zorunlu)
+  if (row.portId && row.vesselId) {
+    try {
+      const [portRow] = await db.select({ name: ports.name }).from(ports).where(eq(ports.id, row.portId));
+      const portName = portRow?.name || "";
+      await db.insert(portCalls).values({
+        voyageId: row.id,
+        vesselId: row.vesselId,
+        userId: row.userId,
+        portName,
+        status: "expected",
+        eta: row.eta ?? null,
+        cargoType: row.cargoType ?? null,
+        cargoQuantity: row.cargoQuantity ?? null,
+      });
+    } catch (err) {
+      console.error("[voyage] Auto port call creation failed:", err);
+    }
+  }
+
   return row;
 }
 
@@ -202,6 +224,18 @@ async function updateVoyageStatus(id: number, status: string, completedAt?: Date
 
 async function updateVoyage(id: number, data: Partial<InsertVoyage>): Promise<Voyage | undefined> {
   const [row] = await db.update(voyages).set(data).where(eq(voyages.id, id)).returning();
+
+  // ETA/ETD güncellendiğinde port call'ı da güncelle
+  if (data.eta || data.etd) {
+    try {
+      const updateData: Record<string, any> = {};
+      if (data.eta) updateData.eta = data.eta;
+      await db.update(portCalls).set(updateData).where(eq(portCalls.voyageId, id));
+    } catch (err) {
+      console.error("[voyage] Port call ETA sync failed:", err);
+    }
+  }
+
   return row;
 }
 

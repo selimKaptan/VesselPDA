@@ -1,0 +1,59 @@
+## ⭐ PROMPT I5 — FDA → Invoice → DA Advance Mutabakat
+
+```
+FDA onaylandığında otomatik invoice oluşsun ve DA Advance mutabakatı yapılsın.
+
+ADIM 1: FDA onay endpoint'inde (fda.routes.ts) status "approved" yapıldığında:
+
+if (updatedFda.status === "approved") {
+  // Otomatik Invoice oluştur
+  try {
+    const invoiceTitle = `FDA Settlement — ${updatedFda.referenceNumber || ""}`;
+    const invoiceAmount = updatedFda.totalActualUsd || 0;
+    
+    // Bu FDA için zaten invoice var mı?
+    const existingInvoice = await db.select().from(invoices)
+      .where(eq(invoices.fdaId, updatedFda.id))
+      .limit(1);
+    
+    if (existingInvoice.length === 0 && invoiceAmount > 0) {
+      // DA Advance'ları kontrol et
+      let totalAdvanceReceived = 0;
+      if (updatedFda.voyageId) {
+        const advances = await storage.getDaAdvancesByVoyage(updatedFda.voyageId);
+        totalAdvanceReceived = advances.reduce((sum, a) => sum + (a.receivedAmount || 0), 0);
+      }
+      
+      const netAmount = invoiceAmount - totalAdvanceReceived;
+      
+      const invoice = await storage.createInvoice({
+        voyageId: updatedFda.voyageId || null,
+        fdaId: updatedFda.id,
+        proformaId: updatedFda.proformaId || null,
+        createdByUserId: updatedFda.userId,
+        title: invoiceTitle,
+        amount: Math.abs(netAmount),
+        currency: "USD",
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 gün
+        invoiceType: netAmount >= 0 ? "invoice" : "credit_note",
+        notes: totalAdvanceReceived > 0 
+          ? `FDA Total: $${invoiceAmount.toLocaleString()} | DA Advance Received: $${totalAdvanceReceived.toLocaleString()} | Net: $${netAmount.toLocaleString()}`
+          : null,
+      });
+      
+      console.log(`[fda] Auto-created invoice #${invoice.id} from FDA #${updatedFda.id} (net: $${netAmount})`);
+      
+      // Bildirim
+      await storage.createNotification({
+        userId: updatedFda.userId,
+        type: "invoice_created",
+        title: "Invoice Auto-Created",
+        message: `Invoice "${invoiceTitle}" for $${Math.abs(netAmount).toLocaleString()} has been auto-created from approved FDA.`,
+        link: `/invoices`,
+      });
+    }
+  } catch (err) { console.error("[fda] Auto-invoice creation failed:", err); }
+}
+```
+
+---

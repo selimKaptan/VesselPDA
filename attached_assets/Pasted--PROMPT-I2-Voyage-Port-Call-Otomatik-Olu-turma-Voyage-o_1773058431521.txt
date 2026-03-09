@@ -1,0 +1,76 @@
+## ⭐ PROMPT I2 — Voyage → Port Call Otomatik Oluşturma
+
+```
+Voyage oluşturulduğunda otomatik port call kaydı oluşmalı ve durumlar senkron olmalı.
+
+ADIM 1: storage.ts (veya voyage.storage.ts) içindeki createVoyage metodunu güncelle. Voyage oluşturulduktan SONRA otomatik port call ekle:
+
+async createVoyage(data: InsertVoyage): Promise<Voyage> {
+  const [row] = await db.insert(voyages).values(data).returning();
+  
+  // Otomatik Port Call oluştur
+  if (row.portId && row.vesselId) {
+    try {
+      await db.insert(portCalls).values({
+        voyageId: row.id,
+        vesselId: row.vesselId,
+        userId: row.userId,
+        portName: "", // Port adını çekeceğiz
+        status: "expected",
+        eta: row.eta || null,
+        cargoType: row.cargoType || null,
+        cargoQuantity: row.cargoQuantity || null,
+      });
+      
+      // Port adını doldur
+      const [port] = await db.select({ name: ports.name }).from(ports).where(eq(ports.id, row.portId));
+      if (port) {
+        await db.update(portCalls)
+          .set({ portName: port.name })
+          .where(and(eq(portCalls.voyageId, row.id)));
+      }
+    } catch (err) {
+      console.error("[voyage] Auto port call creation failed:", err);
+    }
+  }
+  
+  return row;
+}
+
+ADIM 2: Port Call status değiştiğinde Voyage status da güncellensin. server/routes/port-call.routes.ts dosyasında port call status update endpoint'inde:
+
+// Port call status güncellemesinden sonra voyage status senkronu:
+if (updatedPortCall.voyageId) {
+  const statusMap: Record<string, string> = {
+    "expected": "planned",
+    "arrived": "in_progress",
+    "in_port": "in_progress",
+    "operations": "in_progress",
+    "departed": "in_progress",
+    "closed": "completed",
+  };
+  const newVoyageStatus = statusMap[updatedPortCall.status];
+  if (newVoyageStatus) {
+    await storage.updateVoyageStatus(
+      updatedPortCall.voyageId, 
+      newVoyageStatus,
+      newVoyageStatus === "completed" ? new Date() : undefined
+    );
+  }
+}
+
+ADIM 3: Voyage ETA/ETD güncellendiğinde port call'ın da güncellenmesi:
+// updateVoyage metodunda:
+if (data.eta || data.etd) {
+  const portCallList = await db.select().from(portCalls).where(eq(portCalls.voyageId, id));
+  if (portCallList.length > 0) {
+    await db.update(portCalls)
+      .set({ 
+        eta: data.eta || portCallList[0].eta,
+      })
+      .where(eq(portCalls.voyageId, id));
+  }
+}
+```
+
+---

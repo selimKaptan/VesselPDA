@@ -1,0 +1,101 @@
+## ⭐ PROMPT I3 — Port Call → NOR → SOF Zinciri
+
+```
+Port Call, NOR ve SOF birbirinden habersiz çalışıyor. Bunları bağlayalım.
+
+ADIM 1: Port Call "arrived" olduğunda otomatik NOR draft oluşsun.
+server/routes/port-call.routes.ts dosyasında status update'den sonra:
+
+if (updatedPortCall.status === "arrived") {
+  // Otomatik NOR draft oluştur
+  try {
+    const existingNor = await db.select().from(noticeOfReadiness)
+      .where(eq(noticeOfReadiness.portCallId, updatedPortCall.id))
+      .limit(1);
+    
+    if (existingNor.length === 0) {
+      await db.insert(noticeOfReadiness).values({
+        voyageId: updatedPortCall.voyageId || null,
+        vesselId: updatedPortCall.vesselId,
+        portId: null,
+        portCallId: updatedPortCall.id,
+        userId: updatedPortCall.userId,
+        vesselName: null, // Vessel bilgilerini çekmek gerekebilir
+        portName: updatedPortCall.portName,
+        cargoType: updatedPortCall.cargoType || null,
+        cargoQuantity: updatedPortCall.cargoQuantity ? String(updatedPortCall.cargoQuantity) : null,
+        anchorageArrival: updatedPortCall.actualArrival || new Date(),
+        status: "draft",
+      });
+      console.log(`[port-call] Auto-created NOR draft for port call #${updatedPortCall.id}`);
+    }
+  } catch (err) { console.error("[port-call] NOR auto-creation failed:", err); }
+}
+
+ADIM 2: NOR kabul edildiğinde SOF'a otomatik event eklensin.
+server/routes/nor.routes.ts dosyasında NOR status "accepted" yapıldığında:
+
+if (updatedNor.status === "accepted") {
+  // SOF'a NOR Accepted event'i ekle
+  try {
+    // Bu voyage/port call için SOF var mı?
+    let sofId: number | null = null;
+    if (updatedNor.voyageId) {
+      const [existingSof] = await db.select().from(statementOfFacts)
+        .where(eq(statementOfFacts.voyageId, updatedNor.voyageId))
+        .limit(1);
+      
+      if (existingSof) {
+        sofId = existingSof.id;
+      } else {
+        // SOF yoksa oluştur
+        const [newSof] = await db.insert(statementOfFacts).values({
+          voyageId: updatedNor.voyageId,
+          vesselId: updatedNor.vesselId || null,
+          portId: updatedNor.portId || null,
+          portCallId: updatedNor.portCallId || null,
+          userId: updatedNor.userId,
+          vesselName: updatedNor.vesselName || null,
+          portName: updatedNor.portName || null,
+          cargoType: updatedNor.cargoType || null,
+          operation: updatedNor.operation || null,
+          status: "draft",
+        }).returning();
+        sofId = newSof.id;
+      }
+      
+      // NOR ile ilgili SOF event'lerini ekle
+      const events = [
+        updatedNor.anchorageArrival ? { eventType: "arrival", eventName: "Vessel Arrived at Anchorage", eventDate: updatedNor.anchorageArrival, sortOrder: 1 } : null,
+        updatedNor.norTenderedAt ? { eventType: "nor", eventName: "Notice of Readiness Tendered", eventDate: updatedNor.norTenderedAt, sortOrder: 2 } : null,
+        updatedNor.norAcceptedAt ? { eventType: "nor_accepted", eventName: "Notice of Readiness Accepted", eventDate: updatedNor.norAcceptedAt, sortOrder: 3 } : null,
+        updatedNor.berthArrival ? { eventType: "berthing", eventName: "Vessel Shifted to Berth", eventDate: updatedNor.berthArrival, sortOrder: 4 } : null,
+      ].filter(Boolean);
+      
+      for (const event of events) {
+        if (event && sofId) {
+          // Aynı event zaten var mı kontrol et
+          const existing = await db.select().from(sofLineItems)
+            .where(and(eq(sofLineItems.sofId, sofId), eq(sofLineItems.eventType, event.eventType)))
+            .limit(1);
+          if (existing.length === 0) {
+            await db.insert(sofLineItems).values({ ...event, sofId });
+          }
+        }
+      }
+    }
+  } catch (err) { console.error("[nor] SOF auto-update failed:", err); }
+  
+  // Port Call status güncelle
+  if (updatedNor.portCallId) {
+    await db.update(portCalls)
+      .set({ 
+        norTendered: updatedNor.norTenderedAt || new Date(),
+        status: "arrived",
+      })
+      .where(eq(portCalls.id, updatedNor.portCallId));
+  }
+}
+```
+
+---

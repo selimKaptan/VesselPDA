@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../db";
 import { eq, desc, and } from "drizzle-orm";
-import { noticeOfReadiness } from "@shared/schema";
+import { noticeOfReadiness, statementOfFacts, sofLineItems, portCalls } from "@shared/schema";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { isAdmin } from "./shared";
 import { storage } from "../storage";
@@ -267,6 +267,65 @@ router.post("/:id/accept", isAuthenticated, async (req: any, res: any, next: any
     }
 
     res.json(updated);
+
+    // NOR kabul edildiğinde SOF otomatik oluştur/güncelle
+    if (updated.voyageId) {
+      try {
+        let sofId: number | null = null;
+
+        const [existingSof] = await db.select().from(statementOfFacts)
+          .where(eq(statementOfFacts.voyageId, updated.voyageId))
+          .limit(1);
+
+        if (existingSof) {
+          sofId = existingSof.id;
+        } else {
+          const [newSof] = await db.insert(statementOfFacts).values({
+            voyageId: updated.voyageId,
+            vesselId: updated.vesselId ?? null,
+            portId: updated.portId ?? null,
+            portCallId: updated.portCallId ?? null,
+            userId: updated.userId,
+            vesselName: updated.vesselName ?? null,
+            portName: updated.portName ?? null,
+            cargoType: updated.cargoType ?? null,
+            operation: (updated as any).operation ?? null,
+            status: "draft",
+          } as any).returning();
+          sofId = newSof.id;
+          console.log(`[nor] Auto-created SOF #${sofId} from NOR #${updated.id}`);
+        }
+
+        // NOR ile ilgili SOF event'lerini ekle (duplicate check ile)
+        const eventsToInsert = [
+          updated.anchorageArrival ? { eventType: "arrival", eventName: "Vessel Arrived at Anchorage", eventDate: updated.anchorageArrival, sortOrder: 1 } : null,
+          updated.norTenderedAt   ? { eventType: "nor",      eventName: "Notice of Readiness Tendered", eventDate: updated.norTenderedAt,   sortOrder: 2 } : null,
+          updated.norAcceptedAt   ? { eventType: "nor_accepted", eventName: "Notice of Readiness Accepted", eventDate: updated.norAcceptedAt, sortOrder: 3 } : null,
+          updated.berthArrival    ? { eventType: "berthing",  eventName: "Vessel Shifted to Berth",     eventDate: updated.berthArrival,    sortOrder: 4 } : null,
+        ].filter(Boolean);
+
+        for (const event of eventsToInsert) {
+          if (event && sofId) {
+            const [existing] = await db.select().from(sofLineItems)
+              .where(and(eq(sofLineItems.sofId, sofId), eq(sofLineItems.eventType, event.eventType)))
+              .limit(1);
+            if (!existing) {
+              await db.insert(sofLineItems).values({ ...event, sofId } as any);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[nor] SOF auto-update failed:", err);
+      }
+    }
+
+    // Port call norTendered güncelle
+    if (updated.portCallId) {
+      db.update(portCalls)
+        .set({ norTendered: updated.norTenderedAt ?? new Date() })
+        .where(eq(portCalls.id, updated.portCallId))
+        .catch(() => {});
+    }
   } catch (error) { next(error); }
 });
 
