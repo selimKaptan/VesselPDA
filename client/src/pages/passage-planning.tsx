@@ -166,7 +166,7 @@ function PortSearch({ label, value, onChange, onSelect, placeholder }: {
 
   const { data: results = [] } = useQuery<any[]>({
     queryKey: ["/api/ports", debounced],
-    queryFn: () => debounced.length >= 2 ? fetch(`/api/ports?search=${encodeURIComponent(debounced)}`).then(r => r.json()) : Promise.resolve([]),
+    queryFn: () => debounced.length >= 2 ? fetch(`/api/ports?q=${encodeURIComponent(debounced)}`).then(r => r.json()) : Promise.resolve([]),
     enabled: debounced.length >= 2,
   });
 
