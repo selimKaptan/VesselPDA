@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import path from "path";
 import cors from "cors";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+
 import { registerRoutes } from "./routes";
 import { serveStaticFiles, serveSpaFallback } from "./static";
 import { createServer } from "http";
@@ -51,23 +51,6 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  message: { message: "Too many requests, please try again later." },
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => process.env.NODE_ENV !== "production",
-});
-
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 200,
-  message: { message: "Too many requests." },
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => process.env.NODE_ENV !== "production",
-});
 
 declare module "http" {
   interface IncomingMessage {
@@ -85,8 +68,6 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-app.use("/api/auth", authLimiter);
-app.use("/api", apiLimiter);
 
 app.use(
   express.json({
