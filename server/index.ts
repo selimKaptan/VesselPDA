@@ -186,13 +186,12 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const port = parseInt(process.env.PORT || "5000", 10);
-httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
-  console.log("Server listening on port " + port);
-});
 
 (async () => {
+  // 1. Routes kaydet
   await registerRoutes(httpServer, app);
 
+  // 2. Hata yakalayıcı (routes'tan sonra, Vite'dan önce)
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
@@ -206,6 +205,7 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
     return res.status(status).json({ message });
   });
 
+  // 3. Frontend (Vite dev / static production)
   if (process.env.NODE_ENV === "production") {
     serveSpaFallback(app);
   } else {
@@ -213,41 +213,53 @@ httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
     await setupVite(httpServer, app);
   }
 
+  // 4. Server'ı dinlemeye başla (routes + Vite hazır olduktan SONRA)
+  await new Promise<void>((resolve) => {
+    httpServer.listen({ port, host: "0.0.0.0", reusePort: true }, () => {
+      console.log("Server listening on port " + port);
+      resolve();
+    });
+  });
+
+  // 5. Ağır arka plan işleri — server ayaktayken, engelleme olmadan
   setTimeout(() => {
     import("./seed").then(({ seedDatabase, seedForumCategories, seedPortCoordinates }) => {
-      seedDatabase().catch((err: Error) => console.error("Seed error:", err));
-      seedForumCategories().catch((err: Error) => console.error("Forum seed error:", err));
-      seedPortCoordinates().catch((err: Error) => console.error("Port coords seed error:", err));
+      seedDatabase().catch((err: Error) => console.warn("[seed] Seed error:", err.message));
+      seedForumCategories().catch((err: Error) => console.warn("[seed] Forum seed error:", err.message));
+      seedPortCoordinates().catch((err: Error) => console.warn("[seed] Port coords seed error:", err.message));
     });
-    seedBunkerPrices().catch((err: Error) => console.error("Bunker seed error:", err));
-    seedTestAdmin().catch((err: Error) => console.error("Test admin seed error:", err));
+    seedBunkerPrices().catch((err: Error) => console.warn("[seed] Bunker seed error:", err.message));
+    seedTestAdmin().catch((err: Error) => console.warn("[seed] Test admin seed error:", err.message));
     import("./seed-templates").then(({ seedDocumentTemplates }) => {
-      seedDocumentTemplates().catch((err: Error) => console.error("Template seed error:", err));
+      seedDocumentTemplates().catch((err: Error) => console.warn("[seed] Template seed error:", err.message));
     });
     import("./seed-tariffs").then(({ seedTariffData, ensureNewTariffTables }) => {
       ensureNewTariffTables()
         .then(() => seedTariffData())
-        .catch((err: Error) => console.error("Tariff setup error:", err));
+        .catch((err: Error) => console.warn("[seed] Tariff setup error:", err.message));
     });
     import("./startup-checks").then(({ runStartupChecks }) => {
-      runStartupChecks().catch((err: Error) => console.error("Startup checks error:", err));
+      runStartupChecks().catch((err: Error) => console.warn("[startup] Startup checks error:", err.message));
     });
     import("./cleanup-ports").then(({ cleanupInvalidPorts }) => {
-      cleanupInvalidPorts().catch((err: Error) => console.error("Cleanup error:", err));
+      cleanupInvalidPorts().catch((err: Error) => console.warn("[cleanup] Cleanup error:", err.message));
     });
   }, 10000);
 
   setTimeout(() => { startCronJobs(); }, 45000);
 
+  // Sanctions: server başladıktan 30 saniye sonra arka planda yükle
   setTimeout(() => {
     import("./sanctions").then(({ loadSanctionsList }) => {
-      loadSanctionsList().catch((err: Error) => console.error("Sanctions load error:", err));
+      loadSanctionsList().catch((err: Error) =>
+        console.warn("[sanctions] SDN list load failed, will retry on next check:", err.message)
+      );
     });
-  }, 90000);
+  }, 30000);
 
   setTimeout(() => {
     import("./geocode-ports").then(({ geocodeMissingPorts }) => {
-      geocodeMissingPorts().catch((err: Error) => console.error("Geocode error:", err));
+      geocodeMissingPorts().catch((err: Error) => console.warn("[geocode] Geocode error:", err.message));
     });
   }, 120000);
 })();

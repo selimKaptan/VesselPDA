@@ -74,8 +74,8 @@ export async function loadSanctionsList(): Promise<void> {
     cache.entries = sdnList;
     cache.loadedAt = new Date();
     console.log(`[sanctions] Loaded ${sdnList.length} SDN entries.`);
-  } catch (err) {
-    console.error("[sanctions] Failed to load OFAC SDN list:", err);
+  } catch (err: any) {
+    console.warn("[sanctions] Failed to load OFAC SDN list, sanctions check will be unavailable:", err?.message ?? err);
   }
 }
 
