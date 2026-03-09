@@ -103,6 +103,10 @@ app.use(express.urlencoded({ extended: false }));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 async function seedTestAdmin() {
+  if (process.env.NODE_ENV === "production") {
+    console.log("[seed] Skipping test admin in production");
+    return;
+  }
   const TEST_ADMIN_EMAIL = "test_admin@vpda.test";
   try {
     const existing = await db.execute(
@@ -113,7 +117,8 @@ async function seedTestAdmin() {
       console.log("[seed] Test admin account already exists, skipping.");
       return;
     }
-    const passwordHash = await bcrypt.hash("TestPass123!", 12);
+    const password = process.env.TEST_ADMIN_PASSWORD || "TestPass123!";
+    const passwordHash = await bcrypt.hash(password, 12);
     await db.execute(sql`
       INSERT INTO users (id, email, password_hash, first_name, last_name, user_role, active_role, email_verified, role_confirmed, is_suspended)
       VALUES (
