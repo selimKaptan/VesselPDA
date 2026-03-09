@@ -1,0 +1,139 @@
+3 entegrasyon eksik, hepsini ekle:
+
+ENTEGRASYON 1 — Tender nominate → Voyage otomatik oluşturma:
+server/routes/tender.routes.ts dosyasında tender status "nominated" yapılan endpoint'i bul. Agent nominate edildikten SONRA şu kodu ekle (eğer zaten yoksa):
+
+if (status === "nominated" && nominatedAgentId) {
+  const tender = await storage.getPortTenderById(id);
+  if (tender) {
+    try {
+      const voyage = await storage.createVoyage({
+        userId: tender.userId,
+        portId: tender.portId,
+        vesselName: tender.vesselName || "",
+        status: "planned",
+        purposeOfCall: "Loading",
+        cargoType: tender.cargoType || null,
+        notes: `Auto-created from Tender #${tender.id}`,
+        agentUserId: nominatedAgentId,
+        vesselId: null,
+      });
+      console.log(`[tender] Auto-created voyage #${voyage.id} from tender #${tender.id}`);
+      await storage.createNotification({
+        userId: nominatedAgentId,
+        type: "voyage_created",
+        title: "New Voyage Assigned",
+        message: `You've been nominated as agent. Voyage #${voyage.id} has been created.`,
+        link: `/voyages/${voyage.id}`,
+      });
+    } catch (err) { console.error("[tender] Auto voyage creation failed:", err); }
+  }
+}
+
+ENTEGRASYON 2 — Noon Report → Bunker ROB + Vessel Position senkronu:
+server/routes/noon-report.routes.ts dosyasında noon report oluşturma (POST) endpoint'ini bul. Yeni noon report insert edildikten SONRA şu kodu ekle:
+
+// Aktif voyage yoksa bul ve bağla
+if (!report.voyageId && report.vesselId) {
+  try {
+    const { voyages } = await import("@shared/schema");
+    const { eq, and, or, desc } = await import("drizzle-orm");
+    const { db } = await import("../db");
+    const [activeVoyage] = await db.select().from(voyages)
+      .where(and(
+        eq(voyages.vesselId, report.vesselId),
+        or(eq(voyages.status, "in_progress"), eq(voyages.status, "active"))
+      ))
+      .orderBy(desc(voyages.createdAt))
+      .limit(1);
+    if (activeVoyage) {
+      const { noonReports } = await import("@shared/schema");
+      await db.update(noonReports).set({ voyageId: activeVoyage.id }).where(eq(noonReports.id, report.id));
+    }
+  } catch (err) { console.error("[noon-report] Voyage link failed:", err); }
+}
+
+// Bunker ROB otomatik oluştur
+if (report.hfoConsumed || report.mgoConsumed || report.lsfoConsumed) {
+  try {
+    const { bunkerRobs } = await import("@shared/schema");
+    const { db } = await import("../db");
+    await db.insert(bunkerRobs).values({
+      vesselId: report.vesselId,
+      voyageId: report.voyageId || null,
+      reportDate: report.reportDate || new Date(),
+      hfoRob: report.hfoRob || 0,
+      mgoRob: report.mgoRob || 0,
+      lsfoRob: report.lsfoRob || 0,
+      hfoConsumed: report.hfoConsumed || 0,
+      mgoConsumed: report.mgoConsumed || 0,
+      lsfoConsumed: report.lsfoConsumed || 0,
+      reportedBy: req.user?.id || report.userId,
+    });
+    console.log(`[noon-report] Bunker ROB synced for vessel ${report.vesselId}`);
+  } catch (err) { console.error("[noon-report] Bunker ROB sync failed:", err); }
+}
+
+// Vessel position kaydet
+if (report.latitude && report.longitude) {
+  try {
+    const { vessels, vesselPositions } = await import("@shared/schema");
+    const { eq } = await import("drizzle-orm");
+    const { db } = await import("../db");
+    const [vessel] = await db.select({ mmsi: vessels.mmsi, name: vessels.name })
+      .from(vessels).where(eq(vessels.id, report.vesselId));
+    if (vessel?.mmsi) {
+      await db.insert(vesselPositions).values({
+        mmsi: vessel.mmsi,
+        vesselName: vessel.name,
+        latitude: report.latitude,
+        longitude: report.longitude,
+        speed: report.speedOverGround || null,
+      });
+      console.log(`[noon-report] Position synced for ${vessel.name}`);
+    }
+  } catch (err) { console.error("[noon-report] Position sync failed:", err); }
+}
+
+ENTEGRASYON 3 — Crew Change → Vessel Crew senkronu:
+server/routes/husbandry.routes.ts dosyasında crew change status update endpoint'ini bul (PATCH /crew-changes/:id veya benzeri). Status "completed" yapıldığında şu kodu ekle:
+
+if (updated.status === "completed" && updated.changeType) {
+  try {
+    const { vesselCrew } = await import("@shared/schema");
+    const { eq, and, ilike } = await import("drizzle-orm");
+    const { db } = await import("../db");
+
+    if (updated.changeType === "sign_on" && updated.seafarerName) {
+      const nameParts = updated.seafarerName.split(" ");
+      await db.insert(vesselCrew).values({
+        vesselId: updated.vesselId,
+        userId: req.user?.id,
+        firstName: nameParts[0] || updated.seafarerName,
+        lastName: nameParts.slice(1).join(" ") || "",
+        rank: updated.rank || null,
+        nationality: updated.nationality || null,
+        passportNumber: updated.passportNumber || null,
+        contractStartDate: updated.arrivalDate || new Date(),
+        status: "on_board",
+      });
+      console.log(`[crew-change] Sign-on: ${updated.seafarerName} added to vessel crew`);
+    }
+    else if (updated.changeType === "sign_off" && updated.seafarerName) {
+      const firstName = updated.seafarerName.split(" ")[0];
+      const [crewMember] = await db.select().from(vesselCrew)
+        .where(and(
+          eq(vesselCrew.vesselId, updated.vesselId),
+          ilike(vesselCrew.firstName, `%${firstName}%`),
+          eq(vesselCrew.status, "on_board"),
+        ))
+        .limit(1);
+      if (crewMember) {
+        await db.update(vesselCrew)
+          .set({ status: "off_board", contractEndDate: updated.departureDate || new Date() })
+          .where(eq(vesselCrew.id, crewMember.id));
+        console.log(`[crew-change] Sign-off: ${updated.seafarerName} marked as off_board`);
+      }
+    }
+  } catch (err) { console.error("[crew-change] Vessel crew sync failed:", err); }
+}
