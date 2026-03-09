@@ -4,6 +4,7 @@ import { passagePlans, passageWaypoints } from "@shared/schema";
 import { eq, and, desc, asc } from "drizzle-orm";
 import { isAuthenticated } from "../replit_integrations/auth";
 import * as datalastic from "../datalastic";
+import { calculateSeaRoute } from "../services/searoute.service";
 
 const router = Router();
 
@@ -264,16 +265,30 @@ router.post("/calculate-route", isAuthenticated, async (req: any, res) => {
           }
         } catch {}
 
-        // Datalastic başarısız veya yoksa → A* deniz waypoint rotası kullan
+        // Datalastic başarısız → searoute-ts (MARNET tabanlı, karadan kaçınan)
         if (legDistanceNm === 0) {
-          const seaRoute = findSeaRoute(pt.lat, pt.lon, next.lat, next.lon);
-          legDistanceNm = seaRoute.totalDistanceNm;
+          try {
+            const srResult = calculateSeaRoute(pt.lat, pt.lon, next.lat, next.lon);
+            if (srResult.distanceNm > 0 && srResult.geometry.length > 1) {
+              legDistanceNm = srResult.distanceNm;
+              legRoutePoints = srResult.geometry;
+              console.log(`[passage] searoute-ts: ${pt.name} → ${next.name}: ${legDistanceNm} NM (${srResult.geometry.length} pts)`);
+            }
+          } catch (srErr: any) {
+            console.warn(`[passage] searoute-ts failed (${srErr.message}), falling back to A*`);
+          }
+        }
+
+        // searoute-ts de başarısız → son çare A* algoritmamız
+        if (legDistanceNm === 0) {
+          const astarRoute = findSeaRoute(pt.lat, pt.lon, next.lat, next.lon);
+          legDistanceNm = astarRoute.totalDistanceNm;
           legRoutePoints = [
             [pt.lat, pt.lon],
-            ...seaRoute.waypoints.map(wp => [wp.lat, wp.lon]),
+            ...astarRoute.waypoints.map(wp => [wp.lat, wp.lon]),
             [next.lat, next.lon],
           ];
-          console.log(`[passage] Sea waypoint route ${pt.name} → ${next.name}: ${legDistanceNm} NM (${seaRoute.waypoints.length} WPs)`);
+          console.log(`[passage] A* fallback: ${pt.name} → ${next.name}: ${legDistanceNm} NM (${astarRoute.waypoints.length} WPs)`);
         }
 
         if (legRoutePoints.length > 0) routeGeometry.push(...legRoutePoints);

@@ -99,6 +99,7 @@
     "react-resizable-panels": "^2.1.7",
     "recharts": "^2.15.2",
     "resend": "^4.0.0",
+    "searoute-ts": "^1.2.1",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "stripe": "^20.0.0",
