@@ -1,0 +1,132 @@
+Datalastic API'de /port_call endpoint'i bu planda mevcut değil ("Not Found" dönüyor). Port call history'yi alternatif yöntemlerle dolduralım.
+
+ÇÖZÜM: server/routes/tracking.routes.ts dosyasındaki /api/vessels/port-call-history endpoint'ini güncelle. Datalastic port_call çalışmadığında kendi veritabanımızdaki port call verilerini döndür + vessel_history'den liman bilgisi çıkar:
+
+Mevcut endpoint'i şu şekilde DEĞİŞTİR:
+
+router.get("/api/vessels/port-call-history", isAuthenticated, async (req: any, res) => {
+  const imo = (req.query.imo as string)?.trim();
+  if (!imo) return res.status(400).json({ message: "imo gerekli" });
+  
+  try {
+    const results: any[] = [];
+    
+    // 1. Önce kendi veritabanımızdaki port call kayıtlarını çek
+    try {
+      const { vessels, portCalls } = await import("@shared/schema");
+      const { eq, desc } = await import("drizzle-orm");
+      const { db } = await import("../db");
+      
+      const [vessel] = await db.select().from(vessels)
+        .where(eq(vessels.imoNumber, imo))
+        .limit(1);
+      
+      if (vessel) {
+        const dbPortCalls = await db.select().from(portCalls)
+          .where(eq(portCalls.vesselId, vessel.id))
+          .orderBy(desc(portCalls.eta))
+          .limit(20);
+        
+        for (const pc of dbPortCalls) {
+          results.push({
+            port_name: pc.portName || "Unknown",
+            country: pc.country || "",
+            locode: pc.unlocode || null,
+            arrival: pc.actualArrival || pc.eta || null,
+            departure: pc.actualDeparture || pc.etd || null,
+            terminal: pc.berth || null,
+            source: "internal",
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("[port-call-history] DB lookup failed:", err);
+    }
+    
+    // 2. Datalastic vessel_history'den liman uğraklarını çıkarmayı dene
+    if (results.length === 0 && process.env.DATALASTIC_API_KEY) {
+      try {
+        const datalastic = await import("../datalastic");
+        const vessels = await datalastic.findVessel(imo, "imo");
+        if (vessels.length > 0 && vessels[0].uuid) {
+          // vessel_history son 30 günlük pozisyonları döner
+          const history = await datalastic.getHistoricalTrack(vessels[0].uuid, "uuid", 30);
+          
+          if (Array.isArray(history) && history.length > 0) {
+            // Pozisyon verilerinden liman yakınındaki durakları bul (speed < 1 knot)
+            let lastPort = "";
+            for (const point of history) {
+              const p = point as any;
+              if (p.speed !== undefined && p.speed < 1 && p.port_name && p.port_name !== lastPort) {
+                lastPort = p.port_name;
+                results.push({
+                  port_name: p.port_name || "Unknown",
+                  country: p.country_name || p.country || "",
+                  locode: p.port_unlocode || null,
+                  arrival: p.timestamp || null,
+                  departure: null,
+                  terminal: null,
+                  source: "ais_history",
+                });
+              }
+            }
+          }
+          
+          // vessel_pro'dan son liman bilgisi de ekle
+          try {
+            const proData = await datalastic.getVesselPositionPro({ imo });
+            if (proData) {
+              const lastPortName = proData.last_port_name || proData.port_name;
+              if (lastPortName && !results.find(r => r.port_name === lastPortName)) {
+                results.unshift({
+                  port_name: lastPortName,
+                  country: proData.last_port_country || proData.country_name || "",
+                  locode: proData.last_port_unlocode || null,
+                  arrival: proData.last_port_time || null,
+                  departure: null,
+                  terminal: null,
+                  source: "vessel_pro",
+                });
+              }
+              
+              // Destination bilgisi de ekle (gelecek liman)
+              if (proData.destination) {
+                results.push({
+                  port_name: proData.destination,
+                  country: "",
+                  locode: null,
+                  arrival: proData.eta_UTC || proData.eta || null,
+                  departure: null,
+                  terminal: null,
+                  source: "destination",
+                  isFuture: true,
+                });
+              }
+            }
+          } catch {}
+        }
+      } catch (err) {
+        console.warn("[port-call-history] Datalastic fallback failed:", err);
+      }
+    }
+    
+    // Tarihe göre sırala (en yeni en üstte)
+    results.sort((a, b) => {
+      const dateA = a.arrival ? new Date(a.arrival).getTime() : 0;
+      const dateB = b.arrival ? new Date(b.arrival).getTime() : 0;
+      return dateB - dateA;
+    });
+    
+    res.json(results.slice(0, 20));
+  } catch (error: any) {
+    console.warn("[port-call-history]", error.message);
+    res.json([]);
+  }
+});
+
+Bu çözüm 3 kaynaktan veri toplar:
+1. Kendi veritabanımızdaki port call kayıtları (en güvenilir)
+2. Datalastic vessel_pro'dan son liman + destination bilgisi
+3. Datalastic vessel_history'den pozisyon bazlı liman tespiti
+
+Planınız yükseldiğinde veya port_call endpoint'i aktif olduğunda, fonksiyonun başına Datalastic port_call denemesi de eklenebilir.
