@@ -555,14 +555,17 @@ router.get("/api/vessels/live-position", isAuthenticated, async (req: any, res) 
 router.get("/api/vessels/port-call-history", isAuthenticated, async (req: any, res) => {
   const imo = (req.query.imo as string || "").trim();
   if (!imo) return res.status(400).json({ message: "imo gerekli" });
-  if (!datalastic.isDatalasticConfigured()) return res.status(503).json({ message: "Datalastic yapılandırılmamış" });
   try {
     const results = await datalastic.findVessel(imo, "imo");
     if (!results.length) return res.json([]);
     const vessel = results[0];
-    if (!vessel.uuid) return res.json([]);
-    const calls = await datalastic.getPortCalls(vessel.uuid);
-    res.json(calls.slice(0, 20));
+    let portCalls: any[] = [];
+    if (vessel.uuid) {
+      try {
+        portCalls = await datalastic.getPortCalls(vessel.uuid);
+      } catch {}
+    }
+    res.json(Array.isArray(portCalls) ? portCalls.slice(0, 20) : []);
   } catch (error: any) {
     console.warn("[vessels/port-call-history]", error.message);
     res.json([]);

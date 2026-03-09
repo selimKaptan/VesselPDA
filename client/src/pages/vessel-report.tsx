@@ -408,10 +408,10 @@ export default function VesselReport() {
             title="Canlı Konum" icon={<MapPin className="w-4 h-4" />}
             isLoading={posQ.isLoading && proQ.isLoading}
             error={posQ.error && !posData ? (posQ.error as Error) : null}
-            isEmpty={!posData && !posQ.isLoading && !proQ.isLoading}
-            emptyText="Konum verisi bulunamadı."
+            isEmpty={(!posData || !posData.latitude || !posData.longitude) && !posQ.isLoading && !proQ.isLoading}
+            emptyText="Konum bilgisi bulunamadı."
           >
-            {posData && (
+            {posData && posData.latitude && posData.longitude && (
               <div className="-mx-4 -mt-4">
                 {/* ── Leaflet map — full bleed ── */}
                 <div
