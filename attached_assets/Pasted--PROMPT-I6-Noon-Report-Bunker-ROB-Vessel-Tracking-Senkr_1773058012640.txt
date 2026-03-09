@@ -1,0 +1,66 @@
+## ⭐ PROMPT I6 — Noon Report → Bunker ROB → Vessel Tracking Senkronu
+
+```
+Noon report verileri bunker ve tracking modülleriyle senkron olmalı.
+
+ADIM 1: Noon report oluşturulurken aktif voyage otomatik bağlansın ve bunker ROB güncellensin.
+storage.ts (veya noon-report route) içinde createNoonReport sonrasına:
+
+async createNoonReport(data: InsertNoonReport): Promise<NoonReport> {
+  // Aktif voyage yoksa bul ve bağla
+  if (!data.voyageId && data.vesselId) {
+    const [activeVoyage] = await db.select().from(voyages)
+      .where(and(
+        eq(voyages.vesselId, data.vesselId),
+        or(eq(voyages.status, "in_progress"), eq(voyages.status, "active"))
+      ))
+      .orderBy(desc(voyages.createdAt))
+      .limit(1);
+    if (activeVoyage) {
+      data.voyageId = activeVoyage.id;
+    }
+  }
+  
+  const [report] = await db.insert(noonReports).values(data).returning();
+  
+  // Bunker ROB otomatik oluştur (eğer tüketim verisi varsa)
+  if (data.hfoConsumed || data.mgoConsumed || data.lsfoConsumed) {
+    try {
+      await db.insert(bunkerRobs).values({
+        vesselId: data.vesselId,
+        voyageId: data.voyageId || null,
+        reportDate: data.reportDate,
+        hfoRob: data.hfoRob || 0,
+        mgoRob: data.mgoRob || 0,
+        lsfoRob: data.lsfoRob || 0,
+        hfoConsumed: data.hfoConsumed || 0,
+        mgoConsumed: data.mgoConsumed || 0,
+        lsfoConsumed: data.lsfoConsumed || 0,
+        reportedBy: data.userId,
+      });
+    } catch (err) { console.error("[noon-report] Bunker ROB sync failed:", err); }
+  }
+  
+  // Vessel position kaydet (tracking)
+  if (data.latitude && data.longitude) {
+    try {
+      // Geminin MMSI'sını bul
+      const [vessel] = await db.select({ mmsi: vessels.mmsi, name: vessels.name })
+        .from(vessels).where(eq(vessels.id, data.vesselId));
+      if (vessel?.mmsi) {
+        await db.insert(vesselPositions).values({
+          mmsi: vessel.mmsi,
+          vesselName: vessel.name,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          speed: data.speedOverGround || null,
+        });
+      }
+    } catch (err) { console.error("[noon-report] Position sync failed:", err); }
+  }
+  
+  return report;
+}
+```
+
+---

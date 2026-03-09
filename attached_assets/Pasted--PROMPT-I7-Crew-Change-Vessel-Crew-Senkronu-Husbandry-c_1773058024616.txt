@@ -1,0 +1,51 @@
+## ⭐ PROMPT I7 — Crew Change → Vessel Crew Senkronu
+
+```
+Husbandry crew change tamamlandığında vessel crew listesi otomatik güncellensin.
+
+server/routes/husbandry.routes.ts dosyasında crew change status update endpoint'inde, status "completed" yapıldığında:
+
+if (updatedCrewChange && req.body.status === "completed") {
+  try {
+    if (updatedCrewChange.changeType === "sign_on") {
+      // Yeni crew member ekle
+      await db.insert(vesselCrew).values({
+        vesselId: updatedCrewChange.vesselId,
+        userId: req.user.id,
+        firstName: updatedCrewChange.seafarerName.split(" ")[0] || updatedCrewChange.seafarerName,
+        lastName: updatedCrewChange.seafarerName.split(" ").slice(1).join(" ") || "",
+        rank: updatedCrewChange.rank || null,
+        nationality: updatedCrewChange.nationality || null,
+        passportNumber: updatedCrewChange.passportNumber || null,
+        passportExpiry: updatedCrewChange.passportExpiry || null,
+        seamanBookNumber: updatedCrewChange.seamanBookNumber || null,
+        seamanBookExpiry: updatedCrewChange.seamanBookExpiry || null,
+        contractStartDate: updatedCrewChange.arrivalDate || new Date(),
+        status: "on_board",
+      });
+      console.log(`[crew-change] Sign-on: ${updatedCrewChange.seafarerName} added to vessel crew`);
+    } 
+    else if (updatedCrewChange.changeType === "sign_off") {
+      // Crew member'ı off_board yap (silme, soft update)
+      const crewMembers = await db.select().from(vesselCrew)
+        .where(and(
+          eq(vesselCrew.vesselId, updatedCrewChange.vesselId),
+          ilike(vesselCrew.firstName, `%${updatedCrewChange.seafarerName.split(" ")[0]}%`),
+          eq(vesselCrew.status, "on_board"),
+        ));
+      
+      if (crewMembers.length > 0) {
+        await db.update(vesselCrew)
+          .set({ 
+            status: "off_board",
+            contractEndDate: updatedCrewChange.departureDate || new Date(),
+          })
+          .where(eq(vesselCrew.id, crewMembers[0].id));
+        console.log(`[crew-change] Sign-off: ${updatedCrewChange.seafarerName} marked as off_board`);
+      }
+    }
+  } catch (err) { console.error("[crew-change] Vessel crew sync failed:", err); }
+}
+```
+
+---

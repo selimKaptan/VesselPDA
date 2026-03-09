@@ -1,0 +1,87 @@
+## ⭐ PROMPT I1 — Tender/Fixture → Voyage Otomatik Oluşturma
+
+```
+Sistemde tender'da agent nominate edildiğinde veya fixture "fixed" olduğunda otomatik voyage oluşmalı. Şu anda kullanıcı manuel oluşturmak zorunda.
+
+ADIM 1: server/routes/tender.routes.ts dosyasında agent nominate eden endpoint'i bul (updatePortTenderStatus çağrısının olduğu yer). Nomination işleminden SONRA şu kodu ekle:
+
+// Tender nominate edildiğinde otomatik voyage oluştur
+if (status === "nominated" && nominatedAgentId) {
+  const tender = await storage.getPortTenderById(id);
+  if (tender) {
+    // Daha önce bu tender için voyage oluşturulmuş mu kontrol et
+    const existingVoyage = await storage.getVoyageByTenderId(tender.id);
+    if (!existingVoyage) {
+      const voyage = await storage.createVoyage({
+        userId: tender.userId,
+        portId: tender.portId,
+        vesselName: tender.vesselName || "",
+        imoNumber: null,
+        flag: tender.flag || null,
+        vesselType: null,
+        grt: tender.grt || null,
+        status: "planned",
+        purposeOfCall: "Loading",
+        cargoType: tender.cargoType || null,
+        notes: `Auto-created from Tender #${tender.id}`,
+        tenderId: tender.id,
+        agentUserId: nominatedAgentId,
+        vesselId: null,
+        portId: tender.portId,
+      });
+      console.log(`[tender] Auto-created voyage #${voyage.id} from tender #${tender.id}`);
+
+      // Agent'ı voyage collaborator olarak ekle
+      try {
+        const { voyageCollaborators } = await import("@shared/schema");
+        const { db } = await import("../db");
+        await db.insert(voyageCollaborators).values({
+          voyageId: voyage.id,
+          userId: nominatedAgentId,
+          invitedByUserId: tender.userId,
+          role: "agent",
+          status: "accepted",
+          permissions: { canViewDocuments: true, canUploadDocuments: true, canChat: true, canViewFinancials: true, canEditChecklist: true, canViewSOF: true },
+        });
+      } catch (err) { console.error("[tender] Failed to add collaborator:", err); }
+
+      // Bildirim gönder
+      await storage.createNotification({
+        userId: nominatedAgentId,
+        type: "voyage_created",
+        title: "New Voyage Assigned",
+        message: `You've been nominated as agent for ${tender.vesselName || "a vessel"} at ${tender.portName}. Voyage #${voyage.id} has been created.`,
+        link: `/voyages/${voyage.id}`,
+      });
+    }
+  }
+}
+
+ADIM 2: Fixture → Voyage bağlantısı. server/routes/commercial.routes.ts dosyasında fixture update endpoint'ini bul. Status "fixed" olarak güncellendiğinde:
+
+if (data.status === "fixed" || updatedFixture.status === "fixed") {
+  // Port bul
+  const loadPort = await storage.searchPorts(updatedFixture.loadingPort);
+  const portId = loadPort[0]?.id;
+  
+  if (portId) {
+    const voyage = await storage.createVoyage({
+      userId: updatedFixture.userId,
+      portId: portId,
+      vesselName: updatedFixture.vesselName,
+      imoNumber: updatedFixture.imoNumber || null,
+      status: "planned",
+      purposeOfCall: "Loading",
+      cargoType: updatedFixture.cargoType,
+      cargoQuantity: updatedFixture.cargoQuantity || null,
+      eta: updatedFixture.laycanFrom || null,
+      etd: updatedFixture.laycanTo || null,
+      notes: `Auto-created from Fixture #${updatedFixture.id} — ${updatedFixture.charterer || ""}`,
+      vesselId: null,
+    });
+    console.log(`[fixture] Auto-created voyage #${voyage.id} from fixture #${updatedFixture.id}`);
+  }
+}
+```
+
+---
