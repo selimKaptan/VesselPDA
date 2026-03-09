@@ -200,15 +200,21 @@ function PortSearch({ label, value, onChange, onSelect, placeholder }: {
   );
 }
 
-function MapPanel({ waypoints, routeGeometry, onWpClick }: {
+interface VesselPosition {
+  lat: number; lon: number; name: string;
+  speed?: number; course?: number; destination?: string;
+}
+
+function MapPanel({ waypoints, routeGeometry, onWpClick, vesselPosition }: {
   waypoints: any[]; routeGeometry: number[][];
   onWpClick?: (idx: number) => void;
+  vesselPosition?: VesselPosition | null;
 }) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<L.Layer[]>([]);
   const polylineRef = useRef<L.Polyline | null>(null);
-  const seaRef = useRef<L.TileLayer | null>(null);
+  const vesselMarkerRef = useRef<L.Marker | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -216,13 +222,38 @@ function MapPanel({ waypoints, routeGeometry, onWpClick }: {
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "© OpenStreetMap", maxZoom: 18,
     }).addTo(map);
-    seaRef.current = L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
+    L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
       opacity: 0.6, maxZoom: 18,
     }).addTo(map);
     mapRef.current = map;
     return () => { map.remove(); mapRef.current = null; };
   }, []);
 
+  // Vessel live position marker
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (vesselMarkerRef.current) { map.removeLayer(vesselMarkerRef.current); vesselMarkerRef.current = null; }
+    if (!vesselPosition?.lat || !vesselPosition?.lon) return;
+
+    const shipIcon = L.divIcon({
+      html: `<div style="font-size:22px;filter:drop-shadow(1px 1px 3px rgba(0,0,0,0.7));line-height:1">🚢</div>`,
+      className: "",
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+    });
+    const popup = `<b>${vesselPosition.name}</b><br/>📍 Current Position<br/>${vesselPosition.speed != null ? `Speed: <b>${vesselPosition.speed} kn</b><br/>` : ""}${vesselPosition.course != null ? `Course: <b>${vesselPosition.course}°</b><br/>` : ""}${vesselPosition.destination ? `Dest: <b>${vesselPosition.destination}</b>` : ""}`;
+    const m = L.marker([vesselPosition.lat, vesselPosition.lon], { icon: shipIcon, zIndexOffset: 1000 })
+      .bindPopup(popup)
+      .addTo(map);
+    vesselMarkerRef.current = m;
+
+    if (waypoints.length === 0) {
+      map.setView([vesselPosition.lat, vesselPosition.lon], 6);
+    }
+  }, [vesselPosition]);
+
+  // Route waypoints & polyline
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -232,15 +263,15 @@ function MapPanel({ waypoints, routeGeometry, onWpClick }: {
 
     if (waypoints.length === 0) return;
 
-    const ports = waypoints.filter(w => w.isPort);
-    const straits = waypoints.filter(w => !w.isPort);
+    const portWps = waypoints.filter(w => w.isPort);
 
     waypoints.forEach((wp, idx) => {
       if (!wp.latitude || !wp.longitude) return;
       let color = "#64748b";
       if (wp.isPort) {
-        if (idx === 0) color = "#22c55e";
-        else if (idx === waypoints.length - 1 || (wp.isPort && waypoints.filter(w => w.isPort).indexOf(wp) === waypoints.filter(w => w.isPort).length - 1)) color = "#ef4444";
+        const portIdx = portWps.indexOf(wp);
+        if (portIdx === 0) color = "#22c55e";
+        else if (portIdx === portWps.length - 1) color = "#ef4444";
         else color = "#3b82f6";
       } else if (wp.isCanal) color = "#f97316";
       else if (wp.isStrait) color = "#f59e0b";
@@ -257,13 +288,16 @@ function MapPanel({ waypoints, routeGeometry, onWpClick }: {
       : waypoints.filter(w => w.latitude && w.longitude).map(w => [w.latitude, w.longitude]);
 
     if (lineCoords.length > 1) {
-      const poly = L.polyline(lineCoords, { color: "#3b82f6", weight: 2, opacity: 0.8, dashArray: "6, 4" }).addTo(map);
+      const poly = L.polyline(lineCoords, { color: "#3b82f6", weight: 2.5, opacity: 0.85, dashArray: "8, 5" }).addTo(map);
       polylineRef.current = poly;
     }
 
-    const bounds = waypoints.filter(w => w.latitude && w.longitude).map(w => [w.latitude, w.longitude] as [number, number]);
-    if (bounds.length > 0) {
-      try { map.fitBounds(L.latLngBounds(bounds), { padding: [40, 40], maxZoom: 10 }); } catch {}
+    const allBounds: [number, number][] = [
+      ...waypoints.filter(w => w.latitude && w.longitude).map(w => [w.latitude, w.longitude] as [number, number]),
+      ...(vesselPosition?.lat && vesselPosition?.lon ? [[vesselPosition.lat, vesselPosition.lon] as [number, number]] : []),
+    ];
+    if (allBounds.length > 0) {
+      try { map.fitBounds(L.latLngBounds(allBounds), { padding: [50, 50], maxZoom: 10 }); } catch {}
     }
   }, [waypoints, routeGeometry]);
 
@@ -279,6 +313,7 @@ export default function PassagePlanning() {
   const [vessel, setVessel] = useState<any>(null);
   const [imoInput, setImoInput] = useState("");
   const [imoLoading, setImoLoading] = useState(false);
+  const [vesselPosition, setVesselPosition] = useState<VesselPosition | null>(null);
 
   const [depPort, setDepPort] = useState({ name: "", lat: 0, lon: 0, id: 0, search: "" });
   const [destPort, setDestPort] = useState({ name: "", lat: 0, lon: 0, id: 0, search: "" });
@@ -298,19 +333,49 @@ export default function PassagePlanning() {
 
   const imoTimer = useRef<any>(null);
 
+  const fetchVesselPosition = async (imo: string, vesselName: string) => {
+    try {
+      const r = await fetch(`/api/vessels/live-position?imo=${imo}`);
+      if (r.ok) {
+        const d = await r.json();
+        if (d && d.latitude && d.longitude) {
+          setVesselPosition({
+            lat: parseFloat(d.latitude),
+            lon: parseFloat(d.longitude),
+            name: vesselName,
+            speed: d.speed,
+            course: d.course,
+            destination: d.aisDestination || d.destination,
+          });
+        }
+      }
+    } catch {}
+  };
+
   const lookupVessel = async (imo: string) => {
     if (!imo || imo.length < 7) return;
     setImoLoading(true);
+    setVesselPosition(null);
     try {
       const r1 = await fetch(`/api/vessels/lookup?imo=${imo}`);
       if (r1.ok) {
         const v = await r1.json();
-        if (v && v.name) { setVessel(v); setImoLoading(false); return; }
+        if (v && v.name) {
+          setVessel(v);
+          setImoLoading(false);
+          fetchVesselPosition(imo, v.name);
+          return;
+        }
       }
       const r2 = await fetch(`/api/datalastic/vessel-info/${imo}`);
       if (r2.ok) {
         const v = await r2.json();
-        if (v) { setVessel(v); setImoLoading(false); return; }
+        if (v) {
+          setVessel(v);
+          setImoLoading(false);
+          fetchVesselPosition(imo, v.name || v.vessel_name || imo);
+          return;
+        }
       }
       toast({ title: "Gemi bulunamadı", description: `IMO ${imo} ile gemi bulunamadı.`, variant: "destructive" });
     } catch (e) {
@@ -540,7 +605,7 @@ export default function PassagePlanning() {
                     <div className="bg-slate-800 rounded-md p-2.5 space-y-1">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold text-blue-300">{vessel.name || vessel.vessel_name}</span>
-                        <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => { setVessel(null); setImoInput(""); }}>
+                        <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => { setVessel(null); setImoInput(""); setVesselPosition(null); }}>
                           Değiştir
                         </Button>
                       </div>
@@ -846,6 +911,7 @@ export default function PassagePlanning() {
             waypoints={waypoints}
             routeGeometry={routeGeo}
             onWpClick={setFocusedWp}
+            vesselPosition={vesselPosition}
           />
         </div>
       </div>

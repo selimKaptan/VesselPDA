@@ -61,6 +61,155 @@ function bearingDeg(lat1: number, lon1: number, lat2: number, lon2: number): num
   return (toDeg(Math.atan2(y, x)) + 360) % 360;
 }
 
+// ─── PRE-DEFINED SEA WAYPOINTS — kıtaların etrafından dolaşan deniz rotası ───
+const SEA_WAYPOINTS: Record<string, { lat: number; lon: number; connections: string[] }> = {
+  "gibraltar_w": { lat: 36.00, lon: -5.60, connections: ["gibraltar_e", "atlantic_canary", "atlantic_biscay"] },
+  "gibraltar_e": { lat: 36.10, lon: -5.20, connections: ["gibraltar_w", "med_alboran", "atlantic_portugal"] },
+  "med_alboran": { lat: 36.30, lon: -3.00, connections: ["gibraltar_e", "med_balearic"] },
+  "med_balearic": { lat: 38.50, lon: 2.00, connections: ["med_alboran", "med_sardinia", "med_marseille"] },
+  "med_marseille": { lat: 43.00, lon: 5.00, connections: ["med_balearic", "med_genoa"] },
+  "med_genoa": { lat: 43.50, lon: 9.00, connections: ["med_marseille", "med_sardinia", "med_naples"] },
+  "med_sardinia": { lat: 39.50, lon: 9.50, connections: ["med_balearic", "med_genoa", "med_sicily", "med_tunisia"] },
+  "med_tunisia": { lat: 37.50, lon: 10.50, connections: ["med_sardinia", "med_sicily", "med_malta"] },
+  "med_sicily": { lat: 37.50, lon: 15.50, connections: ["med_sardinia", "med_tunisia", "med_malta", "med_naples"] },
+  "med_naples": { lat: 40.50, lon: 14.00, connections: ["med_genoa", "med_sicily", "med_adriatic"] },
+  "med_adriatic": { lat: 42.00, lon: 17.00, connections: ["med_naples", "med_greece_w"] },
+  "med_malta": { lat: 35.90, lon: 14.50, connections: ["med_sicily", "med_tunisia", "med_crete", "med_libya"] },
+  "med_libya": { lat: 33.50, lon: 15.00, connections: ["med_malta", "med_egypt"] },
+  "med_greece_w": { lat: 38.00, lon: 20.50, connections: ["med_adriatic", "med_greece_e", "med_crete"] },
+  "med_crete": { lat: 35.50, lon: 24.00, connections: ["med_malta", "med_greece_w", "med_greece_e", "med_egypt"] },
+  "med_greece_e": { lat: 38.00, lon: 25.50, connections: ["med_greece_w", "med_crete", "aegean_s"] },
+  "med_egypt": { lat: 31.50, lon: 30.00, connections: ["med_crete", "med_libya", "suez_n"] },
+  "aegean_s": { lat: 37.50, lon: 26.00, connections: ["med_greece_e", "aegean_n", "med_crete"] },
+  "aegean_n": { lat: 39.50, lon: 26.00, connections: ["aegean_s", "dardanelles_w"] },
+  "dardanelles_w": { lat: 40.00, lon: 26.20, connections: ["aegean_n", "dardanelles_e"] },
+  "dardanelles_e": { lat: 40.20, lon: 26.70, connections: ["dardanelles_w", "marmara"] },
+  "marmara": { lat: 40.70, lon: 28.80, connections: ["dardanelles_e", "bosphorus_s"] },
+  "bosphorus_s": { lat: 41.00, lon: 29.00, connections: ["marmara", "bosphorus_n"] },
+  "bosphorus_n": { lat: 41.20, lon: 29.10, connections: ["bosphorus_s", "blacksea_w"] },
+  "blacksea_w": { lat: 42.00, lon: 30.00, connections: ["bosphorus_n", "blacksea_e"] },
+  "blacksea_e": { lat: 42.50, lon: 37.00, connections: ["blacksea_w"] },
+  "turkish_s_coast": { lat: 36.50, lon: 30.00, connections: ["aegean_s", "iskenderun"] },
+  "iskenderun": { lat: 36.60, lon: 35.80, connections: ["turkish_s_coast", "suez_approach"] },
+  "suez_n": { lat: 31.25, lon: 32.30, connections: ["med_egypt", "suez_s"] },
+  "suez_s": { lat: 29.95, lon: 32.55, connections: ["suez_n", "red_sea_n"] },
+  "suez_approach": { lat: 31.00, lon: 33.00, connections: ["iskenderun", "suez_n", "med_egypt"] },
+  "red_sea_n": { lat: 27.00, lon: 34.50, connections: ["suez_s", "red_sea_mid"] },
+  "red_sea_mid": { lat: 21.00, lon: 38.00, connections: ["red_sea_n", "bab_el_mandeb"] },
+  "bab_el_mandeb": { lat: 12.60, lon: 43.30, connections: ["red_sea_mid", "gulf_aden"] },
+  "gulf_aden": { lat: 12.50, lon: 47.00, connections: ["bab_el_mandeb", "arabian_sea"] },
+  "arabian_sea": { lat: 15.00, lon: 60.00, connections: ["gulf_aden", "hormuz_approach", "india_w"] },
+  "hormuz_approach": { lat: 25.50, lon: 57.00, connections: ["arabian_sea", "hormuz"] },
+  "hormuz": { lat: 26.50, lon: 56.30, connections: ["hormuz_approach", "persian_gulf"] },
+  "persian_gulf": { lat: 27.00, lon: 50.00, connections: ["hormuz"] },
+  "india_w": { lat: 15.00, lon: 73.00, connections: ["arabian_sea", "india_s"] },
+  "india_s": { lat: 7.00, lon: 77.00, connections: ["india_w", "malacca_w"] },
+  "malacca_w": { lat: 5.00, lon: 95.00, connections: ["india_s", "malacca_e"] },
+  "malacca_e": { lat: 1.30, lon: 103.80, connections: ["malacca_w", "south_china_sea"] },
+  "south_china_sea": { lat: 10.00, lon: 110.00, connections: ["malacca_e", "taiwan_strait"] },
+  "taiwan_strait": { lat: 24.00, lon: 119.00, connections: ["south_china_sea", "east_china_sea"] },
+  "east_china_sea": { lat: 30.00, lon: 125.00, connections: ["taiwan_strait"] },
+  "atlantic_portugal": { lat: 38.50, lon: -9.50, connections: ["gibraltar_e", "atlantic_biscay", "atlantic_canary"] },
+  "atlantic_canary": { lat: 28.00, lon: -15.50, connections: ["gibraltar_w", "atlantic_portugal", "atlantic_cape_verde"] },
+  "atlantic_cape_verde": { lat: 16.00, lon: -23.00, connections: ["atlantic_canary", "atlantic_brazil", "cape_good_hope_w"] },
+  "atlantic_biscay": { lat: 45.00, lon: -5.00, connections: ["atlantic_portugal", "english_channel_w", "gibraltar_w"] },
+  "english_channel_w": { lat: 49.50, lon: -5.00, connections: ["atlantic_biscay", "english_channel_e"] },
+  "english_channel_e": { lat: 51.00, lon: 1.50, connections: ["english_channel_w", "north_sea_s"] },
+  "north_sea_s": { lat: 52.00, lon: 3.50, connections: ["english_channel_e", "north_sea_n", "kiel_w"] },
+  "north_sea_n": { lat: 57.00, lon: 5.00, connections: ["north_sea_s", "norway_s", "skagerrak"] },
+  "skagerrak": { lat: 57.50, lon: 9.50, connections: ["north_sea_n", "kattegat"] },
+  "kattegat": { lat: 56.50, lon: 11.50, connections: ["skagerrak", "oresund"] },
+  "oresund": { lat: 55.90, lon: 12.70, connections: ["kattegat", "baltic_w"] },
+  "kiel_w": { lat: 54.00, lon: 9.20, connections: ["north_sea_s", "kiel_e"] },
+  "kiel_e": { lat: 54.30, lon: 10.20, connections: ["kiel_w", "baltic_w"] },
+  "baltic_w": { lat: 55.00, lon: 14.00, connections: ["oresund", "kiel_e", "baltic_e"] },
+  "baltic_e": { lat: 59.50, lon: 24.00, connections: ["baltic_w"] },
+  "norway_s": { lat: 58.50, lon: 5.50, connections: ["north_sea_n", "norway_n"] },
+  "norway_n": { lat: 65.00, lon: 10.00, connections: ["norway_s"] },
+  "cape_good_hope_w": { lat: -33.00, lon: 15.00, connections: ["atlantic_cape_verde", "cape_good_hope"] },
+  "cape_good_hope": { lat: -34.35, lon: 18.50, connections: ["cape_good_hope_w", "cape_good_hope_e"] },
+  "cape_good_hope_e": { lat: -33.00, lon: 28.00, connections: ["cape_good_hope", "mozambique"] },
+  "mozambique": { lat: -20.00, lon: 38.00, connections: ["cape_good_hope_e", "gulf_aden"] },
+  "atlantic_brazil": { lat: -5.00, lon: -35.00, connections: ["atlantic_cape_verde", "panama_e_atlantic"] },
+  "us_east": { lat: 37.00, lon: -74.00, connections: ["english_channel_w", "panama_e_atlantic"] },
+  "panama_e_atlantic": { lat: 9.50, lon: -79.50, connections: ["us_east", "atlantic_brazil", "panama_canal"] },
+  "panama_canal": { lat: 9.00, lon: -79.60, connections: ["panama_e_atlantic", "panama_w_pacific"] },
+  "panama_w_pacific": { lat: 8.50, lon: -79.70, connections: ["panama_canal", "us_west"] },
+  "us_west": { lat: 34.00, lon: -118.50, connections: ["panama_w_pacific"] },
+};
+
+function findSeaRoute(startLat: number, startLon: number, endLat: number, endLon: number): { waypoints: { name: string; lat: number; lon: number }[]; totalDistanceNm: number } {
+  function nearestWp(lat: number, lon: number): string {
+    let best = "", bestDist = Infinity;
+    for (const [name, wp] of Object.entries(SEA_WAYPOINTS)) {
+      const d = haversineNm(lat, lon, wp.lat, wp.lon);
+      if (d < bestDist) { bestDist = d; best = name; }
+    }
+    return best;
+  }
+
+  const startWp = nearestWp(startLat, startLon);
+  const endWp = nearestWp(endLat, endLon);
+
+  if (startWp === endWp) {
+    return { waypoints: [], totalDistanceNm: Math.round(haversineNm(startLat, startLon, endLat, endLon) * 10) / 10 };
+  }
+
+  // A* pathfinding
+  const openSet = new Set<string>([startWp]);
+  const cameFrom = new Map<string, string>();
+  const gScore = new Map<string, number>();
+  const fScore = new Map<string, number>();
+
+  gScore.set(startWp, 0);
+  fScore.set(startWp, haversineNm(SEA_WAYPOINTS[startWp].lat, SEA_WAYPOINTS[startWp].lon, SEA_WAYPOINTS[endWp].lat, SEA_WAYPOINTS[endWp].lon));
+
+  let iterations = 0;
+  while (openSet.size > 0 && iterations++ < 500) {
+    let current = "";
+    let minF = Infinity;
+    for (const n of openSet) {
+      const f = fScore.get(n) ?? Infinity;
+      if (f < minF) { minF = f; current = n; }
+    }
+
+    if (current === endWp) {
+      const path: string[] = [current];
+      let c = current;
+      while (cameFrom.has(c)) { c = cameFrom.get(c)!; path.unshift(c); }
+
+      let totalDist = haversineNm(startLat, startLon, SEA_WAYPOINTS[path[0]].lat, SEA_WAYPOINTS[path[0]].lon);
+      const routeWps: { name: string; lat: number; lon: number }[] = [];
+      for (let i = 0; i < path.length; i++) {
+        const wp = SEA_WAYPOINTS[path[i]];
+        routeWps.push({ name: path[i], lat: wp.lat, lon: wp.lon });
+        if (i < path.length - 1) totalDist += haversineNm(wp.lat, wp.lon, SEA_WAYPOINTS[path[i + 1]].lat, SEA_WAYPOINTS[path[i + 1]].lon);
+      }
+      totalDist += haversineNm(SEA_WAYPOINTS[path[path.length - 1]].lat, SEA_WAYPOINTS[path[path.length - 1]].lon, endLat, endLon);
+      return { waypoints: routeWps, totalDistanceNm: Math.round(totalDist * 10) / 10 };
+    }
+
+    openSet.delete(current);
+    const currentWp = SEA_WAYPOINTS[current];
+    if (!currentWp) continue;
+
+    for (const neighbor of currentWp.connections) {
+      const neighborWp = SEA_WAYPOINTS[neighbor];
+      if (!neighborWp) continue;
+      const tentativeG = (gScore.get(current) ?? Infinity) + haversineNm(currentWp.lat, currentWp.lon, neighborWp.lat, neighborWp.lon);
+      if (tentativeG < (gScore.get(neighbor) ?? Infinity)) {
+        cameFrom.set(neighbor, current);
+        gScore.set(neighbor, tentativeG);
+        fScore.set(neighbor, tentativeG + haversineNm(neighborWp.lat, neighborWp.lon, SEA_WAYPOINTS[endWp].lat, SEA_WAYPOINTS[endWp].lon));
+        openSet.add(neighbor);
+      }
+    }
+  }
+
+  // Yol bulunamazsa fallback
+  return { waypoints: [], totalDistanceNm: Math.round(haversineNm(startLat, startLon, endLat, endLon) * 1.2 * 10) / 10 };
+}
+
 router.post("/calculate-route", isAuthenticated, async (req: any, res) => {
   try {
     const { departureLat, departureLon, destinationLat, destinationLon, departurePort, destinationPort, intermediatePorts, plannedSpeed, departureDate } = req.body;
@@ -95,8 +244,8 @@ router.post("/calculate-route", isAuthenticated, async (req: any, res) => {
 
         let legDistanceNm = 0;
         let legRoutePoints: number[][] = [];
-        let usedSeaRoute = false;
 
+        // Önce Datalastic'i dene (varsa)
         try {
           const routeData = await datalastic.getRoute({
             from_lat: pt.lat, from_lon: pt.lon,
@@ -104,25 +253,24 @@ router.post("/calculate-route", isAuthenticated, async (req: any, res) => {
           });
           if (routeData && routeData.distance_nm) {
             legDistanceNm = routeData.distance_nm;
-            usedSeaRoute = true;
-            if (routeData.route && Array.isArray(routeData.route)) {
+            if (routeData.route && Array.isArray(routeData.route))
               legRoutePoints = routeData.route.map((p: any) => [p.lat ?? p[0], p.lon ?? p[1]]);
-            } else if (routeData.geometry && Array.isArray(routeData.geometry)) {
+            else if (routeData.geometry && Array.isArray(routeData.geometry))
               legRoutePoints = routeData.geometry;
-            } else if (routeData.waypoints && Array.isArray(routeData.waypoints)) {
-              legRoutePoints = routeData.waypoints.map((p: any) => [p.lat, p.lon]);
-            }
-            console.log(`[passage] Sea route ${pt.name} → ${next.name}: ${legDistanceNm} NM (Datalastic)`);
+            console.log(`[passage] Datalastic route ${pt.name} → ${next.name}: ${legDistanceNm} NM`);
           }
-        } catch (err: any) {
-          console.warn(`[passage] Datalastic route failed for ${pt.name} → ${next.name}:`, err.message);
-        }
+        } catch {}
 
-        if (!usedSeaRoute || legDistanceNm === 0) {
-          const straightLine = haversineNm(pt.lat, pt.lon, next.lat, next.lon);
-          legDistanceNm = Math.round(straightLine * 1.15 * 10) / 10;
-          legRoutePoints = [[pt.lat, pt.lon], [next.lat, next.lon]];
-          console.log(`[passage] Fallback route ${pt.name} → ${next.name}: ${legDistanceNm} NM (Haversine x1.15)`);
+        // Datalastic başarısız veya yoksa → A* deniz waypoint rotası kullan
+        if (legDistanceNm === 0) {
+          const seaRoute = findSeaRoute(pt.lat, pt.lon, next.lat, next.lon);
+          legDistanceNm = seaRoute.totalDistanceNm;
+          legRoutePoints = [
+            [pt.lat, pt.lon],
+            ...seaRoute.waypoints.map(wp => [wp.lat, wp.lon]),
+            [next.lat, next.lon],
+          ];
+          console.log(`[passage] Sea waypoint route ${pt.name} → ${next.name}: ${legDistanceNm} NM (${seaRoute.waypoints.length} WPs)`);
         }
 
         if (legRoutePoints.length > 0) routeGeometry.push(...legRoutePoints);
