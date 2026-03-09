@@ -10,7 +10,7 @@ import { db } from "../db";
 import { eq, desc, asc, inArray } from "drizzle-orm";
 import multer from "multer";
 import { logVoyageActivity } from "../voyage-activity";
-import { voyageActivities, voyageCargoLogs, voyageCargoReceivers, voyages, voyageContacts, fdaAccounts, invoices, daAdvances, statementOfFacts, noticeOfReadiness, proformas } from "@shared/schema";
+import { voyageActivities, voyageCargoLogs, voyageCargoReceivers, voyages, voyageContacts, fdaAccounts, invoices, daAdvances, statementOfFacts, noticeOfReadiness, proformas, portCalls, voyageCollaborators, voyageNotes, pscInspections } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import path from "path";
 import fs from "fs";
@@ -68,7 +68,57 @@ router.post("/", isAuthenticated, async (req: any, res: any, next: any) => {
     const voyage = await storage.createVoyage(data);
     logAction(userId, "create", "voyage", voyage.id, { portId: voyage.portId, vesselName: voyage.vesselName, status: voyage.status }, getClientIp(req));
     logVoyageActivity({ voyageId: voyage.id, userId, activityType: 'voyage_created', title: 'Voyage created', description: voyage.purposeOfCall ? `Purpose: ${voyage.purposeOfCall}` : undefined });
-    res.json(voyage);
+
+    // I8: Sertifika ve PSC risk kontrolü
+    const warnings: string[] = [];
+    if (voyage.vesselId) {
+      try {
+        const certs = await storage.getVesselCertificates(voyage.vesselId);
+        const now = new Date();
+        const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+        const expiredCerts = certs.filter(c => c.expiresAt && new Date(c.expiresAt) < now);
+        const expiringCerts = certs.filter(c => c.expiresAt && new Date(c.expiresAt) >= now && new Date(c.expiresAt) <= thirtyDays);
+
+        if (expiredCerts.length > 0) {
+          warnings.push(`⛔ ${expiredCerts.length} EXPIRED certificate(s): ${expiredCerts.map(c => c.name).join(", ")}`);
+        }
+        if (expiringCerts.length > 0) {
+          warnings.push(`⚠️ ${expiringCerts.length} certificate(s) expiring within 30 days: ${expiringCerts.map(c => c.name).join(", ")}`);
+        }
+
+        const pscResults = await db.select().from(pscInspections)
+          .where(eq(pscInspections.vesselId, voyage.vesselId))
+          .orderBy(desc(pscInspections.inspectionDate))
+          .limit(1);
+
+        if (pscResults.length > 0 && pscResults[0].detention) {
+          warnings.push(`🚨 Last PSC inspection resulted in DETENTION at ${pscResults[0].port}`);
+        }
+
+        if (warnings.length > 0) {
+          await storage.createNotification({
+            userId: voyage.userId,
+            type: "voyage_risk_alert",
+            title: `Voyage Risk Alert — ${voyage.vesselName || "Vessel"}`,
+            message: warnings.join(" | "),
+            link: `/voyages/${voyage.id}`,
+          });
+          await db.insert(voyageNotes).values({
+            voyageId: voyage.id,
+            authorId: voyage.userId,
+            content: `⚠️ SYSTEM ALERT:\n${warnings.join("\n")}`,
+            noteType: "alert",
+            isPrivate: false,
+          });
+          console.log(`[voyage] Risk alerts for voyage #${voyage.id}:`, warnings);
+        }
+      } catch (err) {
+        console.error("[voyage] Certificate check failed:", err);
+      }
+    }
+
+    return res.status(201).json({ ...voyage, warnings });
   } catch (error) {
     console.error("[voyages:POST] create failed:", error);
     next(error);
@@ -157,6 +207,113 @@ router.get("/pipeline-status", isAuthenticated, async (req: any, res) => {
   } catch (error) {
     console.error("pipeline-status error:", error);
     res.json([]);
+  }
+});
+
+// I9: Birleşik Voyage Dashboard API
+router.get("/:id/dashboard", isAuthenticated, async (req: any, res: any) => {
+  const voyageId = parseInt(req.params.id);
+  const userId = req.user?.claims?.sub || req.user?.id;
+  try {
+    const voyage = await storage.getVoyageById(voyageId);
+    if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+
+    const [
+      proformasData,
+      fdasData,
+      invoicesData,
+      portExpenses,
+      daAdvances,
+      documents,
+      checklists,
+      portCallList,
+      norList,
+      sofList,
+      laytimeSheets,
+      noonReports,
+      collaborators,
+      chatMessages,
+      notes,
+    ] = await Promise.all([
+      storage.getProformasByVoyage(voyageId),
+      db.select().from(fdaAccounts).where(eq(fdaAccounts.voyageId, voyageId)),
+      db.select().from(invoices).where(eq(invoices.voyageId, voyageId)),
+      storage.getPortExpensesByVoyage(voyageId),
+      storage.getDaAdvancesByVoyage(voyageId),
+      storage.getVoyageDocuments(voyageId),
+      storage.getChecklistByVoyage(voyageId),
+      db.select().from(portCalls).where(eq(portCalls.voyageId, voyageId)),
+      db.select().from(noticeOfReadiness).where(eq(noticeOfReadiness.voyageId, voyageId)),
+      db.select().from(statementOfFacts).where(eq(statementOfFacts.voyageId, voyageId)),
+      storage.getLaytimeSheetsByVoyage(voyageId),
+      voyage.vesselId ? storage.getNoonReports(voyage.vesselId, { voyageId }) : [],
+      db.select().from(voyageCollaborators).where(eq(voyageCollaborators.voyageId, voyageId)),
+      storage.getVoyageChatMessages(voyageId),
+      db.select().from(voyageNotes).where(eq(voyageNotes.voyageId, voyageId)).orderBy(desc(voyageNotes.createdAt)),
+    ]);
+
+    const totalPdaUsd = proformasData.reduce((sum, p) => sum + (p.totalUsd || 0), 0);
+    const totalFdaActualUsd = fdasData.reduce((sum, f) => sum + (f.totalActualUsd || 0), 0);
+    const totalInvoiced = invoicesData.reduce((sum, i) => sum + (i.amount || 0), 0);
+    const totalPaid = invoicesData.filter(i => i.status === "paid").reduce((sum, i) => sum + (i.amount || 0), 0);
+    const totalExpenses = portExpenses.reduce((sum, e: any) => sum + (e.amountUsd || e.amount || 0), 0);
+    const totalAdvanceReceived = daAdvances.reduce((sum, a) => sum + (a.receivedAmount || 0), 0);
+    const totalAdvanceRequested = daAdvances.reduce((sum, a) => sum + (a.requestedAmount || 0), 0);
+
+    const checklistTotal = checklists.length;
+    const checklistDone = checklists.filter((c: any) => c.isCompleted).length;
+
+    const latestPortCall = portCallList[0];
+    const latestNor = norList[0];
+    const latestSof = sofList[0];
+
+    res.json({
+      voyage,
+      portCalls: portCallList,
+      nor: norList,
+      sof: sofList,
+      noonReports: noonReports.slice(0, 10),
+      financial: {
+        pdaTotal: totalPdaUsd,
+        fdaActualTotal: totalFdaActualUsd,
+        pdaFdaVariance: totalFdaActualUsd - totalPdaUsd,
+        pdaFdaVariancePercent: totalPdaUsd > 0 ? +((totalFdaActualUsd - totalPdaUsd) / totalPdaUsd * 100).toFixed(1) : 0,
+        totalInvoiced,
+        totalPaid,
+        outstanding: totalInvoiced - totalPaid,
+        totalExpenses,
+        advanceRequested: totalAdvanceRequested,
+        advanceReceived: totalAdvanceReceived,
+        advanceBalance: totalAdvanceRequested - totalAdvanceReceived,
+      },
+      proformas: proformasData,
+      fdas: fdasData,
+      invoices: invoicesData,
+      portExpenses: portExpenses.slice(0, 20),
+      daAdvances,
+      documents: documents.slice(0, 20),
+      laytimeSheets,
+      notes: notes.slice(0, 20),
+      collaborators,
+      recentMessages: chatMessages.slice(-20),
+      progress: {
+        checklistTotal,
+        checklistDone,
+        checklistPercent: checklistTotal > 0 ? Math.round((checklistDone / checklistTotal) * 100) : 0,
+        documentsCount: documents.length,
+        hasNor: norList.length > 0,
+        norStatus: latestNor?.status || null,
+        hasSof: sofList.length > 0,
+        sofStatus: latestSof?.status || null,
+        hasProforma: proformasData.length > 0,
+        hasFda: fdasData.length > 0,
+        hasInvoice: invoicesData.length > 0,
+        portCallStatus: latestPortCall?.status || null,
+      },
+    });
+  } catch (err) {
+    console.error("[voyage-dashboard] Error:", err);
+    res.status(500).json({ message: "Failed to load voyage dashboard" });
   }
 });
 
