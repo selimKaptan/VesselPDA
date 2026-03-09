@@ -11,6 +11,7 @@ import { eventBus } from "../events";
 import { logVoyageActivity } from "../voyage-activity";
 import { db, pool } from "../db";
 import { sql as drizzleSql, eq, desc } from "drizzle-orm";
+import { voyageCollaborators } from "@shared/schema";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -414,6 +415,27 @@ router.post("/:id/nominate", isAuthenticated, async (req: any, res) => {
         } as any);
       }
       autoVoyageId = voyage.id;
+
+      // Agent'ı voyage collaborator olarak ekle (eğer henüz eklenmemişse)
+      try {
+        await db.insert(voyageCollaborators).values({
+          voyageId: voyage.id,
+          userId: selectedBid.agentUserId,
+          invitedByUserId: tender.userId,
+          role: "agent",
+          status: "accepted",
+          permissions: {
+            canViewDocuments: true,
+            canUploadDocuments: true,
+            canChat: true,
+            canViewFinancials: true,
+            canEditChecklist: true,
+            canViewSOF: true,
+          },
+        }).onConflictDoNothing();
+      } catch (collabErr) {
+        console.error("[nominate] Failed to add voyage collaborator (non-blocking):", collabErr);
+      }
 
       // Create or get conversation linked to voyage
       const conversation = await storage.getOrCreateConversation(

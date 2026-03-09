@@ -5,6 +5,7 @@ import {
   voyageDocuments, voyageReviews, voyageChatMessages,
   portCallAppointments, voyageCrewLogistics,
   documentTemplates, noonReports,
+  bunkerRobs, vesselPositions, vessels,
   users,
   type Voyage, type InsertVoyage,
   type VoyageChecklist, type InsertVoyageChecklist,
@@ -528,7 +529,61 @@ async function getNoonReports(vesselId: number, options?: { voyageId?: number; f
 }
 
 async function createNoonReport(data: InsertNoonReport): Promise<NoonReport> {
+  // Aktif voyage yoksa otomatik bağla
+  if (!data.voyageId && data.vesselId) {
+    const [activeVoyage] = await db.select().from(voyages)
+      .where(and(
+        eq(voyages.vesselId, data.vesselId),
+        or(eq(voyages.status, "in_progress"), eq(voyages.status, "active"))
+      ))
+      .orderBy(desc(voyages.createdAt))
+      .limit(1);
+    if (activeVoyage) {
+      data = { ...data, voyageId: activeVoyage.id };
+    }
+  }
+
   const [report] = await db.insert(noonReports).values(data).returning();
+
+  // Bunker ROB senkronu — tüketim verisi varsa kaydet
+  if (data.hfoConsumed || data.mgoConsumed || data.lsfoConsumed) {
+    try {
+      await db.insert(bunkerRobs).values({
+        vesselId: data.vesselId,
+        voyageId: data.voyageId ?? null,
+        reportDate: data.reportDate,
+        hfoRob: data.hfoRob ?? 0,
+        mgoRob: data.mgoRob ?? 0,
+        lsfoRob: data.lsfoRob ?? 0,
+        hfoConsumed: data.hfoConsumed ?? 0,
+        mgoConsumed: data.mgoConsumed ?? 0,
+        lsfoConsumed: data.lsfoConsumed ?? 0,
+        reportedBy: data.userId,
+      });
+    } catch (err) {
+      console.error("[noon-report] Bunker ROB sync failed:", err);
+    }
+  }
+
+  // Gemi konumu kaydet (tracking)
+  if (data.latitude && data.longitude) {
+    try {
+      const [vessel] = await db.select({ mmsi: vessels.mmsi, name: vessels.name })
+        .from(vessels).where(eq(vessels.id, data.vesselId));
+      if (vessel?.mmsi) {
+        await db.insert(vesselPositions).values({
+          mmsi: vessel.mmsi,
+          vesselName: vessel.name,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          speed: data.speedOverGround ?? null,
+        } as any);
+      }
+    } catch (err) {
+      console.error("[noon-report] Position sync failed:", err);
+    }
+  }
+
   return report;
 }
 

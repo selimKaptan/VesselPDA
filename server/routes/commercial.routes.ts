@@ -3,9 +3,9 @@ import { storage } from "../storage";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { isAdmin } from "./shared";
 import { insertFixtureSchema, insertCargoPositionSchema } from "@shared/schema";
+import { logAction, getClientIp } from "../audit";
 import { db, pool } from "../db";
 import { eq, desc } from "drizzle-orm";
-import { logAction } from "../audit";
 
 const router = Router();
 
@@ -70,6 +70,44 @@ router.patch("/api/fixtures/:id", isAuthenticated, async (req: any, res) => {
     if (fixture.userId !== req.user.claims.sub && !isAdmin) return res.status(403).json({ message: "Forbidden" });
     const updated = await storage.updateFixture(id, req.body);
     res.json(updated);
+
+    // Fixture "fixed" olduğunda otomatik voyage oluştur
+    if (updated && (req.body.status === "fixed" || updated.status === "fixed") && fixture.status !== "fixed") {
+      try {
+        const userId = req.user.claims.sub;
+        const loadingPort = updated.loadingPort || (updated as any).load_port;
+        if (loadingPort) {
+          const matchedPorts = await storage.searchPorts(loadingPort);
+          const portId = matchedPorts[0]?.id;
+          if (portId) {
+            const voyage = await storage.createVoyage({
+              userId,
+              portId,
+              vesselName: updated.vesselName || updated.vessel || "",
+              imoNumber: updated.imoNumber || null,
+              status: "planned",
+              purposeOfCall: "Loading",
+              cargoType: updated.cargoType || null,
+              cargoQuantity: updated.cargoQuantity || null,
+              eta: updated.laycanFrom ? new Date(updated.laycanFrom) : null,
+              etd: updated.laycanTo ? new Date(updated.laycanTo) : null,
+              notes: `Auto-created from Fixture #${updated.id}${updated.charterer ? ` — ${updated.charterer}` : ""}`,
+              vesselId: null,
+            } as any);
+            console.log(`[fixture] Auto-created voyage #${voyage.id} from fixture #${updated.id}`);
+            await storage.createNotification({
+              userId,
+              type: "voyage_created",
+              title: "Voyage Created from Fixture",
+              message: `Fixture #${updated.id} fixed — Voyage #${voyage.id} created for ${updated.vesselName || "vessel"}.`,
+              link: `/voyages/${voyage.id}`,
+            });
+          }
+        }
+      } catch (voyageErr) {
+        console.error("[fixture] Auto-voyage creation failed (non-blocking):", voyageErr);
+      }
+    }
   } catch {
     res.status(500).json({ message: "Failed to update fixture" });
   }

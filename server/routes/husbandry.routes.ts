@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { isAuthenticated } from "../replit_integrations/auth";
-import { insertHusbandryOrderSchema, insertCrewChangeSchema } from "@shared/schema";
+import { insertHusbandryOrderSchema, insertCrewChangeSchema, vesselCrew } from "@shared/schema";
+import { db } from "../db";
+import { eq, and, ilike } from "drizzle-orm";
 
 const router = Router();
 
@@ -91,6 +93,52 @@ router.patch("/crew-changes/:id", isAuthenticated, async (req: any, res) => {
     const change = await storage.updateCrewChange(id, req.body);
     if (!change) return res.status(404).json({ message: "Crew change not found" });
     res.json(change);
+
+    // Crew change "completed" olduğunda vessel crew listesini güncelle
+    if (req.body.status === "completed" && change) {
+      try {
+        const userId = req.user?.claims?.sub || req.user?.id;
+        if (change.changeType === "sign_on") {
+          const nameParts = change.seafarerName.split(" ");
+          const firstName = nameParts[0] || change.seafarerName;
+          const lastName = nameParts.slice(1).join(" ") || "";
+          await db.insert(vesselCrew).values({
+            vesselId: change.vesselId,
+            userId,
+            firstName,
+            lastName,
+            rank: change.rank ?? null,
+            nationality: change.nationality ?? null,
+            passportNumber: change.passportNumber ?? null,
+            passportExpiry: change.passportExpiry ?? null,
+            seamanBookNumber: change.seamanBookNumber ?? null,
+            seamanBookExpiry: change.seamanBookExpiry ?? null,
+            contractStartDate: change.arrivalDate ?? new Date(),
+            status: "on_board",
+          } as any);
+          console.log(`[crew-change] Sign-on: ${change.seafarerName} added to vessel crew`);
+        } else if (change.changeType === "sign_off") {
+          const firstName = change.seafarerName.split(" ")[0];
+          const onBoardMembers = await db.select().from(vesselCrew)
+            .where(and(
+              eq(vesselCrew.vesselId, change.vesselId),
+              ilike(vesselCrew.firstName, `%${firstName}%`),
+              eq(vesselCrew.status, "on_board"),
+            ));
+          if (onBoardMembers.length > 0) {
+            await db.update(vesselCrew)
+              .set({
+                status: "off_board",
+                contractEndDate: change.departureDate ?? new Date(),
+              } as any)
+              .where(eq(vesselCrew.id, onBoardMembers[0].id));
+            console.log(`[crew-change] Sign-off: ${change.seafarerName} marked as off_board`);
+          }
+        }
+      } catch (syncErr) {
+        console.error("[crew-change] Vessel crew sync failed (non-blocking):", syncErr);
+      }
+    }
   } catch (error) {
     res.status(500).json({ message: "Failed to update crew change" });
   }
