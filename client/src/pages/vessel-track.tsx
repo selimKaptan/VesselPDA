@@ -37,6 +37,16 @@ interface AISVessel {
   isOwnVessel?: boolean;
   isAgencyVessel?: boolean;
   imo?: string | null;
+  aisDestination?: string | null;
+  voyage?: {
+    id: number;
+    portName: string | null;
+    eta: string | null;
+    etd: string | null;
+    status: string;
+    purposeOfCall: string | null;
+    cargoType: string | null;
+  } | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -76,18 +86,48 @@ function createPopupHtml(v: AISVessel): string {
   rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0">Status</td><td style="color:${statusColor};font-weight:600">${statusLabel}</td></tr>`;
   if (v.speed !== undefined && v.speed > 0) rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0">Speed</td><td>${v.speed} kn</td></tr>`;
   if (v.heading !== undefined && v.speed > 0) rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0">Heading</td><td>${v.heading}°</td></tr>`;
-  if (v.destination) rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0">Dest.</td><td style="font-weight:600">${v.destination}</td></tr>`;
+  // AIS Destination
+  const aisDest = v.aisDestination ?? v.destination;
+  if (aisDest) rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0;white-space:nowrap">AIS Dest.</td><td style="font-weight:600">${aisDest}</td></tr>`;
   if (v.eta) {
     const etaStr = fmtDateTime(v.eta);
-    rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0">ETA</td><td>${etaStr}</td></tr>`;
+    rows += `<tr><td style="color:#9ca3af;padding:2px 10px 2px 0;white-space:nowrap">AIS ETA</td><td>${etaStr}</td></tr>`;
   }
 
-  return `<div style="min-width:200px;font-size:12px;font-family:system-ui,-apple-system,sans-serif;line-height:1.4">
+  // Planned Voyage (kullanıcının oluşturduğu sefer)
+  let voyageHtml = "";
+  if (v.voyage) {
+    const vStatus = v.voyage.status === "in_progress" ? "Devam Ediyor" : "Planlandı";
+    const vColor = v.voyage.status === "in_progress" ? "#16a34a" : "#2563eb";
+    const vBg   = v.voyage.status === "in_progress" ? "#dcfce7" : "#dbeafe";
+    let vDetails = "";
+    if (v.voyage.purposeOfCall) vDetails += v.voyage.purposeOfCall;
+    if (v.voyage.cargoType)     vDetails += (vDetails ? " • " : "") + v.voyage.cargoType;
+    if (v.voyage.eta) {
+      const etaStr = new Date(v.voyage.eta).toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" });
+      vDetails += (vDetails ? " • " : "") + `ETA: ${etaStr}`;
+    }
+    voyageHtml = `
+      <div style="margin-top:8px;border-top:1px solid #e5e7eb;padding-top:6px">
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
+          <div style="width:3px;height:36px;background:#3b82f6;border-radius:2px;flex-shrink:0"></div>
+          <div>
+            <div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Planlanan Sefer</div>
+            <div style="font-weight:700;font-size:12px;color:#1d4ed8">${v.voyage.portName ?? "—"}</div>
+            ${vDetails ? `<div style="font-size:10px;color:#6b7280;margin-top:1px">${vDetails}</div>` : ""}
+            <span style="display:inline-block;margin-top:3px;font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;background:${vBg};color:${vColor}">${vStatus}</span>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  return `<div style="min-width:210px;font-size:12px;font-family:system-ui,-apple-system,sans-serif;line-height:1.4">
     <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px;border-bottom:1px solid #f3f4f6;padding-bottom:6px">
       <span style="width:9px;height:9px;border-radius:50%;background:${statusColor};flex-shrink:0;display:inline-block;box-shadow:0 0 4px ${statusColor}66"></span>
       <strong style="font-size:13px;color:#111827">${name}</strong>
     </div>
     <table style="border-collapse:collapse;font-size:11px;width:100%;color:#374151"><tbody>${rows}</tbody></table>
+    ${voyageHtml}
   </div>`;
 }
 

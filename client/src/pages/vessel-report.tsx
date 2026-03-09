@@ -434,13 +434,40 @@ export default function VesselReport() {
                           <span className="text-[10px] font-mono text-primary">{posData.dep_unlocode}</span>
                         )}
                       </div>
-                      <div className="flex flex-col gap-0.5 items-end text-right">
-                        <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Varış</span>
-                        <span className="text-sm font-bold leading-tight">
-                          {posData.dest_port_name ?? posData.destination ?? "—"}
-                        </span>
-                        {posData.dest_unlocode && (
-                          <span className="text-[10px] font-mono text-primary">{posData.dest_unlocode}</span>
+                      <div className="flex flex-col gap-1 items-end text-right">
+                        {/* AIS Destination — geminin AIS'ten bildirdiği gerçek hedef */}
+                        <div className="flex flex-col gap-0.5 items-end">
+                          <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">AIS Varış</span>
+                          <span className="text-sm font-bold leading-tight">
+                            {posData.aisDestination ?? posData.dest_port_name ?? posData.destination ?? "—"}
+                          </span>
+                          {posData.dest_unlocode && (
+                            <span className="text-[10px] font-mono text-primary">{posData.dest_unlocode}</span>
+                          )}
+                        </div>
+                        {/* Planlanan Voyage — kullanıcının oluşturduğu sefer */}
+                        {(posQ.data as any)?.voyage && (
+                          <div className="border-l-2 border-blue-500 pl-2 flex flex-col gap-0.5 items-end">
+                            <span className="text-[9px] uppercase tracking-widest text-blue-500 font-semibold">Planlanan Sefer</span>
+                            <span className="text-sm font-bold leading-tight text-blue-600 dark:text-blue-400">
+                              {(posQ.data as any).voyage.portName ?? "—"}
+                            </span>
+                            <div className="flex gap-1.5 text-[10px] text-muted-foreground flex-wrap justify-end">
+                              {(posQ.data as any).voyage.purposeOfCall && (
+                                <span>{(posQ.data as any).voyage.purposeOfCall}</span>
+                              )}
+                              {(posQ.data as any).voyage.cargoType && (
+                                <span>• {(posQ.data as any).voyage.cargoType}</span>
+                              )}
+                            </div>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-semibold ${
+                              (posQ.data as any).voyage.status === "in_progress"
+                                ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
+                                : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                            }`}>
+                              {(posQ.data as any).voyage.status === "in_progress" ? "Devam Ediyor" : "Planlandı"}
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>

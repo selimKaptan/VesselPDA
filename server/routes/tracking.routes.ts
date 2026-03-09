@@ -3,7 +3,8 @@ import { storage } from "../storage";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { isAdmin, seededRandom } from "./shared";
 import { db, pool } from "../db";
-import { sql as drizzleSql, eq, desc } from "drizzle-orm";
+import { sql as drizzleSql, eq, desc, and, or } from "drizzle-orm";
+import { vessels as vesselTable, voyages, ports } from "@shared/schema";
 import * as datalastic from "../datalastic";
 import { isDatalasticConfigured, getVesselPosition } from "../datalastic";
 
@@ -158,6 +159,39 @@ router.get("/api/vessel-track/fleet", isAuthenticated, async (req: any, res) => 
 
     if (userVessels.length === 0) return res.json([]);
 
+    // Aktif voyage'ları batch olarak çek (vessel ID → voyage map)
+    const vesselIds = userVessels.map(v => v.id);
+    const voyageMap = new Map<number, any>();
+    try {
+      const activeVoyages = await db.select().from(voyages).where(
+        or(eq(voyages.status, "planned"), eq(voyages.status, "in_progress"), eq(voyages.status, "active"))
+      ).orderBy(desc(voyages.createdAt));
+
+      // Voyage'lara ait portId'leri topla, port isimlerini tek sorguda çek
+      const portIds = [...new Set(activeVoyages.filter(v => v.portId).map(v => v.portId!))];
+      const portNameMap = new Map<number, string>();
+      if (portIds.length > 0) {
+        const portRows = await db.select({ id: ports.id, name: ports.name }).from(ports);
+        portRows.forEach(p => portNameMap.set(p.id, p.name));
+      }
+
+      // Her vessel için en son aktif voyage'ı bul
+      for (const vId of vesselIds) {
+        const voy = activeVoyages.find(v => v.vesselId === vId);
+        if (voy) {
+          voyageMap.set(vId, {
+            id: voy.id,
+            portName: voy.portId ? (portNameMap.get(voy.portId) ?? null) : null,
+            eta: voy.eta,
+            etd: voy.etd,
+            status: voy.status,
+            purposeOfCall: voy.purposeOfCall,
+            cargoType: voy.cargoType,
+          });
+        }
+      }
+    } catch { /* voyage bilgisi opsiyonel */ }
+
     // Datalastic: individual lookups per vessel (5 concurrent max)
     if (isDatalasticConfigured()) {
       const CHUNK = 5;
@@ -201,10 +235,12 @@ router.get("/api/vessel-track/fleet", isAuthenticated, async (req: any, res) => 
           heading: live?.heading ?? Math.floor(seededRandom(v.id * 1000 + 3) * 360),
           speed: live?.speed ?? Math.round(seededRandom(v.id * 1000 + 4) * 14 * 10) / 10,
           destination: live?.destination ?? mock.destination,
+          aisDestination: live?.destination ?? null,
           eta: live?.eta ?? mock.eta,
           status: normalizedStatus as "underway" | "anchored" | "moored",
           isOwnVessel: true,
           source: live ? "datalastic" : "mock",
+          voyage: voyageMap.get(v.id) ?? null,
         };
       });
       return res.json(result);
@@ -226,10 +262,12 @@ router.get("/api/vessel-track/fleet", isAuthenticated, async (req: any, res) => 
         heading: Math.floor(seededRandom(v.id * 1000 + 3) * 360),
         speed: Math.round(seededRandom(v.id * 1000 + 4) * 14 * 10) / 10,
         destination: mock.destination,
+        aisDestination: null,
         eta: mock.eta,
         status: ["underway", "anchored", "moored"][Math.floor(seededRandom(v.id * 1000 + 5) * 3)] as "underway" | "anchored" | "moored",
         isOwnVessel: true,
         source: "mock",
+        voyage: voyageMap.get(v.id) ?? null,
       };
     });
     res.json(fleetWithPositions);
@@ -530,6 +568,39 @@ router.get("/api/vessels/live-position", isAuthenticated, async (req: any, res) 
     if (lat != null && lng != null && (lat < -90 || lat > 90 || lng < -180 || lng > 180)) {
       lat = null; lng = null;
     }
+    // Aktif voyage sorgulama (opsiyonel — hata olursa null döner)
+    let activeVoyage: any = null;
+    if (imo) {
+      try {
+        const dbVessel = await db.select({ id: vesselTable.id })
+          .from(vesselTable).where(eq(vesselTable.imoNumber, imo)).limit(1);
+        if (dbVessel.length > 0) {
+          const [voy] = await db.select().from(voyages).where(
+            and(
+              eq(voyages.vesselId, dbVessel[0].id),
+              or(eq(voyages.status, "planned"), eq(voyages.status, "in_progress"), eq(voyages.status, "active"))
+            )
+          ).orderBy(desc(voyages.createdAt)).limit(1);
+          if (voy) {
+            let portName: string | null = null;
+            if (voy.portId) {
+              const [p] = await db.select({ name: ports.name }).from(ports).where(eq(ports.id, voy.portId));
+              portName = p?.name ?? null;
+            }
+            activeVoyage = {
+              id: voy.id,
+              portName,
+              eta: voy.eta,
+              etd: voy.etd,
+              status: voy.status,
+              purposeOfCall: voy.purposeOfCall,
+              cargoType: voy.cargoType,
+            };
+          }
+        }
+      } catch { /* voyage opsiyonel */ }
+    }
+
     res.json({
       latitude:          lat,
       longitude:         lng,
@@ -544,6 +615,9 @@ router.get("/api/vessels/live-position", isAuthenticated, async (req: any, res) 
       draught:           position?.draught           ?? position?.current_draught ?? null,
       port_name:         position?.port_name         ?? null,
       country:           position?.country           ?? null,
+      aisDestination:    position?.destination       ?? vessel.destination       ?? null,
+      aisEta:            position?.eta               ?? vessel.eta               ?? null,
+      voyage:            activeVoyage,
     });
   } catch (error: any) {
     console.warn("[vessels/live-position]", error.message);
