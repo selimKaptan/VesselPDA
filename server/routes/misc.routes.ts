@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { isAuthenticated } from "../replit_integrations/auth";
+import { validate } from "../middleware/validate";
 import { isAdmin } from "./shared";
 import { cached, invalidateCache } from "../cache";
 import { insertInvoiceSchema, voyageActivities, invoices, insertInvoicePaymentSchema } from "@shared/schema";
@@ -173,11 +174,10 @@ router.get("/api/invoices", isAuthenticated, async (req: any, res) => {
 });
 
 
-router.post("/api/invoices", isAuthenticated, async (req: any, res) => {
+router.post("/api/invoices", isAuthenticated, validate(insertInvoiceSchema.partial().refine(d => d.title && d.amount, { message: "title and amount required" })), async (req: any, res) => {
   try {
     const userId = req.user?.claims?.sub || req.user?.id;
     const { title, amount, currency, dueDate, notes, invoiceType, voyageId, proformaId, fdaId, linkedProformaId, recipientEmail, recipientName, vesselName, portName } = req.body;
-    if (!title || !amount) return res.status(400).json({ message: "title and amount required" });
 
     const invoice = await storage.createInvoice({
       createdByUserId: userId,

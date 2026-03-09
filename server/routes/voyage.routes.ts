@@ -319,14 +319,12 @@ router.post("/:id/documents", isAuthenticated, async (req: any, res) => {
     const { name, docType, fileBase64, fileUrl, fileName, fileSize, notes } = req.body;
     if (!name || (!fileBase64 && !fileUrl)) return res.status(400).json({ message: "name and file required" });
 
-    // Save base64 to filesystem; keep old base64-in-DB records untouched
     let resolvedUrl = fileUrl || null;
-    let base64ToStore: string | null = null;
     if (fileBase64 && !fileUrl) {
       try {
         resolvedUrl = saveBase64File(fileBase64, "documents");
-      } catch {
-        base64ToStore = fileBase64; // fallback if FS write fails
+      } catch (err) {
+        console.error("[voyage-docs] Failed to save file to disk:", err);
       }
     }
 
@@ -334,7 +332,7 @@ router.post("/:id/documents", isAuthenticated, async (req: any, res) => {
       voyageId,
       name,
       docType: docType || "other",
-      fileBase64: base64ToStore,
+      fileBase64: null,
       fileUrl: resolvedUrl,
       fileName: fileName || null,
       fileSize: fileSize || null,

@@ -424,14 +424,12 @@ router.post("/:vesselId/certificates", isAuthenticated, async (req: any, res) =>
     const userId = req.user?.claims?.sub || req.user?.id;
     const { fileBase64, ...certData } = req.body;
 
-    // Save base64 certificate file to filesystem; old DB records stay untouched
     let resolvedFileUrl = certData.fileUrl || null;
-    let base64ToStore: string | null = null;
     if (fileBase64 && !certData.fileUrl) {
       try {
         resolvedFileUrl = saveBase64File(fileBase64, "certificates");
-      } catch {
-        base64ToStore = fileBase64;
+      } catch (err) {
+        console.error("[vessel-certs] Failed to save certificate file to disk:", err);
       }
     }
 
@@ -439,7 +437,7 @@ router.post("/:vesselId/certificates", isAuthenticated, async (req: any, res) =>
       ...certData,
       vesselId,
       userId,
-      fileBase64: base64ToStore,
+      fileBase64: null,
       fileUrl: resolvedFileUrl,
     });
     res.status(201).json(cert);

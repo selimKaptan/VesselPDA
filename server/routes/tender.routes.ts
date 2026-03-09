@@ -260,14 +260,12 @@ router.post("/:id/bids", isAuthenticated, async (req: any, res) => {
       return res.status(400).json({ message: "PDF file is too large (max 5MB)" });
     }
 
-    // Save base64 PDF to filesystem; store URL in DB instead of raw base64
     let pdfUrl: string | null = null;
-    let pdfBase64ToStore: string | null = null;
     if (proformaPdfBase64) {
       try {
         pdfUrl = saveBase64File(proformaPdfBase64, "bids");
-      } catch {
-        pdfBase64ToStore = proformaPdfBase64; // fallback: store in DB if FS write fails
+      } catch (err) {
+        console.error("[tender-bids] Failed to save PDF to disk:", err);
       }
     }
 
@@ -275,7 +273,7 @@ router.post("/:id/bids", isAuthenticated, async (req: any, res) => {
       tenderId,
       agentUserId: userId,
       agentCompanyId: profile?.id || null,
-      proformaPdfBase64: pdfBase64ToStore,
+      proformaPdfBase64: null,
       proformaPdfUrl: pdfUrl,
       notes: notes || null,
       totalAmount: totalAmount || null,

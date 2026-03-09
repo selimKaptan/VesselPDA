@@ -1,0 +1,135 @@
+## ⭐ PROMPT F5 — Event Bus Sistemi
+
+```
+Projede bildirimler, e-postalar ve audit loglar her yerde manuel oluşturuluyor. Merkezi bir event sistemi kuralım.
+
+ADIM 1: server/events/event-bus.ts oluştur:
+
+import { EventEmitter } from "events";
+
+class AppEventBus extends EventEmitter {
+  emitEvent(event: string, data: any) {
+    console.log(`[event] ${event}`, JSON.stringify(data).slice(0, 200));
+    this.emit(event, data);
+  }
+}
+
+export const eventBus = new AppEventBus();
+eventBus.setMaxListeners(50);
+
+// Event tipleri
+export type AppEvents = {
+  "proforma.created": { proformaId: number; userId: string; vesselName: string; portName: string };
+  "proforma.approved": { proformaId: number; userId: string; approvedBy: string };
+  "proforma.rejected": { proformaId: number; userId: string; reason?: string };
+  "voyage.created": { voyageId: number; userId: string; vesselName: string };
+  "voyage.statusChanged": { voyageId: number; userId: string; oldStatus: string; newStatus: string };
+  "invoice.created": { invoiceId: number; userId: string; amount: number; currency: string };
+  "invoice.paid": { invoiceId: number; userId: string; amount: number };
+  "invoice.overdue": { invoiceId: number; userId: string; daysOverdue: number };
+  "tender.created": { tenderId: number; userId: string; portId: number };
+  "tender.bidReceived": { tenderId: number; bidId: number; agentUserId: string };
+  "tender.nominated": { tenderId: number; agentUserId: string };
+  "nomination.created": { nominationId: number; agentUserId: string };
+  "nomination.responded": { nominationId: number; status: string };
+  "certificate.expiring": { certId: number; userId: string; daysLeft: number; vesselName: string };
+  "message.received": { conversationId: number; senderId: string; receiverId: string };
+  "fda.created": { fdaId: number; userId: string; voyageId?: number };
+  "da-advance.created": { advanceId: number; userId: string; amount: number };
+};
+
+ADIM 2: server/events/listeners/ klasörü oluştur:
+
+server/events/listeners/notification.listener.ts:
+import { eventBus } from "../event-bus";
+import { storage } from "../../storage";
+
+// Proforma onaylandığında bildirim
+eventBus.on("proforma.approved", async (data) => {
+  await storage.createNotification({
+    userId: data.userId,
+    type: "pda_approved",
+    title: "Proforma Approved",
+    message: `Your proforma has been approved.`,
+    link: `/proformas/${data.proformaId}`,
+  });
+});
+
+// Tender teklifi geldiğinde bildirim
+eventBus.on("tender.bidReceived", async (data) => {
+  // Tender sahibine bildirim gönder
+  const tender = await storage.getPortTenderById(data.tenderId);
+  if (tender) {
+    await storage.createNotification({
+      userId: tender.userId,
+      type: "bid_received",
+      title: "New Bid Received",
+      message: `A new bid has been submitted for your tender.`,
+      link: `/tenders/${data.tenderId}`,
+    });
+  }
+});
+
+// Mesaj geldiğinde bildirim
+eventBus.on("message.received", async (data) => {
+  await storage.createNotification({
+    userId: data.receiverId,
+    type: "new_message",
+    title: "New Message",
+    message: "You have a new message.",
+    link: `/messages`,
+  });
+});
+
+// Diğer event listener'ları da ekle...
+
+server/events/listeners/audit.listener.ts:
+import { eventBus } from "../event-bus";
+import { db } from "../../db";
+import { auditLogs } from "@shared/schema";
+
+const AUDIT_EVENTS = [
+  "proforma.created", "proforma.approved", "proforma.rejected",
+  "voyage.created", "voyage.statusChanged",
+  "invoice.created", "invoice.paid",
+  "tender.created", "tender.nominated",
+];
+
+for (const event of AUDIT_EVENTS) {
+  eventBus.on(event, async (data: any) => {
+    try {
+      await db.insert(auditLogs).values({
+        userId: data.userId || null,
+        action: event,
+        entityType: event.split(".")[0],
+        entityId: data[`${event.split(".")[0]}Id`] || null,
+        details: data,
+      });
+    } catch (err) {
+      console.error(`[audit] Failed to log ${event}:`, err);
+    }
+  });
+}
+
+ADIM 3: server/events/index.ts — tüm listener'ları yükle:
+import "./listeners/notification.listener";
+import "./listeners/audit.listener";
+export { eventBus } from "./event-bus";
+
+ADIM 4: server/index.ts'de event sistemi başlat:
+import "./events"; // Listener'ları yükle
+
+ADIM 5: Mevcut kodda event'leri kullan. Örneğin proforma onay route'unda:
+import { eventBus } from "../events";
+
+// Mevcut manuel bildirim kodu yerine:
+eventBus.emitEvent("proforma.approved", {
+  proformaId: proforma.id,
+  userId: proforma.userId,
+  approvedBy: req.user.id,
+});
+
+Tüm route dosyalarında manuel notification oluşturma kodlarını bul ve event emit ile değiştir. Ama bunu kademeli yap — önce event sistemi kur, sonra tek tek route'ları güncelle.
+```
+
+---

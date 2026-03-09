@@ -66,6 +66,41 @@ export function saveBase64File(
   return `/uploads/${CATEGORY_DIRS[category]}/${fileName}`;
 }
 
+export function saveBase64ToFile(
+  base64Data: string,
+  subDir: string,
+  originalFileName?: string
+): { fileUrl: string; fileName: string; fileSize: number } {
+  const dir = ensureDir(subDir);
+
+  let mimeType = "";
+  let rawData = base64Data;
+  const markerIdx = base64Data.indexOf(";base64,");
+  if (markerIdx !== -1 && base64Data.startsWith("data:")) {
+    mimeType = base64Data.slice(5, markerIdx);
+    rawData = base64Data.slice(markerIdx + 8);
+  }
+
+  const extMap: Record<string, string> = {
+    "application/pdf": ".pdf",
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+  };
+  const resolvedExt = originalFileName ? path.extname(originalFileName) : (extMap[mimeType] || ".bin");
+  const fileName = `${Date.now()}-${crypto.randomBytes(6).toString("hex")}${resolvedExt}`;
+  const filePath = path.join(dir, fileName);
+  const buffer = Buffer.from(rawData, "base64");
+  fs.writeFileSync(filePath, buffer);
+
+  return {
+    fileUrl: `/uploads/${subDir}/${fileName}`,
+    fileName: originalFileName || fileName,
+    fileSize: buffer.length,
+  };
+}
+
 export function getFileAsBase64(filePath: string): string | null {
   try {
     const fullPath = path.join(process.cwd(), filePath);
