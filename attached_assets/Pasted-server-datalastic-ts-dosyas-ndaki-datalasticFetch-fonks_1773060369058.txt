@@ -1,0 +1,64 @@
+server/datalastic.ts dosyasındaki datalasticFetch fonksiyonunda kritik hata var. API key Bearer token olarak header'da gönderiliyor ama Datalastic API key'i URL'de query parameter olarak bekliyor.
+
+datalasticFetch fonksiyonunu şu şekilde değiştir:
+
+async function datalasticFetch(path: string): Promise<any> {
+  const key = apiKey();
+  if (!key) throw new Error("DATALASTIC_API_KEY not configured");
+
+  try {
+    const { pool } = await import("./db");
+    await pool.query(
+      "INSERT INTO audit_logs (action, entity_type, details) VALUES ('api_call', 'datalastic', $1)",
+      [JSON.stringify({ path })]
+    );
+  } catch {}
+
+  // API key'i query parameter olarak ekle — Datalastic Bearer token desteklemiyor
+  const separator = path.includes("?") ? "&" : "?";
+  const url = `${BASE}${path}${separator}api-key=${key}`;
+
+  console.log(`[datalastic] Fetching: ${BASE}${path} (key hidden)`);
+
+  const res = await fetch(url, {
+    headers: {
+      "Accept": "application/json",
+      "User-Agent": "VesselPDA/1.0"
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    console.error(`[datalastic] API error ${res.status}: ${text.slice(0, 300)}`);
+    throw new Error(`Datalastic API error ${res.status}: ${text.slice(0, 200)}`);
+  }
+
+  const json = await res.json();
+  if (json?.meta?.success === false) {
+    console.error(`[datalastic] API returned error: ${json?.meta?.message}`);
+    throw new Error(`Datalastic API: ${json?.meta?.message || "Unknown error"}`);
+  }
+  return json;
+}
+
+ÖNEMLİ: Authorization header'ı tamamen kaldırıldı. Sadece Accept ve User-Agent kalacak. API key artık URL'de api-key parametresi olarak gidiyor.
+
+Ayrıca haritanın crash olmasını önlemek için, Datalastic'ten gelen verileri kullanan tüm route handler'larda (server/routes/tracking.routes.ts ve server/routes/datalastic.routes.ts) koordinat validasyonu ekle. Response döndürmeden önce:
+
+// Tek vessel response'larında:
+if (data && data.latitude !== undefined && data.longitude !== undefined) {
+  if (data.latitude < -90 || data.latitude > 90 || data.longitude < -180 || data.longitude > 180) {
+    data.latitude = null;
+    data.longitude = null;
+  }
+}
+
+// Array response'larında (vessel listesi, port vessels vb.):
+const validResults = results.filter(v =>
+  v.latitude !== null && v.longitude !== null &&
+  v.latitude >= -90 && v.latitude <= 90 &&
+  v.longitude >= -180 && v.longitude <= 180
+);
+
+Bu iki değişiklik (API key gönderme + koordinat validasyonu) harita kayboluyor, gemi bulunamıyor ve port info gelmiyor sorunlarını çözecek.

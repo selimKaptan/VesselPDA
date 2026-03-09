@@ -124,19 +124,29 @@ async function datalasticFetch(path: string): Promise<any> {
     );
   } catch {}
 
-  const url = `${BASE}${path}`;
+  // API key query parameter olarak gönderilmeli — Datalastic Bearer token desteklemiyor
+  const separator = path.includes("?") ? "&" : "?";
+  const url = `${BASE}${path}${separator}api-key=${key}`;
+
+  console.log(`[datalastic] Fetching: ${BASE}${path} (key hidden)`);
+
   const res = await fetch(url, {
-    headers: { "Authorization": `Bearer ${key}` },
-    signal: AbortSignal.timeout(10000),
+    headers: {
+      "Accept": "application/json",
+      "User-Agent": "VesselPDA/1.0",
+    },
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    console.error(`[datalastic] API error ${res.status}: ${text.slice(0, 300)}`);
     throw new Error(`Datalastic API error ${res.status}: ${text.slice(0, 200)}`);
   }
 
   const json = await res.json();
   if (json?.meta?.success === false) {
+    console.error(`[datalastic] API returned error: ${json?.meta?.message}`);
     throw new Error(`Datalastic API: ${json?.meta?.message || "Unknown error"}`);
   }
   return json;

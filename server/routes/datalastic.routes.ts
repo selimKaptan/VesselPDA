@@ -11,6 +11,25 @@ function notConfigured(res: any) {
   return res.status(503).json({ error: "Datalastic API not configured" });
 }
 
+function sanitizeCoords(data: any): any {
+  if (!data) return data;
+  if (data.latitude !== undefined && data.longitude !== undefined) {
+    if (data.latitude < -90 || data.latitude > 90 || data.longitude < -180 || data.longitude > 180) {
+      data.latitude = null;
+      data.longitude = null;
+    }
+  }
+  return data;
+}
+
+function filterValidCoords(results: any[]): any[] {
+  return results.filter(v =>
+    v.latitude !== null && v.longitude !== null &&
+    v.latitude >= -90 && v.latitude <= 90 &&
+    v.longitude >= -180 && v.longitude <= 180
+  );
+}
+
 // ─── VESSEL INFO ─────────────────────────────────────────────────────────────
 
 router.get("/api/datalastic/vessel-info/:imo", isAuthenticated, async (req, res, next) => {
@@ -19,7 +38,7 @@ router.get("/api/datalastic/vessel-info/:imo", isAuthenticated, async (req, res,
     const { imo } = req.params;
     const data = await cached(`vessel_info:${imo}`, "daily", () => datalastic.getVesselInfo({ imo }));
     if (!data) return res.status(404).json({ error: "Not found" });
-    res.json(data);
+    res.json(sanitizeCoords(data));
   } catch (e) { next(e); }
 });
 
@@ -30,7 +49,7 @@ router.get("/api/datalastic/vessel-pro/:identifier", isAuthenticated, async (req
     const params = id.length === 9 ? { mmsi: id } : { imo: id };
     const data = await cached(`vessel_pro:${id}`, "short", () => datalastic.getVesselPositionPro(params));
     if (!data) return res.status(404).json({ error: "Not found" });
-    res.json(data);
+    res.json(sanitizeCoords(data));
   } catch (e) { next(e); }
 });
 
@@ -39,7 +58,7 @@ router.get("/api/datalastic/vessel-find", isAuthenticated, async (req, res, next
     if (!datalastic.isDatalasticConfigured()) return notConfigured(res);
     const { name, type, country } = req.query as Record<string, string>;
     const results = await datalastic.findVessels({ name, type, country_iso: country });
-    res.json(results.slice(0, 50));
+    res.json(filterValidCoords(results).slice(0, 50));
   } catch (e) { next(e); }
 });
 

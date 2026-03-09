@@ -349,6 +349,11 @@ router.get("/api/vessel-track/position/:imo", isAuthenticated, async (req: any, 
         // getCurrentPosition not available on this plan — use findVessel data
       }
     }
+    let lat = position?.latitude ?? vessel.latitude;
+    let lng = position?.longitude ?? vessel.longitude;
+    if (lat !== null && lat !== undefined && lng !== null && lng !== undefined) {
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) { lat = null; lng = null; }
+    }
     res.json({
       source: "datalastic",
       name: vessel.name,
@@ -356,8 +361,8 @@ router.get("/api/vessel-track/position/:imo", isAuthenticated, async (req: any, 
       mmsi: vessel.mmsi,
       flag: vessel.flag,
       vesselType: vessel.vessel_type,
-      latitude: position?.latitude ?? vessel.latitude,
-      longitude: position?.longitude ?? vessel.longitude,
+      latitude: lat,
+      longitude: lng,
       speed: position?.speed ?? vessel.speed,
       course: position?.course ?? vessel.course,
       heading: position?.heading ?? vessel.heading,
@@ -381,7 +386,12 @@ router.get("/api/vessel-track/port-traffic/:unlocode", isAuthenticated, async (r
   if (!process.env.DATALASTIC_API_KEY) return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
   try {
     const vessels = await datalastic.getVesselsInPort({ portUnlocode: unlocode, radius });
-    res.json(vessels.map(v => ({
+    const validVessels = vessels.filter(v =>
+      v.latitude !== null && v.longitude !== null &&
+      v.latitude >= -90 && v.latitude <= 90 &&
+      v.longitude >= -180 && v.longitude <= 180
+    );
+    res.json(validVessels.map(v => ({
       uuid: v.uuid,
       name: v.name,
       imo: v.imo,
@@ -410,7 +420,12 @@ router.get("/api/vessel-track/datalastic-search", isAuthenticated, async (req, r
   if (!process.env.DATALASTIC_API_KEY) return res.status(503).json({ message: "DATALASTIC_API_KEY yapılandırılmamış." });
   try {
     const results = await datalastic.findVessel(q, type);
-    res.json(results.slice(0, 10).map(v => ({
+    const validResults = results.filter(v =>
+      v.latitude !== null && v.longitude !== null &&
+      v.latitude >= -90 && v.latitude <= 90 &&
+      v.longitude >= -180 && v.longitude <= 180
+    );
+    res.json(validResults.slice(0, 10).map(v => ({
       uuid: v.uuid, name: v.name, imo: v.imo, mmsi: v.mmsi, flag: v.flag,
       vessel_type: v.vessel_type, latitude: v.latitude, longitude: v.longitude,
       speed: v.speed, destination: v.destination,
