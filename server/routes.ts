@@ -72,6 +72,7 @@ import brokerContactsRoutes from "./routes/broker-contacts.routes";
 import cargoOpsRoutes from "./routes/cargo-operations.routes";
 import portCallChecklistRoutes from "./routes/port-call-checklist.routes";
 import portCallParticipantsRoutes from "./routes/port-call-participants.routes";
+import dashboardRoutes from "./routes/dashboard.routes";
 import configRoutes from "./routes/config.routes";
 import datalasticRoutes from "./routes/datalastic.routes";
 
@@ -183,6 +184,7 @@ export async function registerRoutes(
   app.use("/api/v1/cargo-operations", isAuthenticated, cargoOpsRoutes);
   app.use("/api/v1/port-call-checklists", isAuthenticated, portCallChecklistRoutes);
   app.use("/api/v1/port-call-participants", isAuthenticated, portCallParticipantsRoutes);
+  app.use("/api/v1/dashboard", isAuthenticated, dashboardRoutes);
 
   return httpServer;
 }

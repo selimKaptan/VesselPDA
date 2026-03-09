@@ -1,0 +1,565 @@
+import { Router } from "express";
+import { isAuthenticated } from "../replit_integrations/auth";
+import { db } from "../db";
+import { storage } from "../storage";
+import {
+  vessels, voyages, proformas, invoices, fdaAccounts, portExpenses,
+  daAdvances, portTenders, tenderBids, directNominations, notifications,
+  vesselCertificates, portCalls, serviceRequests, serviceOffers,
+  fixtures, bunkerOrders, noonReports, maintenanceJobs,
+  messages, conversations, husbandryOrders,
+  vesselPositions, sofLineItems, statementOfFacts, noticeOfReadiness,
+  voyageNotes,
+} from "@shared/schema";
+import { eq, and, or, desc, sql, gte, lte, isNotNull } from "drizzle-orm";
+
+const router = Router();
+
+// ─── D1: ROLE-BASED MAIN DASHBOARD ───────────────────────────────────────────
+router.get("/", isAuthenticated, async (req: any, res: any) => {
+  const userId = req.user?.id;
+  const role = req.user?.activeRole || req.user?.userRole || "shipowner";
+
+  try {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    // Fleet overview
+    const userVessels = await db.select().from(vessels).where(eq(vessels.userId, userId));
+    const fleetStatusCounts: Record<string, number> = {};
+    userVessels.forEach(v => {
+      const s = v.fleetStatus || "idle";
+      fleetStatusCounts[s] = (fleetStatusCounts[s] || 0) + 1;
+    });
+
+    // Active voyages
+    const activeVoyages = await db.select({
+      id: voyages.id, vesselName: voyages.vesselName, status: voyages.status,
+      eta: voyages.eta, etd: voyages.etd, purposeOfCall: voyages.purposeOfCall,
+      portName: sql<string>`(SELECT name FROM ports WHERE id = ${voyages.portId})`,
+    }).from(voyages)
+      .where(and(
+        role === "agent" ? eq(voyages.agentUserId, userId) : eq(voyages.userId, userId),
+        or(eq(voyages.status, "planned"), eq(voyages.status, "in_progress"), eq(voyages.status, "active"))
+      ))
+      .orderBy(voyages.eta)
+      .limit(10);
+
+    // Invoice stats
+    const [invoiceStats] = await db.select({
+      totalInvoiced: sql<number>`COALESCE(SUM(amount), 0)::float`,
+      totalPaid: sql<number>`COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0)::float`,
+      totalPending: sql<number>`COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0)::float`,
+      totalOverdue: sql<number>`COALESCE(SUM(CASE WHEN status = 'overdue' THEN amount ELSE 0 END), 0)::float`,
+      invoiceCount: sql<number>`COUNT(*)::int`,
+      overdueCount: sql<number>`COUNT(*) FILTER (WHERE status = 'overdue')::int`,
+      pendingCount: sql<number>`COUNT(*) FILTER (WHERE status = 'pending')::int`,
+    }).from(invoices).where(eq(invoices.createdByUserId, userId));
+
+    // DA Advance stats
+    const [advanceStats] = await db.select({
+      totalRequested: sql<number>`COALESCE(SUM(requested_amount), 0)::float`,
+      totalReceived: sql<number>`COALESCE(SUM(received_amount), 0)::float`,
+      pendingCount: sql<number>`COUNT(*) FILTER (WHERE status = 'pending')::int`,
+    }).from(daAdvances).where(eq(daAdvances.userId, userId));
+
+    // Port expenses (last 30 days)
+    const [recentExpenses] = await db.select({
+      totalUsd: sql<number>`COALESCE(SUM(COALESCE(amount_usd, amount)), 0)::float`,
+      expenseCount: sql<number>`COUNT(*)::int`,
+    }).from(portExpenses)
+      .where(and(eq(portExpenses.userId, userId), gte(portExpenses.createdAt, thirtyDaysAgo)));
+
+    // Monthly revenue trend (last 12 months)
+    const monthlyRevenue = await db.execute(sql`
+      SELECT 
+        DATE_TRUNC('month', created_at) as month,
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0)::float as paid,
+        COALESCE(SUM(amount), 0)::float as invoiced,
+        COUNT(*)::int as invoice_count
+      FROM invoices 
+      WHERE created_by_user_id = ${userId} 
+        AND created_at >= NOW() - INTERVAL '12 months'
+      GROUP BY DATE_TRUNC('month', created_at)
+      ORDER BY month ASC
+    `);
+
+    // Proforma stats
+    const [proformaStats] = await db.select({
+      total: sql<number>`COUNT(*)::int`,
+      draft: sql<number>`COUNT(*) FILTER (WHERE approval_status = 'draft')::int`,
+      pending: sql<number>`COUNT(*) FILTER (WHERE approval_status = 'pending')::int`,
+      approved: sql<number>`COUNT(*) FILTER (WHERE approval_status = 'approved')::int`,
+      revision: sql<number>`COUNT(*) FILTER (WHERE approval_status = 'revision_requested')::int`,
+    }).from(proformas).where(eq(proformas.userId, userId));
+
+    // FDA stats
+    const [fdaStats] = await db.select({
+      total: sql<number>`COUNT(*)::int`,
+      draft: sql<number>`COUNT(*) FILTER (WHERE status = 'draft')::int`,
+      approved: sql<number>`COUNT(*) FILTER (WHERE status = 'approved')::int`,
+      totalVarianceUsd: sql<number>`COALESCE(SUM(variance_usd), 0)::float`,
+      avgVariancePercent: sql<number>`COALESCE(AVG(variance_percent), 0)::float`,
+    }).from(fdaAccounts).where(eq(fdaAccounts.userId, userId));
+
+    // Expiring certificates (next 30 days)
+    const vesselIds = userVessels.map(v => v.id);
+    let expiringCerts: any[] = [];
+    if (vesselIds.length > 0) {
+      expiringCerts = await db.select({
+        id: vesselCertificates.id,
+        name: vesselCertificates.name,
+        expiresAt: vesselCertificates.expiresAt,
+        vesselId: vesselCertificates.vesselId,
+        vesselName: sql<string>`(SELECT name FROM vessels WHERE id = ${vesselCertificates.vesselId})`,
+      }).from(vesselCertificates)
+        .where(and(
+          eq(vesselCertificates.userId, userId),
+          isNotNull(vesselCertificates.expiresAt),
+          gte(vesselCertificates.expiresAt, now),
+          lte(vesselCertificates.expiresAt, thirtyDaysFromNow),
+        ))
+        .orderBy(vesselCertificates.expiresAt)
+        .limit(10);
+    }
+
+    // Upcoming port calls
+    const upcomingPortCalls = await db.select({
+      id: portCalls.id, portName: portCalls.portName, status: portCalls.status,
+      eta: portCalls.eta, vesselId: portCalls.vesselId,
+      vesselName: sql<string>`(SELECT name FROM vessels WHERE id = ${portCalls.vesselId})`,
+    }).from(portCalls)
+      .where(and(
+        eq(portCalls.userId, userId),
+        or(eq(portCalls.status, "expected"), eq(portCalls.status, "arrived")),
+      ))
+      .orderBy(portCalls.eta)
+      .limit(5);
+
+    // Agent-specific: Tenders & Nominations
+    let tenderData = null;
+    let nominationData = null;
+    if (role === "agent") {
+      const pendingNominations = await storage.getPendingNominationCountForAgent(userId);
+      const myBids = await storage.getTenderBidsByAgent(userId);
+      const activeBids = myBids.filter((b: any) => b.tenderStatus === "open");
+      const wonBids = myBids.filter((b: any) => b.status === "selected");
+      tenderData = { activeBidsCount: activeBids.length, wonBidsCount: wonBids.length, totalBidsCount: myBids.length };
+      nominationData = { pendingCount: pendingNominations };
+    }
+
+    // Shipowner-specific: Tender overview
+    let myTenders = null;
+    if (role === "shipowner") {
+      const [tenderRow] = await db.select({
+        total: sql<number>`COUNT(*)::int`,
+        open: sql<number>`COUNT(*) FILTER (WHERE status = 'open')::int`,
+        nominated: sql<number>`COUNT(*) FILTER (WHERE status = 'nominated')::int`,
+      }).from(portTenders).where(eq(portTenders.userId, userId));
+      myTenders = tenderRow || { total: 0, open: 0, nominated: 0 };
+    }
+
+    // Broker-specific: Fixture stats
+    let brokerData = null;
+    if (role === "broker") {
+      const [fixtureRow] = await db.select({
+        total: sql<number>`COUNT(*)::int`,
+        active: sql<number>`COUNT(*) FILTER (WHERE status = 'active')::int`,
+        completed: sql<number>`COUNT(*) FILTER (WHERE status = 'completed')::int`,
+        negotiating: sql<number>`COUNT(*) FILTER (WHERE status = 'negotiating')::int`,
+      }).from(fixtures).where(eq(fixtures.userId, userId));
+      brokerData = fixtureRow;
+    }
+
+    // Maintenance alerts (overdue or due in 7 days)
+    let maintenanceAlerts: any[] = [];
+    if (vesselIds.length > 0) {
+      maintenanceAlerts = await db.select({
+        id: maintenanceJobs.id,
+        jobName: maintenanceJobs.jobName,
+        vesselId: maintenanceJobs.vesselId,
+        nextDueDate: maintenanceJobs.nextDueDate,
+        priority: maintenanceJobs.priority,
+        status: maintenanceJobs.status,
+      }).from(maintenanceJobs)
+        .where(and(
+          sql`${maintenanceJobs.vesselId} = ANY(ARRAY[${sql.raw(vesselIds.join(","))}])`,
+          or(
+            eq(maintenanceJobs.status, "overdue"),
+            and(
+              isNotNull(maintenanceJobs.nextDueDate),
+              lte(maintenanceJobs.nextDueDate, sevenDaysFromNow),
+              sql`${maintenanceJobs.status} != 'completed'`
+            )
+          )
+        ))
+        .limit(10);
+    }
+
+    // Unread notifications
+    const unreadNotifs = await db.select().from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)))
+      .orderBy(desc(notifications.createdAt))
+      .limit(10);
+
+    // Unread messages count
+    const unreadMsgCount = await storage.getUnreadMessageCount(userId);
+
+    // Expense by category (last 30 days)
+    const expenseByCategory = await db.execute(sql`
+      SELECT category, COALESCE(SUM(COALESCE(amount_usd, amount)), 0)::float as total
+      FROM port_expenses
+      WHERE user_id = ${userId} AND created_at >= ${thirtyDaysAgo}
+      GROUP BY category
+      ORDER BY total DESC
+    `);
+
+    // PDA vs FDA variance trend (last 10 approved FDAs)
+    const varianceTrend = await db.select({
+      id: fdaAccounts.id,
+      referenceNumber: fdaAccounts.referenceNumber,
+      portName: fdaAccounts.portName,
+      totalEstimatedUsd: fdaAccounts.totalEstimatedUsd,
+      totalActualUsd: fdaAccounts.totalActualUsd,
+      variancePercent: fdaAccounts.variancePercent,
+      createdAt: fdaAccounts.createdAt,
+    }).from(fdaAccounts)
+      .where(and(eq(fdaAccounts.userId, userId), eq(fdaAccounts.status, "approved")))
+      .orderBy(desc(fdaAccounts.createdAt))
+      .limit(10);
+
+    res.json({
+      role,
+      fleet: {
+        totalVessels: userVessels.length,
+        statusCounts: fleetStatusCounts,
+        vessels: userVessels.map(v => ({
+          id: v.id, name: v.name, flag: v.flag, vesselType: v.vesselType,
+          grt: v.grt, fleetStatus: v.fleetStatus, imoNumber: v.imoNumber,
+        })),
+      },
+      voyages: { active: activeVoyages, activeCount: activeVoyages.length },
+      financial: {
+        invoices: invoiceStats || {},
+        advances: advanceStats || {},
+        recentExpenses: recentExpenses || {},
+        monthlyRevenue: (monthlyRevenue as any).rows || [],
+        expenseByCategory: (expenseByCategory as any).rows || [],
+        varianceTrend,
+      },
+      proformas: proformaStats || {},
+      fdas: fdaStats || {},
+      alerts: {
+        expiringCertificates: expiringCerts,
+        maintenanceAlerts,
+        upcomingPortCalls,
+        overdueInvoices: (invoiceStats as any)?.overdueCount || 0,
+      },
+      tenders: myTenders,
+      agentTenders: tenderData,
+      nominations: nominationData,
+      broker: brokerData,
+      notifications: { unread: unreadNotifs, unreadCount: unreadNotifs.length },
+      messages: { unreadCount: unreadMsgCount },
+    });
+  } catch (err) {
+    console.error("[dashboard] Error:", err);
+    res.status(500).json({ message: "Dashboard load failed" });
+  }
+});
+
+// ─── D2: FLEET MAP — Last known positions ────────────────────────────────────
+router.get("/fleet-map", isAuthenticated, async (req: any, res: any) => {
+  const userId = req.user?.id;
+  try {
+    const userVessels = await db.select({
+      id: vessels.id, name: vessels.name, imoNumber: vessels.imoNumber,
+      mmsi: vessels.mmsi, flag: vessels.flag, vesselType: vessels.vesselType,
+      grt: vessels.grt, fleetStatus: vessels.fleetStatus,
+    }).from(vessels).where(eq(vessels.userId, userId));
+
+    const fleetPositions = await Promise.all(userVessels.map(async (vessel) => {
+      let position: any = null;
+
+      if (vessel.mmsi) {
+        const [lastPos] = await db.select().from(vesselPositions)
+          .where(eq(vesselPositions.mmsi, vessel.mmsi))
+          .orderBy(desc(vesselPositions.timestamp))
+          .limit(1);
+        if (lastPos) {
+          position = {
+            latitude: lastPos.latitude, longitude: lastPos.longitude,
+            speed: lastPos.speed, course: lastPos.course, heading: lastPos.heading,
+            destination: lastPos.destination, lastUpdate: lastPos.timestamp, source: "ais",
+          };
+        }
+      }
+
+      if (!position) {
+        const [lastNoon] = await db.select({
+          latitude: noonReports.latitude, longitude: noonReports.longitude,
+          speedOverGround: noonReports.speedOverGround, reportDate: noonReports.reportDate,
+        }).from(noonReports)
+          .where(eq(noonReports.vesselId, vessel.id))
+          .orderBy(desc(noonReports.reportDate))
+          .limit(1);
+
+        if (lastNoon?.latitude && lastNoon?.longitude) {
+          position = {
+            latitude: lastNoon.latitude, longitude: lastNoon.longitude,
+            speed: lastNoon.speedOverGround, lastUpdate: lastNoon.reportDate, source: "noon_report",
+          };
+        }
+      }
+
+      const [activeVoyage] = await db.select({
+        id: voyages.id,
+        portName: sql<string>`(SELECT name FROM ports WHERE id = ${voyages.portId})`,
+        status: voyages.status, eta: voyages.eta, purposeOfCall: voyages.purposeOfCall,
+      }).from(voyages)
+        .where(and(
+          eq(voyages.vesselId, vessel.id),
+          or(eq(voyages.status, "in_progress"), eq(voyages.status, "planned"), eq(voyages.status, "active"))
+        ))
+        .orderBy(desc(voyages.createdAt))
+        .limit(1);
+
+      return { vessel, position, activeVoyage: activeVoyage || null };
+    }));
+
+    res.json({ fleet: fleetPositions });
+  } catch (err) {
+    console.error("[fleet-map] Error:", err);
+    res.status(500).json({ message: "Fleet map load failed" });
+  }
+});
+
+// ─── D3: VOYAGE TIMELINE ─────────────────────────────────────────────────────
+router.get("/voyage/:id/timeline", isAuthenticated, async (req: any, res: any) => {
+  const voyageId = parseInt(req.params.id);
+  try {
+    const voyage = await storage.getVoyageById(voyageId);
+    if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+
+    const timeline: Array<{
+      timestamp: Date | null;
+      type: string;
+      title: string;
+      description?: string;
+      status?: string;
+      entityId?: number;
+      entityType?: string;
+    }> = [];
+
+    timeline.push({
+      timestamp: voyage.createdAt,
+      type: "voyage",
+      title: "Voyage Created",
+      description: `${voyage.vesselName} → ${voyage.portName}`,
+      status: voyage.status,
+    });
+
+    const portCallList = await db.select().from(portCalls).where(eq(portCalls.voyageId, voyageId));
+    for (const pc of portCallList) {
+      if (pc.eta) timeline.push({ timestamp: pc.eta, type: "port_call", title: "ETA at Port", description: pc.portName, entityId: pc.id, entityType: "port_call" });
+      if ((pc as any).actualArrival) timeline.push({ timestamp: (pc as any).actualArrival, type: "arrival", title: "Vessel Arrived", description: pc.portName });
+      if (pc.norTendered) timeline.push({ timestamp: pc.norTendered, type: "nor", title: "NOR Tendered", description: pc.portName });
+      if ((pc as any).berthingTime) timeline.push({ timestamp: (pc as any).berthingTime, type: "berthing", title: "Vessel Berthed", description: (pc as any).berth || pc.portName });
+      if ((pc as any).operationsStart) timeline.push({ timestamp: (pc as any).operationsStart, type: "ops_start", title: "Operations Started" });
+      if ((pc as any).operationsEnd) timeline.push({ timestamp: (pc as any).operationsEnd, type: "ops_end", title: "Operations Completed" });
+      if ((pc as any).departure) timeline.push({ timestamp: (pc as any).departure, type: "departure", title: "Vessel Departed", description: pc.portName });
+    }
+
+    const sofs = await db.select().from(statementOfFacts).where(eq(statementOfFacts.voyageId, voyageId));
+    for (const sof of sofs) {
+      const events = await db.select().from(sofLineItems).where(eq(sofLineItems.sofId, sof.id)).orderBy(sofLineItems.eventDate);
+      for (const event of events) {
+        timeline.push({ timestamp: event.eventDate, type: "sof_event", title: event.eventName, description: event.remarks || undefined, entityId: sof.id, entityType: "sof" });
+      }
+    }
+
+    const nors = await db.select().from(noticeOfReadiness).where(eq(noticeOfReadiness.voyageId, voyageId));
+    for (const nor of nors) {
+      if (nor.norTenderedAt) timeline.push({ timestamp: nor.norTenderedAt, type: "nor_tendered", title: "NOR Tendered", description: `To: ${nor.norTenderedTo || "Charterer"}`, entityId: nor.id, entityType: "nor" });
+      if (nor.norAcceptedAt) timeline.push({ timestamp: nor.norAcceptedAt, type: "nor_accepted", title: "NOR Accepted", description: `By: ${(nor as any).norAcceptedBy || ""}`, status: nor.status });
+    }
+
+    const proformaList = await storage.getProformasByVoyage(voyageId);
+    for (const pda of proformaList) {
+      timeline.push({ timestamp: pda.createdAt, type: "proforma", title: `PDA Created: ${pda.referenceNumber}`, description: `$${pda.totalUsd?.toLocaleString() || 0}`, status: pda.approvalStatus, entityId: pda.id, entityType: "proforma" });
+      if ((pda as any).sentAt) timeline.push({ timestamp: (pda as any).sentAt, type: "proforma_sent", title: `PDA Sent: ${pda.referenceNumber}` });
+      if ((pda as any).reviewedAt) timeline.push({ timestamp: (pda as any).reviewedAt, type: "proforma_reviewed", title: `PDA ${pda.approvalStatus}: ${pda.referenceNumber}`, status: pda.approvalStatus });
+    }
+
+    const fdas = await db.select().from(fdaAccounts).where(eq(fdaAccounts.voyageId, voyageId));
+    for (const fda of fdas) {
+      timeline.push({ timestamp: fda.createdAt, type: "fda", title: `FDA Created: ${fda.referenceNumber || ""}`, description: `Estimated: $${fda.totalEstimatedUsd?.toLocaleString() || 0} | Actual: $${fda.totalActualUsd?.toLocaleString() || 0}`, status: fda.status, entityId: fda.id, entityType: "fda" });
+      if (fda.approvedAt) timeline.push({ timestamp: fda.approvedAt, type: "fda_approved", title: `FDA Approved: ${fda.referenceNumber || ""}`, description: `Variance: ${fda.variancePercent?.toFixed(1) || 0}%` });
+    }
+
+    const invoiceList = await db.select().from(invoices).where(eq(invoices.voyageId, voyageId));
+    for (const inv of invoiceList) {
+      timeline.push({ timestamp: inv.createdAt, type: "invoice", title: `Invoice: ${inv.title}`, description: `$${inv.amount?.toLocaleString() || 0}`, status: inv.status, entityId: inv.id, entityType: "invoice" });
+      if ((inv as any).paidAt) timeline.push({ timestamp: (inv as any).paidAt, type: "payment", title: `Payment Received: ${inv.title}`, description: `$${inv.amount?.toLocaleString() || 0}` });
+    }
+
+    const advances = await storage.getDaAdvancesByVoyage(voyageId);
+    for (const adv of advances) {
+      timeline.push({ timestamp: adv.createdAt, type: "da_advance", title: `DA Advance: ${adv.title}`, description: `Requested: $${adv.requestedAmount?.toLocaleString()} | Received: $${adv.receivedAmount?.toLocaleString()}`, status: adv.status, entityId: adv.id, entityType: "da_advance" });
+    }
+
+    const docs = await storage.getVoyageDocuments(voyageId);
+    for (const doc of docs) {
+      timeline.push({ timestamp: doc.createdAt, type: "document", title: `Document: ${doc.name}`, description: doc.docType, entityId: doc.id, entityType: "document" });
+    }
+
+    const notesList = await db.select().from(voyageNotes).where(eq(voyageNotes.voyageId, voyageId));
+    for (const note of notesList) {
+      timeline.push({ timestamp: note.createdAt, type: `note_${note.noteType}`, title: note.noteType === "alert" ? "⚠️ Alert" : note.noteType === "milestone" ? "🎯 Milestone" : "Note", description: note.content.slice(0, 200), entityId: note.id, entityType: "note" });
+    }
+
+    timeline.sort((a, b) => {
+      const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    res.json({
+      voyage: { id: voyage.id, vesselName: voyage.vesselName, portName: voyage.portName, status: voyage.status },
+      timeline,
+      totalEvents: timeline.length,
+    });
+  } catch (err) {
+    console.error("[voyage-timeline] Error:", err);
+    res.status(500).json({ message: "Timeline load failed" });
+  }
+});
+
+// ─── D4: KPI ANALYTICS ───────────────────────────────────────────────────────
+router.get("/kpi", isAuthenticated, async (req: any, res: any) => {
+  const userId = req.user?.id;
+  const period = (req.query.period as string) || "30d";
+  const periodDays = period === "7d" ? 7 : period === "90d" ? 90 : period === "365d" ? 365 : 30;
+  const since = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
+
+  try {
+    const pdaAccuracy = await db.execute(sql`
+      SELECT 
+        COUNT(*)::int as fda_count,
+        COALESCE(AVG(ABS(variance_percent)), 0)::float as avg_variance_pct,
+        COUNT(*) FILTER (WHERE ABS(variance_percent) <= 5)::int as accurate_count,
+        COUNT(*) FILTER (WHERE ABS(variance_percent) > 10)::int as high_variance_count
+      FROM fda_accounts
+      WHERE user_id = ${userId} AND status = 'approved' AND created_at >= ${since}
+    `);
+    const accuracy = (pdaAccuracy as any).rows?.[0] || {};
+    const accuracyRate = accuracy.fda_count > 0
+      ? Math.round((accuracy.accurate_count / accuracy.fda_count) * 100) : 0;
+
+    const avgPortStay = await db.execute(sql`
+      SELECT 
+        COUNT(*)::int as voyage_count,
+        COALESCE(AVG(EXTRACT(EPOCH FROM (etd - eta)) / 86400), 0)::float as avg_days
+      FROM voyages
+      WHERE user_id = ${userId} AND status = 'completed' 
+        AND eta IS NOT NULL AND etd IS NOT NULL AND created_at >= ${since}
+    `);
+
+    const collectionStats = await db.execute(sql`
+      SELECT
+        COALESCE(SUM(amount), 0)::float as total_invoiced,
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0)::float as total_collected,
+        COALESCE(AVG(
+          CASE WHEN paid_at IS NOT NULL AND due_date IS NOT NULL 
+          THEN EXTRACT(EPOCH FROM (paid_at - due_date)) / 86400 END
+        ), 0)::float as avg_collection_days
+      FROM invoices
+      WHERE created_by_user_id = ${userId} AND created_at >= ${since}
+    `);
+    const collection = (collectionStats as any).rows?.[0] || {};
+    const collectionRate = collection.total_invoiced > 0
+      ? Math.round((collection.total_collected / collection.total_invoiced) * 100) : 0;
+
+    const vesselUtilization = await db.execute(sql`
+      SELECT 
+        v.id, v.name,
+        COUNT(DISTINCT voy.id) as voyage_count,
+        COALESCE(SUM(
+          CASE WHEN voy.eta IS NOT NULL AND voy.etd IS NOT NULL 
+          THEN EXTRACT(EPOCH FROM (voy.etd - voy.eta)) / 86400 END
+        ), 0)::float as active_days
+      FROM vessels v
+      LEFT JOIN voyages voy ON voy.vessel_id = v.id AND voy.created_at >= ${since}
+      WHERE v.user_id = ${userId}
+      GROUP BY v.id, v.name
+    `);
+
+    const topPorts = await db.execute(sql`
+      SELECT 
+        p.name as port_name, p.country,
+        COUNT(*)::int as voyage_count,
+        COALESCE(SUM(pr.total_usd), 0)::float as total_cost
+      FROM voyages v
+      JOIN ports p ON p.id = v.port_id
+      LEFT JOIN proformas pr ON pr.voyage_id = v.id
+      WHERE v.user_id = ${userId} AND v.created_at >= ${since}
+      GROUP BY p.id, p.name, p.country
+      ORDER BY voyage_count DESC
+      LIMIT 5
+    `);
+
+    const expenseTrend = await db.execute(sql`
+      SELECT 
+        DATE_TRUNC('week', expense_date) as week,
+        COALESCE(SUM(COALESCE(amount_usd, amount)), 0)::float as total,
+        COUNT(*)::int as expense_count
+      FROM port_expenses
+      WHERE user_id = ${userId} AND created_at >= ${since}
+      GROUP BY DATE_TRUNC('week', expense_date)
+      ORDER BY week ASC
+    `);
+
+    const laytimeStats = await db.execute(sql`
+      SELECT
+        COUNT(*)::int as sheet_count,
+        COUNT(*) FILTER (WHERE (result->>'status') = 'demurrage')::int as demurrage_count,
+        COUNT(*) FILTER (WHERE (result->>'status') = 'despatch')::int as despatch_count,
+        COALESCE(SUM(CASE WHEN (result->>'status') = 'demurrage' THEN (result->>'amount')::float ELSE 0 END), 0)::float as total_demurrage,
+        COALESCE(SUM(CASE WHEN (result->>'status') = 'despatch' THEN (result->>'amount')::float ELSE 0 END), 0)::float as total_despatch
+      FROM laytime_sheets
+      WHERE user_id = ${userId} AND created_at >= ${since}
+    `);
+
+    res.json({
+      period,
+      periodDays,
+      pdaAccuracy: {
+        averageVariance: Number((accuracy.avg_variance_pct || 0).toFixed(1)),
+        accuracyRate,
+        fdaCount: accuracy.fda_count || 0,
+        highVarianceCount: accuracy.high_variance_count || 0,
+      },
+      portStay: {
+        averageDays: Number(((avgPortStay as any).rows?.[0]?.avg_days || 0).toFixed(1)),
+        voyageCount: (avgPortStay as any).rows?.[0]?.voyage_count || 0,
+      },
+      collection: {
+        rate: collectionRate,
+        totalInvoiced: collection.total_invoiced || 0,
+        totalCollected: collection.total_collected || 0,
+        avgCollectionDays: Number((collection.avg_collection_days || 0).toFixed(1)),
+      },
+      vesselUtilization: (vesselUtilization as any).rows || [],
+      topPorts: (topPorts as any).rows || [],
+      expenseTrend: (expenseTrend as any).rows || [],
+      laytime: (laytimeStats as any).rows?.[0] || {},
+    });
+  } catch (err) {
+    console.error("[kpi] Error:", err);
+    res.status(500).json({ message: "KPI load failed" });
+  }
+});
+
+export default router;
