@@ -1,0 +1,87 @@
+## ⭐ PROMPT F4 — Multi-Tenant: Organization Bazlı Veri Erişimi
+
+```
+Şu anda tüm veriler userId bazlı filtreleniyor. Ama organizations tablosu zaten var. Bir şirketteki çalışanlar aynı gemileri ve seferleri görmeli.
+
+ADIM 1: Kritik tablolara organizationId kolonu ekle:
+shared/schema.ts (veya ilgili modül dosyası) içinde şu tablolara organizationId ekle:
+
+- vessels tablosuna:
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: "set null" }),
+
+- voyages tablosuna:
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: "set null" }),
+
+- proformas tablosuna:
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: "set null" }),
+
+- invoices tablosuna:
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: "set null" }),
+
+- fdaAccounts tablosuna:
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: "set null" }),
+
+ADIM 2: Middleware oluştur — server/middleware/org-context.ts:
+
+import { Request, Response, NextFunction } from "express";
+import { db } from "../db";
+import { organizationMembers } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
+
+export async function attachOrgContext(req: Request, res: Response, next: NextFunction) {
+  const userId = (req as any).user?.id;
+  if (!userId) return next();
+  
+  try {
+    const [membership] = await db.select()
+      .from(organizationMembers)
+      .where(and(
+        eq(organizationMembers.userId, userId),
+        eq(organizationMembers.isActive, true)
+      ))
+      .limit(1);
+    
+    if (membership) {
+      (req as any).organizationId = membership.organizationId;
+      (req as any).orgRole = membership.role;
+      (req as any).orgPermissions = membership.permissions;
+    }
+  } catch {}
+  
+  next();
+}
+
+ADIM 3: server/routes.ts'de middleware'i ekle:
+import { attachOrgContext } from "./middleware/org-context";
+
+// isAuthenticated'dan sonra, route'lardan önce:
+app.use("/api", attachOrgContext);
+
+ADIM 4: Storage metotlarını güncelle — organizationId olan tablolarda sorguya org filtresi ekle. Örneğin getVesselsByUser:
+
+async getVesselsByUser(userId: string, organizationId?: number): Promise<Vessel[]> {
+  if (organizationId) {
+    return db.select().from(vessels).where(
+      or(eq(vessels.userId, userId), eq(vessels.organizationId, organizationId))
+    );
+  }
+  return db.select().from(vessels).where(eq(vessels.userId, userId));
+}
+
+ADIM 5: Route handler'larda organizationId'yi ilet:
+const orgId = (req as any).organizationId;
+const vessels = await storage.getVesselsByUser(userId, orgId);
+
+ADIM 6: Yeni kayıt oluşturulurken organizationId'yi otomatik ekle:
+const vessel = await storage.createVessel({
+  ...req.body,
+  userId,
+  organizationId: (req as any).organizationId || null,
+});
+
+ADIM 7: Migration oluştur: npx drizzle-kit generate && npx drizzle-kit push
+
+Bu değişiklik geriye uyumlu — organizationId nullable olduğu için mevcut tek kullanıcılı hesaplar etkilenmez.
+```
+
+---
