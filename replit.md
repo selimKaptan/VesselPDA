@@ -57,3 +57,12 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
 -   **Mapbox GL JS**: Interactive maps.
 -   **Anthropic AI**: AI Assistant (Claude-Haiku) for document analysis.
 -   **Yahoo Finance API**: Market data indices (BDI, BCTI, BDTI).
+
+## Backend Architecture Improvements (F1–F10)
+-   **F1 – Validation Middleware**: `server/middleware/validate.ts` with `validate(schema, source)` applied to invoice POST route.
+-   **F5 – Event Bus**: `server/events/event-bus.ts` + `listeners/notification.listener.ts` + `listeners/audit.listener.ts`. Nomination, tender, and proforma routes emit typed events.
+-   **F6 – Soft Delete**: `deleted_at TIMESTAMP` added to vessels, proformas, voyages, fixtures, invoices. All delete methods update `deletedAt` instead of hard-deleting. List queries filter `IS NULL`. Restore endpoints added: `POST /api/v1/vessels/:id/restore`, `/api/v1/proformas/:id/restore`, `/api/v1/voyages/:id/restore`, `/api/v1/fixtures/:id/restore`, `/api/invoices/:id/restore`. Weekly purge cron (`0 3 * * 1`) hard-deletes records older than 30 days.
+-   **F7 – File Storage**: Base64 fallbacks removed; files stored on disk only (`server/file-storage.ts`). `saveBase64ToFile()` available for migration.
+-   **F8 – Cache Layer**: `server/cache.ts` tiered cache (short/medium/long/daily). `getPorts()` → daily, `getBunkerPrices()` → long (invalidated on upsert), `getForumCategories()` → long, `getPublicCompanyProfiles()` → long.
+-   **F9 – API Versioning**: All prefix-mounted routes at `/api/v1/*`; backward-compat middleware rewrites `/api/X` → `/api/v1/X`.
+-   **F10 – Cleanup**: Removed `server/ensure-bunker-tables.ts` and `shared/models/chat.ts` (unused duplicates).

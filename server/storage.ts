@@ -83,9 +83,10 @@ import {
 } from "@shared/schema";
 import { users, companyProfiles } from "@shared/models/auth";
 import { db } from "./db";
-import { eq, and, lte, gte, or, isNull, desc, asc, sql, count, countDistinct, ilike, inArray } from "drizzle-orm";
+import { eq, and, lte, gte, lt, or, isNull, isNotNull, desc, asc, sql, count, countDistinct, ilike, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { emitToUser } from "./socket";
+import { cached, invalidateCacheByPrefix } from "./cache";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -102,6 +103,7 @@ export interface IStorage {
   updateVessel(id: number, userId: string, data: Partial<InsertVessel>): Promise<Vessel | undefined>;
   updateVesselById(id: number, data: Partial<InsertVessel>): Promise<Vessel | undefined>;
   deleteVessel(id: number, userId: string): Promise<boolean>;
+  restoreVessel(id: number): Promise<boolean>;
   deleteVesselById(id: number): Promise<boolean>;
 
   getPorts(limit?: number, country?: string): Promise<Port[]>;
@@ -126,6 +128,11 @@ export interface IStorage {
   updateProforma(id: number, data: Partial<Proforma>): Promise<Proforma | undefined>;
   duplicateProforma(id: number, userId: string): Promise<Proforma | undefined>;
   deleteProforma(id: number, userId: string): Promise<boolean>;
+  restoreProforma(id: number): Promise<boolean>;
+  deleteVoyage(id: number, userId: string): Promise<boolean>;
+  restoreVoyage(id: number): Promise<boolean>;
+  deleteInvoice(id: number, userId: string): Promise<boolean>;
+  restoreInvoice(id: number): Promise<boolean>;
   createProformaApprovalLog(data: { proformaId: number; userId: string; action: string; note?: string | null; previousStatus: string; newStatus: string }): Promise<any>;
   getProformaApprovalLogs(proformaId: number): Promise<any[]>;
   getProformasByApprovalStatus(approvalStatus: string): Promise<Proforma[]>;
@@ -288,6 +295,7 @@ export interface IStorage {
   createFixture(data: InsertFixture): Promise<Fixture>;
   updateFixture(id: number, data: Partial<InsertFixture & { status?: string; recapText?: string }>): Promise<Fixture | undefined>;
   deleteFixture(id: number): Promise<boolean>;
+  restoreFixture(id: number): Promise<boolean>;
 
   getCargoPositions(): Promise<CargoPosition[]>;
   getMyCargoPositions(userId: string): Promise<CargoPosition[]>;
@@ -434,7 +442,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getVesselsByUser(userId: string): Promise<Vessel[]> {
-    return db.select().from(vessels).where(eq(vessels.userId, userId));
+    return db.select().from(vessels).where(and(eq(vessels.userId, userId), isNull(vessels.deletedAt)));
   }
 
   async getVessel(id: number, userId: string): Promise<Vessel | undefined> {
@@ -463,28 +471,39 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteVessel(id: number, userId: string): Promise<boolean> {
-    const existing = await db.select().from(vessels).where(and(eq(vessels.id, id), eq(vessels.userId, userId)));
-    if (existing.length === 0) return false;
-    await db.delete(proformas).where(eq(proformas.vesselId, id));
-    await db.delete(vessels).where(eq(vessels.id, id));
-    return true;
+    const [updated] = await db.update(vessels)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(vessels.id, id), eq(vessels.userId, userId), isNull(vessels.deletedAt)))
+      .returning();
+    return !!updated;
   }
 
   async deleteVesselById(id: number): Promise<boolean> {
-    const existing = await db.select().from(vessels).where(eq(vessels.id, id));
-    if (existing.length === 0) return false;
-    await db.delete(proformas).where(eq(proformas.vesselId, id));
-    await db.delete(vessels).where(eq(vessels.id, id));
-    return true;
+    const [updated] = await db.update(vessels)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(vessels.id, id), isNull(vessels.deletedAt)))
+      .returning();
+    return !!updated;
+  }
+
+  async restoreVessel(id: number): Promise<boolean> {
+    const [updated] = await db.update(vessels)
+      .set({ deletedAt: null })
+      .where(eq(vessels.id, id))
+      .returning();
+    return !!updated;
   }
 
   async getPorts(limit = 100, country?: string): Promise<Port[]> {
-    if (country) {
-      return db.select().from(ports)
-        .where(eq(ports.country, country))
-        .orderBy(ports.name);
-    }
-    return db.select().from(ports).orderBy(ports.name).limit(limit);
+    const key = `ports:${country ?? "all"}:${limit}`;
+    return cached(key, "daily", async () => {
+      if (country) {
+        return db.select().from(ports)
+          .where(eq(ports.country, country))
+          .orderBy(ports.name);
+      }
+      return db.select().from(ports).orderBy(ports.name).limit(limit);
+    });
   }
 
   async searchPorts(query: string, countryCode?: string): Promise<Port[]> {
@@ -622,10 +641,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteProforma(id: number, userId: string): Promise<boolean> {
-    const result = await db.delete(proformas)
-      .where(and(eq(proformas.id, id), eq(proformas.userId, userId)))
+    const [updated] = await db.update(proformas)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(proformas.id, id), eq(proformas.userId, userId), isNull(proformas.deletedAt)))
       .returning();
-    return result.length > 0;
+    return !!updated;
+  }
+
+  async restoreProforma(id: number): Promise<boolean> {
+    const [updated] = await db.update(proformas)
+      .set({ deletedAt: null })
+      .where(eq(proformas.id, id))
+      .returning();
+    return !!updated;
   }
 
   async updateProforma(id: number, data: Partial<Proforma>): Promise<Proforma | undefined> {
@@ -713,17 +741,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPublicCompanyProfiles(filters?: { companyType?: string; portId?: number }): Promise<CompanyProfile[]> {
-    let results = await db.select().from(companyProfiles)
-      .where(and(eq(companyProfiles.isActive, true), eq(companyProfiles.isApproved, true)))
-      .orderBy(desc(companyProfiles.isFeatured), desc(companyProfiles.createdAt));
-
-    if (filters?.companyType && filters.companyType !== "all") {
-      results = results.filter(p => p.companyType === filters.companyType);
-    }
-    if (filters?.portId) {
-      results = results.filter(p => (p.servedPorts as number[])?.includes(filters.portId!));
-    }
-    return results;
+    const key = `company:profiles:${filters?.companyType ?? "all"}:${filters?.portId ?? "any"}`;
+    return cached(key, "long", async () => {
+      let results = await db.select().from(companyProfiles)
+        .where(and(eq(companyProfiles.isActive, true), eq(companyProfiles.isApproved, true)))
+        .orderBy(desc(companyProfiles.isFeatured), desc(companyProfiles.createdAt));
+      if (filters?.companyType && filters.companyType !== "all") {
+        results = results.filter(p => p.companyType === filters.companyType);
+      }
+      if (filters?.portId) {
+        results = results.filter(p => (p.servedPorts as number[])?.includes(filters.portId!));
+      }
+      return results;
+    });
   }
 
   async getFeaturedCompanyProfiles(): Promise<CompanyProfile[]> {
@@ -758,7 +788,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getForumCategories(): Promise<ForumCategory[]> {
-    return db.select().from(forumCategories).orderBy(asc(forumCategories.name));
+    return cached("forum:categories", "long", () =>
+      db.select().from(forumCategories).orderBy(asc(forumCategories.name))
+    );
   }
 
   async getForumTopics(options?: { categoryId?: number; sort?: string; limit?: number; offset?: number }): Promise<any[]> {
@@ -1342,6 +1374,22 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
+  async deleteVoyage(id: number, userId: string): Promise<boolean> {
+    const [updated] = await db.update(voyages)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(voyages.id, id), eq(voyages.userId, userId), isNull(voyages.deletedAt)))
+      .returning();
+    return !!updated;
+  }
+
+  async restoreVoyage(id: number): Promise<boolean> {
+    const [updated] = await db.update(voyages)
+      .set({ deletedAt: null })
+      .where(eq(voyages.id, id))
+      .returning();
+    return !!updated;
+  }
+
   async getVoyagesByUser(userId: string, role: string): Promise<any[]> {
     let rows: any[];
     if (role === "admin") {
@@ -1354,6 +1402,7 @@ export class DatabaseStorage implements IStorage {
         })
         .from(voyages)
         .leftJoin(ports, eq(voyages.portId, ports.id))
+        .where(isNull(voyages.deletedAt))
         .orderBy(desc(voyages.createdAt));
     } else if (role === "agent") {
       rows = await db
@@ -1365,7 +1414,7 @@ export class DatabaseStorage implements IStorage {
         })
         .from(voyages)
         .leftJoin(ports, eq(voyages.portId, ports.id))
-        .where(eq(voyages.agentUserId, userId))
+        .where(and(eq(voyages.agentUserId, userId), isNull(voyages.deletedAt)))
         .orderBy(desc(voyages.createdAt));
     } else {
       rows = await db
@@ -1377,7 +1426,7 @@ export class DatabaseStorage implements IStorage {
         })
         .from(voyages)
         .leftJoin(ports, eq(voyages.portId, ports.id))
-        .where(eq(voyages.userId, userId))
+        .where(and(eq(voyages.userId, userId), isNull(voyages.deletedAt)))
         .orderBy(desc(voyages.createdAt));
     }
     const voyageRows = rows.map(r => ({ ...r.voyage, portName: r.portName, portLat: r.portLat, portLng: r.portLng }));
@@ -2318,12 +2367,14 @@ export class DatabaseStorage implements IStorage {
 
   async getFixtures(userId: string): Promise<Fixture[]> {
     return db.select().from(fixtures)
-      .where(eq(fixtures.userId, userId))
+      .where(and(eq(fixtures.userId, userId), isNull(fixtures.deletedAt)))
       .orderBy(desc(fixtures.createdAt));
   }
 
   async getAllFixtures(): Promise<Fixture[]> {
-    return db.select().from(fixtures).orderBy(desc(fixtures.createdAt));
+    return db.select().from(fixtures)
+      .where(isNull(fixtures.deletedAt))
+      .orderBy(desc(fixtures.createdAt));
   }
 
   async getFixture(id: number): Promise<Fixture | undefined> {
@@ -2342,8 +2393,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteFixture(id: number): Promise<boolean> {
-    const result = await db.delete(fixtures).where(eq(fixtures.id, id));
-    return (result as any).rowCount > 0;
+    const [updated] = await db.update(fixtures)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(fixtures.id, id), isNull(fixtures.deletedAt)))
+      .returning();
+    return !!updated;
+  }
+
+  async restoreFixture(id: number): Promise<boolean> {
+    const [updated] = await db.update(fixtures)
+      .set({ deletedAt: null })
+      .where(eq(fixtures.id, id))
+      .returning();
+    return !!updated;
   }
 
   // ─── CARGO POSITIONS ────────────────────────────────────────────────────────
@@ -2378,12 +2440,15 @@ export class DatabaseStorage implements IStorage {
   // ─── BUNKER PRICES ──────────────────────────────────────────────────────────
 
   async getBunkerPrices(): Promise<BunkerPrice[]> {
-    return db.select().from(bunkerPrices)
-      .orderBy(asc(bunkerPrices.region), asc(bunkerPrices.portName));
+    return cached("bunker:prices", "long", () =>
+      db.select().from(bunkerPrices)
+        .orderBy(asc(bunkerPrices.region), asc(bunkerPrices.portName))
+    );
   }
 
   async upsertBunkerPrice(data: InsertBunkerPrice): Promise<BunkerPrice> {
     const [row] = await db.insert(bunkerPrices).values({ ...data, updatedAt: new Date() }).returning();
+    invalidateCacheByPrefix("bunker:", "long");
     return row;
   }
 
@@ -2427,6 +2492,22 @@ export class DatabaseStorage implements IStorage {
     return row;
   }
 
+  async deleteInvoice(id: number, userId: string): Promise<boolean> {
+    const [updated] = await db.update(invoices)
+      .set({ deletedAt: new Date() })
+      .where(and(eq(invoices.id, id), eq(invoices.createdByUserId, userId), isNull(invoices.deletedAt)))
+      .returning();
+    return !!updated;
+  }
+
+  async restoreInvoice(id: number): Promise<boolean> {
+    const [updated] = await db.update(invoices)
+      .set({ deletedAt: null })
+      .where(eq(invoices.id, id))
+      .returning();
+    return !!updated;
+  }
+
   async getInvoicesByUser(userId: string): Promise<any[]> {
     const rows = await db.execute(sql`
       SELECT i.*, v.vessel_name, v.port_id, p2.name as port_name_ref
@@ -2434,6 +2515,7 @@ export class DatabaseStorage implements IStorage {
       LEFT JOIN voyages v ON v.id = i.voyage_id
       LEFT JOIN ports p2 ON p2.id = v.port_id
       WHERE i.created_by_user_id = ${userId}
+        AND i.deleted_at IS NULL
       ORDER BY i.created_at DESC
     `);
     const arr: any[] = rows.rows ?? (rows as any);

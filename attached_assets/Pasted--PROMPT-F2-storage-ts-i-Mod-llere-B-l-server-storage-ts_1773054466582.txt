@@ -1,0 +1,101 @@
+## ⭐ PROMPT F2 — storage.ts'i Modüllere Böl
+
+```
+server/storage.ts dosyası 3000+ satır ve tek bir sınıfta 100+ metot var. Bu dosyayı modüllere bölelim.
+
+ADIM 1: Yeni klasör yapısı oluştur:
+server/storage/
+  ├── index.ts
+  ├── base.ts
+  ├── vessel.storage.ts
+  ├── proforma.storage.ts
+  ├── voyage.storage.ts
+  ├── forum.storage.ts
+  ├── tender.storage.ts
+  ├── crew.storage.ts
+  ├── invoice.storage.ts
+  ├── notification.storage.ts
+  ├── message.storage.ts
+  ├── nomination.storage.ts
+  ├── company.storage.ts
+  ├── document.storage.ts
+  ├── maintenance.storage.ts
+  ├── bunker.storage.ts
+  ├── charter-party.storage.ts
+  ├── husbandry.storage.ts
+
+ADIM 2: base.ts — ortak import'lar ve db instance:
+import { db } from "../db";
+import { eq, and, or, desc, asc, sql, count, ilike, inArray, lte, gte, isNull } from "drizzle-orm";
+export { db };
+
+ADIM 3: Her storage modülü kendi ilgili metotlarını içerecek. Örnek vessel.storage.ts:
+
+import { db } from "./base";
+import { vessels, proformas } from "@shared/schema";
+import { eq, and, desc } from "drizzle-orm";
+import type { Vessel, InsertVessel } from "@shared/schema";
+
+export const vesselStorage = {
+  async getVesselsByUser(userId: string): Promise<Vessel[]> {
+    return db.select().from(vessels).where(eq(vessels.userId, userId));
+  },
+  async getVessel(id: number, userId: string): Promise<Vessel | undefined> {
+    const [vessel] = await db.select().from(vessels).where(and(eq(vessels.id, id), eq(vessels.userId, userId)));
+    return vessel;
+  },
+  // ... mevcut storage.ts'deki tüm vessel metotlarını buraya taşı
+};
+
+ADIM 4: index.ts — tüm modülleri birleştir:
+
+import { vesselStorage } from "./vessel.storage";
+import { proformaStorage } from "./proforma.storage";
+import { voyageStorage } from "./voyage.storage";
+// ... diğer import'lar
+
+export const storage = {
+  ...vesselStorage,
+  ...proformaStorage,
+  ...voyageStorage,
+  ...forumStorage,
+  ...tenderStorage,
+  ...crewStorage,
+  ...invoiceStorage,
+  ...notificationStorage,
+  ...messageStorage,
+  ...nominationStorage,
+  ...companyStorage,
+  ...documentStorage,
+  ...maintenanceStorage,
+  ...bunkerStorage,
+  ...charterPartyStorage,
+  ...husbandryStorage,
+};
+
+export type IStorage = typeof storage;
+
+ADIM 5: Mevcut import'ları güncelle. Projede `import { storage } from "./storage"` olan tüm dosyalar `import { storage } from "./storage/index"` olarak güncellenmeli. Ama path aynı kalacağı için (`./storage`) otomatik çalışacak — sadece `server/storage.ts` dosyasını `server/storage/index.ts`'e taşıdığından emin ol.
+
+ADIM 6: Eski server/storage.ts dosyasını sil.
+
+Metotları şöyle dağıt:
+- vessel.storage.ts: getVessel*, createVessel, updateVessel*, deleteVessel*, getAllVessels
+- proforma.storage.ts: getProforma*, createProforma, updateProforma, deleteProforma, duplicateProforma, findProformaByToken, getProformaApprovalLogs, createProformaApprovalLog
+- voyage.storage.ts: createVoyage, getVoyage*, updateVoyage*, createChecklistItem, getChecklistByVoyage, toggleChecklistItem, deleteChecklistItem, updateChecklistItem, getVoyageCrewLogistics, saveVoyageCrewLogistics
+- forum.storage.ts: getForumCategories, getForumTopics, getForumTopic, createForumTopic, deleteForumTopic, getForumReplies, createForumReply, getUserTopicLikes, getUserReplyLikes, toggleTopicLike, toggleReplyLike, getUserTopicDislikes, getUserReplyDislikes, toggleTopicDislike, toggleReplyDislike, getTopicParticipants
+- tender.storage.ts: getPortTenders, getPortTenderById, createPortTender, updatePortTenderStatus, getTenderBids, getTenderBidsByAgent, createTenderBid, updateTenderBidStatus, getAgentsByPort, getTenderCountForAgent
+- crew.storage.ts: getVesselCrew, getCrewRoster, createVesselCrewMember, updateVesselCrewMember, deleteVesselCrewMember, getCrewStcw*, getCrewPayroll, createCrewPayroll, updateCrewPayroll, getCrewSummary
+- invoice.storage.ts: createInvoice, getInvoicesByUser, updateInvoiceStatus, getAllPendingInvoicesOverdue, getInvoicePayments, createInvoicePayment, getInvoiceBalance
+- notification.storage.ts: createNotification, getNotifications, getUnreadNotificationCount, markNotificationRead, markAllNotificationsRead, getNotificationPreferences, upsertNotificationPreferences, createFeedback, getAllFeedbacks
+- message.storage.ts: getOrCreateConversation, getConversationsByUser, getConversationById, createMessage, markConversationRead, updateConversationExternalEmail, getUnreadMessageCount
+- nomination.storage.ts: createNomination, getNominations*, updateNominationStatus, getPendingNominationCountForAgent, _enrichNominations
+- company.storage.ts: getCompanyProfile*, createCompanyProfile, updateCompanyProfile, getPublicCompanyProfiles, getFeaturedCompanyProfiles, getPendingCompanyProfiles, approveCompanyProfile, rejectCompanyProfile, requestVerification, approveVerification, rejectVerification, getPendingVerifications, getEndorsements, createEndorsement, deleteEndorsement, getUserEndorsementForProfile
+- document.storage.ts: createVoyageDocument, getVoyageDocuments, deleteVoyageDocument, getDocumentTemplates, signVoyageDocument, createNewDocumentVersion
+- maintenance.storage.ts: getVesselEquipment, createVesselEquipment, updateVesselEquipment, deleteVesselEquipment, getMaintenanceJobs, createMaintenanceJob, updateMaintenanceJob, getMaintenanceSummary
+- bunker.storage.ts: getBunkerOrders, createBunkerOrder, updateBunkerOrder, deleteBunkerOrder, getBunkerRobs, createBunkerRob, getBunkerStats, getBunkerPrices, upsertBunkerPrice, deleteBunkerPrice
+- charter-party.storage.ts: getCharterParties, getCharterParty, createCharterParty, updateCharterParty, deleteCharterParty, getHirePayments, createHirePayment, updateHirePayment, getOffHireEvents, createOffHireEvent, updateOffHireEvent
+- husbandry.storage.ts: getHusbandryOrders, getVesselHusbandryOrders, createHusbandryOrder, updateHusbandryOrder, deleteHusbandryOrder, getCrewChanges, createCrewChange, updateCrewChange
+```
+
+---

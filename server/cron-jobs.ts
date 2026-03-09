@@ -303,6 +303,24 @@ async function autoSyncVesselStatusesCron() {
   }
 }
 
+async function purgeDeletedRecords() {
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const tables = ["vessels", "proformas", "voyages", "fixtures", "invoices"];
+  let totalPurged = 0;
+  try {
+    for (const table of tables) {
+      const res = await pool.query(
+        `DELETE FROM ${table} WHERE deleted_at IS NOT NULL AND deleted_at < $1`,
+        [cutoff]
+      );
+      totalPurged += res.rowCount ?? 0;
+    }
+    console.log(`[cron] purgeDeletedRecords: removed ${totalPurged} record(s), cutoff = ${cutoff.toISOString()}`);
+  } catch (err: any) {
+    console.error("[cron] purgeDeletedRecords error:", err?.message);
+  }
+}
+
 export function startCronJobs() {
   cron.schedule("*/5 * * * *", syncWatchlistPositions);
   cron.schedule("0 8 * * *", checkExpiringCertificates);
@@ -313,8 +331,9 @@ export function startCronJobs() {
   cron.schedule("0 2 * * 0", cleanOldPositions);
   cron.schedule("0 9 * * *", checkPaymentReminders);
   cron.schedule("*/10 * * * *", autoSyncVesselStatusesCron);
+  cron.schedule("0 3 * * 1", purgeDeletedRecords);
 
-  console.log("[cron] All 9 scheduled jobs registered:");
+  console.log("[cron] All 10 scheduled jobs registered:");
   console.log("[cron]   */5 * * * *  — syncWatchlistPositions");
   console.log("[cron]   0 8 * * *    — checkExpiringCertificates");
   console.log("[cron]   0 0 * * *    — autoCloseTenders");
@@ -324,6 +343,7 @@ export function startCronJobs() {
   console.log("[cron]   0 2 * * 0    — cleanOldPositions");
   console.log("[cron]   0 9 * * *    — checkPaymentReminders");
   console.log("[cron]   */10 * * * * — autoSyncVesselStatuses");
+  console.log("[cron]   0 3 * * 1    — purgeDeletedRecords (weekly, 30-day grace)");
 
   setTimeout(() => autoSyncVesselStatusesCron(), 3000);
 }

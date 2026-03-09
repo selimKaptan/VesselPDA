@@ -30,6 +30,32 @@ router.get("/", isAuthenticated, async (req: any, res: any, next: any) => {
 });
 
 
+router.delete("/:id", isAuthenticated, async (req: any, res: any) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const id = parseInt(req.params.id);
+    const deleted = await storage.deleteVoyage(id, userId);
+    if (!deleted) return res.status(404).json({ message: "Voyage not found" });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("[voyages:DELETE]", error);
+    res.status(500).json({ message: "Failed to delete voyage" });
+  }
+});
+
+router.post("/:id/restore", isAuthenticated, async (req: any, res: any) => {
+  try {
+    const role = req.user?.activeRole || req.user?.userRole;
+    if (role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const id = parseInt(req.params.id);
+    const restored = await storage.restoreVoyage(id);
+    if (!restored) return res.status(404).json({ message: "Voyage not found" });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to restore voyage" });
+  }
+});
+
 router.post("/", isAuthenticated, async (req: any, res: any, next: any) => {
   try {
     const userId = req.user?.claims?.sub || req.user?.id;

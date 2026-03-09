@@ -98,6 +98,19 @@ router.delete("/:id", isAuthenticated, async (req: any, res) => {
   }
 });
 
+router.post("/:id/restore", isAuthenticated, async (req: any, res) => {
+  try {
+    const admin = await isAdmin(req);
+    if (!admin) return res.status(403).json({ message: "Forbidden" });
+    const id = parseInt(req.params.id);
+    const restored = await storage.restoreVessel(id);
+    if (!restored) return res.status(404).json({ message: "Vessel not found" });
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to restore vessel" });
+  }
+});
+
 
 function mapDatalasticVessel(d: datalastic.DatalasticVessel, fallbackImo?: string) {
   const typeMap: Record<string, string> = {

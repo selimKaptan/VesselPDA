@@ -233,6 +233,31 @@ router.post("/api/invoices", isAuthenticated, validate(insertInvoiceSchema.parti
 });
 
 
+router.delete("/api/invoices/:id", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user?.claims?.sub || req.user?.id;
+    const id = parseInt(req.params.id);
+    const deleted = await storage.deleteInvoice(id, userId);
+    if (!deleted) return res.status(404).json({ message: "Invoice not found" });
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ message: "Failed to delete invoice" });
+  }
+});
+
+router.post("/api/invoices/:id/restore", isAuthenticated, async (req: any, res) => {
+  try {
+    const role = req.user?.userRole ?? req.user?.activeRole;
+    if (role !== "admin") return res.status(403).json({ message: "Forbidden" });
+    const id = parseInt(req.params.id);
+    const restored = await storage.restoreInvoice(id);
+    if (!restored) return res.status(404).json({ message: "Invoice not found" });
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ message: "Failed to restore invoice" });
+  }
+});
+
 router.patch("/api/invoices/:id/status", isAuthenticated, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);

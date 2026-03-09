@@ -27,6 +27,7 @@ export const vessels = pgTable("vessels", {
   enginePower: real("engine_power"),
   engineType: text("engine_type"),
   classificationSociety: text("classification_society"),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -105,6 +106,7 @@ export const proformas = pgTable("proformas", {
   approvalToken: varchar("approval_token"),
   recipientEmail: varchar("recipient_email"),
   voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdx: index("proformas_user_idx").on(table.userId),
@@ -595,6 +597,7 @@ export const voyages = pgTable("voyages", {
   cargoQuantity: real("cargo_quantity"),
   cargoTotalMt: real("cargo_total_mt"),
   completedAt: timestamp("completed_at"),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userIdx: index("voyages_user_idx").on(table.userId),
@@ -1060,6 +1063,7 @@ export const fixtures = pgTable("fixtures", {
   brokerCommission: real("broker_commission"),
   notes: text("notes"),
   recapText: text("recap_text"),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -1328,6 +1332,7 @@ export const invoices = pgTable("invoices", {
   overdueReminderSentAt: timestamp("overdue_reminder_sent_at"),
   amountPaid: real("amount_paid").default(0),
   balance: real("balance"),
+  deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

@@ -90,6 +90,19 @@ router.delete("/api/fixtures/:id", isAuthenticated, async (req: any, res) => {
   }
 });
 
+router.post("/api/fixtures/:id/restore", isAuthenticated, async (req: any, res) => {
+  try {
+    const isAdmin = req.user.userRole === "admin" || req.user.activeRole === "admin";
+    if (!isAdmin) return res.status(403).json({ message: "Forbidden" });
+    const id = parseInt(req.params.id);
+    const restored = await storage.restoreFixture(id);
+    if (!restored) return res.status(404).json({ message: "Fixture not found" });
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ message: "Failed to restore fixture" });
+  }
+});
+
 
 router.get("/api/fixtures/:id/laytime", isAuthenticated, async (req: any, res) => {
   try {
