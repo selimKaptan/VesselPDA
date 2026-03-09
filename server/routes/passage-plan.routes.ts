@@ -80,16 +80,19 @@ const SEA_WAYPOINTS: Record<string, { lat: number; lon: number; connections: str
   "med_crete": { lat: 35.50, lon: 24.00, connections: ["med_malta", "med_greece_w", "med_greece_e", "med_egypt"] },
   "med_greece_e": { lat: 38.00, lon: 25.50, connections: ["med_greece_w", "med_crete", "aegean_s"] },
   "med_egypt": { lat: 31.50, lon: 30.00, connections: ["med_crete", "med_libya", "suez_n"] },
-  "aegean_s": { lat: 37.50, lon: 26.00, connections: ["med_greece_e", "aegean_n", "med_crete"] },
-  "aegean_n": { lat: 39.50, lon: 26.00, connections: ["aegean_s", "dardanelles_w"] },
-  "dardanelles_w": { lat: 40.00, lon: 26.20, connections: ["aegean_n", "dardanelles_e"] },
+  "aegean_s": { lat: 37.50, lon: 26.00, connections: ["med_greece_e", "aegean_n", "med_crete", "aegean_izmir"] },
+  "aegean_izmir": { lat: 38.30, lon: 26.60, connections: ["aegean_s", "aegean_lesbos", "dardanelles_w"] },
+  "aegean_lesbos": { lat: 39.10, lon: 26.40, connections: ["aegean_izmir", "aegean_n", "dardanelles_w"] },
+  "aegean_n": { lat: 39.50, lon: 26.00, connections: ["aegean_s", "aegean_lesbos", "dardanelles_w"] },
+  "dardanelles_w": { lat: 40.00, lon: 26.20, connections: ["aegean_n", "aegean_lesbos", "dardanelles_e"] },
   "dardanelles_e": { lat: 40.20, lon: 26.70, connections: ["dardanelles_w", "marmara"] },
   "marmara": { lat: 40.70, lon: 28.80, connections: ["dardanelles_e", "bosphorus_s"] },
   "bosphorus_s": { lat: 41.00, lon: 29.00, connections: ["marmara", "bosphorus_n"] },
   "bosphorus_n": { lat: 41.20, lon: 29.10, connections: ["bosphorus_s", "blacksea_w"] },
   "blacksea_w": { lat: 42.00, lon: 30.00, connections: ["bosphorus_n", "blacksea_e"] },
-  "blacksea_e": { lat: 42.50, lon: 37.00, connections: ["blacksea_w"] },
-  "turkish_s_coast": { lat: 36.50, lon: 30.00, connections: ["aegean_s", "iskenderun"] },
+  "blacksea_e": { lat: 42.50, lon: 37.00, connections: ["blacksea_w", "blacksea_ne"] },
+  "blacksea_ne": { lat: 44.00, lon: 37.50, connections: ["blacksea_e"] },
+  "turkish_s_coast": { lat: 36.50, lon: 30.00, connections: ["aegean_s", "aegean_izmir", "iskenderun"] },
   "iskenderun": { lat: 36.60, lon: 35.80, connections: ["turkish_s_coast", "suez_approach"] },
   "suez_n": { lat: 31.25, lon: 32.30, connections: ["med_egypt", "suez_s"] },
   "suez_s": { lat: 29.95, lon: 32.55, connections: ["suez_n", "red_sea_n"] },
@@ -275,23 +278,36 @@ router.post("/calculate-route", isAuthenticated, async (req: any, res) => {
 
         if (legRoutePoints.length > 0) routeGeometry.push(...legRoutePoints);
 
+        // Bu leg için geçilen boğaz/kanalları bul ve rota boyunca konumlarına göre sırala
+        const legStraits: { strait: typeof STRAITS_AND_CANALS[0]; routeIdx: number }[] = [];
         for (const strait of STRAITS_AND_CANALS) {
+          if (passedStraits.find((s: any) => s.name === strait.name)) continue;
           const isOnRoute = legRoutePoints.some(([lat, lon]) =>
             haversineNm(lat, lon, strait.lat, strait.lon) < strait.radiusNm
           );
           const directCheck = haversineNm(pt.lat, pt.lon, strait.lat, strait.lon) + haversineNm(strait.lat, strait.lon, next.lat, next.lon) < legDistanceNm * 1.3;
-
-          if ((isOnRoute || directCheck) && !passedStraits.find((s: any) => s.name === strait.name)) {
-            passedStraits.push(strait);
-            waypoints.push({
-              sequence: seq++, name: strait.name, latitude: strait.lat, longitude: strait.lon,
-              waypointType: strait.type, isStrait: strait.type === "strait", isCanal: strait.type === "canal",
-              isPort: false, speedKnots: strait.type === "canal" ? 8 : speed,
-              distanceToNextNm: 0, courseToNext: 0, legTimeHours: strait.transitHours,
-              notes: `Transit: ~${strait.transitHours}h`,
+          if (isOnRoute || directCheck) {
+            // Rotadaki en yakın noktanın indexini bul (sıralama için)
+            let minDist = Infinity, minIdx = 0;
+            legRoutePoints.forEach(([lat, lon], idx) => {
+              const d = haversineNm(lat, lon, strait.lat, strait.lon);
+              if (d < minDist) { minDist = d; minIdx = idx; }
             });
-            totalHours += strait.transitHours;
+            legStraits.push({ strait, routeIdx: minIdx });
           }
+        }
+        // Rota boyunca geçiş sırasına göre sırala
+        legStraits.sort((a, b) => a.routeIdx - b.routeIdx);
+        for (const { strait } of legStraits) {
+          passedStraits.push(strait);
+          waypoints.push({
+            sequence: seq++, name: strait.name, latitude: strait.lat, longitude: strait.lon,
+            waypointType: strait.type, isStrait: strait.type === "strait", isCanal: strait.type === "canal",
+            isPort: false, speedKnots: strait.type === "canal" ? 8 : speed,
+            distanceToNextNm: 0, courseToNext: 0, legTimeHours: strait.transitHours,
+            notes: `Transit: ~${strait.transitHours}h`,
+          });
+          totalHours += strait.transitHours;
         }
 
         const legTimeHours = legDistanceNm / speed;
