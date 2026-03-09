@@ -1,0 +1,48 @@
+Deployment loglarında 3 hata var, hepsini düzelt:
+
+HATA 1 — AISStream HÂLÂ ÇALIŞIYOR:
+Logda "AISStream WebSocket error" görünüyor. AISStream tamamen kaldırılmamış.
+- server/ais-stream.ts dosyasını SİL
+- server/routes.ts'de "import { startAISStream } from './ais-stream'" satırını SİL
+- server/routes.ts'de "startAISStream();" çağrısını SİL
+- Projede "ais-stream" veya "aisstream" veya "startAISStream" referansı olan TÜM dosyaları bul ve bu referansları kaldır. Bulmak için: grep -rn "ais-stream\|aisstream\|startAISStream\|AISStream" server/ client/src/ --include="*.ts" --include="*.tsx"
+
+HATA 2 — Datalastic 404 hatası:
+"Live position error: Datalastic API error 404" — /vessel_current_data/ endpoint'i Datalastic API'de yok. Doğru endpoint'ler farklı.
+
+server/datalastic.ts dosyasında şu fonksiyonları düzelt:
+
+a) getCurrentPosition fonksiyonu — endpoint yanlış:
+ÖNCE: const json = await datalasticFetch(`/vessel_current_data/${uuid}`);
+SONRA: const json = await datalasticFetch(`/vessel_pro?uuid=${encodeURIComponent(uuid)}`);
+
+b) getVesselByUuid fonksiyonu — endpoint yanlış:
+ÖNCE: const json = await datalasticFetch(`/vessel_uuid/${uuid}`);
+SONRA: const json = await datalasticFetch(`/vessel_info?uuid=${encodeURIComponent(uuid)}`);
+
+c) getHistoricalTrack fonksiyonu — endpoint yanlış:
+ÖNCE: const json = await datalasticFetch(`/vessel_track/${uuid}`);
+SONRA: const json = await datalasticFetch(`/vessel_history?uuid=${encodeURIComponent(uuid)}`);
+
+d) getPortCalls fonksiyonu — endpoint yanlış:
+ÖNCE: const json = await datalasticFetch(`/port_call/${uuid}`);
+SONRA: const json = await datalasticFetch(`/port_call?uuid=${encodeURIComponent(uuid)}`);
+
+e) getInspections fonksiyonu — endpoint yanlış:
+ÖNCE: const json = await datalasticFetch(`/inspections/${uuid}`);
+SONRA: const json = await datalasticFetch(`/vessel_inspections?uuid=${encodeURIComponent(uuid)}`);
+
+f) findPort fonksiyonu — endpoint yanlış:
+ÖNCE: const json = await datalasticFetch(`/port?name=${encodeURIComponent(name)}`);
+SONRA: const json = await datalasticFetch(`/port_find?name=${encodeURIComponent(name)}`);
+
+Datalastic API'de path parameter YOKTUR. Her şey query parameter olarak gönderilir:
+- Doğru: /vessel_pro?uuid=xxx
+- Yanlış: /vessel_current_data/xxx
+
+HATA 3 — Q88'de "column mmsi does not exist":
+server/routes/q88.routes.ts dosyasında veya q88 ile ilgili sorguda vessels tablosundan "mmsi" kolonu çekiliyor ama bu kolon tabloda yok veya farklı isimde. Şu adımları yap:
+- shared/schema.ts (veya shared/schema/ klasöründeki vessel dosyası) içinde vessels tablosunda mmsi kolonu var mı kontrol et
+- Eğer yoksa, vessels tablosuna ekle: mmsi: varchar("mmsi", { length: 20 }),
+- Eğer farklı isimle varsa (örn: mmsiNumber), q88 sorgusundaki referansı doğru isimle değiştir
+- Migration oluştur: npx drizzle-kit generate
