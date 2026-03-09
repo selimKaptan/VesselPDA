@@ -205,10 +205,11 @@ interface VesselPosition {
   speed?: number; course?: number; destination?: string;
 }
 
-function MapPanel({ waypoints, routeGeometry, onWpClick, vesselPosition }: {
+function MapPanel({ waypoints, routeGeometry, onWpClick, vesselPosition, approachGeometry }: {
   waypoints: any[]; routeGeometry: number[][];
   onWpClick?: (idx: number) => void;
   vesselPosition?: VesselPosition | null;
+  approachGeometry?: number[][];
 }) {
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -305,19 +306,26 @@ function MapPanel({ waypoints, routeGeometry, onWpClick, vesselPosition }: {
       }, 300);
     }
 
-    // Gemiden kalkış limanına gri kesikli çizgi
+    // Gemiden kalkış limanına yaklaşım çizgisi (A* ile hesaplanmış deniz rotası)
     if (vesselPosition?.lat && vesselPosition?.lon) {
-      const firstPort = waypoints.find(wp => wp.isPort);
-      if (firstPort?.latitude && firstPort?.longitude) {
-        const approachLine = L.polyline(
-          [[vesselPosition.lat, vesselPosition.lon], [firstPort.latitude, firstPort.longitude]],
-          { color: "#9ca3af", weight: 1.8, opacity: 0.6, dashArray: "4, 8" }
-        ).addTo(map);
+      const approachCoords: [number, number][] =
+        approachGeometry && approachGeometry.length > 1
+          ? approachGeometry.map(([lat, lon]) => [lat, lon])
+          : (() => {
+              const firstPort = waypoints.find(wp => wp.isPort);
+              return firstPort?.latitude && firstPort?.longitude
+                ? [[vesselPosition.lat, vesselPosition.lon], [firstPort.latitude, firstPort.longitude]] as [number, number][]
+                : [];
+            })();
+      if (approachCoords.length > 1) {
+        const approachLine = L.polyline(approachCoords, {
+          color: "#9ca3af", weight: 1.8, opacity: 0.6, dashArray: "4, 8",
+        }).addTo(map);
         markersRef.current.push(approachLine);
       }
     }
 
-  }, [waypoints, routeGeometry]);
+  }, [waypoints, routeGeometry, approachGeometry]);
 
   return (
     <div ref={containerRef} className="w-full h-full" data-testid="map-container" />
@@ -344,6 +352,7 @@ export default function PassagePlanning() {
   const [calculating, setCalculating] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [focusedWp, setFocusedWp] = useState<number | null>(null);
+  const [approachGeometry, setApproachGeometry] = useState<number[][]>([]);
 
   const { data: plans = [], refetch: refetchPlans } = useQuery<any[]>({
     queryKey: ["/api/v1/passage-plans"],
@@ -478,6 +487,41 @@ export default function PassagePlanning() {
   }, [routeResult, depDate]);
 
   useEffect(() => { if (routeResult) recalcEtas(); }, [depDate]);
+
+  // Gemi pozisyonu + rota hazırsa → yaklaşım segmentini A* ile hesapla
+  useEffect(() => {
+    if (!vesselPosition?.lat || !vesselPosition?.lon || !routeResult) {
+      setApproachGeometry([]);
+      return;
+    }
+    const firstPort = (routeResult.waypoints || []).find((wp: any) => wp.isPort);
+    if (!firstPort?.latitude || !firstPort?.longitude) { setApproachGeometry([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/v1/passage-plans/calculate-route", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            departureLat: vesselPosition.lat,
+            departureLon: vesselPosition.lon,
+            departurePort: "Current Position",
+            destinationLat: firstPort.latitude,
+            destinationLon: firstPort.longitude,
+            destinationPort: firstPort.name,
+            plannedSpeed: speed,
+          }),
+        });
+        if (!cancelled && res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.routeGeometry) && data.routeGeometry.length > 1) {
+            setApproachGeometry(data.routeGeometry);
+          }
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [vesselPosition, routeResult]);
 
   const savePlan = async () => {
     if (!routeResult) { toast({ title: "Önce rotayı hesaplayın", variant: "destructive" }); return; }
@@ -930,6 +974,7 @@ export default function PassagePlanning() {
             routeGeometry={routeGeo}
             onWpClick={setFocusedWp}
             vesselPosition={vesselPosition}
+            approachGeometry={approachGeometry}
           />
         </div>
       </div>
