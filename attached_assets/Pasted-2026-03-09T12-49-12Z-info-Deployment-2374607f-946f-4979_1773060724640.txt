@@ -1,0 +1,84 @@
+2026-03-09T12:49:12Z info: Deployment: 2374607f-946f-4979-8289-07800da598c0
+2026-03-09T12:49:12Z info: Build: 34e44979-0785-4bd6-914e-6bddd4b65c35
+2026-03-09T12:49:12Z info: Running Security Scan
+2026-03-09T12:49:25Z info: Security Scan Complete
+2026-03-09T12:49:25Z info: Connecting to builder
+2026-03-09T12:49:25Z info: Builder connected
+2026-03-09T12:49:26Z info: Installing packages
+2026-03-09T12:49:27Z info: Starting Build
+
+> rest-express@1.0.0 build
+> tsx script/build.ts
+
+
+building client...
+
+vite v7.3.0 building client environment for production...
+
+transforming...
+
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+
+✓ 4084 modules transformed.
+
+rendering chunks...
+
+[plugin vite:reporter] 
+(!) /home/runner/workspace/node_modules/leaflet/dist/leaflet-src.js?commonjs-es-import is dynamically imported by /home/runner/workspace/client/src/pages/voyage-detail.tsx but also statically imported by /home/runner/workspace/client/src/pages/vessel-report.tsx, /home/runner/workspace/client/src/pages/vessel-track.tsx, dynamic import will not move module into another chunk.
+
+
+computing gzip size...
+
+../dist/public/index.html                               5.13 kB │ gzip:   1.76 kB
+
+../dist/public/assets/vendor-maps-Dv_zA2cU.css         40.99 kB │ gzip:   5.58 kB
+../dist/public/assets/index-xyKsEYYV.css              235.92 kB │ gzip:  38.94 kB
+../dist/public/assets/proforma-summary-FDOFs4ov.js      3.18 kB │ gzip:   1.39 kB
+../dist/public/assets/purify.es-Bzr520pe.js            22.45 kB │ gzip:   8.59 kB
+../dist/public/assets/vendor-jszip-CpVx6zxe.js         97.06 kB │ gzip:  29.88 kB
+../dist/public/assets/index.es-DURyME0a.js            158.62 kB │ gzip:  52.84 kB
+../dist/public/assets/html2canvas.esm-DXEQVQnt.js     201.04 kB │ gzip:  47.07 kB
+../dist/public/assets/vendor-pdf-DShrbAr1.js          417.84 kB │ gzip: 134.90 kB
+../dist/public/assets/vendor-maps-LCxoOIEJ.js       1,696.09 kB │ gzip: 465.84 kB
+../dist/public/assets/index-DCbS2Pak.js             3,703.32 kB │ gzip: 898.99 kB
+
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+
+✓ built in 21.58s
+
+building server...
+
+▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+
+    server/payment.ts:7:38:
+      7 │ const _metaUrl: string | undefined = (import.meta as any).url;
+        ╵                                       ~~~~~~~~~~~
+
+  You need to set the output format to "esm" for "import.meta" to work correctly.
+
+
+1 warning
+
+  dist/index.cjs  2.2mb ⚠️
+
+⚡ Done in 503ms
+
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 11.11.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+npm notice To update run: npm install -g npm@11.11.0
+npm notice
+
+2026-03-09T12:49:53Z info: Pushing pid1 binary layer...
+2026-03-09T12:49:54Z info: Pushing Repl layer...
+2026-03-09T12:49:54Z info: Pushing hosting layer...
+2026-03-09T12:49:55Z info: Created hosting layer
+2026-03-09T12:49:55Z info: Created pid1 binary layer
+2026-03-09T12:50:56Z info: Connecting to builder
+2026-03-09T12:51:03Z info: Builder connected
+2026-03-09T12:51:04Z info: Installing packages
