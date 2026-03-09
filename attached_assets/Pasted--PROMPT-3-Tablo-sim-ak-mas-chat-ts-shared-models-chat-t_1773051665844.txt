@@ -1,0 +1,69 @@
+## 🔴 PROMPT 3 — Tablo İsim Çakışması (chat.ts)
+
+```
+shared/models/chat.ts dosyasında "conversations" ve "messages" tablo adları tanımlı. Ancak aynı isimler shared/schema.ts'de de tanımlı ve tamamen farklı yapıdalar. Bu çakışma sorun yaratıyor.
+
+shared/models/chat.ts dosyasındaki tablo adlarını değiştir:
+- conversations → aiConversations
+- messages → aiMessages
+
+Ayrıca bu dosyadaki tüm type export'larını da güncelle:
+- Conversation → AiConversation
+- InsertConversation → InsertAiConversation
+- Message → AiMessage
+- InsertMessage → InsertAiMessage
+
+Sonra projede chat.ts'den import yapan tüm dosyaları bul ve import'ları yeni isimlere güncelle. Özellikle:
+- server/replit_integrations/chat/storage.ts
+- server/replit_integrations/chat/routes.ts
+- server/replit_integrations/chat/index.ts
+```
+
+---
+
+## 🔴 PROMPT 4 — Demo Seed Hataları (demo-seed.ts)
+
+```
+server/demo-seed.ts dosyasında birçok yanlış alan adı var. Bunları düzelt:
+
+1. NOON REPORTS bölümünde (yaklaşık satır "NEW: MASTER SEED"):
+   Yanlış alanları şöyle düzelt:
+   - latitude: "35.12 N" → latitude: 35.12 (number olmalı)
+   - longitude: "024.45 E" → longitude: 24.45 (number olmalı)
+   - course: 275 → kaldır (schema'da yok, ama speedOverGround var)
+   - speed: 14.5 → speedOverGround: 14.5
+   - distanceLast24h: 348 → distanceLastNoon: 348
+   - distanceToGo: 1250 → distanceToGo: 1250 (bu doğru)
+   - windForce: 4 → windForce: 4 (bu doğru)
+   - seaState: 3 → seaState: 3 (bu doğru)
+   - foRob: 450.5 → hfoRob: 450.5
+   - doRob: 85.2 → mgoRob: 85.2
+   - fwRob: 120.0 → kaldır (schema'da yok)
+   - status: "submitted" → kaldır (schema'da yok)
+   - Her kayda userId ekle
+
+2. CII RECORDS bölümünde (yaklaşık "ENVIRONMENTAL SEED"):
+   - year: 2023 → reportingYear: 2023
+   - attainedCii: 4.85 → ciiAttained: 4.85
+   - requiredCii: 5.12 → ciiRequired: 5.12
+   - rating: "B" → ciiRating: "B"
+   - co2Emissions: 12500.5 → totalCo2Mt: 12500.5
+   - distanceTraveled: 45000 → distanceNm: 45000
+   - status: "finalized" → status: "finalized" (doğru)
+   - userId ekle: userId
+
+3. EU ETS RECORDS bölümünde:
+   Mevcut insert'ı tamamen şöyle değiştir:
+   await db.insert(euEtsRecords).values({
+     vesselId: vesselRows[0].id,
+     userId,
+     reportingYear: 2023,
+     co2Emissions: 8500.2,
+     etsPercentage: 40,
+     etsLiableCo2: 3400.08,
+     allowancesPurchased: 3400,
+     status: "draft"
+   });
+```
+
+---

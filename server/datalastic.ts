@@ -112,13 +112,18 @@ function normalizeVessel(d: any): DatalasticVessel {
   };
 }
 
-let monthlyUsage = 0;
-
 async function datalasticFetch(path: string): Promise<any> {
   const key = apiKey();
   if (!key) throw new Error("DATALASTIC_API_KEY not configured");
 
-  monthlyUsage++;
+  try {
+    const { pool } = await import("./db");
+    await pool.query(
+      "INSERT INTO audit_logs (action, entity_type, details) VALUES ('api_call', 'datalastic', $1)",
+      [JSON.stringify({ path })]
+    );
+  } catch {}
+
   const url = `${BASE}${path}`;
   const res = await fetch(url, {
     headers: { "Authorization": `Bearer ${key}` },
@@ -137,8 +142,17 @@ async function datalasticFetch(path: string): Promise<any> {
   return json;
 }
 
-export function getDatalasticUsage() {
-  return { monthlyUsage, limit: 20000, remaining: 20000 - monthlyUsage };
+export async function getDatalasticUsage() {
+  try {
+    const { pool } = await import("./db");
+    const result = await pool.query(
+      "SELECT COUNT(*)::int as cnt FROM audit_logs WHERE entity_type = 'datalastic' AND created_at > date_trunc('month', NOW())"
+    );
+    const monthlyUsage = result.rows[0]?.cnt ?? 0;
+    return { monthlyUsage, limit: 20000, remaining: Math.max(0, 20000 - monthlyUsage) };
+  } catch {
+    return { monthlyUsage: 0, limit: 20000, remaining: 20000 };
+  }
 }
 
 export async function findVessel(

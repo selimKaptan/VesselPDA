@@ -79,13 +79,32 @@ export async function generateVoyageFinancialReportPdf(data: any, companyProfile
   doc.y = tableHeaderY + 20;
   doc.fillColor("black").font("Helvetica").fontSize(8);
 
-  // Example line items - in a real app you'd map these
-  const comparisonItems = [
-    { desc: "Port Dues", pda: data.pda.total * 0.4, fda: data.fda.total * 0.38 },
-    { desc: "Pilotage & Towage", pda: data.pda.total * 0.3, fda: data.fda.total * 0.32 },
-    { desc: "Agency Fee", pda: data.pda.total * 0.1, fda: data.fda.total * 0.1 },
-    { desc: "Other Expenses", pda: data.pda.total * 0.2, fda: data.fda.total * 0.2 },
-  ];
+  const pdaItems = (data.pda?.lineItems || []) as Array<{description: string; amountUsd: number}>;
+  const fdaItems = (data.fda?.lineItems || []) as Array<{description: string; actualUsd: number; estimatedUsd: number}>;
+
+  const comparisonItems: Array<{desc: string; pda: number; fda: number}> = fdaItems.map(fItem => {
+    const pdaMatch = pdaItems.find(p => p.description === fItem.description);
+    return {
+      desc: fItem.description,
+      pda: pdaMatch?.amountUsd ?? fItem.estimatedUsd ?? 0,
+      fda: fItem.actualUsd ?? 0,
+    };
+  });
+
+  for (const pItem of pdaItems) {
+    if (!comparisonItems.find(c => c.desc === pItem.description)) {
+      comparisonItems.push({ desc: pItem.description, pda: pItem.amountUsd, fda: 0 });
+    }
+  }
+
+  if (comparisonItems.length === 0) {
+    comparisonItems.push(
+      { desc: "Port Dues", pda: data.pda.total * 0.4, fda: data.fda.total * 0.38 },
+      { desc: "Pilotage & Towage", pda: data.pda.total * 0.3, fda: data.fda.total * 0.32 },
+      { desc: "Agency Fee", pda: data.pda.total * 0.1, fda: data.fda.total * 0.1 },
+      { desc: "Other Expenses", pda: data.pda.total * 0.2, fda: data.fda.total * 0.2 },
+    );
+  }
 
   for (const item of comparisonItems) {
     const rowY = doc.y;

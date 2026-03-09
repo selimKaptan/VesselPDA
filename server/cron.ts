@@ -30,7 +30,7 @@ export async function checkInvoiceDueDates() {
       const diffDays = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
       
       if (diffDays === 1 || diffDays === 7) {
-        const prefs = await storage.getNotificationPreferences(inv.userId);
+        const prefs = await storage.getNotificationPreferences(inv.createdByUserId);
         if (prefs?.emailOnInvoiceDue && inv.recipientEmail) {
           await sendInvoiceDueReminder(inv.recipientEmail, {
             recipientName: inv.recipientName || "Valued Customer",

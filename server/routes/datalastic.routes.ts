@@ -158,7 +158,7 @@ router.get("/api/datalastic/route", isAuthenticated, async (req, res, next) => {
 
 router.get("/api/admin/datalastic-usage", isAuthenticated, async (req: Request, res: Response) => {
   if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
-  res.json(datalastic.getDatalasticUsage());
+  res.json(await datalastic.getDatalasticUsage());
 });
 
 export default router;
