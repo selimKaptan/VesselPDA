@@ -1,7 +1,7 @@
 export * from "./models/auth";
 
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, integer, real, timestamp, jsonb, boolean, serial, index, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, real, timestamp, jsonb, boolean, serial, index, uniqueIndex, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { users, companyProfiles } from "./models/auth";
@@ -80,6 +80,7 @@ export const proformas = pgTable("proformas", {
   companyProfileId: integer("company_profile_id").references(() => companyProfiles.id, { onDelete: "set null" }),
   vesselId: integer("vessel_id").notNull().references(() => vessels.id),
   portId: integer("port_id").notNull().references(() => ports.id),
+
   referenceNumber: text("reference_number").notNull(),
   toCompany: text("to_company"),
   toCountry: text("to_country"),
@@ -105,7 +106,10 @@ export const proformas = pgTable("proformas", {
   recipientEmail: varchar("recipient_email"),
   voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdx: index("proformas_user_idx").on(table.userId),
+  voyageIdx: index("proformas_voyage_idx").on(table.voyageId),
+}));
 
 export const proformaRelations = relations(proformas, ({ one, many }) => ({
   user: one(users, { fields: [proformas.userId], references: [users.id] }),
@@ -236,8 +240,8 @@ export type ProformaApprovalLog = typeof proformaApprovalLogs.$inferSelect;
 export type InsertProformaApprovalLog = z.infer<typeof insertProformaApprovalLogSchema>;
 
 export const insertForumCategorySchema = createInsertSchema(forumCategories).omit({ createdAt: true });
-export const insertForumTopicSchema = createInsertSchema(forumTopics).omit({ createdAt: true, lastActivityAt: true, viewCount: true, replyCount: true, likeCount: true, isPinned: true, isLocked: true });
-export const insertForumReplySchema = createInsertSchema(forumReplies).omit({ createdAt: true, likeCount: true });
+export const insertForumTopicSchema = createInsertSchema(forumTopics).omit({ createdAt: true, lastActivityAt: true, viewCount: true, replyCount: true, likeCount: true, dislikeCount: true, isPinned: true, isLocked: true });
+export const insertForumReplySchema = createInsertSchema(forumReplies).omit({ createdAt: true, likeCount: true, dislikeCount: true });
 
 export type InsertForumCategory = z.infer<typeof insertForumCategorySchema>;
 export type ForumCategory = typeof forumCategories.$inferSelect;
@@ -345,7 +349,9 @@ export const tenderBids = pgTable("tender_bids", {
   currency: text("currency").notNull().default("USD"),
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  tenderIdx: index("tender_bids_tender_idx").on(table.tenderId),
+}));
 
 export const portTenderRelations = relations(portTenders, ({ one, many }) => ({
   user: one(users, { fields: [portTenders.userId], references: [users.id] }),
@@ -435,7 +441,9 @@ export const notifications = pgTable("notifications", {
   link: text("link"),
   isRead: boolean("is_read").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userReadIdx: index("notifications_user_read_idx").on(table.userId, table.isRead),
+}));
 
 export const portExpenses = pgTable("port_expenses", {
   id: serial("id").primaryKey(),
@@ -491,6 +499,10 @@ export const notificationPreferenceRelations = relations(notificationPreferences
 
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ createdAt: true, isRead: true });
 export const insertNotificationPreferenceSchema = createInsertSchema(notificationPreferences).omit({ id: true, updatedAt: true });
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type NotificationPreference = typeof notificationPreferences.$inferSelect;
+export type InsertNotificationPreference = z.infer<typeof insertNotificationPreferenceSchema>;
 export const fdaMappingTemplates = pgTable("fda_mapping_templates", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id),
@@ -584,7 +596,10 @@ export const voyages = pgTable("voyages", {
   cargoTotalMt: real("cargo_total_mt"),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userIdx: index("voyages_user_idx").on(table.userId),
+  agentIdx: index("voyages_agent_idx").on(table.agentUserId),
+}));
 
 export const voyageRelations = relations(voyages, ({ one, many }) => ({
   user: one(users, { fields: [voyages.userId], references: [users.id] }),
@@ -702,7 +717,7 @@ export const DEFAULT_PARTICIPANT_PERMISSIONS: Record<string, VoyageParticipantPe
 export const voyageCollaborators = pgTable("voyage_collaborators", {
   id: serial("id").primaryKey(),
   voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
-  organizationId: integer("organization_id"),
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: "set null" }),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
   invitedByUserId: varchar("invited_by_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   inviteeEmail: varchar("invitee_email", { length: 300 }),
@@ -831,7 +846,7 @@ export const voyageReviewRelations = relations(voyageReviews, ({ one }) => ({
 export const voyageChatMessages = pgTable("voyage_chat_messages", {
   id: serial("id").primaryKey(),
   voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
-  senderId: text("sender_id").notNull(),
+  senderId: varchar("sender_id").notNull().references(() => users.id),
   content: text("content").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -875,7 +890,9 @@ export const messages = pgTable("messages", {
   fileSize: integer("file_size"),
   readAt: timestamp("read_at"),
   mentions: text("mentions"),
-});
+}, (table) => ({
+  convIdx: index("messages_conv_idx").on(table.conversationId),
+}));
 
 export const messageRelations = relations(messages, ({ one }) => ({
   conversation: one(conversations, { fields: [messages.conversationId], references: [conversations.id] }),
@@ -1268,7 +1285,7 @@ export const bunkerPrices = pgTable("bunker_prices", {
   updatedBy: varchar("updated_by").references(() => users.id),
 });
 
-export const insertBunkerPriceSchema = createInsertSchema(bunkerPrices).omit({});
+export const insertBunkerPriceSchema = createInsertSchema(bunkerPrices).omit({ id: true, updatedAt: true });
 export type InsertBunkerPrice = z.infer<typeof insertBunkerPriceSchema>;
 export type BunkerPrice = typeof bunkerPrices.$inferSelect;
 
@@ -1294,7 +1311,7 @@ export const invoices = pgTable("invoices", {
   id: serial("id").primaryKey(),
   voyageId: integer("voyage_id").references(() => voyages.id, { onDelete: "set null" }),
   proformaId: integer("proforma_id").references(() => proformas.id, { onDelete: "set null" }),
-  fdaId: integer("fda_id"),
+  fdaId: integer("fda_id").references(() => fdaAccounts.id, { onDelete: "set null" }),
   createdByUserId: varchar("created_by_user_id").notNull().references(() => users.id),
   title: text("title").notNull(),
   amount: real("amount").notNull(),
@@ -1471,6 +1488,8 @@ export type InsertVesselCrew = z.infer<typeof insertVesselCrewSchema>;
 export type VesselCrew = typeof vesselCrew.$inferSelect;
 export type InsertCrewStcwCertificate = z.infer<typeof insertCrewStcwCertificateSchema>;
 export type CrewStcwCertificate = typeof crewStcwCertificates.$inferSelect;
+export type CrewStcwCert = CrewStcwCertificate;
+export type InsertCrewStcwCert = InsertCrewStcwCertificate;
 export type InsertCrewPayroll = z.infer<typeof insertCrewPayrollSchema>;
 export type CrewPayroll = typeof crewPayroll.$inferSelect;
 
@@ -1539,7 +1558,9 @@ export const exchangeRates = pgTable("exchange_rates", {
   effectiveRate: real("effective_rate").notNull(),
   source: text("source").notNull().default("tcmb"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  uniquePair: uniqueIndex("exchange_rates_pair_source_idx").on(table.baseCurrency, table.targetCurrency, table.source),
+}));
 
 export const insertExchangeRateSchema = createInsertSchema(exchangeRates).omit({ updatedAt: true });
 export type InsertExchangeRate = z.infer<typeof insertExchangeRateSchema>;
@@ -3102,7 +3123,7 @@ export type PassagePlan = typeof passagePlans.$inferSelect;
 
 export const passageWaypoints = pgTable("passage_waypoints", {
   id: serial("id").primaryKey(),
-  planId: integer("plan_id").notNull(),
+  planId: integer("plan_id").notNull().references(() => passagePlans.id, { onDelete: "cascade" }),
   sequence: integer("sequence").notNull().default(0),
   waypointName: varchar("waypoint_name", { length: 255 }).notNull(),
   latitude: real("latitude"),
