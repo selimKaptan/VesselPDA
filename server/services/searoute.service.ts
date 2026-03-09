@@ -1,4 +1,4 @@
-import seaRoute from 'searoute-ts';
+import { seaRoute } from 'searoute-ts';
 
 export interface SeaRouteResult {
   distanceNm: number;

@@ -30,6 +30,13 @@ const allowlist = [
   "xlsx",
   "zod",
   "zod-validation-error",
+  "searoute-ts",
+  "@turf/helpers",
+  "@turf/length",
+  "@turf/meta",
+  "@turf/point-to-line-distance",
+  "@turf/rhumb-distance",
+  "ts-geojson-path-finder",
 ];
 
 async function buildAll() {
