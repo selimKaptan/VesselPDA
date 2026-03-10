@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useSidebar } from "@/components/ui/sidebar";
+import { useSidebarState } from "@/lib/sidebar-context";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -35,7 +35,8 @@ export default function Proformas() {
   const [mailComposerData, setMailComposerData] = useState<{ id: number; meta: { vesselName?: string; portName?: string; referenceNumber?: string; toEmail?: string; toCompany?: string } } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
-  const { open: sidebarOpen } = useSidebar();
+  const { isCollapsed: sidebarCollapsed } = useSidebarState();
+  const sidebarOffset = sidebarCollapsed ? "4rem" : "15rem";
 
   const userRole = (user as any)?.userRole;
   const activeRole = (user as any)?.activeRole;
@@ -852,12 +853,12 @@ export default function Proformas() {
         <>
           <div
             className="fixed inset-y-0 right-0 z-40 bg-black/60"
-            style={{ left: sidebarOpen ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)' }}
+            style={{ left: sidebarOffset }}
             onClick={() => setShowQuickDialog(false)}
           />
           <div
             className="fixed inset-y-0 right-0 z-50 flex flex-col bg-background border-l shadow-2xl overflow-hidden"
-            style={{ left: sidebarOpen ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)' }}
+            style={{ left: sidebarOffset }}
             data-testid="dialog-quick-proforma"
           >
             <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b bg-background">

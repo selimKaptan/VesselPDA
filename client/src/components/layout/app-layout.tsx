@@ -157,8 +157,8 @@ function MobileNavSheet({
 }
 
 const sidebarStyle = {
-  "--sidebar-width": "13.5rem",
-  "--sidebar-width-icon": "3.5rem",
+  "--sidebar-width": "15rem",
+  "--sidebar-width-icon": "4rem",
 } as React.CSSProperties;
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -180,14 +180,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider style={sidebarStyle} defaultOpen={true}>
-      <div className="flex h-screen w-full overflow-hidden">
-        {/* Desktop Sidebar */}
-        <div className="hidden md:flex flex-shrink-0">
+      <div className="flex h-screen w-full overflow-hidden relative">
+        {/* Desktop Sidebar — spacer + absolute panel */}
+        {!isMobile && (
           <AppSidebar userRole={effectiveRole} isAdmin={isAdmin} />
-        </div>
+        )}
 
         {/* Right side: top bar + content */}
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
           <TopBar user={user} onMenuClick={() => setMobileNavOpen(true)} />
 
           {isDemoUser && (

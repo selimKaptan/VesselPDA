@@ -1,0 +1,91 @@
+Sidebar'da 3 kritik UX sorunu var, hepsini düzelt:
+
+SORUN 1 — Sidebar açıkken sayfa içeriğini kapatıyor (overlay gibi). Sidebar sabit genişlikte olmalı ve içerik yanına kaymali:
+
+client/src/components/layout/app-layout.tsx veya app-sidebar.tsx dosyasında:
+- Sidebar position: fixed veya absolute OLMAMALI
+- Layout: flex yapıda olmalı — sidebar sol tarafta sabit genişlik, content sağ tarafta flex-1
+- Sidebar açıkken: sidebar width 240px, content margin-left: 240px
+- Sidebar kapalıyken: sidebar width 64px, content margin-left: 64px
+
+Layout yapısı şöyle olmalı:
+<div className="flex h-screen">
+  <aside className={`${isExpanded ? 'w-60' : 'w-16'} shrink-0 transition-all duration-300 border-r border-border bg-sidebar overflow-y-auto`}>
+    {/* sidebar content */}
+  </aside>
+  <main className="flex-1 overflow-y-auto">
+    {/* page content */}
+  </main>
+</div>
+
+SORUN 2 — Küçültünce (collapse) sekmelere tıklanamıyor:
+Collapsed modda sadece ikonlar gösterilmeli ve tıklanabilir olmalı:
+- Her ana menü ikonu görünsün (24px)
+- İkona tıklayınca o grubun sayfasına gitsin (ilk child URL'e)
+- İkon üzerine gelince tooltip ile isim gösterilsin
+
+Collapsed modda ikonlar:
+- Dashboard: LayoutDashboard
+- Voyages: Ship
+- Fleet & Assets: Anchor
+- Financials: DollarSign
+- Crew: Users
+
+SORUN 3 — Hover ile otomatik genişleme:
+Sidebar collapsed modda iken mouse sidebar üzerine gelince otomatik genişlesin, mouse ayrılınca tekrar küçülsün:
+
+const [isCollapsed, setIsCollapsed] = useState(false);
+const [isHovered, setIsHovered] = useState(false);
+const isExpanded = !isCollapsed || isHovered;
+
+<aside 
+  className={`${isExpanded ? 'w-60' : 'w-16'} shrink-0 transition-all duration-300 border-r border-border bg-sidebar overflow-hidden`}
+  onMouseEnter={() => setIsHovered(true)}
+  onMouseLeave={() => setIsHovered(false)}
+>
+
+Hover ile genişlediğinde:
+- Alt menüler görünsün
+- Label'lar görünsün
+- Ama sayfa içeriği KAYMASIN (hover genişleme absolute/overlay olarak, sadece sidebar z-index ile üste çıksın)
+
+Yani iki mod var:
+A) Sabit genişleme (Collapse butonu): Sidebar genişler, content kayar — normal layout
+B) Hover genişleme (mouse üzerine gelince): Sidebar z-50 ile overlay olarak genişler, content KAYMAZ
+
+<aside 
+  className={cn(
+    "shrink-0 border-r border-border bg-sidebar overflow-y-auto transition-all duration-300 flex flex-col",
+    isCollapsed && !isHovered && "w-16",
+    isCollapsed && isHovered && "w-60 absolute left-0 top-0 h-full z-50 shadow-2xl",
+    !isCollapsed && "w-60",
+  )}
+  onMouseEnter={() => isCollapsed && setIsHovered(true)}
+  onMouseLeave={() => setIsHovered(false)}
+>
+
+Collapsed + not hovered: w-16, sadece ikonlar
+Collapsed + hovered: w-60, absolute, overlay, shadow — tam menü görünür ama content kaymaz
+Not collapsed: w-60, normal layout, content kaymış
+
+Collapse butonu sidebar'ın en altında:
+- Açıkken: "<< Collapse" text + ikon
+- Kapalıyken: ">>" ikon (sadece)
+
+Ayrıca collapsed modda her ikon için Tooltip ekle:
+<Tooltip>
+  <TooltipTrigger asChild>
+    <button className="w-full flex items-center justify-center p-3 rounded-lg hover:bg-accent">
+      <Icon className="w-5 h-5" />
+    </button>
+  </TooltipTrigger>
+  <TooltipContent side="right">{label}</TooltipContent>
+</Tooltip>
+
+Secondary ikonlar (alttaki küçük ikonlar) collapsed modda da her zaman görünsün — zaten sadece ikon.
+
+Ctrl+K search dialog'u da düzelt — shadcn CommandDialog kullan:
+- Overlay: blur background
+- Ortada modal
+- Arama sonuçları kategorilere ayrılmış
+- Esc ile kapansın

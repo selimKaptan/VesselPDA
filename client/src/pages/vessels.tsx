@@ -15,7 +15,6 @@ import {
   Shield, ClipboardCheck, Building2, Zap, Gauge, Navigation2, Wrench,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useSidebar } from "@/components/ui/sidebar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1305,7 +1304,6 @@ function certStatusBadge(status: string, expiresAt: string | null) {
 }
 
 export default function Vessels() {
-  const { state: sidebarState } = useSidebar();
   const [viewMode, setViewMode] = useState<"grid" | "list" | "map">("grid");
   const [sortBy, setSortBy] = useState<"name" | "status" | "dwt" | "updated">("name");
   const [showForm, setShowForm] = useState(false);
