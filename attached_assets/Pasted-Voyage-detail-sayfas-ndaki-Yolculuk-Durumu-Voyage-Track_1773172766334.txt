@@ -1,0 +1,197 @@
+Voyage detail sayfasındaki "Yolculuk Durumu" (Voyage Tracking) bileşeninde KALKIŞ ve VARIŞ liman bilgileri statik/hardcoded. Datalastic API verileriyle dinamik hale getir.
+
+## 1. LIMAN ADI FORMATTER FONKSİYONU
+
+client/src/lib/format-port.ts dosyası oluştur:
+
+// AIS destination formatlarını temizle
+// Örnekler: "IT GOA > TR IZM", "TRIZM", "TR IZM", "IZMIR ALSANCAK", ">>>MERSIN"
+export function formatPortName(raw?: string | null): string | null {
+  if (!raw || raw.trim() === "" || raw === "null" || raw === "undefined") return null;
+  
+  let name = raw.trim();
+  
+  // ">>>" prefix temizle
+  name = name.replace(/^>+/, "").trim();
+  
+  // "XX XXX > YY YYY" formatı — ">" sonrasını al (varış)
+  if (name.includes(">")) {
+    const parts = name.split(">");
+    name = parts[parts.length - 1].trim();
+  }
+  
+  // 2 harfli ülke kodu + boşluk + liman kodu (Örn: "TR IZM") — ülke kodunu kaldır
+  if (/^[A-Z]{2}\s[A-Z]{3,}$/.test(name)) {
+    name = name.substring(3);
+  }
+  
+  // LOCODE formatı "TRIZM" → sadece IZM kısmını al (5 karakter, hepsi büyük harf)
+  if (/^[A-Z]{5}$/.test(name)) {
+    name = name.substring(2);
+  }
+  
+  // Title Case'e çevir
+  return name
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+// Kalkış limanını belirle — birden fazla kaynaktan
+export function getDeparturePort(voyage: any, vesselData: any): string | null {
+  // 1. Voyage'dan
+  if (voyage?.departurePort) return formatPortName(voyage.departurePort);
+  if (voyage?.loadPort) return formatPortName(voyage.loadPort);
+  
+  // 2. Datalastic vessel_pro'dan — last_port
+  if (vesselData?.last_port_name) return formatPortName(vesselData.last_port_name);
+  if (vesselData?.last_port?.name) return formatPortName(vesselData.last_port.name);
+  
+  // 3. AIS'den
+  if (vesselData?.ais?.last_port) return formatPortName(vesselData.ais.last_port);
+  
+  return null;
+}
+
+// Varış limanını belirle — birden fazla kaynaktan
+export function getDestinationPort(voyage: any, vesselData: any): string | null {
+  // 1. Voyage'dan
+  if (voyage?.portName) return formatPortName(voyage.portName);
+  if (voyage?.dischargePort) return formatPortName(voyage.dischargePort);
+  if (voyage?.destinationPort) return formatPortName(voyage.destinationPort);
+  
+  // 2. Datalastic'ten — AIS destination
+  if (vesselData?.destination) return formatPortName(vesselData.destination);
+  if (vesselData?.ais?.destination) return formatPortName(vesselData.ais.destination);
+  if (vesselData?.next_port_name) return formatPortName(vesselData.next_port_name);
+  
+  return null;
+}
+
+## 2. VOYAGE TRACKING COMPONENT'INI GÜNCELLE
+
+client/src/pages/voyage-detail.tsx (veya voyage tracking bileşeni) dosyasında "Yolculuk Durumu" kartını bul.
+
+A) Import ekle:
+import { getDeparturePort, getDestinationPort, formatPortName } from "@/lib/format-port";
+
+B) Liman bilgilerini hesapla (Datalastic verisi yüklendikten sonra):
+
+// vesselData = Datalastic API'den gelen veri (live-position veya vessel-pro)
+const departurePort = getDeparturePort(voyage, vesselData);
+const destinationPort = getDestinationPort(voyage, vesselData);
+
+C) KALKIŞ alanını değiştir:
+
+ÖNCE:
+  KALKIŞ
+  Ayarla...
+
+SONRA:
+<div className="flex flex-col">
+  <span className="text-xs text-muted-foreground uppercase tracking-wider">Kalkış</span>
+  {departurePort ? (
+    <span className="text-sm font-semibold text-foreground">{departurePort}</span>
+  ) : (
+    <span className="text-sm italic text-slate-500">AIS Bekleniyor...</span>
+  )}
+</div>
+
+D) VARIŞ alanını değiştir:
+
+ÖNCE:
+  VARIŞ
+  ALSANCAK LİMANI (hardcoded)
+
+SONRA:
+<div className="flex flex-col text-right">
+  <span className="text-xs text-muted-foreground uppercase tracking-wider">Varış</span>
+  {destinationPort ? (
+    <span className="text-sm font-semibold text-foreground">{destinationPort}</span>
+  ) : (
+    <span className="text-sm italic text-slate-500">AIS Bekleniyor...</span>
+  )}
+</div>
+
+E) AIS destination'ı da göster (eğer voyage destination'dan farklıysa):
+Eğer Datalastic'ten gelen AIS destination, voyage'daki port'tan farklıysa, küçük bir bilgi satırı ekle:
+
+{vesselData?.destination && vesselData.destination !== voyage?.portName && (
+  <div className="flex items-center gap-1 mt-1">
+    <span className="text-[10px] text-slate-500">AIS Dest:</span>
+    <span className="text-[10px] text-slate-400">{formatPortName(vesselData.destination)}</span>
+  </div>
+)}
+
+## 3. DURUM (STATUS) İKONU
+
+"DURUM: Moored" alanını zenginleştir:
+
+const statusConfig: Record<string, { icon: string; color: string; label: string }> = {
+  "Moored": { icon: "⚓", color: "text-blue-400", label: "Moored" },
+  "At Anchor": { icon: "⚓", color: "text-amber-400", label: "At Anchor" },
+  "Under way using engine": { icon: "🚢", color: "text-emerald-400", label: "Underway" },
+  "Under way sailing": { icon: "⛵", color: "text-emerald-400", label: "Sailing" },
+  "Not under command": { icon: "⚠️", color: "text-red-400", label: "Not Under Command" },
+  "Restricted maneuverability": { icon: "⚠️", color: "text-amber-400", label: "Restricted" },
+  "Engaged in fishing": { icon: "🎣", color: "text-blue-400", label: "Fishing" },
+  "Aground": { icon: "🔴", color: "text-red-500", label: "Aground" },
+};
+
+const status = statusConfig[vesselData?.navigationalStatus] || { icon: "📍", color: "text-slate-400", label: vesselData?.navigationalStatus || "Unknown" };
+
+Render:
+<div className="flex flex-col">
+  <span className="text-xs text-muted-foreground">DURUM</span>
+  <span className={cn("text-sm font-semibold flex items-center gap-1", status.color)}>
+    {status.icon} {status.label}
+  </span>
+</div>
+
+## 4. KOORDİNATLARI FORMATLAMA
+
+Enlem/Boylam değerlerini daha okunabilir yap:
+
+ÖNCE: 38.82209 / 26.94614
+SONRA: 38°49.3'N / 26°56.8'E
+
+function formatCoord(value: number, type: "lat" | "lon"): string {
+  const abs = Math.abs(value);
+  const deg = Math.floor(abs);
+  const min = ((abs - deg) * 60).toFixed(1);
+  const dir = type === "lat" ? (value >= 0 ? "N" : "S") : (value >= 0 ? "E" : "W");
+  return `${deg}°${min}'${dir}`;
+}
+
+Render:
+<span className="text-sm font-semibold">{formatCoord(lat, "lat")}</span>
+<span className="text-sm font-semibold">{formatCoord(lon, "lon")}</span>
+
+## 5. PROGRESS BAR İYİLEŞTİRME
+
+Mevcut progress bar "100% tamamlandı" gösteriyor — bunu daha akıllı yap:
+
+- Gemi hareket halindeyse: mavi progress bar + kalan NM / toplam NM
+- Gemi limandaysa (Moored): yeşil bar 100% + "In Port ⚓"
+- Gemi demirdeyse (At Anchor): amber bar + "Waiting at Anchor"
+
+{vesselData?.speed > 0.5 ? (
+  <div className="w-full bg-slate-800 rounded-full h-2">
+    <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${progressPercent}%` }} />
+  </div>
+) : vesselData?.navigationalStatus === "Moored" ? (
+  <div className="flex items-center gap-2">
+    <div className="w-full bg-emerald-500/20 rounded-full h-2">
+      <div className="bg-emerald-500 h-2 rounded-full w-full" />
+    </div>
+    <span className="text-xs text-emerald-400 whitespace-nowrap">⚓ In Port</span>
+  </div>
+) : (
+  <div className="flex items-center gap-2">
+    <div className="w-full bg-amber-500/20 rounded-full h-2">
+      <div className="bg-amber-500 h-2 rounded-full w-full animate-pulse" />
+    </div>
+    <span className="text-xs text-amber-400 whitespace-nowrap">⚓ At Anchor</span>
+  </div>
+)}

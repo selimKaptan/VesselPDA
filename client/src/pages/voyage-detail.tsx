@@ -43,6 +43,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { insertPortExpenseSchema, type PortExpense, type Voyage, type Port } from "@shared/schema";
 import { generateAndPrintCrewDocs, type DocSelection } from "@/components/crew-change-docs";
+import { getDeparturePort, getDestinationPort, formatPortName, formatCoord, NAV_STATUS_CONFIG } from "@/lib/format-port";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   planned:         { label: "Planned",         color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",       icon: Clock },
@@ -422,36 +423,82 @@ function VoyageLiveTracker({ voyage, portName, imoNumber, onOriginPortChange }: 
         <div className={`flex flex-col gap-3 justify-between ${showMap ? "px-4 py-4" : ""}`}>
 
           {/* Kalkış → Varış */}
-          <div className="flex justify-between items-start gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Kalkış</p>
-              {onOriginPortChange ? (
-                <OriginPortInline
-                  value={voyage.originPortName || ""}
-                  onChange={onOriginPortChange}
-                />
-              ) : (
-                <p className="text-sm font-bold truncate">
-                  {voyage.originPortName || pos?.port_name || "—"}
-                </p>
-              )}
-            </div>
-            <div className="text-muted-foreground/40 text-base pt-2 shrink-0">→</div>
-            <div className="min-w-0 text-right flex-1">
-              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Varış</p>
-              <p className="text-sm font-bold truncate">{portName || pos?.destination || "—"}</p>
-            </div>
-          </div>
+          {(() => {
+            const depPort = getDeparturePort(voyage, pos);
+            const destPort = getDestinationPort({ ...voyage, portName }, pos);
+            const aisDest = formatPortName(pos?.destination);
+            const showAisDiff = aisDest && aisDest !== destPort;
+            return (
+              <div className="flex justify-between items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Kalkış</p>
+                  {onOriginPortChange ? (
+                    <OriginPortInline
+                      value={voyage.originPortName || ""}
+                      onChange={onOriginPortChange}
+                    />
+                  ) : depPort ? (
+                    <p className="text-sm font-bold truncate">{depPort}</p>
+                  ) : (
+                    <p className="text-sm italic text-slate-500">AIS Bekleniyor...</p>
+                  )}
+                </div>
+                <div className="text-muted-foreground/40 text-base pt-2 shrink-0">→</div>
+                <div className="min-w-0 text-right flex-1">
+                  <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Varış</p>
+                  {destPort ? (
+                    <p className="text-sm font-bold truncate">{destPort}</p>
+                  ) : (
+                    <p className="text-sm italic text-slate-500">AIS Bekleniyor...</p>
+                  )}
+                  {showAisDiff && (
+                    <div className="flex items-center gap-1 mt-0.5 justify-end">
+                      <span className="text-[10px] text-slate-500">AIS:</span>
+                      <span className="text-[10px] text-slate-400">{aisDest}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* İlerleme çubuğu */}
           {eta && etd ? (
             <div>
-              <div className="relative h-2.5 bg-muted/60 rounded-full overflow-hidden">
-                <div
-                  className="absolute left-0 top-0 h-full bg-blue-500 rounded-full transition-all duration-700"
-                  style={{ width: `${Math.round(progress * 100)}%` }}
-                />
-              </div>
+              {(() => {
+                const navStatus = pos?.navigation_status || "";
+                const isMoored = navStatus.toLowerCase().includes("moor") || navStatus.toLowerCase().includes("berth");
+                const isAnchor = navStatus.toLowerCase().includes("anchor");
+                const isUnderway = (pos?.speed ?? 0) > 0.5;
+                if (isMoored) {
+                  return (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-emerald-500/20 rounded-full h-2">
+                        <div className="bg-emerald-500 h-2 rounded-full w-full" />
+                      </div>
+                      <span className="text-[10px] text-emerald-400 whitespace-nowrap shrink-0">⚓ In Port</span>
+                    </div>
+                  );
+                }
+                if (isAnchor) {
+                  return (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 bg-amber-500/20 rounded-full h-2">
+                        <div className="bg-amber-500 h-2 rounded-full w-full animate-pulse" />
+                      </div>
+                      <span className="text-[10px] text-amber-400 whitespace-nowrap shrink-0">⚓ At Anchor</span>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="relative h-2.5 bg-muted/60 rounded-full overflow-hidden">
+                    <div
+                      className={`absolute left-0 top-0 h-full rounded-full transition-all duration-700 ${isUnderway ? "bg-blue-500" : "bg-blue-500"}`}
+                      style={{ width: `${Math.round(progress * 100)}%` }}
+                    />
+                  </div>
+                );
+              })()}
               <div className="flex justify-between mt-1.5">
                 <span className="text-[9px] text-muted-foreground">ETA {eta.toLocaleDateString("tr-TR")}</span>
                 <span className="text-[9px] text-blue-400 font-bold">{Math.round(progress * 100)}% tamamlandı</span>
@@ -466,19 +513,47 @@ function VoyageLiveTracker({ voyage, portName, imoNumber, onOriginPortChange }: 
           {hasLiveData && (
             <>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-                {[
-                  { label: "Enlem",          value: pos.latitude?.toFixed(5) ?? "—" },
-                  { label: "Boylam",         value: pos.longitude?.toFixed(5) ?? "—" },
-                  { label: "Hız",            value: `${pos.speed ?? "—"} kn` },
-                  { label: "Rota",           value: `${pos.course ?? "—"}°` },
-                  { label: "Baş İstikameti", value: `${pos.heading ?? "—"}°` },
-                  { label: "Durum",          value: pos.navigation_status || "—" },
-                ].map(({ label, value }) => (
-                  <div key={label}>
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none mb-0.5">{label}</p>
-                    <p className="text-xs font-semibold leading-tight">{value}</p>
-                  </div>
-                ))}
+                {(() => {
+                  const lat = pos.latitude;
+                  const lon = pos.longitude;
+                  const navSt = pos.navigation_status || "";
+                  const statusCfg = NAV_STATUS_CONFIG[navSt] ?? { icon: "📍", color: "text-slate-400", label: navSt || "—" };
+                  return (
+                    <>
+                      <div>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Enlem</p>
+                        <p className="text-xs font-semibold leading-tight">
+                          {lat != null ? formatCoord(lat, "lat") : "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Boylam</p>
+                        <p className="text-xs font-semibold leading-tight">
+                          {lon != null ? formatCoord(lon, "lon") : "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Hız</p>
+                        <p className="text-xs font-semibold leading-tight">{pos.speed ?? "—"} kn</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Rota</p>
+                        <p className="text-xs font-semibold leading-tight">{pos.course ?? "—"}°</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Baş İstikameti</p>
+                        <p className="text-xs font-semibold leading-tight">{pos.heading ?? "—"}°</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Durum</p>
+                        <p className={`text-xs font-semibold leading-tight flex items-center gap-1 ${statusCfg.color}`}>
+                          <span>{statusCfg.icon}</span>
+                          <span>{statusCfg.label}</span>
+                        </p>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
               <div className="flex items-center gap-1.5 text-[9px] text-muted-foreground/60 border-t border-border/40 pt-2">
                 <Clock className="w-2.5 h-2.5 shrink-0" />
