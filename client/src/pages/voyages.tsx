@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { EmptyState } from "@/components/empty-state";
+import { PageBreadcrumb } from "@/components/page-breadcrumb";
 import { PortLookupInput } from "@/components/port-lookup-input";
 import { Ship, Plus, MapPin, Calendar, ChevronRight, Anchor, CheckCircle2, Clock, XCircle, PlayCircle, Search, X, CheckCircle, AlertCircle, Loader2, FileDown, Check, GitBranch } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -380,6 +381,8 @@ export default function Voyages() {
   return (
     <div className="px-3 py-5 space-y-5 max-w-7xl mx-auto">
       <PageMeta title="Voyages | VesselPDA" description="Voyage and operations management" />
+
+      <PageBreadcrumb items={[{ label: "Voyages" }]} className="mb-1" />
 
       {/* ── Page Header ── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">

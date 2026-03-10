@@ -17,6 +17,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PageMeta } from "@/components/page-meta";
 import { isPast, format } from "date-fns";
 import { EmptyState } from "@/components/empty-state";
+import { PageBreadcrumb } from "@/components/page-breadcrumb";
 import { fmtDate } from "@/lib/formatDate";
 import { exportToCsv } from "@/lib/export-csv";
 import { Progress } from "@/components/ui/progress";
@@ -488,6 +489,8 @@ export default function Invoices() {
           </button>
         </div>
       )}
+
+      <PageBreadcrumb items={[{ label: "Financial Flow" }]} />
 
       {/* Header */}
       <div className="flex items-center justify-between">

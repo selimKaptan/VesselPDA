@@ -1,7 +1,9 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { EmptyState } from "@/components/empty-state";
-import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign, Zap, Loader2, Calculator, Ship, Anchor, Globe, Package, AlertTriangle, X, Send, RefreshCw, Clock, CheckCircle2, XCircle, Download, Mail } from "lucide-react";
+import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign, Zap, Loader2, Calculator, Ship, Anchor, Globe, Package, AlertTriangle, X, Send, RefreshCw, Clock, CheckCircle2, XCircle, Download, Mail, FileDown } from "lucide-react";
 import { SmartMailComposer } from "@/components/smart-mail-composer";
+import { PageBreadcrumb } from "@/components/page-breadcrumb";
+import { exportToCsv } from "@/lib/export-csv";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -791,6 +793,8 @@ export default function Proformas() {
         />
       )}
 
+      <PageBreadcrumb items={[{ label: "Proformas" }]} className="mb-1" />
+
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-proformas-title">
@@ -803,6 +807,31 @@ export default function Proformas() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {filteredProformas.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-muted-foreground"
+              data-testid="button-export-proformas-csv"
+              onClick={() => {
+                const rows = filteredProformas.map(p => ({
+                  Reference: p.referenceNumber,
+                  Vessel: (p as any).vesselName || "",
+                  Port: (p as any).portName || "",
+                  "To Company": p.toCompany || "",
+                  "Purpose": p.purposeOfCall || "",
+                  "Total USD": p.totalUsd ?? 0,
+                  "Total EUR": p.totalEur ?? 0,
+                  "Approval Status": (p as any).approvalStatus || "",
+                  Status: p.status || "",
+                  Date: p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "",
+                }));
+                exportToCsv(`Proformas-${new Date().toISOString().split("T")[0]}.csv`, rows);
+              }}
+            >
+              <FileDown className="w-4 h-4" /> Export CSV
+            </Button>
+          )}
           <Button
             variant="outline"
             className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/30"

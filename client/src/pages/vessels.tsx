@@ -41,6 +41,7 @@ import { PageMeta } from "@/components/page-meta";
 import type { Vessel } from "@shared/schema";
 import { useLocation, Link } from "wouter";
 import { EmptyState } from "@/components/empty-state";
+import { PageBreadcrumb } from "@/components/page-breadcrumb";
 import { fmtDate } from "@/lib/formatDate";
 
 import { ensureMapboxToken } from "@/lib/mapbox-init";
@@ -1724,6 +1725,8 @@ export default function Vessels() {
   return (
     <div className="px-4 py-5 space-y-5 max-w-7xl mx-auto">
       <PageMeta title="Fleet | VesselPDA" description="Manage and track your fleet vessels." />
+
+      <PageBreadcrumb items={[{ label: "Fleet" }]} className="mb-1" />
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">

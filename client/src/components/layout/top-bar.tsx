@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef } from "react";
-import { Link, useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { Link } from "wouter";
 import { useTheme } from "@/components/theme-provider";
 import { useLanguage } from "@/lib/i18n";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { NotificationBell } from "@/components/notification-bell";
-import { GlobalSearch } from "@/components/global-search";
+import { CommandSearch } from "@/components/command-search";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -27,7 +27,6 @@ import {
   Anchor,
   Search,
   Shield,
-  X,
   Zap,
 } from "lucide-react";
 
@@ -203,31 +202,12 @@ function ActionBadge() {
 export function TopBar({ user, onMenuClick }: TopBarProps) {
   const { lang, setLang } = useLanguage();
   const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const searchRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [, navigate] = useLocation();
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setSearchOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        inputRef.current?.focus();
         setSearchOpen(true);
-      }
-      if (e.key === "Escape") {
-        setSearchOpen(false);
-        inputRef.current?.blur();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
@@ -252,50 +232,21 @@ export function TopBar({ user, onMenuClick }: TopBarProps) {
         </Link>
       </div>
 
-      {/* Center: inline search with dropdown */}
-      <div ref={searchRef} className="flex-1 max-w-md mx-auto relative">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="Search vessels, ports, proformas..."
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setSearchOpen(true); }}
-            onFocus={() => setSearchOpen(true)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && /^\d{7,9}$/.test(searchQuery.trim())) {
-                e.preventDefault();
-                navigate(`/vessel-report/${searchQuery.trim()}`);
-                setSearchOpen(false);
-                setSearchQuery("");
-              }
-            }}
-            data-testid="button-open-search"
-            autoComplete="off"
-            spellCheck={false}
-            className="w-full bg-slate-800/50 border border-slate-700/40 rounded-full pl-9 pr-12 py-1.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500/50 focus:bg-slate-800/80 transition-colors hover:bg-slate-700/40"
-          />
-          {searchQuery ? (
-            <button
-              onClick={() => { setSearchQuery(""); inputRef.current?.focus(); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
-              aria-label="Clear search"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          ) : (
-            <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-0.5 text-[10px] bg-slate-700/60 border border-slate-600/50 px-1.5 py-0.5 rounded text-slate-400 pointer-events-none">
-              <span>⌘</span><span>K</span>
-            </kbd>
-          )}
-        </div>
+      {/* Center: search trigger button */}
+      <div className="flex-1 max-w-md mx-auto">
+        <button
+          onClick={() => setSearchOpen(true)}
+          data-testid="button-open-search"
+          className="w-full flex items-center gap-2 bg-slate-800/50 border border-slate-700/40 rounded-full pl-3 pr-3 py-1.5 text-sm text-slate-500 hover:bg-slate-700/40 hover:border-slate-600/60 transition-colors group"
+        >
+          <Search className="w-3.5 h-3.5 shrink-0 group-hover:text-slate-400 transition-colors" />
+          <span className="flex-1 text-left truncate">Search vessels, ports, proformas…</span>
+          <kbd className="hidden sm:flex items-center gap-0.5 text-[10px] bg-slate-700/60 border border-slate-600/50 px-1.5 py-0.5 rounded text-slate-400 shrink-0">
+            <span>⌘</span><span>K</span>
+          </kbd>
+        </button>
 
-        <GlobalSearch
-          open={searchOpen}
-          query={searchQuery}
-          onClose={() => { setSearchOpen(false); setSearchQuery(""); }}
-        />
+        <CommandSearch open={searchOpen} onOpenChange={setSearchOpen} />
       </div>
 
       {/* Right: lang · theme · bell · user */}
