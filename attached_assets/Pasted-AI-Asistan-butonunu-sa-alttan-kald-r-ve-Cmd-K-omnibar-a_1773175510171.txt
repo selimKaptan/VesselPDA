@@ -1,0 +1,283 @@
+AI Asistan butonunu sağ alttan kaldır ve Cmd+K omnibar'a entegre et. Notion/Raycast tarzı Search + AI unified bar.
+
+## 1. YÜZEN AI BUTONUNU SİL
+
+Sağ alt köşedeki floating "AI Asistan" butonunu bul ve kaldır. Muhtemelen şu dosyalardadır:
+- client/src/components/layout/app-layout.tsx
+- client/src/components/ai-assistant.tsx
+- client/src/components/ai-chat-widget.tsx
+- Veya App.tsx içinde
+
+Bul: "AI Asistan" veya "ai-assistant" veya "ai-chat" veya "floating" referanslarını
+- DOM'dan tamamen kaldır (display:none değil, render etme)
+- Component import'unu da kaldır
+
+grep -rn "Asistan\|ai-chat\|ai-assistant\|AiChat\|AiAssistant\|floating.*ai\|chat.*widget" client/src/ --include="*.tsx" ile bul.
+
+## 2. OMNIBAR — AI MODE EKLENMİŞ ARAMA
+
+client/src/components/command-search.tsx dosyasını güncelle:
+
+State'lere AI mode ekle:
+const [mode, setMode] = useState<"search" | "ai">("search");
+const [aiMessages, setAiMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+const [aiLoading, setAiLoading] = useState(false);
+
+A) Input alanını güncelle — sağ tarafta "Ask AI" etiketi:
+
+<div className="flex items-center px-4 py-3 border-b border-slate-700/50">
+  <Search className={cn("w-4 h-4 mr-3 shrink-0 transition-colors", mode === "ai" ? "text-purple-400" : "text-slate-500")} />
+  <input
+    ref={inputRef}
+    type="text"
+    value={query}
+    onChange={(e) => setQuery(e.target.value)}
+    onKeyDown={handleKeyDown}
+    placeholder={mode === "ai" ? "Ask AI anything about your operations..." : "Search vessels, ports, or ask AI..."}
+    className={cn(
+      "flex-1 bg-transparent text-sm outline-none transition-colors",
+      mode === "ai" ? "text-purple-200 placeholder:text-purple-400/40" : "text-slate-200 placeholder:text-slate-500"
+    )}
+    autoFocus
+  />
+  
+  {/* AI Mode Toggle */}
+  <button
+    onClick={() => setMode(prev => prev === "search" ? "ai" : "search")}
+    className={cn(
+      "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ml-2 shrink-0",
+      mode === "ai"
+        ? "bg-purple-500/15 text-purple-400 border border-purple-500/30 shadow-[0_0_12px_rgba(168,85,247,0.15)]"
+        : "bg-slate-800/50 text-slate-500 border border-slate-700/50 hover:text-purple-400 hover:border-purple-500/30"
+    )}
+  >
+    <span className="text-sm">✨</span>
+    {mode === "ai" ? "AI Mode" : "Ask AI"}
+    <kbd className="text-[9px] text-slate-600 border border-slate-700 rounded px-1 py-0.5 ml-0.5">Tab</kbd>
+  </button>
+  
+  {query && (
+    <button onClick={() => { setQuery(""); setMode("search"); }} className="text-slate-500 hover:text-slate-300 ml-2">
+      <X className="w-4 h-4" />
+    </button>
+  )}
+  <kbd className="ml-2 text-[10px] text-slate-600 border border-slate-700 rounded px-1.5 py-0.5 shrink-0">ESC</kbd>
+</div>
+
+B) Dropdown container — AI modda gradient border:
+
+<div className={cn(
+  "fixed z-50 left-1/2 -translate-x-1/2 top-16 w-full max-w-xl rounded-xl overflow-hidden shadow-2xl shadow-black/50",
+  "animate-in fade-in slide-in-from-top-2 duration-200",
+  mode === "ai"
+    ? "border border-purple-500/30 bg-slate-900/95 backdrop-blur-xl shadow-[0_0_30px_rgba(168,85,247,0.1)]"
+    : "border border-slate-700/80 bg-slate-900/95 backdrop-blur-xl"
+)}>
+
+C) İçerik — search mode vs AI mode:
+
+<div className="max-h-[420px] overflow-y-auto">
+  {mode === "search" ? (
+    /* MEVCUT ARAMA SONUÇLARI — vessels, voyages, ports, quick navigation */
+    <>
+      {/* ... mevcut arama sonuçları aynen kalsın ... */}
+    </>
+  ) : (
+    /* AI SOHBET MODU */
+    <div className="flex flex-col">
+      {/* Önceki mesajlar */}
+      {aiMessages.length === 0 && !query && (
+        <div className="flex flex-col items-center py-8">
+          <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center mb-3">
+            <span className="text-2xl">✨</span>
+          </div>
+          <p className="text-sm text-slate-300 font-medium mb-1">AI Operations Assistant</p>
+          <p className="text-xs text-slate-500 text-center max-w-[300px] mb-4">
+            Ask about your fleet, voyages, port costs, or get operational insights.
+          </p>
+          {/* Örnek sorular */}
+          <div className="flex flex-col gap-1.5 w-full px-4">
+            {[
+              "What vessels are currently in port?",
+              "Summarize active voyages",
+              "Estimate port costs for Mersin",
+              "Which crew certificates expire soon?",
+            ].map(suggestion => (
+              <button
+                key={suggestion}
+                onClick={() => { setQuery(suggestion); handleAiSubmit(suggestion); }}
+                className="text-left text-xs text-slate-400 hover:text-purple-300 hover:bg-purple-500/5 px-3 py-2 rounded-lg transition-colors"
+              >
+                <span className="text-purple-500/50 mr-2">→</span>
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {/* Mesaj listesi */}
+      {aiMessages.map((msg, i) => (
+        <div key={i} className={cn("px-4 py-3", msg.role === "assistant" && "bg-slate-800/30")}>
+          <div className="flex items-start gap-2">
+            <div className={cn(
+              "w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-xs",
+              msg.role === "user" ? "bg-blue-500/15 text-blue-400" : "bg-purple-500/15 text-purple-400"
+            )}>
+              {msg.role === "user" ? "You" : "✨"}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-slate-200 whitespace-pre-wrap">{msg.content}</p>
+            </div>
+          </div>
+        </div>
+      ))}
+      
+      {/* AI loading */}
+      {aiLoading && (
+        <div className="px-4 py-3 bg-slate-800/30">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-purple-500/15 flex items-center justify-center">
+              <span className="text-xs animate-pulse">✨</span>
+            </div>
+            <div className="flex gap-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )}
+</div>
+
+D) Keyboard handling — Tab ile mod geçişi:
+
+function handleKeyDown(e: React.KeyboardEvent) {
+  if (e.key === "Tab") {
+    e.preventDefault();
+    setMode(prev => prev === "search" ? "ai" : "search");
+    return;
+  }
+  
+  if (mode === "ai") {
+    if (e.key === "Enter" && query.trim() && !aiLoading) {
+      e.preventDefault();
+      handleAiSubmit(query);
+    }
+    return;
+  }
+  
+  // Search mode keyboard navigation (mevcut)
+  if (e.key === "ArrowDown") { ... }
+  if (e.key === "ArrowUp") { ... }
+  if (e.key === "Enter") { ... }
+  if (e.key === "Escape") { setOpen(false); }
+}
+
+// "/" ile başlayan yazılar otomatik AI moduna geçsin
+useEffect(() => {
+  if (query.startsWith("/")) {
+    setMode("ai");
+    setQuery(query.substring(1));
+  }
+}, [query]);
+
+E) AI submit handler — mevcut AI chat API'yi kullan:
+
+async function handleAiSubmit(text: string) {
+  const userMsg = text.trim();
+  if (!userMsg) return;
+  
+  setAiMessages(prev => [...prev, { role: "user", content: userMsg }]);
+  setQuery("");
+  setAiLoading(true);
+  
+  try {
+    // Mevcut AI chat endpoint'ini kullan
+    const response = await fetch("/api/ai/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: userMsg,
+        context: "omnibar",
+        history: aiMessages.slice(-6), // Son 6 mesaj context
+      }),
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      setAiMessages(prev => [...prev, { role: "assistant", content: data.response || data.message || "No response" }]);
+    } else {
+      setAiMessages(prev => [...prev, { role: "assistant", content: "Sorry, I couldn't process your request. Please try again." }]);
+    }
+  } catch (err) {
+    setAiMessages(prev => [...prev, { role: "assistant", content: "Connection error. Please try again." }]);
+  } finally {
+    setAiLoading(false);
+  }
+}
+
+F) Footer güncelle — mod göstergesi:
+
+<div className="flex items-center justify-between px-4 py-2 border-t border-slate-700/50 bg-slate-900/80">
+  <div className="flex items-center gap-4">
+    <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
+      <kbd className="border border-slate-700 rounded px-1 py-0.5">Tab</kbd>
+      <span>{mode === "ai" ? "Search mode" : "AI mode"}</span>
+    </div>
+    {mode === "search" && (
+      <>
+        <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
+          <kbd className="border border-slate-700 rounded px-1 py-0.5">↑↓</kbd>
+          <span>navigate</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
+          <kbd className="border border-slate-700 rounded px-1 py-0.5">↵</kbd>
+          <span>open</span>
+        </div>
+      </>
+    )}
+    {mode === "ai" && (
+      <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
+        <kbd className="border border-slate-700 rounded px-1 py-0.5">↵</kbd>
+        <span>send</span>
+      </div>
+    )}
+  </div>
+  
+  {/* Mode indicator */}
+  <div className={cn(
+    "flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full",
+    mode === "ai" ? "bg-purple-500/10 text-purple-400" : "bg-slate-800 text-slate-500"
+  )}>
+    <span>{mode === "ai" ? "✨ AI" : "🔍 Search"}</span>
+  </div>
+</div>
+
+G) AI mode geçişinde temizle:
+useEffect(() => {
+  if (!open) {
+    setMode("search");
+    setAiMessages([]);
+    setQuery("");
+  }
+}, [open]);
+
+## 3. HEADER SEARCH BAR GÜNCELLE
+
+Header'daki search bar'ı da güncelle — "Ask AI" ipucu ekle:
+
+Header'daki arama alanını bul (muhtemelen app-layout.tsx veya header component):
+Mevcut: "Search vessels, ports, proformas..." + ⌘K
+Yeni: "Search or ask AI..." + ✨ + ⌘K
+
+<div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/50 cursor-pointer hover:border-slate-600 transition-colors" onClick={() => document.dispatchEvent(new CustomEvent("open-command"))}>
+  <Search className="w-3.5 h-3.5 text-slate-500" />
+  <span className="text-sm text-slate-500">Search or ask AI...</span>
+  <div className="flex items-center gap-1 ml-auto">
+    <span className="text-xs text-purple-400/50">✨</span>
+    <kbd className="text-[10px] text-slate-600 border border-slate-700 rounded px-1.5 py-0.5">⌘K</kbd>
+  </div>
+</div>
