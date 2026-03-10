@@ -686,7 +686,7 @@ function getFlagEmoji(nat: string) {
   );
 }
 
-// ─── CrewEditModal — split-layout Master-Detail workspace ─────────────
+// ─── CrewEditModal — true grid-based Master-Detail workspace ──────────
 function CrewEditModal({
   crewOrders,
   vessels,
@@ -788,74 +788,79 @@ function CrewEditModal({
   })();
 
   const formTabs = [
-    { key: "identity", label: "Kimlik & Pasaport", icon: UserCircle, hasAlert: !values.passportNumber },
-    { key: "travel", label: "Seyahat & Vize", icon: Plane, hasAlert: !!values.visaRequired && values.visaStatus !== "ok" && values.visaStatus !== "Approved" },
-    { key: "documents", label: "Evrak Kasası", icon: FolderOpen, hasAlert: false },
+    { key: "identity",  label: "Kimlik & Pasaport", icon: UserCircle, hasAlert: !values.passportNumber },
+    { key: "travel",    label: "Seyahat & Vize",    icon: Plane,       hasAlert: !!values.visaRequired && values.visaStatus !== "ok" && values.visaStatus !== "Approved" },
+    { key: "hotel",     label: "Konaklama",          icon: Building,    hasAlert: !!values.hotelRequired && !values.hotelName },
+    { key: "documents", label: "Evrak Kasası",       icon: FolderOpen,  hasAlert: false },
   ];
 
-  const inp = "bg-slate-800/50 border-slate-700/50 h-9 text-sm text-white placeholder:text-slate-600 focus-visible:ring-blue-500/30 focus-visible:border-blue-500/30";
-  const lbl = "text-xs text-slate-500 mb-1.5 block";
+  const inp = "bg-slate-800/50 border-slate-700/50 h-8 text-xs text-white placeholder:text-slate-600 focus-visible:ring-blue-500/30 focus-visible:border-blue-500/30";
+  const lbl = "text-[10px] text-slate-500 mb-1 block uppercase tracking-wide";
+  const section = "text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2";
 
   return (
-    <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden max-h-[85vh] bg-slate-950 border-slate-800">
+    <DialogContent className="max-w-5xl p-0 gap-0 overflow-hidden bg-slate-950 border-slate-800" style={{ height: "min(82vh, 680px)" }}>
       <DialogTitle className="sr-only">{isEdit ? "Personel Düzenle" : "Yeni Personel Ekle"}</DialogTitle>
-      <div className="flex h-full" style={{ maxHeight: "85vh" }}>
 
-        {/* ─── LEFT SIDEBAR ───────────────────────────────────────── */}
-        <div className="w-[280px] shrink-0 border-r border-slate-700/50 bg-slate-900/80 flex flex-col overflow-hidden">
+      {/* ─── 12-col GRID wrapper fills dialog height ─────────────────── */}
+      <div className="grid grid-cols-12 h-full overflow-hidden">
 
-          {/* Crew Summary Card */}
-          <div className="p-5 border-b border-slate-700/30 flex-shrink-0">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center text-lg font-bold text-blue-400 shrink-0">
+        {/* ════════════════════════════════════════════════════════════
+            LEFT SIDEBAR — col-span-4
+        ════════════════════════════════════════════════════════════ */}
+        <div className="col-span-4 border-r border-slate-700/50 bg-slate-900/80 flex flex-col overflow-hidden">
+
+          {/* Avatar + Name + Rank + Flag */}
+          <div className="px-5 pt-5 pb-4 border-b border-slate-700/30 flex-shrink-0 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/20 flex items-center justify-center text-lg font-bold text-blue-400 shrink-0">
                 {initials}
               </div>
               <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-slate-200 truncate">
+                <h3 className="text-sm font-semibold text-slate-100 truncate leading-tight">
                   {values.seafarerName || "Yeni Personel"}
                 </h3>
-                <p className="text-xs text-slate-400">{values.rank || "Rütbe belirtilmedi"}</p>
+                <p className="text-xs text-slate-400 truncate">{values.rank || "Rütbe belirtilmedi"}</p>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="text-xs">{getFlagEmoji(values.nationality || "")}</span>
-                  <span className="text-[11px] text-slate-500">{values.nationality || "Uyruk belirtilmedi"}</span>
+                  <span className="text-[11px] text-slate-500 truncate">{values.nationality || "Uyruk yok"}</span>
                 </div>
               </div>
             </div>
 
             {/* Status badges */}
-            <div className="flex flex-col gap-2">
-
-              {/* Flight */}
+            <div className="space-y-1.5">
+              {/* Uçuş */}
               <div className={cn(
-                "flex items-center justify-between px-3 py-2 rounded-lg text-xs",
+                "flex items-center justify-between px-3 py-1.5 rounded-lg text-xs border",
                 values.flightDetails
-                  ? "bg-blue-500/10 border border-blue-500/20"
-                  : "bg-slate-800/50 border border-slate-700/30"
+                  ? "bg-blue-500/10 border-blue-500/20"
+                  : "bg-slate-800/50 border-slate-700/30"
               )}>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <Plane className="w-3.5 h-3.5 text-blue-400" />
                   <span className="text-slate-400">Uçuş</span>
                 </div>
                 <span className={cn("font-medium text-[11px] truncate max-w-[100px]", values.flightDetails ? "text-blue-300" : "text-slate-600")}>
-                  {values.flightDetails || "Belirtilmedi"}
+                  {values.flightDetails ? values.flightDetails.slice(0, 18) + (values.flightDetails.length > 18 ? "…" : "") : "Belirtilmedi"}
                 </span>
               </div>
 
-              {/* Visa */}
+              {/* Vize */}
               <div className={cn(
-                "flex items-center justify-between px-3 py-2 rounded-lg text-xs",
-                values.visaStatus === "ok" || values.visaStatus === "Approved" || !values.visaRequired
-                  ? !values.visaRequired ? "bg-slate-800/50 border border-slate-700/30" : "bg-emerald-500/10 border border-emerald-500/20"
-                  : values.visaRequired
-                    ? "bg-red-500/10 border border-red-500/20"
-                    : "bg-slate-800/50 border border-slate-700/30"
+                "flex items-center justify-between px-3 py-1.5 rounded-lg text-xs border",
+                !values.visaRequired
+                  ? "bg-slate-800/50 border-slate-700/30"
+                  : (values.visaStatus === "ok" || values.visaStatus === "Approved")
+                    ? "bg-emerald-500/10 border-emerald-500/20"
+                    : "bg-red-500/10 border-red-500/20"
               )}>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <Shield className="w-3.5 h-3.5 text-emerald-400" />
                   <span className="text-slate-400">Vize</span>
                 </div>
                 <span className={cn(
-                  "font-medium",
+                  "font-medium text-[11px]",
                   !values.visaRequired ? "text-slate-600" :
                   (values.visaStatus === "ok" || values.visaStatus === "Approved") ? "text-emerald-300" : "text-red-300"
                 )}>
@@ -864,35 +869,36 @@ function CrewEditModal({
                 </span>
               </div>
 
-              {/* Hotel */}
+              {/* Otel */}
               <div className={cn(
-                "flex items-center justify-between px-3 py-2 rounded-lg text-xs",
+                "flex items-center justify-between px-3 py-1.5 rounded-lg text-xs border",
                 values.hotelRequired
                   ? values.hotelName
-                    ? "bg-emerald-500/10 border border-emerald-500/20"
-                    : "bg-amber-500/10 border border-amber-500/20"
-                  : "bg-slate-800/50 border border-slate-700/30"
+                    ? "bg-emerald-500/10 border-emerald-500/20"
+                    : "bg-amber-500/10 border-amber-500/20"
+                  : "bg-slate-800/50 border-slate-700/30"
               )}>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <Building className="w-3.5 h-3.5 text-amber-400" />
                   <span className="text-slate-400">Otel</span>
                 </div>
                 <span className={cn(
-                  "font-medium",
+                  "font-medium text-[11px] truncate max-w-[100px]",
                   values.hotelRequired && values.hotelName ? "text-emerald-300" :
                   values.hotelRequired ? "text-amber-300" : "text-slate-600"
                 )}>
-                  {values.hotelRequired ? (values.hotelName ? "✓ Rezerve" : "⚠ Gerekli") : "Gerekmez"}
+                  {values.hotelRequired ? (values.hotelName ? "✓ " + values.hotelName.slice(0, 14) : "⚠ Gerekli") : "Gerekmez"}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Tab navigation */}
-          <div className="flex-1 py-3 overflow-y-auto">
+          {/* Vertical tab navigation */}
+          <nav className="flex-1 py-2 overflow-y-auto">
             {formTabs.map(tab => (
               <button
                 key={tab.key}
+                type="button"
                 onClick={() => setActiveFormTab(tab.key)}
                 className={cn(
                   "w-full flex items-center gap-3 px-5 py-2.5 text-left transition-all relative",
@@ -900,6 +906,7 @@ function CrewEditModal({
                     ? "bg-blue-500/10 text-blue-400 border-r-2 border-blue-500"
                     : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/30"
                 )}
+                data-testid={`tab-crew-${tab.key}`}
               >
                 <tab.icon className="w-4 h-4 shrink-0" />
                 <span className="text-sm">{tab.label}</span>
@@ -910,10 +917,10 @@ function CrewEditModal({
                 )}
               </button>
             ))}
-          </div>
+          </nav>
 
           {/* Mode badge */}
-          <div className="p-4 border-t border-slate-700/30 flex-shrink-0">
+          <div className="px-4 pb-4 pt-2 border-t border-slate-700/30 flex-shrink-0">
             <div className={cn(
               "text-center text-xs py-1.5 rounded-lg font-medium",
               isEdit ? "bg-amber-500/10 text-amber-400" : "bg-emerald-500/10 text-emerald-400"
@@ -923,23 +930,25 @@ function CrewEditModal({
           </div>
         </div>
 
-        {/* ─── RIGHT FORM AREA ─────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col min-w-0 bg-slate-950/50 overflow-hidden">
+        {/* ════════════════════════════════════════════════════════════
+            RIGHT PANEL — col-span-8
+        ════════════════════════════════════════════════════════════ */}
+        <div className="col-span-8 flex flex-col overflow-hidden bg-slate-950/60">
           <Form {...form}>
             <form onSubmit={e => { e.preventDefault(); handleSave(); }} className="flex flex-col h-full">
 
-              {/* Scrollable form content */}
-              <div className="flex-1 overflow-y-auto">
+              {/* Tab content — NOT scrollable; all fits in viewport */}
+              <div className="flex-1 overflow-hidden">
 
-                {/* ── IDENTITY & PASSPORT TAB ───────────────────── */}
+                {/* ══ TAB 1 — Kimlik & Pasaport ══════════════════════════ */}
                 {activeFormTab === "identity" && (
-                  <div className="p-6 space-y-6">
+                  <div className="h-full p-5 flex flex-col gap-4">
 
-                    {/* Order + Type selection (Add mode only) */}
+                    {/* Add-mode: Order + Type */}
                     {!isEdit && (
-                      <div className="grid grid-cols-2 gap-4 pb-4 border-b border-slate-700/30">
+                      <div className="grid grid-cols-4 gap-3 pb-3 border-b border-slate-700/30">
                         <FormField name="husbandryOrderId" render={({ field }) => (
-                          <FormItem>
+                          <FormItem className="col-span-2">
                             <label className={lbl}>Husbandry Emri *</label>
                             <Select
                               value={field.value ? String(field.value) : ""}
@@ -951,7 +960,7 @@ function CrewEditModal({
                               }}
                             >
                               <FormControl>
-                                <SelectTrigger className={inp}><SelectValue placeholder="Seç..." /></SelectTrigger>
+                                <SelectTrigger className={inp}><SelectValue placeholder="Emir seç..." /></SelectTrigger>
                               </FormControl>
                               <SelectContent className="bg-slate-800 border-slate-700 text-white">
                                 {crewOrders.map(o => {
@@ -964,7 +973,7 @@ function CrewEditModal({
                           </FormItem>
                         )} />
                         <FormField name="changeType" render={({ field }) => (
-                          <FormItem>
+                          <FormItem className="col-span-2">
                             <label className={lbl}>İşlem Türü *</label>
                             <Select value={field.value} onValueChange={field.onChange}>
                               <FormControl>
@@ -981,28 +990,28 @@ function CrewEditModal({
                       </div>
                     )}
 
-                    {/* Personal Info */}
+                    {/* Section: Kişisel Bilgiler */}
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-200 mb-4">Kişisel Bilgiler</h3>
-                      <div className="grid grid-cols-2 gap-4">
+                      <p className={section}><UserCircle className="w-3 h-3" />Kişisel Bilgiler</p>
+                      <div className="grid grid-cols-4 gap-3">
                         <FormField name="seafarerName" render={({ field }) => (
                           <FormItem className="col-span-2">
                             <label className={lbl}>Ad Soyad *</label>
-                            <FormControl><Input {...field} className={inp} data-testid="input-seafarer-name" placeholder="Örn. ALI YILMAZ" /></FormControl>
+                            <FormControl><Input {...field} className={inp} placeholder="ALI YILMAZ" data-testid="input-seafarer-name" /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )} />
                         <FormField name="rank" render={({ field }) => (
                           <FormItem>
-                            <label className={lbl}>Rütbe / Görevi</label>
-                            <FormControl><Input {...field} placeholder="Kaptan, Makinist..." className={inp} /></FormControl>
+                            <label className={lbl}>Rütbe</label>
+                            <FormControl><Input {...field} className={inp} placeholder="Kaptan" /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )} />
                         <FormField name="nationality" render={({ field }) => (
                           <FormItem>
-                            <label className={lbl}>Uyruğu</label>
-                            <FormControl><Input {...field} placeholder="HİNDİSTAN" className={inp} /></FormControl>
+                            <label className={lbl}>Uyruk</label>
+                            <FormControl><Input {...field} className={inp} placeholder="HİNDİSTAN" /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )} />
@@ -1014,36 +1023,36 @@ function CrewEditModal({
                           </FormItem>
                         )} />
                         <FormField name="birthPlace" render={({ field }) => (
-                          <FormItem>
+                          <FormItem className="col-span-3">
                             <label className={lbl}>Doğum Yeri</label>
-                            <FormControl><Input {...field} placeholder="Şehir / Ülke" className={inp} /></FormControl>
+                            <FormControl><Input {...field} className={inp} placeholder="Şehir / Ülke" /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )} />
                       </div>
                     </div>
 
-                    {/* Passport */}
-                    <div className="border-t border-slate-700/30 pt-6">
-                      <h3 className="text-sm font-semibold text-slate-200 mb-4">Pasaport Bilgileri</h3>
-                      <div className="grid grid-cols-2 gap-4">
+                    {/* Section: Pasaport */}
+                    <div>
+                      <p className={section}><Shield className="w-3 h-3" />Pasaport</p>
+                      <div className="grid grid-cols-4 gap-3">
                         <FormField name="passportNumber" render={({ field }) => (
-                          <FormItem>
+                          <FormItem className="col-span-2">
                             <label className={lbl}>Pasaport No</label>
-                            <FormControl><Input {...field} placeholder="Örn. AB1234567" className={inp} data-testid="input-passport-no" /></FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                        <FormField name="passportExpiry" render={({ field }) => (
-                          <FormItem>
-                            <label className={lbl}>Geçerlilik Tarihi</label>
-                            <FormControl><Input type="date" {...field} className={inp} /></FormControl>
+                            <FormControl><Input {...field} className={inp} placeholder="AB1234567" data-testid="input-passport-no" /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )} />
                         <FormField name="passportIssueDate" render={({ field }) => (
                           <FormItem>
-                            <label className={lbl}>Veriliş Tarihi</label>
+                            <label className={lbl}>Veriliş</label>
+                            <FormControl><Input type="date" {...field} className={inp} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+                        <FormField name="passportExpiry" render={({ field }) => (
+                          <FormItem>
+                            <label className={lbl}>Geçerlilik</label>
                             <FormControl><Input type="date" {...field} className={inp} /></FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1051,55 +1060,49 @@ function CrewEditModal({
                       </div>
                     </div>
 
-                    {/* Seaman Book */}
-                    <div className="border-t border-slate-700/30 pt-6">
-                      <h3 className="text-sm font-semibold text-slate-200 mb-4">Denizci Cüzdanı</h3>
-                      <div className="grid grid-cols-2 gap-4">
+                    {/* Section: Denizci Cüzdanı */}
+                    <div>
+                      <p className={section}><FolderOpen className="w-3 h-3" />Denizci Cüzdanı</p>
+                      <div className="grid grid-cols-4 gap-3">
                         <FormField name="seamanBookNumber" render={({ field }) => (
-                          <FormItem>
+                          <FormItem className="col-span-2">
                             <label className={lbl}>Cüzdan No</label>
                             <FormControl><Input {...field} className={inp} data-testid="input-seaman-book" /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )} />
-                        <FormField name="seamanBookExpiry" render={({ field }) => (
+                        <FormField name="seamanBookIssueDate" render={({ field }) => (
                           <FormItem>
-                            <label className={lbl}>Geçerlilik Tarihi</label>
+                            <label className={lbl}>Veriliş</label>
                             <FormControl><Input type="date" {...field} className={inp} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )} />
-                        <FormField name="seamanBookIssueDate" render={({ field }) => (
+                        <FormField name="seamanBookExpiry" render={({ field }) => (
                           <FormItem>
-                            <label className={lbl}>Veriliş Tarihi</label>
+                            <label className={lbl}>Geçerlilik</label>
                             <FormControl><Input type="date" {...field} className={inp} /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )} />
                       </div>
                     </div>
+
                   </div>
                 )}
 
-                {/* ── TRAVEL & VISA TAB ─────────────────────────── */}
+                {/* ══ TAB 2 — Seyahat & Vize ═════════════════════════════ */}
                 {activeFormTab === "travel" && (
-                  <div className="p-6 space-y-6">
+                  <div className="h-full p-5 flex flex-col gap-4">
 
-                    {/* Port & Operation Dates */}
+                    {/* Operasyon */}
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-200 mb-4">Operasyon Bilgileri</h3>
-                      <div className="grid grid-cols-2 gap-4">
+                      <p className={section}><Plane className="w-3 h-3" />Operasyon Bilgileri</p>
+                      <div className="grid grid-cols-4 gap-3">
                         <FormField name="port" render={({ field }) => (
                           <FormItem className="col-span-2">
                             <label className={lbl}>Liman</label>
-                            <FormControl><Input {...field} placeholder="STAR RAFİNERİ / ALİAĞA" className={inp} /></FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                        <FormField name="changeDate" render={({ field }) => (
-                          <FormItem>
-                            <label className={lbl}>İşlem Tarihi</label>
-                            <FormControl><Input type="date" {...field} className={inp} /></FormControl>
+                            <FormControl><Input {...field} className={inp} placeholder="STAR RAFİNERİ / ALİAĞA" /></FormControl>
                             <FormMessage />
                           </FormItem>
                         )} />
@@ -1111,16 +1114,23 @@ function CrewEditModal({
                                 <SelectTrigger className={inp}><SelectValue /></SelectTrigger>
                               </FormControl>
                               <SelectContent className="bg-slate-800 border-slate-700 text-white">
-                                <SelectItem value="sign_on">Gemiye Katılım (Sign On)</SelectItem>
-                                <SelectItem value="sign_off">Gemiden Ayrılış (Sign Off)</SelectItem>
+                                <SelectItem value="sign_on">Sign On</SelectItem>
+                                <SelectItem value="sign_off">Sign Off</SelectItem>
                               </SelectContent>
                             </Select>
                             <FormMessage />
                           </FormItem>
                         )} />
+                        <FormField name="changeDate" render={({ field }) => (
+                          <FormItem>
+                            <label className={lbl}>İşlem Tarihi</label>
+                            <FormControl><Input type="date" {...field} className={inp} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
                         <FormField name="departureDate" render={({ field }) => (
                           <FormItem>
-                            <label className={lbl}>Gemiden Ayrılış</label>
+                            <label className={lbl}>Kalkış Tarihi</label>
                             <FormControl><Input type="date" {...field} className={inp} /></FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1132,29 +1142,22 @@ function CrewEditModal({
                             <FormMessage />
                           </FormItem>
                         )} />
+                        <FormField name="flightDetails" render={({ field }) => (
+                          <FormItem className="col-span-2">
+                            <label className={lbl}>Uçuş Detayları</label>
+                            <FormControl><Input {...field} className={inp} placeholder="TK2309 ADB→IST 07:55" /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
                       </div>
                     </div>
 
-                    {/* Flight */}
-                    <div className="border-t border-slate-700/30 pt-6">
-                      <h3 className="text-sm font-semibold text-slate-200 mb-4">Uçuş Bilgileri</h3>
-                      <FormField name="flightDetails" render={({ field }) => (
-                        <FormItem>
-                          <label className={lbl}>Uçuş Detayları</label>
-                          <FormControl>
-                            <Input {...field} placeholder="Örn. TK2309 ADB→IST 07:55, 14 Mar 2026" className={inp} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    </div>
-
-                    {/* Visa */}
-                    <div className="border-t border-slate-700/30 pt-6">
-                      <h3 className="text-sm font-semibold text-slate-200 mb-4">Vize & Giriş</h3>
-                      <div className="space-y-4">
+                    {/* Vize */}
+                    <div>
+                      <p className={section}><Shield className="w-3 h-3" />Vize & Giriş</p>
+                      <div className="space-y-3">
                         <FormField name="visaRequired" render={({ field }) => (
-                          <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/30 border border-slate-700/30">
+                          <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-800/30 border border-slate-700/30">
                             <Switch checked={!!field.value} onCheckedChange={field.onChange} />
                             <div>
                               <span className="text-sm text-slate-300">Vize Gerekiyor</span>
@@ -1163,108 +1166,137 @@ function CrewEditModal({
                           </div>
                         )} />
                         {values.visaRequired && (
-                          <FormField name="visaStatus" render={({ field }) => (
-                            <FormItem>
-                              <label className={lbl}>Vize Durumu</label>
-                              <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                                <FormControl>
-                                  <SelectTrigger className={inp}><SelectValue placeholder="Seç..." /></SelectTrigger>
-                                </FormControl>
-                                <SelectContent className="bg-slate-800 border-slate-700 text-white">
-                                  <SelectItem value="ok">✅ Onaylı</SelectItem>
-                                  <SelectItem value="Pending">⏳ Beklemede</SelectItem>
-                                  <SelectItem value="denied">❌ Reddedildi</SelectItem>
-                                  <SelectItem value="not_applied">📝 Başvurulmadı</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )} />
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Hotel */}
-                    <div className="border-t border-slate-700/30 pt-6">
-                      <h3 className="text-sm font-semibold text-slate-200 mb-4">Konaklama</h3>
-                      <div className="space-y-4">
-                        <FormField name="hotelRequired" render={({ field }) => (
-                          <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/30 border border-slate-700/30">
-                            <Switch checked={!!field.value} onCheckedChange={field.onChange} />
-                            <div>
-                              <span className="text-sm text-slate-300">Otel Gerekiyor</span>
-                              <p className="text-[11px] text-slate-500">Personelin konaklaması gerekiyorsa etkinleştirin</p>
-                            </div>
+                          <div className="grid grid-cols-4 gap-3">
+                            <FormField name="visaStatus" render={({ field }) => (
+                              <FormItem className="col-span-2">
+                                <label className={lbl}>Vize Durumu</label>
+                                <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                                  <FormControl>
+                                    <SelectTrigger className={inp}><SelectValue placeholder="Seç..." /></SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                                    <SelectItem value="ok">✅ Onaylı</SelectItem>
+                                    <SelectItem value="Pending">⏳ Beklemede</SelectItem>
+                                    <SelectItem value="denied">❌ Reddedildi</SelectItem>
+                                    <SelectItem value="not_applied">📝 Başvurulmadı</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )} />
                           </div>
-                        )} />
-                        {values.hotelRequired && (
-                          <FormField name="hotelName" render={({ field }) => (
-                            <FormItem>
-                              <label className={lbl}>Otel Adı</label>
-                              <FormControl><Input {...field} placeholder="Örn. Sheraton İzmir" className={inp} /></FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )} />
                         )}
                       </div>
                     </div>
 
-                    {/* Notes */}
-                    <div className="border-t border-slate-700/30 pt-6">
-                      <FormField name="notes" render={({ field }) => (
-                        <FormItem>
-                          <label className={lbl}>Notlar</label>
-                          <FormControl>
-                            <textarea
-                              {...field}
-                              rows={3}
-                              placeholder="Ek notlar..."
-                              className="w-full bg-slate-800/50 border border-slate-700/50 rounded-md px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500/30 resize-none"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                    </div>
                   </div>
                 )}
 
-                {/* ── DOCUMENT VAULT TAB ─────────────────────────── */}
-                {activeFormTab === "documents" && (
-                  <div className="p-6 space-y-4">
-                    <h3 className="text-sm font-semibold text-slate-200 mb-4">Evrak Kasası</h3>
-                    <p className="text-xs text-slate-500 mb-4">Personele ait belgeleri aşağıdaki alanlara yükleyin.</p>
+                {/* ══ TAB 3 — Konaklama ══════════════════════════════════ */}
+                {activeFormTab === "hotel" && (
+                  <div className="h-full p-5 flex flex-col gap-4">
+                    <p className={section}><Building className="w-3 h-3" />Konaklama Yönetimi</p>
 
-                    {["Pasaport Fotokopisi", "Denizci Cüzdanı", "Vize Kopyası", "Sağlık Sertifikası", "STCW Sertifikaları"].map(docType => (
-                      <div key={docType}>
-                        <label className={lbl}>{docType}</label>
-                        <div
-                          className="rounded-xl border-2 border-dashed border-slate-700/40 bg-slate-900/20 hover:border-blue-500/30 hover:bg-blue-500/5 transition-all duration-200 cursor-pointer"
-                          onClick={() => {
-                            const inp = document.createElement("input");
-                            inp.type = "file";
-                            inp.accept = ".pdf,.jpg,.jpeg,.png";
-                            inp.click();
-                          }}
-                        >
-                          <div className="flex items-center gap-3 px-4 py-3">
-                            <div className="w-9 h-9 rounded-lg bg-slate-800/50 flex items-center justify-center">
-                              <Upload className="w-4 h-4 text-slate-500" />
-                            </div>
-                            <div>
-                              <p className="text-xs text-slate-400">Dosyayı buraya bırakın veya tıklayın</p>
-                              <p className="text-[10px] text-slate-600">PDF, JPG, PNG — Maks 10MB</p>
-                            </div>
+                    <FormField name="hotelRequired" render={({ field }) => (
+                      <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-slate-800/30 border border-slate-700/30">
+                        <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+                        <div>
+                          <span className="text-sm text-slate-300">Otel Gerekiyor</span>
+                          <p className="text-[11px] text-slate-500">Personelin konaklaması gerekiyorsa etkinleştirin</p>
+                        </div>
+                      </div>
+                    )} />
+
+                    {values.hotelRequired ? (
+                      <div className="space-y-4">
+                        <FormField name="hotelName" render={({ field }) => (
+                          <FormItem>
+                            <label className={lbl}>Otel Adı</label>
+                            <FormControl>
+                              <Input {...field} className="bg-slate-800/50 border-slate-700/50 h-9 text-sm text-white placeholder:text-slate-600 focus-visible:ring-blue-500/30" placeholder="Örn. Sheraton İzmir" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+
+                        <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex items-start gap-3">
+                          <Building className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-xs font-medium text-emerald-300">Konaklama Planlandı</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              {values.hotelName
+                                ? `${values.hotelName} otelinde rezervasyon yapılacak.`
+                                : "Lütfen otel adını giriniz."}
+                            </p>
                           </div>
                         </div>
                       </div>
-                    ))}
+                    ) : (
+                      <div className="p-4 rounded-xl border border-slate-700/30 bg-slate-800/20 flex items-start gap-3">
+                        <Building className="w-4 h-4 text-slate-600 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-xs font-medium text-slate-500">Konaklama Gerekmez</p>
+                          <p className="text-[11px] text-slate-600 mt-0.5">Bu personel için otel rezervasyonu yapılmayacak.</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
+
+                {/* ══ TAB 4 — Evrak Kasası ═══════════════════════════════ */}
+                {activeFormTab === "documents" && (
+                  <div className="h-full p-5 flex flex-col gap-3 overflow-y-auto">
+                    <div>
+                      <p className={section}><FolderOpen className="w-3 h-3" />Evrak Kasası</p>
+                      <p className="text-[11px] text-slate-500 mb-3">Personele ait belgeleri aşağıdaki alanlara yükleyin.</p>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        {["Pasaport Fotokopisi", "Denizci Cüzdanı", "Vize Kopyası", "Sağlık Sertifikası", "STCW Sertifikaları"].map(docType => (
+                          <div
+                            key={docType}
+                            className="rounded-xl border border-dashed border-slate-700/40 bg-slate-900/20 hover:border-blue-500/30 hover:bg-blue-500/5 transition-all duration-200 cursor-pointer"
+                            onClick={() => {
+                              const el = document.createElement("input");
+                              el.type = "file";
+                              el.accept = ".pdf,.jpg,.jpeg,.png";
+                              el.click();
+                            }}
+                          >
+                            <div className="flex items-center gap-3 px-4 py-3">
+                              <div className="w-8 h-8 rounded-lg bg-slate-800/50 flex items-center justify-center shrink-0">
+                                <Upload className="w-3.5 h-3.5 text-slate-500" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-slate-300">{docType}</p>
+                                <p className="text-[10px] text-slate-600">PDF, JPG, PNG</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <FormField name="notes" render={({ field }) => (
+                      <FormItem>
+                        <label className={lbl}>Notlar</label>
+                        <FormControl>
+                          <textarea
+                            {...field}
+                            rows={3}
+                            placeholder="Ek notlar..."
+                            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-md px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500/30 resize-none"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
+                )}
+
               </div>
 
-              {/* ── STICKY FOOTER ─────────────────────────────────── */}
-              <div className="flex-shrink-0 border-t border-slate-700/30 bg-slate-900/90 backdrop-blur-xl px-6 py-3 flex items-center justify-between">
+              {/* ── STICKY FOOTER ─────────────────────────────────────────── */}
+              <div className="flex-shrink-0 border-t border-slate-700/30 bg-slate-900/90 backdrop-blur-xl px-5 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {isDirty && (
                     <span className="text-[11px] text-amber-400 flex items-center gap-1.5">
@@ -1281,10 +1313,7 @@ function CrewEditModal({
                     size="sm"
                     type="submit"
                     disabled={isSaving}
-                    className={cn(
-                      "text-xs h-8 px-4 transition-all",
-                      "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20"
-                    )}
+                    className={cn("text-xs h-8 px-4 bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20")}
                     data-testid="button-save-crew-person"
                   >
                     {isSaving ? (
@@ -1299,10 +1328,12 @@ function CrewEditModal({
             </form>
           </Form>
         </div>
+
       </div>
     </DialogContent>
   );
 }
+
 
 // ─── Add button wrapper ───────────────────────────────────────────────
 function AddCrewChangeDialog({ crewOrders, vessels }: { crewOrders: HusbandryOrder[], vessels: any[] }) {
