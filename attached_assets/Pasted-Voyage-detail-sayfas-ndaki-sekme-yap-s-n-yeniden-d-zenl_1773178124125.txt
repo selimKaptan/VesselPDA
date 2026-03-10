@@ -1,0 +1,260 @@
+Voyage detail sayfasındaki sekme yapısını yeniden düzenle. Operations sekmesi çok uzun — SOF, Appointments ve Cargo'yu ayrı sekmelere çıkar.
+
+## 1. SEKME YAPISINI DEĞİŞTİR
+
+client/src/pages/voyage-detail.tsx dosyasında mevcut tab yapısını bul ve değiştir.
+
+ÖNCE (4 sekme, Operations çok yoğun):
+Operations | Financials | Documents & Comms | Team & Contacts
+
+SONRA (7 sekme, her biri hafif):
+Overview | SOF | Appointments | Cargo | Financials | Documents | Team
+
+Tab tanımlaması (voyage tipine göre filtreleme korunacak):
+
+import { getVoyageFeatures } from "@/lib/voyage-context";
+
+const features = getVoyageFeatures(voyage?.operationType || voyage?.purposeOfCall);
+
+const allTabs = [
+  { key: "overview", label: "Overview", icon: LayoutDashboard, show: true },
+  { key: "sof", label: "SOF", icon: ClipboardList, show: features.hasSOF },
+  { key: "appointments", label: "Appointments", icon: Calendar, show: true },
+  { key: "cargo", label: "Cargo", icon: Package, show: features.hasCargoOps },
+  { key: "crew-ops", label: "Crew Ops", icon: Users, show: features.hasCrewLogistics },
+  { key: "financials", label: "Financials", icon: DollarSign, show: true },
+  { key: "documents", label: "Documents", icon: FolderOpen, show: true },
+  { key: "team", label: "Team", icon: Users2, show: true },
+];
+
+const visibleTabs = allTabs.filter(t => t.show);
+
+## 2. SCROLLABLE TAB BAR — Yatay kaydırma
+
+Tab bar container'ı şu şekilde yaz:
+
+<div className="relative border-b border-slate-700/50">
+  {/* Sol gradient mask */}
+  <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+  
+  {/* Scrollable tab container */}
+  <div className="flex flex-nowrap overflow-x-auto scrollbar-hide px-2 -mb-px" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+    <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; }`}</style>
+    
+    {visibleTabs.map(tab => {
+      const Icon = tab.icon;
+      const isActive = activeTab === tab.key;
+      return (
+        <button
+          key={tab.key}
+          onClick={() => setActiveTab(tab.key)}
+          className={cn(
+            "flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 transition-all",
+            isActive
+              ? "border-blue-500 text-blue-400"
+              : "border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-600"
+          )}
+        >
+          <Icon className="w-4 h-4" />
+          {tab.label}
+        </button>
+      );
+    })}
+  </div>
+  
+  {/* Sağ gradient mask */}
+  <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+</div>
+
+## 3. HER TAB'IN İÇERİĞİ — Tek bileşen, tam ekran
+
+Mevcut Operations sekmesindeki bileşenleri ayır. Her tab sadece kendi içeriğini render etsin:
+
+<div className="py-6">
+  {/* OVERVIEW — Sadece workflow + voyage tracking haritası */}
+  {activeTab === "overview" && (
+    <div className="space-y-6">
+      {/* Port Call Workflow (timeline) */}
+      <PortCallWorkflow
+        voyageId={voyage.id}
+        operationType={voyage.operationType || voyage.purposeOfCall || "loading"}
+        portName={voyage.portName || ""}
+        userRole={user?.role || "agency"}
+        completedSteps={workflowData?.steps || {}}
+        onStepComplete={handleStepComplete}
+        onStepEdit={handleStepEdit}
+      />
+      
+      {/* Voyage Tracking haritası (Yolculuk Durumu) */}
+      <VoyageTrackingPanel voyage={voyage} vesselData={vesselData} />
+      
+      {/* Quick summary kartları — NOR durumu, SOF durumu, Cargo durumu */}
+      <div className="grid grid-cols-3 gap-4">
+        {features.hasNOR && (
+          <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-4 cursor-pointer hover:border-slate-600 transition-colors" onClick={() => setActiveTab("sof")}>
+            <div className="flex items-center gap-2 mb-2">
+              <FileCheck className="w-4 h-4 text-slate-500" />
+              <span className="text-xs text-muted-foreground">NOR Status</span>
+            </div>
+            <span className="text-sm font-medium">{norData ? "✅ Tendered" : "Pending"}</span>
+            <p className="text-[10px] text-slate-600 mt-1">Click to view SOF →</p>
+          </div>
+        )}
+        {features.hasCargoOps && (
+          <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-4 cursor-pointer hover:border-slate-600 transition-colors" onClick={() => setActiveTab("cargo")}>
+            <div className="flex items-center gap-2 mb-2">
+              <Package className="w-4 h-4 text-slate-500" />
+              <span className="text-xs text-muted-foreground">Cargo</span>
+            </div>
+            <span className="text-sm font-medium">{cargoProgress || 0}% Complete</span>
+            <p className="text-[10px] text-slate-600 mt-1">Click to view Cargo →</p>
+          </div>
+        )}
+        <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-4 cursor-pointer hover:border-slate-600 transition-colors" onClick={() => setActiveTab("financials")}>
+          <div className="flex items-center gap-2 mb-2">
+            <DollarSign className="w-4 h-4 text-slate-500" />
+            <span className="text-xs text-muted-foreground">Financials</span>
+          </div>
+          <span className="text-sm font-medium">{pdaCount} PDA · {fdaCount} FDA</span>
+          <p className="text-[10px] text-slate-600 mt-1">Click to view →</p>
+        </div>
+      </div>
+    </div>
+  )}
+  
+  {/* SOF — Statement of Facts tam sayfa */}
+  {activeTab === "sof" && (
+    <div className="space-y-6">
+      {/* NOR bölümü */}
+      {features.hasNOR && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base font-semibold flex items-center gap-2">
+              <FileCheck className="w-5 h-5 text-blue-400" />
+              Notice of Readiness
+            </h3>
+            <Button size="sm" variant="outline" className="text-xs">+ Create NOR</Button>
+          </div>
+          {/* NOR içeriği — mevcut NOR component'ını buraya taşı */}
+        </div>
+      )}
+      
+      {/* SOF bölümü */}
+      {features.hasSOF && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base font-semibold flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-emerald-400" />
+              Statement of Facts
+            </h3>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" className="text-xs gap-1"><Download className="w-3 h-3" /> Export PDF</Button>
+              <Button size="sm" className="text-xs">+ Create SOF</Button>
+            </div>
+          </div>
+          {/* SOF içeriği — mevcut SOF component'ını buraya taşı */}
+        </div>
+      )}
+      
+      {/* Operation Logs */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-semibold flex items-center gap-2">
+            <ScrollText className="w-5 h-5 text-slate-400" />
+            Operation Logs
+          </h3>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="text-xs gap-1"><Download className="w-3 h-3" /> Export PDF</Button>
+            <Button size="sm" variant="outline" className="text-xs gap-1"><Mail className="w-3 h-3" /> Send Report</Button>
+            <Button size="sm" className="text-xs gap-1"><Plus className="w-3 h-3" /> Add Log</Button>
+          </div>
+        </div>
+        {/* Operation logs listesi */}
+      </div>
+    </div>
+  )}
+  
+  {/* APPOINTMENTS — Port servis randevuları tam sayfa */}
+  {activeTab === "appointments" && (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-base font-semibold flex items-center gap-2">
+          <Calendar className="w-5 h-5 text-amber-400" />
+          Port Call Appointments
+        </h3>
+        <Button size="sm" className="text-xs gap-1"><Plus className="w-3 h-3" /> Add Appointment</Button>
+      </div>
+      {/* Appointment listesi veya EmptyState */}
+    </div>
+  )}
+  
+  {/* CARGO — Kargo operasyonları tam sayfa */}
+  {activeTab === "cargo" && features.hasCargoOps && (
+    <div className="space-y-6">
+      {/* Cargo Dashboard widget (birleşik kart — önceki prompt'ta oluşturuldu) */}
+      {/* Cargo Operations component'ını buraya taşı */}
+    </div>
+  )}
+  
+  {/* CREW OPS — Crew change seferleri için */}
+  {activeTab === "crew-ops" && features.hasCrewLogistics && (
+    <div>
+      {/* Crew Logistics Board embed — mevcut husbandry component */}
+    </div>
+  )}
+  
+  {/* FINANCIALS — PDA, FDA, Invoice, Expenses */}
+  {activeTab === "financials" && (
+    <div className="space-y-6">
+      {/* Mevcut financial tab içeriği aynen kalsın */}
+    </div>
+  )}
+  
+  {/* DOCUMENTS — Dosya yükleme + port formalities */}
+  {activeTab === "documents" && (
+    <div className="space-y-6">
+      {/* Drag & drop zone + dosya listesi + port formalities */}
+    </div>
+  )}
+  
+  {/* TEAM — Voyage team, contacts, commission */}
+  {activeTab === "team" && (
+    <div className="space-y-6">
+      {/* Mevcut team tab içeriği aynen kalsın */}
+    </div>
+  )}
+</div>
+
+## 4. VARSAYILAN TAB — Operasyon tipine göre
+
+const [activeTab, setActiveTab] = useState(() => {
+  const f = getVoyageFeatures(voyage?.operationType || voyage?.purposeOfCall);
+  return f.primaryTab === "crew" ? "crew-ops" : "overview";
+});
+
+// URL hash ile tab senkronize (opsiyonel):
+// /voyages/5#sof → SOF tab açık gelsin
+useEffect(() => {
+  const hash = window.location.hash.replace("#", "");
+  if (hash && visibleTabs.some(t => t.key === hash)) {
+    setActiveTab(hash);
+  }
+}, []);
+
+// Tab değişince hash güncelle
+useEffect(() => {
+  window.location.hash = activeTab;
+}, [activeTab]);
+
+## 5. MEVCUT OPERATIONS İÇERİĞİNİ TAŞI
+
+Operations sekmesindeki bileşenleri yukarıdaki yeni tab'lara taşırken:
+- PortCallWorkflow → overview tab'ında kalacak
+- NOR component → sof tab'ına taşınacak
+- SOF component → sof tab'ına taşınacak
+- Operation Logs → sof tab'ına taşınacak
+- Appointments → appointments tab'ına taşınacak (kendi tab'ı)
+- Cargo Operations → cargo tab'ına taşınacak (kendi tab'ı)
+- Crew Logistics → crew-ops tab'ına (sadece crew_change seferlerinde görünür)
+
+HİÇBİR BİLEŞENİ SİLME — sadece tab atamasını değiştir. Bileşenlerin props'ları ve API çağrıları aynı kalsın.

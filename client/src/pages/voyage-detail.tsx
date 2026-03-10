@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { cn } from "@/lib/utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
 import {
@@ -9,7 +10,7 @@ import {
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
   FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings, Archive, X,
   TrendingUp, TrendingDown, AlertTriangle, Mail, Plane, LogIn, LogOut, Maximize2, Calculator, FolderLock,
-  Scale, Banknote, CreditCard, Percent, BarChart2, ScrollText,
+  Scale, Banknote, CreditCard, Percent, BarChart2, ScrollText, LayoutDashboard,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
@@ -606,9 +607,7 @@ export default function VoyageDetail() {
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   // Adjusted activeTab initial value if needed, but 'operation' (Overview) is usually first
-  const [activeTab, setActiveTab] = useState<"operations" | "financials" | "docs_comms" | "team">(
-    "operations"
-  );
+  const [activeTab, setActiveTab] = useState<string>("overview");
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [noteContent, setNoteContent] = useState("");
   const [noteType, setNoteType] = useState<"comment" | "observation" | "alert" | "milestone">("comment");
@@ -2058,20 +2057,20 @@ export default function VoyageDetail() {
 
   const { data: activitiesData } = useQuery<{ activities: any[], total: number }>({
     queryKey: ["/api/voyages", voyageId, "activities"],
-    enabled: activeTab === "docs_comms",
+    enabled: activeTab === "documents",
   });
   const activities = activitiesData?.activities || [];
 
   const { data: cargoLogs = [] } = useQuery<any[]>({
     queryKey: ["/api/voyages", voyageId, "cargo-logs"],
     queryFn: () => fetch(`/api/voyages/${voyageId}/cargo-logs`, { credentials: "include" }).then(r => r.json()),
-    enabled: activeTab === "operations",
+    enabled: ["overview","sof","appointments","cargo","crew-ops"].includes(activeTab),
   });
 
   const { data: receivers = [] } = useQuery<any[]>({
     queryKey: ["/api/voyages", voyageId, "cargo-receivers"],
     queryFn: () => fetch(`/api/voyages/${voyageId}/cargo-receivers`, { credentials: "include" }).then(r => r.json()),
-    enabled: activeTab === "operations",
+    enabled: ["overview","sof","appointments","cargo","crew-ops"].includes(activeTab),
   });
 
   const { data: voyageContactsList = [] } = useQuery<any[]>({
@@ -2777,46 +2776,59 @@ export default function VoyageDetail() {
         onOriginPortChange={(portId, portName) => updateOriginPortMutation.mutate({ originPortId: portId, originPortName: portName })}
       />
 
-      {/* Tab Bar */}
-      <div className="flex gap-1 bg-muted/40 p-1 rounded-xl overflow-x-auto no-scrollbar">
-        {([
-          { key: "operations",  label: "Operations",               icon: ClipboardList },
-          { key: "financials",  label: "Financials",               icon: DollarSign },
-          { key: "docs_comms",  label: "Documents & Comms",        icon: FolderOpen },
-          { key: "team",        label: "Team & Contacts",          icon: Users2 },
-        ] as const).filter(({ key }) => {
-          if (isShipowner) {
-            return ["operations", "financials", "docs_comms"].includes(key);
-          }
-          return true;
-        }).map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setActiveTab(key)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 sm:px-4 text-sm font-medium rounded-lg transition-all ${
-              activeTab === key
-                ? "bg-background shadow-sm text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-            data-testid={`tab-${key}`}
-          >
-            <Icon className="w-4 h-4" /> {label}
-            {key === "docs_comms" && chatMessages.length > 0 && (
-              <span className="ml-1 text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded-full font-semibold">
-                {chatMessages.length}
-              </span>
-            )}
-          </button>
-        ))}
+      {/* Tab Bar — scrollable */}
+      <div className="relative border-b border-slate-700/50">
+        <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+        <div className="flex flex-nowrap overflow-x-auto px-2 -mb-px" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+          <style>{`.vd-tab-scroll::-webkit-scrollbar { display: none; }`}</style>
+          {(() => {
+            const features2 = getVoyageFeatures(voyage?.purposeOfCall || "");
+            const allTabs = [
+              { key: "overview",      label: "Overview",      icon: LayoutDashboard },
+              ...(features2.hasSOF || features2.hasNOR ? [{ key: "sof", label: "SOF", icon: ClipboardList }] : []),
+              { key: "appointments",  label: "Appointments",  icon: CalendarClock },
+              ...(features2.hasCargoOps ? [{ key: "cargo", label: "Cargo", icon: Package }] : []),
+              ...(features2.hasCrewLogistics ? [{ key: "crew-ops", label: "Crew Ops", icon: UsersIcon }] : []),
+              { key: "financials",    label: "Financials",    icon: DollarSign },
+              { key: "documents",     label: "Documents",     icon: FolderOpen },
+              { key: "team",          label: "Team",          icon: Users2 },
+            ].filter(t => !isShipowner || ["overview","financials","documents"].includes(t.key));
+            return allTabs.map(tab => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap shrink-0 border-b-2 transition-all",
+                    activeTab === tab.key
+                      ? "border-blue-500 text-blue-400"
+                      : "border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-600"
+                  )}
+                  data-testid={`tab-${tab.key}`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {tab.label}
+                  {tab.key === "documents" && chatMessages.length > 0 && (
+                    <span className="ml-1 text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded-full font-semibold">
+                      {chatMessages.length}
+                    </span>
+                  )}
+                </button>
+              );
+            });
+          })()}
+        </div>
+        <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
       </div>
 
-      {/* ── OPERATIONS TAB ────────────────────────────────────── */}
-      {activeTab === "operations" && (
+      {/* ── MULTI-TAB OPERATIONS AREA ─────────────────────────── */}
+      {(["overview","sof","appointments","cargo","crew-ops"].includes(activeTab)) && (
         <div className="space-y-6">
           {/* Operation Content */}
           <div className="space-y-6">
                   {/* ── Husbandry / Crew Change: Operation Badge ── */}
-          {(voyage.purposeOfCall === "Husbandry" || voyage.purposeOfCall === "Crew Change") && (
+          {activeTab === "crew-ops" && (voyage.purposeOfCall === "Husbandry" || voyage.purposeOfCall === "Crew Change") && (
             <div
               className={`flex items-center gap-3 px-4 py-3.5 rounded-xl ${
                 voyage.purposeOfCall === "Crew Change"
@@ -2843,7 +2855,7 @@ export default function VoyageDetail() {
 
 
           {/* ── Husbandry / Crew Change: Logistics Control Tower ── */}
-          {(voyage.purposeOfCall === "Husbandry" || voyage.purposeOfCall === "Crew Change") && (
+          {activeTab === "crew-ops" && (voyage.purposeOfCall === "Husbandry" || voyage.purposeOfCall === "Crew Change") && (
             <DndContext sensors={dndSensors} onDragStart={e => { setActiveDragId(Number(e.active.id)); if (!isHotelPanelOpen) { dragAutoOpenedPanel.current = true; setIsHotelPanelOpen(true); } }} onDragEnd={handleCrewDragEnd}>
             <div className="relative flex items-start gap-5" data-testid="husbandry-control-tower">
 
@@ -4379,10 +4391,11 @@ export default function VoyageDetail() {
               </div>
             </DialogContent>
           </Dialog>
-          {/* ── Standard Port Ops (hidden for Husbandry & Crew Change) ── */}
-          {voyage.purposeOfCall !== "Husbandry" && voyage.purposeOfCall !== "Crew Change" && (<>
-          {/* ── MAIN 3-COLUMN GRID ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* ── Standard Port Ops (non-crew tabs) ── */}
+          {activeTab !== "crew-ops" && voyage.purposeOfCall !== "Husbandry" && voyage.purposeOfCall !== "Crew Change" && (<>
+          {/* ── MAIN 3-COLUMN GRID (Overview only) ── */}
+          {activeTab === "overview" && (
+           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* LEFT: Live Port Call Workflow (col-span-2) */}
             <div className="lg:col-span-2">
               <PortCallWorkflow
@@ -4413,7 +4426,7 @@ export default function VoyageDetail() {
                     <span className="text-xs text-muted-foreground">({participants.length + 1})</span>
                   </h3>
                   {(isOwner || isAgent) && (
-                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setActiveTab("participants")}>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setActiveTab("team")}>
                       <UserPlus className="w-3 h-3 mr-1" /> Invite
                     </Button>
                   )}
@@ -4438,7 +4451,7 @@ export default function VoyageDetail() {
                     </div>
                   ))}
                   {participants.length > 5 && (
-                    <button onClick={() => setActiveTab("participants")} className="text-xs text-sky-400 hover:underline">
+                    <button onClick={() => setActiveTab("team")} className="text-xs text-sky-400 hover:underline">
                       +{participants.length - 5} more
                     </button>
                   )}
@@ -4537,9 +4550,49 @@ export default function VoyageDetail() {
               )}
             </div>
           </div>
+          )}
 
-          {/* SOF Card — only for cargo/bunkering voyages */}
-          {features.hasSOF && (
+          {/* NOR Card — shown in sof tab */}
+          {activeTab === "sof" && features.hasNOR && (
+          <Card className="p-5 space-y-3" data-testid="card-nor-sof">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileCheck className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                <h2 className="font-semibold text-sm">Notice of Readiness</h2>
+              </div>
+              {!activeNor ? (
+                <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" asChild>
+                  <Link href={`/nor?voyageId=${voyageId}`}>
+                    <Plus className="w-3 h-3" /> Create NOR
+                  </Link>
+                </Button>
+              ) : (
+                <Link href={`/nor/${activeNor.id}`}>
+                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs">View NOR →</Button>
+                </Link>
+              )}
+            </div>
+            {!activeNor ? (
+              <EmptyState icon={FileCheck} title="No Notice of Readiness" description="NOR records when the vessel is ready to load/discharge." compact testId="section-nor-empty-sof" />
+            ) : (
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Status</span>
+                  <Badge className="capitalize">{activeNor.status}</Badge>
+                </div>
+                {activeNor.tenderedAt && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Tendered At</span>
+                    <span>{fmtDateTime(activeNor.tenderedAt)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+          )}
+
+          {/* SOF Card */}
+          {activeTab === "sof" && features.hasSOF && (
           <Card className="p-5 space-y-3" data-testid="card-sof-status">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -4588,6 +4641,7 @@ export default function VoyageDetail() {
           )}
 
           {/* Liman Koşulları */}
+          {(activeTab === "overview" || activeTab === "sof") && (
           <div className="space-y-2">
             <div className="flex items-center gap-2 px-1">
               <Anchor className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
@@ -4611,9 +4665,10 @@ export default function VoyageDetail() {
               </Card>
             )}
           </div>
+          )}
 
           {/* Port Call Randevuları */}
-          {(isOwner || isAgent) && (
+          {activeTab === "appointments" && (isOwner || isAgent) && (
             <Card className="p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -4748,7 +4803,7 @@ export default function VoyageDetail() {
           </div>
 
           {/* Cargo Ops Content — only for cargo voyages */}
-          {features.hasCargoOps && (() => {
+          {activeTab === "cargo" && features.hasCargoOps && (() => {
             const totalMt = (voyage as any)?.cargoTotalMt ?? 0;
         const handledMt = cargoLogs.reduce((sum: number, l: any) => sum + (l.amountHandled || 0), 0);
         const remainingMt = Math.max(0, totalMt - handledMt);
@@ -5379,7 +5434,7 @@ export default function VoyageDetail() {
                         <div className="rounded-lg border border-dashed p-4 text-center text-muted-foreground text-xs">
                           <Mail className="w-5 h-5 mx-auto mb-1.5 opacity-30" />
                           No Owner / Charterer / Receiver contacts with Daily Reports enabled.{" "}
-                          <button className="text-sky-400 underline underline-offset-2" onClick={() => { setShowCargoReportDialog(false); setActiveTab("contacts"); }}>
+                          <button className="text-sky-400 underline underline-offset-2" onClick={() => { setShowCargoReportDialog(false); setActiveTab("team"); }}>
                             Go to Contacts
                           </button>
                         </div>
@@ -5463,8 +5518,8 @@ export default function VoyageDetail() {
         </div>
       )}
 
-      {/* ── DOCUMENTS & COMMS TAB ──────────────────────────────── */}
-      {activeTab === "docs_comms" && (
+      {/* ── DOCUMENTS TAB ───────────────────────────────────────── */}
+      {activeTab === "documents" && (
         <div className="space-y-6">
           {/* Documents Content */}
           <div className="space-y-6">
@@ -6190,7 +6245,7 @@ export default function VoyageDetail() {
       )}
 
       {/* ── Tab: Activity Timeline ─────────────────────────────── */}
-      {activeTab === "docs_comms" && (
+      {activeTab === "documents" && (
         <div className="space-y-4" data-testid="tab-content-activity">
           {/* Header with Add Note button */}
           <div className="flex items-center justify-between">
@@ -6525,7 +6580,7 @@ export default function VoyageDetail() {
       )}
 
       {/* ── Tab: Notes & Tasks ─────────────────────────────────────── */}
-      {activeTab === "docs_comms" && (
+      {activeTab === "documents" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="lg:col-span-2 space-y-4">
             <Card className="p-4 bg-card/50 backdrop-blur-sm border-muted/20">

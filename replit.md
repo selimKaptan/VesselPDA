@@ -25,7 +25,7 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
 -   **AI Integration**: AI Smart Drop module for document analysis and event detection with human-in-the-loop verification.
 -   **Specialized Modules**: Q88 Vessel Questionnaire, Berthing Fees, VTS Fees, Harbour Master Dues calculation, Cargo Operations, Crew Management, Planned Maintenance System (PMS), Bunker Management, Charter Party & TC Hire Management, Port Call Management with Checklist, Husbandry Services, Environmental Compliance (CII/EU ETS/IMO DCS), Insurance Management, Drydock Management, Defect & PSC Tracking, Spare Parts Inventory, Passage Planning.
 -   **Agent Reports Module**: Dedicated listing page for all voyages with links to per-voyage Agent Report pages.
--   **Port Call Hub**: Redesigned as the central operations hub with dedicated detail pages including sections for General Overview, NOR, SOF, Expenses, Cargo Operations, and Participants. Includes a Port Call Checklist.
+-   **Port Call Hub**: Redesigned as the central operations hub with dedicated detail pages. Voyage detail page (`/voyages/:id`) uses a scrollable 8-tab structure: Overview (PortCallWorkflow), SOF (NOR+SOF+Port Conditions), Appointments, Cargo (cargo ops + logs), Crew Ops (Husbandry/Crew Change logistics), Financials, Documents, Team. Tabs are conditionally shown based on voyage type (purposeOfCall). Includes a Port Call Checklist.
 -   **Broker Tools**: Voyage Estimation / Freight P&L Calculator, Order Book, Broker Commission Ledger, and Broker Contact Book (CRM).
 -   **Scheduling & Planning**: Vessel schedule calendar and a voyage invitation system.
 -   **Internationalization & Accessibility**: Support for multiple languages (TR/EN) and dark mode.
