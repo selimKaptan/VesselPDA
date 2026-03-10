@@ -1,0 +1,181 @@
+Ctrl+K arama dialog'u çok basit ve amatör görünüyor. Shadcn CommandDialog kullanarak profesyonel bir arama modal'ına dönüştür.
+
+client/src/components/command-search.tsx dosyasını TAMAMEN YENİDEN YAZ:
+
+Tasarım:
+- Arka plan: blur overlay (backdrop-blur-sm bg-black/50)
+- Modal: ortada, max-w-lg, rounded-xl, border border-slate-700, bg-slate-900, shadow-2xl
+- Arama input: üstte, büyük, border-b border-slate-700, text-lg, placeholder "Search vessels, ports, voyages..."
+- Sonuçlar: kategorilere ayrılmış, her kategori başlığı (text-xs text-slate-500 uppercase)
+- Her sonuç: ikon + isim + açıklama + sağda kısayol badge
+- Esc ile kapansın, dışarı tıklayınca kapansın
+- Arrow keys ile navigate, Enter ile aç
+
+Kod:
+
+import { useState, useEffect, useCallback } from "react";
+import { useLocation } from "wouter";
+import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
+import { Ship, MapPin, FileText, Navigation, Users, DollarSign, LayoutDashboard, Settings, Anchor, Compass } from "lucide-react";
+
+// Statik navigasyon öğeleri
+const NAVIGATION_ITEMS = [
+  { name: "Dashboard", url: "/dashboard", icon: LayoutDashboard, category: "navigation" },
+  { name: "Voyages", url: "/voyages", icon: Ship, category: "navigation" },
+  { name: "Vessels", url: "/vessels", icon: Anchor, category: "navigation" },
+  { name: "Proformas", url: "/proformas", icon: FileText, category: "navigation" },
+  { name: "Vessel Tracking", url: "/vessel-track", icon: Navigation, category: "navigation" },
+  { name: "Crew Roster", url: "/crew", icon: Users, category: "navigation" },
+  { name: "Passage Planning", url: "/passage-planning", icon: Compass, category: "navigation" },
+  { name: "Invoices", url: "/invoices", icon: DollarSign, category: "navigation" },
+  { name: "PMS", url: "/pms", icon: Settings, category: "navigation" },
+  { name: "Port Info", url: "/ports", icon: MapPin, category: "navigation" },
+];
+
+export function CommandSearch() {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [, navigate] = useLocation();
+  const [vessels, setVessels] = useState<any[]>([]);
+  const [voyages, setVoyages] = useState<any[]>([]);
+  const [ports, setPorts] = useState<any[]>([]);
+
+  // Ctrl+K listener
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setOpen(prev => !prev);
+      }
+    };
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, []);
+
+  // API search (debounced)
+  useEffect(() => {
+    if (!query || query.length < 2) {
+      setVessels([]);
+      setVoyages([]);
+      setPorts([]);
+      return;
+    }
+    const timeout = setTimeout(async () => {
+      try {
+        const [vRes, voyRes, pRes] = await Promise.all([
+          fetch(`/api/vessels?search=${encodeURIComponent(query)}`).then(r => r.ok ? r.json() : []),
+          fetch(`/api/voyages?search=${encodeURIComponent(query)}`).then(r => r.ok ? r.json() : []),
+          fetch(`/api/ports?q=${encodeURIComponent(query)}`).then(r => r.ok ? r.json() : []),
+        ]);
+        setVessels(Array.isArray(vRes) ? vRes.slice(0, 5) : []);
+        setVoyages(Array.isArray(voyRes) ? voyRes.slice(0, 5) : Array.isArray(voyRes?.voyages) ? voyRes.voyages.slice(0, 5) : []);
+        setPorts(Array.isArray(pRes) ? pRes.slice(0, 5) : []);
+      } catch {}
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [query]);
+
+  const handleSelect = useCallback((url: string) => {
+    setOpen(false);
+    setQuery("");
+    navigate(url);
+  }, [navigate]);
+
+  // Filtrelenmiş navigasyon
+  const filteredNav = query.length > 0 
+    ? NAVIGATION_ITEMS.filter(item => item.name.toLowerCase().includes(query.toLowerCase()))
+    : NAVIGATION_ITEMS;
+
+  return (
+    <CommandDialog open={open} onOpenChange={setOpen}>
+      <CommandInput 
+        placeholder="Search vessels, ports, proformas, voyages..." 
+        value={query}
+        onValueChange={setQuery}
+      />
+      <CommandList className="max-h-[400px]">
+        <CommandEmpty>
+          <div className="flex flex-col items-center py-6 text-slate-500">
+            <Ship className="w-10 h-10 mb-2 opacity-30" />
+            <p className="text-sm">No results found for "{query}"</p>
+            <p className="text-xs mt-1">Try searching for vessel names, ports, or voyage references</p>
+          </div>
+        </CommandEmpty>
+
+        {/* Vessels */}
+        {vessels.length > 0 && (
+          <CommandGroup heading="Vessels">
+            {vessels.map((v: any) => (
+              <CommandItem key={`v-${v.id}`} onSelect={() => handleSelect(`/vessels/${v.id}`)}>
+                <Ship className="mr-2 h-4 w-4 text-blue-400" />
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">{v.name || v.vesselName}</span>
+                  <span className="text-xs text-slate-500">{v.vesselType || "Vessel"} {v.imo ? `· IMO ${v.imo}` : ""}</span>
+                </div>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {/* Voyages */}
+        {voyages.length > 0 && (
+          <CommandGroup heading="Voyages">
+            {voyages.map((vy: any) => (
+              <CommandItem key={`vy-${vy.id}`} onSelect={() => handleSelect(`/voyages/${vy.id}`)}>
+                <Navigation className="mr-2 h-4 w-4 text-emerald-400" />
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">{vy.vesselName || `Voyage #${vy.id}`}</span>
+                  <span className="text-xs text-slate-500">{vy.portName || ""} {vy.status ? `· ${vy.status}` : ""}</span>
+                </div>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {/* Ports */}
+        {ports.length > 0 && (
+          <CommandGroup heading="Ports">
+            {ports.map((p: any) => (
+              <CommandItem key={`p-${p.id}`} onSelect={() => handleSelect(`/ports/${p.id}`)}>
+                <MapPin className="mr-2 h-4 w-4 text-amber-400" />
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">{p.name}</span>
+                  <span className="text-xs text-slate-500">{p.country || ""} {p.locode ? `· ${p.locode}` : ""}</span>
+                </div>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {/* Quick Navigation */}
+        {filteredNav.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Quick Navigation">
+              {filteredNav.map(item => (
+                <CommandItem key={item.url} onSelect={() => handleSelect(item.url)}>
+                  <item.icon className="mr-2 h-4 w-4 text-slate-400" />
+                  <span className="text-sm">{item.name}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+      </CommandList>
+    </CommandDialog>
+  );
+}
+
+Sonra bu component'ın app layout'ta (app-layout.tsx veya App.tsx) render edildiğinden emin ol:
+<CommandSearch />
+
+Eğer shadcn CommandDialog component'ı yoksa, onu da ekle:
+npx shadcn-ui@latest add command dialog
+
+Eğer shadcn CLI kullanılamıyorsa, CommandDialog'u manuel oluştur:
+CommandDialog = Dialog + Command wrapper:
+- Dialog overlay: fixed inset-0, bg-black/50, backdrop-blur-sm, z-50
+- Dialog content: fixed top-[20%] left-1/2 -translate-x-1/2, w-full max-w-lg, rounded-xl, border border-slate-700, bg-slate-900, shadow-2xl, overflow-hidden
+- İçinde: Command component (input + list)
+
+Ayrıca header'daki "⌘K" search bar'a tıklayınca da setOpen(true) çağrılsın.
