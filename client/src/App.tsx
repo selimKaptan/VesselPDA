@@ -83,6 +83,7 @@ const DaAdvances = lazy(() => import("@/pages/da-advances"));
 const Analytics = lazy(() => import("@/pages/analytics"));
 const PortExpenses = lazy(() => import("@/pages/port-expenses"));
 const Maintenance = lazy(() => import("@/pages/maintenance"));
+const PMS = lazy(() => import("@/pages/pms"));
 const BunkerManagement = lazy(() => import("@/pages/bunker-management"));
 const NoonReports = lazy(() => import("@/pages/noon-reports"));
 const CharterParties = lazy(() => import("@/pages/charter-parties"));
@@ -181,6 +182,7 @@ function AuthenticatedRouter() {
         <Route path="/port-expenses" component={PortExpenses} />
         <Route path="/analytics" component={Analytics} />
         <Route path="/maintenance" component={Maintenance} />
+        <Route path="/pms" component={PMS} />
         <Route path="/bunker-management" component={BunkerManagement} />
         <Route path="/noon-reports" component={NoonReports} />
         <Route path="/charter-parties" component={CharterParties} />

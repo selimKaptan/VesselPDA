@@ -1,0 +1,1082 @@
+Gemi bazlı kapsamlı PMS (Planned Maintenance System) oluştur. Armatör ve Master arasında çalışacak. ISM Code, SOLAS ve Class Society gereksinimlerine uyumlu. Mevcut maintenance, spare-parts ve defect-tracker altyapısını GENİŞLET — silme.
+
+## SİSTEM MİMARİSİ
+
+PMS şu modüllerden oluşacak:
+1. Equipment Registry — Gemi ekipman ağacı
+2. Maintenance Jobs — Bakım görevleri (zamanlı + saatli)  
+3. Work Orders — İş emirleri
+4. Running Hours — Çalışma saatleri takibi
+5. Spare Parts — Yedek parça yönetimi (mevcut genişletilecek)
+6. Defect/Non-Conformity — Arıza raporlama (mevcut genişletilecek)
+7. Dry Dock Planning — Havuz planlama (mevcut genişletilecek)
+8. Class & Survey — Klas sörveyleri takibi
+9. Reports & Analytics — PMS raporları
+10. Role-based Access — Armatör vs Master yetkileri
+
+## ADIM 1 — Schema (shared/schema/maintenance.ts dosyasını GÜNCELLE)
+
+Mevcut tabloları KORU, yeni tablolar EKLE. Aşağıdaki tüm tabloları shared/schema/maintenance.ts dosyasına ekle:
+
+// ─── EQUIPMENT REGISTRY (Ekipman Ağacı) ─────────────────────────
+
+export const equipmentCategories = pgTable("equipment_categories", {
+  id: serial("id").primaryKey(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  parentId: integer("parent_id"),
+  code: varchar("code", { length: 50 }).notNull(),
+  name: varchar("name", { length: 300 }).notNull(),
+  description: text("description"),
+  level: integer("level").default(0),
+  sortOrder: integer("sort_order").default(0),
+  isSystem: boolean("is_system").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const equipmentItems = pgTable("equipment_items", {
+  id: serial("id").primaryKey(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  categoryId: integer("category_id").references(() => equipmentCategories.id, { onDelete: "set null" }),
+  parentEquipmentId: integer("parent_equipment_id"),
+  
+  // Tanımlama
+  code: varchar("code", { length: 50 }).notNull(),
+  name: varchar("name", { length: 300 }).notNull(),
+  description: text("description"),
+  manufacturer: varchar("manufacturer", { length: 200 }),
+  model: varchar("model", { length: 200 }),
+  serialNumber: varchar("serial_number", { length: 200 }),
+  
+  // Teknik
+  location: varchar("location", { length: 200 }),
+  department: varchar("department", { length: 100 }),
+  criticalityLevel: varchar("criticality_level", { length: 20 }).default("normal"),
+  
+  // Durum
+  status: varchar("status", { length: 30 }).default("operational"),
+  commissionDate: timestamp("commission_date"),
+  lastOverhaulDate: timestamp("last_overhaul_date"),
+  
+  // Çalışma saati takibi
+  hasRunningHours: boolean("has_running_hours").default(false),
+  currentRunningHours: real("current_running_hours").default(0),
+  lastRunningHoursUpdate: timestamp("last_running_hours_update"),
+  dailyAvgRunningHours: real("daily_avg_running_hours"),
+  
+  // Sınıf
+  classRelevant: boolean("class_relevant").default(false),
+  classCode: varchar("class_code", { length: 50 }),
+  
+  // Döküman
+  manualFileUrl: varchar("manual_file_url", { length: 500 }),
+  drawingFileUrl: varchar("drawing_file_url", { length: 500 }),
+  photoUrl: varchar("photo_url", { length: 500 }),
+  
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ─── MAINTENANCE JOBS (Bakım Görevleri) ─────────────────────────
+
+export const pmsJobs = pgTable("pms_jobs", {
+  id: serial("id").primaryKey(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  equipmentId: integer("equipment_id").references(() => equipmentItems.id, { onDelete: "cascade" }),
+  
+  // Görev tanımı
+  jobCode: varchar("job_code", { length: 50 }),
+  title: varchar("title", { length: 500 }).notNull(),
+  description: text("description"),
+  procedure: text("procedure"),
+  safetyPrecautions: text("safety_precautions"),
+  
+  // Zamanlama tipi
+  intervalType: varchar("interval_type", { length: 20 }).notNull().default("calendar"),
+  calendarIntervalDays: integer("calendar_interval_days"),
+  calendarIntervalMonths: integer("calendar_interval_months"),
+  runningHoursInterval: real("running_hours_interval"),
+  
+  // Durum
+  status: varchar("status", { length: 20 }).default("active"),
+  priority: varchar("priority", { length: 20 }).default("medium"),
+  
+  // Son yapılma
+  lastDoneDate: timestamp("last_done_date"),
+  lastDoneRunningHours: real("last_done_running_hours"),
+  lastDoneBy: varchar("last_done_by", { length: 200 }),
+  lastDoneWorkOrderId: integer("last_done_work_order_id"),
+  
+  // Sonraki planlanan
+  nextDueDate: timestamp("next_due_date"),
+  nextDueRunningHours: real("next_due_running_hours"),
+  
+  // Gecikme
+  isOverdue: boolean("is_overdue").default(false),
+  overdueDays: integer("overdue_days").default(0),
+  
+  // Klas ilişkisi
+  classRelated: boolean("class_related").default(false),
+  classRequirement: varchar("class_requirement", { length: 200 }),
+  regulatoryBody: varchar("regulatory_body", { length: 100 }),
+  
+  // Yedek parça
+  requiredSparePartIds: jsonb("required_spare_part_ids"),
+  estimatedDurationHours: real("estimated_duration_hours"),
+  estimatedCost: real("estimated_cost"),
+  
+  // Atama
+  assignedDepartment: varchar("assigned_department", { length: 100 }),
+  assignedRank: varchar("assigned_rank", { length: 100 }),
+  
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ─── WORK ORDERS (İş Emirleri) ──────────────────────────────────
+
+export const workOrders = pgTable("work_orders", {
+  id: serial("id").primaryKey(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  pmsJobId: integer("pms_job_id").references(() => pmsJobs.id, { onDelete: "set null" }),
+  equipmentId: integer("equipment_id").references(() => equipmentItems.id, { onDelete: "set null" }),
+  
+  // İş emri bilgileri
+  workOrderNumber: varchar("work_order_number", { length: 50 }),
+  title: varchar("title", { length: 500 }).notNull(),
+  description: text("description"),
+  workType: varchar("work_type", { length: 30 }).default("planned"),
+  priority: varchar("priority", { length: 20 }).default("medium"),
+  
+  // Durum
+  status: varchar("status", { length: 20 }).default("open"),
+  
+  // Planlama
+  plannedStartDate: timestamp("planned_start_date"),
+  plannedEndDate: timestamp("planned_end_date"),
+  actualStartDate: timestamp("actual_start_date"),
+  actualEndDate: timestamp("actual_end_date"),
+  
+  // Yapan kişi
+  requestedBy: varchar("requested_by").references(() => users.id),
+  assignedTo: varchar("assigned_to", { length: 200 }),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  completedBy: varchar("completed_by").references(() => users.id),
+  
+  // Çalışma saatleri
+  runningHoursAtStart: real("running_hours_at_start"),
+  runningHoursAtComplete: real("running_hours_at_complete"),
+  
+  // Maliyet
+  laborHours: real("labor_hours"),
+  materialCost: real("material_cost"),
+  externalCost: real("external_cost"),
+  totalCost: real("total_cost"),
+  
+  // Bulgular
+  findings: text("findings"),
+  recommendations: text("recommendations"),
+  rootCause: text("root_cause"),
+  correctiveAction: text("corrective_action"),
+  
+  // Dosyalar
+  attachments: jsonb("attachments"),
+  photos: jsonb("photos"),
+  
+  // Onay
+  masterApproval: boolean("master_approval").default(false),
+  masterApprovalDate: timestamp("master_approval_date"),
+  superintendentApproval: boolean("superintendent_approval").default(false),
+  superintendentApprovalDate: timestamp("superintendent_approval_date"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ─── RUNNING HOURS LOG (Çalışma Saatleri) ────────────────────────
+
+export const runningHoursLog = pgTable("running_hours_log", {
+  id: serial("id").primaryKey(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  equipmentId: integer("equipment_id").notNull().references(() => equipmentItems.id, { onDelete: "cascade" }),
+  
+  recordDate: timestamp("record_date").notNull(),
+  runningHours: real("running_hours").notNull(),
+  previousRunningHours: real("previous_running_hours"),
+  hoursIncrement: real("hours_increment"),
+  
+  recordedBy: varchar("recorded_by").references(() => users.id),
+  source: varchar("source", { length: 30 }).default("manual"),
+  notes: text("notes"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ─── CLASS & SURVEY (Klas Sörveyleri) ────────────────────────────
+
+export const classSurveys = pgTable("class_surveys", {
+  id: serial("id").primaryKey(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  
+  surveyType: varchar("survey_type", { length: 50 }).notNull(),
+  classificationSociety: varchar("classification_society", { length: 100 }),
+  surveyCode: varchar("survey_code", { length: 50 }),
+  
+  // Tarihler
+  dueDate: timestamp("due_date"),
+  windowStartDate: timestamp("window_start_date"),
+  windowEndDate: timestamp("window_end_date"),
+  completedDate: timestamp("completed_date"),
+  
+  // Durum
+  status: varchar("status", { length: 20 }).default("upcoming"),
+  result: varchar("result", { length: 30 }),
+  
+  // Detay
+  surveyor: varchar("surveyor", { length: 200 }),
+  port: varchar("port", { length: 200 }),
+  notes: text("notes"),
+  conditions: jsonb("conditions"),
+  recommendations: jsonb("recommendations"),
+  
+  // İlişkili bakım işleri
+  relatedJobIds: jsonb("related_job_ids"),
+  
+  // Maliyet
+  estimatedCost: real("estimated_cost"),
+  actualCost: real("actual_cost"),
+  
+  // Dökümanlar
+  reportFileUrl: varchar("report_file_url", { length: 500 }),
+  certificateFileUrl: varchar("certificate_file_url", { length: 500 }),
+  
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ─── PMS TEMPLATES (Bakım Şablonları) ───────────────────────────
+
+export const pmsTemplates = pgTable("pms_templates", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 300 }).notNull(),
+  vesselType: varchar("vessel_type", { length: 100 }),
+  description: text("description"),
+  
+  // Şablon içeriği (JSON — ekipman + bakım görevleri)
+  equipmentTree: jsonb("equipment_tree"),
+  maintenanceJobs: jsonb("maintenance_jobs"),
+  
+  isDefault: boolean("is_default").default(false),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ─── CONDITION REPORTS (Durum Raporları) ─────────────────────────
+
+export const conditionReports = pgTable("condition_reports", {
+  id: serial("id").primaryKey(),
+  vesselId: integer("vessel_id").notNull().references(() => vessels.id, { onDelete: "cascade" }),
+  equipmentId: integer("equipment_id").references(() => equipmentItems.id, { onDelete: "set null" }),
+  
+  reportType: varchar("report_type", { length: 30 }).default("condition"),
+  title: varchar("title", { length: 500 }).notNull(),
+  description: text("description"),
+  condition: varchar("condition", { length: 20 }).default("satisfactory"),
+  
+  reportedBy: varchar("reported_by").references(() => users.id),
+  reportedDate: timestamp("reported_date").defaultNow(),
+  
+  photos: jsonb("photos"),
+  attachments: jsonb("attachments"),
+  
+  // Takip
+  actionRequired: boolean("action_required").default(false),
+  workOrderId: integer("work_order_id"),
+  resolvedDate: timestamp("resolved_date"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+Type export'ları da ekle:
+export const insertEquipmentCategorySchema = createInsertSchema(equipmentCategories).omit({ id: true, createdAt: true });
+export const insertEquipmentItemSchema = createInsertSchema(equipmentItems).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPmsJobSchema = createInsertSchema(pmsJobs).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertWorkOrderSchema = createInsertSchema(workOrders).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertRunningHoursLogSchema = createInsertSchema(runningHoursLog).omit({ id: true, createdAt: true });
+export const insertClassSurveySchema = createInsertSchema(classSurveys).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPmsTemplateSchema = createInsertSchema(pmsTemplates).omit({ id: true, createdAt: true });
+export const insertConditionReportSchema = createInsertSchema(conditionReports).omit({ id: true, createdAt: true });
+
+export type EquipmentCategory = typeof equipmentCategories.$inferSelect;
+export type EquipmentItem = typeof equipmentItems.$inferSelect;
+export type PmsJob = typeof pmsJobs.$inferSelect;
+export type WorkOrder = typeof workOrders.$inferSelect;
+export type RunningHoursEntry = typeof runningHoursLog.$inferSelect;
+export type ClassSurvey = typeof classSurveys.$inferSelect;
+export type PmsTemplate = typeof pmsTemplates.$inferSelect;
+export type ConditionReport = typeof conditionReports.$inferSelect;
+
+Migration: npx drizzle-kit generate && npx drizzle-kit push
+
+## ADIM 2 — Backend: PMS Route'ları
+
+server/routes/pms.routes.ts dosyası oluştur:
+
+import { Router } from "express";
+import { db } from "../db";
+import { equipmentCategories, equipmentItems, pmsJobs, workOrders, runningHoursLog, classSurveys, conditionReports, pmsTemplates } from "@shared/schema";
+import { eq, and, desc, asc, lte, gte, isNull, sql, or } from "drizzle-orm";
+import { isAuthenticated } from "../replit_integrations/auth";
+
+const router = Router();
+
+// ══════════════════════════════════════════════════════════════════
+// EQUIPMENT CATEGORIES (Ekipman Kategorileri — ağaç yapısı)
+// ══════════════════════════════════════════════════════════════════
+
+router.get("/vessels/:vesselId/equipment-tree", isAuthenticated, async (req: any, res) => {
+  try {
+    const vesselId = parseInt(req.params.vesselId);
+    const categories = await db.select().from(equipmentCategories)
+      .where(eq(equipmentCategories.vesselId, vesselId))
+      .orderBy(asc(equipmentCategories.sortOrder));
+    const items = await db.select().from(equipmentItems)
+      .where(eq(equipmentItems.vesselId, vesselId))
+      .orderBy(asc(equipmentItems.sortOrder));
+    
+    // Ağaç yapısına dönüştür
+    function buildTree(parentId: number | null): any[] {
+      const cats = categories.filter(c => c.parentId === parentId);
+      return cats.map(cat => ({
+        ...cat,
+        type: "category",
+        children: buildTree(cat.id),
+        equipment: items.filter(i => i.categoryId === cat.id).map(item => ({
+          ...item,
+          type: "equipment",
+        })),
+      }));
+    }
+    
+    res.json({
+      tree: buildTree(null),
+      flatCategories: categories,
+      flatEquipment: items,
+      stats: {
+        totalCategories: categories.length,
+        totalEquipment: items.length,
+        withRunningHours: items.filter(i => i.hasRunningHours).length,
+        classRelevant: items.filter(i => i.classRelevant).length,
+      },
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/vessels/:vesselId/equipment-categories", isAuthenticated, async (req: any, res) => {
+  try {
+    const [row] = await db.insert(equipmentCategories).values({
+      ...req.body,
+      vesselId: parseInt(req.params.vesselId),
+    }).returning();
+    res.status(201).json(row);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/vessels/:vesselId/equipment", isAuthenticated, async (req: any, res) => {
+  try {
+    const [row] = await db.insert(equipmentItems).values({
+      ...req.body,
+      vesselId: parseInt(req.params.vesselId),
+    }).returning();
+    res.status(201).json(row);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.patch("/equipment/:id", isAuthenticated, async (req: any, res) => {
+  try {
+    const [row] = await db.update(equipmentItems).set({ ...req.body, updatedAt: new Date() })
+      .where(eq(equipmentItems.id, parseInt(req.params.id))).returning();
+    res.json(row);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.delete("/equipment/:id", isAuthenticated, async (req: any, res) => {
+  try {
+    await db.delete(equipmentItems).where(eq(equipmentItems.id, parseInt(req.params.id)));
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// PMS JOBS (Bakım Görevleri)
+// ══════════════════════════════════════════════════════════════════
+
+router.get("/vessels/:vesselId/jobs", isAuthenticated, async (req: any, res) => {
+  try {
+    const vesselId = parseInt(req.params.vesselId);
+    const status = req.query.status as string | undefined;
+    const priority = req.query.priority as string | undefined;
+    const overdue = req.query.overdue === "true";
+    
+    let query = db.select({
+      job: pmsJobs,
+      equipmentName: equipmentItems.name,
+      equipmentCode: equipmentItems.code,
+      categoryName: equipmentCategories.name,
+    })
+      .from(pmsJobs)
+      .leftJoin(equipmentItems, eq(pmsJobs.equipmentId, equipmentItems.id))
+      .leftJoin(equipmentCategories, eq(equipmentItems.categoryId, equipmentCategories.id))
+      .where(eq(pmsJobs.vesselId, vesselId))
+      .orderBy(asc(pmsJobs.nextDueDate))
+      .$dynamic();
+    
+    const rows = await query;
+    
+    let filtered = rows;
+    if (status) filtered = filtered.filter(r => r.job.status === status);
+    if (priority) filtered = filtered.filter(r => r.job.priority === priority);
+    if (overdue) filtered = filtered.filter(r => r.job.isOverdue);
+    
+    // Overdue kontrolü güncelle
+    const now = new Date();
+    for (const row of filtered) {
+      const job = row.job;
+      let isOd = false;
+      let odDays = 0;
+      if (job.nextDueDate && new Date(job.nextDueDate) < now) {
+        isOd = true;
+        odDays = Math.floor((now.getTime() - new Date(job.nextDueDate).getTime()) / 86400000);
+      }
+      if (job.nextDueRunningHours && job.equipmentId) {
+        const equip = await db.select({ rh: equipmentItems.currentRunningHours }).from(equipmentItems).where(eq(equipmentItems.id, job.equipmentId)).limit(1);
+        if (equip[0] && equip[0].rh && job.nextDueRunningHours <= equip[0].rh) {
+          isOd = true;
+        }
+      }
+      if (isOd !== job.isOverdue || odDays !== job.overdueDays) {
+        await db.update(pmsJobs).set({ isOverdue: isOd, overdueDays: odDays }).where(eq(pmsJobs.id, job.id));
+        job.isOverdue = isOd;
+        job.overdueDays = odDays;
+      }
+    }
+    
+    res.json({
+      jobs: filtered.map(r => ({ ...r.job, equipmentName: r.equipmentName, equipmentCode: r.equipmentCode, categoryName: r.categoryName })),
+      summary: {
+        total: filtered.length,
+        overdue: filtered.filter(r => r.job.isOverdue).length,
+        dueSoon: filtered.filter(r => !r.job.isOverdue && r.job.nextDueDate && new Date(r.job.nextDueDate) <= new Date(now.getTime() + 30 * 86400000)).length,
+        active: filtered.filter(r => r.job.status === "active").length,
+        completed: filtered.filter(r => r.job.status === "completed").length,
+      },
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/vessels/:vesselId/jobs", isAuthenticated, async (req: any, res) => {
+  try {
+    const vesselId = parseInt(req.params.vesselId);
+    const data = req.body;
+    
+    // Sonraki due date hesapla
+    let nextDueDate = data.nextDueDate ? new Date(data.nextDueDate) : null;
+    if (!nextDueDate && data.calendarIntervalDays) {
+      nextDueDate = new Date(Date.now() + data.calendarIntervalDays * 86400000);
+    }
+    if (!nextDueDate && data.calendarIntervalMonths) {
+      nextDueDate = new Date();
+      nextDueDate.setMonth(nextDueDate.getMonth() + data.calendarIntervalMonths);
+    }
+    
+    const [job] = await db.insert(pmsJobs).values({
+      ...data,
+      vesselId,
+      nextDueDate,
+      createdBy: req.user?.id,
+    }).returning();
+    res.status(201).json(job);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.patch("/jobs/:id", isAuthenticated, async (req: any, res) => {
+  try {
+    const [row] = await db.update(pmsJobs).set({ ...req.body, updatedAt: new Date() })
+      .where(eq(pmsJobs.id, parseInt(req.params.id))).returning();
+    res.json(row);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.delete("/jobs/:id", isAuthenticated, async (req: any, res) => {
+  try {
+    await db.delete(pmsJobs).where(eq(pmsJobs.id, parseInt(req.params.id)));
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// WORK ORDERS (İş Emirleri)
+// ══════════════════════════════════════════════════════════════════
+
+router.get("/vessels/:vesselId/work-orders", isAuthenticated, async (req: any, res) => {
+  try {
+    const vesselId = parseInt(req.params.vesselId);
+    const rows = await db.select({
+      wo: workOrders,
+      equipmentName: equipmentItems.name,
+      jobTitle: pmsJobs.title,
+    })
+      .from(workOrders)
+      .leftJoin(equipmentItems, eq(workOrders.equipmentId, equipmentItems.id))
+      .leftJoin(pmsJobs, eq(workOrders.pmsJobId, pmsJobs.id))
+      .where(eq(workOrders.vesselId, vesselId))
+      .orderBy(desc(workOrders.createdAt));
+    
+    res.json({
+      workOrders: rows.map(r => ({ ...r.wo, equipmentName: r.equipmentName, jobTitle: r.jobTitle })),
+      summary: {
+        total: rows.length,
+        open: rows.filter(r => r.wo.status === "open").length,
+        inProgress: rows.filter(r => r.wo.status === "in_progress").length,
+        completed: rows.filter(r => r.wo.status === "completed").length,
+        awaitingApproval: rows.filter(r => r.wo.status === "awaiting_approval").length,
+      },
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/vessels/:vesselId/work-orders", isAuthenticated, async (req: any, res) => {
+  try {
+    const vesselId = parseInt(req.params.vesselId);
+    
+    // Otomatik WO numarası
+    const [lastWo] = await db.select({ num: workOrders.workOrderNumber }).from(workOrders)
+      .where(eq(workOrders.vesselId, vesselId)).orderBy(desc(workOrders.createdAt)).limit(1);
+    const nextNum = lastWo?.num ? `WO-${String(parseInt(lastWo.num.replace(/\D/g, "")) + 1).padStart(5, "0")}` : "WO-00001";
+    
+    const [wo] = await db.insert(workOrders).values({
+      ...req.body,
+      vesselId,
+      workOrderNumber: req.body.workOrderNumber || nextNum,
+      requestedBy: req.user?.id,
+    }).returning();
+    res.status(201).json(wo);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.patch("/work-orders/:id", isAuthenticated, async (req: any, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const data = { ...req.body, updatedAt: new Date() };
+    
+    // Tamamlandıysa PMS job'ı da güncelle
+    if (data.status === "completed") {
+      data.actualEndDate = data.actualEndDate || new Date();
+      data.completedBy = data.completedBy || req.user?.id;
+      
+      const [wo] = await db.select().from(workOrders).where(eq(workOrders.id, id));
+      if (wo?.pmsJobId) {
+        const now = new Date();
+        let nextDue: Date | null = null;
+        const [job] = await db.select().from(pmsJobs).where(eq(pmsJobs.id, wo.pmsJobId));
+        if (job) {
+          if (job.calendarIntervalDays) {
+            nextDue = new Date(now.getTime() + job.calendarIntervalDays * 86400000);
+          } else if (job.calendarIntervalMonths) {
+            nextDue = new Date(now);
+            nextDue.setMonth(nextDue.getMonth() + job.calendarIntervalMonths);
+          }
+          
+          let nextDueRh: number | null = null;
+          if (job.runningHoursInterval && wo.runningHoursAtComplete) {
+            nextDueRh = wo.runningHoursAtComplete + job.runningHoursInterval;
+          }
+          
+          await db.update(pmsJobs).set({
+            lastDoneDate: now,
+            lastDoneRunningHours: wo.runningHoursAtComplete,
+            lastDoneBy: data.completedBy || req.user?.id,
+            lastDoneWorkOrderId: id,
+            nextDueDate: nextDue,
+            nextDueRunningHours: nextDueRh,
+            isOverdue: false,
+            overdueDays: 0,
+            updatedAt: now,
+          }).where(eq(pmsJobs.id, wo.pmsJobId));
+        }
+      }
+    }
+    
+    const [row] = await db.update(workOrders).set(data).where(eq(workOrders.id, id)).returning();
+    res.json(row);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// İş emrini onayla (Master veya Superintendent)
+router.post("/work-orders/:id/approve", isAuthenticated, async (req: any, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const role = req.body.role || "master";
+    
+    const updates: any = { updatedAt: new Date() };
+    if (role === "master") {
+      updates.masterApproval = true;
+      updates.masterApprovalDate = new Date();
+    } else {
+      updates.superintendentApproval = true;
+      updates.superintendentApprovalDate = new Date();
+    }
+    
+    const [row] = await db.update(workOrders).set(updates).where(eq(workOrders.id, id)).returning();
+    
+    // Her iki onay da varsa status güncelle
+    if (row.masterApproval && row.superintendentApproval) {
+      await db.update(workOrders).set({ status: "closed" }).where(eq(workOrders.id, id));
+    }
+    
+    res.json(row);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// RUNNING HOURS (Çalışma Saatleri)
+// ══════════════════════════════════════════════════════════════════
+
+router.get("/vessels/:vesselId/running-hours", isAuthenticated, async (req: any, res) => {
+  try {
+    const vesselId = parseInt(req.params.vesselId);
+    const equipment = await db.select().from(equipmentItems)
+      .where(and(eq(equipmentItems.vesselId, vesselId), eq(equipmentItems.hasRunningHours, true)))
+      .orderBy(asc(equipmentItems.code));
+    res.json(equipment);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/running-hours/update", isAuthenticated, async (req: any, res) => {
+  try {
+    const { equipmentId, runningHours, notes } = req.body;
+    const rh = parseFloat(runningHours);
+    
+    const [equip] = await db.select().from(equipmentItems).where(eq(equipmentItems.id, equipmentId));
+    if (!equip) return res.status(404).json({ message: "Equipment not found" });
+    
+    const prevRh = equip.currentRunningHours || 0;
+    
+    // Log kaydet
+    await db.insert(runningHoursLog).values({
+      vesselId: equip.vesselId,
+      equipmentId,
+      recordDate: new Date(),
+      runningHours: rh,
+      previousRunningHours: prevRh,
+      hoursIncrement: rh - prevRh,
+      recordedBy: req.user?.id,
+      source: "manual",
+      notes,
+    });
+    
+    // Equipment güncelle
+    await db.update(equipmentItems).set({
+      currentRunningHours: rh,
+      lastRunningHoursUpdate: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(equipmentItems.id, equipmentId));
+    
+    // Bu ekipmana bağlı running hours bazlı PMS job'larını kontrol et
+    const jobs = await db.select().from(pmsJobs)
+      .where(and(eq(pmsJobs.equipmentId, equipmentId), eq(pmsJobs.intervalType, "running_hours")));
+    
+    for (const job of jobs) {
+      if (job.nextDueRunningHours && rh >= job.nextDueRunningHours) {
+        await db.update(pmsJobs).set({ isOverdue: true, updatedAt: new Date() }).where(eq(pmsJobs.id, job.id));
+      }
+    }
+    
+    res.json({ equipmentId, previousHours: prevRh, newHours: rh, increment: rh - prevRh });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.get("/running-hours/:equipmentId/history", isAuthenticated, async (req: any, res) => {
+  try {
+    const rows = await db.select().from(runningHoursLog)
+      .where(eq(runningHoursLog.equipmentId, parseInt(req.params.equipmentId)))
+      .orderBy(desc(runningHoursLog.recordDate))
+      .limit(100);
+    res.json(rows);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// CLASS SURVEYS (Klas Sörveyleri)
+// ══════════════════════════════════════════════════════════════════
+
+router.get("/vessels/:vesselId/class-surveys", isAuthenticated, async (req: any, res) => {
+  try {
+    const vesselId = parseInt(req.params.vesselId);
+    const rows = await db.select().from(classSurveys)
+      .where(eq(classSurveys.vesselId, vesselId))
+      .orderBy(asc(classSurveys.dueDate));
+    res.json(rows);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/vessels/:vesselId/class-surveys", isAuthenticated, async (req: any, res) => {
+  try {
+    const [row] = await db.insert(classSurveys).values({
+      ...req.body,
+      vesselId: parseInt(req.params.vesselId),
+      createdBy: req.user?.id,
+    }).returning();
+    res.status(201).json(row);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.patch("/class-surveys/:id", isAuthenticated, async (req: any, res) => {
+  try {
+    const [row] = await db.update(classSurveys).set({ ...req.body, updatedAt: new Date() })
+      .where(eq(classSurveys.id, parseInt(req.params.id))).returning();
+    res.json(row);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// CONDITION REPORTS (Durum Raporları)
+// ══════════════════════════════════════════════════════════════════
+
+router.get("/vessels/:vesselId/condition-reports", isAuthenticated, async (req: any, res) => {
+  try {
+    const rows = await db.select().from(conditionReports)
+      .where(eq(conditionReports.vesselId, parseInt(req.params.vesselId)))
+      .orderBy(desc(conditionReports.reportedDate));
+    res.json(rows);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/vessels/:vesselId/condition-reports", isAuthenticated, async (req: any, res) => {
+  try {
+    const [row] = await db.insert(conditionReports).values({
+      ...req.body,
+      vesselId: parseInt(req.params.vesselId),
+      reportedBy: req.user?.id,
+    }).returning();
+    
+    // Aksiyon gerekiyorsa otomatik work order oluştur
+    if (req.body.actionRequired) {
+      const [wo] = await db.insert(workOrders).values({
+        vesselId: parseInt(req.params.vesselId),
+        equipmentId: req.body.equipmentId || null,
+        title: `Condition Report: ${req.body.title}`,
+        description: req.body.description,
+        workType: "corrective",
+        priority: req.body.condition === "critical" ? "critical" : "high",
+        status: "open",
+        requestedBy: req.user?.id,
+      }).returning();
+      
+      await db.update(conditionReports).set({ workOrderId: wo.id }).where(eq(conditionReports.id, row.id));
+      row.workOrderId = wo.id;
+    }
+    
+    res.status(201).json(row);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// PMS DASHBOARD (Bakım Panosu)
+// ══════════════════════════════════════════════════════════════════
+
+router.get("/vessels/:vesselId/pms-dashboard", isAuthenticated, async (req: any, res) => {
+  try {
+    const vesselId = parseInt(req.params.vesselId);
+    const now = new Date();
+    const thirtyDays = new Date(now.getTime() + 30 * 86400000);
+    
+    const [jobs, wos, equipment, surveys] = await Promise.all([
+      db.select().from(pmsJobs).where(eq(pmsJobs.vesselId, vesselId)),
+      db.select().from(workOrders).where(eq(workOrders.vesselId, vesselId)),
+      db.select().from(equipmentItems).where(eq(equipmentItems.vesselId, vesselId)),
+      db.select().from(classSurveys).where(eq(classSurveys.vesselId, vesselId)),
+    ]);
+    
+    const overdueJobs = jobs.filter(j => j.isOverdue);
+    const dueSoonJobs = jobs.filter(j => !j.isOverdue && j.nextDueDate && new Date(j.nextDueDate) <= thirtyDays);
+    const openWos = wos.filter(w => w.status === "open" || w.status === "in_progress");
+    const upcomingSurveys = surveys.filter(s => s.dueDate && new Date(s.dueDate) <= thirtyDays && s.status !== "completed");
+    
+    // Aylık tamamlama oranı
+    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const completedThisMonth = wos.filter(w => w.status === "completed" && w.actualEndDate && new Date(w.actualEndDate) >= thisMonth).length;
+    const dueThisMonth = jobs.filter(j => j.nextDueDate && new Date(j.nextDueDate) >= thisMonth && new Date(j.nextDueDate) <= new Date(now.getFullYear(), now.getMonth() + 1, 0)).length;
+    
+    res.json({
+      kpis: {
+        totalJobs: jobs.length,
+        overdueCount: overdueJobs.length,
+        dueSoonCount: dueSoonJobs.length,
+        openWorkOrders: openWos.length,
+        completionRate: dueThisMonth > 0 ? Math.round((completedThisMonth / dueThisMonth) * 100) : 100,
+        totalEquipment: equipment.length,
+        upcomingSurveys: upcomingSurveys.length,
+      },
+      overdueJobs: overdueJobs.slice(0, 10),
+      dueSoonJobs: dueSoonJobs.slice(0, 10),
+      openWorkOrders: openWos.slice(0, 10),
+      upcomingSurveys: upcomingSurveys.slice(0, 5),
+      recentlyCompleted: wos.filter(w => w.status === "completed").sort((a, b) => new Date(b.actualEndDate || 0).getTime() - new Date(a.actualEndDate || 0).getTime()).slice(0, 10),
+    });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// DEFAULT EQUIPMENT TEMPLATE (Yeni gemi için varsayılan ekipman ağacı)
+// ══════════════════════════════════════════════════════════════════
+
+router.post("/vessels/:vesselId/apply-template", isAuthenticated, async (req: any, res) => {
+  try {
+    const vesselId = parseInt(req.params.vesselId);
+    
+    // Varsayılan denizcilik ekipman kategorileri
+    const defaultCategories = [
+      { code: "01", name: "Hull & Structure", children: [
+        { code: "01.01", name: "Hull Plating" },
+        { code: "01.02", name: "Ballast Tanks" },
+        { code: "01.03", name: "Cargo Holds" },
+        { code: "01.04", name: "Deck Structure" },
+      ]},
+      { code: "02", name: "Main Engine", children: [
+        { code: "02.01", name: "Cylinder Heads & Liners" },
+        { code: "02.02", name: "Turbocharger" },
+        { code: "02.03", name: "Fuel Injection System" },
+        { code: "02.04", name: "Cooling Water System" },
+        { code: "02.05", name: "Lubrication System" },
+        { code: "02.06", name: "Exhaust System" },
+        { code: "02.07", name: "Starting Air System" },
+        { code: "02.08", name: "Governor & Controls" },
+      ]},
+      { code: "03", name: "Auxiliary Engines & Generators", children: [
+        { code: "03.01", name: "Diesel Generator No.1" },
+        { code: "03.02", name: "Diesel Generator No.2" },
+        { code: "03.03", name: "Diesel Generator No.3" },
+        { code: "03.04", name: "Emergency Generator" },
+        { code: "03.05", name: "Shaft Generator" },
+      ]},
+      { code: "04", name: "Boilers & Steam", children: [
+        { code: "04.01", name: "Main Boiler" },
+        { code: "04.02", name: "Auxiliary Boiler" },
+        { code: "04.03", name: "Economizer" },
+        { code: "04.04", name: "Steam Distribution" },
+      ]},
+      { code: "05", name: "Deck Machinery", children: [
+        { code: "05.01", name: "Windlass" },
+        { code: "05.02", name: "Mooring Winches" },
+        { code: "05.03", name: "Cranes" },
+        { code: "05.04", name: "Hatch Covers" },
+      ]},
+      { code: "06", name: "Navigation & Communication", children: [
+        { code: "06.01", name: "Radar (X-Band)" },
+        { code: "06.02", name: "Radar (S-Band)" },
+        { code: "06.03", name: "ECDIS" },
+        { code: "06.04", name: "GPS" },
+        { code: "06.05", name: "AIS" },
+        { code: "06.06", name: "VHF Radio" },
+        { code: "06.07", name: "GMDSS" },
+        { code: "06.08", name: "Gyro Compass" },
+        { code: "06.09", name: "Auto Pilot" },
+        { code: "06.10", name: "Echo Sounder" },
+      ]},
+      { code: "07", name: "Safety & Life-Saving", children: [
+        { code: "07.01", name: "Lifeboats" },
+        { code: "07.02", name: "Life Rafts" },
+        { code: "07.03", name: "Fire Detection System" },
+        { code: "07.04", name: "Fire Fighting Equipment" },
+        { code: "07.05", name: "CO2 System" },
+        { code: "07.06", name: "Emergency Lighting" },
+        { code: "07.07", name: "EPIRB" },
+        { code: "07.08", name: "SART" },
+      ]},
+      { code: "08", name: "Pumps & Piping", children: [
+        { code: "08.01", name: "Ballast Pumps" },
+        { code: "08.02", name: "Bilge Pumps" },
+        { code: "08.03", name: "Cargo Pumps" },
+        { code: "08.04", name: "Fire Pumps" },
+        { code: "08.05", name: "Fuel Transfer Pumps" },
+        { code: "08.06", name: "Freshwater Pumps" },
+        { code: "08.07", name: "Sewage Treatment" },
+        { code: "08.08", name: "Oily Water Separator" },
+      ]},
+      { code: "09", name: "Electrical Systems", children: [
+        { code: "09.01", name: "Main Switchboard" },
+        { code: "09.02", name: "Emergency Switchboard" },
+        { code: "09.03", name: "Shore Connection" },
+        { code: "09.04", name: "Lighting Systems" },
+        { code: "09.05", name: "Battery Systems" },
+      ]},
+      { code: "10", name: "HVAC & Accommodation", children: [
+        { code: "10.01", name: "Air Conditioning" },
+        { code: "10.02", name: "Ventilation" },
+        { code: "10.03", name: "Refrigeration (Provision)" },
+        { code: "10.04", name: "Galley Equipment" },
+        { code: "10.05", name: "Laundry" },
+        { code: "10.06", name: "Fresh Water Generator" },
+      ]},
+      { code: "11", name: "Steering & Propulsion", children: [
+        { code: "11.01", name: "Steering Gear" },
+        { code: "11.02", name: "Rudder" },
+        { code: "11.03", name: "Propeller & Shaft" },
+        { code: "11.04", name: "Bow Thruster" },
+        { code: "11.05", name: "Stern Tube" },
+      ]},
+      { code: "12", name: "Environmental", children: [
+        { code: "12.01", name: "Ballast Water Treatment" },
+        { code: "12.02", name: "Scrubber (SOx)" },
+        { code: "12.03", name: "Incinerator" },
+        { code: "12.04", name: "Garbage Management" },
+      ]},
+    ];
+    
+    let totalCats = 0;
+    for (const cat of defaultCategories) {
+      const [parent] = await db.insert(equipmentCategories).values({
+        vesselId, code: cat.code, name: cat.name, level: 0, isSystem: true,
+      }).returning();
+      totalCats++;
+      
+      if (cat.children) {
+        for (const child of cat.children) {
+          await db.insert(equipmentCategories).values({
+            vesselId, parentId: parent.id, code: child.code, name: child.name, level: 1, isSystem: true,
+          });
+          totalCats++;
+        }
+      }
+    }
+    
+    res.json({ message: `Applied default template: ${totalCats} categories created`, totalCategories: totalCats });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+export default router;
+
+Sonra server/routes.ts'de PMS route'u kaydet:
+import pmsRoutes from "./routes/pms.routes";
+
+// Route registration bölümüne ekle:
+app.use("/api/v1/pms", isAuthenticated, pmsRoutes);
+
+## ADIM 3 — Frontend: PMS Sayfası
+
+client/src/pages/pms.tsx dosyası oluştur. App.tsx'e route ekle:
+const PMS = lazy(() => import("@/pages/pms"));
+<Route path="/pms/:vesselId?" component={PMS} />
+
+Sayfa tasarımı — Gemi bazlı PMS dashboard + alt sayfalar:
+
+### Ana Layout:
+- Üstte gemi seçici dropdown (kullanıcının gemileri)
+- Gemi seçilince PMS dashboard yüklensin
+
+### TAB 1 — PMS Dashboard (/pms/:vesselId):
+Endpoint: GET /api/v1/pms/vessels/:vesselId/pms-dashboard
+
+KPI kartları (5 sütun):
+- 🔴 Overdue Jobs: XX (kırmızı kart, tıklanınca listeye git)
+- 🟡 Due Soon (30 gün): XX (sarı kart)
+- 🔵 Open Work Orders: XX
+- ✅ Completion Rate: XX% (bu ay)
+- 📋 Upcoming Surveys: XX
+
+Listeler:
+- Overdue Jobs tablosu (kırmızı highlight) — Job Code, Equipment, Due Date, Overdue Days
+- Due Soon Jobs tablosu (sarı) — Job Code, Equipment, Due Date, Days Left
+- Open Work Orders — WO#, Title, Priority, Status, Assigned To
+- Upcoming Class Surveys — Type, Due Date, Status
+
+### TAB 2 — Equipment Tree (/pms/:vesselId/equipment):
+Endpoint: GET /api/v1/pms/vessels/:vesselId/equipment-tree
+
+- Sol panel: Ağaç yapısında kategori listesi (accordion)
+  - 📁 01 — Hull & Structure
+    - 📁 01.01 — Hull Plating
+    - 📁 01.02 — Ballast Tanks
+  - 📁 02 — Main Engine
+    - ⚙️ ME Cylinder Head #1
+    - ⚙️ ME Turbocharger
+- Sağ panel: Seçilen ekipmanın detayı
+  - Genel bilgiler, manufacturer, model, serial
+  - Çalışma saatleri (running hours varsa)
+  - Bağlı bakım görevleri listesi
+  - Durum raporları
+  - Fotoğraf/dökümanlar
+- "Varsayılan Şablon Uygula" butonu (boş gemi için)
+- "Ekipman Ekle" ve "Kategori Ekle" butonları
+
+### TAB 3 — Maintenance Jobs (/pms/:vesselId/jobs):
+Endpoint: GET /api/v1/pms/vessels/:vesselId/jobs
+
+Filtreler: Status (Active/Overdue/Completed), Priority, Department, Calendar/Running Hours
+Tablo: Job Code | Title | Equipment | Interval | Last Done | Next Due | Status | Priority
+- Overdue satırları kırmızı arka plan
+- "New Job" butonu — form dialog
+- Satıra tıklayınca detay + work order oluşturma
+
+### TAB 4 — Work Orders (/pms/:vesselId/work-orders):
+Endpoint: GET /api/v1/pms/vessels/:vesselId/work-orders
+
+Kanban görünüm (sürükle bırak):
+- Open | In Progress | Awaiting Approval | Completed | Closed
+
+Veya liste görünüm:
+WO# | Title | Equipment | Type | Priority | Status | Assigned | Created
+- "New Work Order" butonu
+- Detay sayfası: Findings, Photos, Approvals, Spare Parts Used, Cost
+
+### TAB 5 — Running Hours (/pms/:vesselId/running-hours):
+Endpoint: GET /api/v1/pms/vessels/:vesselId/running-hours
+
+Ekipman listesi (sadece hasRunningHours=true olanlar):
+Equipment | Code | Current Hours | Last Updated | Daily Avg | Next Job Due at
+- Her satırda "Update" butonu — modal'da yeni saat gir
+- Toplu güncelleme: "Bulk Update" — tüm ekipmanları tek formda güncelle
+- Grafik: Running hours trend (son 30 gün)
+
+### TAB 6 — Class Surveys (/pms/:vesselId/surveys):
+Endpoint: GET /api/v1/pms/vessels/:vesselId/class-surveys
+
+Survey timleri: Annual, Intermediate, Special, Docking, Bottom, Tailshaft, Boiler
+Tablo: Type | Class Society | Due Date | Window | Status | Surveyor | Port
+- Takvim görünümü (opsiyonel)
+- "New Survey" butonu
+
+### TAB 7 — Condition Reports:
+Endpoint: GET /api/v1/pms/vessels/:vesselId/condition-reports
+
+Fotoğraflı durum raporları:
+- Tarih | Equipment | Condition | Title | Action Required | WO#
+- "New Report" butonu — fotoğraf yükleme destekli
+- Condition seçenekleri: Good, Satisfactory, Fair, Poor, Critical
+
+### Navigasyon:
+Sol menüde Fleet altına "PMS" ekle:
+- PMS Dashboard
+- Equipment
+- Jobs
+- Work Orders
+- Running Hours
+- Surveys
+
+### Role-based erişim:
+- Armatör (shipowner): Tüm gemileri görür, onay verir, raporları görür
+- Master: Kendi gemisini görür, work order oluşturur, running hours günceller, condition report gönderir
+- Superintendent: Birden fazla gemiyi yönetir, onay verir
+
+### Teknik:
+- Tailwind + shadcn/ui
+- React tabs veya URL-based routing (/pms/:vesselId, /pms/:vesselId/equipment, vb.)
+- Responsive
+- recharts grafikleri (completion rate trend, running hours chart)
+- Lucide ikonları
+
+Migration: npx drizzle-kit generate && npx drizzle-kit push
+Deploy ve test et.

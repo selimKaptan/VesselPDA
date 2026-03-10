@@ -50,6 +50,7 @@ import voyageReportRoutes from "./routes/voyage-report.routes";
 import commissionRoutes from "./routes/commission.routes";
 import voyageNotesRoutes from "./routes/voyage-notes.routes";
 import maintenanceRoutes from "./routes/maintenance.routes";
+import pmsRoutes from "./routes/pms.routes";
 import bunkerRoutes from "./routes/bunker.routes";
 import noonReportRoutes from "./routes/noon-report.routes";
 import charterPartyRoutes from "./routes/charter-party.routes";
@@ -156,6 +157,7 @@ export async function registerRoutes(
   app.use("/api/v1/da-advances", daAdvanceRoutes);
   app.use("/api/v1/analytics", analyticsRoutes);
   app.use("/api/v1/maintenance", maintenanceRoutes);
+  app.use("/api/v1/pms", pmsRoutes);
   app.use("/api/v1/bunker", bunkerRoutes);
   app.use("/api/v1/noon-reports", noonReportRoutes);
   app.use("/api/v1/charter-parties", charterPartyRoutes);
