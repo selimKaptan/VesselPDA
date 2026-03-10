@@ -1,0 +1,249 @@
+Voyage detail sayfasında ciddi bir mantık hatası var: Sefer tipi 'CREW CHANGE' olmasına rağmen Cargo Operations, NOR, SOF gibi kargo bileşenleri görünüyor. Sefer tipine göre koşullu render (Context-Aware Conditional Rendering) uygula.
+
+## 1. VOYAGE TİPLERİNİ TANIMLA
+
+client/src/lib/voyage-context.ts dosyası oluştur:
+
+export type VoyageOperationType = "loading" | "discharging" | "crew_change" | "bunkering" | "transit" | "drydock" | "other";
+
+// Her sefer tipinde hangi özellikler aktif?
+export const VOYAGE_FEATURES: Record<VoyageOperationType, {
+  hasCargoOps: boolean;
+  hasNOR: boolean;
+  hasSOF: boolean;
+  hasLaytime: boolean;
+  hasCrewLogistics: boolean;
+  hasBunkering: boolean;
+  timelineSteps: string[];
+  primaryTab: string;
+}> = {
+  loading: {
+    hasCargoOps: true,
+    hasNOR: true,
+    hasSOF: true,
+    hasLaytime: true,
+    hasCrewLogistics: false,
+    hasBunkering: true,
+    timelineSteps: ["Pre-Arrival", "Anchorage", "Berthed", "Cargo Ops", "Departed"],
+    primaryTab: "operations",
+  },
+  discharging: {
+    hasCargoOps: true,
+    hasNOR: true,
+    hasSOF: true,
+    hasLaytime: true,
+    hasCrewLogistics: false,
+    hasBunkering: true,
+    timelineSteps: ["Pre-Arrival", "Anchorage", "Berthed", "Cargo Ops", "Departed"],
+    primaryTab: "operations",
+  },
+  crew_change: {
+    hasCargoOps: false,
+    hasNOR: false,
+    hasSOF: false,
+    hasLaytime: false,
+    hasCrewLogistics: true,
+    hasBunkering: false,
+    timelineSteps: ["Pre-Arrival", "Anchorage", "Berthed", "Crew Ops", "Departed"],
+    primaryTab: "crew",
+  },
+  bunkering: {
+    hasCargoOps: false,
+    hasNOR: true,
+    hasSOF: true,
+    hasLaytime: false,
+    hasCrewLogistics: false,
+    hasBunkering: true,
+    timelineSteps: ["Pre-Arrival", "Anchorage", "Berthed", "Bunkering", "Departed"],
+    primaryTab: "operations",
+  },
+  transit: {
+    hasCargoOps: false,
+    hasNOR: false,
+    hasSOF: false,
+    hasLaytime: false,
+    hasCrewLogistics: false,
+    hasBunkering: false,
+    timelineSteps: ["Departure", "Transit", "Arrival"],
+    primaryTab: "operations",
+  },
+  drydock: {
+    hasCargoOps: false,
+    hasNOR: false,
+    hasSOF: false,
+    hasLaytime: false,
+    hasCrewLogistics: false,
+    hasBunkering: false,
+    timelineSteps: ["Pre-Arrival", "Docking", "Repairs", "Undocking", "Departed"],
+    primaryTab: "operations",
+  },
+  other: {
+    hasCargoOps: true,
+    hasNOR: true,
+    hasSOF: true,
+    hasLaytime: true,
+    hasCrewLogistics: true,
+    hasBunkering: true,
+    timelineSteps: ["Pre-Arrival", "Anchorage", "Berthed", "Operations", "Departed"],
+    primaryTab: "operations",
+  },
+};
+
+export function getVoyageFeatures(operationType?: string | null) {
+  const type = (operationType || "other").toLowerCase().replace(/[\s-]/g, "_") as VoyageOperationType;
+  return VOYAGE_FEATURES[type] || VOYAGE_FEATURES.other;
+}
+
+// Timeline step ikonlarını belirle
+export function getTimelineIcon(step: string): string {
+  const icons: Record<string, string> = {
+    "Pre-Arrival": "navigation",
+    "Anchorage": "anchor",
+    "Berthed": "ship",
+    "Cargo Ops": "package",
+    "Crew Ops": "users",
+    "Bunkering": "fuel",
+    "Docking": "wrench",
+    "Repairs": "tool",
+    "Undocking": "ship",
+    "Departed": "navigation-2",
+    "Departure": "navigation",
+    "Transit": "compass",
+    "Arrival": "map-pin",
+    "Operations": "activity",
+  };
+  return icons[step] || "circle";
+}
+
+## 2. VOYAGE DETAIL SAYFASINI GÜNCELLE
+
+client/src/pages/voyage-detail.tsx dosyasında:
+
+A) Dosyanın başına import ekle:
+import { getVoyageFeatures, getTimelineIcon } from "@/lib/voyage-context";
+
+B) Voyage verisi yüklendikten sonra features'ı hesapla:
+const features = getVoyageFeatures(voyage?.operationType || voyage?.purposeOfCall);
+
+C) TIMELINE STEPPER'I DİNAMİK YAP:
+Mevcut statik timeline'ı bul — "Pre-Arrival", "Anchorage", "Berthed", "Cargo Ops", "Departed" gibi hardcoded adımlar.
+
+Bunları şöyle değiştir:
+{features.timelineSteps.map((step, index) => (
+  <div key={step} className={cn("flex flex-col items-center", ...)}>
+    {/* step rendering */}
+    <span className="text-xs mt-1">{step}</span>
+  </div>
+))}
+
+Yani "Cargo Ops" yerine crew_change seferinde "Crew Ops", bunkering seferinde "Bunkering" gösterilecek.
+
+D) TAB'LARI KOŞULLU RENDER ET:
+Voyage detail'daki sekmeleri (Operations, Cargo Ops, Financial, Documents, vb.) filtrele:
+
+Mevcut tab listesini bul ve şu şekilde filtrele:
+
+const allTabs = [
+  { key: "operations", label: "Operations", show: true },
+  { key: "cargo-ops", label: "Cargo Ops", show: features.hasCargoOps },
+  { key: "crew", label: "Crew Logistics", show: features.hasCrewLogistics },
+  { key: "nor", label: "NOR", show: features.hasNOR },
+  { key: "sof", label: "SOF", show: features.hasSOF },
+  { key: "financial", label: "Financial", show: true },
+  { key: "documents", label: "Documents", show: true },
+  { key: "messages", label: "Messages", show: true },
+  { key: "team", label: "Team", show: true },
+];
+
+const visibleTabs = allTabs.filter(t => t.show);
+
+Tab render:
+{visibleTabs.map(tab => (
+  <button key={tab.key} onClick={() => setActiveTab(tab.key)} className={cn(...)}>
+    {tab.label}
+  </button>
+))}
+
+Tab content render:
+{activeTab === "cargo-ops" && features.hasCargoOps && <CargoOpsPanel ... />}
+{activeTab === "crew" && features.hasCrewLogistics && <CrewLogisticsPanel ... />}
+{activeTab === "nor" && features.hasNOR && <NORPanel ... />}
+{activeTab === "sof" && features.hasSOF && <SOFPanel ... />}
+
+E) OPERATIONS TAB İÇERİĞİNİ DE FİLTRELE:
+Operations tab'ının içinde de koşullu render:
+
+// Port Call Workflow — her zaman göster
+<PortCallWorkflow ... />
+
+// NOR bölümü — sadece NOR aktifse
+{features.hasNOR && (
+  <div className="mt-4">
+    <h3>Notice of Readiness</h3>
+    {/* NOR content */}
+  </div>
+)}
+
+// SOF bölümü — sadece SOF aktifse
+{features.hasSOF && (
+  <div className="mt-4">
+    <h3>Statement of Facts</h3>
+    {/* SOF content */}
+  </div>
+)}
+
+// Cargo — sadece cargo aktifse
+{features.hasCargoOps && (
+  <div className="mt-4">
+    <h3>Cargo Operations</h3>
+    {/* Cargo content */}
+  </div>
+)}
+
+// Crew Logistics — sadece crew aktifse (crew_change seferleri)
+{features.hasCrewLogistics && (
+  <div className="mt-4">
+    <h3>Crew Operations</h3>
+    {/* Crew logistics board embed */}
+  </div>
+)}
+
+F) CREW CHANGE İÇİN VARSAYILAN TAB:
+Eğer voyage tipi crew_change ise, sayfa açıldığında varsayılan tab "crew" olsun:
+
+const [activeTab, setActiveTab] = useState(features.primaryTab);
+
+// features değiştiğinde tab'ı güncelle
+useEffect(() => {
+  setActiveTab(features.primaryTab);
+}, [features.primaryTab]);
+
+G) VOYAGE KARTLARINDA (voyages.tsx) OPERASYOn TİPİ BADGE'İ:
+Voyage listesinde her kartın üstündeki operation type badge'ini renklendir:
+- LOADING → yeşil
+- DISCHARGING → turuncu  
+- CREW CHANGE → mor
+- BUNKERING → mavi
+- TRANSIT → gri
+- DRYDOCK → sarı
+
+## 3. PORT CALL WORKFLOW'U DA DİNAMİK YAP
+
+client/src/components/ içindeki port call workflow component'ında da aynı mantığı uygula:
+
+Workflow steps listesini voyage tipine göre oluştur:
+const workflowSteps = features.timelineSteps.map((step, i) => ({
+  label: step,
+  icon: getTimelineIcon(step),
+  completed: i < currentStepIndex,
+  active: i === currentStepIndex,
+}));
+
+## 4. VOYAGE OLUŞTURMADA OPERASYOn TİPİ SEÇİMİ
+
+Yeni voyage oluşturma formunda "Operation Type" alanı zaten var ise kontrol et, yoksa ekle:
+- Select/dropdown: Loading, Discharging, Crew Change, Bunkering, Transit, Drydock, Other
+- Bu seçim voyage.operationType veya voyage.purposeOfCall alanına kaydedilsin
+- DB'deki mevcut voyage'ların operationType alanını kontrol et — boşsa purposeOfCall'dan çıkar
+
+Migration gerekmez — mevcut schema'daki operationType veya purposeOfCall alanını kullan.

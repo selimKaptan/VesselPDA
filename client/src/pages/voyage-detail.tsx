@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
+import { getVoyageFeatures } from "@/lib/voyage-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -1321,6 +1322,8 @@ export default function VoyageDetail() {
     },
   });
 
+  const features = getVoyageFeatures(voyage?.purposeOfCall);
+
   // ── Crew Logistics: Load from DB ─────────────────────────────────────────
   const { data: crewFromDb } = useQuery<any[]>({
     queryKey: ["/api/voyages", voyageId, "crew-logistics"],
@@ -2547,6 +2550,7 @@ export default function VoyageDetail() {
                   const isPast   = activeIdx >= 0 && idx < activeIdx;
                   const isActive = activeIdx >= 0 && idx === activeIdx;
                   const isLast   = idx === PORT_CALL_STEPS.length - 1;
+                  const stepLabel = step.key === "cargo_ops" ? features.stepperLabel4 : step.label;
 
                   return (
                     <div key={step.key} className="flex items-center flex-1 min-w-0">
@@ -2574,7 +2578,7 @@ export default function VoyageDetail() {
                           : isPast  ? "text-emerald-400/80"
                           : "text-muted-foreground/35"
                         }`}>
-                          {step.label}
+                          {stepLabel}
                         </span>
                       </div>
 
@@ -4480,7 +4484,8 @@ export default function VoyageDetail() {
                 </div>
               </Card>
 
-              {/* NOR Card */}
+              {/* NOR Card — only for cargo/bunkering voyages */}
+              {features.hasNOR && (
               <Card className="p-5 space-y-3" data-testid="card-nor-status">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -4531,10 +4536,12 @@ export default function VoyageDetail() {
                   </div>
                 )}
               </Card>
+              )}
             </div>
           </div>
 
-          {/* SOF Card */}
+          {/* SOF Card — only for cargo/bunkering voyages */}
+          {features.hasSOF && (
           <Card className="p-5 space-y-3" data-testid="card-sof-status">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -4576,6 +4583,7 @@ export default function VoyageDetail() {
               </div>
             )}
           </Card>
+          )}
 
           {/* Liman Koşulları */}
           <div className="space-y-2">
@@ -4730,8 +4738,8 @@ export default function VoyageDetail() {
           </>)}
           </div>
 
-          {/* Cargo Ops Content */}
-          {(() => {
+          {/* Cargo Ops Content — only for cargo voyages */}
+          {features.hasCargoOps && (() => {
             const totalMt = (voyage as any)?.cargoTotalMt ?? 0;
         const handledMt = cargoLogs.reduce((sum: number, l: any) => sum + (l.amountHandled || 0), 0);
         const remainingMt = Math.max(0, totalMt - handledMt);
