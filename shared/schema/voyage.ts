@@ -77,6 +77,39 @@ export const voyageCargoLogs = pgTable("voyage_cargo_logs", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const cargoParcels = pgTable("cargo_parcels", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  receiverName: varchar("receiver_name", { length: 300 }).notNull(),
+  cargoType: varchar("cargo_type", { length: 200 }),
+  cargoDescription: varchar("cargo_description", { length: 500 }),
+  targetQuantity: real("target_quantity").default(0),
+  handledQuantity: real("handled_quantity").default(0),
+  unit: varchar("unit", { length: 20 }).default("MT"),
+  holdNumbers: varchar("hold_numbers", { length: 200 }),
+  blNumber: varchar("bl_number", { length: 100 }),
+  blDate: timestamp("bl_date"),
+  status: varchar("status", { length: 20 }).default("pending"),
+  notes: text("notes"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const stowagePlans = pgTable("stowage_plans", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  fileUrl: varchar("file_url", { length: 500 }),
+  fileName: varchar("file_name", { length: 300 }),
+  holdNotes: text("hold_notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCargoParcelSchema = createInsertSchema(cargoParcels).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertStowagePlanSchema = createInsertSchema(stowagePlans).omit({ id: true, createdAt: true });
+export type CargoParcel = typeof cargoParcels.$inferSelect;
+export type StowagePlan = typeof stowagePlans.$inferSelect;
+
 export const voyageActivities = pgTable("voyage_activities", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),

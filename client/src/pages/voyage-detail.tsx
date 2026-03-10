@@ -12,6 +12,7 @@ import {
   TrendingUp, TrendingDown, AlertTriangle, Mail, Plane, LogIn, LogOut, Maximize2, Calculator, FolderLock,
   Scale, Banknote, CreditCard, Percent, BarChart2, ScrollText, LayoutDashboard,
   MessageSquare, Activity, CheckSquare, Send, Phone, Check,
+  FileImage, Eye, Pencil,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
@@ -684,6 +685,12 @@ export default function VoyageDetail() {
   const [newContactRole, setNewContactRole] = useState("other");
   const [showAddReceiverDialog, setShowAddReceiverDialog] = useState(false);
   const [receiverForm, setReceiverForm] = useState({ name: "", allocatedMt: 0 });
+  const [showAddParcelDialog, setShowAddParcelDialog] = useState(false);
+  const [editingParcel, setEditingParcel] = useState<any | null>(null);
+  const [parcelForm, setParcelForm] = useState({ receiverName: "", cargoType: "", cargoDescription: "", targetQuantity: 0, handledQuantity: 0, unit: "MT", holdNumbers: "", blNumber: "", notes: "" });
+  const [stowageNotes, setStowageNotes] = useState("");
+  const [stowageNotesEditing, setStowageNotesEditing] = useState(false);
+  const [inlineHandled, setInlineHandled] = useState<Record<number, string>>({});
   const [docFilter, setDocFilter] = useState<string>("all");
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [showServiceDialog, setShowServiceDialog] = useState(false);
@@ -2072,6 +2079,45 @@ export default function VoyageDetail() {
     queryKey: ["/api/voyages", voyageId, "cargo-receivers"],
     queryFn: () => fetch(`/api/voyages/${voyageId}/cargo-receivers`, { credentials: "include" }).then(r => r.json()),
     enabled: ["overview","sof","appointments","cargo","crew-ops"].includes(activeTab),
+  });
+
+  const { data: cargoParcelsData = [] } = useQuery<any[]>({
+    queryKey: ["/api/voyages", voyageId, "cargo-parcels"],
+    queryFn: () => fetch(`/api/voyages/${voyageId}/cargo-parcels`, { credentials: "include" }).then(r => r.json()),
+    enabled: activeTab === "cargo",
+  });
+
+  const { data: stowagePlanData } = useQuery<any>({
+    queryKey: ["/api/voyages", voyageId, "stowage-plan"],
+    queryFn: () => fetch(`/api/voyages/${voyageId}/stowage-plan`, { credentials: "include" }).then(r => r.json()),
+    enabled: activeTab === "cargo",
+  });
+
+  const addParcelMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", `/api/voyages/${voyageId}/cargo-parcels`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-parcels"] });
+      setShowAddParcelDialog(false);
+      setParcelForm({ receiverName: "", cargoType: "", cargoDescription: "", targetQuantity: 0, handledQuantity: 0, unit: "MT", holdNumbers: "", blNumber: "", notes: "" });
+    },
+  });
+
+  const updateParcelMutation = useMutation({
+    mutationFn: ({ id, ...data }: any) => apiRequest("PATCH", `/api/voyages/cargo-parcels/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-parcels"] });
+      setEditingParcel(null);
+    },
+  });
+
+  const deleteParcelMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/voyages/cargo-parcels/${id}`, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-parcels"] }),
+  });
+
+  const updateStowagePlanMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("PATCH", `/api/voyages/${voyageId}/stowage-plan`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "stowage-plan"] }),
   });
 
   const { data: voyageContactsList = [] } = useQuery<any[]>({
@@ -4805,233 +4851,334 @@ export default function VoyageDetail() {
 
           {/* Cargo Ops Content — only for cargo voyages */}
           {activeTab === "cargo" && features.hasCargoOps && (() => {
-            const totalMt = (voyage as any)?.cargoTotalMt ?? 0;
-        const handledMt = cargoLogs.reduce((sum: number, l: any) => sum + (l.amountHandled || 0), 0);
-        const remainingMt = Math.max(0, totalMt - handledMt);
-        const progressPct = totalMt > 0 ? Math.min(100, Math.round((handledMt / totalMt) * 100)) : 0;
-        const totalLogged = cargoLogs.reduce((s: number, l: any) => {
-          if (!l.fromTime || !l.toTime) return s;
-          const hours = (new Date(l.toTime).getTime() - new Date(l.fromTime).getTime()) / 3_600_000;
-          return s + hours;
-        }, 0);
-        const avgRate = totalLogged > 0 ? Math.round((handledMt / totalLogged) * 24) : 0;
-        const RECEIVER_COLORS = ["from-sky-500 to-blue-400", "from-violet-500 to-purple-400", "from-emerald-500 to-teal-400", "from-orange-500 to-amber-400", "from-rose-500 to-pink-400"];
-        const BADGE_COLORS = [
-          "bg-sky-500/15 text-sky-400 border-sky-500/25",
-          "bg-violet-500/15 text-violet-400 border-violet-500/25",
-          "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
-          "bg-orange-500/15 text-orange-400 border-orange-500/25",
-          "bg-rose-500/15 text-rose-400 border-rose-500/25",
-        ];
-        const receiverIndexMap: Record<number, number> = Object.fromEntries(receivers.map((r: any, i: number) => [r.id, i]));
+            // Variables for Operation Logs section
+            const handledMt = cargoLogs.reduce((sum: number, l: any) => sum + (l.amountHandled || 0), 0);
+            const totalLogged = cargoLogs.reduce((s: number, l: any) => {
+              if (!l.fromTime || !l.toTime) return s;
+              const hours = (new Date(l.toTime).getTime() - new Date(l.fromTime).getTime()) / 3_600_000;
+              return s + hours;
+            }, 0);
+            const avgRate = totalLogged > 0 ? Math.round((handledMt / totalLogged) * 24) : 0;
+            const BADGE_COLORS = [
+              "bg-sky-500/15 text-sky-400 border-sky-500/25",
+              "bg-violet-500/15 text-violet-400 border-violet-500/25",
+              "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
+              "bg-orange-500/15 text-orange-400 border-orange-500/25",
+              "bg-rose-500/15 text-rose-400 border-rose-500/25",
+            ];
+            const receiverIndexMap: Record<number, number> = Object.fromEntries(receivers.map((r: any, i: number) => [r.id, i]));
+            const batchMap = new Map<string, any[]>();
+            cargoLogs.forEach((log: any) => {
+              const key = log.batchId || String(log.id);
+              if (!batchMap.has(key)) batchMap.set(key, []);
+              batchMap.get(key)!.push(log);
+            });
+            const groupedLogs = Array.from(batchMap.values());
 
-        // ETC as timestamp for time + countdown
-        const etcTs = avgRate > 0 && remainingMt > 0
-          ? new Date(Date.now() + (remainingMt / avgRate) * 86_400_000)
-          : null;
-        const etcFormatted = etcTs
-          ? fmtDate(etcTs)
-          : null;
-        const etcTime = etcTs
-          ? etcTs.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
-          : null;
-        const etcCountdown = (() => {
-          if (!etcTs) return null;
-          const diffMs = etcTs.getTime() - Date.now();
-          if (diffMs <= 0) return "imminent";
-          const totalMins = Math.round(diffMs / 60_000);
-          const h = Math.floor(totalMins / 60);
-          const m = totalMins % 60;
-          return h > 0 ? `in ~${h}h ${m}m` : `in ~${m}m`;
-        })();
+            // Parcel dashboard variables
+            const PARCEL_COLORS = [
+              { bar: "bg-sky-500", badge: "bg-sky-500/15 text-sky-400 border-sky-500/25" },
+              { bar: "bg-violet-500", badge: "bg-violet-500/15 text-violet-400 border-violet-500/25" },
+              { bar: "bg-emerald-500", badge: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25" },
+              { bar: "bg-orange-500", badge: "bg-orange-500/15 text-orange-400 border-orange-500/25" },
+              { bar: "bg-rose-500", badge: "bg-rose-500/15 text-rose-400 border-rose-500/25" },
+              { bar: "bg-amber-500", badge: "bg-amber-500/15 text-amber-400 border-amber-500/25" },
+            ];
+            const totalTargetMt = cargoParcelsData.reduce((s: number, p: any) => s + (p.targetQuantity || 0), 0);
+            const totalHandledParcelMt = cargoParcelsData.reduce((s: number, p: any) => s + (p.handledQuantity || 0), 0);
+            const overallPct = totalTargetMt > 0 ? Math.min(100, Math.round((totalHandledParcelMt / totalTargetMt) * 100)) : 0;
+            const completedParcels = cargoParcelsData.filter((p: any) => p.status === "completed").length;
+            const inProgressParcels = cargoParcelsData.filter((p: any) => p.status === "in_progress").length;
 
-        // Group logs by batchId for table display
-        const batchMap = new Map<string, any[]>();
-        cargoLogs.forEach((log: any) => {
-          const key = log.batchId || String(log.id);
-          if (!batchMap.has(key)) batchMap.set(key, []);
-          batchMap.get(key)!.push(log);
-        });
-        const groupedLogs = Array.from(batchMap.values());
+            return (
+              <div className="space-y-5" data-testid="tab-content-cargo-ops">
 
-        // Active receivers from last batch
-        const lastBatch = groupedLogs.length > 0 ? groupedLogs[groupedLogs.length - 1] : null;
-        const activeReceiverNames = lastBatch
-          ? lastBatch
-              .filter((l: any) => l.receiverId && l.logType !== "delay")
-              .map((l: any) => receivers.find((r: any) => r.id === l.receiverId)?.name)
-              .filter(Boolean)
-              .join(" & ") || null
-          : null;
-        const lastBatchFromTime = lastBatch?.[0]?.fromTime ?? null;
-
-        return (
-          <div className="space-y-5" data-testid="tab-content-cargo-ops">
-
-            {/* ── Dashboard Card ─────────────────── */}
-            <Card className="p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="font-semibold text-sm flex items-center gap-2">
-                  <Package className="w-4 h-4 text-[hsl(var(--maritime-primary))]" /> Cargo Operations
-                </h2>
-                {totalMt === 0 && (
-                  <span className="text-xs text-amber-400">Set total cargo below to begin tracking</span>
-                )}
-              </div>
-
-              {/* Active Status Banner */}
-              {lastBatch && (
-                <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-green-500/40 bg-green-500/[0.08]">
-                  <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse flex-shrink-0" />
-                  <span className="text-xs font-bold text-green-400 uppercase tracking-widest">
-                    Currently {voyage?.purposeOfCall ?? "Operating"}
-                    {activeReceiverNames ? `: ${activeReceiverNames}` : ""}
-                  </span>
-                  {lastBatchFromTime && (
-                    <span className="ml-auto text-[10px] text-green-400/60 whitespace-nowrap">
-                      Since {new Date(lastBatchFromTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  )}
+                {/* ── Summary Header ─────────────────────────────────── */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <div className="bg-card border border-border/60 rounded-lg p-3 flex flex-col gap-1">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Parcels</span>
+                    <span className="text-2xl font-bold" data-testid="stat-total-parcels">{cargoParcelsData.length}</span>
+                  </div>
+                  <div className="bg-card border border-border/60 rounded-lg p-3 flex flex-col gap-1">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Target (MT)</span>
+                    <span className="text-2xl font-bold text-sky-400" data-testid="stat-total-target">{totalTargetMt.toLocaleString()}</span>
+                  </div>
+                  <div className="bg-card border border-border/60 rounded-lg p-3 flex flex-col gap-1">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Handled (MT)</span>
+                    <span className="text-2xl font-bold text-emerald-400" data-testid="stat-total-handled">{totalHandledParcelMt.toLocaleString()}</span>
+                  </div>
+                  <div className="bg-card border border-border/60 rounded-lg p-3 flex flex-col gap-1">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Progress</span>
+                    <span className="text-2xl font-bold text-[hsl(var(--maritime-primary))]" data-testid="stat-progress-pct">{overallPct}%</span>
+                    <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div className="h-full bg-[hsl(var(--maritime-primary))] rounded-full transition-all" style={{ width: `${overallPct}%` }} />
+                    </div>
+                  </div>
+                  <div className="bg-card border border-border/60 rounded-lg p-3 flex flex-col gap-1">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Status</span>
+                    <div className="flex flex-col gap-0.5 mt-0.5">
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                        <span className="text-muted-foreground">Completed:</span>
+                        <span className="font-semibold">{completedParcels}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span className="w-2 h-2 rounded-full bg-amber-400" />
+                        <span className="text-muted-foreground">In Progress:</span>
+                        <span className="font-semibold">{inProgressParcels}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              )}
 
-              {/* Stat row — hidden when no cargo set */}
-              {totalMt > 0 && (
-                <div className="flex flex-wrap items-baseline gap-6 text-sm">
-                  <span>Total: <strong>{totalMt.toLocaleString()} MT</strong></span>
-                  <span>Handled: <strong className="text-green-400">{handledMt.toLocaleString()} MT ({progressPct}%)</strong></span>
-                  <span>Remaining: <strong className="text-amber-400">{remainingMt.toLocaleString()} MT</strong></span>
-                </div>
-              )}
+                {/* ── 2-Column Layout ────────────────────────────────── */}
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
 
-              {/* Main Progress bar */}
-              <div className="h-4 rounded-full bg-slate-800 border border-slate-700 overflow-hidden">
-                {progressPct > 0 ? (
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-400 transition-all duration-700"
-                    style={{ width: `${progressPct}%` }}
-                  />
-                ) : (
-                  <div className="h-full rounded-full bg-muted/40 w-full" />
-                )}
-              </div>
+                  {/* Left: Parcel List (3/5) */}
+                  <div className="lg:col-span-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-sm flex items-center gap-2">
+                        <Package className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                        Cargo Parcels
+                        {cargoParcelsData.length > 0 && (
+                          <span className="text-[10px] text-slate-500 bg-slate-800 rounded-full px-2 py-0.5">{cargoParcelsData.length}</span>
+                        )}
+                      </h3>
+                      <Button size="sm" className="text-xs h-7 gap-1.5" onClick={() => {
+                        setEditingParcel(null);
+                        setParcelForm({ receiverName: "", cargoType: "", cargoDescription: "", targetQuantity: 0, handledQuantity: 0, unit: "MT", holdNumbers: "", blNumber: "", notes: "" });
+                        setShowAddParcelDialog(true);
+                      }} data-testid="button-add-parcel">
+                        <Plus className="w-3 h-3" /> Add Parcel
+                      </Button>
+                    </div>
 
-              {/* ── Receivers / Cargo Parcels ──────── */}
-              <div className="space-y-2 border-t border-border/40 pt-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Cargo Parcels / Receivers</span>
-                  <Button variant="ghost" size="sm" className="h-6 text-xs gap-1 px-2"
-                    onClick={() => setShowAddReceiverDialog(true)} data-testid="button-add-receiver">
-                    <Plus className="w-3 h-3" /> Add Receiver
-                  </Button>
-                </div>
-                {receivers.length === 0 ? (
-                  <p className="text-xs text-muted-foreground italic">No receivers yet — add cargo parcels to track per-receiver progress.</p>
-                ) : (
-                  <div className="space-y-2.5">
-                    {receivers.map((r: any, idx: number) => {
-                      const rHandled = cargoLogs.filter((l: any) => l.receiverId === r.id).reduce((s: number, l: any) => s + (l.amountHandled || 0), 0);
-                      const rPct = r.allocatedMt > 0 ? Math.min(100, Math.round((rHandled / r.allocatedMt) * 100)) : 0;
-                      const color = RECEIVER_COLORS[idx % RECEIVER_COLORS.length];
-                      const rRemaining = Math.max(0, r.allocatedMt - rHandled);
-                      const rEtcTs = avgRate > 0 && rRemaining > 0
-                        ? new Date(Date.now() + (rRemaining / avgRate) * 86_400_000)
-                        : null;
-                      const rEtcStr = rEtcTs
-                        ? fmtDateTime(rEtcTs)
-                        : null;
-                      return (
-                        <div key={r.id} className="space-y-1" data-testid={`receiver-row-${r.id}`}>
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-medium">{r.name}</span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-muted-foreground tabular-nums">
-                                {rHandled.toLocaleString()} / {r.allocatedMt.toLocaleString()} MT
-                              </span>
-                              <span className={`font-semibold tabular-nums ${rPct >= 100 ? "text-green-400" : "text-sky-400"}`}>
-                                ({rPct}%)
-                              </span>
-                              <button
-                                onClick={() => deleteReceiverMutation.mutate(r.id)}
-                                className="text-muted-foreground/50 hover:text-destructive transition-colors"
-                                data-testid={`button-delete-receiver-${r.id}`}
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
+                    {cargoParcelsData.length === 0 ? (
+                      <EmptyState
+                        icon={Package}
+                        title="No Cargo Parcels"
+                        description="Add parcels to track cargo by receiver, hold, and B/L number."
+                        action={{ label: "Add First Parcel", onClick: () => setShowAddParcelDialog(true) }}
+                        compact
+                        testId="section-parcels-empty"
+                      />
+                    ) : (
+                      <div className="space-y-2">
+                        {cargoParcelsData.map((parcel: any, idx: number) => {
+                          const color = PARCEL_COLORS[idx % PARCEL_COLORS.length];
+                          const pct = (parcel.targetQuantity ?? 0) > 0
+                            ? Math.min(100, Math.round(((parcel.handledQuantity ?? 0) / parcel.targetQuantity) * 100))
+                            : 0;
+                          const statusColors: Record<string, string> = {
+                            completed: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
+                            in_progress: "bg-amber-500/15 text-amber-400 border-amber-500/25",
+                            pending: "bg-slate-500/15 text-slate-400 border-slate-500/25",
+                          };
+                          const statusLabels: Record<string, string> = { completed: "Done", in_progress: "In Progress", pending: "Pending" };
+                          return (
+                            <Card key={parcel.id} className="p-4" data-testid={`card-parcel-${parcel.id}`}>
+                              <div className="flex items-start justify-between gap-2 mb-3">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div className={`w-2 h-8 rounded-full ${color.bar} flex-shrink-0`} />
+                                  <div className="min-w-0">
+                                    <div className="font-semibold text-sm truncate" data-testid={`text-parcel-receiver-${parcel.id}`}>{parcel.receiverName}</div>
+                                    <div className="text-xs text-muted-foreground truncate">
+                                      {[parcel.cargoType, parcel.holdNumbers && `Hold: ${parcel.holdNumbers}`, parcel.blNumber && `BL: ${parcel.blNumber}`].filter(Boolean).join(" · ")}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${statusColors[parcel.status] ?? statusColors.pending}`} data-testid={`badge-parcel-status-${parcel.id}`}>
+                                    {statusLabels[parcel.status] ?? parcel.status}
+                                  </span>
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                    onClick={() => {
+                                      setEditingParcel(parcel);
+                                      setParcelForm({
+                                        receiverName: parcel.receiverName,
+                                        cargoType: parcel.cargoType ?? "",
+                                        cargoDescription: parcel.cargoDescription ?? "",
+                                        targetQuantity: parcel.targetQuantity ?? 0,
+                                        handledQuantity: parcel.handledQuantity ?? 0,
+                                        unit: parcel.unit ?? "MT",
+                                        holdNumbers: parcel.holdNumbers ?? "",
+                                        blNumber: parcel.blNumber ?? "",
+                                        notes: parcel.notes ?? "",
+                                      });
+                                      setShowAddParcelDialog(true);
+                                    }}
+                                    data-testid={`button-edit-parcel-${parcel.id}`}>
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                    onClick={() => deleteParcelMutation.mutate(parcel.id)}
+                                    data-testid={`button-delete-parcel-${parcel.id}`}>
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {/* Progress Bar */}
+                              <div className="mb-3">
+                                <div className="flex items-center justify-between text-xs mb-1.5">
+                                  <span className="text-muted-foreground">Progress</span>
+                                  <span className="font-mono font-semibold">{(parcel.handledQuantity ?? 0).toLocaleString()} / {(parcel.targetQuantity ?? 0).toLocaleString()} {parcel.unit}</span>
+                                </div>
+                                <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                                  <div className={`h-full ${color.bar} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                                </div>
+                                <div className="text-right text-[10px] text-muted-foreground mt-0.5">{pct}%</div>
+                              </div>
+
+                              {/* Inline Handled Qty */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs text-muted-foreground whitespace-nowrap">Update handled:</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="h-7 text-xs w-24 font-mono border border-border/60 bg-background rounded-md px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                                  value={inlineHandled[parcel.id] ?? String(parcel.handledQuantity ?? 0)}
+                                  onChange={e => setInlineHandled(prev => ({ ...prev, [parcel.id]: e.target.value }))}
+                                  onBlur={() => {
+                                    const raw = inlineHandled[parcel.id];
+                                    if (raw === undefined) return;
+                                    const val = parseFloat(raw);
+                                    if (!isNaN(val) && val !== (parcel.handledQuantity ?? 0)) {
+                                      const newStatus = (parcel.targetQuantity ?? 0) > 0 && val >= parcel.targetQuantity ? "completed" : val > 0 ? "in_progress" : "pending";
+                                      updateParcelMutation.mutate({ id: parcel.id, handledQuantity: val, status: newStatus });
+                                    }
+                                  }}
+                                  data-testid={`input-handled-${parcel.id}`}
+                                />
+                                <span className="text-xs text-muted-foreground">{parcel.unit}</span>
+                                {parcel.notes && (
+                                  <span className="text-xs text-muted-foreground italic truncate ml-auto max-w-[140px]" title={parcel.notes}>{parcel.notes}</span>
+                                )}
+                              </div>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: Stowage Plan (2/5) */}
+                  <div className="lg:col-span-2 space-y-3">
+                    <h3 className="font-semibold text-sm flex items-center gap-2">
+                      <FileImage className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                      Stowage Plan
+                    </h3>
+                    <Card className="p-4 space-y-4">
+                      {/* File upload area */}
+                      <div className="border-2 border-dashed border-border/60 rounded-lg p-5 text-center">
+                        {stowagePlanData?.fileUrl ? (
+                          <div className="space-y-2">
+                            <div className="w-10 h-10 mx-auto bg-sky-500/15 rounded-lg flex items-center justify-center">
+                              <FileImage className="w-5 h-5 text-sky-400" />
+                            </div>
+                            <div className="text-sm font-medium truncate" data-testid="text-stowage-filename">{stowagePlanData.fileName ?? "Stowage Plan"}</div>
+                            <div className="flex items-center justify-center gap-2">
+                              <Button variant="outline" size="sm" className="text-xs h-7 gap-1 text-sky-400 hover:text-sky-300"
+                                onClick={() => window.open(stowagePlanData.fileUrl, "_blank")}
+                                data-testid="button-view-stowage">
+                                <Eye className="w-3 h-3" /> View
+                              </Button>
+                              <Button variant="outline" size="sm" className="text-xs h-7 gap-1 text-muted-foreground hover:text-destructive"
+                                onClick={() => updateStowagePlanMutation.mutate({ fileUrl: null, fileName: null })}
+                                data-testid="button-remove-stowage">
+                                <Trash2 className="w-3 h-3" /> Remove
+                              </Button>
                             </div>
                           </div>
-                          <div className="h-2 rounded-full bg-slate-800 border border-slate-700/50 overflow-hidden">
-                            <div className={`h-full rounded-full bg-gradient-to-r ${color} transition-all duration-700`}
-                              style={{ width: `${rPct}%` }} />
-                          </div>
-                          {rEtcStr && rPct < 100 && (
-                            <p className="text-[10px] text-muted-foreground/60">Est: {rEtcStr}</p>
+                        ) : (
+                          <label className="cursor-pointer block">
+                            <div className="space-y-2">
+                              <div className="w-10 h-10 mx-auto bg-muted rounded-lg flex items-center justify-center">
+                                <Upload className="w-5 h-5 text-muted-foreground" />
+                              </div>
+                              <div className="text-sm font-medium text-muted-foreground">Upload Stowage Plan</div>
+                              <div className="text-xs text-muted-foreground">PDF, PNG, JPG up to 10MB</div>
+                            </div>
+                            <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const reader = new FileReader();
+                                reader.onload = async (ev) => {
+                                  const b64 = (ev.target?.result as string).split(",")[1];
+                                  try {
+                                    const resp = await apiRequest("POST", "/api/upload", { fileBase64: b64, fileName: file.name, mimeType: file.type });
+                                    const data = await resp.json();
+                                    if (data.url) updateStowagePlanMutation.mutate({ fileUrl: data.url, fileName: file.name });
+                                  } catch {
+                                    toast({ title: "Upload failed", variant: "destructive" });
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }}
+                              data-testid="input-stowage-upload" />
+                          </label>
+                        )}
+                      </div>
+
+                      {/* Hold Notes */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Hold Notes</label>
+                          {!stowageNotesEditing ? (
+                            <Button variant="ghost" size="sm" className="h-6 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                              onClick={() => { setStowageNotes(stowagePlanData?.holdNotes ?? ""); setStowageNotesEditing(true); }}
+                              data-testid="button-edit-hold-notes">
+                              <Pencil className="w-3 h-3" /> Edit
+                            </Button>
+                          ) : (
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="sm" className="h-6 text-xs gap-1 text-emerald-400 hover:text-emerald-300"
+                                onClick={() => { updateStowagePlanMutation.mutate({ holdNotes: stowageNotes }); setStowageNotesEditing(false); }}
+                                data-testid="button-save-hold-notes">
+                                <Check className="w-3 h-3" /> Save
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground"
+                                onClick={() => setStowageNotesEditing(false)}
+                                data-testid="button-cancel-hold-notes">
+                                Cancel
+                              </Button>
+                            </div>
                           )}
                         </div>
-                      );
-                    })}
+                        {stowageNotesEditing ? (
+                          <Textarea
+                            className="text-xs min-h-[100px] resize-none"
+                            placeholder="Hold-by-hold stowage notes, weight distribution, special cargo instructions..."
+                            value={stowageNotes}
+                            onChange={e => setStowageNotes(e.target.value)}
+                            data-testid="textarea-hold-notes"
+                          />
+                        ) : (
+                          <div className="text-xs text-muted-foreground min-h-[60px] p-2 bg-muted/30 rounded-md border border-border/40 whitespace-pre-wrap" data-testid="text-hold-notes">
+                            {stowagePlanData?.holdNotes || <span className="italic opacity-60">No hold notes. Click Edit to add.</span>}
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+
+                    {/* Voyage Info Summary */}
+                    <Card className="p-4 space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Voyage Info</div>
+                      {[
+                        { label: "Vessel", value: (voyage as any)?.vessel?.name ?? voyage?.vesselName },
+                        { label: "Port", value: (voyage as any)?.portName ?? voyage?.portOfLoading },
+                        { label: "Operation", value: voyage?.purposeOfCall },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">{label}</span>
+                          <span className="font-medium truncate max-w-[140px]">{value ?? "—"}</span>
+                        </div>
+                      ))}
+                    </Card>
                   </div>
-                )}
-              </div>
-
-              {/* Set total input */}
-              <div className="flex items-center gap-2 pt-1 border-t border-border/40">
-                <span className="text-xs text-muted-foreground">Set Total Cargo:</span>
-                <Input
-                  type="number" min={0}
-                  className="h-7 w-32 text-xs"
-                  defaultValue={totalMt > 0 ? totalMt : ""}
-                  placeholder="e.g. 60000"
-                  onBlur={e => {
-                    const v = parseFloat(e.target.value);
-                    if (!isNaN(v)) apiRequest("PATCH", `/api/voyages/${voyageId}/cargo-total`, { cargoTotalMt: v })
-                      .then(() => queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId] }));
-                  }}
-                  data-testid="input-cargo-total-mt"
-                />
-                <span className="text-xs text-muted-foreground">MT</span>
-              </div>
-            </Card>
-
-            {/* ── 3 Metric Cards ──────────────────── */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="rounded-xl border border-border/60 bg-card p-4 space-y-1">
-                <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide">Current Rate</p>
-                <p className="text-2xl font-bold">{avgRate > 0 ? `${avgRate.toLocaleString()} MT` : "—"}</p>
-                <p className="text-xs text-muted-foreground">per day</p>
-              </div>
-              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1.5">
-                <p className="text-[11px] text-amber-400 font-semibold uppercase tracking-wide">Est. Completion (ETC)</p>
-                {etcFormatted ? (
-                  <>
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <span className="text-lg font-bold text-amber-300">{etcFormatted}</span>
-                      <span className="text-xl font-extrabold text-amber-200 tabular-nums">{etcTime}</span>
-                    </div>
-                    {etcCountdown && (
-                      <p className="text-xs font-semibold text-amber-400/80">{etcCountdown}</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-2xl font-bold text-amber-300">—</p>
-                )}
-                <p className="text-xs text-muted-foreground">based on current avg rate</p>
-              </div>
-              <div className="rounded-xl border border-border/60 bg-card p-4 space-y-1">
-                <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide">Operation Type</p>
-                <div className="pt-1">
-                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${
-                    voyage?.purposeOfCall === "Loading"
-                      ? "bg-green-500/15 text-green-400 border-green-500/25"
-                      : voyage?.purposeOfCall === "Discharging"
-                      ? "bg-orange-500/15 text-orange-400 border-orange-500/25"
-                      : "bg-slate-500/15 text-slate-400 border-slate-500/25"
-                  }`}>
-                    {voyage?.purposeOfCall ?? "—"}
-                  </span>
                 </div>
-              </div>
-            </div>
+
 
             {/* ── Operation Logs ───────────────────── */}
             <Card className="p-5 space-y-4">
@@ -5190,6 +5337,90 @@ export default function VoyageDetail() {
                 </div>
               )}
             </Card>
+
+            {/* ── Add / Edit Parcel Dialog ─────────── */}
+            <Dialog open={showAddParcelDialog} onOpenChange={v => { setShowAddParcelDialog(v); if (!v) setEditingParcel(null); }}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{editingParcel ? "Edit Parcel" : "Add Cargo Parcel"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 py-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Receiver Name *</label>
+                      <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring"
+                        value={parcelForm.receiverName} onChange={e => setParcelForm(p => ({ ...p, receiverName: e.target.value }))}
+                        placeholder="e.g. GLENCORE AG" data-testid="input-parcel-receiver" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Cargo Type</label>
+                      <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring"
+                        value={parcelForm.cargoType} onChange={e => setParcelForm(p => ({ ...p, cargoType: e.target.value }))}
+                        placeholder="e.g. GRAIN" data-testid="input-parcel-cargo-type" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Unit</label>
+                      <select className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring"
+                        value={parcelForm.unit} onChange={e => setParcelForm(p => ({ ...p, unit: e.target.value }))}
+                        data-testid="select-parcel-unit">
+                        <option value="MT">MT</option>
+                        <option value="CBM">CBM</option>
+                        <option value="UNIT">UNIT</option>
+                        <option value="BAG">BAG</option>
+                        <option value="BALE">BALE</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Target Quantity</label>
+                      <input type="number" min="0" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring"
+                        value={parcelForm.targetQuantity} onChange={e => setParcelForm(p => ({ ...p, targetQuantity: parseFloat(e.target.value) || 0 }))}
+                        data-testid="input-parcel-target" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Handled Quantity</label>
+                      <input type="number" min="0" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring"
+                        value={parcelForm.handledQuantity} onChange={e => setParcelForm(p => ({ ...p, handledQuantity: parseFloat(e.target.value) || 0 }))}
+                        data-testid="input-parcel-handled" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Hold Numbers</label>
+                      <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring"
+                        value={parcelForm.holdNumbers} onChange={e => setParcelForm(p => ({ ...p, holdNumbers: e.target.value }))}
+                        placeholder="e.g. 1, 2, 3" data-testid="input-parcel-holds" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">B/L Number</label>
+                      <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring"
+                        value={parcelForm.blNumber} onChange={e => setParcelForm(p => ({ ...p, blNumber: e.target.value }))}
+                        placeholder="e.g. BL-2024-001" data-testid="input-parcel-bl" />
+                    </div>
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Notes</label>
+                      <Textarea className="text-xs min-h-[60px] resize-none"
+                        value={parcelForm.notes} onChange={e => setParcelForm(p => ({ ...p, notes: e.target.value }))}
+                        placeholder="Special instructions, remarks..." data-testid="textarea-parcel-notes" />
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => { setShowAddParcelDialog(false); setEditingParcel(null); }}>Cancel</Button>
+                  <Button
+                    disabled={!parcelForm.receiverName.trim() || addParcelMutation.isPending || updateParcelMutation.isPending}
+                    onClick={() => {
+                      if (!parcelForm.receiverName.trim()) return;
+                      const payload = { ...parcelForm };
+                      if (editingParcel) {
+                        updateParcelMutation.mutate({ id: editingParcel.id, ...payload });
+                      } else {
+                        addParcelMutation.mutate(payload);
+                      }
+                    }}
+                    data-testid="button-save-parcel">
+                    {(addParcelMutation.isPending || updateParcelMutation.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : editingParcel ? "Save Changes" : "Add Parcel"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* ── Add Operation Log Dialog ─────────── */}
             {(() => {

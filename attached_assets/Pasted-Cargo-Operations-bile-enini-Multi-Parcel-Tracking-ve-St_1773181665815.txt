@@ -1,0 +1,427 @@
+Cargo Operations bileşenini Multi-Parcel Tracking ve Stowage Plan destekli profesyonel Cargo Dashboard'a dönüştür. Mevcut basit yapıyı tamamen yeniden inşa et.
+
+## 1. SCHEMA — Cargo Parcels Tablosu
+
+shared/schema/voyage.ts dosyasına yeni tablo ekle (mevcut tabloları silme):
+
+export const cargoParcels = pgTable("cargo_parcels", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  receiverName: varchar("receiver_name", { length: 300 }).notNull(),
+  cargoType: varchar("cargo_type", { length: 200 }),
+  cargoDescription: varchar("cargo_description", { length: 500 }),
+  targetQuantity: real("target_quantity").default(0),
+  handledQuantity: real("handled_quantity").default(0),
+  unit: varchar("unit", { length: 20 }).default("MT"),
+  holdNumbers: varchar("hold_numbers", { length: 200 }),
+  blNumber: varchar("bl_number", { length: 100 }),
+  blDate: timestamp("bl_date"),
+  status: varchar("status", { length: 20 }).default("pending"),
+  notes: text("notes"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const stowagePlans = pgTable("stowage_plans", {
+  id: serial("id").primaryKey(),
+  voyageId: integer("voyage_id").notNull().references(() => voyages.id, { onDelete: "cascade" }),
+  fileUrl: varchar("file_url", { length: 500 }),
+  fileName: varchar("file_name", { length: 300 }),
+  holdNotes: text("hold_notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCargoParcelSchema = createInsertSchema(cargoParcels).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertStowagePlanSchema = createInsertSchema(stowagePlans).omit({ id: true, createdAt: true });
+export type CargoParcel = typeof cargoParcels.$inferSelect;
+export type StowagePlan = typeof stowagePlans.$inferSelect;
+
+Migration: npx drizzle-kit generate && npx drizzle-kit push
+
+## 2. BACKEND — Cargo Parcels API
+
+server/routes/voyage.routes.ts dosyasına ekle:
+
+// GET /voyages/:id/cargo-parcels
+router.get("/:id/cargo-parcels", isAuthenticated, async (req: any, res) => {
+  const voyageId = parseInt(req.params.id);
+  const parcels = await db.select().from(cargoParcels)
+    .where(eq(cargoParcels.voyageId, voyageId))
+    .orderBy(asc(cargoParcels.sortOrder));
+  const [stowage] = await db.select().from(stowagePlans)
+    .where(eq(stowagePlans.voyageId, voyageId))
+    .orderBy(desc(stowagePlans.createdAt))
+    .limit(1);
+  
+  const totalTarget = parcels.reduce((s, p) => s + (p.targetQuantity || 0), 0);
+  const totalHandled = parcels.reduce((s, p) => s + (p.handledQuantity || 0), 0);
+  const progress = totalTarget > 0 ? Math.round((totalHandled / totalTarget) * 1000) / 10 : 0;
+  
+  res.json({
+    parcels,
+    stowagePlan: stowage || null,
+    summary: { totalTarget, totalHandled, remaining: totalTarget - totalHandled, progress, parcelCount: parcels.length },
+  });
+});
+
+// POST /voyages/:id/cargo-parcels
+router.post("/:id/cargo-parcels", isAuthenticated, async (req: any, res) => {
+  const [parcel] = await db.insert(cargoParcels).values({
+    ...req.body,
+    voyageId: parseInt(req.params.id),
+  }).returning();
+  res.status(201).json(parcel);
+});
+
+// PATCH /cargo-parcels/:pid
+router.patch("/cargo-parcels/:pid", isAuthenticated, async (req: any, res) => {
+  const [parcel] = await db.update(cargoParcels).set({ ...req.body, updatedAt: new Date() })
+    .where(eq(cargoParcels.id, parseInt(req.params.pid))).returning();
+  res.json(parcel);
+});
+
+// DELETE /cargo-parcels/:pid
+router.delete("/cargo-parcels/:pid", isAuthenticated, async (req: any, res) => {
+  await db.delete(cargoParcels).where(eq(cargoParcels.id, parseInt(req.params.pid)));
+  res.json({ ok: true });
+});
+
+// PATCH /voyages/:id/stowage-plan
+router.patch("/:id/stowage-plan", isAuthenticated, async (req: any, res) => {
+  const voyageId = parseInt(req.params.id);
+  const existing = await db.select().from(stowagePlans).where(eq(stowagePlans.voyageId, voyageId)).limit(1);
+  if (existing.length > 0) {
+    const [plan] = await db.update(stowagePlans).set(req.body).where(eq(stowagePlans.id, existing[0].id)).returning();
+    res.json(plan);
+  } else {
+    const [plan] = await db.insert(stowagePlans).values({ ...req.body, voyageId }).returning();
+    res.json(plan);
+  }
+});
+
+## 3. FRONTEND — Cargo Dashboard Component
+
+Voyage detail sayfasındaki Cargo Operations bölümünü tamamen yeniden yaz. Aşağıdaki yapıyı kullan:
+
+### ANA CONTAINER — Tek büyük dashboard çerçevesi:
+
+<div className="rounded-xl border border-slate-700/50 bg-slate-800/20 overflow-hidden">
+  {/* Dashboard Header */}
+  <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-700/30 bg-slate-900/30">
+    <div className="flex items-center gap-3">
+      <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
+        <Package className="w-4.5 h-4.5 text-blue-400" />
+      </div>
+      <div>
+        <h3 className="text-sm font-semibold text-slate-200">Cargo Control Center</h3>
+        <p className="text-[11px] text-slate-500">{summary.parcelCount} parcels · {operationType}</p>
+      </div>
+    </div>
+    <div className="flex items-center gap-2">
+      <Button variant="outline" size="sm" className="text-xs h-7 gap-1.5">
+        <Download className="w-3 h-3" /> Export
+      </Button>
+      <Button size="sm" className="text-xs h-7 gap-1.5" onClick={() => setShowAddParcel(true)}>
+        <Plus className="w-3 h-3" /> Add Parcel
+      </Button>
+    </div>
+  </div>
+
+  {/* Ana Metrik Bar */}
+  <div className="px-5 py-4 border-b border-slate-700/20">
+    <div className="flex items-baseline justify-between mb-2">
+      <div className="flex items-baseline gap-2">
+        <span className="text-3xl font-bold text-foreground">{summary.totalHandled.toLocaleString()}</span>
+        <span className="text-sm text-muted-foreground">/ {summary.totalTarget.toLocaleString()} MT</span>
+      </div>
+      <span className={cn(
+        "text-xl font-bold",
+        summary.progress >= 100 ? "text-emerald-400" : summary.progress > 50 ? "text-blue-400" : "text-amber-400"
+      )}>
+        {summary.progress}%
+      </span>
+    </div>
+    
+    {/* Ana progress bar */}
+    <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+      {/* Her parcel'ın katkısını farklı renkte göster */}
+      <div className="h-full flex rounded-full overflow-hidden">
+        {parcels.map((parcel, i) => {
+          const width = summary.totalTarget > 0 ? ((parcel.handledQuantity || 0) / summary.totalTarget) * 100 : 0;
+          const colors = ["bg-blue-500", "bg-emerald-500", "bg-purple-500", "bg-amber-500", "bg-rose-500", "bg-cyan-500"];
+          return <div key={parcel.id} className={cn("h-full transition-all duration-500", colors[i % colors.length])} style={{ width: `${width}%` }} />;
+        })}
+      </div>
+    </div>
+    
+    {/* Renk legend */}
+    {parcels.length > 1 && (
+      <div className="flex flex-wrap gap-3 mt-2">
+        {parcels.map((p, i) => {
+          const dotColors = ["bg-blue-500", "bg-emerald-500", "bg-purple-500", "bg-amber-500", "bg-rose-500", "bg-cyan-500"];
+          return (
+            <div key={p.id} className="flex items-center gap-1.5">
+              <div className={cn("w-2 h-2 rounded-full", dotColors[i % dotColors.length])} />
+              <span className="text-[10px] text-slate-400">{p.receiverName}</span>
+            </div>
+          );
+        })}
+      </div>
+    )}
+    
+    {/* 3 mini metrik */}
+    <div className="grid grid-cols-3 gap-3 mt-4">
+      <div className="text-center p-2.5 rounded-lg bg-slate-900/50 border border-slate-700/20">
+        <div className="text-[10px] text-muted-foreground mb-0.5">Remaining</div>
+        <div className="text-sm font-bold text-foreground">{summary.remaining.toLocaleString()} MT</div>
+      </div>
+      <div className="text-center p-2.5 rounded-lg bg-slate-900/50 border border-slate-700/20">
+        <div className="text-[10px] text-muted-foreground mb-0.5">Current Rate</div>
+        <div className="text-sm font-bold text-foreground">{currentRate || "—"}</div>
+      </div>
+      <div className="text-center p-2.5 rounded-lg bg-slate-900/50 border border-slate-700/20">
+        <div className="text-[10px] text-muted-foreground mb-0.5">Est. Completion</div>
+        <div className="text-sm font-bold text-foreground">{etc || "—"}</div>
+      </div>
+    </div>
+  </div>
+
+  {/* İKİ SÜTUNLU İÇERİK */}
+  <div className="grid grid-cols-1 lg:grid-cols-5 gap-0">
+    
+    {/* SOL — Parcel Kartları (3/5) */}
+    <div className="lg:col-span-3 border-r border-slate-700/20">
+      <div className="px-4 py-3 border-b border-slate-700/20">
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cargo Parcels</span>
+      </div>
+      
+      <div className="p-4 space-y-3 max-h-[500px] overflow-y-auto">
+        {parcels.length === 0 ? (
+          <div className="flex flex-col items-center py-10">
+            <div className="w-14 h-14 rounded-2xl bg-slate-800/50 flex items-center justify-center mb-3">
+              <Package className="w-7 h-7 text-slate-600" />
+            </div>
+            <p className="text-sm text-slate-400 mb-1">No cargo parcels</p>
+            <p className="text-xs text-slate-600 mb-3">Add receivers and their cargo to begin tracking</p>
+            <Button size="sm" className="text-xs h-8" onClick={() => setShowAddParcel(true)}>
+              <Plus className="w-3 h-3 mr-1" /> Add First Parcel
+            </Button>
+          </div>
+        ) : (
+          parcels.map((parcel, i) => {
+            const parcelProgress = parcel.targetQuantity > 0 
+              ? Math.round(((parcel.handledQuantity || 0) / parcel.targetQuantity) * 1000) / 10 
+              : 0;
+            const colors = ["blue", "emerald", "purple", "amber", "rose", "cyan"];
+            const color = colors[i % colors.length];
+            
+            return (
+              <div key={parcel.id} className="rounded-lg border border-slate-700/40 bg-slate-900/40 overflow-hidden group hover:border-slate-600/50 transition-all">
+                {/* Parcel Header */}
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-700/20">
+                  <div className="flex items-center gap-3">
+                    <div className={cn("w-2.5 h-2.5 rounded-full", `bg-${color}-500`)} />
+                    <div>
+                      <span className="text-sm font-semibold text-slate-200">{parcel.receiverName}</span>
+                      {parcel.cargoType && (
+                        <span className="text-xs text-slate-500 ml-2">· {parcel.cargoType}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {parcel.blNumber && (
+                      <span className="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded">B/L: {parcel.blNumber}</span>
+                    )}
+                    {parcel.holdNumbers && (
+                      <span className="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded">Hold {parcel.holdNumbers}</span>
+                    )}
+                    <span className={cn(
+                      "text-xs font-bold",
+                      parcelProgress >= 100 ? "text-emerald-400" : `text-${color}-400`
+                    )}>
+                      {parcelProgress}%
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Parcel Progress */}
+                <div className="px-4 py-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs text-slate-400">
+                      {(parcel.handledQuantity || 0).toLocaleString()} / {(parcel.targetQuantity || 0).toLocaleString()} {parcel.unit}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      Remaining: {((parcel.targetQuantity || 0) - (parcel.handledQuantity || 0)).toLocaleString()} {parcel.unit}
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div className={cn("h-full rounded-full transition-all duration-500", `bg-${color}-500`)} style={{ width: `${Math.min(parcelProgress, 100)}%` }} />
+                  </div>
+                  
+                  {/* Handled tonaj güncelleme */}
+                  <div className="flex items-center gap-2 mt-3">
+                    <input
+                      type="number"
+                      value={parcel.handledQuantity || ""}
+                      onChange={(e) => updateParcelHandled(parcel.id, parseFloat(e.target.value) || 0)}
+                      placeholder="Handled qty"
+                      className="w-28 text-sm bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-1.5 text-center focus:ring-2 focus:ring-blue-500/30 outline-none"
+                    />
+                    <span className="text-xs text-slate-500">{parcel.unit}</span>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-xs h-7 ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-slate-400"
+                      onClick={() => editParcel(parcel)}
+                    >
+                      Edit
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-xs h-7 opacity-0 group-hover:opacity-100 transition-opacity text-red-400/60 hover:text-red-400"
+                      onClick={() => deleteParcel(parcel.id)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+    
+    {/* SAĞ — Stowage Plan (2/5) */}
+    <div className="lg:col-span-2">
+      <div className="px-4 py-3 border-b border-slate-700/20">
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Stowage Plan</span>
+      </div>
+      
+      <div className="p-4 space-y-4">
+        {/* Upload Zone */}
+        {stowagePlan?.fileUrl ? (
+          <div className="rounded-lg border border-slate-700/40 bg-slate-900/40 p-3">
+            <div className="flex items-center gap-3">
+              <FileImage className="w-8 h-8 text-blue-400" />
+              <div className="flex-1 min-w-0">
+                <span className="text-sm text-slate-300 truncate block">{stowagePlan.fileName}</span>
+                <span className="text-[10px] text-slate-600">Uploaded {formatDate(stowagePlan.createdAt)}</span>
+              </div>
+              <div className="flex gap-1">
+                <button className="w-7 h-7 rounded-md hover:bg-slate-700 flex items-center justify-center">
+                  <Eye className="w-3.5 h-3.5 text-slate-400" />
+                </button>
+                <button className="w-7 h-7 rounded-md hover:bg-red-500/10 flex items-center justify-center" onClick={removeStowage}>
+                  <Trash2 className="w-3.5 h-3.5 text-slate-400" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div
+            className="rounded-xl border-2 border-dashed border-slate-700/40 bg-slate-900/20 hover:border-blue-500/30 hover:bg-blue-500/5 transition-all cursor-pointer"
+            onClick={() => stowageInputRef.current?.click()}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => { e.preventDefault(); handleStowageUpload(e.dataTransfer.files); }}
+          >
+            <div className="flex flex-col items-center py-8">
+              <div className="w-12 h-12 rounded-xl bg-slate-800/50 flex items-center justify-center mb-3">
+                <FileImage className="w-6 h-6 text-slate-500" />
+              </div>
+              <p className="text-xs text-slate-400 mb-0.5">Drop stowage plan here</p>
+              <p className="text-[10px] text-slate-600">PDF or Image — Max 25MB</p>
+            </div>
+            <input ref={stowageInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={(e) => handleStowageUpload(e.target.files)} />
+          </div>
+        )}
+        
+        {/* Hold/Hatch Notes */}
+        <div>
+          <label className="text-xs text-slate-500 mb-1.5 block flex items-center gap-1.5">
+            <Clipboard className="w-3 h-3" />
+            Hold & Hatch Notes
+          </label>
+          <textarea
+            value={holdNotes}
+            onChange={(e) => setHoldNotes(e.target.value)}
+            onBlur={() => saveHoldNotes()}
+            placeholder={"Hold 1-2: Cargill Wheat\nHold 3: Empty\nHold 4: ADM Corn"}
+            rows={5}
+            className="w-full text-sm bg-slate-800/30 border border-slate-700/40 rounded-xl px-4 py-3 text-slate-300 placeholder:text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/30 outline-none resize-none"
+          />
+        </div>
+        
+        {/* Ambar özeti (parsellere göre) */}
+        {parcels.filter(p => p.holdNumbers).length > 0 && (
+          <div>
+            <label className="text-xs text-slate-500 mb-2 block">Hold Allocation</label>
+            <div className="space-y-1.5">
+              {parcels.filter(p => p.holdNumbers).map((p, i) => {
+                const colors = ["blue", "emerald", "purple", "amber"];
+                return (
+                  <div key={p.id} className="flex items-center gap-2 text-xs">
+                    <div className={cn("w-2 h-2 rounded-full", `bg-${colors[i % colors.length]}-500`)} />
+                    <span className="text-slate-400">Hold {p.holdNumbers}:</span>
+                    <span className="text-slate-300">{p.receiverName}</span>
+                    <span className="text-slate-600 ml-auto">{(p.targetQuantity || 0).toLocaleString()} MT</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+</div>
+
+## 4. ADD PARCEL MODAL
+
+"Add Parcel" butonuna tıklayınca açılan dialog:
+
+<Dialog open={showAddParcel} onOpenChange={setShowAddParcel}>
+  <DialogContent className="max-w-md">
+    <DialogHeader>
+      <DialogTitle className="text-base">Add Cargo Parcel</DialogTitle>
+    </DialogHeader>
+    <div className="space-y-4 py-2">
+      <div>
+        <label className="text-xs text-slate-500 mb-1.5 block">Receiver / Consignee *</label>
+        <Input value={newParcel.receiverName} onChange={(e) => setNewParcel({...newParcel, receiverName: e.target.value})} placeholder="e.g. Cargill" className="bg-slate-800/50 border-slate-700/50 h-9 text-sm" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-slate-500 mb-1.5 block">Cargo Type</label>
+          <Input value={newParcel.cargoType} onChange={(e) => setNewParcel({...newParcel, cargoType: e.target.value})} placeholder="e.g. Wheat in bulk" className="bg-slate-800/50 border-slate-700/50 h-9 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1.5 block">Target Quantity (MT)</label>
+          <Input type="number" value={newParcel.targetQuantity} onChange={(e) => setNewParcel({...newParcel, targetQuantity: parseFloat(e.target.value) || 0})} placeholder="e.g. 25000" className="bg-slate-800/50 border-slate-700/50 h-9 text-sm" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-slate-500 mb-1.5 block">B/L Number</label>
+          <Input value={newParcel.blNumber} onChange={(e) => setNewParcel({...newParcel, blNumber: e.target.value})} placeholder="e.g. BL-2026-001" className="bg-slate-800/50 border-slate-700/50 h-9 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1.5 block">Hold Numbers</label>
+          <Input value={newParcel.holdNumbers} onChange={(e) => setNewParcel({...newParcel, holdNumbers: e.target.value})} placeholder="e.g. 1, 2" className="bg-slate-800/50 border-slate-700/50 h-9 text-sm" />
+        </div>
+      </div>
+      <div>
+        <label className="text-xs text-slate-500 mb-1.5 block">Notes</label>
+        <Input value={newParcel.notes} onChange={(e) => setNewParcel({...newParcel, notes: e.target.value})} placeholder="Optional notes" className="bg-slate-800/50 border-slate-700/50 h-9 text-sm" />
+      </div>
+    </div>
+    <DialogFooter>
+      <Button variant="ghost" onClick={() => setShowAddParcel(false)} className="text-xs">Cancel</Button>
+      <Button onClick={handleAddParcel} disabled={!newParcel.receiverName} className="text-xs">Add Parcel</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
+
+Migration: npx drizzle-kit generate && npx drizzle-kit push

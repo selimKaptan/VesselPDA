@@ -10,7 +10,7 @@ import { db } from "../db";
 import { eq, desc, asc, inArray } from "drizzle-orm";
 import multer from "multer";
 import { logVoyageActivity } from "../voyage-activity";
-import { voyageActivities, voyageCargoLogs, voyageCargoReceivers, voyages, voyageContacts, fdaAccounts, invoices, daAdvances, statementOfFacts, noticeOfReadiness, proformas, portCalls, voyageCollaborators, voyageNotes, pscInspections, portExpenses, charterParties, hirePayments, offHireEvents, laytimeSheets, bunkerOrders, noonReports } from "@shared/schema";
+import { voyageActivities, voyageCargoLogs, voyageCargoReceivers, voyages, voyageContacts, fdaAccounts, invoices, daAdvances, statementOfFacts, noticeOfReadiness, proformas, portCalls, voyageCollaborators, voyageNotes, pscInspections, portExpenses, charterParties, hirePayments, offHireEvents, laytimeSheets, bunkerOrders, noonReports, cargoParcels, stowagePlans } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import path from "path";
 import fs from "fs";
@@ -1768,6 +1768,100 @@ router.delete("/:id/cargo-logs/batch/:batchId", isAuthenticated, async (req: any
     res.json({ ok: true });
   } catch {
     res.status(500).json({ message: "Failed to delete cargo log batch" });
+  }
+});
+
+// ─── CARGO PARCELS CRUD ──────────────────────────────────────────────────────
+router.get("/:id/cargo-parcels", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const parcels = await db.select().from(cargoParcels).where(eq(cargoParcels.voyageId, voyageId)).orderBy(asc(cargoParcels.sortOrder), asc(cargoParcels.id));
+    res.json(parcels);
+  } catch {
+    res.status(500).json({ message: "Failed to load cargo parcels" });
+  }
+});
+
+router.post("/:id/cargo-parcels", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const { receiverName, cargoType, cargoDescription, targetQuantity, handledQuantity, unit, holdNumbers, blNumber, blDate, status, notes, sortOrder } = req.body;
+    const [parcel] = await db.insert(cargoParcels).values({
+      voyageId, receiverName, cargoType, cargoDescription,
+      targetQuantity: targetQuantity ?? 0,
+      handledQuantity: handledQuantity ?? 0,
+      unit: unit ?? "MT",
+      holdNumbers, blNumber,
+      blDate: blDate ? new Date(blDate) : null,
+      status: status ?? "pending",
+      notes, sortOrder: sortOrder ?? 0,
+    }).returning();
+    res.json(parcel);
+  } catch (err) {
+    console.error("cargo-parcels POST:", err);
+    res.status(500).json({ message: "Failed to create cargo parcel" });
+  }
+});
+
+router.patch("/cargo-parcels/:pid", isAuthenticated, async (req: any, res) => {
+  try {
+    const pid = parseInt(req.params.pid);
+    const updates: any = { updatedAt: new Date() };
+    const fields = ["receiverName","cargoType","cargoDescription","targetQuantity","handledQuantity","unit","holdNumbers","blNumber","blDate","status","notes","sortOrder"];
+    for (const f of fields) {
+      if (req.body[f] !== undefined) {
+        updates[f] = f === "blDate" && req.body[f] ? new Date(req.body[f]) : req.body[f];
+      }
+    }
+    const [updated] = await db.update(cargoParcels).set(updates).where(eq(cargoParcels.id, pid)).returning();
+    if (!updated) return res.status(404).json({ message: "Parcel not found" });
+    res.json(updated);
+  } catch (err) {
+    console.error("cargo-parcels PATCH:", err);
+    res.status(500).json({ message: "Failed to update cargo parcel" });
+  }
+});
+
+router.delete("/cargo-parcels/:pid", isAuthenticated, async (req: any, res) => {
+  try {
+    const pid = parseInt(req.params.pid);
+    await db.delete(cargoParcels).where(eq(cargoParcels.id, pid));
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ message: "Failed to delete cargo parcel" });
+  }
+});
+
+// ─── STOWAGE PLAN ────────────────────────────────────────────────────────────
+router.get("/:id/stowage-plan", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const [plan] = await db.select().from(stowagePlans).where(eq(stowagePlans.voyageId, voyageId)).limit(1);
+    res.json(plan ?? null);
+  } catch {
+    res.status(500).json({ message: "Failed to load stowage plan" });
+  }
+});
+
+router.patch("/:id/stowage-plan", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const { fileUrl, fileName, holdNotes } = req.body;
+    const [existing] = await db.select().from(stowagePlans).where(eq(stowagePlans.voyageId, voyageId)).limit(1);
+    if (existing) {
+      const updates: any = {};
+      if (fileUrl !== undefined) updates.fileUrl = fileUrl;
+      if (fileName !== undefined) updates.fileName = fileName;
+      if (holdNotes !== undefined) updates.holdNotes = holdNotes;
+      const [updated] = await db.update(stowagePlans).set(updates).where(eq(stowagePlans.voyageId, voyageId)).returning();
+      res.json(updated);
+    } else {
+      const [created] = await db.insert(stowagePlans).values({ voyageId, fileUrl, fileName, holdNotes }).returning();
+      res.json(created);
+    }
+  } catch (err) {
+    console.error("stowage-plan PATCH:", err);
+    res.status(500).json({ message: "Failed to update stowage plan" });
   }
 });
 
