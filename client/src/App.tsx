@@ -6,7 +6,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { useSocket } from "@/hooks/use-socket";
-import { AiChat } from "@/components/ai-chat";
 import { OnboardingWizard } from "@/components/onboarding-wizard";
 import { apiRequest } from "@/lib/queryClient";
 import { AppLayout } from "@/components/layout/app-layout";
@@ -279,7 +278,6 @@ function AppContent() {
     return (
       <>
         <AuthenticatedLayout />
-        <AiChat />
         <OnboardingWizard
           user={user}
           onComplete={handleOnboardingDone}
@@ -292,7 +290,6 @@ function AppContent() {
   return (
     <>
       <AuthenticatedLayout />
-      <AiChat />
     </>
   );
 }

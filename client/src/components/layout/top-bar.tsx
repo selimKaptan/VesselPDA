@@ -229,10 +229,13 @@ export function TopBar({ user, onMenuClick }: TopBarProps) {
           className="w-full flex items-center gap-2 bg-slate-800/50 border border-slate-700/40 rounded-full pl-3 pr-3 py-1.5 text-sm text-slate-500 hover:bg-slate-700/40 hover:border-slate-600/60 transition-colors group"
         >
           <Search className="w-3.5 h-3.5 shrink-0 group-hover:text-slate-400 transition-colors" />
-          <span className="flex-1 text-left truncate">Search vessels, ports, proformas…</span>
-          <kbd className="hidden sm:flex items-center gap-0.5 text-[10px] bg-slate-700/60 border border-slate-600/50 px-1.5 py-0.5 rounded text-slate-400 shrink-0">
-            <span>⌘</span><span>K</span>
-          </kbd>
+          <span className="flex-1 text-left truncate">Search or ask AI…</span>
+          <div className="flex items-center gap-1 ml-auto shrink-0">
+            <span className="text-xs text-purple-400/50 hidden sm:inline">✨</span>
+            <kbd className="hidden sm:flex items-center gap-0.5 text-[10px] bg-slate-700/60 border border-slate-600/50 px-1.5 py-0.5 rounded text-slate-400">
+              <span>⌘</span><span>K</span>
+            </kbd>
+          </div>
         </button>
 
         <CommandSearch open={searchOpen} onOpenChange={setSearchOpen} />
