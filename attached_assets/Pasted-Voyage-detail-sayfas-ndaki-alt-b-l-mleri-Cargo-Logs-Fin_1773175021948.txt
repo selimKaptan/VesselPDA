@@ -1,0 +1,295 @@
+Voyage detail sayfasındaki alt bölümleri (Cargo, Logs, Financials, Documents) Stripe/Linear kalitesine yükselt. 4 radikal UX iyileştirmesi:
+
+## 1. PROAKTİF BOŞ DURUMLAR (Premium Empty States)
+
+Tüm "No data yet", "No invoices", "No appointments" gibi boş mesajları bul ve değiştir. Her biri için özel tasarım:
+
+A) Genel EmptyState component'ı oluştur — client/src/components/ui/empty-state.tsx:
+
+interface EmptyStateProps {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  action?: { label: string; onClick: () => void; variant?: "default" | "outline" };
+  secondaryAction?: { label: string; onClick: () => void };
+  compact?: boolean;
+}
+
+export function EmptyState({ icon: Icon, title, description, action, secondaryAction, compact }: EmptyStateProps) {
+  return (
+    <div className={cn("flex flex-col items-center justify-center text-center", compact ? "py-8" : "py-14")}>
+      <div className="relative mb-4">
+        <div className="w-16 h-16 rounded-2xl bg-slate-800/50 flex items-center justify-center">
+          <Icon className="w-8 h-8 text-slate-600" />
+        </div>
+        <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center">
+          <Plus className="w-3 h-3 text-slate-500" />
+        </div>
+      </div>
+      <h4 className="text-sm font-medium text-slate-300 mb-1">{title}</h4>
+      <p className="text-xs text-slate-500 max-w-[280px] mb-4">{description}</p>
+      {action && (
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant={action.variant || "default"} onClick={action.onClick} className="text-xs h-8 px-3">
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            {action.label}
+          </Button>
+          {secondaryAction && (
+            <Button size="sm" variant="ghost" onClick={secondaryAction.onClick} className="text-xs h-8 px-3 text-slate-400">
+              {secondaryAction.label}
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+B) Her boş alan için spesifik kullanım:
+
+Proforma/PDA yokken:
+<EmptyState
+  icon={FileText}
+  title="No Proformas Yet"
+  description="Create a Proforma Disbursement Account to estimate port costs for this voyage."
+  action={{ label: "Create PDA", onClick: () => navigate(`/proformas/new?voyageId=${voyageId}`) }}
+/>
+
+Invoice yokken:
+<EmptyState
+  icon={Receipt}
+  title="No Invoices"
+  description="Invoices will appear here once FDA is approved and settled."
+  compact
+/>
+
+Appointment yokken:
+<EmptyState
+  icon={Calendar}
+  title="No Appointments"
+  description="Schedule port service appointments — pilots, tugs, agents, surveyors."
+  action={{ label: "Add Appointment", onClick: () => setShowAppointmentForm(true) }}
+/>
+
+NOR yokken:
+<EmptyState
+  icon={FileCheck}
+  title="No Notice of Readiness"
+  description="Tender NOR once the vessel arrives at port limits."
+  action={{ label: "Create NOR", onClick: () => navigate(`/nor/new?voyageId=${voyageId}`) }}
+/>
+
+SOF yokken:
+<EmptyState
+  icon={ClipboardList}
+  title="No Statement of Facts"
+  description="SOF will record all port events chronologically."
+  action={{ label: "Create SOF", onClick: () => navigate(`/sof/new?voyageId=${voyageId}`) }}
+/>
+
+DA Advance yokken:
+<EmptyState
+  icon={DollarSign}
+  title="No DA Advances"
+  description="Request advance funds for port disbursements."
+  action={{ label: "Request Advance", onClick: () => {} }}
+  compact
+/>
+
+Operation logs yokken:
+<EmptyState
+  icon={ScrollText}
+  title="No Operation Logs"
+  description="Add timestamped logs to track cargo handling, weather delays, or operational events."
+  action={{ label: "Add First Log", onClick: () => setShowLogForm(true) }}
+/>
+
+Active voyages yokken (dashboard):
+<EmptyState
+  icon={Ship}
+  title="No Active Voyages"
+  description="Create a new voyage to start tracking port operations."
+  action={{ label: "New Voyage", onClick: () => navigate("/voyages/new") }}
+/>
+
+Dosya yokken:
+<EmptyState
+  icon={FolderOpen}
+  title="No Documents"
+  description="Upload port documents, B/Ls, survey reports, or any voyage-related files."
+  action={{ label: "Upload File", onClick: () => fileInputRef.current?.click() }}
+/>
+
+## 2. KARGO KONTROL MERKEZİ (Widget Consolidation)
+
+Cargo Operations bölümündeki dağınık kartları (progress bar, current rate, ETC, operation type) tek bir dashboard widget'ına birleştir:
+
+ÖNCE: 3 ayrı satır — progress bar, receivers, rate/etc/type kartları
+SONRA: Tek bütünleşik kart
+
+<div className="rounded-xl border border-slate-700/50 bg-slate-800/30 overflow-hidden">
+  {/* Header */}
+  <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700/30">
+    <div className="flex items-center gap-2">
+      <Package className="w-4 h-4 text-blue-400" />
+      <h3 className="text-sm font-semibold">Cargo Operations</h3>
+    </div>
+    <div className="flex items-center gap-3">
+      <span className="text-xs text-slate-500">Operation Type</span>
+      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+        {operationType}
+      </span>
+    </div>
+  </div>
+  
+  {/* Progress Section */}
+  <div className="px-5 py-4">
+    {totalCargo > 0 ? (
+      <>
+        {/* Ana metrikler — tek satır */}
+        <div className="flex items-baseline justify-between mb-3">
+          <div className="flex items-baseline gap-1">
+            <span className="text-2xl font-bold text-foreground">{handledCargo.toLocaleString()}</span>
+            <span className="text-sm text-muted-foreground">/ {totalCargo.toLocaleString()} MT</span>
+          </div>
+          <span className={cn(
+            "text-lg font-semibold",
+            progress >= 100 ? "text-emerald-400" : progress > 50 ? "text-blue-400" : "text-amber-400"
+          )}>
+            {progress}%
+          </span>
+        </div>
+        
+        {/* Progress bar */}
+        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mb-4">
+          <div 
+            className={cn(
+              "h-full rounded-full transition-all duration-500",
+              progress >= 100 ? "bg-emerald-500" : progress > 50 ? "bg-blue-500" : "bg-amber-500"
+            )}
+            style={{ width: `${Math.min(progress, 100)}%` }}
+          />
+        </div>
+        
+        {/* Alt metrikler — 3 sütun */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="text-center p-3 rounded-lg bg-slate-900/50">
+            <div className="text-xs text-muted-foreground mb-1">Current Rate</div>
+            <div className="text-sm font-semibold">{currentRate || "—"}</div>
+            <div className="text-[10px] text-slate-600">per day</div>
+          </div>
+          <div className="text-center p-3 rounded-lg bg-slate-900/50">
+            <div className="text-xs text-muted-foreground mb-1">Est. Completion</div>
+            <div className={cn("text-sm font-semibold", etc ? "text-foreground" : "text-slate-600")}>
+              {etc || "Awaiting data"}
+            </div>
+          </div>
+          <div className="text-center p-3 rounded-lg bg-slate-900/50">
+            <div className="text-xs text-muted-foreground mb-1">Remaining</div>
+            <div className="text-sm font-semibold">{remainingCargo.toLocaleString()} MT</div>
+          </div>
+        </div>
+      </>
+    ) : (
+      /* Kargo miktarı girilmemişken */
+      <div className="flex flex-col items-center py-6">
+        <Package className="w-10 h-10 text-slate-700 mb-3" />
+        <p className="text-sm text-slate-400 mb-1">Set total cargo to begin tracking</p>
+        <div className="flex items-center gap-2 mt-2">
+          <input type="number" placeholder="e.g. 60000" className="w-32 text-sm bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-center" />
+          <span className="text-xs text-slate-500">MT</span>
+          <Button size="sm" className="text-xs h-8">Set Cargo</Button>
+        </div>
+      </div>
+    )}
+  </div>
+  
+  {/* Receivers bölümü — aynı kartın içinde */}
+  <div className="border-t border-slate-700/30 px-5 py-3">
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-muted-foreground uppercase tracking-wider">Cargo Parcels / Receivers</span>
+      <Button variant="ghost" size="sm" className="text-xs h-7">+ Add Receiver</Button>
+    </div>
+    {receivers.length === 0 && (
+      <p className="text-xs text-slate-600 mt-2 italic">No receivers yet — add cargo parcels to track per-receiver progress.</p>
+    )}
+  </div>
+</div>
+
+## 3. OPERATION LOGS — Export Hub
+
+Operation Logs başlığındaki butonları genişlet:
+
+<div className="flex items-center justify-between mb-4">
+  <div className="flex items-center gap-2">
+    <ScrollText className="w-4 h-4 text-muted-foreground" />
+    <h3 className="text-sm font-semibold">Operation Logs</h3>
+    {logs.length > 0 && (
+      <span className="text-[10px] text-slate-500 bg-slate-800 rounded-full px-2 py-0.5">{logs.length} entries</span>
+    )}
+  </div>
+  <div className="flex items-center gap-2">
+    <Button variant="outline" size="sm" className="text-xs h-7 gap-1.5 text-slate-400 hover:text-slate-200">
+      <Download className="w-3 h-3" />
+      Export PDF
+    </Button>
+    <Button variant="outline" size="sm" className="text-xs h-7 gap-1.5 text-slate-400 hover:text-slate-200">
+      <Mail className="w-3 h-3" />
+      Send Report
+    </Button>
+    <Button size="sm" className="text-xs h-7 gap-1.5">
+      <Plus className="w-3 h-3" />
+      Add Log
+    </Button>
+  </div>
+</div>
+
+## 4. DOCUMENTS — Drag & Drop Zone
+
+Dosya yükleme alanını profesyonel drag & drop zone'a çevir:
+
+<div
+  className={cn(
+    "relative rounded-xl border-2 border-dashed transition-all duration-200 cursor-pointer",
+    isDragging 
+      ? "border-blue-500 bg-blue-500/5 scale-[1.01]" 
+      : "border-slate-700/50 bg-slate-900/30 hover:border-slate-600 hover:bg-slate-800/20"
+  )}
+  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+  onDragLeave={() => setIsDragging(false)}
+  onDrop={(e) => { e.preventDefault(); setIsDragging(false); handleFiles(e.dataTransfer.files); }}
+  onClick={() => fileInputRef.current?.click()}
+>
+  <div className="flex flex-col items-center py-8">
+    <div className={cn(
+      "w-12 h-12 rounded-xl flex items-center justify-center mb-3 transition-colors",
+      isDragging ? "bg-blue-500/15 text-blue-400" : "bg-slate-800 text-slate-500"
+    )}>
+      <Upload className="w-6 h-6" />
+    </div>
+    <p className="text-sm text-slate-300 mb-1">
+      {isDragging ? "Drop files here" : "Drag & drop files or click to upload"}
+    </p>
+    <p className="text-xs text-slate-600">PDF, DOC, XLS, Images — Max 25MB per file</p>
+  </div>
+  <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+</div>
+
+Port Formalities PDF kartlarına hover efekti:
+
+Her PDF üretim kartına:
+<div className="group rounded-lg border border-slate-700/50 bg-slate-900/50 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-900/50 hover:border-slate-600/50 cursor-pointer">
+  <div className="flex items-center gap-3">
+    <FileText className="w-5 h-5 text-slate-500 group-hover:text-blue-400 transition-colors" />
+    <div className="flex-1">
+      <span className="text-sm font-medium group-hover:text-slate-200 transition-colors">{docName}</span>
+    </div>
+    <Button 
+      variant="ghost" 
+      size="sm" 
+      className="text-xs h-7 opacity-0 group-hover:opacity-100 transition-all text-blue-400"
+    >
+      Generate PDF
+    </Button>
+  </div>
+</div>
