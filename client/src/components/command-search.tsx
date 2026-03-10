@@ -95,6 +95,9 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         onOpenChange(!open);
+      } else if (e.key === "Escape" && open) {
+        e.preventDefault();
+        onOpenChange(false);
       }
     };
     document.addEventListener("keydown", down);
@@ -170,28 +173,30 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
   async function handleAiSubmit(text: string) {
     const userMsg = text.trim();
     if (!userMsg || aiLoading) return;
-    setAiMessages(prev => [...prev, { role: "user", content: userMsg }]);
+    const newMsg: AiMessage = { role: "user", content: userMsg };
+    const updatedMessages = [...aiMessages, newMsg];
+    setAiMessages(updatedMessages);
     setQuery("");
     setAiLoading(true);
+    setTimeout(() => inputRef.current?.focus(), 50);
     try {
       const response = await fetch("/api/ai/chat", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: userMsg,
-          context: "omnibar",
-          history: aiMessages.slice(-6),
+          messages: updatedMessages.slice(-8).map(m => ({ role: m.role, content: m.content })),
         }),
       });
       if (response.ok) {
         const data = await response.json();
-        setAiMessages(prev => [...prev, { role: "assistant", content: data.response || data.message || "No response" }]);
+        const reply = data.reply || data.response || data.content || data.message || "No response";
+        setAiMessages(prev => [...prev, { role: "assistant", content: reply }]);
       } else {
-        setAiMessages(prev => [...prev, { role: "assistant", content: "Sorry, I couldn't process your request. Please try again." }]);
+        setAiMessages(prev => [...prev, { role: "assistant", content: "Yanıt alınamadı. Lütfen tekrar deneyin." }]);
       }
     } catch {
-      setAiMessages(prev => [...prev, { role: "assistant", content: "Connection error. Please try again." }]);
+      setAiMessages(prev => [...prev, { role: "assistant", content: "Bağlantı hatası. Lütfen tekrar deneyin." }]);
     } finally {
       setAiLoading(false);
     }
@@ -272,7 +277,7 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
         style={{ animation: "cmdSlideIn 0.18s ease-out" }}
       >
         {/* Input row */}
-        <div className="flex items-center px-4 py-3 border-b border-slate-700/50">
+        <div className="flex items-center px-4 py-3 border-b border-slate-700/50 overflow-hidden">
           {loading && mode === "search" ? (
             <Loader2 className={cn("w-4 h-4 mr-3 shrink-0 animate-spin", mode === "ai" ? "text-purple-400" : "text-slate-500")} />
           ) : (
@@ -284,12 +289,16 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={mode === "ai" ? "Ask AI anything about your operations..." : "Search vessels, ports, or ask AI..."}
+            placeholder={mode === "ai" ? "Ask AI anything..." : "Search or ask AI..."}
             className={cn(
-              "flex-1 bg-transparent text-sm outline-none transition-colors",
+              "flex-1 min-w-0 bg-transparent text-sm outline-none transition-colors",
               mode === "ai" ? "text-purple-200 placeholder:text-purple-400/40" : "text-slate-200 placeholder:text-slate-500"
             )}
             autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            data-form-type="other"
             data-testid="input-command-search"
           />
 
@@ -297,28 +306,24 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
           <button
             onClick={() => setMode(prev => prev === "search" ? "ai" : "search")}
             className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ml-2 shrink-0",
+              "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-all ml-2 shrink-0",
               mode === "ai"
                 ? "bg-purple-500/15 text-purple-400 border border-purple-500/30 shadow-[0_0_12px_rgba(168,85,247,0.15)]"
                 : "bg-slate-800/50 text-slate-500 border border-slate-700/50 hover:text-purple-400 hover:border-purple-500/30"
             )}
             data-testid="button-toggle-ai-mode"
           >
-            <span className="text-sm">✨</span>
-            {mode === "ai" ? "AI Mode" : "Ask AI"}
-            <kbd className="text-[9px] text-slate-600 border border-slate-700 rounded px-1 py-0.5 ml-0.5">Tab</kbd>
+            <span>✨</span>
+            <span className="hidden sm:inline">{mode === "ai" ? "AI Mode" : "Ask AI"}</span>
           </button>
 
           {query && (
             <button
-              onClick={() => { setQuery(""); if (mode === "search") setMode("search"); }}
-              className="text-slate-500 hover:text-slate-300 ml-2 transition-colors"
+              onClick={() => { setQuery(""); }}
+              className="text-slate-500 hover:text-slate-300 ml-1.5 transition-colors shrink-0"
             >
               <X className="w-4 h-4" />
             </button>
-          )}
-          {!query && (
-            <kbd className="ml-2 text-[10px] text-slate-600 border border-slate-700 rounded px-1.5 py-0.5 shrink-0">ESC</kbd>
           )}
         </div>
 
