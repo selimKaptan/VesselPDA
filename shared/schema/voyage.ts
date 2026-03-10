@@ -35,6 +35,7 @@ export const voyages = pgTable("voyages", {
   completedAt: timestamp("completed_at"),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
+  workflowSteps: jsonb("workflow_steps").default({}),
 }, (table) => ({
   userIdx: index("voyages_user_idx").on(table.userId),
   agentIdx: index("voyages_agent_idx").on(table.agentUserId),

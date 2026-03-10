@@ -1,0 +1,461 @@
+Live Port Call Workflow bileşenini tamamen yeniden inşa et. SOF mantığına uygun manuel giriş, RBAC gizlilik ve profesyonel timeline tasarımı.
+
+## 1. WORKFLOW ADIM TANIMLAMALARI
+
+client/src/lib/port-call-steps.ts dosyası oluştur:
+
+export interface WorkflowStep {
+  key: string;
+  label: string;
+  shortLabel: string;
+  description: string;
+  icon: string; // lucide icon name
+  category: "navigation" | "clearance" | "berthing" | "operations" | "departure";
+  requiresDateTime: boolean;
+  // Hangi operasyon tiplerinde görünsün
+  applicableTo: ("loading" | "discharging" | "crew_change" | "bunkering" | "transit" | "all")[];
+  // Deadline gösterilsin mi (sadece agency/admin)
+  hasDeadline: boolean;
+  deadlineHoursAfterPrevious?: number;
+  // İç operasyon notu (sadece agency/admin)
+  internalNote?: string;
+}
+
+export const PORT_CALL_STEPS: WorkflowStep[] = [
+  {
+    key: "eosp",
+    label: "End of Sea Passage (EOSP)",
+    shortLabel: "EOSP",
+    description: "Vessel has completed sea passage and arrived at port limits.",
+    icon: "navigation",
+    category: "navigation",
+    requiresDateTime: true,
+    applicableTo: ["all"],
+    hasDeadline: false,
+  },
+  {
+    key: "nor_tendered",
+    label: "NOR Tendered",
+    shortLabel: "NOR",
+    description: "Notice of Readiness tendered to charterers/receivers.",
+    icon: "file-check",
+    category: "navigation",
+    requiresDateTime: true,
+    applicableTo: ["loading", "discharging"],
+    hasDeadline: true,
+    deadlineHoursAfterPrevious: 6,
+    internalNote: "NOR must be tendered within port limits. Laytime starts per charter party terms.",
+  },
+  {
+    key: "arrival_declared",
+    label: "Arrival Declared",
+    shortLabel: "Arrival",
+    description: "Vessel arrival officially declared to Port Authority.",
+    icon: "flag",
+    category: "clearance",
+    requiresDateTime: true,
+    applicableTo: ["all"],
+    hasDeadline: false,
+  },
+  {
+    key: "customs_cleared",
+    label: "Customs & Free Pratique",
+    shortLabel: "Customs",
+    description: "Customs inward clearance and free pratique granted.",
+    icon: "shield-check",
+    category: "clearance",
+    requiresDateTime: true,
+    applicableTo: ["all"],
+    hasDeadline: true,
+    deadlineHoursAfterPrevious: 12,
+    internalNote: "Contact customs agent immediately upon arrival. Weekend/holiday delays possible.",
+  },
+  {
+    key: "berthing_clearance",
+    label: "Berthing Clearance",
+    shortLabel: "Berth OK",
+    description: "Berthing ordino granted by Harbour Master. Valid for 24h.",
+    icon: "anchor",
+    category: "berthing",
+    requiresDateTime: true,
+    applicableTo: ["all"],
+    hasDeadline: true,
+    deadlineHoursAfterPrevious: 24,
+    internalNote: "Berthing ordino valid for 24 hours. Must berth within this window or re-apply.",
+  },
+  {
+    key: "vessel_berthed",
+    label: "Vessel Berthed",
+    shortLabel: "Berthed",
+    description: "Vessel safely moored alongside. All fast.",
+    icon: "ship",
+    category: "berthing",
+    requiresDateTime: true,
+    applicableTo: ["all"],
+    hasDeadline: false,
+  },
+  {
+    key: "survey_controls",
+    label: "Survey Controls",
+    shortLabel: "Surveys",
+    description: "Initial draft and bunker surveys completed.",
+    icon: "clipboard-check",
+    category: "operations",
+    requiresDateTime: true,
+    applicableTo: ["loading", "discharging"],
+    hasDeadline: false,
+  },
+  {
+    key: "cargo_commenced",
+    label: "Cargo Operations Commenced",
+    shortLabel: "Cargo Start",
+    description: "Loading or discharging operations have started.",
+    icon: "package",
+    category: "operations",
+    requiresDateTime: true,
+    applicableTo: ["loading", "discharging"],
+    hasDeadline: false,
+  },
+  {
+    key: "cargo_completed",
+    label: "Cargo Operations Completed",
+    shortLabel: "Cargo Done",
+    description: "All cargo operations finished. Final surveys pending.",
+    icon: "package-check",
+    category: "operations",
+    requiresDateTime: true,
+    applicableTo: ["loading", "discharging"],
+    hasDeadline: false,
+  },
+  {
+    key: "crew_ops",
+    label: "Crew Operations",
+    shortLabel: "Crew Ops",
+    description: "Crew sign-on/sign-off operations completed.",
+    icon: "users",
+    category: "operations",
+    requiresDateTime: true,
+    applicableTo: ["crew_change"],
+    hasDeadline: false,
+  },
+  {
+    key: "bunkering_ops",
+    label: "Bunkering Operations",
+    shortLabel: "Bunkering",
+    description: "Fuel bunkering operations completed.",
+    icon: "fuel",
+    category: "operations",
+    requiresDateTime: true,
+    applicableTo: ["bunkering"],
+    hasDeadline: false,
+  },
+  {
+    key: "documents_cleared",
+    label: "Documents & Clearance",
+    shortLabel: "Docs Clear",
+    description: "All port documents signed and outward clearance obtained.",
+    icon: "file-signature",
+    category: "departure",
+    requiresDateTime: true,
+    applicableTo: ["all"],
+    hasDeadline: false,
+  },
+  {
+    key: "vessel_departed",
+    label: "Vessel Departed (COSP)",
+    shortLabel: "Departed",
+    description: "Vessel unmoored and commenced sea passage.",
+    icon: "navigation-2",
+    category: "departure",
+    requiresDateTime: true,
+    applicableTo: ["all"],
+    hasDeadline: false,
+  },
+];
+
+// Operasyon tipine göre görünecek adımları filtrele
+export function getStepsForOperation(operationType: string): WorkflowStep[] {
+  const type = operationType?.toLowerCase().replace(/[\s-]/g, "_") || "all";
+  return PORT_CALL_STEPS.filter(step => 
+    step.applicableTo.includes("all") || step.applicableTo.includes(type as any)
+  );
+}
+
+// Deadline hesapla
+export function calculateDeadline(step: WorkflowStep, previousStepTime?: Date | null): Date | null {
+  if (!step.hasDeadline || !step.deadlineHoursAfterPrevious || !previousStepTime) return null;
+  return new Date(previousStepTime.getTime() + step.deadlineHoursAfterPrevious * 3600000);
+}
+
+// Rolün iç notları görebilme yetkisi
+export function canSeeInternalNotes(role: string): boolean {
+  return ["admin", "agency", "agent", "superintendent"].includes(role?.toLowerCase());
+}
+
+export function canEditWorkflow(role: string): boolean {
+  return ["admin", "agency", "agent"].includes(role?.toLowerCase());
+}
+
+## 2. WORKFLOW COMPONENT'İ YENİDEN YAZ
+
+client/src/components/port-call-workflow.tsx dosyasını bul ve TAMAMEN YENİDEN YAZ:
+
+Props:
+interface PortCallWorkflowProps {
+  voyageId: number;
+  operationType: string; // "loading" | "discharging" | "crew_change" | "bunkering"
+  portName: string;
+  userRole: string; // "admin" | "agency" | "shipowner" | "guest"
+  completedSteps: Record<string, { completedAt: string; completedBy: string; notes?: string }>; // API'den gelen
+  onStepComplete: (stepKey: string, dateTime: string, notes?: string) => Promise<void>;
+  onStepEdit: (stepKey: string, dateTime: string, notes?: string) => Promise<void>;
+}
+
+Component yapısı:
+
+A) Üst başlık:
+<div className="flex items-center justify-between mb-6">
+  <div className="flex items-center gap-3">
+    <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+      <Navigation className="w-5 h-5 text-blue-400" />
+    </div>
+    <div>
+      <h3 className="text-base font-semibold">Live Port Call Workflow</h3>
+      <p className="text-xs text-muted-foreground">{portName} · Active Operation</p>
+    </div>
+  </div>
+  <div className="flex items-center gap-2">
+    <span className="text-xs text-muted-foreground">Step {completedCount} / {totalSteps}</span>
+    <div className="w-24 h-1.5 bg-slate-800 rounded-full">
+      <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${(completedCount / totalSteps) * 100}%` }} />
+    </div>
+  </div>
+</div>
+
+B) Timeline — her adım için:
+
+{steps.map((step, index) => {
+  const isCompleted = !!completedSteps[step.key];
+  const isPending = !isCompleted;
+  const isNext = isPending && (index === 0 || !!completedSteps[steps[index - 1]?.key]);
+  const stepData = completedSteps[step.key];
+  const previousStepTime = index > 0 ? completedSteps[steps[index - 1]?.key]?.completedAt : null;
+  const deadline = calculateDeadline(step, previousStepTime ? new Date(previousStepTime) : null);
+  const isOverdue = deadline && new Date() > deadline && isPending;
+  const showInternal = canSeeInternalNotes(userRole);
+  const canEdit = canEditWorkflow(userRole);
+  
+  return (
+    <div key={step.key} className="relative flex gap-4">
+      {/* Timeline çizgisi */}
+      {index < steps.length - 1 && (
+        <div className={cn(
+          "absolute left-5 top-12 w-0.5 h-[calc(100%-12px)]",
+          isCompleted ? "bg-emerald-500/50" : "bg-slate-700"
+        )} />
+      )}
+      
+      {/* İkon */}
+      <div className={cn(
+        "relative z-10 w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all",
+        isCompleted && "bg-emerald-500/15 text-emerald-400 ring-2 ring-emerald-500/30",
+        isNext && "bg-blue-500/15 text-blue-400 ring-2 ring-blue-500/30 animate-pulse",
+        isPending && !isNext && "bg-slate-800 text-slate-600",
+        isOverdue && "bg-red-500/15 text-red-400 ring-2 ring-red-500/30",
+      )}>
+        {isCompleted ? <Check className="w-4 h-4" /> : <StepIcon name={step.icon} className="w-4 h-4" />}
+      </div>
+      
+      {/* İçerik */}
+      <div className={cn("flex-1 pb-6", isPending && !isNext && "opacity-50")}>
+        <div className="flex items-center gap-2">
+          <span className={cn(
+            "text-sm font-semibold",
+            isCompleted && "text-emerald-400",
+            isNext && "text-blue-400",
+            isOverdue && "text-red-400",
+          )}>
+            {step.label}
+          </span>
+          {isCompleted && (
+            <span className="text-[10px] text-emerald-500/70 bg-emerald-500/10 px-1.5 py-0.5 rounded">Done</span>
+          )}
+          {isOverdue && showInternal && (
+            <span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded animate-pulse">Overdue</span>
+          )}
+        </div>
+        
+        <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
+        
+        {/* TAMAMLANMIŞ — tarih ve kişi bilgisi */}
+        {isCompleted && stepData && (
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-xs text-slate-400">
+              ✅ {new Date(stepData.completedAt).toLocaleDateString("tr-TR")} / {new Date(stepData.completedAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+            <span className="text-[10px] text-slate-500">by {stepData.completedBy}</span>
+            {canEdit && (
+              <button 
+                onClick={() => setEditingStep(step.key)}
+                className="text-[10px] text-slate-600 hover:text-blue-400 transition-colors ml-1"
+              >
+                ✏️ Edit
+              </button>
+            )}
+          </div>
+        )}
+        
+        {/* AKTİF ADIM — Tarih/saat giriş formu */}
+        {isNext && canEdit && !editingStep && (
+          <div className="mt-3 flex items-center gap-2 p-3 rounded-lg border border-blue-500/20 bg-blue-500/5">
+            <input
+              type="datetime-local"
+              value={inputDateTime}
+              onChange={(e) => setInputDateTime(e.target.value)}
+              className="text-sm bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-200 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 outline-none"
+            />
+            <input
+              type="text"
+              placeholder="Notes (optional)"
+              value={inputNotes}
+              onChange={(e) => setInputNotes(e.target.value)}
+              className="flex-1 text-sm bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-slate-200 placeholder:text-slate-600 focus:ring-2 focus:ring-blue-500/50 outline-none"
+            />
+            <button
+              onClick={() => handleComplete(step.key)}
+              disabled={!inputDateTime}
+              className="text-sm font-medium px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Confirm ✓
+            </button>
+          </div>
+        )}
+        
+        {/* DEADLINE UYARISI — sadece agency/admin */}
+        {step.hasDeadline && deadline && isPending && showInternal && (
+          <div className={cn(
+            "mt-2 flex items-center gap-2 px-3 py-2 rounded-lg text-xs",
+            isOverdue 
+              ? "bg-red-500/10 border border-red-500/20 text-red-400" 
+              : "bg-amber-500/10 border border-amber-500/20 text-amber-400"
+          )}>
+            <Clock className="w-3.5 h-3.5 shrink-0" />
+            <div className="flex-1">
+              <span className="font-medium">
+                {isOverdue ? "OVERDUE" : "DEADLINE"}:
+              </span>
+              {" "}
+              Must complete before {new Date(deadline).toLocaleDateString("tr-TR")} / {new Date(deadline).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
+              {isOverdue && (
+                <span className="ml-1 text-red-300">
+                  ({Math.floor((Date.now() - deadline.getTime()) / 3600000)}h overdue)
+                </span>
+              )}
+            </div>
+            {/* Internal Only badge */}
+            <span className="text-[9px] text-slate-500 border border-slate-700 rounded px-1.5 py-0.5 shrink-0">
+              👁️ Internal
+            </span>
+          </div>
+        )}
+        
+        {/* İÇ NOT — sadece agency/admin */}
+        {step.internalNote && isPending && showInternal && (
+          <div className="mt-1.5 flex items-start gap-1.5">
+            <span className="text-[10px] text-slate-600 italic">💡 {step.internalNote}</span>
+            <span className="text-[9px] text-slate-700 border border-slate-800 rounded px-1 py-0.5 shrink-0">Internal</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+})}
+
+C) DÜZENLEME MODU — edit butonu tıklanınca:
+const [editingStep, setEditingStep] = useState<string | null>(null);
+
+Editing modal veya inline form:
+{editingStep === step.key && (
+  <div className="mt-2 flex items-center gap-2 p-3 rounded-lg border border-amber-500/20 bg-amber-500/5">
+    <input type="datetime-local" defaultValue={stepData?.completedAt?.slice(0, 16)} ... />
+    <input type="text" defaultValue={stepData?.notes} placeholder="Update notes..." ... />
+    <button onClick={() => handleEdit(step.key)} className="bg-amber-600 hover:bg-amber-500 ...">Update</button>
+    <button onClick={() => setEditingStep(null)} className="text-slate-400 hover:text-slate-300">Cancel</button>
+  </div>
+)}
+
+## 3. BACKEND — Workflow Step'leri Kaydet/Güncelle
+
+server/routes/voyage.routes.ts dosyasına ekle:
+
+// POST /voyages/:id/workflow-step — Adım tamamla
+router.post("/:id/workflow-step", isAuthenticated, async (req: any, res) => {
+  const voyageId = parseInt(req.params.id);
+  const { stepKey, completedAt, notes } = req.body;
+  const userId = req.user?.id;
+  const userName = req.user?.firstName ? `${req.user.firstName} ${req.user.lastName || ""}`.trim() : "Unknown";
+  
+  // portCallWorkflowSteps tablosu yoksa, voyage'ın metadata/jsonb alanına kaydet
+  // Veya mevcut port_call_events tablosunu kullan
+  
+  try {
+    // Voyage'ın workflowSteps JSON alanını güncelle
+    const [voyage] = await db.select().from(voyages).where(eq(voyages.id, voyageId));
+    if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+    
+    const currentSteps = (voyage.workflowSteps as Record<string, any>) || {};
+    currentSteps[stepKey] = {
+      completedAt,
+      completedBy: userName,
+      completedByUserId: userId,
+      notes: notes || null,
+      updatedAt: new Date().toISOString(),
+    };
+    
+    await db.update(voyages).set({ 
+      workflowSteps: currentSteps,
+      updatedAt: new Date(),
+    }).where(eq(voyages.id, voyageId));
+    
+    res.json({ ok: true, steps: currentSteps });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /voyages/:id/workflow — Workflow durumunu getir
+router.get("/:id/workflow", isAuthenticated, async (req: any, res) => {
+  const voyageId = parseInt(req.params.id);
+  const [voyage] = await db.select().from(voyages).where(eq(voyages.id, voyageId));
+  if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+  res.json({
+    operationType: voyage.operationType || voyage.purposeOfCall || "loading",
+    steps: voyage.workflowSteps || {},
+  });
+});
+
+Schema'ya workflowSteps alanı ekle (eğer yoksa):
+shared/schema/voyage.ts dosyasında voyages tablosuna:
+  workflowSteps: jsonb("workflow_steps").default({}),
+
+Migration: npx drizzle-kit generate && npx drizzle-kit push
+
+## 4. VOYAGE DETAIL'DA KULLANIM
+
+voyage-detail.tsx'te mevcut workflow component'ını yeni component ile değiştir:
+
+<PortCallWorkflow
+  voyageId={voyage.id}
+  operationType={voyage.operationType || voyage.purposeOfCall || "loading"}
+  portName={voyage.portName || "Unknown Port"}
+  userRole={user?.role || "agency"}
+  completedSteps={workflowData?.steps || {}}
+  onStepComplete={async (key, dt, notes) => {
+    await apiRequest("POST", `/api/v1/voyages/${voyage.id}/workflow-step`, { stepKey: key, completedAt: dt, notes });
+    queryClient.invalidateQueries({ queryKey: [`/api/v1/voyages/${voyage.id}/workflow`] });
+  }}
+  onStepEdit={async (key, dt, notes) => {
+    await apiRequest("POST", `/api/v1/voyages/${voyage.id}/workflow-step`, { stepKey: key, completedAt: dt, notes });
+    queryClient.invalidateQueries({ queryKey: [`/api/v1/voyages/${voyage.id}/workflow`] });
+  }}
+/>

@@ -1976,4 +1976,51 @@ router.get("/:id/pnl", isAuthenticated, async (req: any, res) => {
   }
 });
 
+router.get("/:id/workflow", isAuthenticated, async (req: any, res: any) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const [voyage] = await db.select().from(voyages).where(eq(voyages.id, voyageId));
+    if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+    res.json({
+      operationType: (voyage as any).purposeOfCall || "Loading",
+      steps: (voyage as any).workflowSteps || {},
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/:id/workflow-step", isAuthenticated, async (req: any, res: any) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const { stepKey, completedAt, notes } = req.body;
+    if (!stepKey || !completedAt) return res.status(400).json({ message: "stepKey and completedAt required" });
+
+    const userId = req.user?.claims?.sub ?? req.user?.id;
+    const firstName = req.user?.claims?.given_name ?? req.user?.firstName ?? "";
+    const lastName = req.user?.claims?.family_name ?? req.user?.lastName ?? "";
+    const userName = [firstName, lastName].filter(Boolean).join(" ") || req.user?.email || "Unknown";
+
+    const [voyage] = await db.select().from(voyages).where(eq(voyages.id, voyageId));
+    if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+
+    const current = ((voyage as any).workflowSteps as Record<string, any>) || {};
+    current[stepKey] = {
+      completedAt,
+      completedBy: userName,
+      completedByUserId: userId,
+      notes: notes || null,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await db.update(voyages)
+      .set({ workflowSteps: current } as any)
+      .where(eq(voyages.id, voyageId));
+
+    res.json({ ok: true, steps: current });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
