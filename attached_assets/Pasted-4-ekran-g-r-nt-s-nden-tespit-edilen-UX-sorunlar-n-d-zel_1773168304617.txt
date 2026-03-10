@@ -1,0 +1,143 @@
+4 ekran görüntüsünden tespit edilen UX sorunlarını düzelt. Stripe/Linear kalitesine ulaşmak için şu düzenlemeleri yap:
+
+## 1. VOYAGE DETAIL SAYFASI (voyage-detail.tsx)
+
+Mevcut hero section iyi ama iyileştirilmeli:
+
+A) Hero Banner — daha kompakt ve bilgilendirici:
+- Gemi adı: text-2xl font-bold (mevcut iyi)
+- Operation type badge: "CREW CHANGE" → daha küçük, muted renk
+- Status badge: "Active" → yeşil pill, daha belirgin
+- P&L ve Download Report butonları: secondary variant, daha küçük
+- "Operasyonu Kapat ve Finansa Aktar" → primary, gradient efekti, sadece admin görür
+
+B) Workflow Stepper — daha büyük ve interaktif:
+- Mevcut stepper iyi ama ikonları büyüt (w-10 h-10)
+- Aktif adım: pulse animasyonu ekle
+- Tamamlanan adım: checkmark + yeşil çizgi
+- Bekleyen adım: gri, tıklanamaz görünsün
+- Her adımın altında küçük tarih göster (tamamlandıysa)
+
+C) Rota/ETA/ETD kartları — tek satırda, daha geniş:
+- "ROTA: ALSANCAK LİMANI" → "📍 Alsancak Limanı" (küçük harf, ikon)
+- "ETA: 06.03.2026 / 4 days ago" → kırmızı "4 days overdue" badge uyarısı
+- "ETD: 07.03.2026 / 3 days ago" → kırmızı "3 days overdue"
+- Overdue olan ETA/ETD'ler kırmızı border ile vurgulansın
+
+D) Yolculuk Durumu haritası — sol taraf çok dar, genişlet:
+- Harita: min-height 250px
+- Sağ taraftaki bilgiler (KALKIŞ, VARIŞ, ENLEM, BOYLAM) → haritanın altına veya overlay olarak
+
+E) Canlı konum bilgisi — daha okunabilir:
+"ENLEM 38.82207 / BOYLAM 26.94613 / HIZ 0 kn / ROTA 0° / DURUM Moored"
+→ Bunları grid kartlara dönüştür (2x3 grid):
+| Lat: 38.822°N | Lon: 26.946°E |
+| Speed: 0.0 kn | Course: 0° |
+| Heading: 10° | Status: Moored ⚓ |
+
+"Güncelleme: 10.03.2026 / 21:16" → sağ üstte küçük, muted
+"Kaynak: Datalastic" → badge olarak
+
+## 2. CREW LOGISTICS BOARD
+
+Bu sayfa çok iyi tasarlanmış ama birkaç iyileştirme:
+
+A) Üst butonlar çok kalabalık — "Hotels & Logistics", "Ask AI", "Send Ops Summary", "Belge Oluştur", "Add Crew":
+- İlk 3'ü dropdown'a al: "Actions ▼" → Hotels, Ask AI, Send Summary
+- "Belge Oluştur" ve "Add Crew" ayrı kalsın (primary actions)
+
+B) Crew kartları — daha kompakt:
+- Her kart çok uzun (flight, transfer, kontrol, vessel ayrı ayrı). Bunları tek satıra sıkıştır:
+  [Avatar] [Ad Soyad / Rank / Nationality] [Flight ✈️ —] [Transfer 🚐 —] [Kontrol 📋 Bekliyor] [Vessel 🚢 06.03] [Ready ✅]
+- Kompakt mod toggle: "Compact View" / "Detailed View"
+- Detaylı görünüm mevcut haliyle kalsın, kompakt görünüm ek olarak eklensin
+
+C) "Visa: OK" badge → yeşil, "e-Visa: N/A" → gri (mevcut iyi)
+- "Kontrol: Bekliyor" → sarı badge, daha dikkat çekici
+
+D) Empty state "Add first off-signer" → daha büyük CTA:
+- Kesikli çizgi border iyi ama ikon ekle (👤+)
+- "No off-signers yet. Add crew departing this vessel →" mesajı
+
+## 3. CARGO OPERATIONS SAYFASI
+
+A) "Total: 0 MT / Handled: 0 MT (0%) / Remaining: 0 MT" → boşken gösterme
+- Cargo miktarı 0 ise: Empty state göster — "Set total cargo to begin tracking"
+- Progress bar 0% iken yeşil değil, gri olsun
+
+B) "CARGO PARCELS / RECEIVERS" → boşken:
+- "No receivers yet — add cargo parcels..." mesajı iyi, ikon ekle
+
+C) "CURRENT RATE" ve "EST. COMPLETION" kartları:
+- Değer "—" ise: "Awaiting data" yazısı + subtle ikon
+- "per day (based on timed periods)" → parantez içi kaldır, sadece "per day" 
+
+D) Operation Logs:
+- "Send Report" + "Add Log" → iyi
+- Empty state: "No logs yet. Add an operation log to start tracking cargo progress." mesajı iyi
+- İkon ekle (📋)
+
+## 4. CREW LOGISTICS (GENİŞ GÖRÜNÜM — Ekran 4)
+
+A) 3 sütun layout harika: ON-SIGNERS | OFF-SIGNERS | Hotel Reservations
+- On-signers kartları daha kompakt yapılabilir:
+  Mevcut: Her kart ~100px yükseklik
+  Hedef: Her kart ~70px (badge'leri inline yap)
+
+B) Her crew kartında:
+- "Visa Req: No" → kırmızı badge, "e-Visa: N/A" → gri
+- "Update Flight" ve "Mark Arrived" butonları → küçült (text-xs)
+- Expand/collapse (mevcut var ✓) → default collapsed yap
+
+C) Hotel Reservations kartı:
+- Empty state güzel (otel ikonu + mesaj)
+- "Enable 'Requires Hotel' on a crew member to track accommodation here" → bu mesaj çok uzun
+  → "Assign hotel needs to crew members to see reservations here" (daha kısa)
+
+## 5. GLOBAL İYİLEŞTİRMELER
+
+A) Tüm sayfalardaki padding artır:
+- Container: px-4 → px-6 (desktop), px-3 (mobile)
+- Card padding: p-4 → p-5
+- Section gap: space-y-4 → space-y-6
+
+B) Font hiyerarşisi tutarlı yap:
+- Page title: text-2xl font-bold
+- Section title: text-lg font-semibold
+- Card title: text-base font-medium
+- Label: text-sm text-muted-foreground
+- Value: text-sm font-medium
+- Small text: text-xs text-muted-foreground
+
+C) Badge tutarlılığı:
+- Yeşil: Active, Ready, Approved, OK
+- Mavi: In Progress, Pending
+- Sarı/Amber: Warning, Bekliyor, Due Soon
+- Kırmızı: Overdue, Expired, Error, Cancelled
+- Gri: N/A, Draft, Not Set
+
+D) Overdue tarihlere uyarı:
+- Herhangi bir tarih geçmişte ve "overdue" ise:
+  "4 days ago" → kırmızı badge: "⚠️ 4 days overdue"
+- Gelecekte ise: yeşil "in 10 days"
+
+E) Tüm empty state'lere tutarlı tasarım:
+- Merkezde: İlgili ikon (48px, muted renk)
+- Altında: Açıklayıcı mesaj (text-muted-foreground)
+- Altında: CTA butonu (varsa)
+
+F) Loading state'lere skeleton ekle:
+- Kart skeleton: rounded-lg bg-muted animate-pulse h-32
+- Tablo skeleton: 5 satır, her biri h-12 bg-muted animate-pulse
+- Her useQuery hook'unda isLoading kontrolü
+
+G) Breadcrumb'lar:
+- Her sayfada üstte: "Voyages / All Voyages" gibi
+- Mevcut zaten var (Ekran 1'de görünüyor) — tüm sayfalarda tutarlı olsun
+- Son segment bold, öncekiler tıklanabilir link
+
+H) Sidebar collapsed ikonları daha belirgin:
+- Her ikon: w-5 h-5 → w-6 h-6
+- Ikon rengi: text-muted-foreground → aktifken text-primary
+- Hover: bg-accent rounded-lg
+- Tooltip delay: 200ms (daha hızlı göster)

@@ -208,7 +208,7 @@ export function AppSidebar({ userRole = "shipowner", isAdmin = false }: AppSideb
                 )}
                 data-testid={`nav-${item.key}`}
               >
-                <Icon className="w-5 h-5" />
+                <Icon className="w-6 h-6" />
               </div>
             </Link>
           </TooltipTrigger>

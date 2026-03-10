@@ -96,17 +96,17 @@ function getStepperIndex(status: string): number {
 }
 
 function getDateTag(dt: string | null | undefined): {
-  label: string; relText: string; color: string;
+  label: string; relText: string; color: string; isOverdue: boolean;
 } | null {
   if (!dt) return null;
   const now = Date.now();
   const ms = new Date(dt).getTime();
   const days = Math.ceil((ms - now) / 86_400_000);
   const label = fmtDate(dt);
-  if (days > 3)  return { label, relText: `in ${days} days`,        color: "text-slate-300 bg-slate-700/50 border-slate-600/30"   };
-  if (days > 0)  return { label, relText: days === 1 ? "Tomorrow" : `in ${days} days`, color: "text-orange-400 bg-orange-500/20 border-orange-500/20" };
-  if (days === 0) return { label, relText: "Today",                  color: "text-red-400 bg-red-500/20 border-red-500/20"          };
-  return            { label, relText: `${Math.abs(days)} days ago`, color: "text-red-400 bg-red-500/20 border-red-500/20"          };
+  if (days > 3)  return { label, relText: `in ${days} days`,        color: "text-slate-300 bg-slate-700/50 border-slate-600/30",   isOverdue: false };
+  if (days > 0)  return { label, relText: days === 1 ? "Tomorrow" : `in ${days} days`, color: "text-orange-400 bg-orange-500/20 border-orange-500/20", isOverdue: false };
+  if (days === 0) return { label, relText: "Today",                  color: "text-red-400 bg-red-500/20 border-red-500/20",          isOverdue: false };
+  return            { label, relText: `⚠️ ${Math.abs(days)} days overdue`, color: "text-red-400 bg-red-500/20 border-red-500/20", isOverdue: true };
 }
 
 function PortSearch({ value, onChange }: { value: string; onChange: (portId: number, portName: string) => void }) {
@@ -405,7 +405,7 @@ function VoyageLiveTracker({ voyage, portName, imoNumber, onOriginPortChange }: 
         {showMap && (
           <div
             ref={mapRef}
-            style={{ height: "220px", minHeight: "220px" }}
+            style={{ height: "250px", minHeight: "250px" }}
             className="w-full bg-slate-900 flex items-center justify-center"
           >
             {isLoading && !pos && (
@@ -739,6 +739,7 @@ export default function VoyageDetail() {
   const [crewSlideForm, setCrewSlideForm] = useState<CrewSlideFormType>(EMPTY_CREW_SLIDE_FORM);
   const [slideFormTimeline, setSlideFormTimeline] = useState<CrewTimelineStep[]>([]);
   const [crewFilterMode, setCrewFilterMode] = useState<"all" | "action" | "ready">("all");
+  const [crewCompactMode, setCrewCompactMode] = useState(false);
   const [isHotelPanelOpen, setIsHotelPanelOpen] = useState(false);
   const [inlineEdit, setInlineEdit] = useState<{ crewId: number; field: "flight" | "flightEta"; val: string } | null>(null);
 
@@ -2552,7 +2553,7 @@ export default function VoyageDetail() {
                       {/* Step node + label */}
                       <div className="flex flex-col items-center gap-1.5 shrink-0">
                         <div className={`
-                          w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all
+                          relative w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all
                           ${isActive
                             ? "bg-primary border-primary text-primary-foreground shadow-[0_0_20px_rgba(59,130,246,0.55)]"
                             : isPast
@@ -2560,6 +2561,9 @@ export default function VoyageDetail() {
                             : "bg-muted/30 border-border/50 text-muted-foreground/35"
                           }
                         `}>
+                          {isActive && (
+                            <span className="absolute inset-0 rounded-full animate-ping bg-primary/25 pointer-events-none" />
+                          )}
                           {isPast
                             ? <CheckCheck className="w-4 h-4" />
                             : <StepIcon className="w-4 h-4" />
@@ -2619,10 +2623,10 @@ export default function VoyageDetail() {
             const tag = getDateTag(voyage.eta);
             if (!tag) return null;
             return (
-              <div className="flex items-center gap-2.5 bg-muted/30 border border-border/60 rounded-xl px-3 py-2.5"
+              <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 border ${tag.isOverdue ? "bg-red-500/5 border-red-500/40" : "bg-muted/30 border-border/60"}`}
                    data-testid="tag-eta">
-                <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
-                  <Calendar className="w-3.5 h-3.5 text-violet-400" />
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${tag.isOverdue ? "bg-red-500/15" : "bg-violet-500/10"}`}>
+                  <Calendar className={`w-3.5 h-3.5 ${tag.isOverdue ? "text-red-400" : "text-violet-400"}`} />
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide leading-none mb-0.5">ETA</p>
@@ -2640,10 +2644,10 @@ export default function VoyageDetail() {
             const tag = getDateTag(voyage.etd);
             if (!tag) return null;
             return (
-              <div className="flex items-center gap-2.5 bg-muted/30 border border-border/60 rounded-xl px-3 py-2.5"
+              <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 border ${tag.isOverdue ? "bg-red-500/5 border-red-500/40" : "bg-muted/30 border-border/60"}`}
                    data-testid="tag-etd">
-                <div className="w-7 h-7 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
-                  <CalendarClock className="w-3.5 h-3.5 text-orange-400" />
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${tag.isOverdue ? "bg-red-500/15" : "bg-orange-500/10"}`}>
+                  <CalendarClock className={`w-3.5 h-3.5 ${tag.isOverdue ? "text-red-400" : "text-orange-400"}`} />
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide leading-none mb-0.5">ETD</p>
@@ -2784,40 +2788,51 @@ export default function VoyageDetail() {
                         <AlertTriangle className="w-3 h-3" />Hata
                       </span>
                     )}
-                    {/* 🏨 Hotels & Logistics toggle */}
-                    <button
-                      onClick={() => setIsHotelPanelOpen(v => !v)}
-                      className={`flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-semibold border transition-all ${
-                        isHotelPanelOpen
-                          ? "bg-indigo-600/25 border-indigo-500/60 text-indigo-200"
-                          : "bg-slate-700/40 border-slate-600/50 text-slate-400 hover:text-slate-200 hover:border-slate-500"
-                      }`}
-                      data-testid="button-toggle-hotel-panel"
-                    >
-                      <span>🏨</span>
-                      <span className="hidden sm:inline">Hotels & Logistics</span>
-                      {crewSigners.filter(c => c.requiresHotel).length > 0 && (
-                        <span className="inline-flex items-center justify-center w-4 h-4 text-[9px] font-bold rounded-full bg-indigo-500 text-white flex-shrink-0">
-                          {crewSigners.filter(c => c.requiresHotel).length}
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setIsCommandPaletteOpen(true)}
-                      className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-semibold bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/35 text-indigo-300 hover:text-indigo-200 transition-all"
-                      data-testid="button-ask-ai"
-                    >
-                      <Sparkles className="w-3 h-3" />
-                      Ask AI
-                      <span className="text-[9px] font-mono bg-slate-800/80 border border-slate-700/50 rounded px-1 py-0.5 text-slate-500 ml-0.5">⌘K</span>
-                    </button>
-                    <button
-                      onClick={() => { setOpsSummaryText(generateOpsSummary(opsSummaryLang)); setOpsSummaryOpen(true); }}
-                      className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-semibold bg-emerald-700/20 hover:bg-emerald-700/35 border border-emerald-600/40 text-emerald-300 hover:text-emerald-200 transition-all"
-                      data-testid="button-send-ops-summary"
-                    >
-                      📧 Send Ops Summary
-                    </button>
+                    {/* Actions dropdown: Hotels, Ask AI, Send Ops Summary */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-semibold bg-slate-700/40 border border-slate-600/50 text-slate-300 hover:text-slate-100 hover:border-slate-500 transition-all"
+                          data-testid="button-actions-dropdown"
+                        >
+                          ⚡ Actions <ChevronDown className="w-3 h-3" />
+                          {crewSigners.filter(c => c.requiresHotel).length > 0 && (
+                            <span className="inline-flex items-center justify-center w-4 h-4 text-[9px] font-bold rounded-full bg-indigo-500 text-white flex-shrink-0">
+                              {crewSigners.filter(c => c.requiresHotel).length}
+                            </span>
+                          )}
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-52 z-50">
+                        <DropdownMenuItem
+                          onClick={() => setIsHotelPanelOpen(v => !v)}
+                          className="gap-2"
+                          data-testid="dropdown-toggle-hotel-panel"
+                        >
+                          <span>🏨</span> Hotels &amp; Logistics
+                          {crewSigners.filter(c => c.requiresHotel).length > 0 && (
+                            <span className="ml-auto text-[9px] font-bold bg-indigo-500 text-white rounded-full px-1.5 py-0.5">
+                              {crewSigners.filter(c => c.requiresHotel).length}
+                            </span>
+                          )}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setIsCommandPaletteOpen(true)}
+                          className="gap-2"
+                          data-testid="dropdown-ask-ai"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" /> Ask AI
+                          <span className="ml-auto text-[9px] font-mono bg-slate-800 border border-slate-700 rounded px-1 py-0.5 text-slate-500">⌘K</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => { setOpsSummaryText(generateOpsSummary(opsSummaryLang)); setOpsSummaryOpen(true); }}
+                          className="gap-2"
+                          data-testid="dropdown-send-ops-summary"
+                        >
+                          <span>📧</span> Send Ops Summary
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <button
                       onClick={() => setShowCrewDocDialog(true)}
                       disabled={crewSigners.length === 0}
@@ -2857,7 +2872,7 @@ export default function VoyageDetail() {
                     { mode: "ready",  label: "✅ Ready",                                   testId: "filter-ready"           },
                   ];
                   return (
-                    <div className="relative z-20 flex items-center gap-1.5" data-testid="crew-filter-bar">
+                    <div className="relative z-20 flex items-center gap-1.5 flex-wrap" data-testid="crew-filter-bar">
                       {filterDefs.map(({ mode, label, testId }) => (
                         <button
                           key={mode}
@@ -2872,6 +2887,17 @@ export default function VoyageDetail() {
                           {label}
                         </button>
                       ))}
+                      <button
+                        onClick={() => setCrewCompactMode(v => !v)}
+                        data-testid="toggle-compact-mode"
+                        className={`ml-auto text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-colors flex items-center gap-1 ${
+                          crewCompactMode
+                            ? "bg-slate-700 border-slate-500 text-slate-200"
+                            : "bg-transparent border-slate-700/50 text-slate-500 hover:border-slate-600 hover:text-slate-400"
+                        }`}
+                      >
+                        {crewCompactMode ? "☰ Detailed" : "☰ Compact"}
+                      </button>
                     </div>
                   );
                 })()}
@@ -2971,6 +2997,39 @@ export default function VoyageDetail() {
                     const _hotelPending = crew.requiresHotel && !crew.hotelName;
                     const _hasHotelInfo = crew.requiresHotel && !!crew.hotelName;
                     const _hasStrip     = hasCritical || hasWarning || _hotelPending || crew.flightDelayed;
+
+                    const isReady = !hasCritical && !hasWarning && !_hotelPending;
+
+                    if (crewCompactMode) {
+                      return (
+                        <DraggableCrewCard key={crew.id} id={crew.id}>
+                        <div
+                          className={`flex items-center gap-2 px-3 py-2 rounded-xl border bg-slate-800 transition-all duration-200 cursor-pointer hover:bg-slate-700/70 ${cardBorder} ${spotlightZ} ${aiGlow}`}
+                          onClick={openSlideOver}
+                          data-testid={`crew-card-compact-${accent === "emerald" ? "on" : "off"}-${crew.id}`}
+                        >
+                          <div className={`w-7 h-7 rounded-full ${accentColors.avatar} flex items-center justify-center text-xs font-bold flex-shrink-0`}>
+                            {crew.name[0]}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-slate-200 truncate">{crew.name}</p>
+                            <p className="text-[10px] text-slate-500 truncate">{crew.rank} · {getFlag(crew.nationality)} {crew.nationality}</p>
+                          </div>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                              <span>✈️</span> <span className="tabular-nums">{crew.flightEta || "—"}</span>
+                            </span>
+                            <span className="flex items-center gap-1 text-[10px] text-slate-400 hidden sm:flex">
+                              <span>🚢</span> <span className="tabular-nums">{crew.side === "on" ? _vesselEtaDisplay : _vesselEtdDisplay}</span>
+                            </span>
+                            {hasCritical && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">⚠️ Critical</span>}
+                            {hasWarning && !hasCritical && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">⚠️ Action</span>}
+                            {isReady && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">✓ Ready</span>}
+                          </div>
+                        </div>
+                        </DraggableCrewCard>
+                      );
+                    }
 
                     return (
                       <DraggableCrewCard key={crew.id} id={crew.id}>
@@ -3434,12 +3493,15 @@ export default function VoyageDetail() {
                         {crewSigners.filter(c => c.side === "off").filter(applyCrewFilter).map(crew => renderCrewCard(crew, "rose"))}
                         {crewSigners.filter(c => c.side === "off").length === 0 && (
                           <button
-                            className="w-full py-6 rounded-xl border border-dashed border-rose-500/30 text-xs text-slate-600 hover:text-rose-400 hover:border-rose-500/50 transition-colors flex flex-col items-center gap-1"
+                            className="w-full py-8 rounded-xl border border-dashed border-rose-500/30 text-xs text-slate-600 hover:text-rose-400 hover:border-rose-500/50 transition-colors flex flex-col items-center gap-2"
                             onClick={() => { setCrewPanelMode("add_off"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "off" }); setSlideFormTimeline(OFF_TIMELINE_DEFAULT.map(s => ({ ...s }))); setEditingCrewId(null); setShowCrewPanel(true); }}
                             data-testid="button-empty-add-off"
                           >
-                            <Plus className="w-4 h-4" />
-                            <span>Add first off-signer</span>
+                            <div className="w-10 h-10 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
+                              <UsersIcon className="w-5 h-5 text-rose-500/50" />
+                            </div>
+                            <span className="font-medium">No off-signers yet</span>
+                            <span className="text-[10px] text-slate-700">Add crew departing this vessel →</span>
                           </button>
                         )}
                       </div>
@@ -3481,7 +3543,7 @@ export default function VoyageDetail() {
                       <div className="flex flex-col items-center justify-center py-10 text-center">
                         <span className="text-3xl mb-2">🏨</span>
                         <p className="text-xs text-slate-500 font-medium">No hotel reservations</p>
-                        <p className="text-[10px] text-slate-600 mt-1">Enable "Requires Hotel" on a crew member to track accommodation here.</p>
+                        <p className="text-[10px] text-slate-600 mt-1">Assign hotel needs to crew members to see reservations here.</p>
                       </div>
                     ) : (
                       crewSigners.filter(c => c.requiresHotel).map(crew => {
@@ -4760,19 +4822,25 @@ export default function VoyageDetail() {
                 </div>
               )}
 
-              {/* Stat row */}
-              <div className="flex flex-wrap items-baseline gap-6 text-sm">
-                <span>Total: <strong>{totalMt.toLocaleString()} MT</strong></span>
-                <span>Handled: <strong className="text-green-400">{handledMt.toLocaleString()} MT ({progressPct}%)</strong></span>
-                <span>Remaining: <strong className="text-amber-400">{remainingMt.toLocaleString()} MT</strong></span>
-              </div>
+              {/* Stat row — hidden when no cargo set */}
+              {totalMt > 0 && (
+                <div className="flex flex-wrap items-baseline gap-6 text-sm">
+                  <span>Total: <strong>{totalMt.toLocaleString()} MT</strong></span>
+                  <span>Handled: <strong className="text-green-400">{handledMt.toLocaleString()} MT ({progressPct}%)</strong></span>
+                  <span>Remaining: <strong className="text-amber-400">{remainingMt.toLocaleString()} MT</strong></span>
+                </div>
+              )}
 
               {/* Main Progress bar */}
               <div className="h-4 rounded-full bg-slate-800 border border-slate-700 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-400 transition-all duration-700"
-                  style={{ width: `${progressPct}%` }}
-                />
+                {progressPct > 0 ? (
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-blue-500 to-emerald-400 transition-all duration-700"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                ) : (
+                  <div className="h-full rounded-full bg-muted/40 w-full" />
+                )}
               </div>
 
               {/* ── Receivers / Cargo Parcels ──────── */}
@@ -4857,7 +4925,7 @@ export default function VoyageDetail() {
               <div className="rounded-xl border border-border/60 bg-card p-4 space-y-1">
                 <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wide">Current Rate</p>
                 <p className="text-2xl font-bold">{avgRate > 0 ? `${avgRate.toLocaleString()} MT` : "—"}</p>
-                <p className="text-xs text-muted-foreground">per day (based on timed periods)</p>
+                <p className="text-xs text-muted-foreground">per day</p>
               </div>
               <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-1.5">
                 <p className="text-[11px] text-amber-400 font-semibold uppercase tracking-wide">Est. Completion (ETC)</p>
