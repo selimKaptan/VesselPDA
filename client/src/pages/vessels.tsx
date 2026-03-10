@@ -8,11 +8,11 @@ import {
   Ship, Plus, Trash2, Edit2, Search, Loader2, RefreshCw,
   ArrowRight, Anchor, MapPin, Calendar,
   FileText, ChevronRight, Activity, ChevronDown,
-  LayoutGrid, Map as MapIcon,
+  LayoutGrid, Map as MapIcon, List, Grid3X3, MoreHorizontal,
   ShieldCheck, Pencil, AlertTriangle, CheckCircle2, Clock,
   ChevronLeft, Download, Upload, Eye, X,
   Layers, Users2, FileSpreadsheet, FolderLock,
-  Shield, ClipboardCheck, Building2, Zap,
+  Shield, ClipboardCheck, Building2, Zap, Gauge, Navigation2, Wrench,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -1098,141 +1098,143 @@ function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete, fleets, onAddT
   const progress = getProgress(voyage);
   const flag = FLAG_EMOJI[vessel.flag || ""] || "🏳️";
 
+  const locationLine = (() => {
+    if (!voyage) return null;
+    const grp = cfg.group;
+    if (grp === "underway" && voyage.portName) return `Underway to ${voyage.portName}`;
+    if (voyage.portName) return voyage.portName;
+    return null;
+  })();
+
   return (
     <div
-      className="bg-card rounded-2xl border-2 border-border hover:border-[hsl(var(--maritime-primary)/0.4)] hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden"
+      className="group relative bg-card rounded-2xl border border-border/60 hover:border-[hsl(var(--maritime-primary)/0.5)] transition-all duration-200 cursor-pointer overflow-hidden"
+      style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}
       onClick={onSelect}
       data-testid={`card-vessel-${vessel.id}`}
     >
-      <div className="h-1" style={{ background: cfg.bar }} />
-      <div className="p-5">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-3 gap-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 bg-[hsl(var(--maritime-primary)/0.1)] rounded-xl flex items-center justify-center text-xl flex-shrink-0">🚢</div>
-            <div className="min-w-0">
-              <h3 className="font-bold text-sm leading-tight truncate" data-testid={`text-vessel-name-${vessel.id}`}>
-                {flag} {vessel.name}
-              </h3>
-              <p className="text-xs text-muted-foreground">{vessel.vesselType || "—"}</p>
-            </div>
+      {/* Top status bar */}
+      <div className="h-0.5" style={{ background: cfg.bar }} />
+
+      <div className="p-4">
+        {/* Header row: flag icon + name/type + status badge */}
+        <div className="flex items-start gap-3 mb-3">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 select-none"
+            style={{ background: `${cfg.bar}22` }}
+          >
+            {flag}
           </div>
-          <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+          <div className="flex-1 min-w-0 pt-0.5">
+            <h3 className="font-bold text-sm leading-tight truncate" data-testid={`text-vessel-name-${vessel.id}`}>
+              {vessel.name}
+            </h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{vessel.vesselType || "—"}</p>
+          </div>
+          <div className="flex-shrink-0 pt-0.5" onClick={e => e.stopPropagation()}>
             <FleetStatusSelector vessel={vessel} />
           </div>
         </div>
 
-        {/* Port */}
-        <div className="bg-muted/40 rounded-xl px-3 py-2 mb-3 flex items-center gap-2">
-          <MapPin className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-          <span className="text-xs font-medium truncate">{voyage?.portName || "Konum bilinmiyor"}</span>
+        {/* Location line */}
+        <div className="flex items-center gap-1.5 mb-3 min-h-[16px]">
+          {locationLine ? (
+            <>
+              <MapPin className="w-3 h-3 text-muted-foreground/60 flex-shrink-0" />
+              <span className="text-[11px] text-muted-foreground truncate">{locationLine}</span>
+            </>
+          ) : (
+            <span className="text-[11px] text-muted-foreground/30">—</span>
+          )}
         </div>
 
-        {/* Progress */}
-        {voyage ? (
+        {/* Progress bar — only if voyage has dates */}
+        {voyage && (voyage.eta || voyage.etd) && (
           <div className="mb-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-1 text-xs min-w-0">
-                <span className="text-muted-foreground truncate max-w-[70px]">{voyage.portName || "—"}</span>
-                <ArrowRight className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                <span className="font-semibold truncate max-w-[70px]">{voyage.portName || "—"}</span>
-              </div>
-              <span className="text-[10px] text-muted-foreground capitalize flex-shrink-0 ml-2">{voyage.purposeOfCall || voyage.status}</span>
-            </div>
-            <div className="h-1.5 bg-muted/40 rounded-full overflow-hidden">
+            <div className="h-1 bg-muted/50 rounded-full overflow-hidden">
               <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: cfg.bar }} />
             </div>
             <div className="flex justify-between mt-1">
-              {voyage.etd && <span className="text-[10px] text-muted-foreground">ETD: {fmtDate(voyage.etd)}</span>}
-              {voyage.eta && <span className="text-[10px] text-muted-foreground">ETA: {fmtDate(voyage.eta)}</span>}
+              {voyage.etd && <span className="text-[10px] text-muted-foreground">ETD {fmtDate(voyage.etd)}</span>}
+              {voyage.eta && <span className="text-[10px] text-muted-foreground ml-auto">ETA {fmtDate(voyage.eta)}</span>}
             </div>
-          </div>
-        ) : (
-          <div className="mb-3 h-10 flex items-center justify-center">
-            <span className="text-xs text-muted-foreground">Aktif sefer yok</span>
           </div>
         )}
 
-        {/* Q88 Badge */}
-        <div className="flex items-center gap-1.5 mb-2.5">
-          <VesselQ88Badge vesselId={vessel.id} />
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-1.5 mb-3">
+        {/* Stats: GRT | DWT | IMO */}
+        <div className="grid grid-cols-3 divide-x divide-border/40 pt-2.5 border-t border-border/40">
           {[
-            { label: "GRT", value: vessel.grt?.toLocaleString("tr-TR") },
-            { label: "DWT", value: vessel.dwt?.toLocaleString("tr-TR") ?? "—" },
+            { label: "GRT", value: vessel.grt ? vessel.grt.toLocaleString() : "—" },
+            { label: "DWT", value: vessel.dwt ? vessel.dwt.toLocaleString() : "—" },
             { label: "IMO", value: vessel.imoNumber || "—" },
-          ].map((s) => (
-            <div key={s.label} className="bg-muted/30 rounded-lg py-2 text-center">
-              <p className="text-[10px] text-muted-foreground font-medium">{s.label}</p>
-              <p className="text-[11px] font-bold truncate px-1">{s.value}</p>
+          ].map(s => (
+            <div key={s.label} className="text-center px-1">
+              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider font-medium">{s.label}</p>
+              <p className="text-[11px] font-semibold mt-0.5 truncate">{s.value}</p>
             </div>
           ))}
         </div>
+      </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-2.5 border-t border-border/50">
-          <div className="flex items-center gap-1">
-            <button className="p-1.5 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground"
-              onClick={(e) => { e.stopPropagation(); onEdit(); }} data-testid={`button-edit-vessel-${vessel.id}`}>
-              <Edit2 className="w-3.5 h-3.5" />
+      {/* Hover quick actions overlay */}
+      <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 pb-2.5 pt-6 bg-gradient-to-t from-background/96 via-background/60 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none group-hover:pointer-events-auto">
+        <button
+          onClick={e => { e.stopPropagation(); onSelect(); }}
+          className="flex items-center gap-1 px-2 py-1 rounded-md bg-background border border-border text-[11px] font-medium hover:bg-muted transition-colors shadow-sm"
+          data-testid={`button-view-vessel-${vessel.id}`}
+        >
+          <Eye className="w-3 h-3" /> View
+        </button>
+        <button
+          onClick={e => { e.stopPropagation(); onEdit(); }}
+          className="flex items-center gap-1 px-2 py-1 rounded-md bg-background border border-border text-[11px] font-medium hover:bg-muted transition-colors shadow-sm"
+          data-testid={`button-edit-vessel-${vessel.id}`}
+        >
+          <Edit2 className="w-3 h-3" /> Edit
+        </button>
+        {vessel.imoNumber && (
+          <Link href={`/vessel-report/${vessel.imoNumber}`}>
+            <button
+              onClick={e => e.stopPropagation()}
+              className="flex items-center gap-1 px-2 py-1 rounded-md bg-background border border-border text-[11px] font-medium hover:bg-muted transition-colors shadow-sm"
+              data-testid={`button-track-vessel-${vessel.id}`}
+            >
+              <Navigation2 className="w-3 h-3" /> Track
             </button>
-            <button className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors text-muted-foreground hover:text-destructive"
-              onClick={(e) => { e.stopPropagation(); onDelete(); }} data-testid={`button-delete-vessel-${vessel.id}`}>
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-            {fleets.length > 0 && (
-              <div onClick={(e) => e.stopPropagation()}>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className="p-1.5 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground"
-                      data-testid={`button-fleet-vessel-${vessel.id}`}
-                      title="Add to Fleet"
-                    >
-                      <Layers className="w-3.5 h-3.5" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="min-w-[160px]">
-                    {fleets.map((f) => {
-                      const inFleet = f.vessel_ids.includes(vessel.id);
-                      return (
-                        <DropdownMenuItem
-                          key={f.id}
-                          onClick={() => inFleet ? onRemoveFromFleet(f.id) : onAddToFleet(f.id)}
-                          className="gap-2 text-xs"
-                          data-testid={`fleet-option-${f.id}-vessel-${vessel.id}`}
-                        >
-                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: f.color }} />
-                          <span className="flex-1 truncate">{f.name}</span>
-                          {inFleet && <span className="text-emerald-600 text-[10px] font-bold">✓</span>}
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            )}
+          </Link>
+        )}
+        <Link href="/pms">
+          <button
+            onClick={e => e.stopPropagation()}
+            className="flex items-center gap-1 px-2 py-1 rounded-md bg-background border border-border text-[11px] font-medium hover:bg-muted transition-colors shadow-sm"
+            data-testid={`button-pms-vessel-${vessel.id}`}
+          >
+            <Wrench className="w-3 h-3" /> PMS
+          </button>
+        </Link>
+        {fleets.length > 0 && (
+          <div onClick={e => e.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-background border border-border text-[11px] font-medium hover:bg-muted transition-colors shadow-sm" data-testid={`button-fleet-vessel-${vessel.id}`}>
+                  <Layers className="w-3 h-3" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[150px]">
+                {fleets.map(f => {
+                  const inFleet = f.vessel_ids.includes(vessel.id);
+                  return (
+                    <DropdownMenuItem key={f.id} onClick={() => inFleet ? onRemoveFromFleet(f.id) : onAddToFleet(f.id)} className="gap-2 text-xs" data-testid={`fleet-option-${f.id}-vessel-${vessel.id}`}>
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: f.color }} />
+                      <span className="flex-1 truncate">{f.name}</span>
+                      {inFleet && <span className="text-emerald-500 text-[10px]">✓</span>}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <div className="flex items-center gap-2">
-            <Link href={`/vessel-vault/${vessel.id}`}>
-              <button
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-[hsl(var(--maritime-primary))] font-medium transition-colors"
-                onClick={e => e.stopPropagation()}
-                data-testid={`button-vessel-vault-${vessel.id}`}
-                title="Vessel Vault"
-              >
-                <FolderLock className="w-3.5 h-3.5" /> Vault
-              </button>
-            </Link>
-            <button className="flex items-center gap-1 text-xs text-[hsl(var(--maritime-primary))] font-medium hover:underline"
-              onClick={onSelect} data-testid={`button-detail-vessel-${vessel.id}`}>
-              Detail <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -1303,7 +1305,8 @@ function certStatusBadge(status: string, expiresAt: string | null) {
 
 export default function Vessels() {
   const { state: sidebarState } = useSidebar();
-  const [viewMode, setViewMode] = useState<"list" | "map">("list");
+  const [viewMode, setViewMode] = useState<"grid" | "list" | "map">("grid");
+  const [sortBy, setSortBy] = useState<"name" | "status" | "dwt" | "updated">("name");
   const [showForm, setShowForm] = useState(false);
   const [editingVessel, setEditingVessel] = useState<Vessel | null>(null);
   const [deleteVesselId, setDeleteVesselId] = useState<number | null>(null);
@@ -1376,6 +1379,17 @@ export default function Vessels() {
       return res.json();
     },
     enabled: !!selectedVessel && detailTab === "certificates",
+  });
+
+  // PMS summary — loads for flyout general tab
+  const { data: pmsDashboard } = useQuery<any>({
+    queryKey: ["/api/vessels", selectedVessel?.id, "pms-dashboard"],
+    queryFn: async () => {
+      const res = await fetch(`/api/vessels/${selectedVessel!.id}/pms-dashboard`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!selectedVessel && detailTab === "general",
   });
 
   const certSaveMutation = useMutation({
@@ -1597,6 +1611,14 @@ export default function Vessels() {
     return getCfg(v.fleetStatus).group === statusFilter;
   }), [vessels, statusFilter, search, fleetFilter, fleets]);
 
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    if (sortBy === "name") arr.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sortBy === "status") arr.sort((a, b) => (a.fleetStatus || "").localeCompare(b.fleetStatus || ""));
+    else if (sortBy === "dwt") arr.sort((a, b) => (b.dwt || 0) - (a.dwt || 0));
+    return arr;
+  }, [filtered, sortBy]);
+
   const stats = useMemo(() => ({
     total:    vessels.length,
     underway: vessels.filter(v => getCfg(v.fleetStatus).group === "underway").length,
@@ -1700,69 +1722,78 @@ export default function Vessels() {
   };
 
   return (
-    <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
-      <PageMeta title="Fleet Management | VesselPDA" description="Manage and track the vessels in your fleet." />
+    <div className="px-4 py-5 space-y-5 max-w-7xl mx-auto">
+      <PageMeta title="Fleet | VesselPDA" description="Manage and track your fleet vessels." />
 
       {/* ── Header ── */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-vessels-title">
-            Fleet Management
-          </h1>
-          <p className="text-muted-foreground text-sm">Update each vessel's status with a single click.</p>
-        </div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="font-bold text-xl tracking-tight" data-testid="text-vessels-title">Fleet</h1>
         <div className="flex items-center gap-2">
-          {/* View toggle */}
-          <div className="flex items-center bg-muted/50 p-1 rounded-xl border border-border gap-1">
-            <button
-              onClick={() => setViewMode("list")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === "list"
-                  ? "bg-background shadow-sm text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              data-testid="toggle-list-view"
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              List
-            </button>
-            <button
-              onClick={() => setViewMode("map")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === "map"
-                  ? "bg-background shadow-sm text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              data-testid="toggle-map-view"
-            >
-              <MapIcon className="w-3.5 h-3.5" />
-              Map
-            </button>
+          {/* View toggle: Grid / List / Map */}
+          <div className="flex items-center bg-muted/50 p-0.5 rounded-lg border border-border gap-0.5">
+            {([
+              { mode: "grid" as const, icon: Grid3X3, label: "Grid", testId: "toggle-grid-view" },
+              { mode: "list" as const, icon: List,    label: "List", testId: "toggle-list-view" },
+              { mode: "map"  as const, icon: MapIcon, label: "Map",  testId: "toggle-map-view"  },
+            ]).map(({ mode, icon: Icon, label, testId }) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  viewMode === mode ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                }`}
+                data-testid={testId}
+                title={label}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{label}</span>
+              </button>
+            ))}
           </div>
           <Button
-            variant="outline"
-            size="sm"
+            variant="outline" size="sm"
             onClick={() => syncStatusMutation.mutate()}
             disabled={syncStatusMutation.isPending}
-            className="gap-1.5 text-xs"
+            className="gap-1.5 text-xs hidden sm:flex"
             data-testid="button-sync-vessel-statuses"
-            title="Port çağrısı verisinden statüleri otomatik güncelle"
+            title="Sync statuses from port calls"
           >
-            {syncStatusMutation.isPending ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="w-3.5 h-3.5" />
-            )}
-            Statüleri Senkronize Et
+            {syncStatusMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            Sync
           </Button>
-          <Button onClick={() => { setEditingVessel(null); setShowForm(true); }} className="gap-2" data-testid="button-add-vessel">
+          <Button onClick={() => { setEditingVessel(null); setShowForm(true); }} className="gap-1.5" size="sm" data-testid="button-add-vessel">
             <Plus className="w-4 h-4" /> Add Vessel
           </Button>
         </div>
       </div>
 
-      {/* ── List Mode ── */}
-      {viewMode === "list" && (
+      {/* ── KPI Bar ── */}
+      {!isLoading && vessels.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {([
+            { key: "all" as FilterGroup,      label: "Total",    value: stats.total,    color: "text-foreground",    bg: "bg-muted/40" },
+            { key: "underway" as FilterGroup, label: "Underway", value: stats.underway, color: "text-blue-500",      bg: "bg-blue-500/8" },
+            { key: "port" as FilterGroup,     label: "At Port",  value: stats.port,     color: "text-indigo-500",    bg: "bg-indigo-500/8" },
+            { key: "anchored" as FilterGroup, label: "At Anchor",value: stats.anchored, color: "text-amber-500",     bg: "bg-amber-500/8" },
+            { key: "idle" as FilterGroup,     label: "Idle",     value: stats.idle,     color: "text-muted-foreground", bg: "bg-muted/30" },
+          ]).map(({ key, label, value, color, bg }) => (
+            <button
+              key={key}
+              onClick={() => setStatusFilter(key)}
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all text-left ${bg} ${
+                statusFilter === key ? "border-[hsl(var(--maritime-primary)/0.5)] ring-1 ring-[hsl(var(--maritime-primary)/0.2)]" : "border-border/50 hover:border-border"
+              }`}
+              data-testid={`kpi-${key}`}
+            >
+              <span className={`text-2xl font-black leading-none ${color}`}>{value}</span>
+              <span className="text-[11px] text-muted-foreground font-medium leading-tight">{label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Fleet Strip + Filter Bar (shared across list/grid) ── */}
+      {viewMode !== "map" && (
         <>
           {/* Fleet Strip */}
           {(fleets.length > 0 || true) && (
@@ -1836,88 +1867,116 @@ export default function Vessels() {
             </div>
           )}
 
-          {/* Stat Cards */}
-          {!isLoading && vessels.length > 0 && (
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-              {[
-                { label: "Total Vessels", value: stats.total,    icon: Ship,     color: "bg-[hsl(var(--maritime-primary)/0.1)] text-[hsl(var(--maritime-primary))]", filter: "all" as FilterGroup },
-                { label: "Underway",     value: stats.underway, icon: Activity, color: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400", filter: "underway" as FilterGroup },
-                { label: "At Anchor",    value: stats.anchored, icon: Anchor,   color: "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400",         filter: "anchored" as FilterGroup },
-                { label: "In Port",      value: stats.port,     icon: MapPin,   color: "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30 dark:text-indigo-400",     filter: "port" as FilterGroup },
-                { label: "Unspecified",  value: stats.idle,     icon: Calendar, color: "bg-muted text-muted-foreground",                                              filter: "idle" as FilterGroup },
-              ].map(({ label, value, icon: Icon, color, filter }) => (
-                <Card
-                  key={label}
-                  className={`p-4 flex items-center gap-3 cursor-pointer transition-all hover:shadow-md ${statusFilter === filter ? "ring-2 ring-[hsl(var(--maritime-primary))]" : ""}`}
-                  onClick={() => setStatusFilter(filter)}
-                  data-testid={`stat-${filter}`}
-                >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-black leading-none">{value}</p>
-                    <p className="text-[11px] font-medium text-muted-foreground mt-0.5 leading-tight">{label}</p>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {/* Info Note */}
-          {!isLoading && vessels.length > 0 && (
-            <div className="flex items-start gap-2.5 bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 rounded-xl px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
-              <span className="text-base flex-shrink-0 mt-0.5">ℹ️</span>
-              <span>
-                Statuses are <strong>manual</strong> — click the badge on any card to update instantly. In map mode, vessels are shown at their current voyage port.
-              </span>
-            </div>
-          )}
-
-          {/* Search + Filter */}
+          {/* Filter bar: status chips + search + sort */}
           {vessels.length > 0 && (
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder="Search vessels..." className="pl-9" data-testid="input-search-vessel" />
-              </div>
-              <div className="flex gap-1 bg-muted/40 p-1 rounded-xl flex-shrink-0 flex-wrap">
+            <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+              {/* Status chips */}
+              <div className="flex gap-1 flex-wrap">
                 {FILTER_TABS.map(({ key, label }) => (
                   <button
                     key={key}
                     onClick={() => setStatusFilter(key)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${statusFilter === key ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      statusFilter === key
+                        ? "bg-foreground text-background border-foreground"
+                        : "bg-muted/30 border-border/50 text-muted-foreground hover:text-foreground hover:border-border"
+                    }`}
                     data-testid={`filter-${key}`}
                   >
                     {label}
+                    {key !== "all" && (
+                      <span className="ml-1 opacity-60">
+                        {key === "underway" ? stats.underway : key === "port" ? stats.port : key === "anchored" ? stats.anchored : stats.idle}
+                      </span>
+                    )}
                   </button>
                 ))}
+              </div>
+              <div className="flex gap-2 ml-auto flex-shrink-0">
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input
+                    value={search} onChange={e => setSearch(e.target.value)}
+                    placeholder="Search..." className="pl-8 h-8 text-sm w-36 sm:w-48"
+                    data-testid="input-search-vessel"
+                  />
+                </div>
+                {/* Sort */}
+                <Select value={sortBy} onValueChange={v => setSortBy(v as typeof sortBy)}>
+                  <SelectTrigger className="h-8 text-xs w-32" data-testid="select-sort-vessels">
+                    <SelectValue placeholder="Sort" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="name">Name A–Z</SelectItem>
+                    <SelectItem value="status">Status</SelectItem>
+                    <SelectItem value="dwt">DWT (High→Low)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}
 
-          {/* Grid */}
+          {/* Vessels: Grid or List */}
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-72 rounded-2xl" />)}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-44 rounded-2xl" />)}
             </div>
-          ) : filtered.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filtered.map((vessel) => (
-                <VesselCard
-                  key={vessel.id}
-                  vessel={vessel}
-                  voyage={vesselVoyageMap.get(vessel.id) ?? null}
-                  onSelect={() => { setSelectedVessel(vessel); setDetailTab("general"); }}
-                  onEdit={() => setEditingVessel(vessel)}
-                  onDelete={() => setDeleteVesselId(vessel.id)}
-                  fleets={fleets}
-                  onAddToFleet={(fleetId) => addToFleetMutation.mutate({ fleetId, vesselId: vessel.id })}
-                  onRemoveFromFleet={(fleetId) => removeFromFleetMutation.mutate({ fleetId, vesselId: vessel.id })}
-                />
-              ))}
-            </div>
+          ) : sorted.length > 0 ? (
+            viewMode === "grid" ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                {sorted.map((vessel) => (
+                  <VesselCard
+                    key={vessel.id}
+                    vessel={vessel}
+                    voyage={vesselVoyageMap.get(vessel.id) ?? null}
+                    onSelect={() => { setSelectedVessel(vessel); setDetailTab("general"); }}
+                    onEdit={() => setEditingVessel(vessel)}
+                    onDelete={() => setDeleteVesselId(vessel.id)}
+                    fleets={fleets}
+                    onAddToFleet={(fleetId) => addToFleetMutation.mutate({ fleetId, vesselId: vessel.id })}
+                    onRemoveFromFleet={(fleetId) => removeFromFleetMutation.mutate({ fleetId, vesselId: vessel.id })}
+                  />
+                ))}
+              </div>
+            ) : (
+              /* List view: compact rows */
+              <div className="space-y-1.5">
+                {sorted.map((vessel) => {
+                  const voy = vesselVoyageMap.get(vessel.id) ?? null;
+                  const cfg2 = getCfg(vessel.fleetStatus);
+                  const flag2 = FLAG_EMOJI[vessel.flag || ""] || "🏳️";
+                  return (
+                    <div
+                      key={vessel.id}
+                      className="flex items-center gap-3 px-4 py-3 rounded-xl border border-border/50 bg-card hover:border-[hsl(var(--maritime-primary)/0.4)] hover:bg-muted/20 transition-all cursor-pointer group"
+                      onClick={() => { setSelectedVessel(vessel); setDetailTab("general"); }}
+                      data-testid={`row-vessel-${vessel.id}`}
+                    >
+                      <div className="w-1 h-8 rounded-full flex-shrink-0" style={{ background: cfg2.bar }} />
+                      <span className="text-base flex-shrink-0">{flag2}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm truncate">{vessel.name}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">{vessel.vesselType || "—"}</p>
+                      </div>
+                      <div className="hidden md:block flex-1 min-w-0 text-[11px] text-muted-foreground truncate">
+                        {voy?.portName ? (
+                          <span className="flex items-center gap-1"><MapPin className="w-3 h-3 flex-shrink-0" />{voy.portName}</span>
+                        ) : <span>—</span>}
+                      </div>
+                      <div className="hidden lg:flex items-center gap-3 flex-shrink-0 text-[11px] text-muted-foreground">
+                        <span>DWT {vessel.dwt ? vessel.dwt.toLocaleString() : "—"}</span>
+                        <span>IMO {vessel.imoNumber || "—"}</span>
+                      </div>
+                      <div onClick={e => e.stopPropagation()}>
+                        <FleetStatusSelector vessel={vessel} />
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors flex-shrink-0" />
+                    </div>
+                  );
+                })}
+              </div>
+            )
           ) : vessels.length === 0 ? (
             <EmptyState
               icon="🚢"
@@ -1957,19 +2016,17 @@ export default function Vessels() {
         <Skeleton className="w-full h-[600px] rounded-2xl" />
       )}
 
-      {/* ── Detail Panel ─────────────────────────────────────────────────── */}
+      {/* ── Detail Flyout (right-side panel) ──────────────────────────── */}
       {selectedVessel && selectedVesselFresh && (() => {
           const v = selectedVesselFresh;
           const voy = selectedVoyage;
           const cfg = getCfg(v.fleetStatus);
           const flag = FLAG_EMOJI[v.flag || ""] || "🏳️";
           const progress = getProgress(voy);
-          const sidebarLeft = sidebarState === "expanded" ? "16rem" : "3rem";
 
           return (
             <div
-              className="fixed bottom-0 right-0 bg-background z-40 flex flex-col overflow-hidden border-l shadow-2xl"
-              style={{ top: "3.5rem", left: sidebarLeft }}
+              className="fixed top-14 right-0 bottom-0 w-full sm:w-[480px] bg-background z-40 flex flex-col overflow-hidden border-l shadow-2xl"
             >
               <div className="px-6 pt-5 pb-4 border-b flex-shrink-0">
                 <div className="flex items-start justify-between gap-3 mb-3">
@@ -2003,118 +2060,127 @@ export default function Vessels() {
               </div>
 
               <div className="p-6 space-y-4 overflow-y-auto flex-1">
-                  {/* ── Genel ── */}
+                  {/* ── General (Overview) ── */}
                   {detailTab === "general" && (
-                    <div className="flex flex-col gap-4">
-                      <div className="grid grid-cols-2 gap-3">
-
-                        {/* ── SOL SÜTUN — Vessel Particulars ── */}
-                        <div className="flex flex-col gap-3">
-                          <div className="rounded-lg border bg-card/50 p-3 space-y-2.5">
-                            <div className="flex items-center gap-1.5 pb-2 border-b">
-                              <Ship className="w-3 h-3 text-primary" />
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                                Vessel Particulars
-                              </p>
+                    <div className="space-y-4">
+                      {/* Vessel key info */}
+                      <div className="rounded-xl border bg-muted/20 p-3.5 space-y-2">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Vessel Particulars</p>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                          {[
+                            { label: "IMO",       value: v.imoNumber || "—" },
+                            { label: "Flag",      value: `${flag} ${v.flag || "—"}` },
+                            { label: "DWT",       value: v.dwt ? v.dwt.toLocaleString() + " MT" : "—" },
+                            { label: "GRT",       value: v.grt ? v.grt.toLocaleString() + " GT" : "—" },
+                            { label: "Call Sign", value: v.callSign || "—" },
+                            { label: "Built",     value: (v as any).yearBuilt ? String((v as any).yearBuilt) : "—" },
+                          ].map(({ label, value }) => (
+                            <div key={label} className="flex items-center justify-between gap-1 text-xs">
+                              <span className="text-muted-foreground">{label}</span>
+                              <span className="font-medium truncate max-w-[50%] text-right">{value}</span>
                             </div>
-                            {[
-                              { label: "IMO No",     value: v.imoNumber || "—" },
-                              { label: "DWT",        value: v.dwt ? v.dwt.toLocaleString("en-US") + " MT" : "—" },
-                              { label: "GRT",        value: v.grt ? v.grt.toLocaleString("en-US") + " GT" : "—" },
-                              { label: "Call Sign",  value: v.callSign || "—" },
-                              { label: "Flag",       value: `${flag} ${v.flag || "—"}` },
-                              { label: "Year Built", value: (v as any).yearBuilt ? String((v as any).yearBuilt) : "—" },
-                            ].map(({ label, value }) => (
-                              <div key={label} className="flex items-center justify-between gap-2 text-xs">
-                                <span className="text-muted-foreground shrink-0">{label}</span>
-                                <span className="font-semibold text-right truncate">{value}</span>
-                              </div>
-                            ))}
-                          </div>
-                          <Link href={`/vessel-q88/${v.id}`}>
-                            <Button variant="outline" size="sm"
-                              className="w-full gap-2 border-dashed text-xs"
-                              data-testid="button-vessel-q88">
-                              <FileSpreadsheet className="w-3.5 h-3.5" />
-                              Q88 Questionnaire
-                            </Button>
-                          </Link>
-                        </div>
-
-                        {/* ── SAĞ SÜTUN — Map + Voyage ── */}
-                        <div className="flex flex-col gap-3">
-
-                          {/* Map Placeholder */}
-                          <div className="relative rounded-lg overflow-hidden border h-[130px]"
-                            style={{ background: "hsl(var(--maritime-primary) / 0.07)" }}>
-                            <div className="absolute inset-0 opacity-[0.12]"
-                              style={{
-                                backgroundImage: `url("data:image/svg+xml,%3Csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 0L0 0 0 20' fill='none' stroke='%2364748b' stroke-width='0.5'/%3E%3C/svg%3E")`
-                              }} />
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                              <Ship className="w-12 h-12 text-muted-foreground/10" />
-                            </div>
-                            <div className="absolute top-2 right-2">
-                              <FleetStatusSelector vessel={v} />
-                            </div>
-                            <div className="absolute bottom-2 left-2 flex items-center gap-1">
-                              <MapPin className="w-3 h-3 text-muted-foreground/50" />
-                              <span className="text-[10px] text-muted-foreground/70 font-medium">
-                                {voy?.portName || "Location unknown"}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Current Voyage */}
-                          <div className="rounded-lg border bg-card/50 p-3 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5">
-                                <Anchor className="w-3 h-3 text-primary" />
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                                  Current Voyage
-                                </p>
-                              </div>
-                              {voy && (
-                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${cfg.badge}`}>
-                                  {voy.status === "active" ? "Active" : "Planned"}
-                                </span>
-                              )}
-                            </div>
-                            {voy ? (
-                              <div className="space-y-1.5">
-                                {[
-                                  { label: "Voyage",  value: voy.name || voy.purposeOfCall || "—" },
-                                  { label: "Purpose", value: voy.purposeOfCall || "—" },
-                                  { label: "ETA",     value: voy.eta ? fmtDate(voy.eta) : "—" },
-                                  { label: "ETD",     value: voy.etd ? fmtDate(voy.etd) : "—" },
-                                ].map(({ label, value }) => (
-                                  <div key={label} className="flex items-center justify-between gap-1 text-[11px]">
-                                    <span className="text-muted-foreground shrink-0">{label}</span>
-                                    <span className="font-medium text-right truncate max-w-[60%]">{value}</span>
-                                  </div>
-                                ))}
-                                <Link href={`/voyages/${voy.id}`}>
-                                  <Button variant="ghost" size="sm"
-                                    className="w-full h-6 text-[11px] mt-0.5 gap-1 text-muted-foreground">
-                                    View Details <ChevronRight className="w-3 h-3" />
-                                  </Button>
-                                </Link>
-                              </div>
-                            ) : (
-                              <div className="text-center py-3">
-                                <p className="text-[11px] text-muted-foreground">No active voyage</p>
-                                <Link href="/voyages">
-                                  <Button size="sm" variant="ghost"
-                                    className="h-6 text-[11px] mt-1 gap-1">
-                                    <Plus className="w-3 h-3" /> New Voyage
-                                  </Button>
-                                </Link>
-                              </div>
-                            )}
-                          </div>
+                          ))}
                         </div>
                       </div>
 
+                      {/* Active Voyage */}
+                      <div className="rounded-xl border bg-muted/20 p-3.5">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Active Voyage</p>
+                          {voy && <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${cfg.badge}`}>{voy.status}</span>}
+                        </div>
+                        {voy ? (
+                          <div className="space-y-1.5">
+                            {[
+                              { label: "Port",    value: voy.portName || "—" },
+                              { label: "Purpose", value: voy.purposeOfCall || "—" },
+                              { label: "ETA",     value: voy.eta ? fmtDate(voy.eta) : "—" },
+                            ].map(({ label, value }) => (
+                              <div key={label} className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">{label}</span>
+                                <span className="font-medium">{value}</span>
+                              </div>
+                            ))}
+                            {(voy.eta || voy.etd) && (
+                              <div className="mt-2">
+                                <div className="h-1 bg-muted rounded-full overflow-hidden">
+                                  <div className="h-full rounded-full" style={{ width: `${progress}%`, background: cfg.bar }} />
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-0.5 text-right">{Math.round(progress)}% complete</p>
+                              </div>
+                            )}
+                            <Link href={`/voyages/${voy.id}`}>
+                              <Button variant="outline" size="sm" className="w-full h-7 text-xs gap-1 mt-1">
+                                Open Voyage <ChevronRight className="w-3 h-3" />
+                              </Button>
+                            </Link>
+                          </div>
+                        ) : (
+                          <div className="text-center py-2">
+                            <p className="text-xs text-muted-foreground">No active voyage</p>
+                            <Link href="/voyages">
+                              <Button size="sm" variant="ghost" className="h-7 text-xs mt-1 gap-1">
+                                <Plus className="w-3 h-3" /> New Voyage
+                              </Button>
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* PMS Summary */}
+                      {pmsDashboard && (
+                        <div className="rounded-xl border bg-muted/20 p-3.5">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2.5">Maintenance</p>
+                          <div className="grid grid-cols-3 gap-2">
+                            {[
+                              { label: "Overdue", value: pmsDashboard.summary?.overdueJobs || 0, color: pmsDashboard.summary?.overdueJobs > 0 ? "text-rose-500" : "text-muted-foreground" },
+                              { label: "Due Soon", value: pmsDashboard.summary?.dueSoonJobs || 0, color: pmsDashboard.summary?.dueSoonJobs > 0 ? "text-amber-500" : "text-muted-foreground" },
+                              { label: "Open WO", value: pmsDashboard.summary?.openWorkOrders || 0, color: "text-muted-foreground" },
+                            ].map(s => (
+                              <div key={s.label} className="text-center">
+                                <p className={`text-xl font-black ${s.color}`}>{s.value}</p>
+                                <p className="text-[10px] text-muted-foreground">{s.label}</p>
+                              </div>
+                            ))}
+                          </div>
+                          {(pmsDashboard.summary?.criticalDefects || 0) > 0 && (
+                            <div className="mt-2 flex items-center gap-1.5 text-[11px] text-rose-500 bg-rose-500/10 rounded-lg px-2.5 py-1.5">
+                              <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                              {pmsDashboard.summary.criticalDefects} critical defect{pmsDashboard.summary.criticalDefects > 1 ? "s" : ""}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* View Full Detail */}
+                      <div className="flex flex-col gap-2 pt-1">
+                        {v.imoNumber && (
+                          <Link href={`/vessel-report/${v.imoNumber}`}>
+                            <Button className="w-full gap-2" data-testid="button-view-full-detail">
+                              <Ship className="w-4 h-4" /> View Full Detail
+                            </Button>
+                          </Link>
+                        )}
+                        <div className="flex gap-2">
+                          <Link href={`/vessel-q88/${v.id}`} className="flex-1">
+                            <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs">
+                              <FileSpreadsheet className="w-3.5 h-3.5" /> Q88
+                            </Button>
+                          </Link>
+                          <Link href={`/vessel-vault/${v.id}`} className="flex-1">
+                            <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs">
+                              <FolderLock className="w-3.5 h-3.5" /> Vault
+                            </Button>
+                          </Link>
+                          <button
+                            onClick={() => setEditingVessel(v)}
+                            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium hover:bg-muted transition-colors"
+                            data-testid="button-flyout-edit-vessel"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" /> Edit
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
 
