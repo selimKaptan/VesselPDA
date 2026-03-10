@@ -11,6 +11,7 @@ import {
   FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings, Archive, X,
   TrendingUp, TrendingDown, AlertTriangle, Mail, Plane, LogIn, LogOut, Maximize2, Calculator, FolderLock,
   Scale, Banknote, CreditCard, Percent, BarChart2, ScrollText, LayoutDashboard,
+  MessageSquare, Activity, CheckSquare, Send, Phone, Check,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
@@ -2057,7 +2058,7 @@ export default function VoyageDetail() {
 
   const { data: activitiesData } = useQuery<{ activities: any[], total: number }>({
     queryKey: ["/api/voyages", voyageId, "activities"],
-    enabled: activeTab === "documents",
+    enabled: activeTab === "documents" || activeTab === "team",
   });
   const activities = activitiesData?.activities || [];
 
@@ -5785,109 +5786,6 @@ export default function VoyageDetail() {
           })()}
           </div>
 
-          {/* Comms Content */}
-          {(() => {
-            const role = (user as any)?.activeRole || (user as any)?.role;
-            const canChat = isOwner || isAgent || role === "admin";
-            const participants = Array.from(new Map(chatMessages.map((m: any) => [m.senderId, m.senderName])).entries());
-            return (
-          <Card className="flex flex-col overflow-hidden" style={{ height: 480 }}>
-            {/* Chat header */}
-            <div className="px-5 py-3.5 border-b flex items-center justify-between flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <MessageCircle className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                <h2 className="font-semibold text-sm">Team Chat</h2>
-              </div>
-              {chatMessages.length > 0 && (
-                <span className="text-xs bg-[hsl(var(--maritime-primary)/0.1)] text-[hsl(var(--maritime-primary))] px-2 py-0.5 rounded-full font-semibold">
-                  {chatMessages.length} messages
-                </span>
-              )}
-            </div>
-
-            {/* Participants strip */}
-            {participants.length > 0 && (
-              <div className="px-5 py-2 border-b flex items-center gap-2 flex-shrink-0 bg-muted/20">
-                <span className="text-xs text-muted-foreground">Participants:</span>
-                {participants.map(([sid, name]: [string, string]) => (
-                  <div key={sid} title={name} className="w-6 h-6 rounded-full bg-[hsl(var(--maritime-primary))] text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                    {(name || "?")[0].toUpperCase()}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-              {chatMessages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                  <MessageCircle className="w-10 h-10 mb-2 opacity-20" />
-                  <p className="text-sm font-medium">No messages yet</p>
-                  <p className="text-xs mt-1">Be the first to send a message</p>
-                </div>
-              ) : (
-                chatMessages.map((msg: any) => {
-                  const isMine = msg.senderId === userId;
-                  const time = new Date(msg.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-                  const _d = new Date(msg.createdAt);
-                  const date = `${String(_d.getDate()).padStart(2,"0")}.${String(_d.getMonth()+1).padStart(2,"0")}`;
-                  const initial = (msg.senderName || "?")[0].toUpperCase();
-                  return (
-                    <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`} data-testid={`chat-msg-${msg.id}`}>
-                      <div className={`max-w-[72%] ${isMine ? "" : "flex gap-2"}`}>
-                        {!isMine && (
-                          <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5 border">
-                            {initial}
-                          </div>
-                        )}
-                        <div>
-                          <p className={`text-xs text-muted-foreground mb-1 ${isMine ? "text-right" : "ml-1"}`}>{msg.senderName}</p>
-                          <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
-                            isMine
-                              ? "bg-[hsl(var(--maritime-primary))] text-white rounded-br-sm"
-                              : "bg-muted text-foreground rounded-bl-sm"
-                          }`}>
-                            {msg.content}
-                          </div>
-                          <p className={`text-[10px] text-muted-foreground mt-1 ${isMine ? "text-right" : "ml-1"}`}>{date} {time}</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-              <div ref={chatBottomRef} />
-            </div>
-
-            {/* Input */}
-            <div className="px-4 py-3 border-t flex-shrink-0 bg-background">
-              {canChat ? (
-                <div className="flex gap-2">
-                  <Input
-                    value={chatMessage}
-                    onChange={e => setChatMessage(e.target.value)}
-                    onKeyDown={handleChatKeyDown}
-                    placeholder="Type a message..."
-                    className="text-sm h-9"
-                    data-testid="input-chat-message"
-                  />
-                  <Button
-                    size="sm"
-                    className="h-9 px-4 shrink-0"
-                    onClick={() => sendChatMutation.mutate()}
-                    disabled={!chatMessage.trim() || sendChatMutation.isPending}
-                    data-testid="button-send-chat"
-                  >
-                    {sendChatMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send"}
-                  </Button>
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground text-center py-1">You are not a participant in this voyage.</p>
-              )}
-            </div>
-          </Card>
-            );
-          })()}
         </div>
       )}
 
@@ -6399,182 +6297,394 @@ export default function VoyageDetail() {
 
       {/* ── TEAM & CONTACTS TAB ────────────────────────────────── */}
       {activeTab === "team" && (
-        <div className="space-y-6">
-          {/* Participants Content */}
-          <div className="space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h3 className="font-semibold text-base flex items-center gap-2">
-                <Users2 className="w-4 h-4 text-sky-400" /> Voyage Team
-              </h3>
-              <p className="text-sm text-muted-foreground">{participants.length + 1} member{participants.length !== 0 ? "s" : ""}</p>
-            </div>
-            {(isOwner || isAgent) && (
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 gap-1.5 border-amber-500/30 text-amber-500 hover:bg-amber-500/10 no-print"
-                  asChild
-                >
-                  <Link href={`/agent-report/${voyageId}`}>
-                    <FileText className="w-3.5 h-3.5" /> Agent Report
-                  </Link>
-                </Button>
-                <Button onClick={() => setShowInviteDialog(true)} data-testid="button-invite-participant">
-                  <UserPlus className="w-4 h-4 mr-2" /> Invite
-                </Button>
-              </div>
-            )}
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-          {/* Participants Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="participants-grid">
-            {/* Owner card */}
-            <div className="rounded-xl border bg-card p-4 space-y-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-amber-600 flex items-center justify-center text-sm font-bold text-white uppercase">
-                    {voyage?.ownerFirstName?.[0] ?? "O"}
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">{`${voyage?.ownerFirstName ?? ""} ${voyage?.ownerLastName ?? ""}`.trim() || "Voyage Owner"}</p>
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-500 border border-amber-500/30">Owner</span>
-                  </div>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">Voyage owner</p>
-            </div>
+          {/* ── LEFT COLUMN: Chat + Timeline ──────────────────────── */}
+          <div className="lg:col-span-2 flex flex-col gap-6">
 
-            {participants.map((p: any) => {
-              const roleColors: Record<string, string> = {
-                agent:    "bg-blue-500/15 text-blue-400 border-blue-500/30",
-                observer: "bg-violet-500/15 text-violet-400 border-violet-500/30",
-                broker:   "bg-teal-500/15 text-teal-400 border-teal-500/30",
-                provider: "bg-orange-500/15 text-orange-400 border-orange-500/30",
-                surveyor: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+            {/* VOYAGE CHAT */}
+            {(() => {
+              const canChat = isOwner || isAgent || (user as any)?.activeRole === "admin";
+              const formatRelTime = (dt: string) => {
+                const diff = Date.now() - new Date(dt).getTime();
+                if (diff < 60000) return "just now";
+                if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+                if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+                return new Date(dt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
               };
-              const ROLE_LABELS: Record<string, string> = {
-                agent:    "Agent Staff",
-                observer: "Shipowner",
-                broker:   "Charterer",
-                provider: "Provider",
-                surveyor: "Surveyor",
-              };
-              const roleColor = roleColors[p.role] ?? roleColors.observer;
-              const name = `${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() || p.email || "—";
-              const initials = (p.firstName?.[0] ?? p.email?.[0] ?? "?").toUpperCase();
               return (
-                <div key={p.id} className="rounded-xl border bg-card p-4 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-sm font-bold text-white uppercase">
-                        {p.profileImageUrl
-                          ? <img src={p.profileImageUrl} alt={name} className="w-10 h-10 rounded-full object-cover" />
-                          : initials}
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">{name}</p>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${roleColor}`}>{ROLE_LABELS[p.role] ?? p.role}</span>
-                      </div>
-                    </div>
-                    {isOwner && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0"><MoreVertical className="w-3.5 h-3.5" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem className="text-destructive" onClick={() => removeParticipantMutation.mutate(p.id)}>
-                            Remove from voyage
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+              <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 overflow-hidden flex flex-col" style={{ minHeight: "400px", maxHeight: "520px" }}>
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/30 flex-shrink-0">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-blue-400" />
+                    <h3 className="text-sm font-semibold">Team Chat</h3>
+                    {chatMessages.length > 0 && (
+                      <span className="text-[10px] text-slate-500 bg-slate-800 rounded-full px-2 py-0.5">{chatMessages.length} messages</span>
                     )}
                   </div>
-                  {p.serviceType && <p className="text-xs text-muted-foreground">Service: {p.serviceType}</p>}
-                  <p className="text-xs text-muted-foreground">
-                    Joined {p.respondedAt ? fmtDate(p.respondedAt) : "—"}
-                  </p>
-                  {p.permissions && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {p.permissions.canViewDocuments && <span className="text-[10px] bg-muted/50 px-1.5 py-0.5 rounded text-muted-foreground">Docs</span>}
-                      {p.permissions.canChat && <span className="text-[10px] bg-muted/50 px-1.5 py-0.5 rounded text-muted-foreground">Chat</span>}
-                      {p.permissions.canViewFinancials && <span className="text-[10px] bg-muted/50 px-1.5 py-0.5 rounded text-muted-foreground">Finance</span>}
-                      {p.permissions.canEditChecklist && <span className="text-[10px] bg-muted/50 px-1.5 py-0.5 rounded text-muted-foreground">Tasks</span>}
+                  {/* Online avatars — unique chat participants */}
+                  <div className="flex items-center">
+                    {Array.from(new Map(chatMessages.map((m: any) => [m.senderId, m.senderName])).values())
+                      .slice(0, 4).map((name: any, i: number) => (
+                      <div key={i} title={name} className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-slate-900" style={{ marginLeft: i === 0 ? 0 : -6 }}>
+                        {(name || "?")[0].toUpperCase()}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                  {chatMessages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full py-12">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-800/50 flex items-center justify-center mb-3">
+                        <MessageSquare className="w-6 h-6 text-slate-600" />
+                      </div>
+                      <p className="text-sm text-slate-400">No messages yet</p>
+                      <p className="text-xs text-slate-500 mt-1">Start the conversation with your team</p>
                     </div>
+                  ) : (
+                    chatMessages.map((msg: any, i: number) => {
+                      const isOwn = msg.senderId === userId;
+                      const prevMsg = chatMessages[i - 1];
+                      const showAvatar = i === 0 || prevMsg?.senderId !== msg.senderId;
+                      return (
+                        <div key={msg.id} className={cn("flex gap-2.5", isOwn && "flex-row-reverse")} data-testid={`chat-msg-${msg.id}`}>
+                          {showAvatar ? (
+                            <div className={cn(
+                              "w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0",
+                              isOwn ? "bg-blue-500/20 text-blue-400" : "bg-slate-700 text-slate-300"
+                            )}>
+                              {(msg.senderName || "?")[0].toUpperCase()}
+                            </div>
+                          ) : (
+                            <div className="w-7 shrink-0" />
+                          )}
+                          <div className={cn("max-w-[75%]", isOwn && "text-right")}>
+                            {showAvatar && (
+                              <div className={cn("flex items-center gap-2 mb-1", isOwn && "flex-row-reverse")}>
+                                <span className="text-[11px] font-medium text-slate-300">{msg.senderName}</span>
+                                <span className="text-[10px] text-slate-600">{formatRelTime(msg.createdAt)}</span>
+                              </div>
+                            )}
+                            <div className={cn(
+                              "inline-block px-3 py-2 rounded-xl text-sm leading-relaxed",
+                              isOwn
+                                ? "bg-blue-600/20 text-blue-100 rounded-tr-sm"
+                                : "bg-slate-800/80 text-slate-200 rounded-tl-sm"
+                            )}>
+                              {msg.content}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div ref={chatBottomRef} />
+                </div>
+
+                {/* Input */}
+                <div className="border-t border-slate-700/30 p-3 flex-shrink-0">
+                  {canChat ? (
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1 relative">
+                        <Input
+                          value={chatMessage}
+                          onChange={e => setChatMessage(e.target.value)}
+                          onKeyDown={handleChatKeyDown}
+                          placeholder="Type a message… (Enter to send)"
+                          className="bg-slate-800/50 border-slate-700/50 rounded-xl text-sm text-slate-200 placeholder:text-slate-600 focus-visible:ring-blue-500/30 focus-visible:border-blue-500/30 h-10"
+                          data-testid="input-chat-message"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        className={cn(
+                          "w-10 h-10 rounded-xl p-0 shrink-0 transition-all",
+                          chatMessage.trim()
+                            ? "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20"
+                            : "bg-slate-800 text-slate-600 cursor-not-allowed"
+                        )}
+                        onClick={() => sendChatMutation.mutate()}
+                        disabled={!chatMessage.trim() || sendChatMutation.isPending}
+                        data-testid="button-send-chat"
+                      >
+                        {sendChatMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500 text-center py-1">You are not a participant in this voyage.</p>
                   )}
                 </div>
+              </div>
               );
-            })}
+            })()}
+
+            {/* ACTIVITY TIMELINE */}
+            <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/30">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-emerald-400" />
+                  <h3 className="text-sm font-semibold">Activity Timeline</h3>
+                  {activities.length > 0 && (
+                    <span className="text-[10px] text-slate-500 bg-slate-800 rounded-full px-2 py-0.5">{activities.length}</span>
+                  )}
+                </div>
+              </div>
+              <div className="px-4 py-3 max-h-72 overflow-y-auto">
+                {activities.length === 0 ? (
+                  <div className="flex flex-col items-center py-6">
+                    <Activity className="w-8 h-8 text-slate-700 mb-2" />
+                    <p className="text-xs text-slate-600">No activity recorded yet</p>
+                  </div>
+                ) : (
+                  activities.map((activity: any, i: number) => {
+                    const diff = Date.now() - new Date(activity.createdAt).getTime();
+                    const relTime = diff < 60000 ? "just now" : diff < 3600000 ? `${Math.floor(diff / 60000)}m ago` : diff < 86400000 ? `${Math.floor(diff / 3600000)}h ago` : new Date(activity.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+                    const iconCls = activity.type === "user" ? "bg-blue-500/15 text-blue-400" : activity.type === "status" ? "bg-emerald-500/15 text-emerald-400" : activity.type === "warning" ? "bg-amber-500/15 text-amber-400" : "bg-slate-800 text-slate-500";
+                    return (
+                      <div key={i} className="flex gap-3 relative">
+                        {i < activities.length - 1 && (
+                          <div className="absolute left-[11px] top-7 w-0.5 h-[calc(100%-4px)] bg-slate-800" />
+                        )}
+                        <div className={cn("relative z-10 w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5", iconCls)}>
+                          {activity.type === "status" ? <CheckCircle2 className="w-3 h-3" /> : activity.type === "warning" ? <AlertTriangle className="w-3 h-3" /> : activity.type === "user" ? <UsersIcon className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                        </div>
+                        <div className="flex-1 pb-4 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-300 font-medium truncate">{activity.title || activity.action}</span>
+                            <span className="text-[10px] text-slate-600 shrink-0">{relTime}</span>
+                          </div>
+                          {activity.description && (
+                            <p className="text-[11px] text-slate-500 mt-0.5 truncate">{activity.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* Pending Invitations */}
-          {pendingInvites.length > 0 && (
-            <div>
-              <h4 className="font-medium mb-3 flex items-center gap-2 text-sm">
-                <Clock className="w-4 h-4 text-amber-400" />
-                Pending Invitations
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs border bg-amber-500/15 text-amber-500 border-amber-500/30">{pendingInvites.length}</span>
-              </h4>
-              <div className="rounded-lg border overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm" data-testid="table-pending-invites">
-                  <thead>
-                    <tr className="border-b bg-muted/30">
-                      <th className="text-left p-3 font-medium text-muted-foreground">Invitee</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground">Role</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground hidden md:table-cell">Sent</th>
-                      <th className="text-left p-3 font-medium text-muted-foreground hidden lg:table-cell">Expires</th>
-                      {(isOwner || isAgent) && <th className="p-3" />}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendingInvites.map((inv: any) => {
-                      const inviteeLabel = (inv.inviteeEmail ?? (`${inv.firstName ?? ""} ${inv.lastName ?? ""}`.trim() || "—"));
-                      const rColors: Record<string, string> = {
-                        agent: "bg-sky-500/15 text-sky-500 border-sky-500/30",
-                        provider: "bg-purple-500/15 text-purple-500 border-purple-500/30",
-                        surveyor: "bg-amber-500/15 text-amber-500 border-amber-500/30",
-                        broker: "bg-green-500/15 text-green-500 border-green-500/30",
-                        observer: "bg-slate-500/15 text-slate-400 border-slate-500/30",
-                      };
-                      return (
-                        <tr key={inv.id} className="border-b last:border-0 hover:bg-muted/20">
-                          <td className="p-3 font-medium text-sm">{inviteeLabel}</td>
-                          <td className="p-3">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${rColors[inv.role] ?? rColors.observer} capitalize`}>{inv.role}</span>
-                          </td>
-                          <td className="p-3 text-muted-foreground text-xs hidden md:table-cell">
-                            {inv.invitedAt ? fmtDate(inv.invitedAt) : "—"}
-                          </td>
-                          <td className="p-3 text-muted-foreground text-xs hidden lg:table-cell">
-                            {inv.expiresAt ? fmtDate(inv.expiresAt) : "—"}
-                          </td>
-                          {(isOwner || isAgent) && (
-                            <td className="p-3">
-                              <div className="flex gap-1">
-                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => resendInviteMutation.mutate(inv.id)}>Resend</Button>
-                                <Button variant="ghost" size="sm" className="h-7 text-xs text-red-500 hover:text-red-500" onClick={() => cancelInviteMutation.mutate(inv.id)}>Cancel</Button>
-                              </div>
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+          {/* ── RIGHT COLUMN: Tasks + Contacts + Quick Actions ─────── */}
+          <div className="flex flex-col gap-5">
+
+            {/* TASKS & CHECKLIST */}
+            <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/30">
+                <div className="flex items-center gap-2">
+                  <CheckSquare className="w-4 h-4 text-amber-400" />
+                  <h3 className="text-sm font-semibold">Tasks</h3>
+                  {(voyage?.checklist?.length ?? 0) > 0 && (
+                    <span className="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded">
+                      {(voyage?.checklist ?? []).filter((t: any) => !t.isCompleted).length} open
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-3 py-2 max-h-56 overflow-y-auto space-y-0.5">
+                {(voyage?.checklist ?? []).length === 0 && (
+                  <div className="flex flex-col items-center py-4">
+                    <CheckSquare className="w-6 h-6 text-slate-700 mb-1.5" />
+                    <p className="text-[11px] text-slate-600">No tasks</p>
+                  </div>
+                )}
+                {(voyage?.checklist ?? []).map((item: any) => (
+                  <div key={item.id} className="flex items-start gap-2 py-1.5 group">
+                    <button
+                      onClick={() => toggleTaskMutation.mutate(item.id)}
+                      className={cn(
+                        "w-4 h-4 rounded border shrink-0 mt-0.5 flex items-center justify-center transition-colors",
+                        item.isCompleted
+                          ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
+                          : "border-slate-600 hover:border-blue-500/50"
+                      )}
+                    >
+                      {item.isCompleted && <Check className="w-2.5 h-2.5" />}
+                    </button>
+                    <span className={cn(
+                      "text-xs flex-1 min-w-0",
+                      item.isCompleted ? "text-slate-600 line-through" : "text-slate-300"
+                    )}>
+                      {item.title}
+                    </span>
+                    <button
+                      onClick={() => deleteTaskMutation.mutate(item.id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-600 hover:text-red-400 shrink-0"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add task input */}
+              <div className="px-3 py-2 border-t border-slate-800/60">
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Add task…"
+                    value={newTask}
+                    onChange={e => setNewTask(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && newTask.trim()) addTaskMutation.mutate(); }}
+                    className="h-7 text-xs bg-slate-800/40 border-slate-700/50 text-slate-300 placeholder:text-slate-600"
+                    data-testid="input-new-task"
+                  />
+                  <Button
+                    size="sm"
+                    className="h-7 w-7 p-0 shrink-0"
+                    disabled={!newTask.trim() || addTaskMutation.isPending}
+                    onClick={() => addTaskMutation.mutate()}
+                    data-testid="button-add-task"
+                  >
+                    {addTaskMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                  </Button>
                 </div>
               </div>
             </div>
-          )}
 
-          {participants.length === 0 && pendingInvites.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              <Users2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm font-medium">No participants yet</p>
-              <p className="text-xs mt-1">Invite agents, providers, or surveyors to collaborate on this voyage.</p>
+            {/* CONTACTS */}
+            <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/30">
+                <div className="flex items-center gap-2">
+                  <Users2 className="w-4 h-4 text-blue-400" />
+                  <h3 className="text-sm font-semibold">Contacts</h3>
+                  {voyageContactsList.length > 0 && (
+                    <span className="text-[10px] text-slate-500 bg-slate-800 rounded-full px-1.5 py-0.5">{voyageContactsList.length}</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="divide-y divide-slate-800/50 max-h-52 overflow-y-auto">
+                {voyageContactsList.length === 0 && (
+                  <div className="flex flex-col items-center py-5">
+                    <Users2 className="w-6 h-6 text-slate-700 mb-1.5" />
+                    <p className="text-[11px] text-slate-600">No contacts added</p>
+                  </div>
+                )}
+                {voyageContactsList.map((c: any) => (
+                  <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-800/30 transition-colors group">
+                    <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-slate-700 to-slate-600 flex items-center justify-center text-[11px] font-bold text-slate-300 shrink-0">
+                      {(c.name || c.email || "?")[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium text-slate-300 truncate">{c.name || c.email}</div>
+                      <div className="text-[10px] text-slate-500 truncate capitalize">{c.role || "Contact"}</div>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {c.email && (
+                        <a href={`mailto:${c.email}`} className="w-6 h-6 rounded-md hover:bg-slate-700 flex items-center justify-center" title={c.email}>
+                          <Mail className="w-3 h-3 text-slate-400" />
+                        </a>
+                      )}
+                      {(isOwner || isAgent) && (
+                        <button onClick={() => deleteContactMutation.mutate(c.id)} className="w-6 h-6 rounded-md hover:bg-slate-700 flex items-center justify-center" data-testid={`button-delete-contact-${c.id}`}>
+                          <X className="w-3 h-3 text-slate-500 hover:text-red-400" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add contact inline */}
+              {(isOwner || isAgent) && (
+              <div className="px-3 py-2 border-t border-slate-800/60">
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Email address…"
+                    value={newContactEmail}
+                    onChange={e => setNewContactEmail(e.target.value)}
+                    type="email"
+                    onKeyDown={e => { if (e.key === "Enter" && newContactEmail.includes("@")) addContactMutation.mutate({ email: newContactEmail, name: newContactName || undefined, role: newContactRole }); }}
+                    className="h-7 text-xs bg-slate-800/40 border-slate-700/50 text-slate-300 placeholder:text-slate-600"
+                    data-testid="input-contact-email"
+                  />
+                  <Button
+                    size="sm"
+                    className="h-7 w-7 p-0 shrink-0"
+                    disabled={!newContactEmail.includes("@") || addContactMutation.isPending}
+                    onClick={() => addContactMutation.mutate({ email: newContactEmail, name: newContactName || undefined, role: newContactRole })}
+                    data-testid="button-add-contact"
+                  >
+                    {addContactMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                  </Button>
+                </div>
+              </div>
+              )}
             </div>
-          )}
+
+            {/* QUICK ACTIONS */}
+            <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-4">
+              <h3 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-3">Quick Actions</h3>
+              <div className="flex flex-col gap-1">
+                <Link href={`/agent-report/${voyageId}`}>
+                  <button className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-800/50 transition-colors text-left group w-full">
+                    <FileText className="w-4 h-4 shrink-0 text-blue-400" />
+                    <span className="text-xs text-slate-400 group-hover:text-slate-200 transition-colors">Agent Report</span>
+                  </button>
+                </Link>
+                {features.hasSOF && (
+                  <Link href={`/sof?voyageId=${voyageId}`}>
+                    <button className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-800/50 transition-colors text-left group w-full">
+                      <ClipboardList className="w-4 h-4 shrink-0 text-emerald-400" />
+                      <span className="text-xs text-slate-400 group-hover:text-slate-200 transition-colors">SOF Report</span>
+                    </button>
+                  </Link>
+                )}
+                <Link href={`/voyages/${voyageId}/pnl`}>
+                  <button className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-800/50 transition-colors text-left group w-full">
+                    <BarChart2 className="w-4 h-4 shrink-0 text-amber-400" />
+                    <span className="text-xs text-slate-400 group-hover:text-slate-200 transition-colors">P&L Summary</span>
+                  </button>
+                </Link>
+                {(isOwner || isAgent) && (
+                  <button onClick={() => setShowInviteDialog(true)} className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-800/50 transition-colors text-left group" data-testid="button-quick-invite">
+                    <UserPlus className="w-4 h-4 shrink-0 text-purple-400" />
+                    <span className="text-xs text-slate-400 group-hover:text-slate-200 transition-colors">Invite Team Member</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* TEAM MEMBERS (compact) */}
+            {participants.length > 0 && (
+              <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-700/30 flex items-center gap-2">
+                  <UsersIcon className="w-4 h-4 text-sky-400" />
+                  <h3 className="text-sm font-semibold">Team</h3>
+                  <span className="text-[10px] text-slate-500 bg-slate-800 rounded-full px-1.5 py-0.5">{participants.length + 1}</span>
+                </div>
+                <div className="divide-y divide-slate-800/50">
+                  {/* Owner */}
+                  <div className="flex items-center gap-3 px-4 py-2">
+                    <div className="w-7 h-7 rounded-full bg-amber-600 flex items-center justify-center text-[11px] font-bold text-white shrink-0">
+                      {voyage?.ownerFirstName?.[0] ?? "O"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium text-slate-300 truncate">{`${voyage?.ownerFirstName ?? ""} ${voyage?.ownerLastName ?? ""}`.trim() || "Owner"}</div>
+                      <div className="text-[10px] text-amber-400">Owner</div>
+                    </div>
+                  </div>
+                  {participants.slice(0, 5).map((p: any) => (
+                    <div key={p.id} className="flex items-center gap-3 px-4 py-2">
+                      <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-[11px] font-bold text-white shrink-0">
+                        {(p.firstName?.[0] ?? p.email?.[0] ?? "?").toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-slate-300 truncate">{`${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() || p.email}</div>
+                        <div className="text-[10px] text-slate-500 capitalize">{p.role}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       )}
