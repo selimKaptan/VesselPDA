@@ -102,6 +102,7 @@ const NotificationsPage = lazy(() => import("@/pages/notifications"));
 const CrewDocSettings = lazy(() => import("@/pages/crew-doc-settings"));
 const AgentReports = lazy(() => import("@/pages/agent-reports"));
 const CargoOps = lazy(() => import("@/pages/cargo-ops"));
+const VoyagePnl = lazy(() => import("@/pages/voyage-pnl"));
 
 function PageLoader() {
   return (
@@ -146,6 +147,7 @@ function AuthenticatedRouter() {
         <Route path="/settings" component={Settings} />
         <Route path="/voyages" component={Voyages} />
         <Route path="/voyages/:id" component={VoyageDetail} />
+        <Route path="/voyages/:id/pnl" component={VoyagePnl} />
         <Route path="/voyage-workflow/:id" component={VoyageWorkflow} />
         <Route path="/service-requests" component={ServiceRequests} />
         <Route path="/service-requests/:id" component={ServiceRequestDetail} />

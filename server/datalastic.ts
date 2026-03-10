@@ -124,7 +124,6 @@ async function datalasticFetch(path: string): Promise<any> {
     );
   } catch {}
 
-  // API key query parameter olarak gönderilmeli — Datalastic Bearer token desteklemiyor
   const separator = path.includes("?") ? "&" : "?";
   const url = `${BASE}${path}${separator}api-key=${key}`;
 

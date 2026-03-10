@@ -99,7 +99,7 @@ async function seedTestAdmin() {
       console.log("[seed] Test admin account already exists, skipping.");
       return;
     }
-    const password = process.env.TEST_ADMIN_PASSWORD || "TestPass123!";
+    const password = process.env.TEST_ADMIN_PASSWORD || "DefaultDev_2026!";
     const passwordHash = await bcrypt.hash(password, 12);
     await db.execute(sql`
       INSERT INTO users (id, email, password_hash, first_name, last_name, user_role, active_role, email_verified, role_confirmed, is_suspended)

@@ -9,7 +9,7 @@ import {
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
   FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings, Archive, X,
   TrendingUp, TrendingDown, AlertTriangle, Mail, Plane, LogIn, LogOut, Maximize2, Calculator, FolderLock,
-  Scale, Banknote, CreditCard, Percent,
+  Scale, Banknote, CreditCard, Percent, BarChart2,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
@@ -2364,6 +2364,11 @@ export default function VoyageDetail() {
             {/* ⚡ Close Operation button */}
             {!isShipowner && isOwner && (voyage.status === "active" || voyage.status === "completed") && (
               <div className="flex items-center gap-2">
+                <Link href={`/voyages/${voyageId}/pnl`}>
+                  <Button variant="outline" size="sm" className="gap-1.5 h-8" data-testid="button-pnl">
+                    <BarChart2 className="w-3.5 h-3.5" /> P&L
+                  </Button>
+                </Link>
                 <Button
                   variant="outline"
                   size="sm"

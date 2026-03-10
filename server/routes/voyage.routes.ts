@@ -10,7 +10,7 @@ import { db } from "../db";
 import { eq, desc, asc, inArray } from "drizzle-orm";
 import multer from "multer";
 import { logVoyageActivity } from "../voyage-activity";
-import { voyageActivities, voyageCargoLogs, voyageCargoReceivers, voyages, voyageContacts, fdaAccounts, invoices, daAdvances, statementOfFacts, noticeOfReadiness, proformas, portCalls, voyageCollaborators, voyageNotes, pscInspections } from "@shared/schema";
+import { voyageActivities, voyageCargoLogs, voyageCargoReceivers, voyages, voyageContacts, fdaAccounts, invoices, daAdvances, statementOfFacts, noticeOfReadiness, proformas, portCalls, voyageCollaborators, voyageNotes, pscInspections, portExpenses, charterParties, hirePayments, offHireEvents, laytimeSheets, bunkerOrders, noonReports } from "@shared/schema";
 import { users } from "@shared/models/auth";
 import path from "path";
 import fs from "fs";
@@ -1878,6 +1878,99 @@ router.patch("/:id/cargo-total", isAuthenticated, async (req: any, res) => {
     res.json({ ok: true });
   } catch {
     res.status(500).json({ message: "Failed to update cargo total" });
+  }
+});
+
+// GET /:id/pnl — Sefer Kâr/Zarar Hesaplama
+router.get("/:id/pnl", isAuthenticated, async (req: any, res) => {
+  const voyageId = parseInt(req.params.id);
+  try {
+    const [voyage] = await db.select().from(voyages).where(eq(voyages.id, voyageId));
+    if (!voyage) return res.status(404).json({ message: "Voyage not found" });
+
+    const [pdaList, fdaList, expenseList, invoiceList, advanceList,
+           bunkerOrderList, noonReportList, charterPartyList,
+           hirePaymentList, offHireList, laytimeList] = await Promise.all([
+      db.select().from(proformas).where(eq(proformas.voyageId, voyageId)),
+      db.select().from(fdaAccounts).where(eq(fdaAccounts.voyageId, voyageId)),
+      db.select().from(portExpenses).where(eq(portExpenses.voyageId, voyageId)),
+      db.select().from(invoices).where(eq(invoices.voyageId, voyageId)),
+      db.select().from(daAdvances).where(eq(daAdvances.voyageId, voyageId)),
+      voyage.vesselId ? db.select().from(bunkerOrders).where(eq(bunkerOrders.vesselId, voyage.vesselId)) : Promise.resolve([]),
+      voyage.vesselId ? db.select().from(noonReports).where(eq(noonReports.vesselId, voyage.vesselId)) : Promise.resolve([]),
+      voyage.vesselId ? db.select().from(charterParties).where(eq(charterParties.vesselId, voyage.vesselId)) : Promise.resolve([]),
+      voyage.vesselId ? db.select().from(hirePayments).where(eq(hirePayments.vesselId, voyage.vesselId)) : Promise.resolve([]),
+      voyage.vesselId ? db.select().from(offHireEvents).where(eq(offHireEvents.vesselId, voyage.vesselId)) : Promise.resolve([]),
+      db.select().from(laytimeSheets).where(eq(laytimeSheets.voyageId, voyageId)),
+    ]);
+
+    // GELIR
+    const freightIncome = charterPartyList.reduce((s: number, cp: any) => s + (Number(cp.freightRate) || 0) * (Number(voyage.cargoQuantity) || 0), 0);
+    const hireIncome = hirePaymentList.reduce((s: number, hp: any) => s + (Number(hp.amount) || 0), 0);
+    const demurrageIncome = laytimeList.reduce((s: number, lt: any) => {
+      const r = lt.result as any;
+      return r?.status === "demurrage" ? s + (Number(r?.amount) || 0) : s;
+    }, 0);
+    const despatchSavings = laytimeList.reduce((s: number, lt: any) => {
+      const r = lt.result as any;
+      return r?.status === "despatch" ? s + (Number(r?.amount) || 0) : s;
+    }, 0);
+    const totalRevenue = freightIncome + hireIncome + demurrageIncome + despatchSavings;
+
+    // GIDER
+    const fdaActualTotal = fdaList.reduce((s: number, f: any) => s + (Number(f.totalActualUsd) || 0), 0);
+    const portExpenseTotal = expenseList.reduce((s: number, e: any) => s + (Number(e.amountUsd) || Number(e.amount) || 0), 0);
+    const actualPortCosts = fdaActualTotal > 0 ? fdaActualTotal : portExpenseTotal;
+
+    const expenseByCategory: Record<string, number> = {};
+    for (const e of expenseList as any[]) {
+      const cat = e.category || "other";
+      expenseByCategory[cat] = (expenseByCategory[cat] || 0) + (Number(e.amountUsd) || Number(e.amount) || 0);
+    }
+
+    const bunkerCost = bunkerOrderList.reduce((s: number, bo: any) => s + (Number(bo.totalCost) || (Number(bo.quantity) || 0) * (Number(bo.pricePerTon) || 0)), 0);
+    const voyageNoonReports = noonReportList.filter((nr: any) => nr.voyageId === voyageId);
+    const totalHfoConsumed = voyageNoonReports.reduce((s: number, nr: any) => s + (Number(nr.hfoConsumed) || 0), 0);
+    const totalMgoConsumed = voyageNoonReports.reduce((s: number, nr: any) => s + (Number(nr.mgoConsumed) || 0), 0);
+    const totalLsfoConsumed = voyageNoonReports.reduce((s: number, nr: any) => s + (Number(nr.lsfoConsumed) || 0), 0);
+    const estimatedBunkerCost = bunkerCost > 0 ? bunkerCost : (totalHfoConsumed * 450) + (totalMgoConsumed * 750) + (totalLsfoConsumed * 500);
+    const offHireDeduction = offHireList.reduce((s: number, oh: any) => s + (Number(oh.amount) || 0), 0);
+    const totalCosts = actualPortCosts + estimatedBunkerCost + offHireDeduction;
+    const grossProfit = totalRevenue - totalCosts;
+    const profitMargin = totalRevenue > 0 ? Math.round((grossProfit / totalRevenue) * 1000) / 10 : 0;
+
+    // TCE & Voyage Days
+    let voyageDays = 0;
+    if (voyage.eta && voyage.etd) {
+      voyageDays = Math.max((new Date(voyage.etd as any).getTime() - new Date(voyage.eta as any).getTime()) / 86400000, 0.5);
+    } else {
+      voyageDays = Math.max((Date.now() - new Date(voyage.createdAt).getTime()) / 86400000, 0.5);
+    }
+    voyageDays = Math.round(voyageDays * 10) / 10;
+    const tce = voyageDays > 0 ? Math.round((totalRevenue - totalCosts) / voyageDays) : 0;
+
+    // PDA vs FDA
+    const pdaTotal = pdaList.reduce((s: number, p: any) => s + (Number(p.totalUsd) || 0), 0);
+    const pdaFdaVariance = fdaActualTotal - pdaTotal;
+    const pdaFdaVariancePct = pdaTotal > 0 ? Math.round((pdaFdaVariance / pdaTotal) * 1000) / 10 : 0;
+
+    const totalAdvanceRequested = (advanceList as any[]).reduce((s: number, a: any) => s + (Number(a.requestedAmount) || 0), 0);
+    const totalAdvanceReceived = (advanceList as any[]).reduce((s: number, a: any) => s + (Number(a.receivedAmount) || 0), 0);
+
+    res.json({
+      voyage: { id: voyage.id, vesselName: voyage.vesselName, status: voyage.status, eta: voyage.eta, etd: voyage.etd, cargoType: voyage.cargoType, cargoQuantity: voyage.cargoQuantity, voyageDays },
+      revenue: { freightIncome, hireIncome, demurrageIncome, despatchSavings, totalRevenue, dailyRevenue: voyageDays > 0 ? Math.round(totalRevenue / voyageDays) : 0 },
+      costs: { portExpenses: actualPortCosts, bunkerCost: estimatedBunkerCost, agencyFees: expenseByCategory["agency_fee"] || expenseByCategory["agency"] || 0, canalFees: (expenseByCategory["canal_dues"] || 0) + (expenseByCategory["transit"] || 0), insuranceCost: expenseByCategory["insurance"] || 0, offHireDeduction, totalCosts, dailyCost: voyageDays > 0 ? Math.round(totalCosts / voyageDays) : 0, expenseByCategory },
+      bunker: { orders: bunkerOrderList.length, totalOrderCost: bunkerCost, consumption: { hfo: Math.round(totalHfoConsumed * 10) / 10, mgo: Math.round(totalMgoConsumed * 10) / 10, lsfo: Math.round(totalLsfoConsumed * 10) / 10, total: Math.round((totalHfoConsumed + totalMgoConsumed + totalLsfoConsumed) * 10) / 10 } },
+      pnl: { grossProfit, profitMargin, tce, status: grossProfit > 0 ? "profit" : grossProfit < 0 ? "loss" : "breakeven" },
+      comparison: { pdaTotal, fdaTotal: fdaActualTotal, variance: pdaFdaVariance, variancePercent: pdaFdaVariancePct },
+      advances: { requested: totalAdvanceRequested, received: totalAdvanceReceived, balance: totalAdvanceRequested - totalAdvanceReceived },
+      laytime: { sheets: laytimeList.length, demurrageIncome, despatchSavings, offHireDeduction },
+      meta: { noonReportCount: voyageNoonReports.length, invoiceCount: invoiceList.length, expenseCount: expenseList.length },
+    });
+  } catch (err: any) {
+    console.error("[voyage-pnl] Error:", err.message);
+    res.status(500).json({ message: "P&L calculation failed" });
   }
 });
 
