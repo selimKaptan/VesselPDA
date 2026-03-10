@@ -163,11 +163,11 @@ export default function PMSPage() {
   };
 
   const selectedEquipment = useMemo(() => {
-    return treeData?.flatEquipment.find(e => e.id === selectedEquipmentId);
+    return treeData?.flatEquipment?.find(e => e.id === selectedEquipmentId);
   }, [treeData, selectedEquipmentId]);
 
   const equipmentJobs = useMemo(() => {
-    return jobsData?.jobs.filter(j => j.equipmentId === selectedEquipmentId) || [];
+    return jobsData?.jobs?.filter(j => j.equipmentId === selectedEquipmentId) || [];
   }, [jobsData, selectedEquipmentId]);
 
   if (!selectedVesselId && vessels.length > 0) return null;
@@ -220,7 +220,7 @@ export default function PMSPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Overdue Jobs</p>
-                    <h2 className="text-3xl font-bold text-destructive">{jobsData?.summary.overdue || 0}</h2>
+                    <h2 className="text-3xl font-bold text-destructive">{jobsData?.summary?.overdue || 0}</h2>
                   </div>
                   <AlertTriangle className="h-5 w-5 text-destructive" />
                 </div>
@@ -231,7 +231,7 @@ export default function PMSPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Due Next 30 Days</p>
-                    <h2 className="text-3xl font-bold text-orange-500">{jobsData?.summary.dueSoon || 0}</h2>
+                    <h2 className="text-3xl font-bold text-orange-500">{jobsData?.summary?.dueSoon || 0}</h2>
                   </div>
                   <Clock className="h-5 w-5 text-orange-500" />
                 </div>
@@ -242,7 +242,7 @@ export default function PMSPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Open Work Orders</p>
-                    <h2 className="text-3xl font-bold text-blue-500">{woData?.summary.open || 0}</h2>
+                    <h2 className="text-3xl font-bold text-blue-500">{woData?.summary?.open || 0}</h2>
                   </div>
                   <Wrench className="h-5 w-5 text-blue-500" />
                 </div>
@@ -253,7 +253,7 @@ export default function PMSPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Pending Approval</p>
-                    <h2 className="text-3xl font-bold text-purple-500">{woData?.summary.awaitingApproval || 0}</h2>
+                    <h2 className="text-3xl font-bold text-purple-500">{woData?.summary?.awaitingApproval || 0}</h2>
                   </div>
                   <CheckCircle2 className="h-5 w-5 text-purple-500" />
                 </div>
@@ -264,7 +264,7 @@ export default function PMSPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Class Surveys Due</p>
-                    <h2 className="text-3xl font-bold text-emerald-500">{surveyData?.summary.upcoming || 0}</h2>
+                    <h2 className="text-3xl font-bold text-emerald-500">{surveyData?.summary?.upcoming || 0}</h2>
                   </div>
                   <FileSearch className="h-5 w-5 text-emerald-500" />
                 </div>
@@ -280,7 +280,7 @@ export default function PMSPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {jobsData?.jobs.filter(j => j.isOverdue).slice(0, 5).map(job => (
+                  {jobsData?.jobs?.filter(j => j.isOverdue).slice(0, 5).map(job => (
                     <div key={job.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-destructive/20">
                       <div>
                         <p className="font-medium">{job.title}</p>
@@ -292,7 +292,7 @@ export default function PMSPage() {
                       </div>
                     </div>
                   ))}
-                  {(!jobsData?.jobs.filter(j => j.isOverdue).length) && (
+                  {(!jobsData?.jobs?.filter(j => j.isOverdue).length) && (
                     <div className="text-center py-8 text-muted-foreground italic">No overdue jobs currently</div>
                   )}
                 </div>
@@ -306,7 +306,7 @@ export default function PMSPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {woData?.workOrders.filter(wo => wo.status === "awaiting_approval").slice(0, 5).map(wo => (
+                  {woData?.workOrders?.filter(wo => wo.status === "awaiting_approval").slice(0, 5).map(wo => (
                     <div key={wo.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                       <div>
                         <p className="font-medium">{wo.title}</p>
@@ -317,7 +317,7 @@ export default function PMSPage() {
                       </Button>
                     </div>
                   ))}
-                  {(!woData?.workOrders.filter(wo => wo.status === "awaiting_approval").length) && (
+                  {(!woData?.workOrders?.filter(wo => wo.status === "awaiting_approval").length) && (
                     <div className="text-center py-8 text-muted-foreground italic">No work orders pending approval</div>
                   )}
                 </div>
@@ -349,7 +349,7 @@ export default function PMSPage() {
                     </div>
                   ) : (
                     <Accordion type="multiple" className="w-full">
-                      {treeData?.tree.map((cat: any) => (
+                      {treeData?.tree?.map((cat: any) => (
                         <AccordionItem key={cat.id} value={`cat-${cat.id}`} className="border-none">
                           <AccordionTrigger className="hover:no-underline py-2 px-2 hover:bg-muted/50 rounded-md">
                             <div className="flex items-center gap-2">
@@ -510,7 +510,7 @@ export default function PMSPage() {
                         <tr key={i}><td colSpan={7} className="px-4 py-4"><Skeleton className="h-10 w-full" /></td></tr>
                       ))
                     ) : (
-                      jobsData?.jobs.map(job => (
+                      jobsData?.jobs?.map(job => (
                         <tr key={job.id} className="hover:bg-muted/30 transition-colors">
                           <td className="px-4 py-4">
                             <div className="font-medium">{job.title}</div>
@@ -564,7 +564,7 @@ export default function PMSPage() {
                 {loadingWOs ? (
                   <Skeleton className="h-32 w-full" />
                 ) : (
-                  woData?.workOrders.map(wo => (
+                  woData?.workOrders?.map(wo => (
                     <Card key={wo.id} className="hover-elevate border-l-4 border-l-blue-500">
                       <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
@@ -601,7 +601,7 @@ export default function PMSPage() {
                     </Card>
                   ))
                 )}
-                {(!woData?.workOrders.length) && (
+                {(!woData?.workOrders?.length) && (
                   <div className="text-center py-12 border-2 border-dashed rounded-lg">
                     <ClipboardList className="h-12 w-12 mx-auto mb-3 opacity-10" />
                     <p className="text-muted-foreground">No work orders found for this vessel</p>
@@ -632,7 +632,7 @@ export default function PMSPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {treeData?.flatEquipment.filter(e => e.hasRunningHours).map(item => (
+                    {treeData?.flatEquipment?.filter(e => e.hasRunningHours).map(item => (
                       <tr key={item.id} className="hover:bg-muted/30">
                         <td className="px-4 py-4 font-medium">{item.name}</td>
                         <td className="px-4 py-4 text-xs font-mono">{item.code}</td>
@@ -718,7 +718,7 @@ export default function PMSPage() {
                     {loadingSurveys ? (
                       <tr><td colSpan={6} className="px-4 py-8 text-center"><Skeleton className="h-10 w-full" /></td></tr>
                     ) : (
-                      surveyData?.surveys.map(survey => (
+                      surveyData?.surveys?.map(survey => (
                         <tr key={survey.id} className="hover:bg-muted/30">
                           <td className="px-4 py-4 font-medium">{survey.surveyType}</td>
                           <td className="px-4 py-4">
