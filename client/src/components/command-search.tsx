@@ -1,35 +1,12 @@
-import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from "@/components/ui/command";
-import {
-  Loader2,
-  Ship,
-  Anchor,
-  FileText,
-  Map,
-  Users,
-  Receipt,
-  BarChart3,
-  MessageSquare,
-  Building2,
-  Clock,
-  Navigation,
-  LayoutDashboard,
-  Settings,
-  Compass,
-  MapPin,
-  DollarSign,
-  Search,
+  Loader2, Ship, Anchor, FileText, Map, Users, Receipt,
+  BarChart3, MessageSquare, Building2, Clock, Navigation,
+  LayoutDashboard, Settings, Compass, MapPin, DollarSign,
+  Search, X, ArrowRight,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface SearchResult {
   type: string;
@@ -40,25 +17,17 @@ interface SearchResult {
   href: string;
 }
 
-interface GroupedResults {
-  type: string;
-  label: string;
-  icon: ReactNode;
-  color: string;
-  items: SearchResult[];
-}
-
-const TYPE_CONFIG: Record<string, { label: string; icon: ReactNode; color: string }> = {
-  vessel:          { label: "Vessels",   icon: <Ship className="w-4 h-4" />,         color: "text-sky-400" },
-  voyage:          { label: "Voyages",   icon: <Map className="w-4 h-4" />,           color: "text-indigo-400" },
-  proforma:        { label: "Proformas", icon: <FileText className="w-4 h-4" />,      color: "text-emerald-400" },
-  fda:             { label: "FDA",       icon: <BarChart3 className="w-4 h-4" />,     color: "text-orange-400" },
-  invoice:         { label: "Invoices",  icon: <Receipt className="w-4 h-4" />,       color: "text-violet-400" },
-  port:            { label: "Ports",     icon: <Anchor className="w-4 h-4" />,        color: "text-amber-400" },
-  port_datalastic: { label: "Ports",     icon: <Anchor className="w-4 h-4" />,        color: "text-violet-400" },
-  company:         { label: "Companies", icon: <Building2 className="w-4 h-4" />,     color: "text-rose-400" },
-  forum:           { label: "Forum",     icon: <MessageSquare className="w-4 h-4" />, color: "text-teal-400" },
-  tender:          { label: "Tenders",   icon: <Users className="w-4 h-4" />,         color: "text-pink-400" },
+const TYPE_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string }> = {
+  vessel:          { label: "Vessels",   icon: Ship,         color: "text-sky-400" },
+  voyage:          { label: "Voyages",   icon: Navigation,   color: "text-emerald-400" },
+  proforma:        { label: "Proformas", icon: FileText,     color: "text-indigo-400" },
+  fda:             { label: "FDA",       icon: BarChart3,    color: "text-orange-400" },
+  invoice:         { label: "Invoices",  icon: Receipt,      color: "text-violet-400" },
+  port:            { label: "Ports",     icon: MapPin,       color: "text-amber-400" },
+  port_datalastic: { label: "Ports",     icon: Anchor,       color: "text-amber-400" },
+  company:         { label: "Companies", icon: Building2,    color: "text-rose-400" },
+  forum:           { label: "Forum",     icon: MessageSquare,color: "text-teal-400" },
+  tender:          { label: "Tenders",   icon: Users,        color: "text-pink-400" },
 };
 
 const TYPE_ORDER = ["vessel", "voyage", "proforma", "fda", "invoice", "tender", "port", "port_datalastic", "company", "forum"];
@@ -90,22 +59,7 @@ function saveRecent(item: { title: string; subtitle: string; href: string; type:
   } catch {}
 }
 
-function groupResults(results: SearchResult[]): GroupedResults[] {
-  const map: Record<string, SearchResult[]> = {};
-  for (const r of results) {
-    if (!map[r.type]) map[r.type] = [];
-    map[r.type].push(r);
-  }
-  return TYPE_ORDER
-    .filter(t => !!map[t])
-    .map(t => ({
-      type: t,
-      label: TYPE_CONFIG[t]?.label ?? t,
-      icon: TYPE_CONFIG[t]?.icon,
-      color: TYPE_CONFIG[t]?.color ?? "text-slate-400",
-      items: map[t],
-    }));
-}
+interface FlatItem { url: string; title: string; subtitle: string; type: string; id?: number }
 
 interface CommandSearchProps {
   open: boolean;
@@ -117,9 +71,11 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [recent, setRecent] = useState<ReturnType<typeof loadRecent>>([]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const latestRef = useRef("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const [, navigate] = useLocation();
 
   useEffect(() => {
@@ -136,12 +92,16 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
   useEffect(() => {
     if (open) {
       setRecent(loadRecent());
+      setTimeout(() => inputRef.current?.focus(), 50);
     } else {
       setQuery("");
       setResults([]);
+      setSelectedIndex(0);
       if (abortRef.current) abortRef.current.abort();
     }
   }, [open]);
+
+  useEffect(() => { setSelectedIndex(0); }, [query]);
 
   const fetchResults = useCallback(async (q: string) => {
     if (q.length < 2) { setResults([]); setLoading(false); return; }
@@ -175,179 +135,250 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query, fetchResults]);
 
-  function handleSelect(result: SearchResult) {
-    saveRecent({ title: result.title, subtitle: result.subtitle, href: result.href, type: result.type });
-    navigate(result.href);
-    onOpenChange(false);
-  }
-
-  function handleRecentSelect(item: ReturnType<typeof loadRecent>[0]) {
-    navigate(item.href);
-    onOpenChange(false);
-  }
-
-  function handleNavSelect(url: string) {
+  function handleSelect(url: string, result?: SearchResult) {
+    if (result) saveRecent({ title: result.title, subtitle: result.subtitle, href: result.href, type: result.type });
     navigate(url);
     onOpenChange(false);
   }
 
-  const groups = groupResults(results);
-  const showRecent = query.length < 2 && recent.length > 0;
   const filteredNav = query.length > 0
     ? QUICK_NAV.filter(n => n.name.toLowerCase().includes(query.toLowerCase()))
     : QUICK_NAV;
-  const showNav = filteredNav.length > 0 && (query.length < 2 || groups.length === 0);
+
+  const groupedResults: { type: string; items: SearchResult[] }[] = TYPE_ORDER
+    .map(t => ({ type: t, items: results.filter(r => r.type === t) }))
+    .filter(g => g.items.length > 0);
+
+  const showSearchResults = query.length >= 2 && (results.length > 0 || loading);
+  const showEmpty = query.length >= 2 && !loading && results.length === 0 && filteredNav.length === 0;
+  const showRecent = query.length < 2 && recent.length > 0;
+
+  const allFlat: FlatItem[] = [
+    ...(showRecent ? recent.map(r => ({ url: r.href, title: r.title, subtitle: r.subtitle, type: r.type })) : []),
+    ...results.map(r => ({ url: r.href, title: r.title, subtitle: r.subtitle, type: r.type, id: r.id })),
+    ...(query.length < 2 ? filteredNav.map(n => ({ url: n.url, title: n.name, subtitle: "", type: "nav" })) : []),
+    ...(query.length >= 2 && results.length === 0 ? filteredNav.map(n => ({ url: n.url, title: n.name, subtitle: "", type: "nav" })) : []),
+  ];
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex(prev => Math.min(prev + 1, allFlat.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (allFlat[selectedIndex]) {
+        const matched = results.find(r => r.href === allFlat[selectedIndex].url);
+        handleSelect(allFlat[selectedIndex].url, matched);
+      }
+    } else if (e.key === "Escape") {
+      onOpenChange(false);
+    }
+  }
+
+  let flatIdx = 0;
+
+  if (!open) return null;
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-        <DialogPrimitive.Content
-          className="fixed left-1/2 top-[14%] z-50 w-full max-w-lg -translate-x-1/2 rounded-xl border border-slate-700/80 bg-[#0d1424] shadow-2xl shadow-black/80 overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=open]:slide-in-from-left-1/2 data-[state=closed]:slide-out-to-top-[14%] data-[state=open]:slide-in-from-top-[14%]"
-          data-testid="command-search-dialog"
-        >
-          <DialogPrimitive.Title className="sr-only">Search</DialogPrimitive.Title>
-          <Command
-            shouldFilter={false}
-            className="bg-transparent text-slate-100 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-widest [&_[cmdk-group-heading]]:text-slate-500 [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-item]]:rounded-lg [&_[cmdk-item]]:mx-2 [&_[cmdk-item][aria-selected=true]]:bg-slate-700/50 [&_[cmdk-item][aria-selected=true]]:text-slate-100"
-          >
-            {/* ── Search Input ── */}
-            <div className="flex items-center gap-3 px-4 border-b border-slate-700/60" cmdk-input-wrapper="">
-              {loading ? (
-                <Loader2 className="w-[18px] h-[18px] text-slate-500 shrink-0 animate-spin" />
-              ) : (
-                <Search className="w-[18px] h-[18px] text-slate-500 shrink-0" />
-              )}
-              <CommandInput
-                placeholder="Search vessels, ports, proformas, voyages..."
-                value={query}
-                onValueChange={setQuery}
-                className="flex-1 bg-transparent text-[15px] text-slate-100 placeholder:text-slate-600 outline-none border-0 p-0 py-4 h-auto focus:ring-0 [&:focus]:outline-none"
-                data-testid="input-command-search"
-              />
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]"
+        onClick={() => onOpenChange(false)}
+      />
+
+      {/* Dropdown */}
+      <div
+        className={cn(
+          "fixed z-50 left-1/2 -translate-x-1/2",
+          "top-16",
+          "w-full max-w-xl",
+          "rounded-xl border border-slate-700/80 bg-slate-900/95 backdrop-blur-xl",
+          "shadow-2xl shadow-black/50 overflow-hidden",
+        )}
+        data-testid="command-search-dialog"
+        style={{ animation: "cmdSlideIn 0.18s ease-out" }}
+      >
+        {/* Search Input */}
+        <div className="flex items-center px-4 py-3 border-b border-slate-700/50">
+          {loading ? (
+            <Loader2 className="w-4 h-4 text-slate-500 mr-3 shrink-0 animate-spin" />
+          ) : (
+            <Search className="w-4 h-4 text-slate-500 mr-3 shrink-0" />
+          )}
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Search vessels, ports, proformas, voyages..."
+            className="flex-1 bg-transparent text-sm text-slate-200 placeholder:text-slate-500 outline-none"
+            autoComplete="off"
+            data-testid="input-command-search"
+          />
+          {query ? (
+            <button onClick={() => setQuery("")} className="text-slate-500 hover:text-slate-300 ml-2 transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          ) : (
+            <kbd className="ml-3 text-[10px] text-slate-600 border border-slate-700 rounded px-1.5 py-0.5">ESC</kbd>
+          )}
+        </div>
+
+        {/* Results */}
+        <div className="max-h-[380px] overflow-y-auto py-2">
+
+          {/* Empty state */}
+          {showEmpty && (
+            <div className="flex flex-col items-center py-8 text-slate-500">
+              <Search className="w-8 h-8 mb-2 opacity-20" />
+              <p className="text-sm">No results for &quot;{query}&quot;</p>
             </div>
+          )}
 
-            {/* ── Results List ── */}
-            <CommandList className="max-h-[420px] overflow-y-auto py-2">
+          {/* Recent */}
+          {showRecent && (
+            <div>
+              <div className="px-4 py-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Recent</span>
+              </div>
+              {recent.map((item) => {
+                const cfg = TYPE_CONFIG[item.type];
+                const IconComp = cfg?.icon;
+                const myIdx = flatIdx++;
+                return (
+                  <button
+                    key={`recent-${item.href}`}
+                    onClick={() => handleSelect(item.href)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-2 text-left transition-colors",
+                      selectedIndex === myIdx ? "bg-blue-500/10 text-blue-400" : "hover:bg-slate-800/50 text-slate-300"
+                    )}
+                  >
+                    <Clock className="w-4 h-4 text-slate-600 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{item.title}</div>
+                      {item.subtitle && <div className="text-xs text-slate-500 truncate">{item.subtitle}</div>}
+                    </div>
+                    {cfg && IconComp && (
+                      <span className={cn("shrink-0", cfg.color)}>
+                        <IconComp className="w-3.5 h-3.5" />
+                      </span>
+                    )}
+                    <ArrowRight className="w-3 h-3 text-slate-600 shrink-0" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
-              {/* Empty state */}
-              {query.length >= 2 && !loading && results.length === 0 && groups.length === 0 && (
-                <CommandEmpty>
-                  <div className="flex flex-col items-center py-10 text-slate-600">
-                    <Ship className="w-10 h-10 mb-3 opacity-15" />
-                    <p className="text-sm font-medium text-slate-500">No results for &quot;{query}&quot;</p>
-                    <p className="text-xs text-slate-600 mt-1">Try a vessel name, IMO, port, or reference number</p>
-                  </div>
-                </CommandEmpty>
-              )}
-
-              {/* Recent Searches */}
-              {showRecent && (
-                <CommandGroup heading="Recent">
-                  {recent.map((item, i) => {
-                    const cfg = TYPE_CONFIG[item.type];
-                    return (
-                      <CommandItem
-                        key={`recent-${i}`}
-                        value={`recent-${item.href}-${i}`}
-                        onSelect={() => handleRecentSelect(item)}
-                        className="flex items-center gap-3 px-3 py-2.5 cursor-pointer"
-                        data-testid={`cmd-recent-${i}`}
-                      >
-                        <Clock className="w-4 h-4 text-slate-600 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-slate-200 truncate">{item.title}</div>
-                          <div className="text-xs text-slate-500 truncate">{item.subtitle}</div>
-                        </div>
-                        {cfg && (
-                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border border-slate-700/80 bg-slate-800/60 text-slate-500 shrink-0">
-                            {cfg.label}
-                          </span>
-                        )}
-                      </CommandItem>
-                    );
-                  })}
-                </CommandGroup>
-              )}
-
-              {/* Search Result Groups */}
-              {groups.map((group, gi) => (
-                <div key={group.type}>
-                  {(gi > 0 || showRecent) && <CommandSeparator className="bg-slate-700/30 mx-3 my-1.5" />}
-                  <CommandGroup heading={group.label}>
-                    {group.items.map((item) => {
-                      const cfg = TYPE_CONFIG[item.type];
-                      return (
-                        <CommandItem
-                          key={`${item.type}-${item.id}`}
-                          value={`${item.type}-${item.id}-${item.title}`}
-                          onSelect={() => handleSelect(item)}
-                          className="flex items-center gap-3 px-3 py-2.5 cursor-pointer"
-                          data-testid={`cmd-result-${item.type}-${item.id}`}
-                        >
-                          <span className={`shrink-0 ${cfg?.color ?? "text-slate-400"}`}>
-                            {cfg?.icon ?? <FileText className="w-4 h-4" />}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium text-slate-200 truncate">{item.title}</div>
-                            <div className="text-xs text-slate-500 truncate">{item.subtitle}</div>
-                          </div>
-                          <span className="text-[10px] font-mono text-slate-600 shrink-0 hidden sm:block">
-                            {item.icon}
-                          </span>
-                        </CommandItem>
-                      );
-                    })}
-                  </CommandGroup>
+          {/* Search result groups */}
+          {showSearchResults && groupedResults.map((group, gi) => {
+            const cfg = TYPE_CONFIG[group.type];
+            const IconComp = cfg?.icon;
+            return (
+              <div key={group.type}>
+                {(gi > 0 || showRecent) && (
+                  <div className="border-t border-slate-700/30 my-1 mx-3" />
+                )}
+                <div className="px-4 py-1.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    {cfg?.label ?? group.type}
+                  </span>
                 </div>
-              ))}
+                {group.items.map(item => {
+                  const myIdx = flatIdx++;
+                  return (
+                    <button
+                      key={`${item.type}-${item.id}`}
+                      onClick={() => handleSelect(item.href, item)}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-4 py-2 text-left transition-colors",
+                        selectedIndex === myIdx ? "bg-blue-500/10 text-blue-400" : "hover:bg-slate-800/50 text-slate-300"
+                      )}
+                      data-testid={`cmd-result-${item.type}-${item.id}`}
+                    >
+                      {IconComp ? (
+                        <IconComp className={cn("w-4 h-4 shrink-0", cfg?.color)} />
+                      ) : (
+                        <FileText className="w-4 h-4 text-slate-500 shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{item.title}</div>
+                        {item.subtitle && <div className="text-xs text-slate-500 truncate">{item.subtitle}</div>}
+                      </div>
+                      <ArrowRight className="w-3 h-3 text-slate-600 shrink-0" />
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
 
-              {/* Quick Navigation */}
-              {showNav && (
-                <>
-                  {(groups.length > 0 || showRecent) && (
-                    <CommandSeparator className="bg-slate-700/30 mx-3 my-1.5" />
-                  )}
-                  <CommandGroup heading="Quick Navigation">
-                    {filteredNav.map(item => (
-                      <CommandItem
-                        key={item.url}
-                        value={`nav-${item.url}-${item.name}`}
-                        onSelect={() => handleNavSelect(item.url)}
-                        className="flex items-center gap-3 px-3 py-2 cursor-pointer"
-                        data-testid={`cmd-nav-${item.url.replace(/\//g, "-")}`}
-                      >
-                        <item.icon className={`w-4 h-4 shrink-0 ${item.color}`} />
-                        <span className="text-sm text-slate-300">{item.name}</span>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </>
+          {/* Quick Navigation */}
+          {(query.length < 2 || (query.length >= 2 && results.length === 0 && filteredNav.length > 0)) && (
+            <div>
+              {(showRecent || showSearchResults) && (
+                <div className="border-t border-slate-700/30 my-1 mx-3" />
               )}
-            </CommandList>
-
-            {/* ── Footer ── */}
-            <div className="border-t border-slate-700/40 px-4 py-2.5 flex items-center gap-4 bg-slate-900/50">
-              <span className="flex items-center gap-1.5 text-[11px] text-slate-600">
-                <kbd className="inline-flex items-center rounded border border-slate-700/80 bg-slate-800/60 px-1 py-0.5 text-[10px] font-medium text-slate-500">↑↓</kbd>
-                navigate
-              </span>
-              <span className="flex items-center gap-1.5 text-[11px] text-slate-600">
-                <kbd className="inline-flex items-center rounded border border-slate-700/80 bg-slate-800/60 px-1 py-0.5 text-[10px] font-medium text-slate-500">↵</kbd>
-                open
-              </span>
-              <span className="flex items-center gap-1.5 text-[11px] text-slate-600">
-                <kbd className="inline-flex items-center rounded border border-slate-700/80 bg-slate-800/60 px-1 py-0.5 text-[10px] font-medium text-slate-500">Esc</kbd>
-                close
-              </span>
-              <span className="ml-auto text-[11px] text-slate-600 flex items-center gap-1.5">
-                <kbd className="inline-flex items-center rounded border border-slate-700/80 bg-slate-800/60 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">⌘K</kbd>
-              </span>
+              <div className="px-4 py-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  Quick Navigation
+                </span>
+              </div>
+              {filteredNav.map(item => {
+                const myIdx = flatIdx++;
+                return (
+                  <button
+                    key={item.url}
+                    onClick={() => handleSelect(item.url)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-2 text-left transition-colors",
+                      selectedIndex === myIdx ? "bg-blue-500/10 text-blue-400" : "hover:bg-slate-800/50 text-slate-300"
+                    )}
+                    data-testid={`cmd-nav-${item.url.replace(/\//g, "-")}`}
+                  >
+                    <item.icon className={cn("w-4 h-4 shrink-0", item.color)} />
+                    <span className="text-sm">{item.name}</span>
+                    <ArrowRight className="w-3 h-3 text-slate-600 shrink-0 ml-auto" />
+                  </button>
+                );
+              })}
             </div>
-          </Command>
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center gap-4 px-4 py-2 border-t border-slate-700/50 bg-slate-900/80">
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
+            <kbd className="border border-slate-700 rounded px-1 py-0.5">↑↓</kbd>
+            <span>navigate</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
+            <kbd className="border border-slate-700 rounded px-1 py-0.5">↵</kbd>
+            <span>open</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-600">
+            <kbd className="border border-slate-700 rounded px-1 py-0.5">esc</kbd>
+            <span>close</span>
+          </div>
+          <span className="ml-auto flex items-center gap-1 text-[10px] text-slate-600">
+            <kbd className="border border-slate-700 rounded px-1 py-0.5">⌘K</kbd>
+          </span>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes cmdSlideIn {
+          from { opacity: 0; transform: translate(-50%, -8px); }
+          to   { opacity: 1; transform: translate(-50%, 0); }
+        }
+      `}</style>
+    </>
   );
 }
 
