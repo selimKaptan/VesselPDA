@@ -9,7 +9,7 @@ import {
   CalendarClock, Pen, LayoutTemplate, GitBranch, BadgeCheck, DollarSign, Receipt, ExternalLink,
   FileCheck, Users2, UserPlus, MoreVertical, Package, Navigation, CheckCheck, Settings, Archive, X,
   TrendingUp, TrendingDown, AlertTriangle, Mail, Plane, LogIn, LogOut, Maximize2, Calculator, FolderLock,
-  Scale, Banknote, CreditCard, Percent, BarChart2,
+  Scale, Banknote, CreditCard, Percent, BarChart2, ScrollText,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
@@ -45,6 +45,7 @@ import { insertPortExpenseSchema, type PortExpense, type Voyage, type Port } fro
 import { generateAndPrintCrewDocs, type DocSelection } from "@/components/crew-change-docs";
 import { getDeparturePort, getDestinationPort, formatPortName, formatCoord, NAV_STATUS_CONFIG } from "@/lib/format-port";
 import { PortCallWorkflow } from "@/components/port-call-workflow";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   planned:         { label: "Planned",         color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",       icon: Clock },
@@ -4558,9 +4559,13 @@ export default function VoyageDetail() {
               )}
             </div>
             {!activeSof ? (
-              <p className="text-xs text-muted-foreground text-center py-2">
-                No Statement of Facts created for this voyage yet.
-              </p>
+                  <EmptyState
+                    icon={ClipboardList}
+                    title="No Statement of Facts"
+                    description="SOF will record all port events chronologically."
+                    compact
+                    testId="section-sof-empty"
+                  />
             ) : (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
@@ -4649,7 +4654,14 @@ export default function VoyageDetail() {
               )}
 
               {appointments.length === 0 && !showApptForm && (
-                <p className="text-xs text-muted-foreground text-center py-3">No appointments added yet</p>
+                <EmptyState
+                  icon={Calendar}
+                  title="No Appointments"
+                  description="Schedule port service appointments — pilots, tugs, agents, surveyors."
+                  action={{ label: "Add Appointment", onClick: () => setShowApptForm(true) }}
+                  compact
+                  testId="section-appointments-empty"
+                />
               )}
 
               <div className="space-y-2">
@@ -4967,24 +4979,36 @@ export default function VoyageDetail() {
 
             {/* ── Operation Logs ───────────────────── */}
             <Card className="p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-sm flex items-center gap-2">
-                  <ClipboardList className="w-4 h-4 text-[hsl(var(--maritime-primary))]" /> Operation Logs
-                </h3>
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setShowCargoReportDialog(true)} data-testid="button-send-cargo-report">
-                    <Mail className="w-3.5 h-3.5 mr-1" /> Send Report
+                  <ScrollText className="w-4 h-4 text-muted-foreground" />
+                  <h3 className="font-semibold text-sm">Operation Logs</h3>
+                  {groupedLogs.length > 0 && (
+                    <span className="text-[10px] text-slate-500 bg-slate-800 rounded-full px-2 py-0.5">{cargoLogs.length} entries</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button variant="outline" size="sm" className="text-xs h-7 gap-1.5 text-slate-400 hover:text-slate-200" onClick={() => window.print()} data-testid="button-export-logs-pdf">
+                    <Download className="w-3 h-3" /> Export PDF
                   </Button>
-                  <Button size="sm" onClick={() => setShowAddLogDialog(true)} data-testid="button-add-cargo-log">
-                    <Plus className="w-3.5 h-3.5 mr-1" /> Add Log
+                  <Button variant="outline" size="sm" className="text-xs h-7 gap-1.5 text-slate-400 hover:text-slate-200" onClick={() => setShowCargoReportDialog(true)} data-testid="button-send-cargo-report">
+                    <Mail className="w-3 h-3" /> Send Report
+                  </Button>
+                  <Button size="sm" className="text-xs h-7 gap-1.5" onClick={() => setShowAddLogDialog(true)} data-testid="button-add-cargo-log">
+                    <Plus className="w-3 h-3" /> Add Log
                   </Button>
                 </div>
               </div>
 
               {groupedLogs.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground text-sm">
-                  No logs yet. Add an operation log to start tracking cargo progress.
-                </div>
+                <EmptyState
+                  icon={ScrollText}
+                  title="No Operation Logs"
+                  description="Add timestamped logs to track cargo handling, weather delays, or operational events."
+                  action={{ label: "Add First Log", onClick: () => setShowAddLogDialog(true) }}
+                  compact
+                  testId="section-logs-empty"
+                />
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -5512,11 +5536,14 @@ export default function VoyageDetail() {
             ) : (() => {
               const filtered = Array.isArray(docs) ? (docFilter === "all" ? docs : docs.filter((d: any) => d.docType === docFilter)) : [];
               return filtered.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground">
-                  <Upload className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm font-medium">No documents yet</p>
-                  <p className="text-xs mt-1">Drag &amp; drop files here or use the "Upload" button</p>
-                </div>
+                <EmptyState
+                  icon={FolderOpen}
+                  title="No Documents"
+                  description="Upload port documents, B/Ls, survey reports, or any voyage-related files."
+                  action={{ label: "Upload File", onClick: () => fileInputRef.current?.click(), variant: "outline" }}
+                  compact
+                  testId="section-docs-empty"
+                />
               ) : (
                 <div className="space-y-2">
                   {filtered.map((doc: any) => (
@@ -5674,7 +5701,7 @@ export default function VoyageDetail() {
                     return (
                       <div
                         key={template.id}
-                        className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 flex items-start gap-3 hover:border-slate-600 transition-all"
+                        className="group bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 flex items-start gap-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-900/50 hover:border-slate-600/70 cursor-pointer"
                         data-testid={`card-template-${template.id}`}
                       >
                         <span className="text-2xl flex-shrink-0 mt-0.5">{template.emoji}</span>
@@ -5686,7 +5713,7 @@ export default function VoyageDetail() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="flex-shrink-0 h-8 px-3 gap-1.5 border-slate-600 hover:border-sky-500 hover:text-sky-400 text-slate-300 text-xs disabled:opacity-50"
+                          className="flex-shrink-0 h-8 px-3 gap-1.5 border-slate-600 hover:border-sky-500 hover:text-sky-400 text-slate-300 text-xs disabled:opacity-50 opacity-60 group-hover:opacity-100 transition-opacity"
                           onClick={() => generateOnePdf(template.id)}
                           disabled={isLoading || isGeneratingAll}
                           data-testid={`button-gen-pdf-${template.id}`}
@@ -5830,10 +5857,13 @@ export default function VoyageDetail() {
               </div>
 
             {voyageInvoices.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground" data-testid="section-invoices-empty">
-                <DollarSign className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">No invoices for this voyage yet.</p>
-              </div>
+              <EmptyState
+                icon={Receipt}
+                title="No Invoices"
+                description="Invoices will appear here once FDA is approved and settled."
+                compact
+                testId="section-invoices-empty"
+              />
             ) : (
               <div className="space-y-2" data-testid="section-invoices">
                 {voyageInvoices.map((inv: any) => (
@@ -5881,15 +5911,13 @@ export default function VoyageDetail() {
               </Link>
             </div>
             {voyageProformas.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground" data-testid="section-pdas-empty">
-                <FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">Create a Proforma Disbursement Account for this voyage.</p>
-                <Link href={`/proformas/new?voyageId=${voyageId}`}>
-                  <Button size="sm" variant="default" className="mt-3 gap-1.5" data-testid="button-create-pda-cta">
-                    <Plus className="w-3.5 h-3.5" /> New PDA
-                  </Button>
-                </Link>
-              </div>
+              <EmptyState
+                icon={FileText}
+                title="No Proformas Yet"
+                description="Create a Proforma Disbursement Account to estimate port costs for this voyage."
+                action={{ label: "Create PDA", onClick: () => window.location.href = `/proformas/new?voyageId=${voyageId}` }}
+                testId="section-pdas-empty"
+              />
             ) : (
               <div className="space-y-2" data-testid="section-pdas">
                 {voyageProformas.map((p: any) => {
