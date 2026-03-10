@@ -2,23 +2,57 @@ import { db, eq, and, or, desc, isNull } from "./base";
 import { vessels, ports, proformas, proformaApprovalLogs } from "@shared/schema";
 import type { Vessel, Port, Proforma, InsertProforma } from "@shared/schema";
 
-async function getProformasByUser(userId: string, organizationId?: number): Promise<Proforma[]> {
+type ProformaWithMeta = Proforma & { vesselName?: string | null; portName?: string | null };
+
+async function getProformasByUser(userId: string, organizationId?: number): Promise<ProformaWithMeta[]> {
   const filter = organizationId
     ? or(eq(proformas.userId, userId), eq((proformas as any).organizationId, organizationId))
     : eq(proformas.userId, userId);
-  return db.select().from(proformas)
+
+  const rows = await db
+    .select({
+      proforma: proformas,
+      vesselName: vessels.name,
+      portName: ports.name,
+    })
+    .from(proformas)
+    .leftJoin(vessels, eq(vessels.id, proformas.vesselId))
+    .leftJoin(ports, eq(ports.id, proformas.portId))
     .where(filter)
     .orderBy(desc(proformas.createdAt));
+
+  return rows.map(r => ({ ...r.proforma, vesselName: r.vesselName ?? null, portName: r.portName ?? null }));
 }
 
-async function getProformasByVoyage(voyageId: number): Promise<Proforma[]> {
-  return db.select().from(proformas)
+async function getProformasByVoyage(voyageId: number): Promise<ProformaWithMeta[]> {
+  const rows = await db
+    .select({
+      proforma: proformas,
+      vesselName: vessels.name,
+      portName: ports.name,
+    })
+    .from(proformas)
+    .leftJoin(vessels, eq(vessels.id, proformas.vesselId))
+    .leftJoin(ports, eq(ports.id, proformas.portId))
     .where(eq((proformas as any).voyageId, voyageId))
     .orderBy(desc(proformas.createdAt));
+
+  return rows.map(r => ({ ...r.proforma, vesselName: r.vesselName ?? null, portName: r.portName ?? null }));
 }
 
-async function getAllProformas(): Promise<Proforma[]> {
-  return db.select().from(proformas).orderBy(desc(proformas.createdAt));
+async function getAllProformas(): Promise<ProformaWithMeta[]> {
+  const rows = await db
+    .select({
+      proforma: proformas,
+      vesselName: vessels.name,
+      portName: ports.name,
+    })
+    .from(proformas)
+    .leftJoin(vessels, eq(vessels.id, proformas.vesselId))
+    .leftJoin(ports, eq(ports.id, proformas.portId))
+    .orderBy(desc(proformas.createdAt));
+
+  return rows.map(r => ({ ...r.proforma, vesselName: r.vesselName ?? null, portName: r.portName ?? null }));
 }
 
 async function getProforma(id: number, userId: string): Promise<(Proforma & { vessel?: Vessel; port?: Port }) | undefined> {

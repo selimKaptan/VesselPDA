@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { EmptyState } from "@/components/empty-state";
-import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign, Zap, Loader2, Calculator, Ship, Anchor, Globe, Package, AlertTriangle, X, Send, RefreshCw, Clock, CheckCircle2, XCircle, Download } from "lucide-react";
+import { FileText, Plus, Eye, Trash2, Search, Copy, Gavel, Trophy, ExternalLink, DollarSign, Zap, Loader2, Calculator, Ship, Anchor, Globe, Package, AlertTriangle, X, Send, RefreshCw, Clock, CheckCircle2, XCircle, Download, Mail } from "lucide-react";
+import { SmartMailComposer } from "@/components/smart-mail-composer";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ export default function Proformas() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [vesselFilter, setVesselFilter] = useState("all");
+  const [mailComposerData, setMailComposerData] = useState<{ id: number; meta: { vesselName?: string; portName?: string; referenceNumber?: string; toEmail?: string; toCompany?: string } } | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const { open: sidebarOpen } = useSidebar();
@@ -383,7 +385,8 @@ export default function Proformas() {
       p.referenceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.toCompany || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.cargoType || "").toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || p.status === statusFilter;
+    const matchesStatus = statusFilter === "all"
+      || (statusFilter === "final" ? p.status === "final" : (p as any).approvalStatus === statusFilter);
     const matchesVessel = vesselFilter === "all" || String(p.vesselId) === vesselFilter;
     return matchesSearch && matchesStatus && matchesVessel;
   });
@@ -430,14 +433,16 @@ export default function Proformas() {
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter} data-testid="select-status-filter">
-          <SelectTrigger className="w-36" data-testid="trigger-status-filter">
+          <SelectTrigger className="w-40" data-testid="trigger-status-filter">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="all">All Statuses</SelectItem>
             <SelectItem value="draft">Draft</SelectItem>
+            <SelectItem value="sent">Pending Approval</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="revision_requested">Revision</SelectItem>
             <SelectItem value="final">Final</SelectItem>
-            <SelectItem value="sent">Sent</SelectItem>
           </SelectContent>
         </Select>
         {vessels && vessels.length > 0 && (
@@ -485,39 +490,62 @@ export default function Proformas() {
           <div className="table-scroll-wrapper">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Reference</TableHead>
-                <TableHead className="hidden md:table-cell">To</TableHead>
-                <TableHead className="hidden sm:table-cell">Purpose</TableHead>
+              <TableRow className="bg-muted/30">
+                <TableHead className="w-[160px]">Reference</TableHead>
+                <TableHead className="hidden md:table-cell">Vessel</TableHead>
+                <TableHead className="hidden lg:table-cell">Port</TableHead>
+                <TableHead className="hidden sm:table-cell">To</TableHead>
                 <TableHead>Total (USD)</TableHead>
-                <TableHead className="hidden md:table-cell">Approval</TableHead>
-                <TableHead className="hidden lg:table-cell">Date</TableHead>
+                <TableHead className="hidden md:table-cell">Status</TableHead>
+                <TableHead className="hidden xl:table-cell">Date</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredProformas.map((pda) => (
-                <TableRow key={pda.id} data-testid={`row-proforma-list-${pda.id}`}>
+                <TableRow
+                  key={pda.id}
+                  data-testid={`row-proforma-list-${pda.id}`}
+                  className="hover:bg-muted/40 transition-colors"
+                >
                   <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      {pda.referenceNumber}
-                      {(pda as any).revisionCount > 0 && (
-                        <Badge variant="outline" className="text-[10px] h-4 px-1 border-orange-200 text-orange-700 bg-orange-50 dark:bg-orange-950/30 dark:text-orange-300">
-                          R{(pda as any).revisionCount}
-                        </Badge>
-                      )}
+                    <Link href={`/proformas/${pda.id}`}>
+                      <div className="flex items-center gap-1.5 hover:text-primary cursor-pointer">
+                        <span className="text-sm font-semibold text-primary hover:underline">
+                          {pda.referenceNumber}
+                        </span>
+                        {(pda as any).revisionCount > 0 && (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1 border-orange-200 text-orange-700 bg-orange-50 dark:bg-orange-950/30 dark:text-orange-300">
+                            R{(pda as any).revisionCount}
+                          </Badge>
+                        )}
+                      </div>
+                    </Link>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      {pda.purposeOfCall}
                     </div>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell text-muted-foreground">{pda.toCompany || "-"}</TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    <Badge variant="secondary" className="text-xs">{pda.purposeOfCall}</Badge>
+                  <TableCell className="hidden md:table-cell">
+                    <div className="flex items-center gap-1.5">
+                      <Ship className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      <span className="text-sm">{(pda as any).vesselName || "-"}</span>
+                    </div>
                   </TableCell>
-                  <TableCell className="font-semibold">${pda.totalUsd?.toLocaleString()}</TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    <div className="flex items-center gap-1.5">
+                      <Anchor className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      <span className="text-sm">{(pda as any).portName || "-"}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">{pda.toCompany || "-"}</TableCell>
+                  <TableCell className="font-semibold tabular-nums">
+                    ${(pda.totalUsd ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </TableCell>
                   <TableCell className="hidden md:table-cell">
                     {approvalStatusBadge((pda as any).approvalStatus)}
                     <WorkflowProgress approvalStatus={(pda as any).approvalStatus || "draft"} id={pda.id} />
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
+                  <TableCell className="hidden xl:table-cell text-muted-foreground text-sm">
                     {pda.createdAt ? fmtDate(pda.createdAt) : "-"}
                   </TableCell>
                   <TableCell className="text-right">
@@ -549,7 +577,7 @@ export default function Proformas() {
                         </Button>
                       )}
                       <Link href={`/proformas/${pda.id}`}>
-                        <Button size="icon" variant="ghost" data-testid={`button-view-proforma-${pda.id}`}>
+                        <Button size="icon" variant="ghost" title="View" data-testid={`button-view-proforma-${pda.id}`}>
                           <Eye className="w-4 h-4" />
                         </Button>
                       </Link>
@@ -570,9 +598,27 @@ export default function Proformas() {
                       <Button
                         size="icon"
                         variant="ghost"
+                        title="Email PDA"
+                        data-testid={`button-email-pda-${pda.id}`}
+                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                        onClick={() => setMailComposerData({
+                          id: pda.id,
+                          meta: {
+                            vesselName: (pda as any).vesselName ?? undefined,
+                            portName: (pda as any).portName ?? undefined,
+                            referenceNumber: pda.referenceNumber ?? undefined,
+                            toCompany: pda.toCompany ?? undefined,
+                          },
+                        })}
+                      >
+                        <Mail className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
                         onClick={() => duplicateMutation.mutate(pda.id)}
                         disabled={duplicateMutation.isPending}
-                        title="Duplicate proforma"
+                        title="Duplicate"
                         data-testid={`button-duplicate-proforma-${pda.id}`}
                       >
                         <Copy className="w-4 h-4" />
@@ -593,6 +639,7 @@ export default function Proformas() {
                         variant="ghost"
                         onClick={() => deleteMutation.mutate(pda.id)}
                         disabled={deleteMutation.isPending}
+                        title="Delete"
                         data-testid={`button-delete-proforma-${pda.id}`}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -735,10 +782,19 @@ export default function Proformas() {
     <div className="px-3 py-5 space-y-6 max-w-7xl mx-auto">
       <PageMeta title="Proformas | VesselPDA" description="Manage your proforma disbursement accounts." />
 
+      {mailComposerData && (
+        <SmartMailComposer
+          type="pda"
+          entityId={mailComposerData.id}
+          entityMeta={mailComposerData.meta}
+          onClose={() => setMailComposerData(null)}
+        />
+      )}
+
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="font-serif text-2xl font-bold tracking-tight" data-testid="text-proformas-title">
-            {isAgent ? "Proformas & Bids" : "Proforma Invoices"}
+            Proformas
           </h1>
           <p className="text-muted-foreground text-sm">
             {isAgent
