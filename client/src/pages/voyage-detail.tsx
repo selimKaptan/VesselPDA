@@ -528,8 +528,8 @@ export default function VoyageDetail() {
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   // Adjusted activeTab initial value if needed, but 'operation' (Overview) is usually first
-  const [activeTab, setActiveTab] = useState<"operation" | "documents" | "comms" | "financial" | "activity" | "participants" | "cargo_ops" | "contacts" | "notes_tasks" | "commission">(
-    isShipowner ? "operation" : "operation"
+  const [activeTab, setActiveTab] = useState<"operations" | "financials" | "docs_comms" | "team">(
+    "operations"
   );
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [noteContent, setNoteContent] = useState("");
@@ -1630,6 +1630,17 @@ export default function VoyageDetail() {
     enabled: !!voyageId,
   });
 
+  const { data: voyageCommissions = [], refetch: refetchCommissions } = useQuery<any[]>({
+    queryKey: ["/api/commissions", "voyage", voyageId],
+    queryFn: async () => {
+      const res = await fetch(`/api/commissions?voyageId=${voyageId}`, { credentials: "include" });
+      if (!res.ok) return [];
+      const d = await res.json();
+      return Array.isArray(d) ? d : [];
+    },
+    enabled: !!voyageId && activeTab === "financials",
+  });
+
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
@@ -1955,26 +1966,26 @@ export default function VoyageDetail() {
 
   const { data: activitiesData } = useQuery<{ activities: any[], total: number }>({
     queryKey: ["/api/voyages", voyageId, "activities"],
-    enabled: activeTab === "activity",
+    enabled: activeTab === "docs_comms",
   });
   const activities = activitiesData?.activities || [];
 
   const { data: cargoLogs = [] } = useQuery<any[]>({
     queryKey: ["/api/voyages", voyageId, "cargo-logs"],
     queryFn: () => fetch(`/api/voyages/${voyageId}/cargo-logs`, { credentials: "include" }).then(r => r.json()),
-    enabled: activeTab === "cargo_ops",
+    enabled: activeTab === "operations",
   });
 
   const { data: receivers = [] } = useQuery<any[]>({
     queryKey: ["/api/voyages", voyageId, "cargo-receivers"],
     queryFn: () => fetch(`/api/voyages/${voyageId}/cargo-receivers`, { credentials: "include" }).then(r => r.json()),
-    enabled: activeTab === "cargo_ops",
+    enabled: activeTab === "operations",
   });
 
   const { data: voyageContactsList = [] } = useQuery<any[]>({
     queryKey: ["/api/voyages", voyageId, "contacts"],
     queryFn: () => fetch(`/api/voyages/${voyageId}/contacts`, { credentials: "include" }).then(r => r.json()),
-    enabled: activeTab === "contacts" || showCargoReportDialog,
+    enabled: activeTab === "team" || showCargoReportDialog,
   });
 
   const addCargoLogMutation = useMutation({
@@ -2525,7 +2536,7 @@ export default function VoyageDetail() {
         </div>
 
         {/* ── ROW 2: Port Call Stepper ──────────────────────────────────────── */}
-        <div className="px-5 py-4 border-t border-b border-border/50 bg-muted/20" data-testid="port-call-stepper">
+        <div className="px-5 py-5 border-t border-b border-border/50 bg-muted/20" data-testid="port-call-stepper">
           {(() => {
             const activeIdx = getStepperIndex(voyage.status);
             return (
@@ -2541,20 +2552,20 @@ export default function VoyageDetail() {
                       {/* Step node + label */}
                       <div className="flex flex-col items-center gap-1.5 shrink-0">
                         <div className={`
-                          w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all
+                          w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all
                           ${isActive
-                            ? "bg-primary border-primary text-primary-foreground shadow-[0_0_14px_rgba(59,130,246,0.45)]"
+                            ? "bg-primary border-primary text-primary-foreground shadow-[0_0_20px_rgba(59,130,246,0.55)]"
                             : isPast
                             ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
                             : "bg-muted/30 border-border/50 text-muted-foreground/35"
                           }
                         `}>
                           {isPast
-                            ? <CheckCheck className="w-3.5 h-3.5" />
-                            : <StepIcon className="w-3.5 h-3.5" />
+                            ? <CheckCheck className="w-4 h-4" />
+                            : <StepIcon className="w-4 h-4" />
                           }
                         </div>
-                        <span className={`text-[10px] font-semibold text-center whitespace-nowrap ${
+                        <span className={`text-[11px] font-bold text-center whitespace-nowrap ${
                           isActive ? "text-primary"
                           : isPast  ? "text-emerald-400/80"
                           : "text-muted-foreground/35"
@@ -2671,40 +2682,31 @@ export default function VoyageDetail() {
       />
 
       {/* Tab Bar */}
-      <div className="flex gap-1 bg-muted/40 p-1 rounded-xl overflow-x-auto no-scrollbar whitespace-nowrap scroll-smooth">
+      <div className="flex gap-1 bg-muted/40 p-1 rounded-xl overflow-x-auto no-scrollbar">
         {([
-          { key: "operation",   label: "Operation",  icon: ClipboardList },
-          { key: "cargo_ops",   label: "Cargo Ops",  icon: Package },
-          { key: "activity",    label: "Activity",   icon: Clock },
-          { key: "documents",   label: "Documents",  icon: FolderOpen },
-          { key: "comms",       label: "Messages",   icon: MessageCircle },
-          { key: "financial",   label: "Financial",  icon: DollarSign },
-          { key: "notes_tasks", label: "Notes & Tasks", icon: ClipboardList },
-          { key: "participants", label: "Team",      icon: Users2 },
-          { key: "contacts",    label: "Contacts",  icon: Mail },
-          { key: "commission",  label: "Commission", icon: Percent },
+          { key: "operations",  label: "Operations",               icon: ClipboardList },
+          { key: "financials",  label: "Financials",               icon: DollarSign },
+          { key: "docs_comms",  label: "Documents & Comms",        icon: FolderOpen },
+          { key: "team",        label: "Team & Contacts",          icon: Users2 },
         ] as const).filter(({ key }) => {
           if (isShipowner) {
-            return ["operation", "financial", "documents", "notes_tasks"].includes(key);
-          }
-          if (key === "cargo_ops" && (voyage?.purposeOfCall === "Husbandry" || voyage?.purposeOfCall === "Crew Change")) {
-            return false;
+            return ["operations", "financials", "docs_comms"].includes(key);
           }
           return true;
         }).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
-            className={`flex-1 min-w-[100px] sm:min-w-0 flex items-center justify-center gap-1.5 py-1 px-2 text-xs sm:py-2 sm:px-3 sm:text-sm font-medium transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 sm:px-4 text-sm font-medium rounded-lg transition-all ${
               activeTab === key
                 ? "bg-background shadow-sm text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
             data-testid={`tab-${key}`}
           >
-            <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> {label}
-            {key === "comms" && chatMessages.length > 0 && (
-              <span className="ml-1 text-[10px] bg-[hsl(var(--maritime-primary)/0.15)] text-[hsl(var(--maritime-primary))] px-1 sm:px-1.5 py-0.5 rounded-full font-semibold">
+            <Icon className="w-4 h-4" /> {label}
+            {key === "docs_comms" && chatMessages.length > 0 && (
+              <span className="ml-1 text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded-full font-semibold">
                 {chatMessages.length}
               </span>
             )}
@@ -2712,11 +2714,12 @@ export default function VoyageDetail() {
         ))}
       </div>
 
-      {/* ── Tab: Operasyon ─────────────────────────────────────── */}
-      {activeTab === "operation" && (
+      {/* ── OPERATIONS TAB ────────────────────────────────────── */}
+      {activeTab === "operations" && (
         <div className="space-y-6">
-
-          {/* ── Husbandry / Crew Change: Operation Badge ── */}
+          {/* Operation Content */}
+          <div className="space-y-6">
+                  {/* ── Husbandry / Crew Change: Operation Badge ── */}
           {(voyage.purposeOfCall === "Husbandry" || voyage.purposeOfCall === "Crew Change") && (
             <div
               className={`flex items-center gap-3 px-4 py-3.5 rounded-xl ${
@@ -4663,12 +4666,11 @@ export default function VoyageDetail() {
             </Card>
           )}
           </>)}
-        </div>
-      )}
+          </div>
 
-      {/* ── Tab: Cargo Ops ─────────────────────────────────────── */}
-      {activeTab === "cargo_ops" && (() => {
-        const totalMt = (voyage as any)?.cargoTotalMt ?? 0;
+          {/* Cargo Ops Content */}
+          {(() => {
+            const totalMt = (voyage as any)?.cargoTotalMt ?? 0;
         const handledMt = cargoLogs.reduce((sum: number, l: any) => sum + (l.amountHandled || 0), 0);
         const remainingMt = Math.max(0, totalMt - handledMt);
         const progressPct = totalMt > 0 ? Math.min(100, Math.round((handledMt / totalMt) * 100)) : 0;
@@ -5360,14 +5362,16 @@ export default function VoyageDetail() {
             </Dialog>
           </div>
         );
-      })()}
+          })()}
+        </div>
+      )}
 
-      {/* ── Tab: Dokümanlar ────────────────────────────────────── */}
-      {activeTab === "documents" && (
+      {/* ── DOCUMENTS & COMMS TAB ──────────────────────────────── */}
+      {activeTab === "docs_comms" && (
         <div className="space-y-6">
-
-          {/* ── Vessel Vault Documents ── */}
-          {voyage?.vesselId && <VoyageVaultSection vesselId={voyage.vesselId} />}
+          {/* Documents Content */}
+          <div className="space-y-6">
+            <VoyageVaultSection vesselId={voyage.vesselId} />
 
           {/* ── Existing Document Management ── */}
           <Card
@@ -5624,16 +5628,14 @@ export default function VoyageDetail() {
               </div>
             );
           })()}
+          </div>
 
-        </div>
-      )}
-
-      {/* ── Tab: İletişim ──────────────────────────────────────── */}
-      {activeTab === "comms" && (() => {
-        const role = (user as any)?.activeRole || (user as any)?.role;
-        const canChat = isOwner || isAgent || role === "admin";
-        const participants = Array.from(new Map(chatMessages.map((m: any) => [m.senderId, m.senderName])).entries());
-        return (
+          {/* Comms Content */}
+          {(() => {
+            const role = (user as any)?.activeRole || (user as any)?.role;
+            const canChat = isOwner || isAgent || role === "admin";
+            const participants = Array.from(new Map(chatMessages.map((m: any) => [m.senderId, m.senderName])).entries());
+            return (
           <Card className="flex flex-col overflow-hidden" style={{ height: 480 }}>
             {/* Chat header */}
             <div className="px-5 py-3.5 border-b flex items-center justify-between flex-shrink-0">
@@ -5729,111 +5731,30 @@ export default function VoyageDetail() {
               )}
             </div>
           </Card>
-        );
-      })()}
+            );
+          })()}
+        </div>
+      )}
 
-      {/* ── Tab: Financial ──────────────────────────────────────── */}
-      {activeTab === "financial" && (
-        <div className="space-y-5" data-testid="tab-content-financial">
-          <Card className="p-5 space-y-4" data-testid="section-port-expenses">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Receipt className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                <h2 className="font-semibold text-sm">Port Expenses</h2>
-                {voyagePortExpenses.length > 0 && (
-                  <span className="text-xs text-muted-foreground">({voyagePortExpenses.length})</span>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  className="h-7 px-2.5 text-xs gap-1" 
-                  onClick={() => {
-                    form.reset({
-                      category: "other",
-                      description: "",
-                      amount: 0,
-                      currency: "USD",
-                      vendor: "",
-                      receiptNumber: "",
-                      expenseDate: new Date().toISOString().split('T')[0],
-                      notes: "",
-                      voyageId: voyageId,
-                      isPaid: false,
-                    });
-                    setIsAddExpenseDialogOpen(true);
-                  }}
-                  data-testid="button-add-voyage-expense"
-                >
-                  <Plus className="w-3 h-3" /> Add Expense
-                </Button>
-                <Link href={`/port-expenses?voyageId=${voyageId}`}>
-                  <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" data-testid="button-view-all-expenses">
+      {/* ── FINANCIALS TAB ──────────────────────────────────────────── */}
+      {activeTab === "financials" && (
+        <div className="space-y-6">
+          <div className="space-y-6">
+            <Card className="p-5 space-y-4" data-testid="panel-financial">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                  <h2 className="font-semibold text-sm">Invoices</h2>
+                  {voyageInvoices.length > 0 && (
+                    <span className="text-xs text-muted-foreground">({voyageInvoices.length})</span>
+                  )}
+                </div>
+                <Link href={`/invoices?voyageId=${voyageId}`}>
+                  <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" data-testid="button-view-all-invoices">
                     <ExternalLink className="w-3 h-3" /> View All
                   </Button>
                 </Link>
               </div>
-            </div>
-
-            {voyagePortExpenses.length === 0 ? (
-              <div className="text-center py-6 text-muted-foreground" data-testid="section-expenses-empty">
-                No port expenses recorded for this voyage.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/30">
-                      <TableHead className="text-[10px] h-8">Date</TableHead>
-                      <TableHead className="text-[10px] h-8">Category</TableHead>
-                      <TableHead className="text-[10px] h-8">Vendor</TableHead>
-                      <TableHead className="text-[10px] h-8 text-right">Amount</TableHead>
-                      <TableHead className="text-[10px] h-8 text-center">Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {voyagePortExpenses.slice(0, 5).map((exp: any) => (
-                      <TableRow key={exp.id} className="hover:bg-muted/10">
-                        <TableCell className="py-2 text-[11px]">{exp.expenseDate ? fmtDate(exp.expenseDate) : 'N/A'}</TableCell>
-                        <TableCell className="py-2">
-                          <Badge variant="outline" className="text-[9px] px-1.5 h-4 uppercase">
-                            {exp.category.replace('_', ' ')}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="py-2 text-[11px]">{exp.vendor || '-'}</TableCell>
-                        <TableCell className="py-2 text-[11px] text-right font-mono font-bold">
-                          {exp.currency} {exp.amount.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="py-2 text-center">
-                          <Badge className={`text-[9px] px-1.5 h-4 ${exp.isPaid ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-amber-500/10 text-amber-500 border-amber-500/20"}`}>
-                            {exp.isPaid ? "Paid" : "Unpaid"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </Card>
-
-          {/* Invoices Section */}
-          <Card className="p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Receipt className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                <h2 className="font-semibold text-sm">Invoices</h2>
-                {voyageInvoices.length > 0 && (
-                  <span className="text-xs text-muted-foreground">({voyageInvoices.length})</span>
-                )}
-              </div>
-              <Link href={`/invoices?voyageId=${voyageId}`}>
-                <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" data-testid="button-view-all-invoices">
-                  <ExternalLink className="w-3 h-3" /> View All
-                </Button>
-              </Link>
-            </div>
 
             {voyageInvoices.length === 0 ? (
               <div className="text-center py-6 text-muted-foreground" data-testid="section-invoices-empty">
@@ -6123,11 +6044,52 @@ export default function VoyageDetail() {
             )}
           </Card>
 
+          {/* Commission Section */}
+          <Card className="p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Percent className="w-4 h-4 text-amber-400" />
+                <h2 className="font-semibold text-sm">Agency Commission</h2>
+                {voyageCommissions.length > 0 && (
+                  <span className="text-xs text-muted-foreground">({voyageCommissions.length})</span>
+                )}
+              </div>
+              {!isShipowner && (
+                <Link href={`/voyages/${voyageId}/pnl`}>
+                  <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs gap-1" data-testid="button-commission-pnl">
+                    <BarChart2 className="w-3 h-3" /> View P&L
+                  </Button>
+                </Link>
+              )}
+            </div>
+            {voyageCommissions.length === 0 ? (
+              <div className="text-center py-5 text-muted-foreground text-sm">
+                <Percent className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                No commission records yet.
+              </div>
+            ) : (
+              <div className="space-y-2" data-testid="section-commissions">
+                {voyageCommissions.map((c: any) => (
+                  <div key={c.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors" data-testid={`commission-row-${c.id}`}>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{c.commissionType === "percentage" ? `${c.rate}% of ${(c.invoiceTypes || []).join(", ")}` : `Fixed: ${c.currency || "USD"} ${Number(c.fixedAmount || 0).toLocaleString()}`}</p>
+                      {c.notes && <p className="text-xs text-muted-foreground">{c.notes}</p>}
+                    </div>
+                    <div className="text-sm font-bold text-amber-400 ml-3 shrink-0">
+                      {c.currency || "USD"} {Number(c.calculatedAmount || 0).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          </div>
         </div>
       )}
 
       {/* ── Tab: Activity Timeline ─────────────────────────────── */}
-      {activeTab === "activity" && (
+      {activeTab === "docs_comms" && (
         <div className="space-y-4" data-testid="tab-content-activity">
           {/* Header with Add Note button */}
           <div className="flex items-center justify-between">
@@ -6279,11 +6241,12 @@ export default function VoyageDetail() {
         </div>
       )}
 
-      {/* ── Tab: Participants / Team ─────────────────────────── */}
-      {activeTab === "participants" && (
-        <div className="space-y-6" data-testid="tab-content-participants">
-          {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* ── TEAM & CONTACTS TAB ────────────────────────────────── */}
+      {activeTab === "team" && (
+        <div className="space-y-6">
+          {/* Participants Content */}
+          <div className="space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="font-semibold text-base flex items-center gap-2">
                 <Users2 className="w-4 h-4 text-sky-400" /> Voyage Team
@@ -6456,11 +6419,12 @@ export default function VoyageDetail() {
               <p className="text-xs mt-1">Invite agents, providers, or surveyors to collaborate on this voyage.</p>
             </div>
           )}
+          </div>
         </div>
       )}
 
       {/* ── Tab: Notes & Tasks ─────────────────────────────────────── */}
-      {activeTab === "notes_tasks" && (
+      {activeTab === "docs_comms" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="lg:col-span-2 space-y-4">
             <Card className="p-4 bg-card/50 backdrop-blur-sm border-muted/20">
@@ -6674,14 +6638,10 @@ export default function VoyageDetail() {
               </div>
             </Card>
           </div>
-        </div>
-      )}
 
-      {/* ── Tab: Contacts ──────────────────────────────────────── */}
-      {activeTab === "contacts" && (
-        <div className="space-y-5" data-testid="tab-content-contacts">
-
-          {/* Bulk Paste Section */}
+          {/* Contacts Content */}
+          <div className="space-y-5">
+            {/* Bulk Paste Section */}
           <Card className="p-5">
             <h3 className="font-semibold text-sm flex items-center gap-2 mb-3">
               <Mail className="w-4 h-4 text-sky-400" />
@@ -6831,6 +6791,7 @@ export default function VoyageDetail() {
               </div>
             </div>
           </Card>
+          </div>
         </div>
       )}
 
