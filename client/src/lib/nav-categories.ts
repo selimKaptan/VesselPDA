@@ -1,257 +1,199 @@
 import {
   LayoutDashboard,
-  Scale,
-  Map,
-  FileText,
-  ClipboardList,
-  FileCheck,
-  Bell,
-  CheckSquare,
-  Megaphone,
-  Paperclip,
-  Package,
-  TrendingUp,
-  Building2,
   Ship,
-  ScrollText,
+  Anchor,
+  DollarSign,
+  Users,
+  Map,
+  FileCheck,
+  Megaphone,
+  UserCheck,
+  ArrowUpDown,
   Navigation,
+  ClipboardList,
+  ScrollText,
+  Compass,
+  Activity,
+  Calendar,
+  Wrench,
   Receipt,
   CreditCard,
-  Gem,
-  Mail,
-  MessageSquare,
-  BellRing,
-  UserPlus,
-  Anchor,
-  Shield,
+  Scale,
   BarChart3,
-  Users,
-  HardDrive,
-  Wand2,
-  Settings,
-  Crown,
-  UserCheck,
-  Calendar,
-  FileSpreadsheet,
-  Zap,
+  Paperclip,
   Users2,
-  Activity,
-  Leaf,
-  AlertTriangle,
-  Wrench,
-  Warehouse,
-  Calculator,
-  BookOpen,
-  DollarSign,
-  Contact2,
-  Compass,
+  Package,
+  FileText,
+  MapPin,
+  Building2,
+  MessageSquare,
+  MessageCircle,
+  Settings,
+  Shield,
+  Crown,
   FileBarChart2,
-  ArrowUpDown,
+  Bell,
 } from "lucide-react";
 
 export type BadgeSource = "messages" | "nominations" | "tenders" | "certs" | "voyageInvites";
 
-export interface NavSubPage {
+export interface NavChild {
   label: string;
   url: string;
   icon: any;
   badge?: BadgeSource;
   isNew?: boolean;
   isPro?: boolean;
-  exact?: boolean;
   roles?: string[];
 }
 
-export interface NavCategory {
+export interface NavMainItem {
   key: string;
   label: string;
   abbrev: string;
   icon: any;
-  color: "sky" | "amber";
-  subPages: NavSubPage[];
+  url: string;
+  children?: NavChild[];
 }
 
-export const NAV_CATEGORIES: NavCategory[] = [
-  {
-    key: "dashboard",
-    label: "Dashboard",
-    abbrev: "Dashb",
-    icon: LayoutDashboard,
-    color: "sky",
-    subPages: [
-      { label: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-    ],
-  },
-  {
-    key: "operations",
-    label: "Operations",
-    abbrev: "Opera",
-    icon: Map,
-    color: "sky",
-    subPages: [
-      { label: "Voyages", url: "/voyages", icon: Map },
-      { label: "Proformas", url: "/proformas", icon: FileText },
+export interface NavSecondaryItem {
+  label: string;
+  url: string;
+  icon: any;
+  badge?: BadgeSource;
+  roles?: string[];
+}
 
-      { label: "Nominations", url: "/nominations", icon: UserCheck, badge: "nominations" },
-      { label: "PDA Review", url: "/pda-review", icon: CheckSquare },
-      { label: "Port Calls", url: "/port-calls", icon: Anchor },
-      { label: "Action Center", url: "/actions", icon: Zap },
-      { label: "Husbandry", url: "/husbandry", icon: Package },
-      { label: "Cargo Operations", url: "/cargo-ops", icon: ArrowUpDown, isNew: true },
-      { label: "Agent Reports", url: "/agent-reports", icon: FileBarChart2 },
-    ],
-  },
-  {
-    key: "commercial",
-    label: "Commercial",
-    abbrev: "Comm",
-    icon: Megaphone,
-    color: "sky",
-    subPages: [
-      { label: "Tenders", url: "/tenders", icon: Megaphone, badge: "tenders" },
-      { label: "Fixtures", url: "/fixtures", icon: Paperclip },
-      { label: "Cargo Positions", url: "/cargo-positions", icon: Package },
-      { label: "Laytime Calculator", url: "/laytime-calculator", icon: Scale },
-      { label: "Voyage Estimation", url: "/voyage-estimation", icon: Calculator },
-      { label: "Order Book", url: "/order-book", icon: BookOpen, roles: ["admin", "broker"] },
-      { label: "Commissions", url: "/broker-commissions", icon: DollarSign, roles: ["admin", "broker"] },
-      { label: "Contacts", url: "/contacts", icon: Contact2 },
-    ],
-  },
-  {
-    key: "fleet",
-    label: "Fleet",
-    abbrev: "Fleet",
-    icon: Ship,
-    color: "sky",
-    subPages: [
-      { label: "Vessels", url: "/vessels", icon: Ship },
-      { label: "Vessel Schedule", url: "/vessel-schedule", icon: Calendar },
-      { label: "Certificates", url: "/vessel-certificates", icon: ScrollText, badge: "certs" },
-      { label: "Vessel Tracking", url: "/vessel-track", icon: Navigation },
-      { label: "Crew Roster", url: "/crew-roster", icon: Users2 },
-      { label: "Performance", url: "/noon-reports", icon: Activity },
-      { label: "Passage Planning", url: "/passage-planning", icon: Compass, isNew: true, roles: ["admin", "master"] },
-      { label: "Charter Party & Hire", url: "/charter-parties", icon: ScrollText },
-      { label: "Maintenance", url: "/maintenance", icon: Settings, roles: ["admin", "master", "shipowner"] },
-      { label: "Bunker Management", url: "/bunker-management", icon: Zap, roles: ["admin", "master", "shipowner"] },
-      { label: "Environmental", url: "/environmental", icon: Leaf, roles: ["admin", "master", "shipowner"] },
-      { label: "Insurance", url: "/insurance", icon: Shield, roles: ["admin", "shipowner"] },
-      { label: "Drydock", url: "/drydock", icon: Wrench, roles: ["admin", "master", "shipowner"] },
-      { label: "PMS", url: "/pms", icon: ClipboardList, roles: ["admin", "master", "shipowner"], isNew: true },
-      { label: "Defect Tracker", url: "/defect-tracker", icon: AlertTriangle, roles: ["admin", "master"] },
-      { label: "Spare Parts", url: "/spare-parts", icon: Warehouse, roles: ["admin", "master", "shipowner"] },
-    ],
-  },
-  {
-    key: "services",
-    label: "Services",
-    abbrev: "Serv",
-    icon: Building2,
-    color: "sky",
-    subPages: [
-      { label: "Provider Directory", url: "/directory", icon: Building2 },
-      { label: "Service Requests", url: "/service-requests", icon: Bell },
-      { label: "Ports Database", url: "/ports", icon: Anchor },
-    ],
-  },
-  {
-    key: "finance",
-    label: "Finance",
-    abbrev: "Finan",
-    icon: Receipt,
-    color: "sky",
-    subPages: [
-      { label: "DA Comparison", url: "/da-comparison", icon: BarChart3, isPro: true },
-      { label: "Final Disbursement", url: "/fda", icon: Receipt },
-      { label: "Invoices", url: "/invoices", icon: CreditCard },
-      { label: "Port Expenses", url: "/port-expenses", icon: Receipt },
-      { label: "DA Advances", url: "/da-advances", icon: CreditCard },
-    ],
-  },
-  {
-    key: "communication",
-    label: "Communication",
-    abbrev: "Comms",
-    icon: Mail,
-    color: "sky",
-    subPages: [
-      { label: "Messages", url: "/messages", icon: Mail, badge: "messages" },
-      { label: "Forum", url: "/forum", icon: MessageSquare },
-      { label: "Notifications", url: "/notifications", icon: BellRing },
-      { label: "Voyage Invitations", url: "/voyage-invitations", icon: UserPlus, badge: "voyageInvites" },
-      { label: "AI Smart Drop", url: "/ai-smart-drop", icon: Wand2, isNew: true, isPro: true },
-    ],
-  },
-  {
-    key: "intelligence",
-    label: "Intelligence",
-    abbrev: "Intel",
-    icon: BarChart3,
-    color: "sky",
-    subPages: [
-      { label: "Market Data & BDI", url: "/market-data", icon: TrendingUp },
-      { label: "Port Info", url: "/port-info", icon: Anchor },
-      { label: "Sanctions Check", url: "/sanctions-check", icon: Shield },
-      { label: "Analytics", url: "/analytics", icon: BarChart3, isPro: true },
-    ],
-  },
-  {
-    key: "admin",
-    label: "Admin",
-    abbrev: "Admin",
-    icon: Crown,
-    color: "amber",
-    subPages: [
-      { label: "Admin Panel", url: "/admin", icon: Crown },
-      { label: "Tariff Management", url: "/tariff-management", icon: BarChart3 },
-    ],
-  },
-  {
-    key: "settings",
-    label: "Settings",
-    abbrev: "Set",
-    icon: Settings,
-    color: "sky",
-    subPages: [
-      { label: "Settings", url: "/settings", icon: Settings },
-      { label: "Team Management", url: "/team", icon: Users },
-      { label: "Company Profile", url: "/company-profile", icon: Building2 },
-      { label: "Pricing & Plans", url: "/pricing", icon: Gem },
-      { label: "Crew Doc Settings", url: "/crew-doc-settings", icon: FileText, isNew: true },
-    ],
-  },
-];
+export interface NavStructure {
+  main: NavMainItem[];
+  secondary: NavSecondaryItem[];
+  settings: NavSecondaryItem[];
+}
 
-export const ROLE_CATEGORIES: Record<string, string[]> = {
-  admin:     ["dashboard", "operations", "commercial", "fleet", "finance", "services", "communication", "intelligence", "admin", "settings"],
-  shipowner: ["dashboard", "operations", "commercial", "fleet", "finance", "services", "communication", "intelligence", "settings"],
-  agent:     ["dashboard", "operations", "commercial", "fleet", "finance", "services", "communication", "intelligence", "settings"],
-  broker:    ["dashboard", "commercial", "operations", "services", "communication", "intelligence", "settings"],
-  provider:  ["dashboard", "operations", "services", "finance", "communication", "settings"],
-  master:    ["dashboard", "operations", "fleet", "finance", "communication", "intelligence", "settings"],
+export const NAV_STRUCTURE: NavStructure = {
+  main: [
+    {
+      key: "dashboard",
+      label: "Dashboard",
+      abbrev: "Dash",
+      icon: LayoutDashboard,
+      url: "/dashboard",
+    },
+    {
+      key: "voyages",
+      label: "Voyages",
+      abbrev: "Voyag",
+      icon: Ship,
+      url: "/voyages",
+      children: [
+        { label: "All Voyages", url: "/voyages", icon: Map },
+        { label: "Port Calls", url: "/port-calls", icon: Anchor },
+        { label: "NOR", url: "/nor", icon: FileText },
+        { label: "SOF", url: "/sof", icon: FileCheck },
+        { label: "Tenders", url: "/tenders", icon: Megaphone, badge: "tenders" },
+        { label: "Nominations", url: "/nominations", icon: UserCheck, badge: "nominations" },
+        { label: "Cargo Operations", url: "/cargo-ops", icon: ArrowUpDown, isNew: true },
+        { label: "Husbandry", url: "/husbandry", icon: Package },
+        { label: "Agent Reports", url: "/agent-reports", icon: FileBarChart2 },
+        { label: "Action Center", url: "/actions", icon: Bell },
+      ],
+    },
+    {
+      key: "fleet",
+      label: "Fleet & Assets",
+      abbrev: "Fleet",
+      icon: Anchor,
+      url: "/vessels",
+      children: [
+        { label: "Vessels", url: "/vessels", icon: Ship },
+        { label: "Vessel Tracking", url: "/vessel-track", icon: Navigation },
+        { label: "PMS", url: "/pms", icon: ClipboardList, isNew: true },
+        { label: "Certificates", url: "/vessel-certificates", icon: ScrollText, badge: "certs" },
+        { label: "Passage Planning", url: "/passage-planning", icon: Compass, roles: ["admin", "master", "shipowner"] },
+        { label: "Performance", url: "/noon-reports", icon: Activity },
+        { label: "Vessel Schedule", url: "/vessel-schedule", icon: Calendar },
+        { label: "Drydock", url: "/drydock", icon: Wrench },
+        { label: "Maintenance", url: "/maintenance", icon: Settings },
+        { label: "Charter Party", url: "/charter-parties", icon: ScrollText },
+      ],
+    },
+    {
+      key: "financials",
+      label: "Financials",
+      abbrev: "Finan",
+      icon: DollarSign,
+      url: "/proformas",
+      children: [
+        { label: "Proformas (PDA)", url: "/proformas", icon: FileText },
+        { label: "FDA", url: "/fda", icon: Receipt },
+        { label: "Invoices", url: "/invoices", icon: CreditCard },
+        { label: "DA Advances", url: "/da-advances", icon: CreditCard },
+        { label: "Port Expenses", url: "/port-expenses", icon: Receipt },
+        { label: "Laytime Calculator", url: "/laytime-calculator", icon: Scale },
+        { label: "Commercial", url: "/fixtures", icon: Paperclip },
+        { label: "DA Comparison", url: "/da-comparison", icon: BarChart3, isPro: true },
+        { label: "Analytics", url: "/analytics", icon: BarChart3, isPro: true },
+      ],
+    },
+    {
+      key: "crew",
+      label: "Crew & Logistics",
+      abbrev: "Crew",
+      icon: Users,
+      url: "/crew-roster",
+      children: [
+        { label: "Crew Roster", url: "/crew-roster", icon: Users2 },
+        { label: "Crew Documents", url: "/crew-doc-settings", icon: FileText },
+      ],
+    },
+  ],
+  secondary: [
+    { label: "Port Info", url: "/ports", icon: MapPin },
+    { label: "Directory", url: "/directory", icon: Building2 },
+    { label: "Messages", url: "/messages", icon: MessageSquare, badge: "messages" },
+    { label: "Forum", url: "/forum", icon: MessageCircle },
+    { label: "Voyage Invitations", url: "/voyage-invitations", icon: UserCheck, badge: "voyageInvites" },
+  ],
+  settings: [
+    { label: "Settings", url: "/settings", icon: Settings },
+    { label: "Admin Panel", url: "/admin", icon: Crown, roles: ["admin"] },
+  ],
 };
 
-export const URL_TO_CATEGORY: Record<string, string> = {
+export const ROLE_MAIN_ITEMS: Record<string, string[]> = {
+  admin:     ["dashboard", "voyages", "fleet", "financials", "crew"],
+  shipowner: ["dashboard", "voyages", "fleet", "financials", "crew"],
+  agent:     ["dashboard", "voyages", "fleet", "financials", "crew"],
+  broker:    ["dashboard", "voyages", "financials"],
+  provider:  ["dashboard", "voyages", "financials"],
+  master:    ["dashboard", "voyages", "fleet", "crew"],
+};
+
+export const URL_TO_NAV_KEY: Record<string, string> = {
   "/dashboard": "dashboard",
   "/": "dashboard",
-  "/voyages": "operations",
-  "/voyage-workflow": "operations",
-  "/proformas": "operations",
-  "/port-calls": "operations",
-  "/nominations": "operations",
-  "/pda-review": "operations",
-  "/tenders": "commercial",
-  "/fixtures": "commercial",
-  "/cargo-positions": "commercial",
-  "/laytime-calculator": "commercial",
+  "/market-data": "dashboard",
+  "/port-info": "dashboard",
+  "/sanctions-check": "dashboard",
+  "/voyages": "voyages",
+  "/voyage-workflow": "voyages",
+  "/port-calls": "voyages",
+  "/nor": "voyages",
+  "/sof": "voyages",
+  "/tenders": "voyages",
+  "/nominations": "voyages",
+  "/cargo-operations": "voyages",
+  "/cargo-ops": "voyages",
+  "/pda-review": "voyages",
+  "/actions": "voyages",
+  "/husbandry": "voyages",
+  "/agent-reports": "voyages",
   "/vessels": "fleet",
   "/vessel-schedule": "fleet",
   "/vessel-certificates": "fleet",
   "/vessel-track": "fleet",
   "/vessel-q88": "fleet",
   "/vessel-vault": "fleet",
-  "/crew-roster": "fleet",
   "/noon-reports": "fleet",
   "/passage-planning": "fleet",
   "/charter-parties": "fleet",
@@ -263,75 +205,119 @@ export const URL_TO_CATEGORY: Record<string, string> = {
   "/pms": "fleet",
   "/defect-tracker": "fleet",
   "/spare-parts": "fleet",
-  "/directory": "services",
-  "/service-requests": "services",
-  "/ports": "services",
-  "/da-comparison": "finance",
-  "/fda": "finance",
-  "/invoices": "finance",
-  "/port-expenses": "finance",
-  "/da-advances": "finance",
-  "/voyage-estimation": "commercial",
-  "/order-book": "commercial",
-  "/broker-commissions": "commercial",
-  "/contacts": "commercial",
-  "/analytics": "intelligence",
-  "/actions": "operations",
-  "/husbandry": "operations",
-  "/agent-report": "operations",
-  "/agent-reports": "operations",
-  "/cargo-ops": "operations",
-  "/messages": "communication",
-  "/forum": "communication",
-  "/notifications": "communication",
-  "/voyage-invitations": "communication",
-  "/ai-smart-drop": "communication",
-  "/market-data": "intelligence",
-  "/port-info": "intelligence",
-  "/sanctions-check": "intelligence",
-  "/admin": "admin",
-  "/tariff-management": "admin",
-  "/settings": "settings",
-  "/team": "settings",
-  "/company-profile": "settings",
-  "/pricing": "settings",
-  "/crew-doc-settings": "settings",
+  "/proformas": "financials",
+  "/fda": "financials",
+  "/invoices": "financials",
+  "/port-expenses": "financials",
+  "/da-advances": "financials",
+  "/da-comparison": "financials",
+  "/laytime-calculator": "financials",
+  "/laytime": "financials",
+  "/voyage-estimation": "financials",
+  "/fixtures": "financials",
+  "/order-book": "financials",
+  "/broker-commissions": "financials",
+  "/analytics": "financials",
+  "/crew-roster": "crew",
+  "/crew": "crew",
+  "/crew-doc-settings": "crew",
+  "/directory": "dashboard",
+  "/service-requests": "dashboard",
+  "/ports": "dashboard",
+  "/messages": "dashboard",
+  "/forum": "dashboard",
+  "/notifications": "dashboard",
+  "/voyage-invitations": "dashboard",
+  "/ai-smart-drop": "dashboard",
+  "/admin": "dashboard",
+  "/tariff-management": "dashboard",
+  "/settings": "dashboard",
+  "/team": "dashboard",
+  "/company-profile": "dashboard",
+  "/pricing": "dashboard",
+  "/contacts": "voyages",
 };
 
 export function urlToCategory(pathname: string): string {
   if (pathname === "/" || pathname === "/dashboard") return "dashboard";
-  for (const [prefix, cat] of Object.entries(URL_TO_CATEGORY)) {
+  for (const [prefix, key] of Object.entries(URL_TO_NAV_KEY)) {
     if (pathname === prefix || pathname.startsWith(prefix + "/")) {
-      return cat;
+      return key;
     }
   }
   return "dashboard";
 }
 
-export function getCategoryByKey(key: string): NavCategory | undefined {
-  return NAV_CATEGORIES.find((c) => c.key === key);
+export function getVisibleMainItems(role: string): NavMainItem[] {
+  const keys = ROLE_MAIN_ITEMS[role] || ROLE_MAIN_ITEMS["shipowner"];
+  return NAV_STRUCTURE.main.filter((item) => keys.includes(item.key));
 }
 
-export function getVisibleCategories(role: string): NavCategory[] {
-  const keys = ROLE_CATEGORIES[role] || ROLE_CATEGORIES["shipowner"];
-  return NAV_CATEGORIES.filter((c) => keys.includes(c.key));
-}
-
-export function getFilteredSubPages(role: string, category: NavCategory): NavSubPage[] {
-  return category.subPages.filter(page => {
-    if (!page.roles) return true;
-    return page.roles.includes(role);
+export function getFilteredChildren(role: string, item: NavMainItem): NavChild[] {
+  if (!item.children) return [];
+  return item.children.filter((child) => {
+    if (!child.roles) return true;
+    return child.roles.includes(role);
   });
 }
 
+export function getMainItemByKey(key: string): NavMainItem | undefined {
+  return NAV_STRUCTURE.main.find((item) => item.key === key);
+}
+
 export function getCurrentPageLabel(pathname: string): string {
-  for (const cat of NAV_CATEGORIES) {
-    for (const page of cat.subPages) {
-      const isExact = page.exact;
-      if (isExact ? pathname === page.url : (pathname === page.url || pathname.startsWith(page.url + "/"))) {
-        return page.label;
+  for (const item of NAV_STRUCTURE.main) {
+    if (item.children) {
+      for (const child of item.children) {
+        if (pathname === child.url || pathname.startsWith(child.url + "/")) {
+          return child.label;
+        }
       }
     }
   }
   return "";
+}
+
+export function getMainItemLabel(key: string): string {
+  return NAV_STRUCTURE.main.find((item) => item.key === key)?.label || "";
+}
+
+export function getVisibleSettingsItems(role: string): NavSecondaryItem[] {
+  return NAV_STRUCTURE.settings.filter((item) => {
+    if (!item.roles) return true;
+    return item.roles.includes(role);
+  });
+}
+
+export function getCategoryByKey(key: string) {
+  const item = getMainItemByKey(key);
+  if (!item) return undefined;
+  return {
+    key: item.key,
+    label: item.label,
+    abbrev: item.abbrev,
+    icon: item.icon,
+    color: "sky" as const,
+    subPages: (item.children || []).map((c) => ({
+      label: c.label,
+      url: c.url,
+      icon: c.icon,
+      badge: c.badge,
+      isNew: c.isNew,
+      isPro: c.isPro,
+      roles: c.roles,
+    })),
+  };
+}
+
+export function getVisibleCategories(role: string) {
+  return getVisibleMainItems(role).map((item) => getCategoryByKey(item.key)!).filter(Boolean);
+}
+
+export function getFilteredSubPages(role: string, category: ReturnType<typeof getCategoryByKey>) {
+  if (!category) return [];
+  return category.subPages.filter((p) => {
+    if (!p.roles) return true;
+    return p.roles.includes(role);
+  });
 }

@@ -1,0 +1,99 @@
+VesselPDA navigasyonunu enterprise B2B SaaS seviyesine yükselt. Mevcut 15+ menü maddesini 5 ana gruba indir.
+
+client/src/lib/nav-categories.ts dosyasını TAMAMEN YENİDEN YAZ:
+
+export const NAV_STRUCTURE = {
+  main: [
+    {
+      key: "dashboard",
+      label: "Dashboard",
+      icon: "LayoutDashboard",
+      url: "/dashboard",
+    },
+    {
+      key: "voyages",
+      label: "Voyages",
+      icon: "Ship",
+      url: "/voyages",
+      children: [
+        { label: "All Voyages", url: "/voyages" },
+        { label: "Port Calls", url: "/port-calls" },
+        { label: "NOR", url: "/nor" },
+        { label: "SOF", url: "/sof" },
+        { label: "Tenders", url: "/tenders" },
+        { label: "Nominations", url: "/nominations" },
+        { label: "Cargo Operations", url: "/cargo-operations" },
+      ],
+    },
+    {
+      key: "fleet",
+      label: "Fleet & Assets",
+      icon: "Anchor",
+      url: "/vessels",
+      children: [
+        { label: "Vessels", url: "/vessels" },
+        { label: "Vessel Tracking", url: "/vessel-track" },
+        { label: "PMS", url: "/pms" },
+        { label: "Certificates", url: "/certificates" },
+        { label: "Passage Planning", url: "/passage-planning" },
+        { label: "Performance", url: "/performance" },
+        { label: "Vessel Schedule", url: "/vessel-schedule" },
+        { label: "Drydock", url: "/drydock" },
+      ],
+    },
+    {
+      key: "financials",
+      label: "Financials",
+      icon: "DollarSign",
+      url: "/proformas",
+      children: [
+        { label: "Proformas (PDA)", url: "/proformas" },
+        { label: "FDA", url: "/fda" },
+        { label: "Invoices", url: "/invoices" },
+        { label: "DA Advances", url: "/da-advances" },
+        { label: "Port Expenses", url: "/port-expenses" },
+        { label: "Laytime Calculator", url: "/laytime" },
+        { label: "Commercial", url: "/fixtures" },
+        { label: "Analytics", url: "/analytics" },
+      ],
+    },
+    {
+      key: "crew",
+      label: "Crew & Logistics",
+      icon: "Users",
+      url: "/crew",
+      children: [
+        { label: "Crew Roster", url: "/crew" },
+        { label: "Husbandry", url: "/husbandry" },
+        { label: "Crew Documents", url: "/crew-doc-settings" },
+      ],
+    },
+  ],
+  secondary: [
+    { label: "Port Info", url: "/ports", icon: "MapPin" },
+    { label: "Directory", url: "/directory", icon: "Building2" },
+    { label: "Messages", url: "/messages", icon: "MessageSquare" },
+    { label: "Forum", url: "/forum", icon: "MessageCircle" },
+  ],
+  settings: [
+    { label: "Settings", url: "/settings", icon: "Settings" },
+    { label: "Admin", url: "/admin", icon: "Shield" },
+  ],
+};
+
+Sonra client/src/components/sidebar.tsx veya layout component'ını güncelle:
+- Ana 5 menü her zaman görünsün (Dashboard, Voyages, Fleet, Financials, Crew)
+- Her ana menüye tıklayınca alt menü açılsın (accordion veya flyout)
+- Alt menüler sadece ilgili menü açıkken görünsün
+- Secondary menüler (Port Info, Messages, Directory, Forum) sidebar'ın altında küçük ikonlar olarak
+- Aktif sayfa vurgulanmış olsun
+- Sidebar collapse edilebilir (dar mod — sadece ikonlar)
+- Dark tema, mevcut renk paleti korunsun
+
+role-navigation.ts'i de güncelle — role bazlı hangi ana menüler görünecek:
+- admin: hepsi
+- shipowner: Dashboard, Voyages, Fleet, Financials, Crew
+- agent: Dashboard, Voyages, Financials, Crew (Fleet sadece Tracking)
+- broker: Dashboard, Financials (Commercial ağırlıklı), Voyages
+
+Mevcut sayfaları SİLME — sadece navigasyonu yeniden yapılandır. Tüm URL'ler aynı kalsın.
