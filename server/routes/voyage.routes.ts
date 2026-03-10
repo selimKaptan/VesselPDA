@@ -341,7 +341,7 @@ router.patch("/:id", isAuthenticated, async (req: any, res) => {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
-    const { eta, etd, notes, purposeOfCall, vesselName, imoNumber, mmsi, status, cargoType, cargoQuantity } = req.body;
+    const { eta, etd, notes, purposeOfCall, vesselName, imoNumber, mmsi, status, cargoType, cargoQuantity, originPortId, originPortName } = req.body;
     const updateData: any = {};
     if (eta !== undefined) updateData.eta = eta ? new Date(eta) : null;
     if (etd !== undefined) updateData.etd = etd ? new Date(etd) : null;
@@ -353,6 +353,8 @@ router.patch("/:id", isAuthenticated, async (req: any, res) => {
     if (status !== undefined) updateData.status = status;
     if (cargoType !== undefined) updateData.cargoType = cargoType || null;
     if (cargoQuantity !== undefined) updateData.cargoQuantity = cargoQuantity !== null && cargoQuantity !== "" ? Number(cargoQuantity) : null;
+    if (originPortId !== undefined) updateData.originPortId = originPortId ? Number(originPortId) : null;
+    if (originPortName !== undefined) updateData.originPortName = originPortName || null;
 
     const oldEtaStr = existing.eta ? new Date(existing.eta).toISOString().slice(0, 10) : null;
     const newEtaStr = updateData.eta ? new Date(updateData.eta).toISOString().slice(0, 10) : null;

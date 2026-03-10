@@ -245,11 +245,74 @@ function VoyageVaultSection({ vesselId }: { vesselId: number }) {
   );
 }
 
+// ─── OriginPortInline ─────────────────────────────────────────────────────────
+function OriginPortInline({ value, onChange }: { value: string; onChange: (portId: number, portName: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [query, setQuery] = useState(value);
+  const { data: ports } = useQuery<Port[]>({
+    queryKey: ["/api/ports", query],
+    queryFn: async () => {
+      if (query.length < 2) return [];
+      const res = await fetch(`/api/ports?q=${encodeURIComponent(query)}`);
+      return res.json();
+    },
+    enabled: query.length >= 2,
+  });
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => { setQuery(value); setEditing(true); }}
+        className="group flex items-center gap-1 text-sm font-bold text-left hover:text-blue-300 transition-colors"
+        data-testid="button-edit-origin-port"
+      >
+        {value || <span className="text-muted-foreground font-normal italic">Ayarla...</span>}
+        <Pen className="w-2.5 h-2.5 opacity-0 group-hover:opacity-50 transition-opacity shrink-0" />
+      </button>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <Input
+        autoFocus
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        onBlur={() => setTimeout(() => setEditing(false), 200)}
+        placeholder="Liman ara..."
+        className="h-7 text-xs px-2 py-0 w-36"
+        data-testid="input-origin-port"
+      />
+      {ports && ports.length > 0 && (
+        <div className="absolute z-50 top-full mt-1 left-0 w-56 bg-popover border rounded-md shadow-xl max-h-44 overflow-y-auto">
+          {ports.map((p: Port) => (
+            <button
+              key={p.id}
+              type="button"
+              className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors"
+              onMouseDown={() => {
+                onChange(p.id, p.name);
+                setQuery(p.name);
+                setEditing(false);
+              }}
+            >
+              <span className="font-medium">{p.name}</span>
+              {p.code && <span className="ml-1.5 text-[10px] text-muted-foreground">{p.code}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── VoyageLiveTracker ────────────────────────────────────────────────────────
-function VoyageLiveTracker({ voyage, portName, imoNumber }: {
+function VoyageLiveTracker({ voyage, portName, imoNumber, onOriginPortChange }: {
   voyage: any;
   portName: string;
   imoNumber: string | null;
+  onOriginPortChange?: (portId: number, portName: string) => void;
 }) {
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMap = useRef<any>(null);
@@ -359,13 +422,21 @@ function VoyageLiveTracker({ voyage, portName, imoNumber }: {
 
           {/* Kalkış → Varış */}
           <div className="flex justify-between items-start gap-3">
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Kalkış</p>
-              <p className="text-sm font-bold truncate">{pos?.port_name || "—"}</p>
-              {pos?.country && <p className="text-[10px] text-muted-foreground uppercase">{pos.country}</p>}
+              {onOriginPortChange ? (
+                <OriginPortInline
+                  value={voyage.originPortName || ""}
+                  onChange={onOriginPortChange}
+                />
+              ) : (
+                <p className="text-sm font-bold truncate">
+                  {voyage.originPortName || pos?.port_name || "—"}
+                </p>
+              )}
             </div>
             <div className="text-muted-foreground/40 text-base pt-2 shrink-0">→</div>
-            <div className="min-w-0 text-right">
+            <div className="min-w-0 text-right flex-1">
               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Varış</p>
               <p className="text-sm font-bold truncate">{portName || pos?.destination || "—"}</p>
             </div>
@@ -1341,6 +1412,17 @@ export default function VoyageDetail() {
       toast({ title: "Cargo info updated" });
     },
     onError: () => toast({ title: "Failed to update cargo info", variant: "destructive" }),
+  });
+
+  const updateOriginPortMutation = useMutation({
+    mutationFn: (data: { originPortId: number; originPortName: string }) =>
+      apiRequest("PATCH", `/api/voyages/${voyageId}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages"] });
+      toast({ title: "Kalkış limanı güncellendi" });
+    },
+    onError: () => toast({ title: "Kalkış limanı güncellenemedi", variant: "destructive" }),
   });
 
   // ── Auto-set requiresHotel on crewSigners when voyage ETA/ETD loaded ───────
@@ -2499,17 +2581,25 @@ export default function VoyageDetail() {
         {/* ── ROW 3: Kompakt Detay Tag'ları ─────────────────────────────────── */}
         <div className="px-5 py-4 flex flex-wrap items-start gap-3">
 
-          {/* Port Tag */}
+          {/* Rota Tag */}
           <div className="flex items-center gap-2.5 bg-muted/30 border border-border/60 rounded-xl px-3 py-2.5"
-               data-testid="tag-port">
+               data-testid="tag-route">
             <div className="w-7 h-7 rounded-lg bg-sky-500/10 flex items-center justify-center shrink-0">
-              <MapPin className="w-3.5 h-3.5 text-sky-400" />
+              <Navigation className="w-3.5 h-3.5 text-sky-400" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide leading-none mb-0.5">Port</p>
-              <p className="text-sm font-bold truncate leading-tight">
-                {voyage.portName || `Port #${voyage.portId}`}
-              </p>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide leading-none mb-0.5">Rota</p>
+              {voyage.originPortName ? (
+                <p className="text-sm font-bold leading-tight flex items-center gap-1 flex-wrap">
+                  <span className="truncate max-w-[80px]">{voyage.originPortName}</span>
+                  <span className="text-muted-foreground text-xs">→</span>
+                  <span className="truncate max-w-[80px]">{voyage.portName || `Port #${voyage.portId}`}</span>
+                </p>
+              ) : (
+                <p className="text-sm font-bold truncate leading-tight">
+                  {voyage.portName || `Port #${voyage.portId}`}
+                </p>
+              )}
             </div>
           </div>
 
@@ -2577,6 +2667,7 @@ export default function VoyageDetail() {
         voyage={voyage}
         portName={voyage.portName || portData?.name || ""}
         imoNumber={voyage.imoNumber || vesselData?.imoNumber || null}
+        onOriginPortChange={(portId, portName) => updateOriginPortMutation.mutate({ originPortId: portId, originPortName: portName })}
       />
 
       {/* Tab Bar */}

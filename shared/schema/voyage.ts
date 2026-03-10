@@ -30,6 +30,8 @@ export const voyages = pgTable("voyages", {
   cargoType: text("cargo_type"),
   cargoQuantity: real("cargo_quantity"),
   cargoTotalMt: real("cargo_total_mt"),
+  originPortId: integer("origin_port_id").references(() => ports.id),
+  originPortName: text("origin_port_name"),
   completedAt: timestamp("completed_at"),
   deletedAt: timestamp("deleted_at"),
   createdAt: timestamp("created_at").defaultNow(),
