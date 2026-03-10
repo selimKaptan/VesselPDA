@@ -3038,7 +3038,7 @@ export default function VoyageDetail() {
                     return (
                       <DraggableCrewCard key={crew.id} id={crew.id}>
                       <div
-                        className={`group rounded-xl border bg-slate-800 transition-all duration-200 relative overflow-hidden ${wideMode ? "p-4" : "p-3 space-y-2.5"} ${cardBorder} ${spotlightZ} ${aiGlow}`}
+                        className={`group rounded-xl border bg-slate-800 transition-all duration-200 relative overflow-hidden hover:bg-slate-800/70 hover:shadow-lg hover:shadow-slate-900/50 ${wideMode ? "p-3" : "p-3 space-y-2.5"} ${cardBorder} ${spotlightZ} ${aiGlow}`}
                         data-testid={`crew-card-${accent === "emerald" ? "on" : "off"}-${crew.id}`}
                       >
                         {/* Right-edge warning colour strip (MOD B only) */}
@@ -3051,25 +3051,21 @@ export default function VoyageDetail() {
                           <div className="flex items-start gap-4">
 
                             {/* ── LEFT: Identity block ── */}
-                            <div className="flex items-start gap-2.5 flex-shrink-0" style={{ width: 160 }}>
-                              <div className={`w-9 h-9 rounded-full ${accentColors.avatar} flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5`}>
+                            <div className="flex items-start gap-2 flex-shrink-0" style={{ width: 172 }}>
+                              <div className={`w-8 h-8 rounded-full ${accentColors.avatar} flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5`}>
                                 {crew.name[0]}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="text-sm font-bold text-slate-100 leading-tight truncate">{crew.name}</p>
-                                <p className="text-[10px] text-slate-500 leading-tight">{crew.rank}</p>
-                                {crew.nationality && (
-                                  <div className="flex items-center gap-0.5 mt-0.5">
-                                    <span className="text-xs leading-none">{getFlag(crew.nationality)}</span>
-                                    <span className="text-[9px] text-slate-500 font-mono">{crew.nationality.toUpperCase()}</span>
-                                  </div>
-                                )}
-                                {/* Pre-check: visa badges */}
-                                <div className="flex flex-wrap gap-1 mt-2" data-testid={`crew-visa-row-${crew.id}`}>
+                                <p className="text-[13px] font-bold text-slate-100 leading-tight truncate">{crew.name}</p>
+                                <p className="text-[10px] text-slate-500 leading-tight truncate">
+                                  {crew.rank}{crew.nationality ? <span className="text-slate-600"> · {getFlag(crew.nationality)} {crew.nationality.toUpperCase()}</span> : null}
+                                </p>
+                                {/* Pre-check: visa badges — horizontal compact row */}
+                                <div className="flex flex-wrap items-center gap-1 mt-1.5" data-testid={`crew-visa-row-${crew.id}`}>
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
-                                      <button className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-opacity ${crew.visaRequired ? "text-rose-400 bg-rose-900/20 border-rose-500/50" : "text-emerald-400 bg-emerald-900/20 border-emerald-500/50"}`} data-testid={`badge-visa-${crew.id}`}>
-                                        🛂 Visa: {crew.visaRequired ? "Req'd" : "OK"}
+                                      <button className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border cursor-pointer hover:opacity-90 transition-opacity ${crew.visaRequired ? "bg-rose-500/15 text-rose-400 border-rose-500/20" : "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"}`} data-testid={`badge-visa-${crew.id}`}>
+                                        {crew.visaRequired ? "⚠️ Visa" : "✅ Visa"}
                                       </button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="start" className="bg-slate-800 border-slate-700 text-slate-200 min-w-[170px] p-1">
@@ -3079,7 +3075,7 @@ export default function VoyageDetail() {
                                   </DropdownMenu>
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
-                                      <button className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-opacity ${crew.eVisaStatus === "approved" ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" : crew.eVisaStatus === "pending" ? "text-amber-400 bg-amber-900/20 border-amber-500/50" : "text-slate-500 bg-slate-700/40 border-slate-600/50"}`} data-testid={`badge-evisa-${crew.id}`}>
+                                      <button className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border cursor-pointer hover:opacity-90 transition-opacity ${crew.eVisaStatus === "approved" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" : crew.eVisaStatus === "pending" ? "bg-amber-500/15 text-amber-400 border-amber-500/20" : "bg-slate-500/15 text-slate-400 border-slate-500/20"}`} data-testid={`badge-evisa-${crew.id}`}>
                                         {crew.eVisaStatus === "approved" ? "✅ e-Visa" : crew.eVisaStatus === "pending" ? "⏳ e-Visa" : "e-Visa: N/A"}
                                       </button>
                                     </DropdownMenuTrigger>
@@ -3089,15 +3085,15 @@ export default function VoyageDetail() {
                                       <DropdownMenuItem className="text-[11px] cursor-pointer hover:bg-slate-700 focus:bg-slate-700 rounded-md px-2 py-1.5" onClick={e => { e.stopPropagation(); setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, eVisaStatus: "approved" })); }}>✅ Approved</DropdownMenuItem>
                                     </DropdownMenuContent>
                                   </DropdownMenu>
-                                  {/* Boarding Control / Custom Control badge */}
+                                  {/* Boarding Control badge */}
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
-                                      <button className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 cursor-pointer hover:opacity-80 transition-opacity ${
-                                        crew.okToBoard === "confirmed" ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" :
-                                        crew.okToBoard === "sent"      ? "text-amber-400 bg-amber-900/20 border-amber-500/50" :
-                                                                         "text-slate-400 bg-slate-800/50 border-slate-600/50"
+                                      <button className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border cursor-pointer hover:opacity-90 transition-opacity ${
+                                        crew.okToBoard === "confirmed" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" :
+                                        crew.okToBoard === "sent"      ? "bg-amber-500/15 text-amber-400 border-amber-500/20" :
+                                                                         "bg-slate-500/15 text-slate-400 border-slate-500/20"
                                       }`} data-testid={`badge-oktoboard-${crew.id}`}>
-                                        🛃 {crew.okToBoard === "confirmed" ? "Kontrol: ✓ OK" : crew.okToBoard === "sent" ? "Kontrol: Gönderildi" : "Kontrol: Bekliyor"}
+                                        {crew.okToBoard === "confirmed" ? "✅ Kontrol" : crew.okToBoard === "sent" ? "⏳ Kontrol" : "⏳ Kontrol"}
                                       </button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="start" className="bg-slate-800 border-slate-700 text-slate-200 min-w-[200px] p-1">
@@ -3144,12 +3140,18 @@ export default function VoyageDetail() {
                                           <div className="w-5 h-0.5 bg-orange-500 flex-shrink-0 mt-4 mx-0.5 rounded-full" style={{ animation: "connectorPulse 1.4s ease-in-out infinite" }} />
                                         );
                                         return (
-                                          <div className="w-5 flex-shrink-0 mt-4 mx-0.5 border-t border-dashed border-slate-600 opacity-50" />
+                                          <div className="w-5 flex-shrink-0 mt-4 mx-0.5 border-t-2 border-dashed border-slate-500/60" />
                                         );
                                       })()}
-                                      <div className="flex flex-col items-center gap-0" style={{ minWidth: 52 }}>
-                                        <span className={`text-lg leading-none ${_msIconCls(st)}`}>{ms.icon}</span>
-                                        <span className="text-[8px] text-slate-500 uppercase leading-tight text-center tracking-wide">{ms.label}</span>
+                                      <div className="flex flex-col items-center gap-0.5" style={{ minWidth: 52 }}>
+                                        {/* Icon circle with group-hover glow */}
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-base transition-all duration-200 ${
+                                          st === "done"   ? "bg-emerald-500/15 text-emerald-400" :
+                                          st === "active" ? "bg-cyan-500/15 text-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.4)]" :
+                                          "bg-slate-800 text-slate-600 group-hover:bg-slate-700 group-hover:text-slate-400"
+                                        }`}>
+                                          {ms.icon}
+                                        </div>
                                         {isEditingThis ? (
                                           ms.key === "flight" ? (
                                             <input
@@ -3158,7 +3160,7 @@ export default function VoyageDetail() {
                                               onChange={e => setInlineEdit(v => v ? { ...v, val: e.target.value } : v)}
                                               onBlur={() => { setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, flightEta: inlineEdit!.val })); setInlineEdit(null); }}
                                               onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }}
-                                              className="w-12 h-4 text-[10px] font-mono bg-slate-700 border border-blue-500/70 rounded px-1 text-slate-100 outline-none text-center mt-0.5"
+                                              className="w-12 h-4 text-[10px] font-mono bg-slate-700 border border-blue-500/70 rounded px-1 text-slate-100 outline-none text-center"
                                               placeholder="HH:MM"
                                               data-testid={`inline-edit-flighteta-${crew.id}`}
                                             />
@@ -3169,11 +3171,26 @@ export default function VoyageDetail() {
                                               onChange={e => setCrewTimelineEditVal(e.target.value)}
                                               onBlur={() => { if (tlStep) { setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, timeline: c.timeline.map(s => s.id !== tlStep.id ? s : { ...s, time: crewTimelineEditVal }) })); } setEditingCrewTimeline(null); }}
                                               onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }}
-                                              className="w-12 h-4 text-[10px] font-mono bg-slate-700 border border-blue-500/70 rounded px-1 text-slate-100 outline-none text-center mt-0.5"
+                                              className="w-12 h-4 text-[10px] font-mono bg-slate-700 border border-blue-500/70 rounded px-1 text-slate-100 outline-none text-center"
                                               placeholder="HH:MM"
                                               data-testid={`inline-edit-timeline-${crew.id}-${tlStep?.id}`}
                                             />
                                           )
+                                        ) : ms.time === "—" && ms.key !== "vessel" ? (
+                                          <button
+                                            className="text-[10px] text-slate-600 group-hover:text-blue-400/70 opacity-40 group-hover:opacity-100 transition-all cursor-pointer leading-tight"
+                                            onClick={() => {
+                                              if (ms.key === "flight") {
+                                                setInlineEdit({ crewId: crew.id, field: "flightEta", val: crew.flightEta || "" });
+                                              } else if (tlStep) {
+                                                setEditingCrewTimeline({ crewId: crew.id, stepId: tlStep.id });
+                                                setCrewTimelineEditVal(tlStep.time);
+                                              } else {
+                                                openSlideOver();
+                                              }
+                                            }}
+                                            data-testid={`ms-set-${crew.id}-${ms.key}`}
+                                          >+ Set</button>
                                         ) : (
                                           <div
                                             className={`${_badgeCls}${ms.key !== "vessel" ? " cursor-pointer hover:border-slate-600/50" : ""}`}
@@ -3239,7 +3256,7 @@ export default function VoyageDetail() {
                             {/* ── RIGHT: Status badge + quick actions ── */}
                             <div className="flex flex-col items-end gap-1.5 flex-shrink-0 pr-1.5" onClick={e => e.stopPropagation()}>
                               {/* Big warning / status badge */}
-                              <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-2 py-1 whitespace-nowrap ${
+                              <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-2 py-1 whitespace-nowrap transition-transform group-hover:scale-105 ${
                                 hasCritical        ? "text-red-400 bg-red-950/60 border-red-500/50" :
                                 hasWarning         ? "text-amber-400 bg-amber-950/40 border-amber-500/40" :
                                 _hotelPending      ? "text-amber-300 bg-amber-950/40 border-amber-500/40" :
@@ -3255,7 +3272,8 @@ export default function VoyageDetail() {
                               {crew.arrivalStatus === "departed" && (
                                 <span className="inline-flex items-center text-[8px] font-bold text-rose-400 bg-rose-900/30 border border-rose-500/40 rounded-full px-1.5 py-0.5">🔴 Departed</span>
                               )}
-                              {/* Quick action buttons */}
+                              {/* Quick action buttons — subtle by default, visible on hover */}
+                              <div className="flex flex-col gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                               <button
                                 className="flex items-center justify-center gap-1 h-6 px-2 w-full text-[10px] font-medium rounded-md border border-slate-600 text-slate-400 hover:text-blue-400 hover:border-blue-500/50 hover:bg-blue-900/20 transition-colors"
                                 onClick={e => { e.stopPropagation(); setCrewPanelMode("edit"); setEditingCrewId(crew.id); setCrewSlideForm({ name: crew.name, rank: crew.rank, side: crew.side, nationality: crew.nationality, passportNo: crew.passportNo, flight: crew.flight, flightEta: crew.flightEta, flightDelayed: crew.flightDelayed, visaRequired: crew.visaRequired, eVisaStatus: crew.eVisaStatus, okToBoard: crew.okToBoard, requiresHotel: crew.requiresHotel, hotelName: crew.hotelName, hotelCheckIn: crew.hotelCheckIn, hotelCheckOut: crew.hotelCheckOut, hotelStatus: crew.hotelStatus, hotelPickupTime: crew.hotelPickupTime, dob: crew.dob, seamanBookNo: crew.seamanBookNo, birthPlace: crew.birthPlace }); setSlideFormTimeline(crew.timeline.map(s => ({ ...s }))); setShowCrewPanel(true); }}
@@ -3280,6 +3298,7 @@ export default function VoyageDetail() {
                                   <LogOut className="w-3 h-3" /> {crew.arrivalStatus === "departed" ? "✓ Departed" : "Departed"}
                                 </button>
                               )}
+                              </div>
                               {/* Expand + Remove */}
                               <div className="flex gap-0.5">
                                 <button className="p-1 text-slate-600 hover:text-blue-400 transition-colors" onClick={e => { e.stopPropagation(); openSlideOver(); }} data-testid={`button-expand-crew-${crew.id}`} title="Open details"><Maximize2 className="w-3 h-3" /></button>

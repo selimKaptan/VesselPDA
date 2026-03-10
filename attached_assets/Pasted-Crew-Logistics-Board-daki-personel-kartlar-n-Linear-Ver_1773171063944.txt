@@ -1,0 +1,142 @@
+Crew Logistics Board'daki personel kartlarını Linear/Vercel kalitesine çıkar. 3 kritik micro-polish:
+
+## 1. BADGE OPTİMİZASYONU — Rozetleri yan yana diz, kart yüksekliğini azalt
+
+Crew kartlarındaki "Visa: OK", "e-Visa: N/A", "Kontrol: Bekliyor" badge'lerini bul.
+
+ÖNCE (dikey, alt alta):
+  Visa: OK
+  e-Visa: N/A
+  Kontrol: Bekliyor
+
+SONRA (yatay, yan yana, kompakt):
+<div className="flex flex-wrap items-center gap-1.5 mt-1">
+  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">✅ Visa</span>
+  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-500/15 text-slate-400 border border-slate-500/20">e-Visa: N/A</span>
+  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20">⏳ Kontrol</span>
+</div>
+
+Kart padding'ini azalt: p-4 → p-3
+İsim + Rütbe + Nationality: tek satırda
+  "Baczkowski, Wojciech" · 2nd Officer · 🇵🇱 POLISH
+  (isim bold, rütbe normal, nationality küçük)
+
+Hedef kart yüksekliği: max ~80px (mevcut ~120px)
+
+## 2. DİNAMİK TIMELINE — Boş alanları interaktif yap
+
+Crew kartlarındaki FLIGHT / TRANSFER / KONTROL / VESSEL timeline ikonlarını bul.
+
+A) Kesikli çizgileri belirginleştir:
+- Mevcut: border-dashed border-slate-700 (çok soluk)
+- Yeni: border-dashed border-slate-500/60 (daha görünür)
+- Çizgi kalınlığı: border-t → border-t-2
+
+B) Boş durum ("—" tire) yerine tıklanabilir "Set" butonu:
+ÖNCE:
+  ✈️ FLIGHT
+  —
+
+SONRA:
+  ✈️
+  <button className="text-[10px] text-slate-500 hover:text-blue-400 opacity-50 hover:opacity-100 transition-all cursor-pointer">
+    + Set
+  </button>
+
+"+ Set" tıklandığında ilgili düzenleme modal'ını açsın (mevcut edit fonksiyonunu tetikle).
+
+Veri VARSA:
+  ✈️
+  <span className="text-[10px] text-slate-300 font-medium">TK2320</span>
+  <span className="text-[10px] text-slate-500">14:30</span>
+
+C) "FLIGHT: —" alt yazısını KALDIR. Uçuş bilgisini doğrudan ikonun altına entegre et:
+- Uçuş kodu varsa: ikonun altında "TK2320" (text-[10px] font-medium)
+- Yoksa: ikonun altında "+ Set" (tıklanabilir)
+
+D) Timeline adımları tamamlandığında yeşil check:
+- Veri girilmiş adım: ikon normal renk + alt yazı
+- Veri girilmemiş adım: ikon opacity-40 + "+ Set" butonu
+- Tamamlanmış adım (arrived): ikon yeşil + ✓
+
+Timeline yapısı her crew kartında:
+<div className="flex items-center flex-1 gap-0">
+  {/* Flight step */}
+  <div className="flex flex-col items-center min-w-[60px]">
+    <div className={cn("w-8 h-8 rounded-full flex items-center justify-center", hasFlightData ? "bg-blue-500/15 text-blue-400" : "bg-slate-800 text-slate-600")}>
+      <Plane className="w-4 h-4" />
+    </div>
+    {hasFlightData ? (
+      <div className="text-center mt-0.5">
+        <div className="text-[10px] font-medium text-slate-300">{flightCode}</div>
+        <div className="text-[10px] text-slate-500">{flightTime}</div>
+      </div>
+    ) : (
+      <button onClick={onSetFlight} className="text-[10px] text-slate-600 hover:text-blue-400 mt-0.5 transition-colors">+ Set</button>
+    )}
+  </div>
+  
+  {/* Connector line */}
+  <div className="flex-1 border-t-2 border-dashed border-slate-500/40 mx-1" />
+  
+  {/* Transfer step */}
+  <div className="flex flex-col items-center min-w-[60px]">
+    {/* same pattern */}
+  </div>
+  
+  {/* Connector line */}
+  <div className="flex-1 border-t-2 border-dashed border-slate-500/40 mx-1" />
+  
+  {/* Kontrol step */}
+  {/* ... */}
+  
+  {/* Connector line */}
+  <div className="flex-1 border-t-2 border-dashed border-slate-500/40 mx-1" />
+  
+  {/* Vessel step */}
+  <div className="flex flex-col items-center min-w-[60px]">
+    <div className={cn("w-8 h-8 rounded-full flex items-center justify-center", hasVesselData ? "bg-emerald-500/15 text-emerald-400" : "bg-slate-800 text-slate-600")}>
+      <Ship className="w-4 h-4" />
+    </div>
+    {hasVesselData ? (
+      <div className="text-center mt-0.5">
+        <div className="text-[10px] font-medium text-slate-300">{vesselDate}</div>
+        <div className="text-[10px] text-slate-500">{vesselTime}</div>
+      </div>
+    ) : (
+      <button onClick={onSetVessel} className="text-[10px] text-slate-600 hover:text-blue-400 mt-0.5 transition-colors">+ Set</button>
+    )}
+  </div>
+</div>
+
+## 3. HOVER EFEKTLERİ — Kart aydınlanma + eksik alan vurgusu
+
+A) Kart hover efekti:
+ÖNCE: Statik arka plan
+SONRA:
+<div className="group rounded-lg border border-slate-700/50 bg-slate-900/50 p-3 transition-all duration-200 hover:bg-slate-800/60 hover:border-slate-600/50 hover:shadow-lg hover:shadow-slate-900/50">
+
+B) Hover'da eksik alanları vurgula:
+Kartın üzerine gelindiğinde, veri girilmemiş timeline adımları parlasın:
+
+"+ Set" butonlarına group-hover ekle:
+<button className="text-[10px] text-slate-600 group-hover:text-blue-400/70 group-hover:opacity-100 opacity-40 transition-all">
+  + Set
+</button>
+
+Boş ikon daireleri hover'da aydınlansın:
+<div className={cn(
+  "w-8 h-8 rounded-full flex items-center justify-center transition-all",
+  hasData 
+    ? "bg-blue-500/15 text-blue-400" 
+    : "bg-slate-800 text-slate-600 group-hover:bg-slate-700 group-hover:text-slate-400"
+)}>
+
+C) Ready/Arrived badge'i hover'da büyüsün:
+<span className="transition-transform group-hover:scale-105">✓ Ready</span>
+
+D) Sağ taraftaki action butonları (Edit, Arrived) hover'da görünsün, normalde subtle:
+<div className="flex flex-col gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+  <Button variant="outline" size="sm" className="text-xs h-7">Edit</Button>
+  <Button variant="outline" size="sm" className="text-xs h-7">Arrived</Button>
+</div>
