@@ -688,10 +688,13 @@ export default function VoyageDetail() {
   const [receiverForm, setReceiverForm] = useState({ name: "", allocatedMt: 0 });
   const [showAddParcelDialog, setShowAddParcelDialog] = useState(false);
   const [editingParcel, setEditingParcel] = useState<any | null>(null);
-  const [parcelForm, setParcelForm] = useState({ receiverName: "", cargoType: "", cargoDescription: "", targetQuantity: 0, handledQuantity: 0, unit: "MT", holdNumbers: "", blNumber: "", notes: "" });
+  const EMPTY_PARCEL_FORM = { receiverName: "", cargoType: "", cargoDescription: "", targetQuantity: 0, handledQuantity: 0, unit: "MT", holdNumbers: "", blNumber: "", notes: "", consigneeName: "", shipperName: "", cargoGrade: "", tankNumbers: "", blQuantity: 0 as number | "", loadingSequence: 0 as number | "", dischargeSequence: 0 as number | "", operationStatus: "waiting", equipmentUsed: "", hosesConnected: 0 as number | "", cranesAssigned: "" };
+  const [parcelForm, setParcelForm] = useState(EMPTY_PARCEL_FORM);
   const [stowageNotes, setStowageNotes] = useState("");
   const [stowageNotesEditing, setStowageNotesEditing] = useState(false);
   const [inlineHandled, setInlineHandled] = useState<Record<number, string>>({});
+  const [cargoSortBy, setCargoSortBy] = useState("sequence");
+  const [cargoViewMode, setCargoViewMode] = useState<"cards" | "table">("cards");
   const [vesselType, setVesselType] = useState<"dry_bulk" | "tanker">("dry_bulk");
   const [logParcelId, setLogParcelId] = useState("");
   const [logHold, setLogHold] = useState("");
@@ -2131,7 +2134,7 @@ export default function VoyageDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-parcels"] });
       setShowAddParcelDialog(false);
-      setParcelForm({ receiverName: "", cargoType: "", cargoDescription: "", targetQuantity: 0, handledQuantity: 0, unit: "MT", holdNumbers: "", blNumber: "", notes: "" });
+      setParcelForm({ ...EMPTY_PARCEL_FORM });
     },
   });
 
@@ -4882,22 +4885,43 @@ export default function VoyageDetail() {
             });
             const groupedLogs = Array.from(batchMap.values());
 
-            // Parcel dashboard variables
-            const PARCEL_COLORS = [
-              { bar: "bg-sky-500", badge: "bg-sky-500/15 text-sky-400 border-sky-500/25" },
-              { bar: "bg-violet-500", badge: "bg-violet-500/15 text-violet-400 border-violet-500/25" },
-              { bar: "bg-emerald-500", badge: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25" },
-              { bar: "bg-orange-500", badge: "bg-orange-500/15 text-orange-400 border-orange-500/25" },
-              { bar: "bg-rose-500", badge: "bg-rose-500/15 text-rose-400 border-rose-500/25" },
-              { bar: "bg-amber-500", badge: "bg-amber-500/15 text-amber-400 border-amber-500/25" },
+            // ── Cargo Ops helpers (no hooks — inside conditional IIFE) ──
+            const CARGO_COLORS = [
+              { bg: "bg-blue-500", light: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500/40", ring: "ring-blue-500/30" },
+              { bg: "bg-emerald-500", light: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/40", ring: "ring-emerald-500/30" },
+              { bg: "bg-purple-500", light: "bg-purple-500/10", text: "text-purple-400", border: "border-purple-500/40", ring: "ring-purple-500/30" },
+              { bg: "bg-amber-500", light: "bg-amber-500/10", text: "text-amber-400", border: "border-amber-500/40", ring: "ring-amber-500/30" },
+              { bg: "bg-rose-500", light: "bg-rose-500/10", text: "text-rose-400", border: "border-rose-500/40", ring: "ring-rose-500/30" },
+              { bg: "bg-cyan-500", light: "bg-cyan-500/10", text: "text-cyan-400", border: "border-cyan-500/40", ring: "ring-cyan-500/30" },
+              { bg: "bg-indigo-500", light: "bg-indigo-500/10", text: "text-indigo-400", border: "border-indigo-500/40", ring: "ring-indigo-500/30" },
             ];
+            const cycleParcelStatus = (parcelId: number) => {
+              const p = cargoParcelsData.find((x: any) => x.id === parcelId);
+              if (!p) return;
+              const cur = p.operationStatus || "waiting";
+              const next = cur === "waiting" ? "active" : cur === "active" ? "paused" : cur === "paused" ? "completed" : "waiting";
+              updateParcelMutation.mutate({ id: parcelId, operationStatus: next, ...(next === "active" && !p.operationStartedAt ? { operationStartedAt: new Date().toISOString() } : {}), ...(next === "completed" ? { operationCompletedAt: new Date().toISOString() } : {}) });
+            };
+            const updateParcelField = (parcelId: number, field: string, value: any) => updateParcelMutation.mutate({ id: parcelId, [field]: value });
+            const sortedParcels = [...cargoParcelsData].sort((a: any, b: any) => {
+              if (cargoSortBy === "status") {
+                const ord: Record<string, number> = { active: 0, paused: 1, waiting: 2, completed: 3 };
+                return (ord[a.operationStatus] ?? 9) - (ord[b.operationStatus] ?? 9);
+              }
+              if (cargoSortBy === "quantity") return (b.targetQuantity || 0) - (a.targetQuantity || 0);
+              if (cargoSortBy === "progress") {
+                const pA = (a.targetQuantity || 0) > 0 ? (a.handledQuantity || 0) / a.targetQuantity : 0;
+                const pB = (b.targetQuantity || 0) > 0 ? (b.handledQuantity || 0) / b.targetQuantity : 0;
+                return pB - pA;
+              }
+              return (a.dischargeSequence || a.loadingSequence || 99) - (b.dischargeSequence || b.loadingSequence || 99);
+            });
             const totalTargetMt = cargoParcelsData.reduce((s: number, p: any) => s + (p.targetQuantity || 0), 0);
             const totalHandledParcelMt = cargoParcelsData.reduce((s: number, p: any) => s + (p.handledQuantity || 0), 0);
             const overallPct = totalTargetMt > 0 ? Math.min(100, Math.round((totalHandledParcelMt / totalTargetMt) * 100)) : 0;
-            const completedParcels = cargoParcelsData.filter((p: any) => p.status === "completed").length;
-            const inProgressParcels = cargoParcelsData.filter((p: any) => p.status === "in_progress").length;
-
-            // Performance metrics
+            const completedParcels = cargoParcelsData.filter((p: any) => (p.operationStatus || p.status) === "completed").length;
+            const activeParcels = cargoParcelsData.filter((p: any) => p.operationStatus === "active").length;
+            const remainingMt = Math.max(0, totalTargetMt - totalHandledParcelMt);
             const isTankerMode = vesselType === "tanker";
             const opLogs = cargoLogs.filter((l: any) => l.logType === "operation" && l.amountHandled > 0 && l.fromTime && l.toTime);
             const sortedOpLogs = [...opLogs].sort((a: any, b: any) => new Date(b.fromTime).getTime() - new Date(a.fromTime).getTime());
@@ -4907,234 +4931,314 @@ export default function VoyageDetail() {
               const h = (new Date(lastOpLog.toTime).getTime() - new Date(lastOpLog.fromTime).getTime()) / 3_600_000;
               return h > 0 ? parseFloat((lastOpLog.amountHandled / h).toFixed(1)) : 0;
             })();
+            const overallRate = currentRate > 0 ? `${currentRate.toLocaleString()}` : "—";
+            const etcHours = currentRate > 0 ? remainingMt / currentRate : null;
+            const etcLabel = etcHours !== null
+              ? etcHours < 1 ? `${Math.round(etcHours * 60)}m`
+              : etcHours < 24 ? `${Math.floor(etcHours)}h ${Math.round((etcHours % 1) * 60)}m`
+              : `${Math.floor(etcHours / 24)}d ${Math.floor(etcHours % 24)}h`
+              : "—";
+            const isLate = !!(voyage?.etd && etcHours !== null && new Date(Date.now() + etcHours * 3_600_000) > new Date(voyage.etd));
+            const activeEquipment = cargoParcelsData.filter((p: any) => p.operationStatus === "active").map((p: any) => p.equipmentUsed || p.cranesAssigned).filter(Boolean).join(", ") || "—";
+            const operationStartTime = cargoParcelsData.map((p: any) => p.operationStartedAt).filter(Boolean).sort()[0];
             const fourHoursAgo = new Date(Date.now() - 4 * 3_600_000);
             const logs4h = opLogs.filter((l: any) => new Date(l.fromTime) >= fourHoursAgo);
             const avg4hMt = logs4h.reduce((s: number, l: any) => s + (l.amountHandled || 0), 0);
-            const avg4hHrs = logs4h.reduce((s: number, l: any) => {
-              if (!l.fromTime || !l.toTime) return s;
-              return s + (new Date(l.toTime).getTime() - new Date(l.fromTime).getTime()) / 3_600_000;
-            }, 0);
+            const avg4hHrs = logs4h.reduce((s: number, l: any) => (!l.fromTime || !l.toTime ? s : s + (new Date(l.toTime).getTime() - new Date(l.fromTime).getTime()) / 3_600_000), 0);
             const avg4hRate = avg4hHrs > 0 ? parseFloat((avg4hMt / avg4hHrs).toFixed(1)) : 0;
-            const remainingMt = Math.max(0, totalTargetMt - totalHandledParcelMt);
-            const etcHours = currentRate > 0 ? remainingMt / currentRate : null;
-            const etcLabel = etcHours !== null
-              ? etcHours < 1
-                ? `${Math.round(etcHours * 60)}m`
-                : etcHours < 24
-                ? `${Math.floor(etcHours)}h ${Math.round((etcHours % 1) * 60)}m`
-                : `${Math.floor(etcHours / 24)}d ${Math.floor(etcHours % 24)}h`
-              : "—";
-            const activeGangs = lastOpLog?.gangsWorking ?? null;
             const rateDropPct = avg4hRate > 0 && currentRate > 0 ? Math.round(((avg4hRate - currentRate) / avg4hRate) * 100) : 0;
             const rateDropDetected = rateDropPct >= 20 && currentRate > 0 && avg4hRate > 0;
+            const MetricCell = ({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) => (
+              <div className="px-4 py-3 border-r border-slate-700/20 last:border-r-0 flex flex-col gap-0.5">
+                <span className="text-[10px] text-slate-500 uppercase tracking-wider">{label}</span>
+                <span className={cn("text-lg font-bold leading-tight", color === "blue" ? "text-blue-400" : color === "amber" ? "text-amber-400" : color === "red" ? "text-red-400" : color === "emerald" ? "text-emerald-400" : "text-slate-200")}>{value}</span>
+                {sub && <span className="text-[10px] text-slate-500">{sub}</span>}
+              </div>
+            );
 
             return (
               <div className="space-y-5" data-testid="tab-content-cargo-ops">
 
-                {/* ── Performance Dashboard ─────────────────────────── */}
-                <div className="space-y-2.5">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-
-                    {/* 1. Total Progress (col-span-2) */}
-                    <div className="col-span-2 bg-card border border-border/60 rounded-lg p-3.5">
-                      <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Total Progress</span>
-                          <div className="flex items-baseline gap-1.5 mt-0.5">
-                            <span className="text-xl font-bold text-[hsl(var(--maritime-primary))]" data-testid="stat-progress-pct">{overallPct}%</span>
-                            <span className="text-xs text-muted-foreground">{totalHandledParcelMt.toLocaleString()} / {totalTargetMt.toLocaleString()} MT</span>
-                          </div>
-                        </div>
-                        <div className="text-right text-[10px] text-muted-foreground space-y-0.5">
-                          <div><span className="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1" />{completedParcels} done</div>
-                          <div><span className="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1" />{inProgressParcels} active</div>
-                        </div>
+                {/* ── A) Active Operation Banner + Metrics + Progress ── */}
+                <div className="rounded-xl border border-slate-700/50 bg-slate-800/20 overflow-hidden">
+                  {activeParcels > 0 ? (
+                    <div className="px-5 py-2.5 border-b border-slate-700/20 bg-slate-900/40 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-sm font-semibold text-emerald-400">
+                          ACTIVE: {activeParcels} parcel{activeParcels > 1 ? "s" : ""} being {voyage?.purposeOfCall?.toLowerCase() === "loading" ? "loaded" : "discharged"}
+                        </span>
                       </div>
-                      <div className="w-full h-2.5 bg-muted/50 rounded-full overflow-hidden flex gap-px">
-                        {cargoParcelsData.length > 0 ? (
-                          cargoParcelsData.map((p: any, idx: number) => {
-                            const c = PARCEL_COLORS[idx % PARCEL_COLORS.length];
-                            const segPct = totalTargetMt > 0 ? ((p.handledQuantity || 0) / totalTargetMt) * 100 : 0;
-                            return segPct > 0 ? (
-                              <div key={p.id} className={`h-full ${c.bar} transition-all`} style={{ width: `${segPct}%` }} title={`${p.receiverName}: ${(p.handledQuantity || 0).toLocaleString()} MT`} />
-                            ) : null;
-                          })
-                        ) : (
-                          <div className="h-full bg-muted rounded-full w-full" />
-                        )}
+                      <div className="flex items-center gap-4 text-xs text-slate-400">
+                        {operationStartTime && <span>⏱ Started: {new Date(operationStartTime).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>}
+                        <span>🔧 {activeEquipment}</span>
                       </div>
                     </div>
-
-                    {/* 2. Current Rate */}
-                    <div className="bg-card border border-border/60 rounded-lg p-3.5 flex flex-col gap-0.5">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{isTankerMode ? "Pump Rate" : "Current Rate"}</span>
-                      <span className="text-xl font-bold text-emerald-400" data-testid="stat-current-rate">{currentRate > 0 ? currentRate.toLocaleString() : "—"}</span>
-                      <span className="text-[10px] text-muted-foreground">MT/hr</span>
+                  ) : (
+                    <div className="px-5 py-2.5 border-b border-slate-700/20 bg-slate-900/30 flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 rounded-full bg-slate-600" />
+                      <span className="text-sm text-slate-500">No active operations — set a parcel to ACTIVE to begin tracking</span>
                     </div>
+                  )}
 
-                    {/* 3. 4h Average */}
-                    <div className="bg-card border border-border/60 rounded-lg p-3.5 flex flex-col gap-0.5">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">4h Average</span>
-                      <span className="text-xl font-bold text-sky-400" data-testid="stat-avg4h-rate">{avg4hRate > 0 ? avg4hRate.toLocaleString() : "—"}</span>
-                      <span className="text-[10px] text-muted-foreground">MT/hr</span>
-                    </div>
-
-                    {/* 4. ETC */}
-                    <div className="bg-card border border-border/60 rounded-lg p-3.5 flex flex-col gap-0.5">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">ETC</span>
-                      <span className="text-xl font-bold text-amber-400" data-testid="stat-etc">{etcLabel}</span>
-                      {etcHours !== null && <span className="text-[10px] text-muted-foreground">{remainingMt.toLocaleString()} MT kalan</span>}
-                    </div>
-
-                    {/* 5. Active Gangs / Manifold */}
-                    <div className="bg-card border border-border/60 rounded-lg p-3.5 flex flex-col gap-0.5">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{isTankerMode ? "Manifold" : "Active Gangs"}</span>
-                      <span className="text-xl font-bold" data-testid="stat-active-gangs">{activeGangs ?? "—"}</span>
-                      {activeGangs && <span className="text-[10px] text-muted-foreground">son log</span>}
-                    </div>
+                  {/* 6-metric row */}
+                  <div className="grid grid-cols-3 sm:grid-cols-6 border-b border-slate-700/20">
+                    <MetricCell label="Total Cargo" value={`${totalTargetMt.toLocaleString()} MT`} />
+                    <MetricCell label="Handled" value={`${totalHandledParcelMt.toLocaleString()} MT`} sub={`${overallPct}%`} color="blue" />
+                    <MetricCell label="Remaining" value={`${remainingMt.toLocaleString()} MT`} color="amber" />
+                    <MetricCell label={isTankerMode ? "Pump Rate" : "Op. Rate"} value={`${overallRate} MT/hr`} />
+                    <MetricCell label="Parcels" value={`${completedParcels}/${cargoParcelsData.length}`} sub="completed" />
+                    <MetricCell label="Est. Completion" value={etcLabel} color={isLate ? "red" : "emerald"} />
                   </div>
 
-                  {/* Rate drop warning */}
-                  {rateDropDetected && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-red-500/10 border border-red-500/25 text-red-400 text-xs" data-testid="alert-rate-drop">
-                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span>Rate drop tespit edildi: <strong>{currentRate} MT/hr</strong> (mevcut) vs <strong>{avg4hRate} MT/hr</strong> (4h ort.) — %{rateDropPct} düşüş</span>
+                  {/* Multi-segment progress bar + legend */}
+                  {cargoParcelsData.length > 0 && (
+                    <div className="px-5 py-3">
+                      <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden flex">
+                        {cargoParcelsData.map((p: any, i: number) => {
+                          const c = CARGO_COLORS[i % CARGO_COLORS.length];
+                          const w = totalTargetMt > 0 ? ((p.handledQuantity || 0) / totalTargetMt) * 100 : 0;
+                          return w > 0 ? (
+                            <div key={p.id} className={cn("h-full transition-all duration-700", c.bg, i === 0 && "rounded-l-full", i === cargoParcelsData.length - 1 && "rounded-r-full")} style={{ width: `${w}%`, minWidth: "3px" }} title={`${p.receiverName}: ${(p.handledQuantity || 0).toLocaleString()}/${(p.targetQuantity || 0).toLocaleString()} MT`} />
+                          ) : null;
+                        })}
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+                        {cargoParcelsData.map((p: any, i: number) => {
+                          const c = CARGO_COLORS[i % CARGO_COLORS.length];
+                          const pct = (p.targetQuantity || 0) > 0 ? Math.round(((p.handledQuantity || 0) / p.targetQuantity) * 100) : 0;
+                          return (
+                            <div key={p.id} className="flex items-center gap-1.5">
+                              <div className={cn("w-2 h-2 rounded-full", c.bg)} />
+                              <span className="text-[10px] text-slate-400">{p.receiverName}</span>
+                              {p.cargoType && <span className="text-[10px] text-slate-600">{p.cargoType}</span>}
+                              <span className="text-[10px] font-medium text-slate-500">{pct}%</span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* ── 2-Column Layout ────────────────────────────────── */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                {rateDropDetected && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-red-500/10 border border-red-500/25 text-red-400 text-xs" data-testid="alert-rate-drop">
+                    <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>Rate drop tespit edildi: <strong>{currentRate} MT/hr</strong> (mevcut) vs <strong>{avg4hRate} MT/hr</strong> (4h ort.) — %{rateDropPct} düşüş</span>
+                  </div>
+                )}
 
-                  {/* Left: Parcel List (2/3) */}
+                {/* ── B) Controls + Parcel Cards/Table ── */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                   <div className="lg:col-span-2 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-sm flex items-center gap-2">
+
+                    {/* Controls bar */}
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
                         <Package className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                        {isTankerMode ? "Cargo Grades / Tanks" : "Cargo Parcels"}
-                        {cargoParcelsData.length > 0 && (
-                          <span className="text-[10px] text-slate-500 bg-slate-800 rounded-full px-2 py-0.5">{cargoParcelsData.length}</span>
-                        )}
-                      </h3>
-                      <Button size="sm" className="text-xs h-7 gap-1.5" onClick={() => {
-                        setEditingParcel(null);
-                        setParcelForm({ receiverName: "", cargoType: "", cargoDescription: "", targetQuantity: 0, handledQuantity: 0, unit: "MT", holdNumbers: "", blNumber: "", notes: "" });
-                        setShowAddParcelDialog(true);
-                      }} data-testid="button-add-parcel">
-                        <Plus className="w-3 h-3" /> Add Parcel
-                      </Button>
+                        <h3 className="font-semibold text-sm">{isTankerMode ? "Cargo Grades / Tanks" : "Cargo Parcels"}</h3>
+                        {cargoParcelsData.length > 0 && <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">{cargoParcelsData.length} parcels</span>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <select value={cargoSortBy} onChange={e => setCargoSortBy(e.target.value)} className="h-7 text-[10px] px-2 rounded-md border border-slate-700/50 bg-slate-800/50 text-slate-300 focus:outline-none" data-testid="select-cargo-sort">
+                          <option value="sequence">By Sequence (Plan)</option>
+                          <option value="status">By Status (Active First)</option>
+                          <option value="quantity">By Quantity (Largest)</option>
+                          <option value="progress">By Progress (%)</option>
+                        </select>
+                        <div className="flex rounded-lg border border-slate-700/50 overflow-hidden">
+                          <button onClick={() => setCargoViewMode("cards")} className={cn("px-2.5 py-1 text-[10px] transition-colors", cargoViewMode === "cards" ? "bg-blue-500/20 text-blue-400" : "text-slate-500 hover:text-slate-300")} data-testid="button-view-cards">Cards</button>
+                          <button onClick={() => setCargoViewMode("table")} className={cn("px-2.5 py-1 text-[10px] border-l border-slate-700/50 transition-colors", cargoViewMode === "table" ? "bg-blue-500/20 text-blue-400" : "text-slate-500 hover:text-slate-300")} data-testid="button-view-table">Table</button>
+                        </div>
+                        <Button size="sm" className="text-xs h-7 gap-1" onClick={() => { setEditingParcel(null); setParcelForm({ ...EMPTY_PARCEL_FORM }); setShowAddParcelDialog(true); }} data-testid="button-add-parcel">
+                          <Plus className="w-3 h-3" /> Add Parcel
+                        </Button>
+                      </div>
                     </div>
 
-                    {cargoParcelsData.length === 0 ? (
-                      <EmptyState
-                        icon={Package}
-                        title="No Cargo Parcels"
-                        description="Add parcels to track cargo by receiver, hold, and B/L number."
-                        action={{ label: "Add First Parcel", onClick: () => setShowAddParcelDialog(true) }}
-                        compact
-                        testId="section-parcels-empty"
-                      />
-                    ) : (
-                      <div className="space-y-2">
-                        {cargoParcelsData.map((parcel: any, idx: number) => {
-                          const color = PARCEL_COLORS[idx % PARCEL_COLORS.length];
-                          const pct = (parcel.targetQuantity ?? 0) > 0
-                            ? Math.min(100, Math.round(((parcel.handledQuantity ?? 0) / parcel.targetQuantity) * 100))
-                            : 0;
-                          const statusColors: Record<string, string> = {
-                            completed: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
-                            in_progress: "bg-amber-500/15 text-amber-400 border-amber-500/25",
-                            pending: "bg-slate-500/15 text-slate-400 border-slate-500/25",
-                          };
-                          const statusLabels: Record<string, string> = { completed: "Done", in_progress: "In Progress", pending: "Pending" };
+                    {/* Empty state */}
+                    {cargoParcelsData.length === 0 && (
+                      <EmptyState icon={Package} title="No Cargo Parcels" description="Add parcels to track cargo by consignee, hold, and sequence." action={{ label: "Add First Parcel", onClick: () => setShowAddParcelDialog(true) }} compact testId="section-parcels-empty" />
+                    )}
+
+                    {/* CARDS VIEW */}
+                    {cargoParcelsData.length > 0 && cargoViewMode === "cards" && (
+                      <div className="space-y-3">
+                        {sortedParcels.map((parcel: any, i: number) => {
+                          const ci = cargoParcelsData.findIndex((p: any) => p.id === parcel.id);
+                          const c = CARGO_COLORS[ci % CARGO_COLORS.length];
+                          const opStatus = parcel.operationStatus || "waiting";
+                          const isActive = opStatus === "active";
+                          const isCompleted = opStatus === "completed";
+                          const isPaused = opStatus === "paused";
+                          const pct = (parcel.targetQuantity || 0) > 0 ? Math.min(100, Math.round(((parcel.handledQuantity || 0) / parcel.targetQuantity) * 100)) : 0;
+                          const shortage = parcel.blQuantity && isCompleted ? (parcel.blQuantity - (parcel.handledQuantity || 0)) : null;
+                          const seqNum = parcel.dischargeSequence || parcel.loadingSequence || (i + 1);
                           return (
-                            <Card key={parcel.id} className="p-4" data-testid={`card-parcel-${parcel.id}`}>
-                              <div className="flex items-start justify-between gap-2 mb-3">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <div className={`w-2 h-8 rounded-full ${color.bar} flex-shrink-0`} />
+                            <div key={parcel.id} className={cn("rounded-xl border overflow-hidden transition-all", isActive && cn("shadow-lg", c.border, c.light), isPaused && "border-amber-500/30 bg-amber-500/5", isCompleted && "border-emerald-500/30 bg-emerald-500/5 opacity-80", !isActive && !isCompleted && !isPaused && "border-slate-700/40 bg-slate-900/30")} data-testid={`card-parcel-${parcel.id}`}>
+                              {/* Card Header */}
+                              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/20">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0", isActive ? cn(c.light, c.text) : "bg-slate-800 text-slate-500")}>#{seqNum}</div>
                                   <div className="min-w-0">
-                                    <div className="font-semibold text-sm truncate" data-testid={`text-parcel-receiver-${parcel.id}`}>{parcel.receiverName}</div>
-                                    <div className="text-xs text-muted-foreground truncate">
-                                      {[parcel.cargoType, parcel.holdNumbers && `Hold: ${parcel.holdNumbers}`, parcel.blNumber && `BL: ${parcel.blNumber}`].filter(Boolean).join(" · ")}
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-sm font-semibold text-slate-200" data-testid={`text-parcel-receiver-${parcel.id}`}>{parcel.receiverName || parcel.consigneeName}</span>
+                                      {parcel.shipperName && <span className="text-[10px] text-slate-500">from {parcel.shipperName}</span>}
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-400">
+                                      {parcel.cargoType && <span>{parcel.cargoType}</span>}
+                                      {parcel.cargoGrade && <span className="text-slate-500">({parcel.cargoGrade})</span>}
                                     </div>
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${statusColors[parcel.status] ?? statusColors.pending}`} data-testid={`badge-parcel-status-${parcel.id}`}>
-                                    {statusLabels[parcel.status] ?? parcel.status}
-                                  </span>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                                    onClick={() => {
-                                      setEditingParcel(parcel);
-                                      setParcelForm({
-                                        receiverName: parcel.receiverName,
-                                        cargoType: parcel.cargoType ?? "",
-                                        cargoDescription: parcel.cargoDescription ?? "",
-                                        targetQuantity: parcel.targetQuantity ?? 0,
-                                        handledQuantity: parcel.handledQuantity ?? 0,
-                                        unit: parcel.unit ?? "MT",
-                                        holdNumbers: parcel.holdNumbers ?? "",
-                                        blNumber: parcel.blNumber ?? "",
-                                        notes: parcel.notes ?? "",
-                                      });
-                                      setShowAddParcelDialog(true);
-                                    }}
-                                    data-testid={`button-edit-parcel-${parcel.id}`}>
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </Button>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                                    onClick={() => deleteParcelMutation.mutate(parcel.id)}
-                                    data-testid={`button-delete-parcel-${parcel.id}`}>
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <button onClick={() => cycleParcelStatus(parcel.id)} className={cn("text-[10px] font-semibold px-2.5 py-1 rounded-full border cursor-pointer transition-all", isActive && cn("animate-pulse", c.light, c.text, c.border), isPaused && "bg-amber-500/15 text-amber-400 border-amber-500/30", isCompleted && "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", !isActive && !isCompleted && !isPaused && "bg-slate-800 text-slate-500 border-slate-700 hover:border-blue-500/30 hover:text-blue-400")} data-testid={`badge-parcel-status-${parcel.id}`}>
+                                    {isActive ? "🔄 ACTIVE" : isPaused ? "⏸ PAUSED" : isCompleted ? "✅ DONE" : "⏳ WAITING"}
+                                  </button>
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" onClick={() => { setEditingParcel(parcel); setParcelForm({ receiverName: parcel.receiverName || "", cargoType: parcel.cargoType || "", cargoDescription: parcel.cargoDescription || "", targetQuantity: parcel.targetQuantity || 0, handledQuantity: parcel.handledQuantity || 0, unit: parcel.unit || "MT", holdNumbers: parcel.holdNumbers || "", blNumber: parcel.blNumber || "", notes: parcel.notes || "", consigneeName: parcel.consigneeName || "", shipperName: parcel.shipperName || "", cargoGrade: parcel.cargoGrade || "", tankNumbers: parcel.tankNumbers || "", blQuantity: parcel.blQuantity || "", loadingSequence: parcel.loadingSequence || "", dischargeSequence: parcel.dischargeSequence || "", operationStatus: parcel.operationStatus || "waiting", equipmentUsed: parcel.equipmentUsed || "", hosesConnected: parcel.hosesConnected || "", cranesAssigned: parcel.cranesAssigned || "" }); setShowAddParcelDialog(true); }} data-testid={`button-edit-parcel-${parcel.id}`}><Pencil className="w-3.5 h-3.5" /></Button>
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => deleteParcelMutation.mutate(parcel.id)} data-testid={`button-delete-parcel-${parcel.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>
                                 </div>
                               </div>
 
-                              {/* Progress Bar */}
-                              <div className="mb-3">
-                                <div className="flex items-center justify-between text-xs mb-1.5">
-                                  <span className="text-muted-foreground">Progress</span>
-                                  <span className="font-mono font-semibold">{(parcel.handledQuantity ?? 0).toLocaleString()} / {(parcel.targetQuantity ?? 0).toLocaleString()} {parcel.unit}</span>
+                              {/* Card Body — 3-column grid */}
+                              <div className="grid grid-cols-3 gap-0">
+                                {/* Col 1: Quantity + Progress */}
+                                <div className="p-4 border-r border-slate-700/20">
+                                  <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Quantity</div>
+                                  <div className="flex items-baseline gap-1 mb-2">
+                                    <span className="text-xl font-bold text-slate-200">{(parcel.handledQuantity || 0).toLocaleString()}</span>
+                                    <span className="text-xs text-slate-500">/ {(parcel.targetQuantity || 0).toLocaleString()} {parcel.unit}</span>
+                                  </div>
+                                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mb-1.5">
+                                    <div className={cn("h-full rounded-full transition-all duration-500", c.bg)} style={{ width: `${Math.min(pct, 100)}%`, minWidth: pct > 0 ? "4px" : "0" }} />
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 mb-2">Remaining: <span className="text-slate-300 font-medium">{((parcel.targetQuantity || 0) - (parcel.handledQuantity || 0)).toLocaleString()} {parcel.unit}</span></div>
+                                  {parcel.blQuantity > 0 && (
+                                    <div className="mt-1 pt-1.5 border-t border-slate-700/20 text-[10px] space-y-0.5">
+                                      <div className="flex justify-between text-slate-500"><span>B/L Qty:</span><span className="text-slate-400">{parcel.blQuantity.toLocaleString()} {parcel.unit}</span></div>
+                                      {isCompleted && shortage !== null && shortage > 0 && <div className="flex justify-between text-amber-400"><span>Shortage:</span><span>{shortage.toLocaleString()} {parcel.unit}</span></div>}
+                                    </div>
+                                  )}
+                                  {isActive && (
+                                    <div className="mt-2 flex items-center gap-1.5">
+                                      <input type="number" value={inlineHandled[parcel.id] ?? String(parcel.handledQuantity ?? 0)} onChange={e => setInlineHandled(prev => ({ ...prev, [parcel.id]: e.target.value }))} onBlur={() => { const raw = inlineHandled[parcel.id]; if (raw === undefined) return; const val = parseFloat(raw); if (!isNaN(val) && val !== (parcel.handledQuantity ?? 0)) { const ns = (parcel.targetQuantity ?? 0) > 0 && val >= parcel.targetQuantity ? "completed" : val > 0 ? "active" : "waiting"; updateParcelMutation.mutate({ id: parcel.id, handledQuantity: val, operationStatus: ns }); } }} className="w-24 text-xs bg-slate-800/50 border border-slate-700/50 rounded px-2 py-1.5 text-center font-mono outline-none focus:ring-1 focus:ring-blue-500/30" data-testid={`input-handled-${parcel.id}`} />
+                                      <span className="text-[10px] text-slate-600">{parcel.unit}</span>
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                                  <div className={`h-full ${color.bar} rounded-full transition-all`} style={{ width: `${pct}%` }} />
-                                </div>
-                                <div className="text-right text-[10px] text-muted-foreground mt-0.5">{pct}%</div>
-                              </div>
 
-                              {/* Inline Handled Qty */}
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-xs text-muted-foreground whitespace-nowrap">Update handled:</span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  className="h-7 text-xs w-24 font-mono border border-border/60 bg-background rounded-md px-2 focus:outline-none focus:ring-1 focus:ring-ring"
-                                  value={inlineHandled[parcel.id] ?? String(parcel.handledQuantity ?? 0)}
-                                  onChange={e => setInlineHandled(prev => ({ ...prev, [parcel.id]: e.target.value }))}
-                                  onBlur={() => {
-                                    const raw = inlineHandled[parcel.id];
-                                    if (raw === undefined) return;
-                                    const val = parseFloat(raw);
-                                    if (!isNaN(val) && val !== (parcel.handledQuantity ?? 0)) {
-                                      const newStatus = (parcel.targetQuantity ?? 0) > 0 && val >= parcel.targetQuantity ? "completed" : val > 0 ? "in_progress" : "pending";
-                                      updateParcelMutation.mutate({ id: parcel.id, handledQuantity: val, status: newStatus });
-                                    }
-                                  }}
-                                  data-testid={`input-handled-${parcel.id}`}
-                                />
-                                <span className="text-xs text-muted-foreground">{parcel.unit}</span>
-                                {parcel.notes && (
-                                  <span className="text-xs text-muted-foreground italic truncate ml-auto max-w-[140px]" title={parcel.notes}>{parcel.notes}</span>
-                                )}
+                                {/* Col 2: Location + Equipment */}
+                                <div className="p-4 border-r border-slate-700/20">
+                                  <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Location & Equipment</div>
+                                  <div className="space-y-2 text-xs">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-slate-400">{isTankerMode ? "Tanks" : "Holds/Hatches"}</span>
+                                      <span className="font-medium text-slate-300">{(isTankerMode ? parcel.tankNumbers : parcel.holdNumbers) || "—"}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-slate-400">Equipment</span>
+                                      <span className="font-medium text-slate-300 truncate max-w-[100px]">{parcel.equipmentUsed || "—"}</span>
+                                    </div>
+                                    {isTankerMode ? (
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-slate-400">Hoses</span>
+                                        <div className="flex items-center gap-1">
+                                          {[1, 2, 3].map(n => (
+                                            <button key={n} onClick={() => updateParcelField(parcel.id, "hosesConnected", n)} className={cn("w-6 h-6 rounded text-[10px] font-bold transition-all border", (parcel.hosesConnected || 0) >= n ? cn(c.light, c.text, c.border) : "bg-slate-800 text-slate-600 border-slate-700")}>{n}</button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-slate-400">Cranes</span>
+                                        <span className="font-medium text-slate-300">{parcel.cranesAssigned || "—"}</span>
+                                      </div>
+                                    )}
+                                    {parcel.notes && <div className="text-[10px] text-slate-500 italic pt-1 border-t border-slate-700/20 truncate" title={parcel.notes}>{parcel.notes}</div>}
+                                  </div>
+                                </div>
+
+                                {/* Col 3: Rate + Timeline */}
+                                <div className="p-4">
+                                  <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Rate & Timeline</div>
+                                  <div className="space-y-2 text-xs">
+                                    {parcel.currentRate > 0 && <div className="flex items-center justify-between"><span className="text-slate-400">Current Rate</span><span className={cn("font-bold", c.text)}>{parcel.currentRate} MT/hr</span></div>}
+                                    {parcel.averageRate > 0 && <div className="flex items-center justify-between"><span className="text-slate-400">Avg Rate</span><span className="font-medium text-slate-300">{parcel.averageRate} MT/hr</span></div>}
+                                    {parcel.operationStartedAt && <div className="flex items-center justify-between"><span className="text-slate-400">Started</span><span className="font-medium text-slate-300">{new Date(parcel.operationStartedAt).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span></div>}
+                                    {parcel.operationCompletedAt && <div className="flex items-center justify-between"><span className="text-slate-400">Completed</span><span className="font-medium text-emerald-400">{new Date(parcel.operationCompletedAt).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span></div>}
+                                    {parcel.estimatedCompletionAt && !parcel.operationCompletedAt && <div className="flex items-center justify-between"><span className="text-slate-400">ETA Done</span><span className="font-medium text-amber-400">{new Date(parcel.estimatedCompletionAt).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span></div>}
+                                    {!parcel.currentRate && !parcel.operationStartedAt && <span className="text-[10px] text-slate-600 italic">No timing data yet</span>}
+                                  </div>
+                                </div>
                               </div>
-                            </Card>
+                            </div>
                           );
                         })}
                       </div>
                     )}
+
+                    {/* TABLE VIEW */}
+                    {cargoParcelsData.length > 0 && cargoViewMode === "table" && (
+                      <div className="rounded-xl border border-slate-700/40 overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-slate-700/40 bg-slate-900/50">
+                              <th className="text-left px-3 py-2 text-[10px] text-slate-500 uppercase tracking-wider font-medium">#</th>
+                              <th className="text-left px-3 py-2 text-[10px] text-slate-500 uppercase tracking-wider font-medium">Receiver / Cargo</th>
+                              <th className="text-left px-3 py-2 text-[10px] text-slate-500 uppercase tracking-wider font-medium">Holds/Tanks</th>
+                              <th className="text-right px-3 py-2 text-[10px] text-slate-500 uppercase tracking-wider font-medium">Handled</th>
+                              <th className="text-right px-3 py-2 text-[10px] text-slate-500 uppercase tracking-wider font-medium">Target</th>
+                              <th className="text-right px-3 py-2 text-[10px] text-slate-500 uppercase tracking-wider font-medium">%</th>
+                              <th className="text-center px-3 py-2 text-[10px] text-slate-500 uppercase tracking-wider font-medium">Status</th>
+                              <th className="px-3 py-2"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sortedParcels.map((parcel: any, i: number) => {
+                              const ci = cargoParcelsData.findIndex((p: any) => p.id === parcel.id);
+                              const c = CARGO_COLORS[ci % CARGO_COLORS.length];
+                              const opStatus = parcel.operationStatus || "waiting";
+                              const pct = (parcel.targetQuantity || 0) > 0 ? Math.min(100, Math.round(((parcel.handledQuantity || 0) / parcel.targetQuantity) * 100)) : 0;
+                              return (
+                                <tr key={parcel.id} className="border-b border-slate-700/20 last:border-b-0 hover:bg-slate-800/20 transition-colors" data-testid={`row-parcel-${parcel.id}`}>
+                                  <td className="px-3 py-2.5">
+                                    <div className="flex items-center gap-1.5"><div className={cn("w-2 h-6 rounded-full", c.bg)} /><span className="text-slate-500">#{parcel.dischargeSequence || parcel.loadingSequence || (i + 1)}</span></div>
+                                  </td>
+                                  <td className="px-3 py-2.5">
+                                    <div className="font-medium text-slate-200">{parcel.receiverName || parcel.consigneeName}</div>
+                                    <div className="text-[10px] text-slate-500">{[parcel.cargoType, parcel.cargoGrade].filter(Boolean).join(" · ")}</div>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-slate-400">{(isTankerMode ? parcel.tankNumbers : parcel.holdNumbers) || "—"}</td>
+                                  <td className="px-3 py-2.5 text-right font-mono text-slate-300">{(parcel.handledQuantity || 0).toLocaleString()}</td>
+                                  <td className="px-3 py-2.5 text-right font-mono text-slate-400">{(parcel.targetQuantity || 0).toLocaleString()}</td>
+                                  <td className="px-3 py-2.5 text-right">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      <div className="w-12 h-1.5 bg-slate-800 rounded-full overflow-hidden"><div className={cn("h-full rounded-full", c.bg)} style={{ width: `${pct}%` }} /></div>
+                                      <span className="text-slate-400">{pct}%</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-center">
+                                    <button onClick={() => cycleParcelStatus(parcel.id)} className={cn("text-[10px] px-2 py-0.5 rounded-full border transition-all cursor-pointer", opStatus === "active" && cn("animate-pulse", c.light, c.text, c.border), opStatus === "paused" && "bg-amber-500/15 text-amber-400 border-amber-500/30", opStatus === "completed" && "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", opStatus === "waiting" && "bg-slate-800 text-slate-500 border-slate-700")} data-testid={`badge-parcel-status-${parcel.id}`}>
+                                      {opStatus === "active" ? "🔄 Active" : opStatus === "paused" ? "⏸ Paused" : opStatus === "completed" ? "✅ Done" : "⏳ Waiting"}
+                                    </button>
+                                  </td>
+                                  <td className="px-3 py-2.5">
+                                    <div className="flex items-center gap-1">
+                                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { setEditingParcel(parcel); setParcelForm({ receiverName: parcel.receiverName || "", cargoType: parcel.cargoType || "", cargoDescription: parcel.cargoDescription || "", targetQuantity: parcel.targetQuantity || 0, handledQuantity: parcel.handledQuantity || 0, unit: parcel.unit || "MT", holdNumbers: parcel.holdNumbers || "", blNumber: parcel.blNumber || "", notes: parcel.notes || "", consigneeName: parcel.consigneeName || "", shipperName: parcel.shipperName || "", cargoGrade: parcel.cargoGrade || "", tankNumbers: parcel.tankNumbers || "", blQuantity: parcel.blQuantity || "", loadingSequence: parcel.loadingSequence || "", dischargeSequence: parcel.dischargeSequence || "", operationStatus: parcel.operationStatus || "waiting", equipmentUsed: parcel.equipmentUsed || "", hosesConnected: parcel.hosesConnected || "", cranesAssigned: parcel.cranesAssigned || "" }); setShowAddParcelDialog(true); }} data-testid={`button-edit-parcel-${parcel.id}`}><Pencil className="w-3 h-3" /></Button>
+                                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => deleteParcelMutation.mutate(parcel.id)} data-testid={`button-delete-parcel-${parcel.id}`}><Trash2 className="w-3 h-3" /></Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
                   </div>
 
-                  {/* Right: Stowage Plan (2/5) */}
+                  {/* Right: Stowage Plan */}
                   <div className="lg:col-span-1 space-y-3">
                     <h3 className="font-semibold text-sm flex items-center gap-2">
                       <FileImage className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
@@ -5412,82 +5516,120 @@ export default function VoyageDetail() {
 
             {/* ── Add / Edit Parcel Dialog ─────────── */}
             <Dialog open={showAddParcelDialog} onOpenChange={v => { setShowAddParcelDialog(v); if (!v) setEditingParcel(null); }}>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{editingParcel ? "Edit Parcel" : "Add Cargo Parcel"}</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-3 py-2">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2 space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">Receiver Name *</label>
-                      <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring"
-                        value={parcelForm.receiverName} onChange={e => setParcelForm(p => ({ ...p, receiverName: e.target.value }))}
-                        placeholder="e.g. GLENCORE AG" data-testid="input-parcel-receiver" />
+                <div className="space-y-4 py-2">
+
+                  {/* Section 1: Firm & Cargo */}
+                  <div>
+                    <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2 pb-1 border-b border-slate-700/40">Firm & Cargo Details</div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2 space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Consignee / Receiver *</label>
+                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.receiverName} onChange={e => setParcelForm(p => ({ ...p, receiverName: e.target.value }))} placeholder="e.g. GLENCORE AG" data-testid="input-parcel-receiver" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Shipper Name</label>
+                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.shipperName} onChange={e => setParcelForm(p => ({ ...p, shipperName: e.target.value }))} placeholder="e.g. CARGILL INC." data-testid="input-parcel-shipper" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Cargo Type</label>
+                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.cargoType} onChange={e => setParcelForm(p => ({ ...p, cargoType: e.target.value }))} placeholder="e.g. GRAIN / CRUDE OIL" data-testid="input-parcel-cargo-type" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Cargo Grade</label>
+                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.cargoGrade} onChange={e => setParcelForm(p => ({ ...p, cargoGrade: e.target.value }))} placeholder="e.g. No.2 Yellow Corn" data-testid="input-parcel-grade" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">B/L Number</label>
+                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.blNumber} onChange={e => setParcelForm(p => ({ ...p, blNumber: e.target.value }))} placeholder="e.g. BL-2024-001" data-testid="input-parcel-bl" />
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">Cargo Type</label>
-                      <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring"
-                        value={parcelForm.cargoType} onChange={e => setParcelForm(p => ({ ...p, cargoType: e.target.value }))}
-                        placeholder="e.g. GRAIN" data-testid="input-parcel-cargo-type" />
+                  </div>
+
+                  {/* Section 2: Quantity */}
+                  <div>
+                    <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2 pb-1 border-b border-slate-700/40">Quantities</div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Unit</label>
+                        <select className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.unit} onChange={e => setParcelForm(p => ({ ...p, unit: e.target.value }))} data-testid="select-parcel-unit">
+                          <option value="MT">MT</option><option value="CBM">CBM</option><option value="UNIT">UNIT</option><option value="BAG">BAG</option><option value="BALE">BALE</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Target Qty</label>
+                        <input type="number" min="0" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.targetQuantity} onChange={e => setParcelForm(p => ({ ...p, targetQuantity: parseFloat(e.target.value) || 0 }))} data-testid="input-parcel-target" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">B/L Qty</label>
+                        <input type="number" min="0" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.blQuantity} onChange={e => setParcelForm(p => ({ ...p, blQuantity: parseFloat(e.target.value) || "" }))} data-testid="input-parcel-bl-qty" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Handled Qty</label>
+                        <input type="number" min="0" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.handledQuantity} onChange={e => setParcelForm(p => ({ ...p, handledQuantity: parseFloat(e.target.value) || 0 }))} data-testid="input-parcel-handled" />
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">Unit</label>
-                      <select className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring"
-                        value={parcelForm.unit} onChange={e => setParcelForm(p => ({ ...p, unit: e.target.value }))}
-                        data-testid="select-parcel-unit">
-                        <option value="MT">MT</option>
-                        <option value="CBM">CBM</option>
-                        <option value="UNIT">UNIT</option>
-                        <option value="BAG">BAG</option>
-                        <option value="BALE">BALE</option>
-                      </select>
+                  </div>
+
+                  {/* Section 3: Location & Equipment */}
+                  <div>
+                    <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2 pb-1 border-b border-slate-700/40">Location & Equipment</div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Hold Numbers</label>
+                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.holdNumbers} onChange={e => setParcelForm(p => ({ ...p, holdNumbers: e.target.value }))} placeholder="e.g. 1, 2, 3" data-testid="input-parcel-holds" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Tank Numbers</label>
+                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.tankNumbers} onChange={e => setParcelForm(p => ({ ...p, tankNumbers: e.target.value }))} placeholder="e.g. 2P, 3S" data-testid="input-parcel-tanks" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Equipment Used</label>
+                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.equipmentUsed} onChange={e => setParcelForm(p => ({ ...p, equipmentUsed: e.target.value }))} placeholder="e.g. Crane #1, Conveyor" data-testid="input-parcel-equipment" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Cranes Assigned</label>
+                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.cranesAssigned} onChange={e => setParcelForm(p => ({ ...p, cranesAssigned: e.target.value }))} placeholder="e.g. Crane 1+2" data-testid="input-parcel-cranes" />
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">Target Quantity</label>
-                      <input type="number" min="0" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring"
-                        value={parcelForm.targetQuantity} onChange={e => setParcelForm(p => ({ ...p, targetQuantity: parseFloat(e.target.value) || 0 }))}
-                        data-testid="input-parcel-target" />
+                  </div>
+
+                  {/* Section 4: Sequence & Status */}
+                  <div>
+                    <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2 pb-1 border-b border-slate-700/40">Sequence & Status</div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Discharge Seq.</label>
+                        <input type="number" min="1" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.dischargeSequence} onChange={e => setParcelForm(p => ({ ...p, dischargeSequence: parseInt(e.target.value) || "" }))} placeholder="1" data-testid="input-parcel-seq-discharge" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Loading Seq.</label>
+                        <input type="number" min="1" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.loadingSequence} onChange={e => setParcelForm(p => ({ ...p, loadingSequence: parseInt(e.target.value) || "" }))} placeholder="1" data-testid="input-parcel-seq-loading" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium text-muted-foreground">Op. Status</label>
+                        <select className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.operationStatus} onChange={e => setParcelForm(p => ({ ...p, operationStatus: e.target.value }))} data-testid="select-parcel-op-status">
+                          <option value="waiting">⏳ Waiting</option>
+                          <option value="active">🔄 Active</option>
+                          <option value="paused">⏸ Paused</option>
+                          <option value="completed">✅ Completed</option>
+                        </select>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">Handled Quantity</label>
-                      <input type="number" min="0" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring"
-                        value={parcelForm.handledQuantity} onChange={e => setParcelForm(p => ({ ...p, handledQuantity: parseFloat(e.target.value) || 0 }))}
-                        data-testid="input-parcel-handled" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">Hold Numbers</label>
-                      <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring"
-                        value={parcelForm.holdNumbers} onChange={e => setParcelForm(p => ({ ...p, holdNumbers: e.target.value }))}
-                        placeholder="e.g. 1, 2, 3" data-testid="input-parcel-holds" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">B/L Number</label>
-                      <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring"
-                        value={parcelForm.blNumber} onChange={e => setParcelForm(p => ({ ...p, blNumber: e.target.value }))}
-                        placeholder="e.g. BL-2024-001" data-testid="input-parcel-bl" />
-                    </div>
-                    <div className="col-span-2 space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">Notes</label>
-                      <Textarea className="text-xs min-h-[60px] resize-none"
-                        value={parcelForm.notes} onChange={e => setParcelForm(p => ({ ...p, notes: e.target.value }))}
-                        placeholder="Special instructions, remarks..." data-testid="textarea-parcel-notes" />
-                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Notes</label>
+                    <Textarea className="text-xs min-h-[60px] resize-none" value={parcelForm.notes} onChange={e => setParcelForm(p => ({ ...p, notes: e.target.value }))} placeholder="Special instructions, remarks..." data-testid="textarea-parcel-notes" />
                   </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => { setShowAddParcelDialog(false); setEditingParcel(null); }}>Cancel</Button>
-                  <Button
-                    disabled={!parcelForm.receiverName.trim() || addParcelMutation.isPending || updateParcelMutation.isPending}
-                    onClick={() => {
-                      if (!parcelForm.receiverName.trim()) return;
-                      const payload = { ...parcelForm };
-                      if (editingParcel) {
-                        updateParcelMutation.mutate({ id: editingParcel.id, ...payload });
-                      } else {
-                        addParcelMutation.mutate(payload);
-                      }
-                    }}
-                    data-testid="button-save-parcel">
+                  <Button disabled={!parcelForm.receiverName.trim() || addParcelMutation.isPending || updateParcelMutation.isPending} onClick={() => { if (!parcelForm.receiverName.trim()) return; const payload = { ...parcelForm, blQuantity: parcelForm.blQuantity === "" ? null : Number(parcelForm.blQuantity), loadingSequence: parcelForm.loadingSequence === "" ? null : Number(parcelForm.loadingSequence), dischargeSequence: parcelForm.dischargeSequence === "" ? null : Number(parcelForm.dischargeSequence), hosesConnected: parcelForm.hosesConnected === "" ? null : Number(parcelForm.hosesConnected) }; if (editingParcel) { updateParcelMutation.mutate({ id: editingParcel.id, ...payload }); } else { addParcelMutation.mutate(payload); } }} data-testid="button-save-parcel">
                     {(addParcelMutation.isPending || updateParcelMutation.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : editingParcel ? "Save Changes" : "Add Parcel"}
                   </Button>
                 </DialogFooter>
