@@ -1700,11 +1700,30 @@ router.post("/:id/cargo-logs", isAuthenticated, async (req: any, res) => {
   try {
     const voyageId = parseInt(req.params.id);
     const userId = req.user?.claims?.sub || req.user?.id;
-    const { logDate, shift, fromTime, toTime, remarks, logType, entries, amountHandled, receiverId, truckCount } = req.body;
+    const {
+      logDate, shift, fromTime, toTime, remarks, logType, entries, amountHandled, receiverId, truckCount,
+      vesselType, parcelId, holdNumber, quantity, unit, craneUsed, gangsWorking,
+      tankNumber, equipment, connectionsQty, pressure, temperature,
+    } = req.body;
     const resolvedLogType = logType || "operation";
     const batchId = crypto.randomUUID();
     const fromDt = fromTime ? new Date(fromTime) : (logDate ? new Date(logDate) : new Date());
     const toDt = toTime ? new Date(toTime) : undefined;
+
+    const extraFields = {
+      vesselType: vesselType || "dry_bulk",
+      parcelId: parcelId ? Number(parcelId) : undefined,
+      holdNumber: holdNumber || null,
+      quantity: quantity != null ? Number(quantity) : undefined,
+      unit: unit || "MT",
+      craneUsed: craneUsed || null,
+      gangsWorking: gangsWorking != null ? Number(gangsWorking) : undefined,
+      tankNumber: tankNumber || null,
+      equipment: equipment || null,
+      connectionsQty: connectionsQty != null ? Number(connectionsQty) : undefined,
+      pressure: pressure != null ? Number(pressure) : undefined,
+      temperature: temperature != null ? Number(temperature) : undefined,
+    };
 
     // Operation with multi-receiver entries array
     if (resolvedLogType === "operation" && Array.isArray(entries) && entries.length > 0) {
@@ -1724,13 +1743,14 @@ router.post("/:id/cargo-logs", isAuthenticated, async (req: any, res) => {
           logType: resolvedLogType,
           remarks: remarks || null,
           createdBy: userId,
+          ...extraFields,
         }))
       ).returning();
       return res.status(201).json(rows);
     }
 
     // Delay or legacy single-entry
-    const singleAmount = amountHandled != null ? Number(amountHandled) : 0;
+    const singleAmount = amountHandled != null ? Number(amountHandled) : (quantity != null ? Number(quantity) : 0);
     const [log] = await db.insert(voyageCargoLogs).values({
       voyageId,
       logDate: fromDt,
@@ -1744,6 +1764,7 @@ router.post("/:id/cargo-logs", isAuthenticated, async (req: any, res) => {
       logType: resolvedLogType,
       remarks: remarks || null,
       createdBy: userId,
+      ...extraFields,
     }).returning();
     res.status(201).json([log]);
   } catch (err) {

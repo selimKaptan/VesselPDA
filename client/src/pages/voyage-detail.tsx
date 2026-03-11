@@ -691,6 +691,19 @@ export default function VoyageDetail() {
   const [stowageNotes, setStowageNotes] = useState("");
   const [stowageNotesEditing, setStowageNotesEditing] = useState(false);
   const [inlineHandled, setInlineHandled] = useState<Record<number, string>>({});
+  const [vesselType, setVesselType] = useState<"dry_bulk" | "tanker">("dry_bulk");
+  const [logParcelId, setLogParcelId] = useState("");
+  const [logHold, setLogHold] = useState("");
+  const [logQuantity, setLogQuantity] = useState("");
+  const [logCrane, setLogCrane] = useState("");
+  const [logGangs, setLogGangs] = useState("");
+  const [logTank, setLogTank] = useState("");
+  const [logUnit, setLogUnit] = useState("MT");
+  const [logEquipment, setLogEquipment] = useState("");
+  const [logConnections, setLogConnections] = useState("");
+  const [logPressure, setLogPressure] = useState("");
+  const [logTemp, setLogTemp] = useState("");
+  const [logRemarks, setLogRemarks] = useState("");
   const [docFilter, setDocFilter] = useState<string>("all");
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [showServiceDialog, setShowServiceDialog] = useState(false);
@@ -2130,22 +2143,34 @@ export default function VoyageDetail() {
     mutationFn: () => {
       const fromIso = logForm.fromTime ? new Date(logForm.fromTime).toISOString() : undefined;
       const toIso = logForm.toTime ? new Date(logForm.toTime).toISOString() : undefined;
+      const commonExtra = {
+        vesselType,
+        parcelId: logParcelId ? Number(logParcelId) : undefined,
+        holdNumber: logHold || undefined,
+        quantity: logQuantity ? parseFloat(logQuantity) : undefined,
+        unit: logUnit || "MT",
+        craneUsed: logCrane || undefined,
+        gangsWorking: logGangs ? parseInt(logGangs) : undefined,
+        tankNumber: logTank || undefined,
+        equipment: logEquipment || undefined,
+        connectionsQty: logConnections ? parseInt(logConnections) : undefined,
+        pressure: logPressure ? parseFloat(logPressure) : undefined,
+        temperature: logTemp ? parseFloat(logTemp) : undefined,
+        remarks: logRemarks || undefined,
+      };
       if (logForm.logType === "operation") {
-        const entries = Object.entries(logForm.receiverEntries)
-          .filter(([, v]) => v.amount && parseFloat(v.amount) > 0)
-          .map(([rId, v]) => ({
-            receiverId: Number(rId),
-            amountHandled: parseFloat(v.amount),
-            truckCount: v.trucks ? parseInt(v.trucks) : undefined,
-          }));
+        const qty = logQuantity ? parseFloat(logQuantity) : 0;
+        const pid = logParcelId ? Number(logParcelId) : undefined;
         return apiRequest("POST", `/api/voyages/${voyageId}/cargo-logs`, {
-          fromTime: fromIso, toTime: toIso, logType: "operation", entries,
+          fromTime: fromIso, toTime: toIso, logType: "operation",
+          receiverId: pid, amountHandled: qty,
+          ...commonExtra,
         });
       } else {
-        const fullReason = logForm.delayReason + (logForm.delayNotes ? `: ${logForm.delayNotes}` : "");
         return apiRequest("POST", `/api/voyages/${voyageId}/cargo-logs`, {
-          fromTime: fromIso, toTime: toIso, logType: "delay",
-          amountHandled: 0, remarks: fullReason,
+          fromTime: fromIso, toTime: toIso, logType: logForm.logType,
+          amountHandled: 0, remarks: logRemarks || logForm.delayReason || "",
+          ...commonExtra,
         });
       }
     },
@@ -2153,7 +2178,10 @@ export default function VoyageDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-logs"] });
       setShowAddLogDialog(false);
       setLogForm({ fromTime: "", toTime: "", logType: "operation", remarks: "", delayReason: "", delayNotes: "", receiverEntries: {} });
-      toast({ title: "Log added" });
+      setLogParcelId(""); setLogHold(""); setLogQuantity(""); setLogCrane(""); setLogGangs("");
+      setLogTank(""); setLogEquipment(""); setLogConnections(""); setLogPressure(""); setLogTemp("");
+      setLogRemarks("");
+      toast({ title: "Log kaydedildi" });
     },
   });
 
@@ -4894,56 +4922,121 @@ export default function VoyageDetail() {
             const completedParcels = cargoParcelsData.filter((p: any) => p.status === "completed").length;
             const inProgressParcels = cargoParcelsData.filter((p: any) => p.status === "in_progress").length;
 
+            // Performance metrics
+            const isTankerMode = vesselType === "tanker";
+            const opLogs = cargoLogs.filter((l: any) => l.logType === "operation" && l.amountHandled > 0 && l.fromTime && l.toTime);
+            const sortedOpLogs = [...opLogs].sort((a: any, b: any) => new Date(b.fromTime).getTime() - new Date(a.fromTime).getTime());
+            const lastOpLog = sortedOpLogs[0];
+            const currentRate = (() => {
+              if (!lastOpLog?.fromTime || !lastOpLog?.toTime) return 0;
+              const h = (new Date(lastOpLog.toTime).getTime() - new Date(lastOpLog.fromTime).getTime()) / 3_600_000;
+              return h > 0 ? parseFloat((lastOpLog.amountHandled / h).toFixed(1)) : 0;
+            })();
+            const fourHoursAgo = new Date(Date.now() - 4 * 3_600_000);
+            const logs4h = opLogs.filter((l: any) => new Date(l.fromTime) >= fourHoursAgo);
+            const avg4hMt = logs4h.reduce((s: number, l: any) => s + (l.amountHandled || 0), 0);
+            const avg4hHrs = logs4h.reduce((s: number, l: any) => {
+              if (!l.fromTime || !l.toTime) return s;
+              return s + (new Date(l.toTime).getTime() - new Date(l.fromTime).getTime()) / 3_600_000;
+            }, 0);
+            const avg4hRate = avg4hHrs > 0 ? parseFloat((avg4hMt / avg4hHrs).toFixed(1)) : 0;
+            const remainingMt = Math.max(0, totalTargetMt - totalHandledParcelMt);
+            const etcHours = currentRate > 0 ? remainingMt / currentRate : null;
+            const etcLabel = etcHours !== null
+              ? etcHours < 1
+                ? `${Math.round(etcHours * 60)}m`
+                : etcHours < 24
+                ? `${Math.floor(etcHours)}h ${Math.round((etcHours % 1) * 60)}m`
+                : `${Math.floor(etcHours / 24)}d ${Math.floor(etcHours % 24)}h`
+              : "—";
+            const activeGangs = lastOpLog?.gangsWorking ?? null;
+            const rateDropPct = avg4hRate > 0 && currentRate > 0 ? Math.round(((avg4hRate - currentRate) / avg4hRate) * 100) : 0;
+            const rateDropDetected = rateDropPct >= 20 && currentRate > 0 && avg4hRate > 0;
+
             return (
               <div className="space-y-5" data-testid="tab-content-cargo-ops">
 
-                {/* ── Summary Header ─────────────────────────────────── */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  <div className="bg-card border border-border/60 rounded-lg p-3 flex flex-col gap-1">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Parcels</span>
-                    <span className="text-2xl font-bold" data-testid="stat-total-parcels">{cargoParcelsData.length}</span>
-                  </div>
-                  <div className="bg-card border border-border/60 rounded-lg p-3 flex flex-col gap-1">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Target (MT)</span>
-                    <span className="text-2xl font-bold text-sky-400" data-testid="stat-total-target">{totalTargetMt.toLocaleString()}</span>
-                  </div>
-                  <div className="bg-card border border-border/60 rounded-lg p-3 flex flex-col gap-1">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Handled (MT)</span>
-                    <span className="text-2xl font-bold text-emerald-400" data-testid="stat-total-handled">{totalHandledParcelMt.toLocaleString()}</span>
-                  </div>
-                  <div className="bg-card border border-border/60 rounded-lg p-3 flex flex-col gap-1">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Progress</span>
-                    <span className="text-2xl font-bold text-[hsl(var(--maritime-primary))]" data-testid="stat-progress-pct">{overallPct}%</span>
-                    <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div className="h-full bg-[hsl(var(--maritime-primary))] rounded-full transition-all" style={{ width: `${overallPct}%` }} />
-                    </div>
-                  </div>
-                  <div className="bg-card border border-border/60 rounded-lg p-3 flex flex-col gap-1">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Status</span>
-                    <div className="flex flex-col gap-0.5 mt-0.5">
-                      <div className="flex items-center gap-1.5 text-xs">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                        <span className="text-muted-foreground">Completed:</span>
-                        <span className="font-semibold">{completedParcels}</span>
+                {/* ── Performance Dashboard ─────────────────────────── */}
+                <div className="space-y-2.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+
+                    {/* 1. Total Progress (col-span-2) */}
+                    <div className="col-span-2 bg-card border border-border/60 rounded-lg p-3.5">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Total Progress</span>
+                          <div className="flex items-baseline gap-1.5 mt-0.5">
+                            <span className="text-xl font-bold text-[hsl(var(--maritime-primary))]" data-testid="stat-progress-pct">{overallPct}%</span>
+                            <span className="text-xs text-muted-foreground">{totalHandledParcelMt.toLocaleString()} / {totalTargetMt.toLocaleString()} MT</span>
+                          </div>
+                        </div>
+                        <div className="text-right text-[10px] text-muted-foreground space-y-0.5">
+                          <div><span className="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1" />{completedParcels} done</div>
+                          <div><span className="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1" />{inProgressParcels} active</div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5 text-xs">
-                        <span className="w-2 h-2 rounded-full bg-amber-400" />
-                        <span className="text-muted-foreground">In Progress:</span>
-                        <span className="font-semibold">{inProgressParcels}</span>
+                      <div className="w-full h-2.5 bg-muted/50 rounded-full overflow-hidden flex gap-px">
+                        {cargoParcelsData.length > 0 ? (
+                          cargoParcelsData.map((p: any, idx: number) => {
+                            const c = PARCEL_COLORS[idx % PARCEL_COLORS.length];
+                            const segPct = totalTargetMt > 0 ? ((p.handledQuantity || 0) / totalTargetMt) * 100 : 0;
+                            return segPct > 0 ? (
+                              <div key={p.id} className={`h-full ${c.bar} transition-all`} style={{ width: `${segPct}%` }} title={`${p.receiverName}: ${(p.handledQuantity || 0).toLocaleString()} MT`} />
+                            ) : null;
+                          })
+                        ) : (
+                          <div className="h-full bg-muted rounded-full w-full" />
+                        )}
                       </div>
                     </div>
+
+                    {/* 2. Current Rate */}
+                    <div className="bg-card border border-border/60 rounded-lg p-3.5 flex flex-col gap-0.5">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{isTankerMode ? "Pump Rate" : "Current Rate"}</span>
+                      <span className="text-xl font-bold text-emerald-400" data-testid="stat-current-rate">{currentRate > 0 ? currentRate.toLocaleString() : "—"}</span>
+                      <span className="text-[10px] text-muted-foreground">MT/hr</span>
+                    </div>
+
+                    {/* 3. 4h Average */}
+                    <div className="bg-card border border-border/60 rounded-lg p-3.5 flex flex-col gap-0.5">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">4h Average</span>
+                      <span className="text-xl font-bold text-sky-400" data-testid="stat-avg4h-rate">{avg4hRate > 0 ? avg4hRate.toLocaleString() : "—"}</span>
+                      <span className="text-[10px] text-muted-foreground">MT/hr</span>
+                    </div>
+
+                    {/* 4. ETC */}
+                    <div className="bg-card border border-border/60 rounded-lg p-3.5 flex flex-col gap-0.5">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">ETC</span>
+                      <span className="text-xl font-bold text-amber-400" data-testid="stat-etc">{etcLabel}</span>
+                      {etcHours !== null && <span className="text-[10px] text-muted-foreground">{remainingMt.toLocaleString()} MT kalan</span>}
+                    </div>
+
+                    {/* 5. Active Gangs / Manifold */}
+                    <div className="bg-card border border-border/60 rounded-lg p-3.5 flex flex-col gap-0.5">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{isTankerMode ? "Manifold" : "Active Gangs"}</span>
+                      <span className="text-xl font-bold" data-testid="stat-active-gangs">{activeGangs ?? "—"}</span>
+                      {activeGangs && <span className="text-[10px] text-muted-foreground">son log</span>}
+                    </div>
                   </div>
+
+                  {/* Rate drop warning */}
+                  {rateDropDetected && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-red-500/10 border border-red-500/25 text-red-400 text-xs" data-testid="alert-rate-drop">
+                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>Rate drop tespit edildi: <strong>{currentRate} MT/hr</strong> (mevcut) vs <strong>{avg4hRate} MT/hr</strong> (4h ort.) — %{rateDropPct} düşüş</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* ── 2-Column Layout ────────────────────────────────── */}
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-                  {/* Left: Parcel List (3/5) */}
-                  <div className="lg:col-span-3 space-y-3">
+                  {/* Left: Parcel List (2/3) */}
+                  <div className="lg:col-span-2 space-y-3">
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold text-sm flex items-center gap-2">
                         <Package className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                        Cargo Parcels
+                        {isTankerMode ? "Cargo Grades / Tanks" : "Cargo Parcels"}
                         {cargoParcelsData.length > 0 && (
                           <span className="text-[10px] text-slate-500 bg-slate-800 rounded-full px-2 py-0.5">{cargoParcelsData.length}</span>
                         )}
@@ -5067,10 +5160,10 @@ export default function VoyageDetail() {
                   </div>
 
                   {/* Right: Stowage Plan (2/5) */}
-                  <div className="lg:col-span-2 space-y-3">
+                  <div className="lg:col-span-1 space-y-3">
                     <h3 className="font-semibold text-sm flex items-center gap-2">
                       <FileImage className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                      Stowage Plan
+                      {isTankerMode ? "Tank Plan" : "Stowage Plan"}
                     </h3>
                     <Card className="p-4 space-y-4">
                       {/* File upload area */}
@@ -5428,41 +5521,90 @@ export default function VoyageDetail() {
 
             {/* ── Add Operation Log Dialog ─────────── */}
             {(() => {
+              const isTanker = vesselType === "tanker";
+              const isOperation = logForm.logType === "operation";
               const periodHours = logForm.fromTime && logForm.toTime
                 ? (new Date(logForm.toTime).getTime() - new Date(logForm.fromTime).getTime()) / 3_600_000
                 : 0;
-              const totalEntryMt = Object.values(logForm.receiverEntries).reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
-              const modalRate = periodHours > 0 && totalEntryMt > 0
-                ? parseFloat((totalEntryMt / periodHours).toFixed(1))
-                : 0;
+              const periodLabel = periodHours > 0
+                ? periodHours < 1
+                  ? `${Math.round(periodHours * 60)}m`
+                  : `${periodHours.toFixed(1)}h`
+                : null;
+              const previewRate = isOperation && periodHours > 0 && parseFloat(logQuantity || "0") > 0
+                ? (parseFloat(logQuantity) / periodHours).toFixed(1)
+                : null;
               const canSubmit = !!logForm.fromTime && !!logForm.toTime &&
-                (logForm.logType === "operation"
-                  ? totalEntryMt > 0
-                  : !!logForm.delayReason);
+                (isOperation ? parseFloat(logQuantity || "0") > 0 : true);
 
               return (
                 <Dialog open={showAddLogDialog} onOpenChange={v => {
                   setShowAddLogDialog(v);
-                  if (!v) setLogForm({ fromTime: "", toTime: "", logType: "operation", remarks: "", delayReason: "", delayNotes: "", receiverEntries: {} });
+                  if (!v) {
+                    setLogForm({ fromTime: "", toTime: "", logType: "operation", remarks: "", delayReason: "", delayNotes: "", receiverEntries: {} });
+                    setLogParcelId(""); setLogHold(""); setLogQuantity(""); setLogCrane(""); setLogGangs("");
+                    setLogTank(""); setLogEquipment(""); setLogConnections(""); setLogPressure(""); setLogTemp("");
+                    setLogRemarks("");
+                  }
                 }}>
-                  <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-                    <DialogHeader><DialogTitle>Add Operation Log</DialogTitle></DialogHeader>
+                  <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <ScrollText className="w-4 h-4" />
+                        Add Operation Log
+                      </DialogTitle>
+                    </DialogHeader>
                     <div className="space-y-4 py-2">
 
-                      {/* Log Type */}
-                      <div>
-                        <Label className="text-xs">Log Type</Label>
-                        <Select value={logForm.logType} onValueChange={v => setLogForm(f => ({ ...f, logType: v }))}>
-                          <SelectTrigger className="h-9 text-xs" data-testid="select-log-type"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="operation">Operation (Cargo Handling)</SelectItem>
-                            <SelectItem value="delay">Delay / Stoppage</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      {/* Vessel Type Toggle */}
+                      <div className="flex items-center gap-1 p-1 bg-muted/40 rounded-lg border border-border/60">
+                        <button
+                          className={`flex-1 text-xs py-1.5 px-3 rounded-md font-medium transition-colors ${vesselType === "dry_bulk" ? "bg-background shadow border border-border/60 text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                          onClick={() => setVesselType("dry_bulk")}
+                          data-testid="toggle-dry-bulk"
+                        >
+                          🏗 Dry Bulk
+                        </button>
+                        <button
+                          className={`flex-1 text-xs py-1.5 px-3 rounded-md font-medium transition-colors ${vesselType === "tanker" ? "bg-background shadow border border-border/60 text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                          onClick={() => setVesselType("tanker")}
+                          data-testid="toggle-tanker"
+                        >
+                          🛢 Tanker
+                        </button>
+                      </div>
+
+                      {/* Log Type + Parcel */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs">Log Type</Label>
+                          <Select value={logForm.logType} onValueChange={v => setLogForm(f => ({ ...f, logType: v }))}>
+                            <SelectTrigger className="h-9 text-xs" data-testid="select-log-type"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="operation">{isTanker ? "Pumping" : "Cargo Handling"}</SelectItem>
+                              <SelectItem value="delay">Delay / Stoppage</SelectItem>
+                              <SelectItem value="inspection">Survey / Inspection</SelectItem>
+                              <SelectItem value="shift">Shift Change</SelectItem>
+                              <SelectItem value="weather">Weather Delay</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs">{isTanker ? "Grade / Tank" : "Parcel / Receiver"}</Label>
+                          <Select value={logParcelId || "none"} onValueChange={v => setLogParcelId(v === "none" ? "" : v)}>
+                            <SelectTrigger className="h-9 text-xs" data-testid="select-log-parcel"><SelectValue placeholder="Select..." /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">— None —</SelectItem>
+                              {cargoParcelsData.map((p: any) => (
+                                <SelectItem key={p.id} value={String(p.id)}>{p.receiverName}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
 
                       {/* From / To */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
                           <Label className="text-xs">From *</Label>
                           <Input type="datetime-local" value={logForm.fromTime}
@@ -5470,134 +5612,126 @@ export default function VoyageDetail() {
                             className="text-xs h-9" data-testid="input-log-from-time" />
                         </div>
                         <div>
-                          <Label className="text-xs">To *</Label>
+                          <Label className="text-xs flex items-center justify-between">
+                            <span>To *</span>
+                            {periodLabel && <span className="text-muted-foreground font-normal normal-case">süre: {periodLabel}</span>}
+                          </Label>
                           <Input type="datetime-local" value={logForm.toTime}
                             onChange={e => setLogForm(f => ({ ...f, toTime: e.target.value }))}
                             className="text-xs h-9" data-testid="input-log-to-time" />
                         </div>
                       </div>
 
-                      {/* ── OPERATION MODE: multi-receiver grid ─────────── */}
+                      {/* ── OPERATION MODE: dynamic params ─────────── */}
                       {logForm.logType === "operation" && (
-                        <div className="space-y-2">
-                          <Label className="text-xs">Cargo Delivered by Receiver</Label>
-                          {receivers.length === 0 ? (
-                            <p className="text-xs text-muted-foreground italic py-2">No receivers configured — add cargo parcels first.</p>
-                          ) : (
-                            <div className="rounded-lg border border-border/60 divide-y divide-border/40 overflow-hidden">
-                              {/* Header row */}
-                              <div className="grid grid-cols-[1fr_120px_100px] gap-2 px-3 py-1.5 bg-muted/30 text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
-                                <span>Receiver</span>
-                                <span className="text-right">Amount (MT)</span>
-                                <span className="text-right">Trucks #</span>
+                        <div className="space-y-3 pt-1">
+                          {!isTanker ? (
+                            /* DRY BULK params */
+                            <>
+                              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Dry Bulk Parameters</div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <Label className="text-xs">Hold No.</Label>
+                                  <Input type="text" value={logHold} onChange={e => setLogHold(e.target.value)}
+                                    placeholder="e.g. H1, H2-H4" className="h-9 text-xs" data-testid="input-log-hold" />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Quantity (MT) *</Label>
+                                  <Input type="number" min="0" step="0.1" value={logQuantity}
+                                    onChange={e => setLogQuantity(e.target.value)}
+                                    placeholder="0.00" className="h-9 text-xs font-mono" data-testid="input-log-quantity" />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Crane Used</Label>
+                                  <Input type="text" value={logCrane} onChange={e => setLogCrane(e.target.value)}
+                                    placeholder="e.g. Crane 1" className="h-9 text-xs" data-testid="input-log-crane" />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Gangs Working</Label>
+                                  <Input type="number" min="0" step="1" value={logGangs} onChange={e => setLogGangs(e.target.value)}
+                                    placeholder="0" className="h-9 text-xs font-mono" data-testid="input-log-gangs" />
+                                </div>
                               </div>
-                              {receivers.map((r: any, rIdx: number) => {
-                                const entry = logForm.receiverEntries[r.id] || { amount: "", trucks: "" };
-                                const truckNum = parseInt(entry.trucks) || 0;
-                                const truckEst = truckNum > 0 ? truckNum * 24 : 0;
-                                const rColor = BADGE_COLORS[rIdx % BADGE_COLORS.length];
-                                return (
-                                  <div key={r.id} className="grid grid-cols-[1fr_120px_100px] gap-2 px-3 py-2 items-start">
-                                    <div className="pt-1.5">
-                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${rColor}`}>
-                                        {r.name}
-                                      </span>
-                                      <div className="text-[10px] text-muted-foreground/60 mt-0.5">
-                                        Alloc: {r.allocatedMt.toLocaleString()} MT
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <Input
-                                        type="number" min={0} placeholder="0"
-                                        value={entry.amount}
-                                        onChange={e => setLogForm(f => ({
-                                          ...f,
-                                          receiverEntries: { ...f.receiverEntries, [r.id]: { ...entry, amount: e.target.value } }
-                                        }))}
-                                        className="h-8 text-xs text-right"
-                                        data-testid={`input-receiver-amount-${r.id}`}
-                                      />
-                                    </div>
-                                    <div>
-                                      <Input
-                                        type="number" min={0} placeholder="—"
-                                        value={entry.trucks}
-                                        onChange={e => setLogForm(f => ({
-                                          ...f,
-                                          receiverEntries: { ...f.receiverEntries, [r.id]: { ...entry, trucks: e.target.value } }
-                                        }))}
-                                        className="h-8 text-xs text-right"
-                                        data-testid={`input-receiver-trucks-${r.id}`}
-                                      />
-                                      {truckEst > 0 && (
-                                        <p className="text-[10px] text-muted-foreground/60 text-right mt-0.5">Est: ~{truckEst} MT</p>
-                                      )}
-                                    </div>
+                            </>
+                          ) : (
+                            /* TANKER params */
+                            <>
+                              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Tanker Parameters</div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <Label className="text-xs">Tank No.</Label>
+                                  <Input type="text" value={logTank} onChange={e => setLogTank(e.target.value)}
+                                    placeholder="e.g. 1P, 2S" className="h-9 text-xs" data-testid="input-log-tank" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  <div>
+                                    <Label className="text-xs">Qty *</Label>
+                                    <Input type="number" min="0" step="0.1" value={logQuantity}
+                                      onChange={e => setLogQuantity(e.target.value)}
+                                      placeholder="0.00" className="h-9 text-xs font-mono" data-testid="input-log-qty-tanker" />
                                   </div>
-                                );
-                              })}
-                            </div>
+                                  <div>
+                                    <Label className="text-xs">Unit</Label>
+                                    <Select value={logUnit} onValueChange={setLogUnit}>
+                                      <SelectTrigger className="h-9 text-xs" data-testid="select-log-unit"><SelectValue /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="MT">MT</SelectItem>
+                                        <SelectItem value="CBM">CBM</SelectItem>
+                                        <SelectItem value="BBL">BBL</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Equipment</Label>
+                                  <Input type="text" value={logEquipment} onChange={e => setLogEquipment(e.target.value)}
+                                    placeholder="e.g. Arm 1" className="h-9 text-xs" data-testid="input-log-equipment" />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Connections</Label>
+                                  <Input type="number" min="0" step="1" value={logConnections} onChange={e => setLogConnections(e.target.value)}
+                                    placeholder="0" className="h-9 text-xs font-mono" data-testid="input-log-connections" />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Pressure (bar)</Label>
+                                  <Input type="number" min="0" step="0.1" value={logPressure} onChange={e => setLogPressure(e.target.value)}
+                                    placeholder="0.0" className="h-9 text-xs font-mono" data-testid="input-log-pressure" />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">Temperature (°C)</Label>
+                                  <Input type="number" step="0.1" value={logTemp} onChange={e => setLogTemp(e.target.value)}
+                                    placeholder="0.0" className="h-9 text-xs font-mono" data-testid="input-log-temp" />
+                                </div>
+                              </div>
+                            </>
                           )}
-                          {modalRate > 0 && (
-                            <p className="text-xs text-amber-400 font-medium">
-                              ✨ Period rate: {modalRate.toLocaleString()} MT/H ({totalEntryMt.toLocaleString()} MT total)
-                            </p>
+                          {previewRate && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-md text-emerald-400 text-xs">
+                              <Activity className="w-3.5 h-3.5" />
+                              <span>Dönem hızı: <strong>{previewRate} MT/hr</strong></span>
+                            </div>
                           )}
                         </div>
                       )}
 
-                      {/* ── DELAY MODE: reason dropdown + notes ─────────── */}
-                      {logForm.logType === "delay" && (
-                        <div className="space-y-3">
-                          <div>
-                            <Label className="text-xs">Delay Reason *</Label>
-                            <Select value={logForm.delayReason} onValueChange={v => setLogForm(f => ({ ...f, delayReason: v }))}>
-                              <SelectTrigger
-                                className={`h-9 text-xs ${logForm.delayReason === "waiting_for_trucks" ? "border-amber-500/60 ring-1 ring-amber-500/30" : ""}`}
-                                data-testid="select-delay-reason"
-                              >
-                                <SelectValue placeholder="Select reason..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="waiting_for_trucks">
-                                  ⚠ Waiting for Trucks / Tankers
-                                </SelectItem>
-                                <SelectItem value="Rain / Weather">Rain / Weather</SelectItem>
-                                <SelectItem value="Equipment Breakdown">Equipment Breakdown</SelectItem>
-                                <SelectItem value="Shift Change">Shift Change</SelectItem>
-                                <SelectItem value="Customs / Inspection">Customs / Inspection</SelectItem>
-                                <SelectItem value="Hatch Shifting">Hatch Shifting</SelectItem>
-                                <SelectItem value="Other">Other</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            {logForm.delayReason === "waiting_for_trucks" && (
-                              <p className="text-[11px] text-amber-400 mt-1.5 font-medium">
-                                ⚠ This stoppage will be highlighted in the log table.
-                              </p>
-                            )}
-                          </div>
-                          <div>
-                            <Label className="text-xs">Additional Notes (optional)</Label>
-                            <Textarea
-                              value={logForm.delayNotes}
-                              onChange={e => setLogForm(f => ({ ...f, delayNotes: e.target.value }))}
-                              placeholder="e.g. 15 trucks pending at gate..." rows={2}
-                              data-testid="input-delay-notes"
-                            />
-                          </div>
-                        </div>
-                      )}
+                      {/* Remarks */}
+                      <div>
+                        <Label className="text-xs">Remarks</Label>
+                        <Textarea value={logRemarks} onChange={e => setLogRemarks(e.target.value)}
+                          placeholder="Notlar, gecikme nedeni, özel olaylar..." rows={2}
+                          className="text-xs resize-none" data-testid="textarea-log-remarks" />
+                      </div>
 
                     </div>
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setShowAddLogDialog(false)}>Cancel</Button>
+                      <Button variant="outline" onClick={() => setShowAddLogDialog(false)}>İptal</Button>
                       <Button
                         onClick={() => addCargoLogMutation.mutate()}
                         disabled={!canSubmit || addCargoLogMutation.isPending}
                         data-testid="button-save-cargo-log"
                       >
                         {addCargoLogMutation.isPending && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                        Save Log
+                        Kaydet
                       </Button>
                     </DialogFooter>
                   </DialogContent>
