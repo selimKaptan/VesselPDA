@@ -304,7 +304,7 @@ export function CommandSearch() {
   const allFlat: FlatItem[] = mode === "search" ? [
     ...(showRecent ? recent.map(r => ({ url: r.href, title: r.title, subtitle: r.subtitle, type: r.type })) : []),
     ...results.map(r => ({ url: r.href, title: r.title, subtitle: r.subtitle, type: r.type, id: r.id })),
-    ...globalVessels.map(v => ({ url: `/vessel-track?imo=${v.imo}`, title: v.name, subtitle: v.vesselType, type: "vessel_global" })),
+    ...globalVessels.map(v => ({ url: `/vessel-lookup/${v.imo}`, title: v.name, subtitle: v.vesselType, type: "vessel_global" })),
     ...(query.length < 2 ? filteredNav.map(n => ({ url: n.url, title: n.name, subtitle: "", type: "nav" })) : []),
     ...(query.length >= 2 && results.length === 0 && globalVessels.length === 0 ? filteredNav.map(n => ({ url: n.url, title: n.name, subtitle: "", type: "nav" })) : []),
   ] : [];
@@ -515,7 +515,7 @@ export function CommandSearch() {
                       <button
                         key={`global-${v.imo || v.name}`}
                         onClick={() => {
-                          navigate(`/vessel-track?imo=${v.imo}`);
+                          navigate(`/vessel-lookup/${v.imo}`);
                           setOpen(false);
                         }}
                         className={cn(
