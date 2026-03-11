@@ -33,10 +33,8 @@ export async function cleanupInvalidPorts(): Promise<void> {
         AND p.code IN (SELECT p3.code FROM ports p3 WHERE p3.country = 'Turkey' GROUP BY p3.code HAVING COUNT(*) > 1)
     `;
 
-    const allBadIds = sql`SELECT id FROM (${badPortIds} UNION ${dupPortIds}) sub`;
-
-    await db.execute(sql`DELETE FROM tariff_rates WHERE category_id IN (SELECT tc.id FROM tariff_categories tc WHERE tc.port_id IN (${allBadIds}))`);
-    await db.execute(sql`DELETE FROM tariff_categories WHERE port_id IN (${allBadIds})`);
+    await db.execute(sql`DELETE FROM tariff_rates WHERE category_id IN (SELECT tc.id FROM tariff_categories tc WHERE tc.port_id IN (SELECT id FROM (${badPortIds} UNION ${dupPortIds}) sub))`);
+    await db.execute(sql`DELETE FROM tariff_categories WHERE port_id IN (SELECT id FROM (${badPortIds} UNION ${dupPortIds}) sub)`);
     const r3 = await db.execute(sql`DELETE FROM ports WHERE id IN (${badPortIds})`);
     const r4 = await db.execute(sql`DELETE FROM ports WHERE id IN (${dupPortIds})`);
 
