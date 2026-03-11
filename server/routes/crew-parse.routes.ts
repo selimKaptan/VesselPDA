@@ -4,6 +4,11 @@ import { isAuthenticated } from "../replit_integrations/auth";
 
 const router = Router();
 
+const anthropic = new Anthropic({
+  apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+});
+
 router.post("/parse-crew-text", isAuthenticated, async (req: any, res) => {
   try {
     const { rawText, portName } = req.body;
@@ -11,11 +16,8 @@ router.post("/parse-crew-text", isAuthenticated, async (req: any, res) => {
       return res.status(400).json({ error: "Text too short" });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
-    if (!apiKey) return res.json({ method: "fallback", crew: [] });
-
-    const client = new Anthropic({ apiKey });
-    const response = await client.messages.create({
+    if (!process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY) return res.json({ method: "fallback", crew: [] });
+    const response = await anthropic.messages.create({
       model: "claude-opus-4-5",
       max_tokens: 4000,
       messages: [{

@@ -4,6 +4,11 @@ import { isAuthenticated } from "../replit_integrations/auth";
 
 const router = Router();
 
+const anthropic = new Anthropic({
+  apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+});
+
 router.post("/parse-declaration", isAuthenticated, async (req: any, res) => {
   try {
     const { rawText, documentType, operationType } = req.body;
@@ -11,11 +16,8 @@ router.post("/parse-declaration", isAuthenticated, async (req: any, res) => {
       return res.status(400).json({ error: "Text too short" });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
-    if (!apiKey) return res.json({ method: "fallback", parcels: [] });
-
-    const client = new Anthropic({ apiKey });
-    const response = await client.messages.create({
+    if (!process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY) return res.json({ method: "fallback", parcels: [] });
+    const response = await anthropic.messages.create({
       model: "claude-opus-4-5",
       max_tokens: 6000,
       messages: [{
@@ -113,16 +115,13 @@ router.post("/extract-pdf-text", isAuthenticated, async (req: any, res) => {
     const { pdfBase64, fileName } = req.body;
     if (!pdfBase64) return res.status(400).json({ error: "No file data" });
 
-    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
-    if (!apiKey) return res.status(400).json({ error: "AI not configured" });
-
-    const client = new Anthropic({ apiKey });
+    if (!process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY) return res.status(400).json({ error: "AI not configured" });
 
     const isPdf = fileName?.toLowerCase().endsWith(".pdf");
     const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName || "");
 
     if (isPdf) {
-      const response = await client.messages.create({
+      const response = await anthropic.messages.create({
         model: "claude-opus-4-5",
         max_tokens: 8000,
         messages: [{
@@ -152,7 +151,7 @@ router.post("/extract-pdf-text", isAuthenticated, async (req: any, res) => {
       const mediaTypeMap: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp" };
       const mediaType = mediaTypeMap[ext] || "image/jpeg";
 
-      const response = await client.messages.create({
+      const response = await anthropic.messages.create({
         model: "claude-opus-4-5",
         max_tokens: 8000,
         messages: [{
