@@ -1,0 +1,441 @@
+Voyage detail sayfasına "Özet Beyan / Declaration" yükleme özelliği ekle. Yüklenen beyan PDF olarak saklanır VE AI ile parse edilip cargo parcels otomatik oluşturulur.
+
+## 1. VOYAGE DETAIL HEADER'A BEYAN BUTONU
+
+Voyage detail hero bölümünde (Active, P&L, Download Report butonlarının yanına) ekle:
+
+<Button variant="outline" size="sm" className="text-xs h-8 gap-1.5" onClick={() => setShowDeclarationModal(true)}>
+  <FileUp className="w-3.5 h-3.5" />
+  Özet Beyan
+  {voyage?.declarationUploaded && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+</Button>
+
+## 2. BEYAN UPLOAD + AI PARSE MODAL
+
+<Dialog open={showDeclarationModal} onOpenChange={setShowDeclarationModal}>
+  <DialogContent className="max-w-5xl p-0 gap-0 overflow-hidden max-h-[90vh]">
+    <div className="flex flex-col h-[80vh]">
+
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-slate-700/30 shrink-0">
+        <DialogTitle className="text-base font-semibold flex items-center gap-2">
+          <FileUp className="w-5 h-5 text-blue-400" />
+          Özet Beyan — Customs Summary Declaration
+        </DialogTitle>
+        <p className="text-xs text-muted-foreground mt-1">
+          Upload declaration PDF. System will extract cargo parcels and auto-create them in Cargo Operations.
+        </p>
+      </div>
+
+      {/* 3 Adımlı akış */}
+      <div className="flex items-center justify-center gap-0 px-8 py-3 border-b border-slate-700/20 shrink-0">
+        {["Upload Document", "Review Parcels", "Set Sequence"].map((step, idx) => (
+          <div key={idx} className="flex items-center">
+            <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
+              currentStep === idx ? "bg-blue-500/15 text-blue-400" : currentStep > idx ? "bg-emerald-500/10 text-emerald-400" : "text-slate-600"
+            )}>
+              <div className={cn("w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold",
+                currentStep === idx ? "bg-blue-500/20" : currentStep > idx ? "bg-emerald-500/20" : "bg-slate-800"
+              )}>
+                {currentStep > idx ? "✓" : idx + 1}
+              </div>
+              {step}
+            </div>
+            {idx < 2 && <div className={cn("w-12 h-0.5 mx-1", currentStep > idx ? "bg-emerald-500/30" : "bg-slate-800")} />}
+          </div>
+        ))}
+      </div>
+
+      {/* ADIM 1 — Upload */}
+      {currentStep === 0 && (
+        <div className="flex-1 flex flex-col items-center justify-center p-8">
+          {/* Mevcut beyan varsa göster */}
+          {existingDeclaration && (
+            <div className="w-full max-w-md mb-6 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+              <div className="flex items-center gap-3">
+                <FileText className="w-8 h-8 text-emerald-400 shrink-0" />
+                <div className="flex-1">
+                  <span className="text-sm font-medium text-emerald-300">{existingDeclaration.fileName}</span>
+                  <p className="text-[10px] text-slate-500">Uploaded {formatDate(existingDeclaration.uploadedAt)}</p>
+                </div>
+                <Button variant="ghost" size="sm" className="text-xs" onClick={viewExistingDeclaration}>View</Button>
+                <Button variant="ghost" size="sm" className="text-xs text-red-400" onClick={removeDeclaration}>Remove</Button>
+              </div>
+            </div>
+          )}
+
+          <div
+            className="w-full max-w-md rounded-2xl border-2 border-dashed border-slate-700/40 hover:border-blue-500/30 hover:bg-blue-500/5 transition-all cursor-pointer p-12 text-center"
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => { e.preventDefault(); handleFileUpload(e.dataTransfer.files); }}
+          >
+            <FileUp className="w-14 h-14 text-slate-600 mx-auto mb-4" />
+            <p className="text-base text-slate-300 mb-1">{existingDeclaration ? "Upload New Declaration" : "Upload Özet Beyan"}</p>
+            <p className="text-xs text-slate-600">PDF, Image, or Text file — up to 25MB</p>
+            <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.txt,.csv" className="hidden" onChange={(e) => handleFileUpload(e.target.files)} />
+          </div>
+
+          {/* VEYA yapıştır */}
+          <div className="flex items-center gap-3 my-4">
+            <div className="h-px flex-1 bg-slate-700/30" />
+            <span className="text-[10px] text-slate-600">OR PASTE TEXT</span>
+            <div className="h-px flex-1 bg-slate-700/30" />
+          </div>
+
+          <div className="w-full max-w-md">
+            <textarea
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              placeholder="Paste declaration content here..."
+              rows={4}
+              className="w-full text-xs bg-slate-800/30 border border-slate-700/40 rounded-xl px-4 py-3 text-slate-300 placeholder:text-slate-700 outline-none resize-none"
+            />
+          </div>
+
+          <Button className="mt-4" onClick={handleParseDeclaration} disabled={!uploadedFile && pasteText.length < 20}>
+            <Wand2 className="w-4 h-4 mr-2" /> Extract Cargo Parcels
+          </Button>
+        </div>
+      )}
+
+      {/* ADIM 2 — Review */}
+      {currentStep === 1 && (
+        <div className="flex-1 overflow-y-auto p-5">
+          {isParsing ? (
+            <div className="flex flex-col items-center py-16">
+              <div className="w-12 h-12 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mb-4" />
+              <p className="text-sm text-slate-300">AI analyzing declaration...</p>
+              <p className="text-xs text-slate-500 mt-1">Extracting receivers, cargo types, quantities</p>
+            </div>
+          ) : (
+            <>
+              {/* Özet bar */}
+              <div className="grid grid-cols-4 gap-3 mb-5">
+                <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/30 text-center">
+                  <div className="text-[10px] text-slate-500">Parcels</div>
+                  <div className="text-xl font-bold">{parsedParcels.length}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/30 text-center">
+                  <div className="text-[10px] text-slate-500">Total Quantity</div>
+                  <div className="text-xl font-bold">{(parsedParcels.reduce((s, p) => s + (p.quantity || 0), 0)).toLocaleString()}</div>
+                  <div className="text-[10px] text-slate-500">MT</div>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/30 text-center">
+                  <div className="text-[10px] text-slate-500">Receivers</div>
+                  <div className="text-xl font-bold">{[...new Set(parsedParcels.map(p => p.receiverName))].length}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/30 text-center">
+                  <div className="text-[10px] text-slate-500">Cargo Types</div>
+                  <div className="text-xl font-bold">{[...new Set(parsedParcels.map(p => p.cargoType))].length}</div>
+                </div>
+              </div>
+
+              {/* Parcel tablosu — düzenlenebilir */}
+              <div className="rounded-xl border border-slate-700/40 overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-slate-800/50 border-b border-slate-700/30">
+                      <th className="text-left px-3 py-2.5 font-medium text-slate-500 w-8">#</th>
+                      <th className="text-left px-3 py-2.5 font-medium text-slate-500">B/L No</th>
+                      <th className="text-left px-3 py-2.5 font-medium text-slate-500">Cargo Type</th>
+                      <th className="text-left px-3 py-2.5 font-medium text-slate-500">HS Code</th>
+                      <th className="text-right px-3 py-2.5 font-medium text-slate-500">Quantity</th>
+                      <th className="text-left px-3 py-2.5 font-medium text-slate-500">Shipper</th>
+                      <th className="text-left px-3 py-2.5 font-medium text-slate-500">Receiver</th>
+                      <th className="px-3 py-2.5 w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsedParcels.map((p, i) => (
+                      <tr key={i} className="border-b border-slate-700/10 hover:bg-slate-800/20 transition-colors">
+                        <td className="px-3 py-2.5 text-slate-500">{i + 1}</td>
+                        <td className="px-3 py-2.5 font-medium text-slate-300">{p.blNumber || "—"}</td>
+                        <td className="px-3 py-2.5 text-slate-300">{p.cargoType}</td>
+                        <td className="px-3 py-2.5 text-slate-500">{p.hsCode || "—"}</td>
+                        <td className="px-3 py-2.5 text-right font-medium text-slate-200">
+                          {(p.quantity || 0).toLocaleString()} {p.unit}
+                        </td>
+                        <td className="px-3 py-2.5 text-slate-400 max-w-[150px] truncate">{p.shipperName || "—"}</td>
+                        <td className="px-3 py-2.5 text-slate-300 max-w-[200px] truncate">{p.receiverName}</td>
+                        <td className="px-3 py-2.5">
+                          <button onClick={() => removeParsedParcel(i)} className="text-slate-600 hover:text-red-400">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-slate-800/30 border-t border-slate-700/30">
+                      <td colSpan={4} className="px-3 py-2.5 text-xs font-semibold text-slate-400">TOTAL</td>
+                      <td className="px-3 py-2.5 text-right font-bold text-slate-200">
+                        {parsedParcels.reduce((s, p) => s + (p.quantity || 0), 0).toLocaleString()} MT
+                      </td>
+                      <td colSpan={3}></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Alıcıya göre gruplandırma özeti */}
+              <div className="mt-4 grid grid-cols-3 gap-3">
+                {Object.entries(
+                  parsedParcels.reduce((acc, p) => {
+                    const key = p.receiverName || "Unknown";
+                    if (!acc[key]) acc[key] = { count: 0, total: 0, types: new Set() };
+                    acc[key].count++;
+                    acc[key].total += p.quantity || 0;
+                    acc[key].types.add(p.cargoType);
+                    return acc;
+                  }, {} as Record<string, { count: number; total: number; types: Set<string> }>)
+                ).map(([name, data]) => (
+                  <div key={name} className="p-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
+                    <div className="text-xs font-semibold text-slate-300 truncate">{name}</div>
+                    <div className="text-lg font-bold mt-1">{data.total.toLocaleString()} MT</div>
+                    <div className="text-[10px] text-slate-500">{data.count} parcels · {[...data.types].join(", ")}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ADIM 3 — Sequence (Sıralama) */}
+      {currentStep === 2 && (
+        <div className="flex-1 overflow-y-auto p-5">
+          <div className="mb-4">
+            <h3 className="text-sm font-semibold text-slate-200">Set Discharge / Loading Sequence</h3>
+            <p className="text-xs text-muted-foreground mt-1">Drag parcels to set the order. First parcel will be discharged/loaded first.</p>
+          </div>
+
+          <div className="space-y-2">
+            {parsedParcels.map((parcel, i) => (
+              <div
+                key={i}
+                draggable
+                onDragStart={(e) => { e.dataTransfer.setData("idx", String(i)); setDragIdx(i); }}
+                onDragOver={(e) => { e.preventDefault(); setDragOverIdx(i); }}
+                onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
+                onDrop={(e) => { e.preventDefault(); reorderParcels(parseInt(e.dataTransfer.getData("idx")), i); }}
+                className={cn(
+                  "flex items-center gap-3 p-3 rounded-lg border transition-all cursor-grab active:cursor-grabbing",
+                  dragIdx === i && "opacity-40 scale-95",
+                  dragOverIdx === i && "border-blue-500/50 bg-blue-500/5",
+                  dragIdx !== i && dragOverIdx !== i && "border-slate-700/40 bg-slate-800/30 hover:border-slate-600/50"
+                )}
+              >
+                <div className="flex items-center gap-2 cursor-grab">
+                  <GripVertical className="w-4 h-4 text-slate-600" />
+                  <div className={cn(
+                    "w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold",
+                    i === 0 ? "bg-emerald-500/15 text-emerald-400" : "bg-slate-800 text-slate-500"
+                  )}>
+                    #{i + 1}
+                  </div>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-200 truncate">{parcel.receiverName}</span>
+                    <span className="text-xs text-slate-500">·</span>
+                    <span className="text-xs text-slate-400">{parcel.cargoType}</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-[10px] text-slate-500 mt-0.5">
+                    <span className="font-medium text-slate-300">{(parcel.quantity || 0).toLocaleString()} {parcel.unit}</span>
+                    {parcel.blNumber && <span>B/L: {parcel.blNumber}</span>}
+                    {parcel.hsCode && <span>HS: {parcel.hsCode}</span>}
+                  </div>
+                </div>
+
+                {/* Tank/Hold atama — inline */}
+                <div className="shrink-0">
+                  <input
+                    type="text"
+                    value={parcel.tankNumbers || parcel.holdNumbers || ""}
+                    onChange={(e) => updateParcelField(i, isTanker ? "tankNumbers" : "holdNumbers", e.target.value)}
+                    placeholder={isTanker ? "Tank #" : "Hold #"}
+                    className="w-20 text-xs bg-slate-800/50 border border-slate-700/50 rounded px-2 py-1 text-center outline-none focus:ring-1 focus:ring-blue-500/30"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-[10px] text-slate-600 text-center mt-3 italic">
+            ↕ Drag to reorder · First item = first to be {operationType === "loading" ? "loaded" : "discharged"} · Assign {isTanker ? "tank" : "hold"} numbers on the right
+          </p>
+        </div>
+      )}
+
+      {/* Footer — adım navigasyonu */}
+      <div className="border-t border-slate-700/30 px-5 py-3 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3 text-[10px] text-slate-500">
+          {parsedParcels.length > 0 && (
+            <>
+              <span>📦 {parsedParcels.length} parcels</span>
+              <span>⚖️ {parsedParcels.reduce((s, p) => s + (p.quantity || 0), 0).toLocaleString()} MT</span>
+              <span>🏢 {[...new Set(parsedParcels.map(p => p.receiverName))].length} receivers</span>
+            </>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {currentStep > 0 && (
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => setCurrentStep(s => s - 1)}>← Back</Button>
+          )}
+          {currentStep === 0 && (
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => setShowDeclarationModal(false)}>Cancel</Button>
+          )}
+          {currentStep === 1 && (
+            <Button size="sm" className="text-xs" onClick={() => setCurrentStep(2)}>
+              Next: Set Sequence →
+            </Button>
+          )}
+          {currentStep === 2 && (
+            <Button size="sm" className="text-xs gap-1.5" onClick={handleImportAll} disabled={parsedParcels.length === 0}>
+              <Package className="w-3 h-3" />
+              Import {parsedParcels.length} Parcels to Cargo Operations
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  </DialogContent>
+</Dialog>
+
+## 3. PARSE FONKSİYONU
+
+async function handleParseDeclaration() {
+  setCurrentStep(1);
+  setIsParsing(true);
+
+  let textToParse = pasteText;
+
+  // PDF yüklendiyse önce text'e çevir
+  if (uploadedFile && !textToParse) {
+    try {
+      const formData = new FormData();
+      formData.append("file", uploadedFile);
+      // Veya base64 olarak:
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve) => {
+        reader.onload = () => resolve((reader.result as string).split(",")[1]);
+        reader.readAsDataURL(uploadedFile);
+      });
+      const pdfRes = await fetch("/api/v1/cargo/extract-pdf-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdfBase64: base64, fileName: uploadedFile.name }),
+      });
+      if (pdfRes.ok) {
+        const pdfData = await pdfRes.json();
+        textToParse = pdfData.text || "";
+      }
+    } catch {}
+  }
+
+  // AI parse
+  try {
+    const res = await fetch("/api/v1/cargo/parse-declaration", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rawText: textToParse,
+        documentType: "ozet_beyan",
+        operationType: voyage?.operationType || "discharging",
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.parcels?.length > 0) {
+        setParsedParcels(data.parcels);
+      }
+    }
+  } catch {}
+
+  // Beyan PDF'i de kaydet (erişilebilir olsun)
+  if (uploadedFile) {
+    const formData = new FormData();
+    formData.append("file", uploadedFile);
+    formData.append("type", "customs_declaration");
+    formData.append("voyageId", String(voyageId));
+    try {
+      await fetch(`/api/v1/voyages/${voyageId}/documents`, { method: "POST", body: formData });
+    } catch {}
+  }
+
+  setIsParsing(false);
+}
+
+## 4. IMPORT FONKSİYONU
+
+async function handleImportAll() {
+  try {
+    let imported = 0;
+    for (const [i, parcel] of parsedParcels.entries()) {
+      const res = await fetch(`/api/v1/voyages/${voyageId}/cargo-parcels`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          receiverName: parcel.receiverName,
+          shipperName: parcel.shipperName,
+          cargoType: parcel.cargoType,
+          cargoGrade: parcel.cargoGrade,
+          targetQuantity: parcel.quantity,
+          blQuantity: parcel.quantity,
+          unit: parcel.unit || "MT",
+          blNumber: parcel.blNumber,
+          holdNumbers: isTanker ? null : parcel.holdNumbers,
+          tankNumbers: isTanker ? (parcel.tankNumbers || parcel.holdNumbers) : null,
+          dischargeSequence: operationType !== "loading" ? i + 1 : null,
+          loadingSequence: operationType === "loading" ? i + 1 : null,
+          notes: [
+            parcel.hsCode ? `HS: ${parcel.hsCode}` : "",
+            parcel.countryOfOrigin ? `Origin: ${parcel.countryOfOrigin}` : "",
+            parcel.portOfLoading ? `POL: ${parcel.portOfLoading}` : "",
+          ].filter(Boolean).join(" · ") || null,
+        }),
+      });
+      if (res.ok) imported++;
+    }
+    toast({ title: "Declaration Imported", description: `${imported} cargo parcels created from Özet Beyan` });
+    setShowDeclarationModal(false);
+    queryClient.invalidateQueries();
+  } catch (e: any) {
+    toast({ title: "Error", description: e.message, variant: "destructive" });
+  }
+}
+
+## 5. REORDER FONKSİYONU
+
+function reorderParcels(from: number, to: number) {
+  if (from === to) return;
+  const items = [...parsedParcels];
+  const [moved] = items.splice(from, 1);
+  items.splice(to, 0, moved);
+  setParsedParcels(items.map((p, i) => ({ ...p, sequence: i + 1 })));
+}
+
+## 6. AI PARSE PROMPT — Özet Beyan spesifik
+
+server/routes/cargo-parse.routes.ts'deki parse-declaration endpoint'inde AI prompt'unu Türk gümrük formatına göre güncelle:
+
+Prompt'a şunu ekle:
+
+This is specifically a Turkish "Özet Beyan" (Summary Declaration). Key Turkish terms:
+- Column headers may not exist — data is in fixed-position format
+- B/L numbers are alphanumeric codes like "PKLIZR01", "PGIZR1", "PGMER3D"
+- HS codes (GTİP) like "1511.90", "1513.29" precede the cargo description
+- Quantities use Turkish format: dots as thousands separator (e.g. "600.162,00" = 600,162 kg)
+- If quantities appear very large (>100,000), they're likely in KG — convert to MT by dividing by 1000
+- "ADR" in the document typically means "Adres" (address) column
+- "VL" means "Değer/Value" column
+- Shipper is at the top of the document (e.g. "PACIFIC INTER-LINK SDN BHD")
+- Receivers are listed per line item
+- "TO ORDER" means the receiver is not yet specified (use "TO ORDER" as receiverName)
+- Port of loading and discharge are at the top
+- The agent/declarer info is at the bottom (e.g. "SELİM DENİZCİLİK")
+
+For this specific document format, each row typically has:
+[Line#] [B/L No] [Package Count] [Package Type] [Country] [HS Code] [Cargo Description] [Quantity] [Shipper] [Receiver]

@@ -71,6 +71,7 @@ import orderBookRoutes from "./routes/order-book.routes";
 import brokerCommissionRoutes from "./routes/broker-commission.routes";
 import brokerContactsRoutes from "./routes/broker-contacts.routes";
 import cargoOpsRoutes from "./routes/cargo-operations.routes";
+import cargoParseRoutes from "./routes/cargo-parse.routes";
 import portCallChecklistRoutes from "./routes/port-call-checklist.routes";
 import portCallParticipantsRoutes from "./routes/port-call-participants.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
@@ -183,6 +184,7 @@ export async function registerRoutes(
 
   // ─── Sprint 11: Agent Modules ─────────────────────────────────────────────
   app.use("/api/v1/cargo-operations", isAuthenticated, cargoOpsRoutes);
+  app.use("/api/v1/cargo", cargoParseRoutes);
   app.use("/api/v1/port-call-checklists", isAuthenticated, portCallChecklistRoutes);
   app.use("/api/v1/port-call-participants", isAuthenticated, portCallParticipantsRoutes);
   app.use("/api/v1/dashboard", isAuthenticated, dashboardRoutes);
