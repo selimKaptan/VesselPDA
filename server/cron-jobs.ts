@@ -1,5 +1,6 @@
 import cron from "node-cron";
-import { pool } from "./db";
+import { pool, db } from "./db";
+import { sql } from "drizzle-orm";
 import { fetchTCMBRates } from "./exchange-rates";
 import { checkAndSendReminders } from "./payment-reminders";
 import { sendCertificateExpiryEmail } from "./email";
@@ -151,7 +152,7 @@ async function checkExpiringCertificates() {
 async function autoCloseTenders() {
   console.log("[cron] autoCloseTenders: starting...");
   try {
-    const expired = await pool.query(`
+    const expired = await db.execute(sql`
       SELECT id, user_id, vessel_name, expiry_hours
       FROM port_tenders
       WHERE status = 'open'
@@ -160,22 +161,20 @@ async function autoCloseTenders() {
 
     let closed = 0;
     for (const tender of expired.rows) {
-      await pool.query(
-        "UPDATE port_tenders SET status = 'expired' WHERE id = $1",
-        [tender.id]
-      );
+      await db.execute(sql`
+        UPDATE port_tenders SET status = 'expired' WHERE id = ${tender.id}
+      `);
 
-      await pool.query(
-        `INSERT INTO notifications (user_id, type, title, message, link)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [
-          tender.user_id,
-          "tender_expired",
-          "Port Call Tender Expired",
-          `Your tender for ${tender.vessel_name || "vessel"} has expired with no nominations and has been automatically closed.`,
-          `/tenders`,
-        ]
-      );
+      await db.execute(sql`
+        INSERT INTO notifications (user_id, type, title, message, link)
+        VALUES (
+          ${tender.user_id},
+          ${"tender_expired"},
+          ${"Port Call Tender Expired"},
+          ${`Your tender for ${tender.vessel_name || "vessel"} has expired with no nominations and has been automatically closed.`},
+          ${"/tenders"}
+        )
+      `);
       closed++;
     }
     console.log(`[cron] autoCloseTenders: ${closed} tender(s) closed.`);
@@ -191,7 +190,7 @@ async function autoCloseTenders() {
 async function checkVoyageETA() {
   console.log("[cron] checkVoyageETA: starting...");
   try {
-    const result = await pool.query(`
+    const result = await db.execute(sql`
       SELECT v.id, v.user_id, v.agent_user_id, v.vessel_name, v.eta,
              p.name AS port_name
       FROM voyages v
