@@ -5483,9 +5483,8 @@ export default function VoyageDetail() {
                           <button onClick={() => setCargoViewMode("cards")} className={cn("px-2.5 py-1 text-[10px] transition-colors", cargoViewMode === "cards" ? "bg-blue-500/20 text-blue-400" : "text-slate-500 hover:text-slate-300")} data-testid="button-view-cards">Cards</button>
                           <button onClick={() => setCargoViewMode("table")} className={cn("px-2.5 py-1 text-[10px] border-l border-slate-700/50 transition-colors", cargoViewMode === "table" ? "bg-blue-500/20 text-blue-400" : "text-slate-500 hover:text-slate-300")} data-testid="button-view-table">Table</button>
                         </div>
-                        <Button variant="outline" size="sm" className="text-xs h-7 gap-1.5" onClick={() => setShowDeclarationModal(true)} data-testid="button-import-declaration">
-                          <FileUp className="w-3 h-3" />
-                          Import Declaration
+                        <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => setShowDeclarationModal(true)} title="Import from Customs Declaration" data-testid="button-import-declaration">
+                          <FileUp className="w-3.5 h-3.5" />
                         </Button>
                         <Button size="sm" className="text-xs h-7 gap-1" onClick={() => { setEditingParcel(null); setParcelForm({ ...EMPTY_PARCEL_FORM }); setShowAddParcelDialog(true); }} data-testid="button-add-parcel">
                           <Plus className="w-3 h-3" /> Add Parcel
@@ -5495,7 +5494,21 @@ export default function VoyageDetail() {
 
                     {/* Empty state */}
                     {cargoParcelsData.length === 0 && (
-                      <EmptyState icon={Package} title="No Cargo Parcels" description="Add parcels to track cargo by consignee, hold, and sequence." action={{ label: "Add First Parcel", onClick: () => setShowAddParcelDialog(true) }} compact testId="section-parcels-empty" />
+                      <div className="flex flex-col items-center py-10" data-testid="section-parcels-empty">
+                        <Package className="w-12 h-12 text-slate-700 mb-3" />
+                        <p className="text-sm text-slate-400 mb-1">No Cargo Parcels</p>
+                        <p className="text-xs text-slate-600 mb-4 text-center max-w-xs">Add parcels manually or import from customs declaration</p>
+                        <div className="flex items-center gap-3">
+                          <Button variant="outline" size="sm" className="text-xs h-8 gap-1.5" onClick={() => setShowDeclarationModal(true)} data-testid="button-empty-import-declaration">
+                            <FileUp className="w-3.5 h-3.5" />
+                            Import Declaration
+                          </Button>
+                          <Button size="sm" className="text-xs h-8 gap-1.5" onClick={() => { setEditingParcel(null); setParcelForm({ ...EMPTY_PARCEL_FORM }); setShowAddParcelDialog(true); }} data-testid="button-empty-add-parcel">
+                            <Plus className="w-3.5 h-3.5" />
+                            Add Parcel
+                          </Button>
+                        </div>
+                      </div>
                     )}
 
                     {/* CARDS VIEW */}
