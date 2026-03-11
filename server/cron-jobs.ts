@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { pool, db } from "./db";
+import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { fetchTCMBRates } from "./exchange-rates";
 import { checkAndSendReminders } from "./payment-reminders";
