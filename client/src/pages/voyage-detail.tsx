@@ -960,36 +960,29 @@ export default function VoyageDetail() {
   const handleParseDeclaration = async () => {
     setDeclarationStep(1);
     setIsParsingDeclaration(true);
-    let textToParse = declarationPasteText;
+    try {
+      let body: Record<string, any> = {
+        documentType: "ozet_beyan",
+        operationType: (voyageData as any)?.operationType || "discharging",
+      };
 
-    if (declarationFile && !textToParse) {
-      try {
+      if (declarationFile && !declarationPasteText) {
         const reader = new FileReader();
-        const base64 = await new Promise<string>((resolve) => {
+        const base64 = await new Promise<string>((resolve, reject) => {
           reader.onload = () => resolve((reader.result as string).split(",")[1]);
+          reader.onerror = reject;
           reader.readAsDataURL(declarationFile);
         });
-        const pdfRes = await fetch("/api/v1/cargo/extract-pdf-text", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pdfBase64: base64, fileName: declarationFile.name }),
-        });
-        if (pdfRes.ok) {
-          const pdfData = await pdfRes.json();
-          textToParse = pdfData.text || "";
-        }
-      } catch {}
-    }
+        body.pdfBase64 = base64;
+        body.fileName = declarationFile.name;
+      } else {
+        body.rawText = declarationPasteText;
+      }
 
-    try {
       const res = await fetch("/api/v1/cargo/parse-declaration", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rawText: textToParse,
-          documentType: "ozet_beyan",
-          operationType: (voyageData as any)?.operationType || "discharging",
-        }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         const data = await res.json();

@@ -9,66 +9,77 @@ const anthropic = new Anthropic({
   baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
 });
 
-router.post("/parse-declaration", isAuthenticated, async (req: any, res) => {
-  try {
-    const { rawText, documentType, operationType } = req.body;
-    if (!rawText || rawText.trim().length < 20) {
-      return res.status(400).json({ error: "Text too short" });
-    }
-
-    if (!process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY) return res.json({ method: "fallback", parcels: [] });
-    const response = await anthropic.messages.create({
-      model: "claude-opus-4-5",
-      max_tokens: 6000,
-      messages: [{
-        role: "user",
-        content: `You are a maritime cargo declaration parser. Parse the following customs declaration document and extract ALL cargo parcels/line items.
+const PARSE_SYSTEM_PROMPT = `You are a maritime cargo declaration parser. Extract ALL cargo parcels/line items from the document.
 
 For each cargo parcel extract (use null if not found):
-- blNumber: Bill of Lading number (alphanumeric, e.g. "PKLIZR01", "PGIZR1", "PGMER3D")
-- cargoType: name/description of the cargo (e.g. "Palm Oil", "Soybean Meal", "Wheat")
+- blNumber: Bill of Lading number (e.g. "PKLIZR01", "PGIZR1", "PGMER3D")
+- cargoType: name/description of the cargo (e.g. "Palm Oil", "RBD Palm Stearin", "Wheat")
 - cargoGrade: quality or grade if specified (e.g. "RBD", "GMO-Free")
 - hsCode: HS/GTİP code (e.g. "1511.90", "1513.29")
-- quantity: numeric quantity converted to MT (see Turkish format rules below)
+- quantity: numeric quantity converted to MT
 - unit: always "MT"
 - shipperName: exporter/shipper name
 - receiverName: importer/consignee name (use "TO ORDER" if not specified)
 - countryOfOrigin: country where cargo originated
 - portOfLoading: port where cargo was loaded
 - portOfDischarge: destination port
-- packageCount: number of packages/containers if applicable
-- packageType: type of package (e.g. "BULK", "BAG", "FCL")
-- holdNumbers: hold assignment (null if unknown)
-- tankNumbers: tank assignment for liquid cargo (null if unknown)
+- packageCount: number of packages
+- packageType: type (e.g. "BULK", "BAG", "FCL")
+- holdNumbers: null if unknown
+- tankNumbers: null if unknown
 
-TURKISH ÖZET BEYAN FORMAT RULES (CRITICAL):
-- This is a Turkish "Özet Beyan" (Customs Summary Declaration)
-- Column headers may not exist — data is in fixed-position format
-- B/L numbers are alphanumeric codes like "PKLIZR01", "PGIZR1", "PGMER3D"  
-- HS codes (GTİP) like "1511.90", "1513.29" appear before the cargo description
-- Quantities use Turkish number format: dots as thousands separator (e.g. "600.162,00" = 600,162 kg → divide by 1000 for MT)
-- If quantities appear very large (>10,000), they're likely in KG — convert to MT by dividing by 1000
-- "ADR" in the document typically means "Adres" (address) column
-- "VL" means "Değer/Value" column
-- Shipper/Exporter is typically at the top of the document
-- Receivers (consignees) are listed per line item
-- "TO ORDER" means the receiver is not yet specified — use "TO ORDER" as receiverName
-- Port of loading and discharge are typically at the top
-- The agent/declarer info is at the bottom (e.g. "SELİM DENİZCİLİK")
-- Each row typically has: [Line#] [B/L No] [Package Count] [Package Type] [Country] [HS Code] [Cargo Description] [Quantity] [Shipper] [Receiver]
+TURKISH ÖZET BEYAN FORMAT RULES:
+- B/L numbers are alphanumeric codes like "PKLIZR01", "PGIZR1"
+- HS codes like "1511.90" appear before cargo description
+- Turkish number format: "600.162,00" = 600,162 (dot=thousands, comma=decimal) → KG → divide by 1000 for MT
+- If quantities >10,000, they're in KG — divide by 1000 for MT
+- Shipper/Exporter is at top; receivers per line item
+- Each row: [Line#] [B/L No] [Pkg Count] [Pkg Type] [Country] [HS Code] [Cargo] [Qty] [Shipper] [Receiver]
 
-Operation type: ${operationType || "discharging"}
+Respond ONLY with raw JSON (no markdown, no backticks):
+{"parcels": [...], "documentSummary": {"shipper": "...", "pol": "...", "pod": "...", "totalQuantityMT": 0}}`;
 
-IMPORTANT: Return a JSON object with a "parcels" array. Each parcel should have all fields above. If a field is not found, use null.
+router.post("/parse-declaration", isAuthenticated, async (req: any, res) => {
+  try {
+    const { rawText, pdfBase64, fileName, documentType, operationType } = req.body;
 
-Respond ONLY with a raw JSON object like:
-{"parcels": [...], "documentSummary": {"shipper": "...", "pol": "...", "pod": "...", "totalQuantityMT": 0}}
+    if (!process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY) {
+      console.error("[cargo-parse] AI_INTEGRATIONS_ANTHROPIC_API_KEY not set");
+      return res.json({ method: "fallback", parcels: [] });
+    }
 
-No markdown, no backticks, no explanation.
+    let messageContent: any[];
 
-DOCUMENT TEXT:
-${rawText}`
-      }]
+    if (pdfBase64) {
+      const isPdf = (fileName || "").toLowerCase().endsWith(".pdf");
+      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName || "");
+
+      if (isPdf) {
+        messageContent = [
+          { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } } as any,
+          { type: "text", text: `${PARSE_SYSTEM_PROMPT}\n\nOperation type: ${operationType || "discharging"}` },
+        ];
+      } else if (isImage) {
+        const ext = (fileName?.split(".").pop() || "jpeg").toLowerCase();
+        const mediaTypeMap: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp" };
+        messageContent = [
+          { type: "image", source: { type: "base64", media_type: mediaTypeMap[ext] || "image/jpeg", data: pdfBase64 } },
+          { type: "text", text: `${PARSE_SYSTEM_PROMPT}\n\nOperation type: ${operationType || "discharging"}` },
+        ];
+      } else {
+        return res.status(400).json({ error: "Unsupported file type" });
+      }
+    } else if (rawText && rawText.trim().length >= 20) {
+      messageContent = [{ type: "text", text: `${PARSE_SYSTEM_PROMPT}\n\nOperation type: ${operationType || "discharging"}\n\nDOCUMENT TEXT:\n${rawText}` }];
+    } else {
+      return res.status(400).json({ error: "No document content provided" });
+    }
+
+    console.log(`[cargo-parse] Calling Anthropic for ${pdfBase64 ? fileName : "text"}, opType=${operationType}`);
+    const response = await anthropic.messages.create({
+      model: "claude-opus-4-5",
+      max_tokens: 6000,
+      messages: [{ role: "user", content: messageContent }],
     });
 
     const textContent = response.content.find((c: any) => c.type === "text");
@@ -96,13 +107,20 @@ ${rawText}`
 
     const parcels = (Array.isArray(parsed) ? parsed : parsed?.parcels) || [];
 
-    const normalized = parcels.map((p: any, i: number) => ({
-      ...p,
-      quantity: typeof p.quantity === "number" ? p.quantity : parseFloat(String(p.quantity || "0").replace(/\./g, "").replace(",", ".")) / (String(p.quantity || "").replace(/\./g, "").replace(",", ".").length > 5 ? 1000 : 1),
-      unit: "MT",
-      sequence: i + 1,
-    }));
+    const normalized = parcels.map((p: any, i: number) => {
+      let qty: number;
+      if (typeof p.quantity === "number") {
+        qty = p.quantity > 100000 ? p.quantity / 1000 : p.quantity;
+      } else {
+        const raw = String(p.quantity || "0");
+        const cleaned = raw.replace(/\./g, "").replace(",", ".");
+        const num = parseFloat(cleaned) || 0;
+        qty = num > 100000 ? num / 1000 : num;
+      }
+      return { ...p, quantity: Math.round(qty * 1000) / 1000, unit: "MT", sequence: i + 1 };
+    });
 
+    console.log(`[cargo-parse] Parsed ${normalized.length} parcels`);
     res.json({ method: "ai", parcels: normalized, documentSummary: parsed?.documentSummary || null });
   } catch (err: any) {
     console.error("[cargo-parse] Error:", err.message);
