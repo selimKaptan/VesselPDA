@@ -11,7 +11,7 @@ router.post("/parse-crew-text", isAuthenticated, async (req: any, res) => {
       return res.status(400).json({ error: "Text too short" });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
     if (!apiKey) return res.json({ method: "fallback", crew: [] });
 
     const client = new Anthropic({ apiKey });

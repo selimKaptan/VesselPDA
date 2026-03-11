@@ -11,7 +11,7 @@ router.post("/parse-declaration", isAuthenticated, async (req: any, res) => {
       return res.status(400).json({ error: "Text too short" });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
     if (!apiKey) return res.json({ method: "fallback", parcels: [] });
 
     const client = new Anthropic({ apiKey });
@@ -113,7 +113,7 @@ router.post("/extract-pdf-text", isAuthenticated, async (req: any, res) => {
     const { pdfBase64, fileName } = req.body;
     if (!pdfBase64) return res.status(400).json({ error: "No file data" });
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
     if (!apiKey) return res.status(400).json({ error: "AI not configured" });
 
     const client = new Anthropic({ apiKey });
