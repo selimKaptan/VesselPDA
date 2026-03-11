@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Link } from "wouter";
 import { useTheme } from "@/components/theme-provider";
 import { useLanguage } from "@/lib/i18n";
@@ -6,7 +5,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { NotificationBell } from "@/components/notification-bell";
-import { CommandSearch } from "@/components/command-search";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -201,7 +199,6 @@ function ActionBadge() {
 
 export function TopBar({ user, onMenuClick }: TopBarProps) {
   const { lang, setLang } = useLanguage();
-  const [searchOpen, setSearchOpen] = useState(false);
 
   return (
     <header className="h-12 flex-shrink-0 flex items-center px-3 gap-3 bg-[#080c18] border-b border-slate-700/50 z-30">
@@ -224,7 +221,7 @@ export function TopBar({ user, onMenuClick }: TopBarProps) {
       {/* Center: search trigger button */}
       <div className="flex-1 max-w-md mx-auto">
         <button
-          onClick={() => setSearchOpen(true)}
+          onClick={() => document.dispatchEvent(new CustomEvent("open-command"))}
           data-testid="button-open-search"
           className="w-full flex items-center gap-2 bg-slate-800/50 border border-slate-700/40 rounded-full pl-3 pr-3 py-1.5 text-sm text-slate-500 hover:bg-slate-700/40 hover:border-slate-600/60 transition-colors group"
         >
@@ -238,7 +235,6 @@ export function TopBar({ user, onMenuClick }: TopBarProps) {
           </div>
         </button>
 
-        <CommandSearch open={searchOpen} onOpenChange={setSearchOpen} />
       </div>
 
       {/* Right: lang · theme · bell · user */}

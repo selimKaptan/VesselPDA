@@ -114,6 +114,12 @@ export function CommandSearch() {
   }, [open]);
 
   useEffect(() => {
+    const handleOpenCommand = () => setOpen(true);
+    document.addEventListener("open-command", handleOpenCommand);
+    return () => document.removeEventListener("open-command", handleOpenCommand);
+  }, []);
+
+  useEffect(() => {
     if (open) {
       setRecent(loadRecent());
       setTimeout(() => inputRef.current?.focus(), 50);
