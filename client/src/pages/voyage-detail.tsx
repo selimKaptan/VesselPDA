@@ -13,6 +13,7 @@ import {
   Scale, Banknote, CreditCard, Percent, BarChart2, ScrollText, LayoutDashboard,
   MessageSquare, Activity, CheckSquare, Send, Phone, Check,
   FileImage, Eye, Pencil,
+  Truck, ShieldCheck, UserCircle, Building, Shield,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
@@ -799,6 +800,21 @@ export default function VoyageDetail() {
     hotelCheckOut: string;
     hotelStatus: "none" | "reserved" | "checked-in" | "checked-out";
     hotelPickupTime: string;
+    passportExpiry?: string;
+    cdcNumber?: string;
+    departureAirport?: string;
+    arrivalAirport?: string;
+    arrivalFlightTime?: string;
+    transferTime?: string;
+    embarkTime?: string;
+    eVisaNumber?: string;
+    visaExpiry?: string;
+    visaType?: string;
+    shorePass?: boolean;
+    customsClearance?: boolean;
+    healthClearance?: boolean;
+    hotelConfirmation?: string;
+    hotelNotes?: string;
   };
   type CrewSlideFormType = Omit<CrewSigner, "id" | "timeline" | "arrivalStatus" | "docs">;
   const ON_TIMELINE_DEFAULT: CrewTimelineStep[] = [
@@ -840,6 +856,10 @@ export default function VoyageDetail() {
   const [crewCompactMode, setCrewCompactMode] = useState(false);
   const [isHotelPanelOpen, setIsHotelPanelOpen] = useState(false);
   const [inlineEdit, setInlineEdit] = useState<{ crewId: number; field: "flight" | "flightEta"; val: string } | null>(null);
+  const [showQuickSet, setShowQuickSet] = useState<string | null>(null);
+  const [qsCode, setQsCode] = useState("");
+  const [qsTime, setQsTime] = useState("");
+  const [crewModalTab, setCrewModalTab] = useState("identity");
 
   // ── Close Operation / Finance Handover ───────────────────────────────────
   const [showCloseOpModal, setShowCloseOpModal] = useState(false);
@@ -3283,8 +3303,66 @@ export default function VoyageDetail() {
 
                             {/* ── CENTER: Stepper + flight + hotel + AI suggestions ── */}
                             <div className="flex-1 flex flex-col gap-2.5 min-w-0" onClick={e => e.stopPropagation()}>
-                              {/* Horizontal workflow stepper */}
-                              <div className="flex items-start justify-between gap-1">
+                              {/* Horizontal workflow stepper v2 */}
+                              {(() => {
+                                const fmtPT = (t?: string) => { if (!t) return ""; if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(t)) { const p = fmtDateTime(t).split(" / "); return p[1] || t.slice(11, 16); } if (/^\d{2}:\d{2}$/.test(t)) return t; return t.slice(0, 10); };
+                                const xferStep = crew.timeline.find(s => /airport.*port|port.*airport|transfer|🚐/i.test(s.label + s.icon));
+                                const ctrlStep = crew.timeline.find(s => /customs|police|kontrol|🛂|🛃/i.test(s.label + s.icon));
+                                const xferT = crew.transferTime || xferStep?.time || "";
+                                const ctrlT = ctrlStep?.time || "";
+                                const vesselT = crew.side === "on" ? (voyage?.eta ? fmtDateTime(voyage.eta).split(" / ").pop() || "" : "") : (voyage?.etd ? fmtDateTime(voyage.etd).split(" / ").pop() || "" : "");
+                                const steps = [
+                                  { key: "flight", Icon: Plane, label: "Flight", code: crew.flight, time: fmtPT(crew.flightEta), hasData: !!(crew.flight || crew.flightEta), delayed: crew.flightDelayed },
+                                  { key: "transfer", Icon: Truck, label: "Transfer", code: crew.side === "on" ? "Airport→Port" : "Port→Airport", time: fmtPT(xferT), hasData: !!xferT, delayed: false },
+                                  { key: "control", Icon: ShieldCheck, label: "Control", code: crew.okToBoard === "confirmed" ? "Cleared" : crew.okToBoard === "sent" ? "Sent" : "", time: fmtPT(ctrlT), hasData: crew.okToBoard === "confirmed", delayed: false },
+                                  { key: "vessel", Icon: Ship, label: "Vessel", code: crew.side === "on" ? "ETA" : "ETD", time: vesselT, hasData: true, delayed: false },
+                                ];
+                                return (
+                                <div className="flex items-start gap-0 relative">
+                                  {steps.map((step, idx) => {
+                                    const isPrevDone = idx === 0 || steps[idx - 1].hasData;
+                                    const isNext = !step.hasData && isPrevDone;
+                                    const qsKey = `${crew.id}-${step.key}`;
+                                    return (
+                                      <div key={step.key} className="flex items-start flex-1">
+                                        {idx > 0 && (
+                                          <div className={cn("flex-1 mt-4 mx-0.5", steps[idx-1].hasData && step.hasData ? "h-0.5 bg-emerald-500/40" : "border-t-2 border-dashed border-slate-600/40")} />
+                                        )}
+                                        <div className="flex flex-col items-center min-w-[52px] relative">
+                                          <div className={cn("w-8 h-8 rounded-full flex items-center justify-center transition-all", step.hasData ? "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30" : isNext ? "bg-blue-500/15 text-blue-400 ring-1 ring-blue-500/30 animate-pulse" : "bg-slate-800/80 text-slate-600")}>
+                                            {step.hasData ? <Check className="w-3.5 h-3.5" /> : <step.Icon className="w-3.5 h-3.5" />}
+                                          </div>
+                                          <div className="mt-1 text-center w-full">
+                                            {step.hasData ? (
+                                              <div className={step.key !== "vessel" ? "cursor-pointer" : ""} onClick={() => { if (step.key !== "vessel") { setQsCode(step.code || ""); setQsTime(step.time || ""); setShowQuickSet(showQuickSet === qsKey ? null : qsKey); } }}>
+                                                {step.code && <div className="text-[10px] font-medium text-slate-300 truncate max-w-[52px]" data-testid={`ms-code-${crew.id}-${step.key}`}>{step.code}</div>}
+                                                {step.time && <div className="text-[10px] text-slate-500 font-mono" data-testid={`ms-time-${crew.id}-${step.key}`}>{step.time}</div>}
+                                                {step.delayed && <div className="text-[9px] text-rose-400">⚠ delay</div>}
+                                              </div>
+                                            ) : (
+                                              <button onClick={e => { e.stopPropagation(); if (step.key !== "vessel") { setQsCode(""); setQsTime(""); setShowQuickSet(showQuickSet === qsKey ? null : qsKey); } }} className={cn("text-[10px] transition-all", isNext ? "text-blue-400/70 hover:text-blue-400 font-medium" : "text-slate-700 hover:text-slate-500")} data-testid={`ms-set-${crew.id}-${step.key}`}>+ Set</button>
+                                            )}
+                                          </div>
+                                          {showQuickSet === qsKey && step.key !== "vessel" && (
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 w-52 rounded-lg border border-slate-700 bg-slate-900 shadow-xl p-3" onClick={e => e.stopPropagation()}>
+                                              <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Set {step.label}</div>
+                                              {step.key === "flight" && <input placeholder="Flight code e.g. TK2320" className="w-full h-7 text-xs mb-2 bg-slate-800 border border-slate-700 rounded px-2 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" value={qsCode} onChange={e => setQsCode(e.target.value)} data-testid={`qs-code-${crew.id}`} />}
+                                              <input type={step.key === "flight" ? "datetime-local" : "time"} className="w-full h-7 text-xs mb-2 bg-slate-800 border border-slate-700 rounded px-2 text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500" value={qsTime} onChange={e => setQsTime(e.target.value)} data-testid={`qs-time-${crew.id}`} />
+                                              <div className="flex justify-end gap-1.5">
+                                                <button className="text-[10px] h-6 px-2 rounded text-slate-400 hover:bg-slate-700 transition-colors" onClick={() => setShowQuickSet(null)}>Cancel</button>
+                                                <button className="text-[10px] h-6 px-2 rounded bg-blue-600 hover:bg-blue-500 text-white transition-colors" data-testid={`qs-save-${crew.id}-${step.key}`} onClick={() => { setCrewSigners(cs => cs.map(c => { if (c.id !== crew.id) return c; if (step.key === "flight") return { ...c, flight: qsCode, flightEta: qsTime }; if (step.key === "transfer") { const tl = c.timeline.map(s => /airport.*port|port.*airport|transfer|🚐/i.test(s.label + s.icon) ? { ...s, time: qsTime } : s); return { ...c, transferTime: qsTime, timeline: tl }; } if (step.key === "control") { const tl = c.timeline.map(s => /customs|police|kontrol|🛂|🛃/i.test(s.label + s.icon) ? { ...s, time: qsTime } : s); return { ...c, okToBoard: "confirmed" as const, timeline: tl }; } return c; })); setShowQuickSet(null); }}>Save</button>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                );
+                              })()}
+                              {/* Horizontal workflow stepper — legacy (kept for ref) */}
+                              {false && <div className="flex items-start justify-between gap-1">
                                 {_msItems.map((ms, idx) => {
                                   const st: "done" | "active" | "future" = ms.key === "kontrol"
                                     ? (crew.okToBoard === "confirmed" ? "done" : crew.okToBoard === "sent" ? "active" : "future")
@@ -3390,7 +3468,7 @@ export default function VoyageDetail() {
                                     </div>
                                   );
                                 })}
-                              </div>
+                              </div>}
 
                               {/* Flight number row + hotel mini-badge */}
                               <div className="flex items-center gap-1.5 flex-wrap">
@@ -4021,453 +4099,350 @@ export default function VoyageDetail() {
           </Dialog>
 
           {/* ── Crew Member Slide-Over Panel ── */}
-          <Dialog open={showCrewPanel} onOpenChange={setShowCrewPanel}>
-            <DialogContent className="max-w-none w-screen h-screen m-0 rounded-none flex flex-col p-0 bg-slate-900 border-0" data-testid="crew-slide-panel">
-              {/* Header */}
-              <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-700/60 flex-shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${crewPanelMode === "add_on" ? "bg-emerald-500/15 border border-emerald-500/30" : crewPanelMode === "add_off" ? "bg-rose-500/15 border border-rose-500/30" : "bg-blue-500/15 border border-blue-500/30"}`}>
-                    {crewPanelMode === "add_on" ? <LogIn className="w-4 h-4 text-emerald-400" /> : crewPanelMode === "add_off" ? <LogOut className="w-4 h-4 text-rose-400" /> : <UserPlus className="w-4 h-4 text-blue-400" />}
-                  </div>
-                  <div>
-                    <DialogTitle className="text-base font-bold text-slate-50">
-                      {crewPanelMode === "add_on" ? "Add On-Signer" : crewPanelMode === "add_off" ? "Add Off-Signer" : "Edit Crew Member"}
-                    </DialogTitle>
-                    <DialogDescription className="text-xs text-slate-500 mt-0.5">
-                      {crewPanelMode === "add_on" ? "Joining the vessel at this port" : crewPanelMode === "add_off" ? "Leaving the vessel at this port" : "Update crew logistics information"}
-                    </DialogDescription>
-                  </div>
-                </div>
-              </DialogHeader>
-
-              {/* Scrollable Form Body */}
-              <div className="flex-1 overflow-y-auto">
-                <div className="max-w-2xl mx-auto px-6 py-5 space-y-5">
-
-                {/* Section 1: Identity */}
-                <div>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Identity</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs text-slate-400">Full Name</Label>
-                      <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="John Smith" value={crewSlideForm.name} onChange={e => setCrewSlideForm(f => ({ ...f, name: e.target.value }))} data-testid="input-crew-name" />
+          <Dialog open={showCrewPanel} onOpenChange={v => { setShowCrewPanel(v); if (!v) setCrewModalTab("identity"); }}>
+            <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden" style={{ maxHeight: "85vh" }} data-testid="crew-slide-panel">
+              {(() => {
+                const _flightEta = crewSlideForm.flightEta;
+                const _vesselRef = crewSlideForm.side === "off" ? voyage?.etd : voyage?.eta;
+                const _hotelNeeded = !!_flightEta && !!_vesselRef && ((new Date(_vesselRef).getTime() - new Date(_flightEta).getTime()) / 3600000) > 6;
+                const _hoursBefore = (!_flightEta || !_vesselRef) ? 0 : Math.round((new Date(_vesselRef).getTime() - new Date(_flightEta).getTime()) / 3600000);
+                const _initials = crewSlideForm.name.split(" ").filter(Boolean).map(n => n[0]).slice(0, 2).join("").toUpperCase() || "?";
+                const modalTabs = [
+                  { key: "identity", label: "Identity & Passport", icon: UserCircle, alert: !crewSlideForm.passportNo },
+                  { key: "travel", label: "Travel & Logistics", icon: Plane, alert: !!crewSlideForm.flightDelayed },
+                  { key: "clearance", label: "Visa & Clearance", icon: ShieldCheck, alert: !!(crewSlideForm.visaRequired && crewSlideForm.eVisaStatus !== "approved") },
+                  { key: "accommodation", label: "Accommodation", icon: Building, alert: !!((_hotelNeeded || crewSlideForm.requiresHotel) && !crewSlideForm.hotelName) },
+                  { key: "documents", label: "Document Vault", icon: FolderOpen, alert: false },
+                ];
+                return (
+                <div className="flex" style={{ height: "75vh" }}>
+                  {/* LEFT SIDEBAR */}
+                  <div className="w-[280px] shrink-0 border-r border-slate-700/50 bg-slate-900/80 flex flex-col">
+                    <div className="p-5 border-b border-slate-700/30 overflow-y-auto">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center text-xl font-bold text-blue-400 shrink-0">{_initials}</div>
+                        <div className="min-w-0">
+                          <h3 className="text-base font-semibold text-slate-200 truncate">{crewSlideForm.name || (crewPanelMode === "add_on" ? "New On-Signer" : crewPanelMode === "add_off" ? "New Off-Signer" : "Crew Member")}</h3>
+                          <p className="text-xs text-slate-400">{crewSlideForm.rank || "Rank not set"}</p>
+                          <p className="text-[11px] text-slate-500">{crewSlideForm.nationality ? `${getFlag(crewSlideForm.nationality)} ${crewSlideForm.nationality}` : "No nationality"}</p>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className={cn("flex items-center justify-between px-3 py-2 rounded-lg text-xs", crewSlideForm.flight ? "bg-blue-500/10 border border-blue-500/20" : "bg-slate-800/50 border border-slate-700/30")}>
+                          <span className="flex items-center gap-1.5 text-slate-400"><Plane className="w-3.5 h-3.5" /> Flight</span>
+                          <span className={crewSlideForm.flight ? "text-blue-300 font-medium" : "text-slate-600"}>{crewSlideForm.flight || "Not set"}</span>
+                        </div>
+                        <div className={cn("flex items-center justify-between px-3 py-2 rounded-lg text-xs", crewSlideForm.eVisaStatus === "approved" ? "bg-emerald-500/10 border border-emerald-500/20" : crewSlideForm.visaRequired ? "bg-red-500/10 border border-red-500/20" : "bg-slate-800/50 border border-slate-700/30")}>
+                          <span className="flex items-center gap-1.5 text-slate-400"><Shield className="w-3.5 h-3.5" /> Visa</span>
+                          <span className={cn("font-medium", crewSlideForm.eVisaStatus === "approved" ? "text-emerald-300" : crewSlideForm.visaRequired ? "text-red-300" : "text-slate-600")}>{crewSlideForm.eVisaStatus === "approved" ? "✓ OK" : crewSlideForm.visaRequired ? "⚠ Required" : "N/A"}</span>
+                        </div>
+                        <div className={cn("flex items-center justify-between px-3 py-2 rounded-lg text-xs", (_hotelNeeded || crewSlideForm.requiresHotel) ? "bg-amber-500/10 border border-amber-500/20" : "bg-slate-800/50 border border-slate-700/30")}>
+                          <span className="flex items-center gap-1.5 text-slate-400"><Building className="w-3.5 h-3.5" /> Hotel</span>
+                          <span className={cn("font-medium", (_hotelNeeded || crewSlideForm.requiresHotel) ? "text-amber-300" : "text-slate-600")}>{(_hotelNeeded || crewSlideForm.requiresHotel) ? (crewSlideForm.hotelName ? "✓ Booked" : "⚠ Needed") : "Not needed"}</span>
+                        </div>
+                        <div className={cn("flex items-center justify-between px-3 py-2 rounded-lg text-xs", crewSlideForm.okToBoard === "confirmed" ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-slate-800/50 border border-slate-700/30")}>
+                          <span className="flex items-center gap-1.5 text-slate-400"><FileCheck className="w-3.5 h-3.5" /> OKTB</span>
+                          <span className={cn("font-medium", crewSlideForm.okToBoard === "confirmed" ? "text-emerald-300" : "text-slate-600")}>{crewSlideForm.okToBoard === "confirmed" ? "✓ Cleared" : "Pending"}</span>
+                        </div>
+                      </div>
+                      {_hotelNeeded && !crewSlideForm.hotelName && (
+                        <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-400">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          <span>Flight arrives {_hoursBefore}h before vessel ETA. Hotel needed.</span>
+                        </div>
+                      )}
+                      {crewSlideForm.flightDelayed && (
+                        <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-[11px] text-red-400">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          <span>Flight delayed! Review transfer schedule.</span>
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <Label className="text-xs text-slate-400">Rank / Position</Label>
-                      <select
-                        className="w-full h-9 text-sm mt-1 bg-slate-800 border border-slate-700 rounded-md px-2 text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        value={crewSlideForm.rank}
-                        onChange={e => setCrewSlideForm(f => ({ ...f, rank: e.target.value }))}
-                        data-testid="select-crew-rank"
-                      >
-                        <option value="">— Select Rank —</option>
-                        <optgroup label="Deck Officers">
-                          <option>Master</option>
-                          <option>Chief Officer</option>
-                          <option>2nd Officer</option>
-                          <option>3rd Officer</option>
-                          <option>Deck Cadet</option>
-                        </optgroup>
-                        <optgroup label="Engine Officers">
-                          <option>Chief Engineer</option>
-                          <option>2nd Engineer</option>
-                          <option>3rd Engineer</option>
-                          <option>4th Engineer</option>
-                          <option>Electrical Engineer / ETO</option>
-                          <option>Engine Cadet</option>
-                        </optgroup>
-                        <optgroup label="Deck Ratings">
-                          <option>Bosun</option>
-                          <option>AB Sailor</option>
-                          <option>OS (Ordinary Seaman)</option>
-                          <option>Deck Fitter</option>
-                        </optgroup>
-                        <optgroup label="Engine Ratings">
-                          <option>Oiler</option>
-                          <option>Motorman</option>
-                          <option>Wiper</option>
-                          <option>Engine Fitter</option>
-                          <option>Pumpman</option>
-                        </optgroup>
-                        <optgroup label="Catering">
-                          <option>Chief Cook</option>
-                          <option>Cook</option>
-                          <option>Messman / Steward</option>
-                        </optgroup>
-                        <optgroup label="Other">
-                          <option>Radio Officer</option>
-                          <option>Doctor</option>
-                          <option>Security Officer</option>
-                          <option>Third Officer</option>
-                          <option>Offr on Watch (OOW)</option>
-                        </optgroup>
-                      </select>
+                    <div className="flex-1 py-2 overflow-y-auto">
+                      {modalTabs.map(tab => (
+                        <button key={tab.key} onClick={() => setCrewModalTab(tab.key)} className={cn("w-full flex items-center gap-3 px-5 py-2.5 text-left transition-all relative", crewModalTab === tab.key ? "bg-blue-500/10 text-blue-400 border-r-2 border-blue-500" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/30")} data-testid={`crew-modal-tab-${tab.key}`}>
+                          <tab.icon className="w-4 h-4 shrink-0" />
+                          <span className="text-sm truncate">{tab.label}</span>
+                          {tab.alert && <div className="absolute right-4 w-2 h-2 rounded-full bg-amber-500 animate-pulse" />}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                </div>
 
-                {/* Section 2: Nationality & Passport */}
-                <div>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Nationality & Documents</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-xs text-slate-400">Nationality (ISO-3)</Label>
-                      <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600 uppercase" placeholder="TUR" maxLength={3} value={crewSlideForm.nationality} onChange={e => setCrewSlideForm(f => ({ ...f, nationality: e.target.value.toUpperCase() }))} data-testid="input-crew-nationality" />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-slate-400">Passport No.</Label>
-                      <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="TR12345678" value={crewSlideForm.passportNo} onChange={e => setCrewSlideForm(f => ({ ...f, passportNo: e.target.value }))} data-testid="input-crew-passport" />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-slate-400">Doğum Tarihi (DOB)</Label>
-                      <Input type="date" className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" value={crewSlideForm.dob} onChange={e => setCrewSlideForm(f => ({ ...f, dob: e.target.value }))} data-testid="input-crew-dob" />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-slate-400">Cüzdan No (Seaman Book)</Label>
-                      <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="T-123456" value={crewSlideForm.seamanBookNo} onChange={e => setCrewSlideForm(f => ({ ...f, seamanBookNo: e.target.value }))} data-testid="input-crew-seamanbook" />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <Label className="text-xs text-slate-400">Doğum Yeri (Birth Place)</Label>
-                      <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="İstanbul" value={crewSlideForm.birthPlace} onChange={e => setCrewSlideForm(f => ({ ...f, birthPlace: e.target.value }))} data-testid="input-crew-birthplace" />
-                    </div>
-                  </div>
-                </div>
+                  {/* RIGHT CONTENT */}
+                  <div className="flex-1 flex flex-col min-w-0">
+                    <div className="flex-1 overflow-y-auto p-6">
 
-                {/* Section 3: Flight Details */}
-                <div>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Flight Details</p>
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    <div>
-                      <Label className="text-xs text-slate-400">Flight No.</Label>
-                      <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="TK2320" value={crewSlideForm.flight} onChange={e => setCrewSlideForm(f => ({ ...f, flight: e.target.value }))} data-testid="input-crew-flight" />
-                    </div>
-                    <div>
-                      <Label className="text-xs text-slate-400">{crewPanelMode === "add_off" || crewSlideForm.side === "off" ? "ETD (Departure)" : "ETA (Arrival)"}</Label>
-                      <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="14:30" value={crewSlideForm.flightEta} onChange={e => setCrewSlideForm(f => ({ ...f, flightEta: e.target.value }))} data-testid="input-crew-flighteta" />
-                    </div>
-                  </div>
-                  <label className="flex items-center gap-2.5 cursor-pointer p-2.5 rounded-lg bg-rose-900/10 border border-rose-500/20 hover:bg-rose-900/20 transition-colors">
-                    <input type="checkbox" checked={crewSlideForm.flightDelayed} onChange={e => setCrewSlideForm(f => ({ ...f, flightDelayed: e.target.checked }))} className="accent-rose-500 w-4 h-4" data-testid="check-crew-delayed" />
-                    <div>
-                      <p className="text-xs font-medium text-rose-400">Flight Delayed</p>
-                      <p className="text-[10px] text-rose-400/60">Mark if flight has been delayed</p>
-                    </div>
-                  </label>
-                </div>
-
-                {/* Section 3b: Transfer Timeline */}
-                {(() => {
-                  const isOff = crewSlideForm.side === "off";
-                  const vesselEtdTime = voyage.etd ? new Date(voyage.etd).toTimeString().substring(0, 5) : "";
-                  const fMins = timeToMins(crewSlideForm.flightEta);
-                  const etdMins = timeToMins(vesselEtdTime);
-                  const disembarkMins = timeToMins(slideFormTimeline.find(s => /disembark/i.test(s.label))?.time ?? "");
-                  const rule1 = !isOff && fMins >= 0 && etdMins >= 0 && fMins > etdMins;
-                  const rule2 = isOff && fMins >= 0 && disembarkMins >= 0 && (() => {
-                    const gap = fMins >= disembarkMins ? fMins - disembarkMins : 1440 - disembarkMins + fMins;
-                    return gap < 300;
-                  })();
-                  return (
-                    <>
-                      {/* Smart Rule Engine warnings */}
-                      {rule1 && (
-                        <div className="flex items-start gap-2 p-3 rounded-lg bg-red-950/40 border border-red-500/40 text-xs text-red-400" data-testid="warning-flight-after-etd">
-                          <span className="text-sm leading-none mt-0.5">⚠️</span>
-                          <div>
-                            <p className="font-bold text-red-300">Critical: Flight arrives after Vessel ETD!</p>
-                            <p className="text-red-400/70 text-[10px] mt-0.5">Flight ETA {crewSlideForm.flightEta} is after vessel ETD {vesselEtdTime}. Crew may miss the vessel.</p>
+                      {/* IDENTITY TAB */}
+                      {crewModalTab === "identity" && (
+                        <div className="space-y-6">
+                          <h3 className="text-sm font-semibold text-slate-200">Personal Information</h3>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="col-span-2">
+                              <label className="text-xs text-slate-500 mb-1.5 block">Full Name</label>
+                              <input placeholder="John Smith" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.name} onChange={e => setCrewSlideForm(f => ({ ...f, name: e.target.value }))} data-testid="input-crew-name" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-500 mb-1.5 block">Rank / Position</label>
+                              <select className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-2 text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.rank} onChange={e => setCrewSlideForm(f => ({ ...f, rank: e.target.value }))} data-testid="select-crew-rank">
+                                <option value="">— Select Rank —</option>
+                                {["Master","Chief Officer","2nd Officer","3rd Officer","Deck Cadet","Chief Engineer","2nd Engineer","3rd Engineer","4th Engineer","Electrical Engineer / ETO","Engine Cadet","Bosun","AB Sailor","OS (Ordinary Seaman)","Oiler","Motorman","Wiper","Chief Cook","Cook","Messman / Steward","Radio Officer","Security Officer"].map(r => <option key={r}>{r}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-500 mb-1.5 block">Nationality (ISO-3)</label>
+                              <input placeholder="TUR" maxLength={3} className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 placeholder:text-slate-600 uppercase focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.nationality} onChange={e => setCrewSlideForm(f => ({ ...f, nationality: e.target.value.toUpperCase() }))} data-testid="input-crew-nationality" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-500 mb-1.5 block">Date of Birth</label>
+                              <input type="date" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.dob} onChange={e => setCrewSlideForm(f => ({ ...f, dob: e.target.value }))} data-testid="input-crew-dob" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-500 mb-1.5 block">Birth Place</label>
+                              <input placeholder="İstanbul" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.birthPlace} onChange={e => setCrewSlideForm(f => ({ ...f, birthPlace: e.target.value }))} data-testid="input-crew-birthplace" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-500 mb-1.5 block">On / Off Signer</label>
+                              <div className="flex rounded-lg border border-slate-700/50 overflow-hidden h-9">
+                                <button onClick={() => setCrewSlideForm(f => ({ ...f, side: "on" }))} className={cn("flex-1 text-sm font-medium transition-colors", crewSlideForm.side === "on" ? "bg-emerald-500/15 text-emerald-400" : "bg-slate-800/50 text-slate-500")}>On-Signer</button>
+                                <button onClick={() => setCrewSlideForm(f => ({ ...f, side: "off" }))} className={cn("flex-1 text-sm font-medium transition-colors border-l border-slate-700/50", crewSlideForm.side === "off" ? "bg-rose-500/15 text-rose-400" : "bg-slate-800/50 text-slate-500")}>Off-Signer</button>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="border-t border-slate-700/30 pt-5">
+                            <h3 className="text-sm font-semibold text-slate-200 mb-4">Passport &amp; Seaman's Book</h3>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="text-xs text-slate-500 mb-1.5 block">Passport Number</label>
+                                <input placeholder="TR12345678" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.passportNo} onChange={e => setCrewSlideForm(f => ({ ...f, passportNo: e.target.value }))} data-testid="input-crew-passport" />
+                              </div>
+                              <div>
+                                <label className="text-xs text-slate-500 mb-1.5 block">Passport Expiry</label>
+                                <input type="date" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.passportExpiry || ""} onChange={e => setCrewSlideForm(f => ({ ...f, passportExpiry: e.target.value }))} />
+                              </div>
+                              <div>
+                                <label className="text-xs text-slate-500 mb-1.5 block">Seaman's Book No</label>
+                                <input placeholder="T-123456" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.seamanBookNo} onChange={e => setCrewSlideForm(f => ({ ...f, seamanBookNo: e.target.value }))} data-testid="input-crew-seamanbook" />
+                              </div>
+                              <div>
+                                <label className="text-xs text-slate-500 mb-1.5 block">CDC Number</label>
+                                <input placeholder="CDC-XXXXX" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.cdcNumber || ""} onChange={e => setCrewSlideForm(f => ({ ...f, cdcNumber: e.target.value }))} />
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}
-                      {rule2 && (
-                        <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-950/40 border border-amber-500/40 text-xs text-amber-400" data-testid="warning-transfer-gap">
-                          <span className="text-sm leading-none mt-0.5">⚠️</span>
-                          <div>
-                            <p className="font-bold text-amber-300">Warning: Insufficient transfer time!</p>
-                            <p className="text-amber-400/70 text-[10px] mt-0.5">Minimum 5 hours required between disembarkation and departure flight.</p>
+
+                      {/* TRAVEL TAB */}
+                      {crewModalTab === "travel" && (
+                        <div className="space-y-6">
+                          <h3 className="text-sm font-semibold text-slate-200">Flight Details</h3>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-xs text-slate-500 mb-1.5 block">Flight Number</label>
+                              <input placeholder="TK2320" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.flight} onChange={e => setCrewSlideForm(f => ({ ...f, flight: e.target.value }))} data-testid="input-crew-flight" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-500 mb-1.5 block">Flight ETA</label>
+                              <input type="datetime-local" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.flightEta} onChange={e => setCrewSlideForm(f => ({ ...f, flightEta: e.target.value }))} data-testid="input-crew-flighteta" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-500 mb-1.5 block">Departure Airport</label>
+                              <input placeholder="IST" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.departureAirport || ""} onChange={e => setCrewSlideForm(f => ({ ...f, departureAirport: e.target.value }))} />
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-500 mb-1.5 block">Arrival Airport</label>
+                              <input placeholder="ADB" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.arrivalAirport || ""} onChange={e => setCrewSlideForm(f => ({ ...f, arrivalAirport: e.target.value }))} />
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      {/* Transfer Timeline steps */}
-                      {(() => {
-                        const toDatetimeLocal = (val: string): string => {
-                          if (!val) return "";
-                          if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(val)) return val.slice(0, 16);
-                          if (/^\d{2}:\d{2}$/.test(val)) {
-                            const today = new Date().toISOString().slice(0, 10);
-                            return `${today}T${val}`;
-                          }
-                          return "";
-                        };
-                        const fromDatetimeLocal = (val: string): string => {
-                          if (!val) return "";
-                          return val.slice(11, 16);
-                        };
-                        const displayTimeline = (val: string): string => {
-                          if (!val) return "—";
-                          if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(val)) return fmtDateTime(val);
-                          return val;
-                        };
-                        return (
-                          <div>
-                            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Transfer Timeline</p>
+                          <div className={cn("flex items-center gap-3 p-3 rounded-lg", crewSlideForm.flightDelayed ? "bg-red-500/10 border border-red-500/20" : "bg-slate-800/20 border border-slate-700/30")}>
+                            <button className={cn("relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors", crewSlideForm.flightDelayed ? "bg-red-500" : "bg-slate-600")} onClick={() => setCrewSlideForm(f => ({ ...f, flightDelayed: !f.flightDelayed }))} data-testid="toggle-flight-delayed">
+                              <span className={cn("pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg transition-transform", crewSlideForm.flightDelayed ? "translate-x-4" : "translate-x-0")} />
+                            </button>
+                            <div>
+                              <span className={cn("text-sm font-medium", crewSlideForm.flightDelayed ? "text-red-300" : "text-slate-400")}>Flight Delayed</span>
+                              <p className="text-[11px] text-slate-500">Mark if flight has been delayed or cancelled</p>
+                            </div>
+                          </div>
+                          <div className="border-t border-slate-700/30 pt-5">
+                            <h3 className="text-sm font-semibold text-slate-200 mb-4">Transfer Timeline</h3>
                             <div className="space-y-3">
-                              {slideFormTimeline.map((step, idx) => (
-                                <div key={idx} className="flex items-center gap-3">
-                                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${step.done ? "bg-emerald-400" : "bg-slate-600"}`} />
-                                  <span className="text-xs text-slate-300 flex-1 min-w-0 font-medium">{step.icon} {step.label}</span>
-                                  <div className="flex flex-col items-end gap-0.5">
-                                    <input
-                                      type="datetime-local"
-                                      className="h-8 text-xs px-2 rounded-md bg-slate-800 border border-slate-700 text-slate-100 [color-scheme:dark]"
-                                      value={toDatetimeLocal(step.time)}
-                                      onChange={e => {
-                                        const raw = e.target.value;
-                                        setSlideFormTimeline(prev => prev.map((s, i) => i === idx ? { ...s, time: fromDatetimeLocal(raw) } : s));
-                                      }}
-                                      data-testid={`input-timeline-step-${idx}`}
-                                    />
-                                    {step.time && (
-                                      <span className="text-[9px] text-slate-500 font-mono">{displayTimeline(toDatetimeLocal(step.time))}</span>
-                                    )}
+                              {([
+                                { icon: "✈️", label: "Arrival Flight", field: "arrivalFlightTime" },
+                                { icon: "🚐", label: "Airport → Port", field: "transferTime" },
+                                { icon: "🚢", label: "Embark / Board Vessel", field: "embarkTime" },
+                              ] as { icon: string; label: string; field: keyof CrewSlideFormType }[]).map(step => (
+                                <div key={step.field} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
+                                  <div className="flex items-center gap-2">
+                                    <span>{step.icon}</span>
+                                    <span className="text-sm text-slate-300">{step.label}</span>
                                   </div>
-                                  <button
-                                    type="button"
-                                    title={step.done ? "Mark incomplete" : "Mark done"}
-                                    className={`w-6 h-6 rounded-md border text-[10px] flex items-center justify-center flex-shrink-0 transition-colors ${step.done ? "bg-emerald-900/40 border-emerald-500/50 text-emerald-400 hover:bg-emerald-900/20" : "bg-slate-800 border-slate-700 text-slate-600 hover:border-slate-500 hover:text-slate-400"}`}
-                                    onClick={() => setSlideFormTimeline(prev => prev.map((s, i) => i === idx ? { ...s, done: !s.done } : s))}
-                                    data-testid={`btn-timeline-done-${idx}`}
-                                  >
-                                    ✓
+                                  <div className="flex items-center gap-2">
+                                    <input type="datetime-local" value={(crewSlideForm as any)[step.field] || ""} onChange={e => setCrewSlideForm(f => ({ ...f, [step.field]: e.target.value }))} className="w-48 h-8 text-xs bg-slate-800/50 border border-slate-700/50 rounded px-2 text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                                    {(crewSlideForm as any)[step.field] && <Check className="w-4 h-4 text-emerald-400" />}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* CLEARANCE TAB */}
+                      {crewModalTab === "clearance" && (
+                        <div className="space-y-6">
+                          <h3 className="text-sm font-semibold text-slate-200">Visa &amp; Entry Clearance</h3>
+                          <div className="flex rounded-lg border border-slate-700/50 overflow-hidden">
+                            <button onClick={() => setCrewSlideForm(f => ({ ...f, visaRequired: false }))} className={cn("flex-1 py-2.5 text-sm font-medium transition-colors", !crewSlideForm.visaRequired ? "bg-emerald-500/15 text-emerald-400" : "bg-slate-800/50 text-slate-500")}>No Visa Needed</button>
+                            <button onClick={() => setCrewSlideForm(f => ({ ...f, visaRequired: true }))} className={cn("flex-1 py-2.5 text-sm font-medium transition-colors border-l border-slate-700/50", crewSlideForm.visaRequired ? "bg-amber-500/15 text-amber-400" : "bg-slate-800/50 text-slate-500")}>🛂 Visa Required</button>
+                          </div>
+                          {crewSlideForm.visaRequired && (
+                            <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-amber-500/5 border border-amber-500/10">
+                              <div>
+                                <label className="text-xs text-slate-500 mb-1.5 block">e-Visa Status</label>
+                                <select className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-2 text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.eVisaStatus} onChange={e => setCrewSlideForm(f => ({ ...f, eVisaStatus: e.target.value as any }))} data-testid="select-crew-evisa">
+                                  <option value="n/a">N/A</option>
+                                  <option value="pending">Pending</option>
+                                  <option value="approved">✅ Approved</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-xs text-slate-500 mb-1.5 block">e-Visa Number</label>
+                                <input placeholder="EVS-XXXXX" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.eVisaNumber || ""} onChange={e => setCrewSlideForm(f => ({ ...f, eVisaNumber: e.target.value }))} />
+                              </div>
+                              <div>
+                                <label className="text-xs text-slate-500 mb-1.5 block">Visa Expiry</label>
+                                <input type="date" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.visaExpiry || ""} onChange={e => setCrewSlideForm(f => ({ ...f, visaExpiry: e.target.value }))} />
+                              </div>
+                              <div>
+                                <label className="text-xs text-slate-500 mb-1.5 block">Visa Type</label>
+                                <input placeholder="Transit / Work" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.visaType || ""} onChange={e => setCrewSlideForm(f => ({ ...f, visaType: e.target.value }))} />
+                              </div>
+                            </div>
+                          )}
+                          <div className="border-t border-slate-700/30 pt-5">
+                            <h3 className="text-sm font-semibold text-slate-200 mb-4">Port Clearance Status</h3>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
+                                <span className="text-sm text-slate-300">🚀 OKTB (Ok To Board)</span>
+                                <select className="h-8 text-xs bg-slate-800 border border-slate-700 rounded px-2 text-slate-100 focus:outline-none" value={crewSlideForm.okToBoard} onChange={e => setCrewSlideForm(f => ({ ...f, okToBoard: e.target.value as any }))} data-testid="select-crew-oktb">
+                                  <option value="pending">Pending</option>
+                                  <option value="sent">Sent</option>
+                                  <option value="confirmed">✅ Confirmed</option>
+                                </select>
+                              </div>
+                              {([
+                                { key: "shorePass", label: "🏖 Shore Pass", field: "shorePass" },
+                                { key: "customsClearance", label: "🛃 Customs Cleared", field: "customsClearance" },
+                                { key: "healthClearance", label: "🏥 Health Clearance", field: "healthClearance" },
+                              ] as { key: string; label: string; field: keyof CrewSlideFormType }[]).map(item => (
+                                <div key={item.key} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
+                                  <span className="text-sm text-slate-300">{item.label}</span>
+                                  <button className={cn("relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors", (crewSlideForm as any)[item.field] ? "bg-emerald-500" : "bg-slate-600")} onClick={() => setCrewSlideForm(f => ({ ...f, [item.field]: !(f as any)[item.field] }))}>
+                                    <span className={cn("pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg transition-transform", (crewSlideForm as any)[item.field] ? "translate-x-4" : "translate-x-0")} />
                                   </button>
                                 </div>
                               ))}
                             </div>
                           </div>
-                        );
-                      })()}
-                    </>
-                  );
-                })()}
+                        </div>
+                      )}
 
-                {/* Section 4: Visa & Clearance */}
-                <div>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Visa & Clearance</p>
-                  <div className="space-y-3">
-                    <div>
-                      <Label className="text-xs text-slate-400 mb-1.5 block">Visa Required?</Label>
-                      <div className="flex gap-2">
-                        <button onClick={() => setCrewSlideForm(f => ({ ...f, visaRequired: false }))} className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${!crewSlideForm.visaRequired ? "bg-emerald-900/40 border-emerald-500/50 text-emerald-400" : "bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600"}`} data-testid="btn-visa-no">No</button>
-                        <button onClick={() => setCrewSlideForm(f => ({ ...f, visaRequired: true }))} className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${crewSlideForm.visaRequired ? "bg-rose-900/40 border-rose-500/50 text-rose-400" : "bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600"}`} data-testid="btn-visa-yes">Yes — Required</button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <Label className="text-xs text-slate-400">e-Visa Status</Label>
-                        <select className="w-full h-9 text-sm mt-1 bg-slate-800 border border-slate-700 rounded-md px-2 text-slate-100" value={crewSlideForm.eVisaStatus} onChange={e => setCrewSlideForm(f => ({ ...f, eVisaStatus: e.target.value as any }))} data-testid="select-evisa-status">
-                          <option value="n/a">N/A</option>
-                          <option value="pending">⏳ Pending</option>
-                          <option value="approved">✅ Approved</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Section 5: Documents */}
-                <div>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Documents</p>
-                  <div className="space-y-2">
-                    {([
-                      { key: "passport" as const,    icon: "🛂", label: "Passport"      },
-                      { key: "seamansBook" as const, icon: "📘", label: "Seaman's Book"  },
-                      { key: "medicalCert" as const, icon: "🩺", label: "Medical Cert"   },
-                    ] as { key: keyof CrewDocs; icon: string; label: string }[]).map(({ key, icon, label }) => {
-                      const existingDoc = crewPanelMode === "edit" && editingCrewId !== null
-                        ? crewSigners.find(c => c.id === editingCrewId)?.docs[key] ?? null
-                        : null;
-                      return (
-                        <div key={key} className="flex items-center gap-2.5">
-                          <span className="text-base leading-none flex-shrink-0">{icon}</span>
-                          <span className="text-xs text-slate-400 w-24 flex-shrink-0">{label}</span>
-                          {existingDoc ? (
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <span className="text-xs text-blue-300 truncate flex-1 min-w-0">{existingDoc.name}</span>
-                              <button
-                                className="text-[10px] text-slate-400 hover:text-blue-400 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded px-2 py-0.5 transition-colors flex-shrink-0"
-                                onClick={() => { const a = document.createElement("a"); a.href = existingDoc.dataUrl; a.download = existingDoc.name; a.click(); }}
-                                type="button"
-                              >
-                                ↓ View
-                              </button>
-                              <button
-                                className="text-[10px] text-slate-500 hover:text-rose-400 transition-colors flex-shrink-0"
-                                title="Remove"
-                                type="button"
-                                onClick={() => {
-                                  if (editingCrewId !== null) setCrewSigners(cs => cs.map(c => c.id !== editingCrewId ? c : { ...c, docs: { ...c.docs, [key]: null } }));
-                                }}
-                              >
-                                ×
-                              </button>
+                      {/* ACCOMMODATION TAB */}
+                      {crewModalTab === "accommodation" && (
+                        <div className="space-y-6">
+                          <h3 className="text-sm font-semibold text-slate-200">Hotel &amp; Accommodation</h3>
+                          {_hotelNeeded && (
+                            <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                              <div>
+                                <p className="text-sm text-amber-300 font-medium">Hotel accommodation recommended</p>
+                                <p className="text-xs text-amber-400/70">Flight arrives {_hoursBefore}h before vessel ETA. Crew needs a place to stay.</p>
+                              </div>
                             </div>
-                          ) : (
-                            <label className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 border border-dashed border-slate-600 text-xs text-slate-500 cursor-pointer hover:border-slate-500 hover:text-slate-400 transition-colors">
-                              <Upload className="w-3 h-3 flex-shrink-0" />
-                              <span>Upload {label}</span>
-                              <input
-                                type="file"
-                                accept=".pdf,.jpg,.jpeg,.png"
-                                className="hidden"
-                                onChange={e => {
-                                  const file = e.target.files?.[0];
-                                  if (!file || editingCrewId === null) return;
-                                  const reader = new FileReader();
-                                  reader.onload = () => {
-                                    setCrewSigners(cs => cs.map(c => c.id !== editingCrewId ? c : { ...c, docs: { ...c.docs, [key]: { name: file.name, dataUrl: reader.result as string } } }));
-                                    addActivityLog(`${crewSigners.find(c => c.id === editingCrewId)?.name ?? "Crew"}: ${label} uploaded.`, "Agent");
-                                    toast({ title: "Document Uploaded", description: `${label} saved.` });
-                                  };
-                                  reader.readAsDataURL(file);
-                                  e.target.value = "";
-                                }}
-                              />
-                            </label>
+                          )}
+                          <div className="flex rounded-lg border border-slate-700/50 overflow-hidden">
+                            <button onClick={() => setCrewSlideForm(f => ({ ...f, requiresHotel: false }))} className={cn("flex-1 py-2.5 text-sm font-medium transition-colors", !crewSlideForm.requiresHotel ? "bg-slate-800/80 text-slate-300" : "bg-slate-800/50 text-slate-500")}>No Hotel</button>
+                            <button onClick={() => setCrewSlideForm(f => ({ ...f, requiresHotel: true }))} className={cn("flex-1 py-2.5 text-sm font-medium transition-colors border-l border-slate-700/50", crewSlideForm.requiresHotel ? "bg-amber-500/15 text-amber-400" : "bg-slate-800/50 text-slate-500")}>🏨 Hotel Required</button>
+                          </div>
+                          {crewSlideForm.requiresHotel && (
+                            <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-slate-800/20 border border-slate-700/30">
+                              <div>
+                                <label className="text-xs text-slate-500 mb-1.5 block">Hotel Name</label>
+                                <input placeholder="e.g. Hilton Izmir" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.hotelName} onChange={e => setCrewSlideForm(f => ({ ...f, hotelName: e.target.value }))} data-testid="input-hotel-name" />
+                              </div>
+                              <div>
+                                <label className="text-xs text-slate-500 mb-1.5 block">Confirmation No</label>
+                                <input placeholder="CONF-XXXXX" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.hotelConfirmation || ""} onChange={e => setCrewSlideForm(f => ({ ...f, hotelConfirmation: e.target.value }))} />
+                              </div>
+                              <div>
+                                <label className="text-xs text-slate-500 mb-1.5 block">Check-in</label>
+                                <input type="date" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.hotelCheckIn} onChange={e => setCrewSlideForm(f => ({ ...f, hotelCheckIn: e.target.value }))} data-testid="input-hotel-checkin" />
+                              </div>
+                              <div>
+                                <label className="text-xs text-slate-500 mb-1.5 block">Check-out</label>
+                                <input type="date" className="w-full h-9 text-sm bg-slate-800 border border-slate-700 rounded-md px-3 text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.hotelCheckOut} onChange={e => setCrewSlideForm(f => ({ ...f, hotelCheckOut: e.target.value }))} data-testid="input-hotel-checkout" />
+                              </div>
+                              <div className="col-span-2">
+                                <label className="text-xs text-slate-500 mb-1.5 block">Hotel Notes</label>
+                                <textarea rows={2} placeholder="Room preferences, special requests..." className="w-full text-sm bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-slate-100 placeholder:text-slate-600 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500" value={crewSlideForm.hotelNotes || ""} onChange={e => setCrewSlideForm(f => ({ ...f, hotelNotes: e.target.value }))} />
+                              </div>
+                            </div>
                           )}
                         </div>
-                      );
-                    })}
-                  </div>
-                  {crewPanelMode !== "edit" && (
-                    <p className="text-[10px] text-slate-600 mt-2 italic">Documents can be uploaded after saving the crew member.</p>
-                  )}
-                </div>
+                      )}
 
-                {/* Section 6: Hotel & Accommodation */}
-                <div>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mb-3">Hotel & Accommodation</p>
-                  {/* Requires Hotel toggle */}
-                  <div className="mb-3">
-                    <Label className="text-xs text-slate-400 mb-1.5 block">Requires Hotel?</Label>
-                    <div className="flex gap-2">
-                      <button onClick={() => setCrewSlideForm(f => ({ ...f, requiresHotel: false }))} className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${!crewSlideForm.requiresHotel ? "bg-slate-600/60 border-slate-500 text-slate-200" : "bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600"}`} data-testid="toggle-requires-hotel-no">No</button>
-                      <button onClick={() => setCrewSlideForm(f => ({ ...f, requiresHotel: true }))} className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${crewSlideForm.requiresHotel ? "bg-indigo-900/50 border-indigo-500/60 text-indigo-300" : "bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600"}`} data-testid="toggle-requires-hotel-yes">🏨 Yes — Hotel Required</button>
-                    </div>
-                  </div>
-
-                  {crewSlideForm.requiresHotel && (
-                    <div className="space-y-3 rounded-xl border border-indigo-500/20 bg-indigo-900/10 p-3">
-                      {/* Hotel rule warning banner — shows if rule triggered and no hotel name yet */}
-                      {(() => {
-                        const vesselEtdTime = voyage?.etd ? new Date(voyage.etd).toTimeString().substring(0, 5) : "";
-                        const vesselEtaTime = voyage?.eta ? new Date(voyage.eta).toTimeString().substring(0, 5) : "";
-                        const fMins = timeToMins(crewSlideForm.flightEta);
-                        const isOff = crewSlideForm.side === "off";
-                        let hotelRuleMsg = "";
-                        if (!isOff && vesselEtaTime) {
-                          const etaMins = timeToMins(vesselEtaTime);
-                          if (fMins >= 0 && etaMins >= 0 && etaMins - fMins > 360)
-                            hotelRuleMsg = `>6h wait before Vessel ETA (${vesselEtaTime}).`;
-                        }
-                        if (isOff && vesselEtdTime) {
-                          const etdMins = timeToMins(vesselEtdTime);
-                          if (fMins >= 0 && etdMins >= 0) {
-                            const waitMins = fMins >= etdMins ? fMins - etdMins : (1440 - etdMins) + fMins;
-                            if (waitMins > 720)
-                              hotelRuleMsg = `>12h wait after Vessel ETD (${vesselEtdTime}).`;
-                          }
-                        }
-                        if (!hotelRuleMsg || crewSlideForm.hotelName) return null;
-                        return (
-                          <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-950/40 border border-amber-500/40 text-xs text-amber-300" data-testid="warning-hotel-rule-slide">
-                            <span className="text-sm leading-none mt-0.5 flex-shrink-0">⚠️</span>
-                            <div>
-                              <p className="font-bold text-amber-200">Hotel Required by Smart Rule</p>
-                              <p className="text-[10px] text-amber-400/70 mt-0.5">{hotelRuleMsg} Please enter hotel details below.</p>
-                            </div>
+                      {/* DOCUMENTS TAB */}
+                      {crewModalTab === "documents" && (
+                        <div className="space-y-6">
+                          <h3 className="text-sm font-semibold text-slate-200">Document Vault</h3>
+                          <div className="grid grid-cols-2 gap-3">
+                            {["Passport", "Seaman's Book", "Flight Ticket", "e-Visa", "Medical Certificate", "STCW Certs"].map(docType => (
+                              <div key={docType} className="rounded-lg border-2 border-dashed border-slate-700/40 hover:border-blue-500/30 hover:bg-blue-500/5 transition-all cursor-pointer p-4 text-center">
+                                <Upload className="w-5 h-5 text-slate-600 mx-auto mb-1.5" />
+                                <p className="text-xs text-slate-400">{docType}</p>
+                                <p className="text-[9px] text-slate-600">Drop or click</p>
+                              </div>
+                            ))}
                           </div>
-                        );
-                      })()}
-
-                      {/* Hotel name */}
-                      <div>
-                        <Label className="text-xs text-slate-400">Hotel Name</Label>
-                        <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="e.g. Hilton Alsancak" value={crewSlideForm.hotelName} onChange={e => setCrewSlideForm(f => ({ ...f, hotelName: e.target.value }))} data-testid="input-hotel-name" />
-                      </div>
-
-                      {/* Check-in / Check-out */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <Label className="text-xs text-slate-400">Check-in</Label>
-                          <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="HH:MM" value={crewSlideForm.hotelCheckIn} onChange={e => setCrewSlideForm(f => ({ ...f, hotelCheckIn: e.target.value }))} data-testid="input-hotel-checkin" />
+                          <p className="text-[11px] text-slate-600 italic">Supported: PDF, JPG, PNG up to 10MB each</p>
                         </div>
-                        <div>
-                          <Label className="text-xs text-slate-400">Check-out</Label>
-                          <Input className="h-9 text-sm mt-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600" placeholder="HH:MM" value={crewSlideForm.hotelCheckOut} onChange={e => setCrewSlideForm(f => ({ ...f, hotelCheckOut: e.target.value }))} data-testid="input-hotel-checkout" />
-                        </div>
-                      </div>
+                      )}
+                    </div>
 
-                      {/* Hotel Status */}
-                      <div>
-                        <Label className="text-xs text-slate-400">Hotel Status</Label>
-                        <select className="w-full h-9 text-sm mt-1 bg-slate-800 border border-slate-700 rounded-md px-2 text-slate-100" value={crewSlideForm.hotelStatus} onChange={e => setCrewSlideForm(f => ({ ...f, hotelStatus: e.target.value as any }))} data-testid="select-hotel-status">
-                          <option value="none">📋 Needs Hotel</option>
-                          <option value="reserved">🔖 Reserved</option>
-                          <option value="checked-in">🛏️ Checked-In</option>
-                          <option value="checked-out">🧳 Checked-Out</option>
-                        </select>
-                      </div>
-
-                      {/* Smart Pickup (auto-computed) */}
-                      <div className="rounded-lg border border-red-500/25 bg-red-900/15 p-2.5 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-[10px] font-bold text-red-300 mb-0.5">🚐 Smart Pick-up Time</p>
-                          <p className="text-[9px] text-red-400/60">Auto-set 4 hours before flight ETA</p>
-                        </div>
-                        <span className="text-sm font-bold text-red-300 font-mono flex-shrink-0" data-testid="text-hotel-pickup">
-                          {crewSlideForm.hotelPickupTime || "—"}
-                        </span>
+                    {/* STICKY FOOTER */}
+                    <div className="sticky bottom-0 border-t border-slate-700/30 bg-slate-900/90 backdrop-blur-xl px-6 py-3 flex items-center justify-between shrink-0">
+                      <span className="text-xs text-slate-500">{crewPanelMode === "add_on" ? "Adding On-Signer" : crewPanelMode === "add_off" ? "Adding Off-Signer" : "Editing Crew Member"}</span>
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="sm" className="text-xs h-8" onClick={() => { setShowCrewPanel(false); setCrewModalTab("identity"); }} data-testid="button-cancel-crew-panel">Cancel</Button>
+                        <Button size="sm" className="text-xs h-8 px-5 bg-blue-600 hover:bg-blue-500" onClick={() => {
+                          if (!crewSlideForm.name.trim()) return;
+                          if (crewPanelMode === "edit" && editingCrewId !== null) {
+                            const existing = crewSigners.find(c => c.id === editingCrewId);
+                            setCrewSigners(cs => cs.map(c => c.id !== editingCrewId ? c : { ...c, ...crewSlideForm, timeline: slideFormTimeline }));
+                            if (existing && existing.flight !== crewSlideForm.flight && crewSlideForm.flight) {
+                              addActivityLog(`Flight updated for ${crewSlideForm.name}: ${existing.flight || "(none)"} → ${crewSlideForm.flight}.`, "Agent", `${existing.flight || "(none)"} → ${crewSlideForm.flight}`);
+                            } else if (existing) {
+                              addActivityLog(`${crewSlideForm.name} crew details updated.`, "Agent");
+                            }
+                          } else {
+                            const side = crewPanelMode === "add_off" ? "off" : "on";
+                            setCrewSigners(cs => [...cs, { ...crewSlideForm, side, id: Date.now(), arrivalStatus: "pending", docs: EMPTY_CREW_DOCS, timeline: slideFormTimeline }]);
+                            addActivityLog(`New ${side === "on" ? "On" : "Off"}-signer added: ${crewSlideForm.name}, ${crewSlideForm.rank || "N/A"}.`, "Agent");
+                          }
+                          setShowCrewPanel(false);
+                          setCrewSlideForm(EMPTY_CREW_SLIDE_FORM);
+                          setEditingCrewId(null);
+                          setCrewModalTab("identity");
+                        }} data-testid="button-confirm-add-crew">
+                          {crewPanelMode === "edit" ? "Save Changes" : "Add Crew Member"}
+                        </Button>
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
-
-                </div>
-              </div>
-
-              {/* Sticky Footer */}
-              <div className="px-6 py-4 border-t border-slate-700/60 flex-shrink-0 flex flex-row gap-2 max-w-2xl mx-auto w-full">
-                <Button variant="outline" className="flex-1 border-slate-700 text-slate-400 hover:bg-slate-800" onClick={() => setShowCrewPanel(false)} data-testid="button-cancel-crew-panel">
-                  Cancel
-                </Button>
-                <Button
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                  onClick={() => {
-                    if (!crewSlideForm.name.trim()) return;
-                    if (crewPanelMode === "edit" && editingCrewId !== null) {
-                      const existing = crewSigners.find(c => c.id === editingCrewId);
-                      setCrewSigners(cs => cs.map(c => c.id !== editingCrewId ? c : { ...c, ...crewSlideForm, timeline: slideFormTimeline }));
-                      if (existing && existing.flight !== crewSlideForm.flight && crewSlideForm.flight) {
-                        const fromFlight = existing.flight || "(none)";
-                        const toFlight   = crewSlideForm.flight;
-                        addActivityLog(`Flight updated for ${crewSlideForm.name}: ${fromFlight} → ${toFlight}.`, "Agent", `${fromFlight} → ${toFlight}`);
-                      } else if (existing) {
-                        addActivityLog(`${crewSlideForm.name} crew details updated.`, "Agent");
-                      }
-                    } else {
-                      const side = crewPanelMode === "add_off" ? "off" : "on";
-                      setCrewSigners(cs => [...cs, { ...crewSlideForm, side, id: Date.now(), arrivalStatus: "pending", docs: EMPTY_CREW_DOCS, timeline: slideFormTimeline }]);
-                      addActivityLog(`New ${side === "on" ? "On" : "Off"}-signer added: ${crewSlideForm.name}, ${crewSlideForm.rank || "N/A"}.`, "Agent");
-                    }
-                    setShowCrewPanel(false);
-                    setCrewSlideForm(EMPTY_CREW_SLIDE_FORM);
-                    setEditingCrewId(null);
-                  }}
-                  data-testid="button-confirm-add-crew"
-                >
-                  {crewPanelMode === "edit" ? "Save Changes" : "Add Crew Member"}
-                </Button>
-              </div>
+                );
+              })()}
             </DialogContent>
           </Dialog>
           {/* ── Standard Port Ops (non-crew tabs) ── */}
