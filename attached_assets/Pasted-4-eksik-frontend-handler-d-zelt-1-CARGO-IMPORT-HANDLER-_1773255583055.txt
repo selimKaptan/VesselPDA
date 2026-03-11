@@ -1,0 +1,78 @@
+4 eksik frontend handler'ı düzelt:
+
+## 1. CARGO IMPORT HANDLER EKSİK — Özet beyan parse ediliyor ama parcels kaydedilmiyor
+
+client/src/pages/voyage-detail.tsx dosyasında declaration modal'ın import butonunun handler fonksiyonunu bul veya ekle:
+
+Eğer handleImportParcels veya handleImportAll fonksiyonu yoksa ekle:
+
+async function handleImportParcels() {
+  try {
+    let imported = 0;
+    for (const [i, parcel] of parsedParcels.entries()) {
+      const res = await apiRequest("POST", `/api/v1/voyages/${voyageId}/cargo-parcels`, {
+        receiverName: parcel.receiverName,
+        shipperName: parcel.shipperName,
+        cargoType: parcel.cargoType,
+        cargoGrade: parcel.cargoGrade,
+        targetQuantity: parcel.quantity,
+        blQuantity: parcel.quantity,
+        unit: parcel.unit || "MT",
+        blNumber: parcel.blNumber,
+        holdNumbers: parcel.holdNumbers,
+        tankNumbers: parcel.tankNumbers,
+        dischargeSequence: i + 1,
+        loadingSequence: i + 1,
+        notes: [
+          parcel.hsCode ? `HS: ${parcel.hsCode}` : "",
+          parcel.countryOfOrigin ? `Origin: ${parcel.countryOfOrigin}` : "",
+          parcel.portOfLoading ? `POL: ${parcel.portOfLoading}` : "",
+        ].filter(Boolean).join(" · ") || null,
+      });
+      if (res.ok) imported++;
+    }
+    toast({ title: "Cargo Imported", description: `${imported} parcels created from declaration` });
+    setShowDeclarationModal(false);
+    setParsedParcels([]);
+    queryClient.invalidateQueries();
+  } catch (e: any) {
+    toast({ title: "Error", description: e.message, variant: "destructive" });
+  }
+}
+
+Bu fonksiyonu declaration modal'ın "Import X Parcels" butonunun onClick'ine bağla:
+<Button onClick={handleImportParcels} disabled={parsedParcels.length === 0}>
+  Import {parsedParcels.length} Parcels
+</Button>
+
+## 2. COMMAND SEARCH MOUNT EKSİK — Ctrl+K çalışmıyor
+
+CommandSearch component'ı hiçbir yerde render edilmiyor. client/src/components/layout/app-layout.tsx dosyasına ekle:
+
+Dosyanın başına import:
+import { CommandSearch } from "@/components/command-search";
+
+Layout return'unda, ana wrapper'ın içine (sidebar ve main content'in yanına) ekle:
+<CommandSearch />
+
+Eğer app-layout.tsx'de uygun yer yoksa, client/src/App.tsx'e ekle:
+
+import'a ekle:
+import { CommandSearch } from "@/components/command-search";
+
+// App component'ının return'unda, Router'ın dışına veya içine:
+<CommandSearch />
+
+Hem app-layout hem App.tsx'e ekleme — sadece BİRİNE ekle. Layout tercih edilir.
+
+## 3. EMAIL COMPOSER — Invoice ve voyage-detail'a da ekle
+
+client/src/pages/invoices.tsx dosyasında, her invoice satırındaki actions bölümüne email butonu ekle:
+
+import { SmartMailComposer } from "@/components/smart-mail-composer";
+
+// State ekle:
+const [emailEntity, setEmailEntity] = useState<{ type: string; id: number } | null>(null);
+
+// Her invoice satırında actions'a buton ekle:
+<Butt
