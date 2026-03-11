@@ -1,5 +1,7 @@
 import { XMLParser } from "fast-xml-parser";
-import { pool } from "./db";
+import { db } from "./db";
+import { exchangeRates } from "@shared/schema/finance";
+import { eq, and, desc } from "drizzle-orm";
 
 const TCMB_URL = "https://www.tcmb.gov.tr/kurlar/today.xml";
 
@@ -126,23 +128,27 @@ export async function fetchTCMBRates(): Promise<RatesBundle> {
 
 // ── Read cached rates from DB ──────────────────────────────────────────────────
 export async function getCachedRates(): Promise<RatesBundle | null> {
-  const result = await pool.query(
-    `SELECT base_currency, target_currency, effective_rate, updated_at
-     FROM exchange_rates
-     WHERE source = 'tcmb'
-     ORDER BY updated_at DESC`
-  );
+  const rows = await db
+    .select({
+      baseCurrency: exchangeRates.baseCurrency,
+      targetCurrency: exchangeRates.targetCurrency,
+      effectiveRate: exchangeRates.effectiveRate,
+      updatedAt: exchangeRates.updatedAt,
+    })
+    .from(exchangeRates)
+    .where(eq(exchangeRates.source, "tcmb"))
+    .orderBy(desc(exchangeRates.updatedAt));
 
-  if (result.rows.length === 0) return null;
+  if (rows.length === 0) return null;
 
   const map: Record<string, number> = {};
   let latestUpdatedAt: Date | null = null;
 
-  for (const row of result.rows) {
-    const key = `${row.base_currency}/${row.target_currency}`;
-    map[key] = parseFloat(row.effective_rate);
-    if (!latestUpdatedAt || row.updated_at > latestUpdatedAt) {
-      latestUpdatedAt = row.updated_at;
+  for (const row of rows) {
+    const key = `${row.baseCurrency}/${row.targetCurrency}`;
+    map[key] = row.effectiveRate;
+    if (!latestUpdatedAt || row.updatedAt > latestUpdatedAt) {
+      latestUpdatedAt = row.updatedAt;
     }
   }
 
@@ -165,13 +171,19 @@ export async function getCachedRates(): Promise<RatesBundle | null> {
 // ── Get single pair (fallback to hardcoded) ────────────────────────────────────
 export async function getExchangeRate(from: string, to: string): Promise<number> {
   try {
-    const result = await pool.query(
-      `SELECT effective_rate FROM exchange_rates
-       WHERE base_currency = $1 AND target_currency = $2 AND source = 'tcmb'
-       ORDER BY updated_at DESC LIMIT 1`,
-      [from.toUpperCase(), to.toUpperCase()]
-    );
-    if (result.rows.length > 0) return parseFloat(result.rows[0].effective_rate);
+    const rows = await db
+      .select({ effectiveRate: exchangeRates.effectiveRate })
+      .from(exchangeRates)
+      .where(
+        and(
+          eq(exchangeRates.baseCurrency, from.toUpperCase()),
+          eq(exchangeRates.targetCurrency, to.toUpperCase()),
+          eq(exchangeRates.source, "tcmb")
+        )
+      )
+      .orderBy(desc(exchangeRates.updatedAt))
+      .limit(1);
+    if (rows.length > 0) return rows[0].effectiveRate;
   } catch (_) {}
 
   const key = `${from.toUpperCase()}/${to.toUpperCase()}`;

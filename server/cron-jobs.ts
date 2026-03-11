@@ -15,40 +15,29 @@ import { syncVesselStatuses } from "./vessel-status-sync";
 async function syncWatchlistPositions() {
   console.log("[cron] syncWatchlistPositions: starting...");
   try {
-    const watchlist = await pool.query(
-      "SELECT id, mmsi FROM vessel_watchlist WHERE mmsi IS NOT NULL AND mmsi <> ''"
-    );
+    const watchlist = await db.execute(sql`
+      SELECT id, mmsi FROM vessel_watchlist WHERE mmsi IS NOT NULL AND mmsi <> ''
+    `);
     let saved = 0;
     for (const row of watchlist.rows) {
       const pos = null; // AIS stream removed — positions synced via Datalastic only
       if (!pos) continue;
 
-      const lastRow = await pool.query(
-        "SELECT timestamp FROM vessel_positions WHERE mmsi = $1 ORDER BY timestamp DESC LIMIT 1",
-        [row.mmsi]
-      );
+      const lastRow = await db.execute(sql`
+        SELECT timestamp FROM vessel_positions WHERE mmsi = ${row.mmsi} ORDER BY timestamp DESC LIMIT 1
+      `);
       const lastTs: Date | null = lastRow.rows[0]?.timestamp ?? null;
       const cutoff = new Date(Date.now() - 4.5 * 60 * 1000);
       if (lastTs && lastTs > cutoff) continue;
 
-      await pool.query(
-        `INSERT INTO vessel_positions
+      await db.execute(sql`
+        INSERT INTO vessel_positions
           (watchlist_item_id, mmsi, imo, vessel_name, latitude, longitude,
            speed, heading, navigation_status, destination)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-        [
-          row.id,
-          pos.mmsi,
-          pos.imo ?? null,
-          pos.name ?? null,
-          pos.lat,
-          pos.lng,
-          pos.speed ?? null,
-          pos.heading ?? null,
-          pos.status ?? null,
-          pos.destination ?? null,
-        ]
-      );
+         VALUES (${row.id}, ${pos.mmsi}, ${pos.imo ?? null}, ${pos.name ?? null},
+                 ${pos.lat}, ${pos.lng}, ${pos.speed ?? null}, ${pos.heading ?? null},
+                 ${pos.status ?? null}, ${pos.destination ?? null})
+      `);
       saved++;
     }
     console.log(`[cron] syncWatchlistPositions: saved ${saved} position(s) for ${watchlist.rows.length} watchlisted vessel(s).`);
@@ -65,7 +54,7 @@ async function syncWatchlistPositions() {
 async function checkExpiringCertificates() {
   console.log("[cron] checkExpiringCertificates: starting...");
   try {
-    const result = await pool.query(`
+    const result = await db.execute(sql`
       SELECT vc.id, vc.user_id, vc.name, vc.cert_type, vc.expires_at,
              vc.reminder_sent_days,
              v.name AS vessel_name
@@ -90,34 +79,31 @@ async function checkExpiringCertificates() {
       const sentDays: number[] = (cert.reminder_sent_days || "").split(",").filter(Boolean).map(Number);
 
       // Send DB notification (once per 24h)
-      const existingNotif = await pool.query(
-        `SELECT id FROM notifications
-         WHERE user_id = $1 AND type = 'certificate_expiry'
-           AND message LIKE $2
-           AND created_at > NOW() - INTERVAL '24 hours'`,
-        [cert.user_id, `%Certificate ID ${cert.id}%`]
-      );
+      const existingNotif = await db.execute(sql`
+        SELECT id FROM notifications
+        WHERE user_id = ${cert.user_id} AND type = 'certificate_expiry'
+          AND message LIKE ${'%Certificate ID ' + cert.id + '%'}
+          AND created_at > NOW() - INTERVAL '24 hours'
+      `);
       if (existingNotif.rows.length === 0) {
-        await pool.query(
-          `INSERT INTO notifications (user_id, type, title, message, link)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [
-            cert.user_id,
-            "certificate_expiry",
-            `Certificate Expiring Soon — ${cert.vessel_name}`,
-            `${cert.name} certificate for ${cert.vessel_name} expires in ${daysLeft} day(s). Certificate ID ${cert.id}`,
-            `/vessel-certificates`,
-          ]
-        );
+        await db.execute(sql`
+          INSERT INTO notifications (user_id, type, title, message, link)
+          VALUES (
+            ${cert.user_id},
+            ${'certificate_expiry'},
+            ${'Certificate Expiring Soon — ' + cert.vessel_name},
+            ${cert.name + ' certificate for ' + cert.vessel_name + ' expires in ' + daysLeft + ' day(s). Certificate ID ' + cert.id},
+            ${'/vessel-certificates'}
+          )
+        `);
         notified++;
       }
 
       // Send email alert if this threshold hasn't been emailed yet
       if (!sentDays.includes(hitThreshold)) {
-        const userRow = await pool.query(
-          "SELECT email, first_name, last_name FROM users WHERE id = $1",
-          [cert.user_id]
-        );
+        const userRow = await db.execute(sql`
+          SELECT email, first_name, last_name FROM users WHERE id = ${cert.user_id}
+        `);
         const user = userRow.rows[0];
         if (user?.email) {
           const sent = await sendCertificateExpiryEmail({
@@ -130,10 +116,9 @@ async function checkExpiringCertificates() {
           });
           if (sent) {
             const newSentDays = [...sentDays, hitThreshold].join(",");
-            await pool.query(
-              "UPDATE vessel_certificates SET reminder_sent_days = $1 WHERE id = $2",
-              [newSentDays, cert.id]
-            );
+            await db.execute(sql`
+              UPDATE vessel_certificates SET reminder_sent_days = ${newSentDays} WHERE id = ${cert.id}
+            `);
             emailed++;
           }
         }
@@ -210,26 +195,24 @@ async function checkVoyageETA() {
       const recipients = [voyage.user_id, voyage.agent_user_id].filter(Boolean);
 
       for (const userId of recipients) {
-        const existing = await pool.query(
-          `SELECT id FROM notifications
-           WHERE user_id = $1 AND type = 'voyage_eta'
-             AND message LIKE $2
-             AND created_at > NOW() - INTERVAL '12 hours'`,
-          [userId, `%${notifKey}%`]
-        );
+        const existing = await db.execute(sql`
+          SELECT id FROM notifications
+          WHERE user_id = ${userId} AND type = 'voyage_eta'
+            AND message LIKE ${'%' + notifKey + '%'}
+            AND created_at > NOW() - INTERVAL '12 hours'
+        `);
         if (existing.rows.length > 0) continue;
 
-        await pool.query(
-          `INSERT INTO notifications (user_id, type, title, message, link)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [
-            userId,
-            "voyage_eta",
-            `ETA Alert — ${voyage.vessel_name || "Vessel"} arriving soon`,
-            `${notifKey}: ${voyage.vessel_name || "Vessel"} is expected to arrive at ${voyage.port_name || "port"} in approximately ${hoursLeft} hour(s).`,
-            `/voyages/${voyage.id}`,
-          ]
-        );
+        await db.execute(sql`
+          INSERT INTO notifications (user_id, type, title, message, link)
+          VALUES (
+            ${userId},
+            ${"voyage_eta"},
+            ${"ETA Alert — " + (voyage.vessel_name || "Vessel") + " arriving soon"},
+            ${notifKey + ": " + (voyage.vessel_name || "Vessel") + " is expected to arrive at " + (voyage.port_name || "port") + " in approximately " + hoursLeft + " hour(s)."},
+            ${"/voyages/" + voyage.id}
+          )
+        `);
         warned++;
       }
     }
@@ -260,9 +243,9 @@ async function refreshExchangeRates() {
 async function cleanOldPositions() {
   console.log("[cron] cleanOldPositions: starting...");
   try {
-    const result = await pool.query(
-      "DELETE FROM vessel_positions WHERE timestamp < NOW() - INTERVAL '90 days'"
-    );
+    const result = await db.execute(sql`
+      DELETE FROM vessel_positions WHERE timestamp < NOW() - INTERVAL '90 days'
+    `);
     const deleted = result.rowCount ?? 0;
     console.log(`[cron] cleanOldPositions: deleted ${deleted} old position record(s).`);
   } catch (err: any) {
@@ -307,10 +290,9 @@ async function purgeDeletedRecords() {
   let totalPurged = 0;
   try {
     for (const table of tables) {
-      const res = await pool.query(
-        `DELETE FROM ${table} WHERE deleted_at IS NOT NULL AND deleted_at < $1`,
-        [cutoff]
-      );
+      const res = await db.execute(sql`
+        DELETE FROM ${sql.identifier(table)} WHERE deleted_at IS NOT NULL AND deleted_at < ${cutoff}
+      `);
       totalPurged += res.rowCount ?? 0;
     }
     console.log(`[cron] purgeDeletedRecords: removed ${totalPurged} record(s), cutoff = ${cutoff.toISOString()}`);

@@ -1,7 +1,7 @@
 import type { Express } from "express";
-import { db, pool } from "./db";
+import { db } from "./db";
 import { proformas, proformaApprovalLogs } from "@shared/schema";
-import { eq, and, inArray, desc } from "drizzle-orm";
+import { eq, and, inArray, desc, sql } from "drizzle-orm";
 import { isAuthenticated } from "./replit_integrations/auth";
 
 const VALID_APPROVAL_STATUSES = ["draft", "sent", "under_review", "revision_requested", "approved", "rejected"];
