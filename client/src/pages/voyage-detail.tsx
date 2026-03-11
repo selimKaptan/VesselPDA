@@ -1001,7 +1001,7 @@ export default function VoyageDetail() {
     setIsParsingDeclaration(false);
   };
 
-  const handleImportDeclaration = async () => {
+  const handleImportParcels = async () => {
     const isTanker = vesselType === "tanker";
     const opType = (voyageData as any)?.operationType || "discharging";
     try {
@@ -9306,7 +9306,7 @@ export default function VoyageDetail() {
             </Button>
                 )}
                 {declarationStep === 2 && (
-            <Button size="sm" className="text-xs gap-1.5" onClick={handleImportDeclaration} disabled={parsedParcels.length === 0} data-testid="button-import-declaration">
+            <Button size="sm" className="text-xs gap-1.5" onClick={handleImportParcels} disabled={parsedParcels.length === 0} data-testid="button-import-declaration">
               <Package className="w-3 h-3" />
               {parsedParcels.length} Parseli Cargo Operations'a Aktar
             </Button>

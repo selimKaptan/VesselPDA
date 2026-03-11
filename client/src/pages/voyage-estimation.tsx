@@ -571,11 +571,11 @@ export default function VoyageEstimationPage() {
                     <Separator />
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-muted-foreground">Voyage Days:</span>
-                      <span className="font-semibold">{results.totalDays.toFixed(1)} days</span>
+                      <span className="font-semibold">{(results.totalDays ?? 0).toFixed(1)} days</span>
                     </div>
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-muted-foreground">Breakeven Freight:</span>
-                      <span className="font-semibold">{results.breakevenFreight.toFixed(2)} USD/MT</span>
+                      <span className="font-semibold">{(results.breakevenFreight ?? 0).toFixed(2)} USD/MT</span>
                     </div>
                   </div>
 

@@ -285,7 +285,7 @@ function ReportCard({ report }: { report: any }) {
           </div>
           <div className="text-center border-x border-border/50">
             <p className="text-[10px] text-muted-foreground uppercase">Fuel Cons.</p>
-            <p className="text-xs font-bold">{(report.hfoConsumed + report.mgoConsumed + report.lsfoConsumed).toFixed(1)} MT</p>
+            <p className="text-xs font-bold">{((report.hfoConsumed || 0) + (report.mgoConsumed || 0) + (report.lsfoConsumed || 0)).toFixed(1)} MT</p>
           </div>
           <div className="text-center">
             <p className="text-[10px] text-muted-foreground uppercase">Distance</p>

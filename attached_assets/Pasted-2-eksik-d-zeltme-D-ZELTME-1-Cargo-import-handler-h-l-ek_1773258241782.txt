@@ -1,0 +1,51 @@
+2 eksik düzeltme:
+
+DÜZELTME 1 — Cargo import handler hâlâ eksik.
+
+client/src/pages/voyage-detail.tsx dosyasında "parsedParcels" kelimesini ara. Bu state'in tanımlandığı yere yakın bir yere (aynı component scope içinde) şu fonksiyonu ekle:
+
+const handleImportParcels = async () => {
+  try {
+    let imported = 0;
+    for (let i = 0; i < parsedParcels.length; i++) {
+      const parcel = parsedParcels[i];
+      const response = await fetch(`/api/v1/voyages/${voyageId}/cargo-parcels`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          receiverName: parcel.receiverName || "Unknown",
+          shipperName: parcel.shipperName || null,
+          cargoType: parcel.cargoType || "Unknown",
+          cargoGrade: parcel.cargoGrade || null,
+          targetQuantity: parcel.quantity || 0,
+          blQuantity: parcel.quantity || 0,
+          unit: parcel.unit || "MT",
+          blNumber: parcel.blNumber || null,
+          holdNumbers: parcel.holdNumbers || null,
+          tankNumbers: parcel.tankNumbers || null,
+          dischargeSequence: i + 1,
+          loadingSequence: i + 1,
+          notes: [parcel.hsCode ? "HS: " + parcel.hsCode : "", parcel.countryOfOrigin ? "Origin: " + parcel.countryOfOrigin : ""].filter(Boolean).join(" · ") || null,
+        }),
+      });
+      if (response.ok) imported++;
+    }
+    if (typeof toast === "function") toast({ title: "Cargo Imported", description: imported + " parcels created" });
+    setShowDeclarationModal(false);
+    setParsedParcels([]);
+    queryClient.invalidateQueries();
+  } catch (e) {
+    console.error("Import failed:", e);
+    if (typeof toast === "function") toast({ title: "Error", description: String(e), variant: "destructive" });
+  }
+};
+
+Sonra dosyada "Import" butonunu bul — declaration modal'ın footer'ındaki butondur. Muhtemelen şöyle bir şey:
+<Button ... disabled={parsedParcels.length === 0}>Import ... Parcels</Button>
+
+Bu butonun onClick'ini handleImportParcels'a bağla:
+onClick={handleImportParcels}
+
+Eğer buton zaten başka bir handler'a bağlıysa (örn onClick={handleImportAll}), o fonksiyon adını handleImportParcels olarak değiştir veya handleImportAll fonksiyonunu yukarıdaki kodla oluştur.
+
+DÜZELTME 2 — toFixed null koruması (41 adet top
