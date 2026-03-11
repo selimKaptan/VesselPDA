@@ -1,0 +1,559 @@
+Cargo Operations sayfasını gerçek dünya senaryosuna uygun çoklu firma, çoklu mal, sıralama ve ekipman takibi yapabilen kapsamlı bir sisteme dönüştür.
+
+SENARYO: Bir gemide 5 farklı firmanın 5 farklı malı var. Aynı anda 2 ambardan 2 farklı mal boşaltılabilir. Her malın hangi ambardan, hangi ekipmanla, hangi sırayla boşaltılacağı planlanmalı.
+
+## 1. SCHEMA GÜNCELLEMESİ — Cargo Parcels Tablosunu Zenginleştir
+
+shared/schema/voyage.ts dosyasındaki cargoParcels tablosunu güncelle, yeni alanlar EKLE:
+
+Mevcut alanları koru, şunları ekle:
+
+  // Firma ve mal detayı
+  consigneeName: varchar("consignee_name", { length: 300 }),
+  shipperName: varchar("shipper_name", { length: 300 }),
+  cargoGrade: varchar("cargo_grade", { length: 200 }),
+  
+  // Ambar/Tank detayı
+  holdNumbers: varchar("hold_numbers", { length: 200 }),
+  tankNumbers: varchar("tank_numbers", { length: 200 }),
+  
+  // Miktar detayları
+  blQuantity: real("bl_quantity"),
+  shippedQuantity: real("shipped_quantity"),
+  receivedQuantity: real("received_quantity"),
+  shortageQuantity: real("shortage_quantity"),
+  
+  // Sıralama ve durum
+  loadingSequence: integer("loading_sequence"),
+  dischargeSequence: integer("discharge_sequence"),
+  operationStatus: varchar("operation_status", { length: 30 }).default("waiting"),
+  
+  // Ekipman
+  equipmentUsed: varchar("equipment_used", { length: 200 }),
+  hosesConnected: integer("hoses_connected"),
+  cranesAssigned: varchar("cranes_assigned", { length: 200 }),
+  
+  // Zaman
+  operationStartedAt: timestamp("operation_started_at"),
+  operationCompletedAt: timestamp("operation_completed_at"),
+  estimatedCompletionAt: timestamp("estimated_completion_at"),
+  
+  // Hız
+  currentRate: real("current_rate"),
+  averageRate: real("average_rate"),
+
+Migration: npx drizzle-kit generate && npx drizzle-kit push
+
+## 2. CARGO OPERATIONS SAYFASI — Tamamen Yeniden Tasarla
+
+### A) ÜST BÖLÜM — Genel Özet + Aktif Operasyon Göstergesi
+
+<div className="rounded-xl border border-slate-700/50 bg-slate-800/20 overflow-hidden">
+  {/* Aktif Operasyon Banner */}
+  <div className="px-5 py-3 border-b border-slate-700/20 bg-slate-900/40">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+        <span className="text-sm font-semibold text-emerald-400">
+          ACTIVE: {activeParcelCount} parcel(s) being {operationType === "loading" ? "loaded" : "discharged"}
+        </span>
+      </div>
+      <div className="flex items-center gap-4 text-xs text-slate-400">
+        <span>⏱ Started: {formatDateTime(operationStartTime)}</span>
+        <span>🔧 Equipment: {activeEquipment}</span>
+      </div>
+    </div>
+  </div>
+  
+  {/* Genel Metrikler — tek satır */}
+  <div className="grid grid-cols-6 gap-0 border-b border-slate-700/20">
+    <MetricCell label="Total Cargo" value={`${totalTarget.toLocaleString()} MT`} />
+    <MetricCell label="Handled" value={`${totalHandled.toLocaleString()} MT`} sub={`${overallProgress}%`} color="blue" />
+    <MetricCell label="Remaining" value={`${totalRemaining.toLocaleString()} MT`} color="amber" />
+    <MetricCell label="Overall Rate" value={`${overallRate} MT/day`} />
+    <MetricCell label="Parcels" value={`${completedParcels}/${totalParcels}`} sub="completed" />
+    <MetricCell label="Est. Completion" value={overallEtc || "—"} color={isLate ? "red" : "emerald"} />
+  </div>
+  
+  {/* Genel Progress Bar — multi-segment */}
+  <div className="px-5 py-3">
+    <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden flex">
+      {parcels.map((p, i) => {
+        const w = totalTarget > 0 ? ((p.handledQuantity || 0) / totalTarget) * 100 : 0;
+        const colors = ["bg-blue-500", "bg-emerald-500", "bg-purple-500", "bg-amber-500", "bg-rose-500", "bg-cyan-500", "bg-indigo-500"];
+        return (
+          <div key={p.id} 
+            className={cn("h-full transition-all duration-700 first:rounded-l-full last:rounded-r-full", colors[i % colors.length])} 
+            style={{ width: `${w}%`, minWidth: w > 0 ? "3px" : "0" }}
+            title={`${p.receiverName}: ${p.handledQuantity}/${p.targetQuantity} MT`}
+          />
+        );
+      })}
+    </div>
+    {/* Legend */}
+    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+      {parcels.map((p, i) => {
+        const dots = ["bg-blue-500", "bg-emerald-500", "bg-purple-500", "bg-amber-500", "bg-rose-500", "bg-cyan-500", "bg-indigo-500"];
+        const pct = p.targetQuantity > 0 ? Math.round(((p.handledQuantity || 0) / p.targetQuantity) * 100) : 0;
+        return (
+          <div key={p.id} className="flex items-center gap-1.5">
+            <div className={cn("w-2 h-2 rounded-full", dots[i % dots.length])} />
+            <span className="text-[10px] text-slate-400">{p.receiverName}</span>
+            <span className="text-[10px] text-slate-600">{p.cargoType}</span>
+            <span className="text-[10px] font-medium text-slate-500">{pct}%</span>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+</div>
+
+### B) KARGO KARTLARI — Her firma/mal için detaylı kart
+
+Her cargo parcel için ayrı kart:
+
+{parcels.map((parcel, i) => {
+  const progress = parcel.targetQuantity > 0 ? ((parcel.handledQuantity || 0) / parcel.targetQuantity) * 100 : 0;
+  const isActive = parcel.operationStatus === "active";
+  const isCompleted = parcel.operationStatus === "completed";
+  const isWaiting = parcel.operationStatus === "waiting";
+  const colors = ["blue", "emerald", "purple", "amber", "rose", "cyan", "indigo"];
+  const c = colors[i % colors.length];
+  
+  return (
+    <div key={parcel.id} className={cn(
+      "rounded-xl border overflow-hidden transition-all",
+      isActive && `border-${c}-500/40 bg-${c}-500/5 shadow-lg shadow-${c}-500/5`,
+      isCompleted && "border-emerald-500/30 bg-emerald-500/5 opacity-75",
+      isWaiting && "border-slate-700/40 bg-slate-900/30",
+    )}>
+      {/* Kart Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/20">
+        <div className="flex items-center gap-3">
+          {/* Sıra numarası */}
+          <div className={cn(
+            "w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold",
+            isActive ? `bg-${c}-500/20 text-${c}-400` : "bg-slate-800 text-slate-500"
+          )}>
+            #{parcel.dischargeSequence || parcel.loadingSequence || i + 1}
+          </div>
+          
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-slate-200">{parcel.receiverName || parcel.consigneeName}</span>
+              {parcel.shipperName && (
+                <span className="text-[10px] text-slate-500">from {parcel.shipperName}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-xs text-slate-400">{parcel.cargoType}</span>
+              {parcel.cargoGrade && (
+                <span className="text-[10px] text-slate-500">({parcel.cargoGrade})</span>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          {/* Durum badge */}
+          <button 
+            onClick={() => cycleParcelStatus(parcel.id)}
+            className={cn(
+              "text-[10px] font-semibold px-2.5 py-1 rounded-full border cursor-pointer transition-all",
+              isActive && `bg-${c}-500/15 text-${c}-400 border-${c}-500/30 animate-pulse`,
+              isCompleted && "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+              isWaiting && "bg-slate-800 text-slate-500 border-slate-700 hover:border-blue-500/30 hover:text-blue-400",
+            )}
+          >
+            {isActive ? "🔄 ACTIVE" : isCompleted ? "✅ DONE" : "⏳ WAITING"}
+          </button>
+          
+          {/* Edit/Delete */}
+          <button onClick={() => editParcel(parcel)} className="w-7 h-7 rounded-lg hover:bg-slate-700 flex items-center justify-center">
+            <Pencil className="w-3.5 h-3.5 text-slate-500" />
+          </button>
+        </div>
+      </div>
+      
+      {/* Kart Body — 3 sütun grid */}
+      <div className="grid grid-cols-3 gap-0">
+        {/* Sol: Miktar + Progress */}
+        <div className="p-4 border-r border-slate-700/20">
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Quantity</div>
+          
+          <div className="flex items-baseline gap-1 mb-2">
+            <span className="text-xl font-bold">{(parcel.handledQuantity || 0).toLocaleString()}</span>
+            <span className="text-sm text-muted-foreground">/ {(parcel.targetQuantity || 0).toLocaleString()} {parcel.unit}</span>
+          </div>
+          
+          {/* Progress bar */}
+          <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mb-2">
+            <div className={cn(`h-full rounded-full bg-${c}-500 transition-all duration-500`)} style={{ width: `${Math.min(progress, 100)}%`, minWidth: progress > 0 ? "4px" : "0" }} />
+          </div>
+          
+          <div className="text-[10px] text-slate-500">
+            Remaining: <span className="text-slate-300 font-medium">{((parcel.targetQuantity || 0) - (parcel.handledQuantity || 0)).toLocaleString()} {parcel.unit}</span>
+          </div>
+          
+          {/* B/L vs Actual karşılaştırma */}
+          {parcel.blQuantity && (
+            <div className="mt-2 pt-2 border-t border-slate-700/20 text-[10px]">
+              <div className="flex justify-between text-slate-500">
+                <span>B/L Qty:</span>
+                <span className="text-slate-400">{parcel.blQuantity?.toLocaleString()} {parcel.unit}</span>
+              </div>
+              {isCompleted && parcel.blQuantity !== parcel.handledQuantity && (
+                <div className="flex justify-between text-amber-400 mt-0.5">
+                  <span>Shortage:</span>
+                  <span>{((parcel.blQuantity || 0) - (parcel.handledQuantity || 0)).toLocaleString()} {parcel.unit}</span>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Handled güncelleme input */}
+          {isActive && (
+            <div className="mt-3 flex items-center gap-1.5">
+              <input
+                type="number"
+                value={parcel.handledQuantity || ""}
+                onChange={(e) => updateParcelHandled(parcel.id, parseFloat(e.target.value) || 0)}
+                className="w-24 text-xs bg-slate-800/50 border border-slate-700/50 rounded px-2 py-1.5 text-center outline-none focus:ring-1 focus:ring-blue-500/30"
+              />
+              <span className="text-[10px] text-slate-600">{parcel.unit}</span>
+            </div>
+          )}
+        </div>
+        
+        {/* Orta: Ambar/Tank + Ekipman */}
+        <div className="p-4 border-r border-slate-700/20">
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Location & Equipment</div>
+          
+          {/* Ambar/Tank */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">{isTanker ? "Tanks" : "Holds/Hatches"}</span>
+              <span className="text-xs font-medium text-slate-300">{parcel.holdNumbers || parcel.tankNumbers || "—"}</span>
+            </div>
+            
+            {/* Ekipman durumu */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">Equipment</span>
+              <span className="text-xs font-medium text-slate-300">{parcel.equipmentUsed || "—"}</span>
+            </div>
+            
+            {/* Hortum/Crane sayısı */}
+            {isTanker ? (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Hoses Connected</span>
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3].map(n => (
+                    <button
+                      key={n}
+                      onClick={() => updateParcelField(parcel.id, "hosesConnected", n)}
+                      className={cn(
+                        "w-6 h-6 rounded text-[10px] font-bold transition-all",
+                        (parcel.hosesConnected || 0) >= n
+                          ? `bg-${c}-500/20 text-${c}-400 border border-${c}-500/30`
+                          : "bg-slate-800 text-slate-600 border border-slate-700"
+                      )}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400">Cranes</span>
+                <span className="text-xs font-medium text-slate-300">{parcel.cranesAssigned || "—"}</span>
+              </div>
+            )}
+            
+            {/* Ekipman güncelle butonu */}
+            {isActive && (
+              <button 
+                onClick={() => openEquipmentModal(parcel.id)}
+                className="w-full text-[10px] text-blue-400/70 hover:text-blue-400 py-1.5 rounded-lg border border-blue-500/20 hover:bg-blue-500/5 transition-all mt-1"
+              >
+                ⚙️ Update Equipment
+              </button>
+            )}
+          </div>
+        </div>
+        
+        {/* Sağ: Hız + Zaman */}
+        <div className="p-4">
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Performance</div>
+          
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">Current Rate</span>
+              <span className="text-xs font-bold text-slate-200">{parcel.currentRate ? `${parcel.currentRate} MT/h` : "—"}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">Avg Rate</span>
+              <span className="text-xs text-slate-300">{parcel.averageRate ? `${parcel.averageRate} MT/h` : "—"}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">Started</span>
+              <span className="text-xs text-slate-300">{parcel.operationStartedAt ? formatDateTime(parcel.operationStartedAt) : "—"}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">ETC</span>
+              <span className={cn("text-xs font-medium", parcel.estimatedCompletionAt ? "text-amber-400" : "text-slate-600")}>
+                {parcel.estimatedCompletionAt ? formatDateTime(parcel.estimatedCompletionAt) : "—"}
+              </span>
+            </div>
+            
+            {/* Tamamlandıysa toplam süre */}
+            {isCompleted && parcel.operationStartedAt && parcel.operationCompletedAt && (
+              <div className="pt-2 border-t border-slate-700/20">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-400">Total Time</span>
+                  <span className="text-xs text-emerald-400 font-medium">
+                    {calculateDuration(parcel.operationStartedAt, parcel.operationCompletedAt)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+})}
+
+### C) ADD/EDIT PARCEL MODAL — Kapsamlı
+
+<DialogContent className="max-w-lg">
+  <DialogHeader>
+    <DialogTitle>{editingParcel ? "Edit Cargo Parcel" : "Add Cargo Parcel"}</DialogTitle>
+  </DialogHeader>
+  
+  <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto">
+    {/* Firma bilgileri */}
+    <div className="space-y-3">
+      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Receiver & Cargo</span>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Receiver / Consignee *</label>
+          <Input value={form.receiverName} onChange={...} placeholder="e.g. IFFCO, Cargill" className="h-9 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Shipper</label>
+          <Input value={form.shipperName} onChange={...} placeholder="e.g. ADM Trading" className="h-9 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Cargo Type *</label>
+          <Input value={form.cargoType} onChange={...} placeholder="e.g. Wheat, Gasoil, Steel Coils" className="h-9 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Grade / Specification</label>
+          <Input value={form.cargoGrade} onChange={...} placeholder="e.g. ULSD 10ppm, Milling Grade" className="h-9 text-sm" />
+        </div>
+      </div>
+    </div>
+    
+    {/* Miktar */}
+    <div className="space-y-3">
+      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Quantities</span>
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">B/L Quantity</label>
+          <div className="flex gap-1">
+            <Input type="number" value={form.blQuantity} onChange={...} placeholder="0" className="h-9 text-sm flex-1" />
+            <Select value={form.unit} onValueChange={...}>
+              <SelectTrigger className="w-16 h-9 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MT">MT</SelectItem>
+                <SelectItem value="CBM">CBM</SelectItem>
+                <SelectItem value="BBL">BBL</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Target Quantity</label>
+          <Input type="number" value={form.targetQuantity} onChange={...} placeholder="0" className="h-9 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">B/L Number</label>
+          <Input value={form.blNumber} onChange={...} placeholder="BL-2026-001" className="h-9 text-sm" />
+        </div>
+      </div>
+    </div>
+    
+    {/* Ambar/Tank + Ekipman */}
+    <div className="space-y-3">
+      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Location & Equipment</span>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">{isTanker ? "Tank Numbers" : "Hold / Hatch Numbers"}</label>
+          <Input value={form.holdNumbers} onChange={...} placeholder={isTanker ? "1P, 2S, 3C" : "1, 2, 3"} className="h-9 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Equipment</label>
+          <Select value={form.equipmentUsed} onValueChange={...}>
+            <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select..." /></SelectTrigger>
+            <SelectContent>
+              {isTanker ? (
+                <>
+                  <SelectItem value="loading_arm">Loading Arm</SelectItem>
+                  <SelectItem value="hose">Hose</SelectItem>
+                  <SelectItem value="ship_to_ship">Ship-to-Ship</SelectItem>
+                </>
+              ) : (
+                <>
+                  <SelectItem value="shore_crane">Shore Crane</SelectItem>
+                  <SelectItem value="vessel_crane">Vessel Crane</SelectItem>
+                  <SelectItem value="grab">Grab</SelectItem>
+                  <SelectItem value="conveyor">Conveyor Belt</SelectItem>
+                  <SelectItem value="bobcat">Bobcat / Loader</SelectItem>
+                </>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+        {isTanker && (
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">Hoses Connected</label>
+            <Input type="number" value={form.hosesConnected} onChange={...} placeholder="1" className="h-9 text-sm" />
+          </div>
+        )}
+        {!isTanker && (
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block">Cranes Assigned</label>
+            <Input value={form.cranesAssigned} onChange={...} placeholder="Shore Crane #1, #2" className="h-9 text-sm" />
+          </div>
+        )}
+      </div>
+    </div>
+    
+    {/* Sıralama */}
+    <div className="space-y-3">
+      <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Sequence & Status</span>
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">{operationType === "loading" ? "Loading" : "Discharge"} Sequence</label>
+          <Input type="number" value={form.dischargeSequence || form.loadingSequence} onChange={...} placeholder="#1" className="h-9 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Status</label>
+          <Select value={form.operationStatus} onValueChange={...}>
+            <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="waiting">⏳ Waiting</SelectItem>
+              <SelectItem value="active">🔄 Active</SelectItem>
+              <SelectItem value="paused">⏸ Paused</SelectItem>
+              <SelectItem value="completed">✅ Completed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 mb-1 block">Priority</label>
+          <Select value={form.priority} onValueChange={...}>
+            <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="high">🔴 High</SelectItem>
+              <SelectItem value="normal">🟡 Normal</SelectItem>
+              <SelectItem value="low">🟢 Low</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </div>
+    
+    {/* Notlar */}
+    <div>
+      <label className="text-xs text-slate-500 mb-1 block">Notes</label>
+      <textarea value={form.notes} onChange={...} rows={2} placeholder="Special handling instructions, segregation requirements..." className="w-full text-sm bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500/20 resize-none" />
+    </div>
+  </div>
+  
+  <DialogFooter>
+    <Button variant="ghost" onClick={onClose}>Cancel</Button>
+    <Button onClick={handleSave} disabled={!form.receiverName || !form.cargoType}>
+      {editingParcel ? "Update Parcel" : "Add Parcel"}
+    </Button>
+  </DialogFooter>
+</DialogContent>
+
+### D) STATUS QUICK-TOGGLE — Kart üzerinde tek tıkla durum değiştir
+
+Kart header'daki status badge'e tıklayınca sırayla: waiting → active → paused → completed
+
+function cycleParcelStatus(parcelId: number) {
+  const parcel = parcels.find(p => p.id === parcelId);
+  const sequence = ["waiting", "active", "paused", "completed"];
+  const currentIdx = sequence.indexOf(parcel?.operationStatus || "waiting");
+  const nextStatus = sequence[(currentIdx + 1) % sequence.length];
+  
+  const updates: any = { operationStatus: nextStatus };
+  if (nextStatus === "active" && !parcel?.operationStartedAt) {
+    updates.operationStartedAt = new Date().toISOString();
+  }
+  if (nextStatus === "completed") {
+    updates.operationCompletedAt = new Date().toISOString();
+  }
+  
+  updateParcel(parcelId, updates);
+}
+
+### E) SIRALAMA GÖRÜNÜMÜ — Boşaltma/Yükleme planı
+
+Kartların üstüne sıralama toggle'ı ekle:
+
+<div className="flex items-center justify-between px-5 py-2 border-b border-slate-700/20">
+  <div className="flex items-center gap-3">
+    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Cargo Parcels</span>
+    <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">{parcels.length} parcels</span>
+  </div>
+  <div className="flex items-center gap-2">
+    {/* Sıralama değiştir */}
+    <Select value={sortBy} onValueChange={setSortBy}>
+      <SelectTrigger className="h-7 text-[10px] w-36 bg-slate-800/50 border-slate-700/50">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="sequence">By Sequence (Plan)</SelectItem>
+        <SelectItem value="status">By Status (Active First)</SelectItem>
+        <SelectItem value="quantity">By Quantity (Largest)</SelectItem>
+        <SelectItem value="progress">By Progress (%)</SelectItem>
+      </SelectContent>
+    </Select>
+    
+    {/* Görünüm değiştir */}
+    <div className="flex rounded-lg border border-slate-700/50 overflow-hidden">
+      <button onClick={() => setViewMode("cards")} className={cn("px-2 py-1 text-[10px]", viewMode === "cards" ? "bg-blue-500/20 text-blue-400" : "text-slate-500")}>
+        Cards
+      </button>
+      <button onClick={() => setViewMode("table")} className={cn("px-2 py-1 text-[10px] border-l border-slate-700/50", viewMode === "table" ? "bg-blue-500/20 text-blue-400" : "text-slate-500")}>
+        Table
+      </button>
+    </div>
+    
+    <Button size="sm" className="text-xs h-7 gap-1" onClick={() => setShowAddParcel(true)}>
+      <Plus className="w-3 h-3" /> Add Parcel
+    </Button>
+  </div>
+</div>
+
+Parcels sıralama:
+const sortedParcels = useMemo(() => {
+  const sorted = [...parcels];
+  switch (sortBy) {
+    case "sequence": return sorted.sort((a, b) => (a.dischargeSequence || 99) - (b.dischargeSequence || 99));
+    case "status": return sorted.sort((a, b) => {
+      const order = { active: 0, paused: 1, waiting: 2, completed: 3 };
+      return (order[a.operationStatus] || 9) - (order[b.operationStatus] || 9);
+    });
+    case "quantity": return sorted.sort((a, b) => (b.targetQuantity || 0) - (a.targetQuantity || 0));
+    case "progress": return sorted.sort((a, b) => {
+      const pA = a.targetQuantity > 0 ? (a.handledQuantity || 0) / a.targetQuantity : 0;
+      const pB = b.targetQuantity > 0 ? (b.handledQuantity || 0) / b.targetQuantity : 0;
+      return pB - pA;
+    });
+    default: return sorted;
+  }
+}, [parcels, sortBy]);
