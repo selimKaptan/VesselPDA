@@ -302,27 +302,27 @@ async function purgeDeletedRecords() {
 }
 
 export function startCronJobs() {
-  cron.schedule("*/5 * * * *", syncWatchlistPositions);
+  cron.schedule("*/15 * * * *", syncWatchlistPositions);
   cron.schedule("0 8 * * *", checkExpiringCertificates);
   cron.schedule("0 0 * * *", autoCloseTenders);
-  cron.schedule("0 * * * *", checkVoyageETA);
+  cron.schedule("0 */6 * * *", checkVoyageETA);
   cron.schedule("0 3 * * *", refreshExchangeRates);
   cron.schedule("30 12 * * *", refreshExchangeRates);
   cron.schedule("0 2 * * 0", cleanOldPositions);
   cron.schedule("0 9 * * *", checkPaymentReminders);
-  cron.schedule("*/10 * * * *", autoSyncVesselStatusesCron);
+  cron.schedule("*/15 * * * *", autoSyncVesselStatusesCron);
   cron.schedule("0 3 * * 1", purgeDeletedRecords);
 
   console.log("[cron] All 10 scheduled jobs registered:");
-  console.log("[cron]   */5 * * * *  — syncWatchlistPositions");
+  console.log("[cron]   */15 * * * * — syncWatchlistPositions");
   console.log("[cron]   0 8 * * *    — checkExpiringCertificates");
   console.log("[cron]   0 0 * * *    — autoCloseTenders");
-  console.log("[cron]   0 * * * *    — checkVoyageETA");
+  console.log("[cron]   0 */6 * * *  — checkVoyageETA");
   console.log("[cron]   0 3 * * *    — refreshExchangeRates (06:00 TRT)");
   console.log("[cron]   30 12 * * *  — refreshExchangeRates (15:30 TRT)");
   console.log("[cron]   0 2 * * 0    — cleanOldPositions");
   console.log("[cron]   0 9 * * *    — checkPaymentReminders");
-  console.log("[cron]   */10 * * * * — autoSyncVesselStatuses");
+  console.log("[cron]   */15 * * * * — autoSyncVesselStatuses");
   console.log("[cron]   0 3 * * 1    — purgeDeletedRecords (weekly, 30-day grace)");
 
   setTimeout(() => autoSyncVesselStatusesCron(), 3000);

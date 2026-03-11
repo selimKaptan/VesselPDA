@@ -1,0 +1,91 @@
+Site yavaş açılıyor. 5 performans optimizasyonu:
+
+## 1. HARITA LAZY LOAD — vendor-maps 1.7MB her sayfada yükleniyor
+
+Harita sadece Passage Planning ve vessel tracking sayfalarında lazım. Diğer sayfalarda yüklenmemeli.
+
+client/src/App.tsx dosyasında harita kullanan sayfaların import'larını kontrol et. Zaten lazy import kullanılıyorsa sorun yok. Ama Leaflet CSS'i global yükleniyor olabilir.
+
+client/src/index.css veya client/index.html'de leaflet CSS'i bul:
+<link rel="stylesheet" href="https://unpkg.com/leaflet..." />
+
+Eğer global yüklüyse, bunu kaldır ve sadece harita component'ı içinde yükle:
+// passage-planning.tsx veya harita component'ı içinde
+import "leaflet/dist/leaflet.css";
+
+## 2. VOYAGE-DETAIL SPLIT — 399KB tek dosya çok büyük
+
+voyage-detail.tsx içindeki tab içeriklerini ayrı dosyalara böl (lazy load):
+
+Mevcut: Tek dosyada Overview, SOF, Appointments, Cargo, Financials, Documents, Team tüm tab'lar
+
+Yapılacak: Her tab'ı ayrı lazy component yap:
+
+const CargoTab = React.lazy(() => import("@/components/voyage/cargo-tab"));
+const FinancialsTab = React.lazy(() => import("@/components/voyage/financials-tab"));
+const DocumentsTab = React.lazy(() => import("@/components/voyage/documents-tab"));
+const TeamTab = React.lazy(() => import("@/components/voyage/team-tab"));
+const CrewOpsTab = React.lazy(() => import("@/components/voyage/crew-ops-tab"));
+
+Her tab render'ında:
+{activeTab === "cargo" && (
+  <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" /></div>}>
+    <CargoTab voyageId={voyageId} voyage={voyage} />
+  </Suspense>
+)}
+
+BU BÜYÜK BİR REFACTOR — şimdilik YAPMA, sadece bilgi olarak not et. Sonra aşamalı yapılır.
+
+## 3. CRON JOBS OPTİMİZASYONU — 49 cron çok fazla
+
+server/cron-jobs.ts dosyasını kontrol et ve gereksiz/sık çalışan cron'ları azalt:
+
+Öneriler:
+- Vessel position güncelleme: 5dk → 15dk'ya çıkar
+- Exchange rate güncelleme: 1 saat → 6 saate çıkar
+- Temizlik işleri: 1 saat → 24 saate çıkar
+- AIS stream: zaten kaldırıldı, referansı da kaldır
+
+server/cron-jobs.ts dosyasında interval'leri bul ve güncelle:
+- "*/5 * * * *" (5dk) → "*/15 * * * *" (15dk) vessel position için
+- "0 * * * *" (her saat) → "0 */6 * * *" (6 saat) exchange rates için
+- Gereksiz cron'ları devre dışı bırak (yorum satırı yap)
+
+## 4. DB CONNECTION POOL
+
+server/db.ts dosyasında connection pool ayarlarını optimize et:
+
+Bul: pool veya max ayarını
+Değiştir: 
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 10,         // Mevcut muhtemelen 20 veya default
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
+
+Veya Drizzle config'de:
+export const db = drizzle(pool, { schema });
+
+max değerini 10'a düşür — Replit'te çok fazla bağlantı gereksiz.
+
+## 5. STARTUP SIRASINDA GEREKSIZ İŞLEM
+
+server/index.ts dosyasında startup sırasında yapılan işlemleri kontrol et:
+
+Eğer startup'ta şunlar varsa GECİKTİR (setTimeout ile):
+- Seed data oluşturma → 10 saniye sonra
+- Cron job başlatma → 5 saniye sonra  
+- Datalastic bağlantı testi → kaldır veya 30 saniye sonra
+
+Örnek:
+// ÖNCE (startup'ı yavaşlatır):
+startCronJobs();
+seedDemoData();
+
+// SONRA (startup hızlı, arkada çalışır):
+setTimeout(() => startCronJobs(), 5000);
+setTimeout(() => seedDemoData(), 10000);
+
+Bu şekilde sayfa hemen açılır, arka plan işleri sonra başlar.
