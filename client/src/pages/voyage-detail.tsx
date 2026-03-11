@@ -693,6 +693,7 @@ export default function VoyageDetail() {
   const [parcelForm, setParcelForm] = useState(EMPTY_PARCEL_FORM);
   const [stowageNotes, setStowageNotes] = useState("");
   const [stowageNotesEditing, setStowageNotesEditing] = useState(false);
+  const [showStowageModal, setShowStowageModal] = useState(false);
   const [inlineHandled, setInlineHandled] = useState<Record<number, string>>({});
   const [cargoSortBy, setCargoSortBy] = useState("sequence");
   const [cargoViewMode, setCargoViewMode] = useState<"cards" | "table">("cards");
@@ -5317,8 +5318,8 @@ export default function VoyageDetail() {
                 )}
 
                 {/* ── B) Controls + Parcel Cards/Table ── */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                  <div className="lg:col-span-2 space-y-3">
+                <div className="space-y-3">
+                  <div className="space-y-3">
 
                     {/* Controls bar */}
                     <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -5351,7 +5352,7 @@ export default function VoyageDetail() {
 
                     {/* CARDS VIEW */}
                     {cargoParcelsData.length > 0 && cargoViewMode === "cards" && (
-                      <div className="space-y-3">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                         {sortedParcels.map((parcel: any, i: number) => {
                           const ci = cargoParcelsData.findIndex((p: any) => p.id === parcel.id);
                           const c = CARGO_COLORS[ci % CARGO_COLORS.length];
@@ -5525,122 +5526,6 @@ export default function VoyageDetail() {
                     )}
 
                   </div>
-
-                  {/* Right: Stowage Plan */}
-                  <div className="lg:col-span-1 space-y-3">
-                    <h3 className="font-semibold text-sm flex items-center gap-2">
-                      <FileImage className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
-                      {isTankerMode ? "Tank Plan" : "Stowage Plan"}
-                    </h3>
-                    <Card className="p-4 space-y-4">
-                      {/* File upload area */}
-                      <div className="border-2 border-dashed border-border/60 rounded-lg p-5 text-center">
-                        {stowagePlanData?.fileUrl ? (
-                          <div className="space-y-2">
-                            <div className="w-10 h-10 mx-auto bg-sky-500/15 rounded-lg flex items-center justify-center">
-                              <FileImage className="w-5 h-5 text-sky-400" />
-                            </div>
-                            <div className="text-sm font-medium truncate" data-testid="text-stowage-filename">{stowagePlanData.fileName ?? "Stowage Plan"}</div>
-                            <div className="flex items-center justify-center gap-2">
-                              <Button variant="outline" size="sm" className="text-xs h-7 gap-1 text-sky-400 hover:text-sky-300"
-                                onClick={() => window.open(stowagePlanData.fileUrl, "_blank")}
-                                data-testid="button-view-stowage">
-                                <Eye className="w-3 h-3" /> View
-                              </Button>
-                              <Button variant="outline" size="sm" className="text-xs h-7 gap-1 text-muted-foreground hover:text-destructive"
-                                onClick={() => updateStowagePlanMutation.mutate({ fileUrl: null, fileName: null })}
-                                data-testid="button-remove-stowage">
-                                <Trash2 className="w-3 h-3" /> Remove
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <label className="cursor-pointer block">
-                            <div className="space-y-2">
-                              <div className="w-10 h-10 mx-auto bg-muted rounded-lg flex items-center justify-center">
-                                <Upload className="w-5 h-5 text-muted-foreground" />
-                              </div>
-                              <div className="text-sm font-medium text-muted-foreground">Upload Stowage Plan</div>
-                              <div className="text-xs text-muted-foreground">PDF, PNG, JPG up to 10MB</div>
-                            </div>
-                            <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg"
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                if (!file) return;
-                                const reader = new FileReader();
-                                reader.onload = async (ev) => {
-                                  const b64 = (ev.target?.result as string).split(",")[1];
-                                  try {
-                                    const resp = await apiRequest("POST", "/api/upload", { fileBase64: b64, fileName: file.name, mimeType: file.type });
-                                    const data = await resp.json();
-                                    if (data.url) updateStowagePlanMutation.mutate({ fileUrl: data.url, fileName: file.name });
-                                  } catch {
-                                    toast({ title: "Upload failed", variant: "destructive" });
-                                  }
-                                };
-                                reader.readAsDataURL(file);
-                              }}
-                              data-testid="input-stowage-upload" />
-                          </label>
-                        )}
-                      </div>
-
-                      {/* Hold Notes */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Hold Notes</label>
-                          {!stowageNotesEditing ? (
-                            <Button variant="ghost" size="sm" className="h-6 text-xs gap-1 text-muted-foreground hover:text-foreground"
-                              onClick={() => { setStowageNotes(stowagePlanData?.holdNotes ?? ""); setStowageNotesEditing(true); }}
-                              data-testid="button-edit-hold-notes">
-                              <Pencil className="w-3 h-3" /> Edit
-                            </Button>
-                          ) : (
-                            <div className="flex gap-1">
-                              <Button variant="ghost" size="sm" className="h-6 text-xs gap-1 text-emerald-400 hover:text-emerald-300"
-                                onClick={() => { updateStowagePlanMutation.mutate({ holdNotes: stowageNotes }); setStowageNotesEditing(false); }}
-                                data-testid="button-save-hold-notes">
-                                <Check className="w-3 h-3" /> Save
-                              </Button>
-                              <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground"
-                                onClick={() => setStowageNotesEditing(false)}
-                                data-testid="button-cancel-hold-notes">
-                                Cancel
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                        {stowageNotesEditing ? (
-                          <Textarea
-                            className="text-xs min-h-[100px] resize-none"
-                            placeholder="Hold-by-hold stowage notes, weight distribution, special cargo instructions..."
-                            value={stowageNotes}
-                            onChange={e => setStowageNotes(e.target.value)}
-                            data-testid="textarea-hold-notes"
-                          />
-                        ) : (
-                          <div className="text-xs text-muted-foreground min-h-[60px] p-2 bg-muted/30 rounded-md border border-border/40 whitespace-pre-wrap" data-testid="text-hold-notes">
-                            {stowagePlanData?.holdNotes || <span className="italic opacity-60">No hold notes. Click Edit to add.</span>}
-                          </div>
-                        )}
-                      </div>
-                    </Card>
-
-                    {/* Voyage Info Summary */}
-                    <Card className="p-4 space-y-2">
-                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Voyage Info</div>
-                      {[
-                        { label: "Vessel", value: (voyage as any)?.vessel?.name ?? voyage?.vesselName },
-                        { label: "Port", value: (voyage as any)?.portName ?? voyage?.portOfLoading },
-                        { label: "Operation", value: voyage?.purposeOfCall },
-                      ].map(({ label, value }) => (
-                        <div key={label} className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">{label}</span>
-                          <span className="font-medium truncate max-w-[140px]">{value ?? "—"}</span>
-                        </div>
-                      ))}
-                    </Card>
-                  </div>
                 </div>
 
 
@@ -5660,6 +5545,9 @@ export default function VoyageDetail() {
                   </Button>
                   <Button variant="outline" size="sm" className="text-xs h-7 gap-1.5 text-slate-400 hover:text-slate-200" onClick={() => setShowCargoReportDialog(true)} data-testid="button-send-cargo-report">
                     <Mail className="w-3 h-3" /> Send Report
+                  </Button>
+                  <Button variant="outline" size="sm" className="text-xs h-7 gap-1.5 text-slate-400 hover:text-slate-200" onClick={() => { setStowageNotes(stowagePlanData?.holdNotes ?? ""); setShowStowageModal(true); }} data-testid="button-open-stowage-modal">
+                    <Ship className="w-3 h-3" /> Stowage Plan
                   </Button>
                   <Button size="sm" className="text-xs h-7 gap-1.5" onClick={() => setShowAddLogDialog(true)} data-testid="button-add-cargo-log">
                     <Plus className="w-3 h-3" /> Add Log
@@ -5803,126 +5691,214 @@ export default function VoyageDetail() {
             </Card>
 
             {/* ── Add / Edit Parcel Dialog ─────────── */}
-            <Dialog open={showAddParcelDialog} onOpenChange={v => { setShowAddParcelDialog(v); if (!v) setEditingParcel(null); }}>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>{editingParcel ? "Edit Parcel" : "Add Cargo Parcel"}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 py-2">
+            {(() => {
+              const isLoading = (voyage?.purposeOfCall || "").toLowerCase().includes("load");
+              const seqLabel = isLoading ? "Loading Sequence" : "Discharge Sequence";
+              return (
+              <Dialog open={showAddParcelDialog} onOpenChange={v => { setShowAddParcelDialog(v); if (!v) setEditingParcel(null); }}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="text-base">{editingParcel ? "Edit Cargo Parcel" : "Add Cargo Parcel"}</DialogTitle>
+                    <p className="text-xs text-muted-foreground">Define receiver, cargo type and quantity</p>
+                  </DialogHeader>
+                  <div className="space-y-4 py-2">
 
-                  {/* Section 1: Firm & Cargo */}
-                  <div>
-                    <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2 pb-1 border-b border-slate-700/40">Firm & Cargo Details</div>
+                    {/* Consignee */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-slate-500 block">Consignee / Receiver *</label>
+                      <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.receiverName} onChange={e => setParcelForm(p => ({ ...p, receiverName: e.target.value }))} placeholder="e.g. GLENCORE AG, IFFCO, CARGILL" data-testid="input-parcel-receiver" />
+                    </div>
+
+                    {/* Cargo Type + Grade */}
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="col-span-2 space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Consignee / Receiver *</label>
-                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.receiverName} onChange={e => setParcelForm(p => ({ ...p, receiverName: e.target.value }))} placeholder="e.g. GLENCORE AG" data-testid="input-parcel-receiver" />
+                      <div className="space-y-1.5">
+                        <label className="text-xs text-slate-500 block">Cargo Type *</label>
+                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.cargoType} onChange={e => setParcelForm(p => ({ ...p, cargoType: e.target.value }))} placeholder="e.g. Wheat, Gasoil, Steel" data-testid="input-parcel-cargo-type" />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Shipper Name</label>
-                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.shipperName} onChange={e => setParcelForm(p => ({ ...p, shipperName: e.target.value }))} placeholder="e.g. CARGILL INC." data-testid="input-parcel-shipper" />
+                      <div className="space-y-1.5">
+                        <label className="text-xs text-slate-500 block">Cargo Grade</label>
+                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.cargoGrade} onChange={e => setParcelForm(p => ({ ...p, cargoGrade: e.target.value }))} placeholder="e.g. Milling, ULSD 10ppm" data-testid="input-parcel-grade" />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Cargo Type</label>
-                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.cargoType} onChange={e => setParcelForm(p => ({ ...p, cargoType: e.target.value }))} placeholder="e.g. GRAIN / CRUDE OIL" data-testid="input-parcel-cargo-type" />
+                    </div>
+
+                    {/* Quantities */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-xs text-slate-500 block">Target Qty *</label>
+                        <input type="number" min="0" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.targetQuantity} onChange={e => setParcelForm(p => ({ ...p, targetQuantity: parseFloat(e.target.value) || 0 }))} placeholder="0" data-testid="input-parcel-target" />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Cargo Grade</label>
-                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.cargoGrade} onChange={e => setParcelForm(p => ({ ...p, cargoGrade: e.target.value }))} placeholder="e.g. No.2 Yellow Corn" data-testid="input-parcel-grade" />
+                      <div className="space-y-1.5">
+                        <label className="text-xs text-slate-500 block">B/L Qty</label>
+                        <input type="number" min="0" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.blQuantity} onChange={e => setParcelForm(p => ({ ...p, blQuantity: parseFloat(e.target.value) || "" }))} placeholder="0" data-testid="input-parcel-bl-qty" />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">B/L Number</label>
+                      <div className="space-y-1.5">
+                        <label className="text-xs text-slate-500 block">Unit</label>
+                        <select className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.unit} onChange={e => setParcelForm(p => ({ ...p, unit: e.target.value }))} data-testid="select-parcel-unit">
+                          <option value="MT">MT</option>
+                          <option value="CBM">CBM</option>
+                          <option value="BBL">BBL</option>
+                          <option value="UNIT">UNIT</option>
+                          <option value="BAG">BAG</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Hold/Tank + B/L Number — vessel type determines which location field */}
+                    <div className="grid grid-cols-2 gap-3">
+                      {isTankerMode ? (
+                        <div className="space-y-1.5">
+                          <label className="text-xs text-slate-500 block">Tank Numbers</label>
+                          <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.tankNumbers} onChange={e => setParcelForm(p => ({ ...p, tankNumbers: e.target.value }))} placeholder="e.g. 1P, 2S, 3C" data-testid="input-parcel-tanks" />
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <label className="text-xs text-slate-500 block">Hold / Hatch No</label>
+                          <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.holdNumbers} onChange={e => setParcelForm(p => ({ ...p, holdNumbers: e.target.value }))} placeholder="e.g. 1, 2, 3" data-testid="input-parcel-holds" />
+                        </div>
+                      )}
+                      <div className="space-y-1.5">
+                        <label className="text-xs text-slate-500 block">B/L Number</label>
                         <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.blNumber} onChange={e => setParcelForm(p => ({ ...p, blNumber: e.target.value }))} placeholder="e.g. BL-2024-001" data-testid="input-parcel-bl" />
                       </div>
                     </div>
-                  </div>
 
-                  {/* Section 2: Quantity */}
-                  <div>
-                    <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2 pb-1 border-b border-slate-700/40">Quantities</div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Unit</label>
-                        <select className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.unit} onChange={e => setParcelForm(p => ({ ...p, unit: e.target.value }))} data-testid="select-parcel-unit">
-                          <option value="MT">MT</option><option value="CBM">CBM</option><option value="UNIT">UNIT</option><option value="BAG">BAG</option><option value="BALE">BALE</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Target Qty</label>
-                        <input type="number" min="0" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.targetQuantity} onChange={e => setParcelForm(p => ({ ...p, targetQuantity: parseFloat(e.target.value) || 0 }))} data-testid="input-parcel-target" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">B/L Qty</label>
-                        <input type="number" min="0" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.blQuantity} onChange={e => setParcelForm(p => ({ ...p, blQuantity: parseFloat(e.target.value) || "" }))} data-testid="input-parcel-bl-qty" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Handled Qty</label>
-                        <input type="number" min="0" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.handledQuantity} onChange={e => setParcelForm(p => ({ ...p, handledQuantity: parseFloat(e.target.value) || 0 }))} data-testid="input-parcel-handled" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Section 3: Location & Equipment */}
-                  <div>
-                    <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2 pb-1 border-b border-slate-700/40">Location & Equipment</div>
+                    {/* Sequence (single field, label changes by op type) + Shipper */}
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Hold Numbers</label>
-                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.holdNumbers} onChange={e => setParcelForm(p => ({ ...p, holdNumbers: e.target.value }))} placeholder="e.g. 1, 2, 3" data-testid="input-parcel-holds" />
+                      <div className="space-y-1.5">
+                        <label className="text-xs text-slate-500 block">{seqLabel}</label>
+                        <input type="number" min="1" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring"
+                          value={isLoading ? parcelForm.loadingSequence : parcelForm.dischargeSequence}
+                          onChange={e => {
+                            const v = parseInt(e.target.value) || "";
+                            setParcelForm(p => isLoading ? { ...p, loadingSequence: v } : { ...p, dischargeSequence: v });
+                          }}
+                          placeholder="#1" data-testid="input-parcel-sequence" />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Tank Numbers</label>
-                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.tankNumbers} onChange={e => setParcelForm(p => ({ ...p, tankNumbers: e.target.value }))} placeholder="e.g. 2P, 3S" data-testid="input-parcel-tanks" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Equipment Used</label>
-                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.equipmentUsed} onChange={e => setParcelForm(p => ({ ...p, equipmentUsed: e.target.value }))} placeholder="e.g. Crane #1, Conveyor" data-testid="input-parcel-equipment" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Cranes Assigned</label>
-                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.cranesAssigned} onChange={e => setParcelForm(p => ({ ...p, cranesAssigned: e.target.value }))} placeholder="e.g. Crane 1+2" data-testid="input-parcel-cranes" />
+                      <div className="space-y-1.5">
+                        <label className="text-xs text-slate-500 block">Shipper</label>
+                        <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.shipperName} onChange={e => setParcelForm(p => ({ ...p, shipperName: e.target.value }))} placeholder="e.g. CARGILL INC." data-testid="input-parcel-shipper" />
                       </div>
                     </div>
-                  </div>
 
-                  {/* Section 4: Sequence & Status */}
+                    {/* Notes */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-slate-500 block">Notes</label>
+                      <input className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.notes} onChange={e => setParcelForm(p => ({ ...p, notes: e.target.value }))} placeholder="Special instructions (optional)" data-testid="input-parcel-notes" />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="ghost" onClick={() => { setShowAddParcelDialog(false); setEditingParcel(null); }}>Cancel</Button>
+                    <Button disabled={!parcelForm.receiverName.trim() || !parcelForm.cargoType.trim() || !parcelForm.targetQuantity || addParcelMutation.isPending || updateParcelMutation.isPending}
+                      onClick={() => {
+                        if (!parcelForm.receiverName.trim() || !parcelForm.cargoType.trim()) return;
+                        const payload = { ...parcelForm, blQuantity: parcelForm.blQuantity === "" ? null : Number(parcelForm.blQuantity), loadingSequence: parcelForm.loadingSequence === "" ? null : Number(parcelForm.loadingSequence), dischargeSequence: parcelForm.dischargeSequence === "" ? null : Number(parcelForm.dischargeSequence), hosesConnected: parcelForm.hosesConnected === "" ? null : Number(parcelForm.hosesConnected) };
+                        if (editingParcel) { updateParcelMutation.mutate({ id: editingParcel.id, ...payload }); } else { addParcelMutation.mutate(payload); }
+                      }} data-testid="button-save-parcel">
+                      {(addParcelMutation.isPending || updateParcelMutation.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : editingParcel ? "Save Changes" : "Add Parcel"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              );
+            })()}
+
+            {/* ── Stowage Plan Modal ─────────────────── */}
+            {(() => {
+              const isTanker = vesselType === "tanker";
+              return (
+            <Dialog open={showStowageModal} onOpenChange={setShowStowageModal}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle className="text-base flex items-center gap-2">
+                    <Ship className="w-5 h-5 text-blue-400" />
+                    {isTanker ? "Tank Plan" : "Stowage Plan"}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                  {/* Upload / View area */}
+                  {stowagePlanData?.fileUrl ? (
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/40 border border-slate-700/30">
+                      <FileImage className="w-8 h-8 text-blue-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm text-slate-300 truncate block" data-testid="text-stowage-filename">{stowagePlanData.fileName ?? "Stowage Plan"}</span>
+                        <p className="text-[10px] text-slate-600">Uploaded file</p>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => window.open(stowagePlanData.fileUrl, "_blank")} data-testid="button-view-stowage">
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => updateStowagePlanMutation.mutate({ fileUrl: null, fileName: null })} data-testid="button-remove-stowage">
+                        <Trash2 className="w-4 h-4 text-red-400" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer block rounded-xl border-2 border-dashed border-slate-700/40 hover:border-blue-500/30 hover:bg-blue-500/5 transition-all p-8 text-center" data-testid="label-stowage-upload">
+                      <Upload className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                      <p className="text-sm text-slate-400">Drop stowage plan here or click to upload</p>
+                      <p className="text-[10px] text-slate-600 mt-1">PDF, PNG, JPG up to 10MB</p>
+                      <input type="file" className="hidden" accept=".pdf,.png,.jpg,.jpeg"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = async (ev) => {
+                            const b64 = (ev.target?.result as string).split(",")[1];
+                            try {
+                              const resp = await apiRequest("POST", "/api/upload", { fileBase64: b64, fileName: file.name, mimeType: file.type });
+                              const data = await resp.json();
+                              if (data.url) updateStowagePlanMutation.mutate({ fileUrl: data.url, fileName: file.name });
+                            } catch {
+                              toast({ title: "Upload failed", variant: "destructive" });
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }}
+                        data-testid="input-stowage-upload" />
+                    </label>
+                  )}
+
+                  {/* Hold Allocation — auto from parcels */}
+                  {cargoParcelsData.filter((p: any) => p.holdNumbers || p.tankNumbers).length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{isTanker ? "Tank" : "Hold"} Allocation</h4>
+                      <div className="space-y-1.5">
+                        {cargoParcelsData.filter((p: any) => p.holdNumbers || p.tankNumbers).map((p: any, i: number) => {
+                          const colors = ["bg-blue-500", "bg-emerald-500", "bg-purple-500", "bg-amber-500", "bg-rose-500"];
+                          return (
+                            <div key={p.id} className="flex items-center gap-2 text-xs p-2 rounded bg-slate-800/30">
+                              <div className={cn("w-2 h-2 rounded-full flex-shrink-0", colors[i % colors.length])} />
+                              <span className="text-slate-500">{isTanker ? "Tank" : "Hold"} {p.holdNumbers || p.tankNumbers}:</span>
+                              <span className="text-slate-300 flex-1 truncate">{p.receiverName} — {p.cargoType}</span>
+                              <span className="text-slate-600 flex-shrink-0">{(p.targetQuantity || 0).toLocaleString()} {p.unit}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hold Notes */}
                   <div>
-                    <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2 pb-1 border-b border-slate-700/40">Sequence & Status</div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Discharge Seq.</label>
-                        <input type="number" min="1" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.dischargeSequence} onChange={e => setParcelForm(p => ({ ...p, dischargeSequence: parseInt(e.target.value) || "" }))} placeholder="1" data-testid="input-parcel-seq-discharge" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Loading Seq.</label>
-                        <input type="number" min="1" className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 font-mono focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.loadingSequence} onChange={e => setParcelForm(p => ({ ...p, loadingSequence: parseInt(e.target.value) || "" }))} placeholder="1" data-testid="input-parcel-seq-loading" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">Op. Status</label>
-                        <select className="w-full h-8 text-sm border border-border/60 bg-background rounded-md px-3 focus:outline-none focus:ring-1 focus:ring-ring" value={parcelForm.operationStatus} onChange={e => setParcelForm(p => ({ ...p, operationStatus: e.target.value }))} data-testid="select-parcel-op-status">
-                          <option value="waiting">⏳ Waiting</option>
-                          <option value="active">🔄 Active</option>
-                          <option value="paused">⏸ Paused</option>
-                          <option value="completed">✅ Completed</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Notes */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">Notes</label>
-                    <Textarea className="text-xs min-h-[60px] resize-none" value={parcelForm.notes} onChange={e => setParcelForm(p => ({ ...p, notes: e.target.value }))} placeholder="Special instructions, remarks..." data-testid="textarea-parcel-notes" />
+                    <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Hold Notes</h4>
+                    <Textarea
+                      value={stowageNotes}
+                      onChange={e => setStowageNotes(e.target.value)}
+                      rows={4}
+                      placeholder={isTanker ? "Tank 1P-2S: ULSD\nTank 3C: Gasoil\nSlop tanks: Empty" : "Hold 1-2: Wheat (Cargill)\nHold 3: Corn (ADM)\nHold 4-5: Empty"}
+                      className="text-xs min-h-[100px] resize-none"
+                      data-testid="textarea-hold-notes"
+                    />
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => { setShowAddParcelDialog(false); setEditingParcel(null); }}>Cancel</Button>
-                  <Button disabled={!parcelForm.receiverName.trim() || addParcelMutation.isPending || updateParcelMutation.isPending} onClick={() => { if (!parcelForm.receiverName.trim()) return; const payload = { ...parcelForm, blQuantity: parcelForm.blQuantity === "" ? null : Number(parcelForm.blQuantity), loadingSequence: parcelForm.loadingSequence === "" ? null : Number(parcelForm.loadingSequence), dischargeSequence: parcelForm.dischargeSequence === "" ? null : Number(parcelForm.dischargeSequence), hosesConnected: parcelForm.hosesConnected === "" ? null : Number(parcelForm.hosesConnected) }; if (editingParcel) { updateParcelMutation.mutate({ id: editingParcel.id, ...payload }); } else { addParcelMutation.mutate(payload); } }} data-testid="button-save-parcel">
-                    {(addParcelMutation.isPending || updateParcelMutation.isPending) ? <Loader2 className="w-4 h-4 animate-spin" /> : editingParcel ? "Save Changes" : "Add Parcel"}
+                  <Button variant="ghost" onClick={() => setShowStowageModal(false)}>Close</Button>
+                  <Button onClick={() => { updateStowagePlanMutation.mutate({ holdNotes: stowageNotes }); setShowStowageModal(false); }} data-testid="button-save-stowage-notes">
+                    Save Notes
                   </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            );
+            })()}
 
             {/* ── Add Operation Log Dialog ─────────── */}
             {(() => {
