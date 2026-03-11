@@ -33,6 +33,7 @@ import {
   Crown,
   FileBarChart2,
   Bell,
+  Search,
 } from "lucide-react";
 
 export type BadgeSource = "messages" | "nominations" | "tenders" | "certs" | "voyageInvites";
@@ -107,6 +108,7 @@ export const NAV_STRUCTURE: NavStructure = {
       children: [
         { label: "Vessels", url: "/vessels", icon: Ship },
         { label: "Vessel Tracking", url: "/vessel-track", icon: Navigation },
+        { label: "Vessel Intelligence", url: "/vessel-lookup", icon: Search },
         { label: "PMS", url: "/pms", icon: ClipboardList, isNew: true },
         { label: "Certificates", url: "/vessel-certificates", icon: ScrollText, badge: "certs" },
         { label: "Passage Planning", url: "/passage-planning", icon: Compass, roles: ["admin", "master", "shipowner"] },
@@ -192,6 +194,7 @@ export const URL_TO_NAV_KEY: Record<string, string> = {
   "/vessel-schedule": "fleet",
   "/vessel-certificates": "fleet",
   "/vessel-track": "fleet",
+  "/vessel-lookup": "fleet",
   "/vessel-q88": "fleet",
   "/vessel-vault": "fleet",
   "/noon-reports": "fleet",

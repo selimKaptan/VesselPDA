@@ -49,7 +49,8 @@ const QUICK_NAV = [
   { name: "Voyages",          url: "/voyages",          icon: Ship,            color: "text-sky-400" },
   { name: "Vessels",          url: "/vessels",          icon: Anchor,          color: "text-sky-400" },
   { name: "Proformas",        url: "/proformas",        icon: FileText,        color: "text-emerald-400" },
-  { name: "Vessel Tracking",  url: "/vessel-track",     icon: Navigation,      color: "text-indigo-400" },
+  { name: "Vessel Tracking",    url: "/vessel-track",    icon: Navigation,      color: "text-indigo-400" },
+  { name: "Vessel Intelligence", url: "/vessel-lookup",  icon: Ship,            color: "text-blue-400" },
   { name: "Crew Roster",      url: "/crew",             icon: Users,           color: "text-pink-400" },
   { name: "Passage Planning", url: "/passage-planning", icon: Compass,         color: "text-teal-400" },
   { name: "Invoices",         url: "/invoices",         icon: DollarSign,      color: "text-violet-400" },
@@ -332,6 +333,11 @@ export function CommandSearch() {
       setSelectedIndex(prev => Math.max(prev - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
+      if (/^\d{7}$/.test(query.trim())) {
+        navigate(`/vessel-lookup/${query.trim()}`);
+        setOpen(false);
+        return;
+      }
       if (allFlat[selectedIndex]) {
         const matched = results.find(r => r.href === allFlat[selectedIndex].url);
         handleSelect(allFlat[selectedIndex].url, matched);

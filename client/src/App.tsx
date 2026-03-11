@@ -99,6 +99,7 @@ const OrderBook = lazy(() => import("@/pages/order-book"));
 const BrokerCommissions = lazy(() => import("@/pages/broker-commissions"));
 const Contacts = lazy(() => import("@/pages/contacts"));
 const PassagePlanning = lazy(() => import("@/pages/passage-planning"));
+const VesselLookup = lazy(() => import("@/pages/vessel-lookup"));
 const NotificationsPage = lazy(() => import("@/pages/notifications"));
 const CrewDocSettings = lazy(() => import("@/pages/crew-doc-settings"));
 const AgentReports = lazy(() => import("@/pages/agent-reports"));
@@ -142,6 +143,8 @@ function AuthenticatedRouter() {
         <Route path="/tenders" component={Tenders} />
         <Route path="/tenders/:id" component={TenderDetail} />
         <Route path="/vessel-track" component={VesselTrack} />
+        <Route path="/vessel-lookup" component={VesselLookup} />
+        <Route path="/vessel-lookup/:imo" component={VesselLookup} />
         <Route path="/vessel-report/:imo" component={VesselReport} />
         <Route path="/vessel-schedule" component={VesselSchedule} />
         <Route path="/port-info" component={PortInfo} />

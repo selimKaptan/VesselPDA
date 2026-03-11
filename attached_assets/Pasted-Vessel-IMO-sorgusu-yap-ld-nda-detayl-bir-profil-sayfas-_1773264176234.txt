@@ -1,0 +1,570 @@
+Vessel IMO sorgusu yapıldığında detaylı bir profil sayfası açılsın. Datalastic API'nin vessel_pro ve vessel_info endpoint'lerinden tüm bilgileri çekip profesyonel bir vessel profile sayfasında göstersin.
+
+## 1. BACKEND — Vessel Lookup Endpoint
+
+server/routes/vessel-lookup.routes.ts dosyası oluştur:
+
+import { Router } from "express";
+import { isAuthenticated } from "../replit_integrations/auth";
+
+const router = Router();
+
+const DATALASTIC_KEY = process.env.DATALASTIC_API_KEY;
+const BASE = "https://api.datalastic.com/api/v0";
+
+async function fetchDatalastic(endpoint: string, params: Record<string, string>) {
+  const qs = new URLSearchParams({ "api-key": DATALASTIC_KEY || "", ...params }).toString();
+  const url = `${BASE}/${endpoint}?${qs}`;
+  console.log(`[vessel-lookup] Fetching: ${endpoint}`);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Datalastic ${endpoint}: ${res.status}`);
+  return res.json();
+}
+
+// GET /api/v1/vessel-lookup/:imo
+router.get("/:imo", isAuthenticated, async (req: any, res) => {
+  try {
+    const imo = req.params.imo.trim();
+    if (!/^\d{7}$/.test(imo)) return res.status(400).json({ error: "Invalid IMO number. Must be 7 digits." });
+
+    // Paralel olarak tüm endpoint'leri çağır
+    const [vesselPro, vesselInfo, vesselHistory] = await Promise.allSettled([
+      fetchDatalastic("vessel_pro", { imo }),
+      fetchDatalastic("vessel_info", { imo }),
+      fetchDatalastic("vessel_history", { imo }),
+    ]);
+
+    const proData = vesselPro.status === "fulfilled" ? vesselPro.value?.data : null;
+    const infoData = vesselInfo.status === "fulfilled" ? vesselInfo.value?.data : null;
+    const historyData = vesselHistory.status === "fulfilled" ? vesselHistory.value?.data : null;
+
+    if (!proData && !infoData) {
+      return res.status(404).json({ error: "Vessel not found" });
+    }
+
+    // Birleştir
+    const vessel = {
+      // Temel bilgiler
+      imo: proData?.imo || infoData?.imo || imo,
+      mmsi: proData?.mmsi || infoData?.mmsi,
+      name: proData?.vessel_name || infoData?.vessel_name,
+      callSign: proData?.call_sign || infoData?.call_sign,
+      flag: proData?.flag || infoData?.flag,
+      flagCode: proData?.flag_code || infoData?.flag_code,
+      vesselType: proData?.vessel_type || infoData?.vessel_type,
+      vesselTypeCode: proData?.vessel_type_code,
+      status: proData?.vessel_status || infoData?.vessel_status,
+
+      // Boyutlar
+      grossTonnage: proData?.gross_tonnage || infoData?.gross_tonnage,
+      netTonnage: proData?.net_tonnage,
+      deadweight: proData?.deadweight || infoData?.deadweight,
+      displacement: proData?.displacement,
+      length: proData?.length_overall || infoData?.length,
+      breadth: proData?.breadth || infoData?.breadth,
+      depth: proData?.depth,
+      draught: proData?.draught || infoData?.draught,
+      maxDraught: proData?.max_draught,
+      airDraught: proData?.air_draught,
+
+      // İnşa bilgileri
+      yearBuilt: proData?.year_built || infoData?.year_built,
+      builder: proData?.builder,
+      buildCountry: proData?.build_country,
+      yardNumber: proData?.yard_number,
+      hullNumber: proData?.hull_number,
+
+      // Motor ve performans
+      mainEngine: proData?.main_engine,
+      enginePower: proData?.engine_power,
+      engineRpm: proData?.engine_rpm,
+      propellerType: proData?.propeller_type,
+      speed: proData?.speed || infoData?.speed,
+      fuelConsumption: proData?.fuel_consumption,
+      fuelType: proData?.fuel_type,
+
+      // Kapasite
+      teu: proData?.teu,
+      teu14: proData?.teu_14,
+      holdCount: proData?.hold_count,
+      hatchCount: proData?.hatch_count,
+      tankCount: proData?.tank_count,
+      grainCapacity: proData?.grain_capacity,
+      baleCapacity: proData?.bale_capacity,
+      liquidCapacity: proData?.liquid_capacity,
+      gasCapacity: proData?.gas_capacity,
+      reefer: proData?.reefer,
+      craneCount: proData?.crane_count,
+      craneCapacity: proData?.crane_capacity,
+
+      // Sınıflandırma
+      classificationSociety: proData?.classification_society,
+      classNotation: proData?.class_notation,
+      iceClass: proData?.ice_class,
+      pAndIClub: proData?.p_and_i_club,
+
+      // Sahiplik
+      owner: proData?.owner,
+      operator: proData?.operator || infoData?.operator,
+      manager: proData?.manager || infoData?.manager,
+      managementCompany: proData?.management_company,
+      beneficialOwner: proData?.beneficial_owner,
+      registeredOwner: proData?.registered_owner,
+      technicalManager: proData?.technical_manager,
+      commercialManager: proData?.commercial_manager,
+      dismantler: proData?.dismantler,
+      groupOwner: proData?.group_owner,
+      insurancer: proData?.insurancer,
+
+      // AIS / Pozisyon
+      lat: proData?.lat || infoData?.lat,
+      lon: proData?.lon || infoData?.lon,
+      course: proData?.course || infoData?.course,
+      heading: proData?.heading || infoData?.heading,
+      speedKnots: proData?.current_speed || infoData?.speed,
+      navStatus: proData?.nav_status || infoData?.nav_status,
+      destination: proData?.destination || infoData?.destination,
+      eta: proData?.eta || infoData?.eta,
+      lastPositionUpdate: proData?.last_position_UTC || infoData?.last_position_UTC,
+      currentPort: proData?.current_port || infoData?.current_port,
+      currentPortCountry: proData?.current_port_country,
+      departurePort: proData?.departure_port,
+      departureDate: proData?.departure_date,
+
+      // Tarihler
+      keel_laid_date: proData?.keel_laid_date,
+      delivery_date: proData?.delivery_date,
+      last_drydock: proData?.last_drydock,
+      next_drydock: proData?.next_drydock,
+      last_survey: proData?.last_survey,
+
+      // Ham data (debug)
+      _rawPro: proData,
+      _rawInfo: infoData,
+      _rawHistory: historyData,
+    };
+
+    res.json({ vessel, history: historyData });
+  } catch (err: any) {
+    console.error("[vessel-lookup] Error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+export default router;
+
+server/routes.ts'e kaydet:
+import vesselLookupRoutes from "./routes/vessel-lookup.routes";
+app.use("/api/v1/vessel-lookup", vesselLookupRoutes);
+
+## 2. FRONTEND — Vessel Profile Sayfası
+
+client/src/pages/vessel-lookup.tsx dosyası oluştur:
+
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useRoute } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { 
+  Ship, Anchor, MapPin, Navigation, Gauge, Ruler, Weight, Calendar,
+  Building2, Shield, Fuel, Box, ArrowLeft, Search, ExternalLink,
+  Globe, Compass, Clock, AlertTriangle, Info
+} from "lucide-react";
+
+function cn(...classes: (string | boolean | undefined)[]) { return classes.filter(Boolean).join(" "); }
+
+export default function VesselLookup() {
+  const [, params] = useRoute("/vessel-lookup/:imo");
+  const [searchImo, setSearchImo] = useState(params?.imo || "");
+  const [activeImo, setActiveImo] = useState(params?.imo || "");
+  const [activeTab, setActiveTab] = useState("overview");
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["vessel-lookup", activeImo],
+    queryFn: async () => {
+      if (!activeImo || activeImo.length !== 7) return null;
+      const res = await fetch(`/api/v1/vessel-lookup/${activeImo}`);
+      if (!res.ok) throw new Error("Vessel not found");
+      return res.json();
+    },
+    enabled: !!activeImo && activeImo.length === 7,
+  });
+
+  const v = data?.vessel;
+
+  function handleSearch() {
+    const cleaned = searchImo.replace(/\D/g, "").slice(0, 7);
+    if (cleaned.length === 7) {
+      setActiveImo(cleaned);
+      window.history.replaceState(null, "", `/vessel-lookup/${cleaned}`);
+    }
+  }
+
+  const tabs = [
+    { key: "overview", label: "Overview", icon: Ship },
+    { key: "dimensions", label: "Dimensions & Capacity", icon: Ruler },
+    { key: "engine", label: "Engine & Performance", icon: Gauge },
+    { key: "ownership", label: "Ownership & Management", icon: Building2 },
+    { key: "classification", label: "Class & Certificates", icon: Shield },
+    { key: "position", label: "Position & AIS", icon: MapPin },
+  ];
+
+  return (
+    <div className="min-h-screen bg-background p-6">
+      {/* Search Header */}
+      <div className="max-w-6xl mx-auto mb-8">
+        <div className="flex items-center gap-4 mb-6">
+          <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back
+          </Button>
+          <h1 className="text-xl font-bold">Vessel Intelligence</h1>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Input
+              value={searchImo}
+              onChange={(e) => setSearchImo(e.target.value.replace(/\D/g, "").slice(0, 7))}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              placeholder="Enter IMO number (7 digits)"
+              className="pl-10 h-11 text-base"
+            />
+          </div>
+          <Button onClick={handleSearch} disabled={searchImo.length !== 7} className="h-11 px-6">
+            Search Vessel
+          </Button>
+        </div>
+      </div>
+
+      {/* Loading */}
+      {isLoading && (
+        <div className="flex flex-col items-center py-20">
+          <div className="w-10 h-10 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-4" />
+          <p className="text-sm text-slate-400">Fetching vessel data from Datalastic...</p>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div className="max-w-md mx-auto text-center py-20">
+          <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+          <p className="text-slate-300 mb-2">Vessel not found</p>
+          <p className="text-xs text-slate-500">Check the IMO number and try again</p>
+        </div>
+      )}
+
+      {/* Vessel Profile */}
+      {v && (
+        <div className="max-w-6xl mx-auto">
+          {/* Hero Card */}
+          <div className="rounded-2xl border border-slate-700/50 bg-slate-800/30 p-6 mb-6">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center">
+                  <Ship className="w-8 h-8 text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-foreground">{v.name}</h2>
+                  <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+                    <span>IMO: {v.imo}</span>
+                    <span>·</span>
+                    <span>MMSI: {v.mmsi || "—"}</span>
+                    <span>·</span>
+                    <span>{v.flag} ({v.flagCode})</span>
+                    <span>·</span>
+                    <span>{v.vesselType}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className={cn(
+                      "text-xs px-2 py-0.5 rounded-full border",
+                      v.navStatus === "Moored" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                      v.navStatus === "Under Way" ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                      "bg-slate-800 text-slate-400 border-slate-700"
+                    )}>
+                      {v.navStatus || v.status || "Unknown"}
+                    </span>
+                    {v.destination && (
+                      <span className="text-xs text-slate-500">→ {v.destination}</span>
+                    )}
+                    {v.currentPort && (
+                      <span className="text-xs text-slate-500">📍 {v.currentPort}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Sağ üst — key metrics */}
+              <div className="grid grid-cols-4 gap-4">
+                <div className="text-center">
+                  <div className="text-[10px] text-slate-500 uppercase">DWT</div>
+                  <div className="text-lg font-bold">{v.deadweight?.toLocaleString() || "—"}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] text-slate-500 uppercase">GT</div>
+                  <div className="text-lg font-bold">{v.grossTonnage?.toLocaleString() || "—"}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] text-slate-500 uppercase">Built</div>
+                  <div className="text-lg font-bold">{v.yearBuilt || "—"}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] text-slate-500 uppercase">LOA</div>
+                  <div className="text-lg font-bold">{v.length ? `${v.length}m` : "—"}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex items-center gap-1 mb-6 border-b border-slate-700/50 pb-px">
+            {tabs.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  "flex items-center gap-1.5 px-4 py-2.5 text-sm transition-all border-b-2 -mb-px",
+                  activeTab === tab.key
+                    ? "text-blue-400 border-blue-500"
+                    : "text-slate-500 border-transparent hover:text-slate-300"
+                )}
+              >
+                <tab.icon className="w-3.5 h-3.5" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Content */}
+          {activeTab === "overview" && (
+            <div className="grid grid-cols-3 gap-4">
+              <InfoCard title="General" icon={Ship} items={[
+                ["Vessel Name", v.name],
+                ["IMO", v.imo],
+                ["MMSI", v.mmsi],
+                ["Call Sign", v.callSign],
+                ["Flag", `${v.flag} (${v.flagCode})`],
+                ["Type", v.vesselType],
+                ["Status", v.status],
+                ["Year Built", v.yearBuilt],
+                ["Builder", v.builder],
+                ["Build Country", v.buildCountry],
+              ]} />
+              <InfoCard title="Current Voyage" icon={Navigation} items={[
+                ["Destination", v.destination],
+                ["ETA", v.eta],
+                ["Current Port", v.currentPort],
+                ["Current Port Country", v.currentPortCountry],
+                ["Departure Port", v.departurePort],
+                ["Departure Date", v.departureDate],
+                ["Nav Status", v.navStatus],
+                ["Speed", v.speedKnots ? `${v.speedKnots} kn` : null],
+                ["Course", v.course ? `${v.course}°` : null],
+                ["Heading", v.heading ? `${v.heading}°` : null],
+              ]} />
+              <InfoCard title="Key Figures" icon={Weight} items={[
+                ["Deadweight (DWT)", v.deadweight?.toLocaleString()],
+                ["Gross Tonnage (GT)", v.grossTonnage?.toLocaleString()],
+                ["Net Tonnage (NT)", v.netTonnage?.toLocaleString()],
+                ["Length Overall", v.length ? `${v.length} m` : null],
+                ["Breadth", v.breadth ? `${v.breadth} m` : null],
+                ["Draught", v.draught ? `${v.draught} m` : null],
+                ["Max Draught", v.maxDraught ? `${v.maxDraught} m` : null],
+                ["Speed", v.speed ? `${v.speed} kn` : null],
+              ]} />
+            </div>
+          )}
+
+          {activeTab === "dimensions" && (
+            <div className="grid grid-cols-3 gap-4">
+              <InfoCard title="Dimensions" icon={Ruler} items={[
+                ["Length Overall (LOA)", v.length ? `${v.length} m` : null],
+                ["Breadth (Beam)", v.breadth ? `${v.breadth} m` : null],
+                ["Depth", v.depth ? `${v.depth} m` : null],
+                ["Draught", v.draught ? `${v.draught} m` : null],
+                ["Max Draught", v.maxDraught ? `${v.maxDraught} m` : null],
+                ["Air Draught", v.airDraught ? `${v.airDraught} m` : null],
+                ["Displacement", v.displacement?.toLocaleString()],
+              ]} />
+              <InfoCard title="Tonnage" icon={Weight} items={[
+                ["Gross Tonnage", v.grossTonnage?.toLocaleString()],
+                ["Net Tonnage", v.netTonnage?.toLocaleString()],
+                ["Deadweight", v.deadweight?.toLocaleString()],
+              ]} />
+              <InfoCard title="Capacity" icon={Box} items={[
+                ["TEU", v.teu?.toLocaleString()],
+                ["TEU (14t)", v.teu14?.toLocaleString()],
+                ["Hold Count", v.holdCount],
+                ["Hatch Count", v.hatchCount],
+                ["Tank Count", v.tankCount],
+                ["Grain Capacity", v.grainCapacity ? `${v.grainCapacity?.toLocaleString()} cbm` : null],
+                ["Bale Capacity", v.baleCapacity ? `${v.baleCapacity?.toLocaleString()} cbm` : null],
+                ["Liquid Capacity", v.liquidCapacity ? `${v.liquidCapacity?.toLocaleString()} cbm` : null],
+                ["Gas Capacity", v.gasCapacity?.toLocaleString()],
+                ["Reefer Plugs", v.reefer],
+                ["Crane Count", v.craneCount],
+                ["Crane Capacity", v.craneCapacity],
+              ]} />
+            </div>
+          )}
+
+          {activeTab === "engine" && (
+            <div className="grid grid-cols-2 gap-4">
+              <InfoCard title="Main Engine" icon={Gauge} items={[
+                ["Engine Type", v.mainEngine],
+                ["Engine Power", v.enginePower],
+                ["Engine RPM", v.engineRpm],
+                ["Propeller Type", v.propellerType],
+              ]} />
+              <InfoCard title="Performance" icon={Fuel} items={[
+                ["Service Speed", v.speed ? `${v.speed} kn` : null],
+                ["Fuel Consumption", v.fuelConsumption],
+                ["Fuel Type", v.fuelType],
+              ]} />
+            </div>
+          )}
+
+          {activeTab === "ownership" && (
+            <div className="grid grid-cols-2 gap-4">
+              <InfoCard title="Ownership" icon={Building2} items={[
+                ["Registered Owner", v.registeredOwner],
+                ["Beneficial Owner", v.beneficialOwner],
+                ["Group Owner", v.groupOwner],
+                ["Operator", v.operator],
+                ["Owner", v.owner],
+              ]} />
+              <InfoCard title="Management" icon={Building2} items={[
+                ["Manager", v.manager],
+                ["Management Company", v.managementCompany],
+                ["Technical Manager", v.technicalManager],
+                ["Commercial Manager", v.commercialManager],
+                ["P&I Club", v.pAndIClub],
+                ["Insurer", v.insurancer],
+              ]} />
+            </div>
+          )}
+
+          {activeTab === "classification" && (
+            <div className="grid grid-cols-2 gap-4">
+              <InfoCard title="Classification" icon={Shield} items={[
+                ["Society", v.classificationSociety],
+                ["Class Notation", v.classNotation],
+                ["Ice Class", v.iceClass],
+              ]} />
+              <InfoCard title="Survey & Drydock Dates" icon={Calendar} items={[
+                ["Keel Laid", v.keel_laid_date],
+                ["Delivery Date", v.delivery_date],
+                ["Last Drydock", v.last_drydock],
+                ["Next Drydock", v.next_drydock],
+                ["Last Survey", v.last_survey],
+              ]} />
+            </div>
+          )}
+
+          {activeTab === "position" && (
+            <div className="grid grid-cols-3 gap-4">
+              <InfoCard title="Position" icon={MapPin} items={[
+                ["Latitude", v.lat],
+                ["Longitude", v.lon],
+                ["Course", v.course ? `${v.course}°` : null],
+                ["Heading", v.heading ? `${v.heading}°` : null],
+                ["Speed", v.speedKnots ? `${v.speedKnots} kn` : null],
+                ["Nav Status", v.navStatus],
+                ["Last Update", v.lastPositionUpdate],
+              ]} />
+              <InfoCard title="Port Information" icon={Anchor} items={[
+                ["Current Port", v.currentPort],
+                ["Current Port Country", v.currentPortCountry],
+                ["Departure Port", v.departurePort],
+                ["Departure Date", v.departureDate],
+                ["Destination", v.destination],
+                ["ETA", v.eta],
+              ]} />
+              <div className="rounded-xl border border-slate-700/50 bg-slate-800/20 overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-700/30">
+                  <h3 className="text-sm font-semibold flex items-center gap-2"><Globe className="w-4 h-4 text-blue-400" /> Live Map</h3>
+                </div>
+                <div className="h-[300px] bg-slate-900 flex items-center justify-center">
+                  {v.lat && v.lon ? (
+                    <iframe
+                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${v.lon-0.5},${v.lat-0.5},${v.lon+0.5},${v.lat+0.5}&layer=mapnik&marker=${v.lat},${v.lon}`}
+                      className="w-full h-full border-0"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <p className="text-xs text-slate-600">No position data available</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!activeImo && !isLoading && (
+        <div className="flex flex-col items-center py-20">
+          <Ship className="w-16 h-16 text-slate-700 mb-4" />
+          <p className="text-lg text-slate-400 mb-2">Vessel Intelligence</p>
+          <p className="text-sm text-slate-600">Enter an IMO number to get complete vessel profile</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Reusable InfoCard component
+function InfoCard({ title, icon: Icon, items }: { title: string; icon: any; items: [string, any][] }) {
+  const filtered = items.filter(([, val]) => val !== null && val !== undefined && val !== "");
+  return (
+    <div className="rounded-xl border border-slate-700/50 bg-slate-800/20 overflow-hidden">
+      <div className="px-4 py-3 border-b border-slate-700/30 flex items-center gap-2">
+        <Icon className="w-4 h-4 text-blue-400" />
+        <h3 className="text-sm font-semibold">{title}</h3>
+      </div>
+      <div className="divide-y divide-slate-700/20">
+        {filtered.length > 0 ? filtered.map(([label, value]) => (
+          <div key={label} className="flex items-center justify-between px-4 py-2.5 hover:bg-slate-800/30">
+            <span className="text-xs text-slate-500">{label}</span>
+            <span className="text-sm text-slate-200 font-medium">{String(value)}</span>
+          </div>
+        )) : (
+          <div className="px-4 py-6 text-center text-xs text-slate-600">No data available</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+## 3. ROUTE EKLEMESİ
+
+client/src/App.tsx dosyasında route ekle:
+
+Lazy import ekle:
+const VesselLookup = lazy(() => import("@/pages/vessel-lookup"));
+
+Route ekle (diğer route'ların yanına):
+<Route path="/vessel-lookup" component={VesselLookup} />
+<Route path="/vessel-lookup/:imo" component={VesselLookup} />
+
+## 4. SİDEBAR MENÜYE EKLE
+
+Nav menüde "Fleet & Assets" grubunun altına ekle:
+{ label: "Vessel Lookup", path: "/vessel-lookup", icon: Search }
+
+Veya "Port Info" yanına:
+client/src/lib/nav-categories.ts dosyasında uygun yere ekle.
+
+## 5. COMMAND SEARCH'E EKLE
+
+client/src/components/command-search.tsx dosyasında quick navigation items'a ekle:
+{ label: "Vessel Lookup (IMO)", path: "/vessel-lookup", icon: Ship }
+
+Ayrıca arama yapıldığında IMO formatı algılanırsa direkt Vessel Lookup'a yönlendir:
+if (/^\d{7}$/.test(query.trim())) {
+  // IMO numarası girildiyse direkt vessel lookup'a git
+  navigate(`/vessel-lookup/${query.trim()}`);
+  setOpen(false);
+}

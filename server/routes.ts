@@ -26,6 +26,7 @@ import daComparisonRoutes from "./routes/da-comparison.routes";
 import aiRoutes from "./routes/ai.routes";
 import norRoutes from "./routes/nor.routes";
 import vesselScheduleRoutes from "./routes/vessel-schedule.routes";
+import vesselLookupRoutes from "./routes/vessel-lookup.routes";
 import { orgRouter, inviteRouter } from "./routes/organization.routes";
 import { voyageInviteRouter } from "./routes/voyage-invite.routes";
 import demoRouter from "./routes/demo.routes";
@@ -188,6 +189,7 @@ export async function registerRoutes(
   app.use("/api/v1/port-call-checklists", isAuthenticated, portCallChecklistRoutes);
   app.use("/api/v1/port-call-participants", isAuthenticated, portCallParticipantsRoutes);
   app.use("/api/v1/dashboard", isAuthenticated, dashboardRoutes);
+  app.use("/api/v1/vessel-lookup", isAuthenticated, vesselLookupRoutes);
 
   return httpServer;
 }
