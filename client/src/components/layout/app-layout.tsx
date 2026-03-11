@@ -10,6 +10,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FlaskConical, ChevronRight } from "lucide-react";
+import { CommandSearch } from "@/components/command-search";
 import {
   urlToCategory,
   getVisibleMainItems,
@@ -223,6 +224,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         userRole={effectiveRole}
       />
       <MobileBottomNav />
+      <CommandSearch />
     </SidebarProvider>
   );
 }

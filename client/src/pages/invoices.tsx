@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useSearch } from "wouter";
-import { DollarSign, Plus, CheckCircle2, Clock, XCircle, AlertTriangle, FileText, Bell, X, Receipt, Download, FileDown, History, ChevronDown, ChevronUp, Check, Eye, Edit, Send, Search as SearchIcon, Filter, Calendar as CalendarIcon } from "lucide-react";
+import { DollarSign, Plus, CheckCircle2, Clock, XCircle, AlertTriangle, FileText, Bell, X, Receipt, Download, FileDown, History, ChevronDown, ChevronUp, Check, Eye, Edit, Send, Search as SearchIcon, Filter, Calendar as CalendarIcon, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import { PageMeta } from "@/components/page-meta";
 import { isPast, format } from "date-fns";
 import { EmptyState } from "@/components/empty-state";
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
+import { SmartMailComposer } from "@/components/smart-mail-composer";
 import { fmtDate } from "@/lib/formatDate";
 import { exportToCsv } from "@/lib/export-csv";
 import { Progress } from "@/components/ui/progress";
@@ -67,7 +68,7 @@ function getDueDateBadge(dueDateStr: string | null, status: string): { label: st
   return { label: `Due ${fmtDate(due)}`, className: "bg-muted text-muted-foreground" };
 }
 
-function InvoiceCard({ inv, cfg, StatusIcon, onPayFull, onPartialPayment, onCancel, onRemind, onReview, isPaying, isCancelling, isReminding, isSelected, onSelect }: any) {
+function InvoiceCard({ inv, cfg, StatusIcon, onPayFull, onPartialPayment, onCancel, onRemind, onReview, onEmail, isPaying, isCancelling, isReminding, isSelected, onSelect }: any) {
   const [isOpen, setIsOpen] = useState(false);
   const { data: payments = [], isLoading: loadingPayments } = useQuery<any[]>({
     queryKey: [`/api/invoices/${inv.id}/payments`],
@@ -162,6 +163,18 @@ function InvoiceCard({ inv, cfg, StatusIcon, onPayFull, onPartialPayment, onCanc
                   </Button>
                 </CollapsibleTrigger>
               </Collapsible>
+
+              {onEmail && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1 text-sky-600 border-sky-200 hover:bg-sky-50 dark:hover:bg-sky-950/30"
+                  onClick={() => onEmail(inv)}
+                  data-testid={`button-email-invoice-${inv.id}`}
+                >
+                  <Mail className="w-3 h-3" /> Email
+                </Button>
+              )}
 
               {inv.status === "pending" && inv.recipientEmail && (
                 <Button
@@ -308,6 +321,7 @@ export default function Invoices() {
   });
 
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [emailEntity, setEmailEntity] = useState<{ type: string; id: number; inv: any } | null>(null);
 
   const toggleSelect = (id: number) => {
     setSelectedIds(prev => 
@@ -632,6 +646,7 @@ export default function Invoices() {
                     setReviewForm({ amount: String(invoice.amount), notes: invoice.notes || "" });
                     setShowReviewDialog(invoice);
                   }}
+                  onEmail={(invoice: any) => setEmailEntity({ type: "invoice", id: invoice.id, inv: invoice })}
                   isPaying={payMutation.isPending}
                   isCancelling={cancelMutation.isPending}
                   isReminding={reminderMutation.isPending}
@@ -665,6 +680,7 @@ export default function Invoices() {
                     setShowReviewDialog(invoice);
                   }}
                   onCancel={() => cancelMutation.mutate(inv.id)}
+                  onEmail={(invoice: any) => setEmailEntity({ type: "invoice", id: invoice.id, inv: invoice })}
                   isSelected={selectedIds.includes(inv.id)}
                   onSelect={toggleSelect}
                 />
@@ -1043,6 +1059,19 @@ export default function Invoices() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {emailEntity && (
+        <SmartMailComposer
+          type="invoice"
+          entityId={emailEntity.id}
+          entityMeta={{
+            referenceNumber: emailEntity.inv.title,
+            toEmail: emailEntity.inv.recipientEmail || "",
+            toCompany: emailEntity.inv.recipientName || "",
+          }}
+          onClose={() => setEmailEntity(null)}
+        />
+      )}
     </div>
   );
 }
