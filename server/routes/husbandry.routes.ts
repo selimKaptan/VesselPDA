@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { isAuthenticated } from "../replit_integrations/auth";
-import { insertHusbandryOrderSchema, insertCrewChangeSchema, vesselCrew } from "@shared/schema";
+import { insertHusbandryOrderSchema, insertCrewChangeSchema, vesselCrew, voyageCrewLogistics } from "@shared/schema";
 import { db } from "../db";
 import { eq, and, ilike } from "drizzle-orm";
 
@@ -141,6 +141,53 @@ router.patch("/crew-changes/:id", isAuthenticated, async (req: any, res) => {
     }
   } catch (error) {
     res.status(500).json({ message: "Failed to update crew change" });
+  }
+});
+
+router.post("/:voyageId/crew/bulk", async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.voyageId);
+    const { crewMembers, signerType } = req.body;
+
+    if (!Array.isArray(crewMembers) || crewMembers.length === 0) {
+      return res.status(400).json({ error: "No crew members" });
+    }
+
+    const sideMap: Record<string, string> = {
+      on_signer: "on", off_signer: "off",
+      sign_on: "on", sign_off: "off",
+      on: "on", off: "off",
+    };
+
+    const added = [];
+    for (const [i, m] of crewMembers.entries()) {
+      const side = sideMap[m.signerType || signerType] || "on";
+      try {
+        const insertData: any = {
+          voyageId,
+          sortOrder: i,
+          name: `${m.firstName || ""} ${m.lastName || ""}`.trim() || "Unknown",
+          rank: m.rank || "Unknown",
+          side,
+          nationality: m.nationality || "",
+          passportNo: m.passportNo || "",
+          dob: m.dob || "",
+          seamanBookNo: m.seamansBookNo || m.seamanBookNo || "",
+          birthPlace: m.birthPlace || "",
+          employeeNo: m.employeeNo || "",
+          flight: m.flights?.[0]?.flightNo || "",
+          flightDetails: m.flights?.length > 0 ? m.flights : [],
+        };
+
+        const [row] = await db.insert(voyageCrewLogistics).values(insertData).returning();
+        added.push(row);
+      } catch (err: any) {
+        console.error(`[crew-bulk] Failed ${m.lastName}:`, err.message);
+      }
+    }
+    res.status(201).json({ added: added.length, crew: added });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
   }
 });
 

@@ -2147,7 +2147,7 @@ export default function Vessels() {
                           {(pmsDashboard.summary?.criticalDefects || 0) > 0 && (
                             <div className="mt-2 flex items-center gap-1.5 text-[11px] text-rose-500 bg-rose-500/10 rounded-lg px-2.5 py-1.5">
                               <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                              {pmsDashboard.summary.criticalDefects} critical defect{pmsDashboard.summary.criticalDefects > 1 ? "s" : ""}
+                              {pmsDashboard.summary?.criticalDefects} critical defect{(pmsDashboard.summary?.criticalDefects || 0) > 1 ? "s" : ""}
                             </div>
                           )}
                         </div>

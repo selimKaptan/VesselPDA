@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { EmptyState } from "@/components/empty-state";
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
 import { PortLookupInput } from "@/components/port-lookup-input";
-import { Ship, Plus, MapPin, Calendar, ChevronRight, Anchor, CheckCircle2, Clock, XCircle, PlayCircle, Search, X, CheckCircle, AlertCircle, Loader2, FileDown, Check, GitBranch } from "lucide-react";
+import { Ship, Plus, MapPin, Calendar, ChevronRight, Anchor, CheckCircle2, Clock, XCircle, PlayCircle, Search, X, CheckCircle, AlertCircle, Loader2, FileDown, Check, GitBranch, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -695,6 +695,14 @@ export default function Voyages() {
                           >
                             <GitBranch className="w-2.5 h-2.5" />
                             Workflow
+                          </button>
+                          <button
+                            data-testid={`btn-pnl-${v.id}`}
+                            className="flex items-center gap-1 text-[10px] font-semibold text-emerald-400 hover:text-emerald-300 bg-emerald-900/20 hover:bg-emerald-900/30 border border-emerald-500/20 hover:border-emerald-500/40 px-2 py-1 rounded-md transition-all"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setLocation(`/voyages/${v.id}/pnl`); }}
+                          >
+                            <BarChart3 className="w-2.5 h-2.5" />
+                            P&L
                           </button>
                         </div>
                       );
