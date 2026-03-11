@@ -3287,7 +3287,7 @@ export default function VoyageDetail() {
                                           <div className="w-5 h-0.5 bg-orange-500 flex-shrink-0 mt-4 mx-0.5 rounded-full" style={{ animation: "connectorPulse 1.4s ease-in-out infinite" }} />
                                         );
                                         return (
-                                          <div className="w-5 flex-shrink-0 mt-4 mx-0.5 border-t-2 border-dashed border-slate-500/60" />
+                                          <div className="w-5 h-[2px] bg-slate-700 flex-shrink-0 mt-4 mx-0.5 rounded-full" />
                                         );
                                       })()}
                                       <div className="flex flex-col items-center gap-0.5" style={{ minWidth: 52 }}>
@@ -3325,7 +3325,7 @@ export default function VoyageDetail() {
                                           )
                                         ) : ms.time === "—" && ms.key !== "vessel" ? (
                                           <button
-                                            className="text-[10px] text-slate-600 group-hover:text-blue-400/70 opacity-40 group-hover:opacity-100 transition-all cursor-pointer leading-tight"
+                                            className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 border border-slate-600/50 rounded-full text-[10px] text-slate-400 hover:text-blue-300 transition-colors cursor-pointer"
                                             onClick={() => {
                                               if (ms.key === "flight") {
                                                 setInlineEdit({ crewId: crew.id, field: "flightEta", val: crew.flightEta || "" });
@@ -3366,14 +3366,18 @@ export default function VoyageDetail() {
 
                               {/* Flight number row + hotel mini-badge */}
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-[9px] text-slate-600 uppercase">Flight:</span>
-                                {inlineEdit?.crewId === crew.id && inlineEdit?.field === "flight" ? (
-                                  <input autoFocus value={inlineEdit.val} onChange={e => setInlineEdit(v => v ? { ...v, val: e.target.value } : v)} onBlur={() => { setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, flight: inlineEdit.val })); setInlineEdit(null); }} onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }} className="w-20 h-4 text-[10px] font-semibold bg-slate-700 border border-blue-500/70 rounded px-1 text-slate-100 outline-none" data-testid={`inline-edit-flight-${crew.id}`} />
-                                ) : (
-                                  <span className="text-[10px] font-semibold text-slate-300 cursor-pointer hover:bg-slate-700/60 rounded px-1 py-0.5 transition-colors" onClick={() => setInlineEdit({ crewId: crew.id, field: "flight", val: crew.flight || "" })} data-testid={`text-flight-${crew.id}`}>{crew.flight || "—"}</span>
-                                )}
-                                {crew.flightDelayed && (
-                                  <span className="inline-flex items-center text-[9px] font-bold text-rose-400 bg-rose-900/40 border border-rose-500/30 rounded-full px-1.5 py-0.5">⚠ Delayed</span>
+                                {(crew.flight || (inlineEdit?.crewId === crew.id && inlineEdit?.field === "flight")) && (
+                                  <>
+                                    <span className="text-[9px] text-slate-600 uppercase">Flight:</span>
+                                    {inlineEdit?.crewId === crew.id && inlineEdit?.field === "flight" ? (
+                                      <input autoFocus value={inlineEdit.val} onChange={e => setInlineEdit(v => v ? { ...v, val: e.target.value } : v)} onBlur={() => { setCrewSigners(cs => cs.map(c => c.id !== crew.id ? c : { ...c, flight: inlineEdit.val })); setInlineEdit(null); }} onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") (e.target as HTMLInputElement).blur(); }} className="w-20 h-4 text-[10px] font-semibold bg-slate-700 border border-blue-500/70 rounded px-1 text-slate-100 outline-none" data-testid={`inline-edit-flight-${crew.id}`} />
+                                    ) : (
+                                      <span className="text-[10px] font-semibold text-slate-300 cursor-pointer hover:bg-slate-700/60 rounded px-1 py-0.5 transition-colors" onClick={() => setInlineEdit({ crewId: crew.id, field: "flight", val: crew.flight || "" })} data-testid={`text-flight-${crew.id}`}>{crew.flight}</span>
+                                    )}
+                                    {crew.flightDelayed && (
+                                      <span className="inline-flex items-center text-[9px] font-bold text-rose-400 bg-rose-900/40 border border-rose-500/30 rounded-full px-1.5 py-0.5">⚠ Delayed</span>
+                                    )}
+                                  </>
                                 )}
                                 {_hasHotelInfo && (
                                   <span className={`inline-flex items-center text-[9px] font-bold rounded-full border px-1.5 py-0.5 ${crew.hotelStatus === "checked-in" ? "text-emerald-400 bg-emerald-900/20 border-emerald-500/50" : crew.hotelStatus === "checked-out" ? "text-sky-400 bg-sky-900/20 border-sky-500/50" : crew.hotelStatus === "reserved" ? "text-blue-400 bg-blue-900/20 border-blue-500/50" : "text-emerald-400 bg-emerald-900/20 border-emerald-500/50"}`} data-testid={`badge-hotel-${crew.id}`}>
