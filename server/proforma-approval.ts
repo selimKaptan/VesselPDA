@@ -28,14 +28,14 @@ export function registerProformaApprovalRoutes(app: Express) {
   app.get("/api/proformas/pending-approval", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub;
-      const user = await pool.query("SELECT user_role FROM users WHERE id = $1", [userId]);
-      const role = user.rows[0]?.user_role;
+      const userResult = await db.execute(sql`SELECT user_role FROM users WHERE id = ${userId}`);
+      const role = userResult.rows[0]?.user_role;
 
       if (!["shipowner", "admin"].includes(role)) {
         return res.status(403).json({ message: "Only shipowners and admins can view pending approvals" });
       }
 
-      const { rows } = await pool.query(`
+      const pendingResult = await db.execute(sql`
         SELECT
           p.id, p.reference_number, p.to_company, p.total_usd, p.sent_at,
           p.approval_status, p.created_at, p.purpose_of_call,
@@ -51,7 +51,7 @@ export function registerProformaApprovalRoutes(app: Express) {
         ORDER BY p.sent_at ASC NULLS LAST
       `);
 
-      return res.json(rows);
+      return res.json(pendingResult.rows);
     } catch (err) {
       console.error("[proforma-approval] pending-approval error:", err);
       return res.status(500).json({ message: "Server error" });
@@ -98,8 +98,8 @@ export function registerProformaApprovalRoutes(app: Express) {
         return res.status(400).json({ message: "Invalid action. Use: approve | reject | request_revision" });
       }
 
-      const user = await pool.query("SELECT user_role FROM users WHERE id = $1", [userId]);
-      const role = user.rows[0]?.user_role;
+      const userResult = await db.execute(sql`SELECT user_role FROM users WHERE id = ${userId}`);
+      const role = userResult.rows[0]?.user_role;
       if (!["shipowner", "admin"].includes(role)) {
         return res.status(403).json({ message: "Only shipowners and admins can review proformas" });
       }
@@ -152,23 +152,23 @@ export function registerProformaApprovalRoutes(app: Express) {
         .from(proformas).where(eq(proformas.id, proformaId));
       if (!proforma) return res.status(404).json({ message: "Proforma not found" });
 
-      const user = await pool.query("SELECT user_role FROM users WHERE id = $1", [userId]);
-      const role = user.rows[0]?.user_role;
+      const userResult = await db.execute(sql`SELECT user_role FROM users WHERE id = ${userId}`);
+      const role = userResult.rows[0]?.user_role;
       const canView = proforma.userId === userId || ["shipowner", "admin"].includes(role);
       if (!canView) return res.status(403).json({ message: "Access denied" });
 
-      const { rows } = await pool.query(`
+      const historyResult = await db.execute(sql`
         SELECT
           pal.id, pal.action, pal.note, pal.previous_status, pal.new_status, pal.created_at,
           u.first_name || ' ' || COALESCE(u.last_name, '') AS user_name,
           u.user_role
         FROM proforma_approval_logs pal
         LEFT JOIN users u ON u.id = pal.user_id
-        WHERE pal.proforma_id = $1
+        WHERE pal.proforma_id = ${proformaId}
         ORDER BY pal.created_at ASC
-      `, [proformaId]);
+      `);
 
-      return res.json(rows);
+      return res.json(historyResult.rows);
     } catch (err) {
       console.error("[proforma-approval] history error:", err);
       return res.status(500).json({ message: "Server error" });
