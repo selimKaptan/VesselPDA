@@ -5483,6 +5483,10 @@ export default function VoyageDetail() {
                           <button onClick={() => setCargoViewMode("cards")} className={cn("px-2.5 py-1 text-[10px] transition-colors", cargoViewMode === "cards" ? "bg-blue-500/20 text-blue-400" : "text-slate-500 hover:text-slate-300")} data-testid="button-view-cards">Cards</button>
                           <button onClick={() => setCargoViewMode("table")} className={cn("px-2.5 py-1 text-[10px] border-l border-slate-700/50 transition-colors", cargoViewMode === "table" ? "bg-blue-500/20 text-blue-400" : "text-slate-500 hover:text-slate-300")} data-testid="button-view-table">Table</button>
                         </div>
+                        <Button variant="outline" size="sm" className="text-xs h-7 gap-1.5" onClick={() => setShowDeclarationModal(true)} data-testid="button-import-declaration">
+                          <FileUp className="w-3 h-3" />
+                          Import Declaration
+                        </Button>
                         <Button size="sm" className="text-xs h-7 gap-1" onClick={() => { setEditingParcel(null); setParcelForm({ ...EMPTY_PARCEL_FORM }); setShowAddParcelDialog(true); }} data-testid="button-add-parcel">
                           <Plus className="w-3 h-3" /> Add Parcel
                         </Button>
