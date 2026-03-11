@@ -1,0 +1,477 @@
+Crew Logistics Board ve Edit Crew Modal'ı kusursuz Crewing OS seviyesine taşı. 4 ana iyileştirme.
+
+## 1. CREW KARTLARI — Pipeline Tasarımı İyileştirme
+
+Mevcut crew kartları iyi çalışıyor ama pipeline'ı daha profesyonel yap:
+
+Her crew kartındaki timeline adımlarını (Flight → Transfer → Kontrol → Vessel) güncelle:
+
+A) Adım ikonlarını daha belirgin yap ve duruma göre renklendir:
+
+const pipelineSteps = [
+  { key: "flight", icon: Plane, label: "Flight", dataKey: "flightCode", timeKey: "flightEta" },
+  { key: "transfer", icon: Truck, label: "Transfer", dataKey: "transferType", timeKey: "transferTime" },
+  { key: "control", icon: ShieldCheck, label: "Control", dataKey: "controlStatus", timeKey: "controlTime" },
+  { key: "vessel", icon: Ship, label: "Vessel", dataKey: "vesselArrival", timeKey: "vesselTime" },
+];
+
+Her adım için 3 durum:
+- Tamamlanmış (veri var): Yeşil çember, ikon beyaz, altında veri
+- Bekliyor (veri yok, sıradaki): Mavi çember pulse, "+ Set" butonu
+- Uzak (veri yok, sırası gelmemiş): Gri çember, silik
+
+{pipelineSteps.map((step, idx) => {
+  const hasData = !!crew[step.dataKey] || !!crew[step.timeKey];
+  const isPrevDone = idx === 0 || !!crew[pipelineSteps[idx-1].timeKey];
+  const isNext = !hasData && isPrevDone;
+  
+  return (
+    <div key={step.key} className="flex flex-col items-center min-w-[65px]">
+      {/* İkon dairesi */}
+      <div className={cn(
+        "w-9 h-9 rounded-full flex items-center justify-center transition-all",
+        hasData && "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30",
+        isNext && "bg-blue-500/15 text-blue-400 ring-1 ring-blue-500/30 animate-pulse",
+        !hasData && !isNext && "bg-slate-800/80 text-slate-600",
+      )}>
+        {hasData ? <Check className="w-3.5 h-3.5" /> : <step.icon className="w-3.5 h-3.5" />}
+      </div>
+      
+      {/* Alt bilgi */}
+      <div className="mt-1 text-center">
+        {hasData ? (
+          <>
+            {crew[step.dataKey] && (
+              <div className="text-[10px] font-medium text-slate-300">{crew[step.dataKey]}</div>
+            )}
+            {crew[step.timeKey] && (
+              <div className="text-[10px] text-slate-500">{formatTime(crew[step.timeKey])}</div>
+            )}
+          </>
+        ) : (
+          <button
+            onClick={(e) => { e.stopPropagation(); openQuickSet(crew.id, step.key); }}
+            className={cn(
+              "text-[10px] transition-all",
+              isNext 
+                ? "text-blue-400/70 hover:text-blue-400 font-medium" 
+                : "text-slate-700 group-hover:text-slate-500"
+            )}
+          >
+            + Set
+          </button>
+        )}
+      </div>
+    </div>
+  );
+})}
+
+B) Connector çizgileri — adımlar arası:
+Tamamlanmış adımlar arası: solid yeşil çizgi (bg-emerald-500/40 h-0.5)
+Bekleyen adımlar arası: dashed gri çizgi (border-t-2 border-dashed border-slate-600/40)
+
+C) Quick Set Popover — "+ Set" tıklanınca küçük inline form:
+Ayrı bir modal açmak yerine, tıklanan adımın altında küçük bir popover açılsın:
+
+{showQuickSet === `${crew.id}-flight` && (
+  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-20 w-52 rounded-lg border border-slate-700 bg-slate-900 shadow-xl p-3">
+    <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Set Flight</div>
+    <Input placeholder="Flight code" className="h-7 text-xs mb-2" value={qsFlightCode} onChange={...} />
+    <Input type="datetime-local" className="h-7 text-xs mb-2" value={qsFlightEta} onChange={...} />
+    <div className="flex justify-end gap-1.5">
+      <Button variant="ghost" size="sm" className="text-[10px] h-6" onClick={() => setShowQuickSet(null)}>Cancel</Button>
+      <Button size="sm" className="text-[10px] h-6" onClick={() => saveQuickSet(crew.id, "flight")}>Save</Button>
+    </div>
+  </div>
+)}
+
+## 2. EDIT CREW MODAL — Master-Detail Split Layout
+
+Mevcut tek sütun scroll formu (ekran 2-3) tamamen yeniden yapılandır:
+
+Modal'ı max-w-4xl genişliğinde, ikiye bölünmüş (split layout) yap:
+
+<DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden max-h-[85vh]">
+  <div className="flex h-[75vh]">
+    {/* SOL SÜTUN — Özet + Nav (280px) */}
+    <div className="w-[280px] shrink-0 border-r border-slate-700/50 bg-slate-900/80 flex flex-col">
+      
+      {/* Personel Özet */}
+      <div className="p-5 border-b border-slate-700/30">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center text-xl font-bold text-blue-400">
+            {crew.firstName?.[0]}{crew.lastName?.[0]}
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-slate-200">{crew.lastName}, {crew.firstName}</h3>
+            <p className="text-xs text-slate-400">{crew.rank}</p>
+            <p className="text-[11px] text-slate-500">{getFlagEmoji(crew.nationality)} {crew.nationality}</p>
+          </div>
+        </div>
+        
+        {/* Kritik durum rozetleri */}
+        <div className="space-y-2">
+          {/* Uçuş */}
+          <div className={cn("flex items-center justify-between px-3 py-2 rounded-lg text-xs",
+            crew.flightCode ? "bg-blue-500/10 border border-blue-500/20" : "bg-slate-800/50 border border-slate-700/30"
+          )}>
+            <span className="flex items-center gap-1.5 text-slate-400"><Plane className="w-3.5 h-3.5" /> Flight</span>
+            <span className={crew.flightCode ? "text-blue-300 font-medium" : "text-slate-600"}>
+              {crew.flightCode ? `${crew.flightCode} · ${crew.flightEta || "—"}` : "Not set"}
+            </span>
+          </div>
+          
+          {/* Vize */}
+          <div className={cn("flex items-center justify-between px-3 py-2 rounded-lg text-xs",
+            crew.visaStatus === "ok" ? "bg-emerald-500/10 border border-emerald-500/20" :
+            crew.visaRequired ? "bg-red-500/10 border border-red-500/20" : "bg-slate-800/50 border border-slate-700/30"
+          )}>
+            <span className="flex items-center gap-1.5 text-slate-400"><Shield className="w-3.5 h-3.5" /> Visa</span>
+            <span className={cn("font-medium",
+              crew.visaStatus === "ok" ? "text-emerald-300" : crew.visaRequired ? "text-red-300" : "text-slate-600"
+            )}>
+              {crew.visaStatus === "ok" ? "✓ OK" : crew.visaRequired ? "⚠ Required" : "N/A"}
+            </span>
+          </div>
+          
+          {/* Otel — akıllı hesaplama */}
+          <div className={cn("flex items-center justify-between px-3 py-2 rounded-lg text-xs",
+            hotelNeeded ? "bg-amber-500/10 border border-amber-500/20" : "bg-slate-800/50 border border-slate-700/30"
+          )}>
+            <span className="flex items-center gap-1.5 text-slate-400"><Building className="w-3.5 h-3.5" /> Hotel</span>
+            <span className={hotelNeeded ? "text-amber-300 font-medium" : "text-slate-600"}>
+              {hotelNeeded ? (crew.hotelBooked ? "✓ Booked" : "⚠ Needed") : "Not needed"}
+            </span>
+          </div>
+          
+          {/* OKTB Status */}
+          <div className={cn("flex items-center justify-between px-3 py-2 rounded-lg text-xs",
+            crew.oktbStatus === "cleared" ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-slate-800/50 border border-slate-700/30"
+          )}>
+            <span className="flex items-center gap-1.5 text-slate-400"><FileCheck className="w-3.5 h-3.5" /> OKTB</span>
+            <span className={crew.oktbStatus === "cleared" ? "text-emerald-300 font-medium" : "text-slate-600"}>
+              {crew.oktbStatus === "cleared" ? "✓ Cleared" : "Pending"}
+            </span>
+          </div>
+        </div>
+        
+        {/* Akıllı uyarılar */}
+        {hotelNeeded && !crew.hotelBooked && (
+          <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-400">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            <span>Flight arrives {hoursBefore}h before vessel ETA. Hotel needed.</span>
+          </div>
+        )}
+        
+        {crew.flightDelayed && (
+          <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-[11px] text-red-400">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            <span>Flight delayed! Review transfer schedule.</span>
+          </div>
+        )}
+      </div>
+      
+      {/* Sekme navigasyonu */}
+      <div className="flex-1 py-2">
+        {[
+          { key: "identity", label: "Identity & Passport", icon: UserCircle, alert: !crew.passportNumber },
+          { key: "travel", label: "Travel & Logistics", icon: Plane, alert: crew.flightDelayed },
+          { key: "clearance", label: "Visa & Clearance", icon: ShieldCheck, alert: crew.visaRequired && crew.visaStatus !== "ok" },
+          { key: "accommodation", label: "Accommodation", icon: Building, alert: hotelNeeded && !crew.hotelBooked },
+          { key: "documents", label: "Document Vault", icon: FolderOpen, alert: false },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={cn(
+              "w-full flex items-center gap-3 px-5 py-2.5 text-left transition-all relative",
+              activeTab === tab.key
+                ? "bg-blue-500/10 text-blue-400 border-r-2 border-blue-500"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/30"
+            )}
+          >
+            <tab.icon className="w-4 h-4 shrink-0" />
+            <span className="text-sm truncate">{tab.label}</span>
+            {tab.alert && (
+              <div className="absolute right-4 w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+    
+    {/* SAĞ SÜTUN — Dinamik Form (flex-1) */}
+    <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 overflow-y-auto p-6">
+        
+        {/* IDENTITY TAB */}
+        {activeTab === "identity" && (
+          <div className="space-y-6">
+            <h3 className="text-sm font-semibold text-slate-200">Personal Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="First Name" value={form.firstName} onChange={...} />
+              <FormField label="Last Name" value={form.lastName} onChange={...} />
+              <FormField label="Rank / Position" value={form.rank} type="select" options={rankOptions} />
+              <FormField label="Nationality (ISO-3)" value={form.nationality} />
+              <FormField label="Date of Birth" value={form.dob} type="date" />
+              <FormField label="Birth Place" value={form.birthPlace} />
+            </div>
+            
+            <div className="border-t border-slate-700/30 pt-6">
+              <h3 className="text-sm font-semibold text-slate-200">Passport & Seaman's Book</h3>
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <FormField label="Passport Number" value={form.passportNo} />
+                <FormField label="Passport Expiry" value={form.passportExpiry} type="date" />
+                <FormField label="Seaman's Book No" value={form.seamansBook} />
+                <FormField label="CDC Number" value={form.cdcNumber} />
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* TRAVEL TAB */}
+        {activeTab === "travel" && (
+          <div className="space-y-6">
+            <h3 className="text-sm font-semibold text-slate-200">Flight Details</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Flight Number" value={form.flightCode} placeholder="TK2320" />
+              <FormField label="Flight ETA" value={form.flightEta} type="datetime-local" />
+              <FormField label="Departure Airport" value={form.departureAirport} placeholder="IST" />
+              <FormField label="Arrival Airport" value={form.arrivalAirport} placeholder="ADB" />
+            </div>
+            
+            {/* Flight Delayed Toggle */}
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-red-500/5 border border-red-500/10">
+              <Switch checked={form.flightDelayed} onCheckedChange={(v) => updateForm("flightDelayed", v)} />
+              <div>
+                <span className="text-sm text-red-300">Flight Delayed</span>
+                <p className="text-[11px] text-slate-500">Mark if flight has been delayed or cancelled</p>
+              </div>
+            </div>
+            
+            <div className="border-t border-slate-700/30 pt-6">
+              <h3 className="text-sm font-semibold text-slate-200">Transfer Timeline</h3>
+              <div className="space-y-3 mt-4">
+                {[
+                  { icon: "✈️", label: "Arrival Flight", field: "arrivalFlightTime" },
+                  { icon: "🚐", label: "Airport → Port", field: "transferTime" },
+                  { icon: "🚢", label: "Embark / Board Vessel", field: "embarkTime" },
+                ].map(step => (
+                  <div key={step.field} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
+                    <div className="flex items-center gap-2">
+                      <span>{step.icon}</span>
+                      <span className="text-sm text-slate-300">{step.label}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input type="datetime-local" value={form[step.field]} onChange={(e) => updateForm(step.field, e.target.value)} className="w-48 h-8 text-xs bg-slate-800/50 border-slate-700/50" />
+                      {form[step.field] && <Check className="w-4 h-4 text-emerald-400" />}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* CLEARANCE TAB */}
+        {activeTab === "clearance" && (
+          <div className="space-y-6">
+            <h3 className="text-sm font-semibold text-slate-200">Visa & Entry Clearance</h3>
+            
+            {/* Visa Toggle */}
+            <div className="flex rounded-lg border border-slate-700/50 overflow-hidden">
+              <button onClick={() => updateForm("visaRequired", false)} className={cn("flex-1 py-2.5 text-sm font-medium transition-colors", !form.visaRequired ? "bg-emerald-500/15 text-emerald-400" : "bg-slate-800/50 text-slate-500")}>
+                No Visa Needed
+              </button>
+              <button onClick={() => updateForm("visaRequired", true)} className={cn("flex-1 py-2.5 text-sm font-medium transition-colors border-l border-slate-700/50", form.visaRequired ? "bg-amber-500/15 text-amber-400" : "bg-slate-800/50 text-slate-500")}>
+                🛂 Visa Required
+              </button>
+            </div>
+            
+            {form.visaRequired && (
+              <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-amber-500/5 border border-amber-500/10">
+                <FormField label="e-Visa Status" value={form.eVisaStatus} type="select" options={[
+                  { value: "na", label: "N/A" },
+                  { value: "applied", label: "Applied" },
+                  { value: "approved", label: "✅ Approved" },
+                  { value: "denied", label: "❌ Denied" },
+                ]} />
+                <FormField label="e-Visa Number" value={form.eVisaNumber} />
+                <FormField label="Visa Expiry" value={form.visaExpiry} type="date" />
+                <FormField label="Visa Type" value={form.visaType} placeholder="Transit / Work" />
+              </div>
+            )}
+            
+            <div className="border-t border-slate-700/30 pt-6">
+              <h3 className="text-sm font-semibold text-slate-200">Port Clearance Status</h3>
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                {[
+                  { key: "oktb", label: "OKTB (Ok To Board)", icon: "✅" },
+                  { key: "shorePass", label: "Shore Pass", icon: "🏖" },
+                  { key: "customsClearance", label: "Customs Cleared", icon: "🛃" },
+                  { key: "healthClearance", label: "Health Clearance", icon: "🏥" },
+                ].map(item => (
+                  <div key={item.key} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
+                    <span className="text-sm text-slate-300">{item.icon} {item.label}</span>
+                    <Switch 
+                      checked={form[item.key]} 
+                      onCheckedChange={(v) => updateForm(item.key, v)}
+                      className="data-[state=checked]:bg-emerald-500"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* ACCOMMODATION TAB */}
+        {activeTab === "accommodation" && (
+          <div className="space-y-6">
+            <h3 className="text-sm font-semibold text-slate-200">Hotel & Accommodation</h3>
+            
+            {/* Akıllı uyarı */}
+            {hotelNeeded && (
+              <div className="flex items-center gap-2 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <div>
+                  <p className="text-sm text-amber-300 font-medium">Hotel accommodation recommended</p>
+                  <p className="text-xs text-amber-400/70">Flight arrives {hoursBefore}h before vessel ETA. Crew needs a place to stay.</p>
+                </div>
+              </div>
+            )}
+            
+            {/* Hotel Toggle */}
+            <div className="flex rounded-lg border border-slate-700/50 overflow-hidden">
+              <button onClick={() => updateForm("hotelRequired", false)} className={cn("flex-1 py-2.5 text-sm font-medium transition-colors", !form.hotelRequired ? "bg-slate-800/80 text-slate-300" : "bg-slate-800/50 text-slate-500")}>
+                No Hotel
+              </button>
+              <button onClick={() => updateForm("hotelRequired", true)} className={cn("flex-1 py-2.5 text-sm font-medium transition-colors border-l border-slate-700/50", form.hotelRequired ? "bg-amber-500/15 text-amber-400" : "bg-slate-800/50 text-slate-500")}>
+                🏨 Hotel Required
+              </button>
+            </div>
+            
+            {form.hotelRequired && (
+              <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-slate-800/20 border border-slate-700/30">
+                <FormField label="Hotel Name" value={form.hotelName} placeholder="e.g. Hilton Izmir" />
+                <FormField label="Confirmation No" value={form.hotelConfirmation} />
+                <FormField label="Check-in" value={form.hotelCheckin} type="datetime-local" />
+                <FormField label="Check-out" value={form.hotelCheckout} type="datetime-local" />
+                <div className="col-span-2">
+                  <FormField label="Hotel Notes" value={form.hotelNotes} type="textarea" placeholder="Room preferences, special requests..." />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* DOCUMENTS TAB — Drag & Drop Vault */}
+        {activeTab === "documents" && (
+          <div className="space-y-6">
+            <h3 className="text-sm font-semibold text-slate-200">Document Vault</h3>
+            
+            {/* Mevcut dökümanlar */}
+            {documents.length > 0 && (
+              <div className="space-y-2">
+                {documents.map(doc => (
+                  <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg bg-slate-800/30 border border-slate-700/30 group hover:border-slate-600/50 transition-all">
+                    <FileText className="w-5 h-5 text-blue-400 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-slate-300 truncate block">{doc.name}</span>
+                      <span className="text-[10px] text-slate-600">{doc.type} · {formatDate(doc.uploadedAt)}</span>
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button className="w-7 h-7 rounded-md hover:bg-slate-700 flex items-center justify-center">
+                        <Download className="w-3.5 h-3.5 text-slate-400" />
+                      </button>
+                      <button className="w-7 h-7 rounded-md hover:bg-red-500/10 flex items-center justify-center">
+                        <Trash2 className="w-3.5 h-3.5 text-red-400/50" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Upload zones — her belge tipi için */}
+            <div className="grid grid-cols-2 gap-3">
+              {["Passport", "Seaman's Book", "Flight Ticket", "e-Visa", "Medical Certificate", "STCW Certs"].map(docType => (
+                <div
+                  key={docType}
+                  className="rounded-lg border-2 border-dashed border-slate-700/40 hover:border-blue-500/30 hover:bg-blue-500/5 transition-all cursor-pointer p-4 text-center"
+                  onClick={() => triggerUpload(docType)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => { e.preventDefault(); handleUpload(docType, e.dataTransfer.files); }}
+                >
+                  <Upload className="w-5 h-5 text-slate-600 mx-auto mb-1.5" />
+                  <p className="text-xs text-slate-400">{docType}</p>
+                  <p className="text-[9px] text-slate-600">Drop or click</p>
+                </div>
+              ))}
+            </div>
+            
+            <p className="text-[11px] text-slate-600 italic">Supported: PDF, JPG, PNG up to 10MB each</p>
+          </div>
+        )}
+      </div>
+      
+      {/* STICKY FOOTER */}
+      <div className="sticky bottom-0 border-t border-slate-700/30 bg-slate-900/90 backdrop-blur-xl px-6 py-3 flex items-center justify-between">
+        <div>
+          {hasChanges && (
+            <span className="text-[11px] text-amber-400 flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              Unsaved changes
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" className="text-xs h-8" onClick={onClose}>Cancel</Button>
+          <Button size="sm" disabled={!hasChanges || isSaving} className={cn("text-xs h-8 px-5", hasChanges ? "bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/20" : "bg-slate-800 text-slate-500")}>
+            {isSaving ? "Saving..." : "Save Changes"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  </div>
+</DialogContent>
+
+## 3. AKILLI OTEL HESAPLAMASI
+
+Form component'ında otomatik otel ihtiyacı hesapla:
+
+// Uçuş varış saati ile gemi ETA arasındaki fark
+const hotelNeeded = useMemo(() => {
+  if (!crew.flightEta || !voyage.eta) return false;
+  const flightArrival = new Date(crew.flightEta);
+  const vesselEta = new Date(voyage.eta);
+  const diffHours = (vesselEta.getTime() - flightArrival.getTime()) / 3600000;
+  return diffHours > 6; // 6 saatten fazla fark varsa otel gerekli
+}, [crew.flightEta, voyage.eta]);
+
+const hoursBefore = useMemo(() => {
+  if (!crew.flightEta || !voyage.eta) return 0;
+  return Math.round((new Date(voyage.eta).getTime() - new Date(crew.flightEta).getTime()) / 3600000);
+}, [crew.flightEta, voyage.eta]);
+
+## 4. HELPER — FormField Component
+
+Tekrarlayan form alanları için reusable component:
+
+function FormField({ label, value, onChange, type = "text", placeholder, options, ...props }) {
+  return (
+    <div>
+      <label className="text-xs text-slate-500 mb-1.5 block">{label}</label>
+      {type === "select" ? (
+        <Select value={value} onValueChange={onChange}>
+          <SelectTrigger className="bg-slate-800/50 border-slate-700/50 h-9 text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent>{options?.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+        </Select>
+      ) : type === "textarea" ? (
+        <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={3} className="w-full text-sm bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-slate-300 placeholder:text-slate-600 outline-none focus:ring-1 focus:ring-blue-500/20 resize-none" />
+      ) : (
+        <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="bg-slate-800/50 border-slate-700/50 h-9 text-sm" {...props} />
+      )}
+    </div>
+  );
+}
