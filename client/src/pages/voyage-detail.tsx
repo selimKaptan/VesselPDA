@@ -14,6 +14,7 @@ import {
   MessageSquare, Activity, CheckSquare, Send, Phone, Check,
   FileImage, Eye, Pencil,
   Truck, ShieldCheck, UserCircle, Building, Shield,
+  ClipboardPaste, Wand2,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
@@ -863,6 +864,64 @@ export default function VoyageDetail() {
   const [qsCode, setQsCode] = useState("");
   const [qsTime, setQsTime] = useState("");
   const [crewModalTab, setCrewModalTab] = useState("identity");
+  const [showPasteModal, setShowPasteModal] = useState(false);
+  const [pasteRawText, setPasteRawText] = useState("");
+  const [parsedCrew, setParsedCrew] = useState<any[]>([]);
+  const [isParsing, setIsParsing] = useState(false);
+  const [parseMethod, setParseMethod] = useState<"ai" | "local" | "">("");
+
+  const parseCrewData = async () => {
+    setIsParsing(true);
+    setParsedCrew([]);
+    try {
+      const r = await fetch("/api/v1/crew/parse-crew-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rawText: pasteRawText, portName: (voyageData as any)?.portName }),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        if (d.crew?.length > 0) {
+          setParsedCrew(d.crew);
+          setParseMethod(d.method === "ai" ? "ai" : "local");
+          setIsParsing(false);
+          return;
+        }
+      }
+    } catch {}
+    const { parseCrewText } = await import("@/lib/parse-crew-text");
+    setParsedCrew(parseCrewText(pasteRawText));
+    setParseMethod("local");
+    setIsParsing(false);
+  };
+
+  const handleAddAllParsed = async () => {
+    const onSigners = parsedCrew.filter((c) => c.signerType === "on_signer");
+    const offSigners = parsedCrew.filter((c) => c.signerType === "off_signer");
+    try {
+      if (onSigners.length > 0) {
+        await fetch(`/api/v1/voyages/${voyageId}/crew/bulk`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ crewMembers: onSigners, signerType: "on_signer" }),
+        });
+      }
+      if (offSigners.length > 0) {
+        await fetch(`/api/v1/voyages/${voyageId}/crew/bulk`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ crewMembers: offSigners, signerType: "off_signer" }),
+        });
+      }
+      toast({ title: "Başarılı", description: `${onSigners.length} on-signer + ${offSigners.length} off-signer eklendi` });
+      setShowPasteModal(false);
+      setPasteRawText("");
+      setParsedCrew([]);
+      queryClient.invalidateQueries({ queryKey: ["/api/v1/voyages", voyageId, "crew-logistics"] });
+    } catch (e: any) {
+      toast({ title: "Hata", description: e.message, variant: "destructive" });
+    }
+  };
 
   // ── Close Operation / Finance Handover ───────────────────────────────────
   const [showCloseOpModal, setShowCloseOpModal] = useState(false);
@@ -3736,13 +3795,22 @@ export default function VoyageDetail() {
                           <span className="text-[10px] text-slate-500 bg-emerald-900/30 border border-emerald-700/30 rounded-full px-2 py-0.5">
                             {crewSigners.filter(c => c.side === "on").length} joining
                           </span>
-                          <button
-                            className="ml-auto flex items-center gap-1 h-6 px-2 text-[10px] font-semibold rounded-md bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600/30 hover:border-blue-400/60 transition-colors"
-                            onClick={() => { setCrewPanelMode("add_on"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "on" }); setSlideFormTimeline(ON_TIMELINE_DEFAULT.map(s => ({ ...s }))); setEditingCrewId(null); setShowCrewPanel(true); }}
-                            data-testid="button-add-on-signer"
-                          >
-                            <Plus className="w-2.5 h-2.5" /> Add
-                          </button>
+                          <div className="ml-auto flex items-center gap-1.5">
+                            <button
+                              className="flex items-center gap-1 h-6 px-2 text-[10px] font-semibold rounded-md bg-purple-600/20 border border-purple-500/40 text-purple-400 hover:bg-purple-600/30 hover:border-purple-400/60 transition-colors"
+                              onClick={() => setShowPasteModal(true)}
+                              data-testid="button-paste-crew"
+                            >
+                              <ClipboardPaste className="w-2.5 h-2.5" /> Paste
+                            </button>
+                            <button
+                              className="flex items-center gap-1 h-6 px-2 text-[10px] font-semibold rounded-md bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600/30 hover:border-blue-400/60 transition-colors"
+                              onClick={() => { setCrewPanelMode("add_on"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "on" }); setSlideFormTimeline(ON_TIMELINE_DEFAULT.map(s => ({ ...s }))); setEditingCrewId(null); setShowCrewPanel(true); }}
+                              data-testid="button-add-on-signer"
+                            >
+                              <Plus className="w-2.5 h-2.5" /> Add
+                            </button>
+                          </div>
                         </div>
                         {crewSigners.filter(c => c.side === "on").filter(applyCrewFilter).map(crew => renderCrewCard(crew, "emerald"))}
                         {crewSigners.filter(c => c.side === "on").length === 0 && (
@@ -3765,13 +3833,22 @@ export default function VoyageDetail() {
                           <span className="text-[10px] text-slate-500 bg-rose-900/30 border border-rose-700/30 rounded-full px-2 py-0.5">
                             {crewSigners.filter(c => c.side === "off").length} departing
                           </span>
-                          <button
-                            className="ml-auto flex items-center gap-1 h-6 px-2 text-[10px] font-semibold rounded-md bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600/30 hover:border-blue-400/60 transition-colors"
-                            onClick={() => { setCrewPanelMode("add_off"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "off" }); setSlideFormTimeline(OFF_TIMELINE_DEFAULT.map(s => ({ ...s }))); setEditingCrewId(null); setShowCrewPanel(true); }}
-                            data-testid="button-add-off-signer"
-                          >
-                            <Plus className="w-2.5 h-2.5" /> Add
-                          </button>
+                          <div className="ml-auto flex items-center gap-1.5">
+                            <button
+                              className="flex items-center gap-1 h-6 px-2 text-[10px] font-semibold rounded-md bg-purple-600/20 border border-purple-500/40 text-purple-400 hover:bg-purple-600/30 hover:border-purple-400/60 transition-colors"
+                              onClick={() => setShowPasteModal(true)}
+                              data-testid="button-paste-crew-off"
+                            >
+                              <ClipboardPaste className="w-2.5 h-2.5" /> Paste
+                            </button>
+                            <button
+                              className="flex items-center gap-1 h-6 px-2 text-[10px] font-semibold rounded-md bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600/30 hover:border-blue-400/60 transition-colors"
+                              onClick={() => { setCrewPanelMode("add_off"); setCrewSlideForm({ ...EMPTY_CREW_SLIDE_FORM, side: "off" }); setSlideFormTimeline(OFF_TIMELINE_DEFAULT.map(s => ({ ...s }))); setEditingCrewId(null); setShowCrewPanel(true); }}
+                              data-testid="button-add-off-signer"
+                            >
+                              <Plus className="w-2.5 h-2.5" /> Add
+                            </button>
+                          </div>
                         </div>
                         {crewSigners.filter(c => c.side === "off").filter(applyCrewFilter).map(crew => renderCrewCard(crew, "rose"))}
                         {crewSigners.filter(c => c.side === "off").length === 0 && (
@@ -3792,6 +3869,217 @@ export default function VoyageDetail() {
                   );
                 })()}
               </div>
+
+              {/* ── Smart Paste Crew Data Modal ── */}
+              <Dialog open={showPasteModal} onOpenChange={(v) => { setShowPasteModal(v); if (!v) { setPasteRawText(""); setParsedCrew([]); setParseMethod(""); } }}>
+                <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden max-h-[85vh]">
+                  <div className="flex flex-col h-[75vh]">
+                    <div className="px-5 py-4 border-b border-slate-700/30 shrink-0">
+                      <DialogTitle className="text-base font-semibold flex items-center gap-2">
+                        <ClipboardPaste className="w-5 h-5 text-blue-400" />
+                        Smart Paste — Auto-Fill Crew Data
+                      </DialogTitle>
+                      <p className="text-xs text-muted-foreground mt-1">Armatörden gelen her formattaki metni yapıştırın. AI isim, rütbe, pasaport ve uçuş bilgilerini otomatik tanır.</p>
+                    </div>
+
+                    <div className="flex flex-1 min-h-0">
+                      {/* LEFT: Raw text input */}
+                      <div className="w-1/2 border-r border-slate-700/30 flex flex-col">
+                        <div className="px-4 py-2 border-b border-slate-700/20 flex items-center justify-between shrink-0">
+                          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ham Veri</span>
+                          <div className="flex gap-1.5">
+                            <button className="text-[10px] h-6 px-2 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-700/40 transition-colors" onClick={() => setPasteRawText("")}>Temizle</button>
+                            <button className="text-[10px] h-6 px-2 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-700/40 transition-colors flex items-center gap-1" onClick={async () => { try { const t = await navigator.clipboard.readText(); setPasteRawText(t); } catch {} }}>
+                              <ClipboardPaste className="w-3 h-3" /> Yapıştır
+                            </button>
+                          </div>
+                        </div>
+                        <textarea
+                          value={pasteRawText}
+                          onChange={(e) => setPasteRawText(e.target.value)}
+                          placeholder={"Crew email'ini buraya yapıştırın...\n\nDesteklenen formatlar:\n• Standard (Rank : ... / Full Name : ...)\n• Tablo (Name | Rank | Passport)\n• PDF copy-paste\n• Herhangi bir dil"}
+                          className="flex-1 w-full resize-none bg-transparent text-[11px] text-slate-300 placeholder:text-slate-700 px-4 py-3 outline-none font-mono leading-relaxed"
+                          data-testid="textarea-paste-crew"
+                        />
+                        {pasteRawText.length > 20 && (
+                          <div className="px-4 py-2 border-t border-slate-700/20 shrink-0">
+                            <button
+                              className="w-full h-8 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+                              onClick={parseCrewData}
+                              disabled={isParsing}
+                              data-testid="button-parse-crew"
+                            >
+                              {isParsing ? (
+                                <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Analiz ediliyor...</>
+                              ) : (
+                                <><Wand2 className="w-3.5 h-3.5" /> AI ile Parse Et</>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* RIGHT: Parsed results */}
+                      <div className="w-1/2 flex flex-col">
+                        <div className="px-4 py-2 border-b border-slate-700/20 flex items-center justify-between shrink-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-slate-500">Tespit Edilen: {parsedCrew.length} kişi</span>
+                            {parseMethod && (
+                              <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full", parseMethod === "ai" ? "bg-purple-500/15 text-purple-400" : "bg-slate-700 text-slate-400")}>
+                                {parseMethod === "ai" ? "✨ AI" : "📐 Regex"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto">
+                          {isParsing && (
+                            <div className="flex flex-col items-center py-12">
+                              <div className="w-10 h-10 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mb-3" />
+                              <p className="text-xs text-slate-400">AI mürettebat verisini analiz ediyor...</p>
+                              <p className="text-[10px] text-slate-600 mt-1">İsimler, rütbeler, pasaportlar, uçuşlar tespit ediliyor</p>
+                            </div>
+                          )}
+
+                          {!isParsing && parsedCrew.length === 0 && pasteRawText.length <= 20 && (
+                            <div className="flex flex-col items-center py-12">
+                              <ClipboardPaste className="w-10 h-10 text-slate-700 mb-2" />
+                              <p className="text-sm text-slate-500">Sol taraftan crew verisi yapıştırın</p>
+                              <p className="text-xs text-slate-600 mt-1">Ardından "AI ile Parse Et" butonuna tıklayın</p>
+                            </div>
+                          )}
+
+                          {parsedCrew.filter((c) => c.signerType === "on_signer").length > 0 && (
+                            <div>
+                              <div className="px-3 py-1.5 bg-emerald-500/5 border-b border-emerald-500/10 sticky top-0 z-10">
+                                <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">
+                                  🟢 On-Signers ({parsedCrew.filter((c) => c.signerType === "on_signer").length})
+                                </span>
+                              </div>
+                              {parsedCrew.filter((c) => c.signerType === "on_signer").map((crew, i) => (
+                                <div key={`on-${i}`} className="px-3 py-2.5 border-b border-slate-700/20 hover:bg-slate-800/30 transition-colors">
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center text-[10px] font-bold text-emerald-400">
+                                        {crew.firstName?.[0]}{crew.lastName?.[0]}
+                                      </div>
+                                      <div>
+                                        <span className="text-sm font-semibold text-slate-200">{crew.lastName}, {crew.firstName}</span>
+                                        <span className="text-xs text-slate-400 ml-2">{crew.rank}</span>
+                                      </div>
+                                    </div>
+                                    <button onClick={() => setParsedCrew((prev) => prev.filter((_, idx) => idx !== parsedCrew.indexOf(crew)))} className="text-slate-600 hover:text-red-400">
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px] ml-9">
+                                    <div className="flex justify-between"><span className="text-slate-500">Uyruk</span><span className="text-slate-300">{crew.nationality || "—"}</span></div>
+                                    <div className="flex justify-between"><span className="text-slate-500">Pasaport</span><span className="text-slate-300">{crew.passportNo || "—"}</span></div>
+                                    <div className="flex justify-between"><span className="text-slate-500">D.O.B</span><span className="text-slate-300">{crew.dob || "—"}</span></div>
+                                    <div className="flex justify-between"><span className="text-slate-500">Gemici Cüzd.</span><span className="text-slate-300">{crew.seamansBookNo || "—"}</span></div>
+                                  </div>
+                                  {crew.flights?.length > 0 && (
+                                    <div className="ml-9 mt-1.5 flex flex-wrap gap-1">
+                                      {crew.flights.map((f: any, fi: number) => (
+                                        <span key={fi} className="text-[9px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded">
+                                          ✈ {f.flightNo} {f.fromAirport}→{f.toAirport} {f.depTime}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {crew.warnings?.length > 0 && (
+                                    <div className="ml-9 mt-1 flex flex-wrap gap-1">
+                                      {crew.warnings.map((w: string, wi: number) => (
+                                        <span key={wi} className="text-[9px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">{w}</span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {parsedCrew.filter((c) => c.signerType === "off_signer").length > 0 && (
+                            <div>
+                              <div className="px-3 py-1.5 bg-red-500/5 border-b border-red-500/10 sticky top-0 z-10">
+                                <span className="text-[10px] font-semibold text-red-400 uppercase tracking-wider">
+                                  🔴 Off-Signers ({parsedCrew.filter((c) => c.signerType === "off_signer").length})
+                                </span>
+                              </div>
+                              {parsedCrew.filter((c) => c.signerType === "off_signer").map((crew, i) => (
+                                <div key={`off-${i}`} className="px-3 py-2.5 border-b border-slate-700/20 hover:bg-slate-800/30 transition-colors">
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-7 h-7 rounded-lg bg-red-500/15 flex items-center justify-center text-[10px] font-bold text-red-400">
+                                        {crew.firstName?.[0]}{crew.lastName?.[0]}
+                                      </div>
+                                      <div>
+                                        <span className="text-sm font-semibold text-slate-200">{crew.lastName}, {crew.firstName}</span>
+                                        <span className="text-xs text-slate-400 ml-2">{crew.rank}</span>
+                                      </div>
+                                    </div>
+                                    <button onClick={() => setParsedCrew((prev) => prev.filter((_, idx) => idx !== parsedCrew.indexOf(crew)))} className="text-slate-600 hover:text-red-400">
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px] ml-9">
+                                    <div className="flex justify-between"><span className="text-slate-500">Uyruk</span><span className="text-slate-300">{crew.nationality || "—"}</span></div>
+                                    <div className="flex justify-between"><span className="text-slate-500">Pasaport</span><span className="text-slate-300">{crew.passportNo || "—"}</span></div>
+                                    <div className="flex justify-between"><span className="text-slate-500">D.O.B</span><span className="text-slate-300">{crew.dob || "—"}</span></div>
+                                    <div className="flex justify-between"><span className="text-slate-500">Gemici Cüzd.</span><span className="text-slate-300">{crew.seamansBookNo || "—"}</span></div>
+                                  </div>
+                                  {crew.flights?.length > 0 && (
+                                    <div className="ml-9 mt-1.5 flex flex-wrap gap-1">
+                                      {crew.flights.map((f: any, fi: number) => (
+                                        <span key={fi} className="text-[9px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded">
+                                          ✈ {f.flightNo} {f.fromAirport}→{f.toAirport} {f.depTime}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {crew.warnings?.length > 0 && (
+                                    <div className="ml-9 mt-1 flex flex-wrap gap-1">
+                                      {crew.warnings.map((w: string, wi: number) => (
+                                        <span key={wi} className="text-[9px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">{w}</span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-700/30 px-5 py-3 flex items-center justify-between shrink-0">
+                      <div className="flex items-center gap-3 text-[10px] text-slate-500">
+                        {parsedCrew.length > 0 && (
+                          <>
+                            <span>👥 {parsedCrew.length}</span>
+                            <span>🟢 {parsedCrew.filter((c) => c.signerType === "on_signer").length} on</span>
+                            <span>🔴 {parsedCrew.filter((c) => c.signerType === "off_signer").length} off</span>
+                            <span>✈️ {parsedCrew.reduce((s, c) => s + (c.flights?.length || 0), 0)} uçuş</span>
+                            <span>🌍 {[...new Set(parsedCrew.map((c) => c.nationality).filter(Boolean))].join(", ")}</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button className="h-8 px-3 text-xs rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-700/40 transition-colors" onClick={() => { setShowPasteModal(false); setPasteRawText(""); setParsedCrew([]); setParseMethod(""); }}>İptal</button>
+                        <button
+                          className="h-8 px-4 text-xs rounded-lg font-semibold bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-1.5 transition-colors disabled:opacity-40"
+                          onClick={handleAddAllParsed}
+                          disabled={parsedCrew.length === 0}
+                          data-testid="button-add-all-parsed"
+                        >
+                          <UserPlus className="w-3 h-3" />
+                          {parsedCrew.filter((c) => c.signerType === "on_signer").length} On + {parsedCrew.filter((c) => c.signerType === "off_signer").length} Off Ekle
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
 
               {/* RIGHT: Hotel Hub (Crew Change — always mounted, CSS width toggle for reliable DnD) */}
               {voyage.purposeOfCall === "Crew Change" && (

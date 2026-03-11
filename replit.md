@@ -45,6 +45,7 @@ The platform is built with a modern web stack, featuring a maritime-themed UI/UX
 -   **Provider Workflow**: Provider Invoice Review Workflow.
 -   **Multi-Currency**: Support for multiple currencies with live exchange rates and Port LOCODE Autocomplete.
 -   **Crew Change Document Generator**: Automated generation of 6 official Turkish maritime port documents, accessible from the Husbandry module and Voyage Detail page.
+-   **AI Crew Smart Paste**: "Paste & Auto-Fill" feature on the Crew Logistics Board. Paste any-format crew email/text; AI (Anthropic Claude) auto-parses names, ranks, passports, nationalities, and multi-leg flight info into on-signers/off-signers. Falls back to local regex parser if AI is unavailable. Bulk-adds parsed crew to voyage. New columns `flight_details` (jsonb) and `employee_no` added to `voyage_crew_logistics`. New endpoints: `POST /api/v1/crew/parse-crew-text` and `POST /api/v1/voyages/:id/crew/bulk`.
 
 **Backend Architecture Improvements:**
 -   **Validation Middleware**: Zod request body validation.

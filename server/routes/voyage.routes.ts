@@ -779,6 +779,50 @@ router.get("/:id/crew-logistics", isAuthenticated, async (req: any, res) => {
   }
 });
 
+router.post("/:id/crew/bulk", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.id);
+    const { crewMembers, signerType } = req.body;
+    if (!Array.isArray(crewMembers) || crewMembers.length === 0) {
+      return res.status(400).json({ message: "crewMembers must be a non-empty array" });
+    }
+    const newCrew = crewMembers.map((m: any, i: number) => ({
+      voyageId,
+      sortOrder: i,
+      name: `${m.firstName || ""} ${m.lastName || ""}`.trim() || m.fullName || "Unknown",
+      rank: m.rank || "",
+      side: (m.signerType || signerType) === "off_signer" ? "off" : "on",
+      nationality: m.nationality || "",
+      passportNo: m.passportNo || "",
+      flight: m.firstFlightCode || m.flights?.[0]?.flightNo || "",
+      flightEta: m.lastFlightArrival || m.flights?.[m.flights.length - 1]?.arrTime || "",
+      flightDelayed: false,
+      visaRequired: !!(m.nationality?.toLowerCase()?.includes("russian")),
+      eVisaStatus: "n/a",
+      okToBoard: "pending",
+      arrivalStatus: "pending",
+      timeline: [],
+      docs: {},
+      requiresHotel: false,
+      hotelName: "",
+      hotelCheckIn: "",
+      hotelCheckOut: "",
+      hotelStatus: "none",
+      hotelPickupTime: "",
+      dob: m.dob || "",
+      seamanBookNo: m.seamansBookNo || m.seamanBookNo || "",
+      birthPlace: m.birthPlace || "",
+      flightDetails: m.flights || [],
+      employeeNo: m.employeeNo || "",
+    }));
+    const saved = await storage.appendVoyageCrewLogistics(voyageId, newCrew);
+    res.status(201).json({ added: saved.length, crew: saved });
+  } catch (err: any) {
+    console.error("crew/bulk error:", err);
+    res.status(500).json({ message: "Failed to bulk add crew", error: err.message });
+  }
+});
+
 router.put("/:id/crew-logistics", isAuthenticated, async (req: any, res) => {
   try {
     const voyageId = parseInt(req.params.id);

@@ -548,6 +548,13 @@ async function saveVoyageCrewLogistics(voyageId: number, crew: InsertVoyageCrewL
   return db.insert(voyageCrewLogistics).values(rows).returning();
 }
 
+async function appendVoyageCrewLogistics(voyageId: number, newCrew: InsertVoyageCrewLogistic[]): Promise<VoyageCrewLogistic[]> {
+  if (newCrew.length === 0) return [];
+  const existing = await db.select().from(voyageCrewLogistics).where(eq(voyageCrewLogistics.voyageId, voyageId));
+  const rows = newCrew.map((c, i) => ({ ...c, voyageId, sortOrder: existing.length + i }));
+  return db.insert(voyageCrewLogistics).values(rows).returning();
+}
+
 async function getDocumentTemplates(): Promise<DocumentTemplate[]> {
   return db.select().from(documentTemplates).orderBy(asc(documentTemplates.category), asc(documentTemplates.name));
 }
@@ -688,6 +695,7 @@ export const voyageStorage = {
   deletePortCallAppointment,
   getVoyageCrewLogistics,
   saveVoyageCrewLogistics,
+  appendVoyageCrewLogistics,
   getDocumentTemplates,
   getNoonReports,
   createNoonReport,

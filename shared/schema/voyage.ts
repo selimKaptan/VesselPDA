@@ -278,6 +278,8 @@ export const voyageCrewLogistics = pgTable("voyage_crew_logistics", {
   dob: varchar("dob", { length: 20 }).default(""),
   seamanBookNo: varchar("seaman_book_no", { length: 50 }).default(""),
   birthPlace: varchar("birth_place", { length: 100 }).default(""),
+  flightDetails: jsonb("flight_details").$type<any[]>().default([]),
+  employeeNo: varchar("employee_no", { length: 50 }).default(""),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

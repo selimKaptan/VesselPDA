@@ -1,0 +1,479 @@
+Crew Logistics Board'a AI destekli "Paste & Auto-Fill" özelliği ekle. Armatörden gelen HER FORMATTA email/metin yapıştırılınca, sistem AI ile parse edip on-signer/off-signer olarak otomatik eklesin.
+
+## ADIM 1 — AI Parse Backend Endpoint
+
+server/routes/crew-parse.routes.ts dosyası oluştur:
+
+import { Router } from "express";
+import Anthropic from "@anthropic-ai/sdk";
+import { isAuthenticated } from "../replit_integrations/auth";
+
+const router = Router();
+
+router.post("/parse-crew-text", isAuthenticated, async (req: any, res) => {
+  try {
+    const { rawText, portName } = req.body;
+    if (!rawText || rawText.trim().length < 20) return res.status(400).json({ error: "Text too short" });
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return res.json({ method: "fallback", crew: [] });
+
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 4000,
+      messages: [{
+        role: "user",
+        content: `You are a maritime crew data parser. Parse the following text and extract ALL crew members. The text may be in ANY format — structured email, table, list, PDF copy-paste, tab-separated, Turkish, or messy formatting.
+
+For each crew member extract (use null if not found):
+- signerType: "on_signer" or "off_signer" (detect from "On-Signers"/"Joining"/"Sign On" = on_signer; "Off-Signers"/"Leaving"/"Sign Off" = off_signer)
+- rank: position on vessel
+- firstName: (Title Case)
+- lastName: (Title Case)
+- middleName: if any
+- dob: date of birth (DD Mon YYYY)
+- birthPlace
+- nationality
+- passportNo
+- passportIssued: issue date
+- passportExpiry: expiry date
+- passportPlace: issue place
+- seamansBookNo
+- seamansBookIssued
+- seamansBookExpiry
+- seamansBookPlace
+- employeeNo
+- flights: array of { legNo, flightNo, date, fromAirport (3-letter IATA), toAirport (3-letter IATA), depTime (HH:MM), arrTime (HH:MM) }
+
+Rules:
+- Names often "LASTNAME, FIRSTNAME MIDDLENAME" — split correctly
+- Flight routes "GDNMUC" = GDN→MUC, "ADBIST" = ADB→IST (first 3 = from, last 3 = to)
+- "Planned Rank" and "Rank" both mean rank
+- Detect crew even with inconsistent formatting
+- Current port: ${portName || "unknown"}
+
+Respond ONLY with a raw JSON array. No markdown, no backticks, no explanation.
+
+TEXT:
+${rawText}`
+      }]
+    });
+
+    const textContent = response.content.find((c: any) => c.type === "text");
+    if (!textContent) return res.json({ method: "fallback", crew: [] });
+
+    let jsonStr = (textContent as any).text.trim().replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch {
+      const s = jsonStr.indexOf("["), e = jsonStr.lastIndexOf("]");
+      if (s !== -1 && e !== -1) parsed = JSON.parse(jsonStr.substring(s, e + 1));
+      else return res.json({ method: "fallback", crew: [] });
+    }
+
+    if (!Array.isArray(parsed)) return res.json({ method: "fallback", crew: [] });
+
+    // Post-process: uyarılar ekle
+    const enriched = parsed.map((m: any) => {
+      const warnings: string[] = [];
+      if (m.passportExpiry) {
+        const exp = new Date(m.passportExpiry);
+        if (!isNaN(exp.getTime())) {
+          const ml = (exp.getTime() - Date.now()) / (30*24*3600000);
+          if (ml < 0) warnings.push("⛔ Passport EXPIRED!");
+          else if (ml < 6) warnings.push(`⚠️ Passport expires in ${Math.round(ml)} months`);
+        }
+      }
+      if (m.seamansBookExpiry) {
+        const exp = new Date(m.seamansBookExpiry);
+        if (!isNaN(exp.getTime())) {
+          const ml = (exp.getTime() - Date.now()) / (30*24*3600000);
+          if (ml < 0) warnings.push("⛔ Seaman's Book EXPIRED!");
+          else if (ml < 6) warnings.push(`⚠️ Seaman's Book expires in ${Math.round(ml)} months`);
+        }
+      }
+      if (!m.flights?.length) warnings.push("✈️ No flight info");
+      if (!m.passportNo) warnings.push("⚠️ Passport missing");
+      if (m.nationality?.toLowerCase()?.includes("russian")) warnings.push("🛂 Russian — verify visa");
+      const last = m.flights?.[m.flights.length-1];
+      return { ...m, signerType: m.signerType||"on_signer", firstName: m.firstName||"", lastName: m.lastName||"",
+        fullName: `${m.lastName||""}, ${m.firstName||""} ${m.middleName||""}`.trim(),
+        firstFlightCode: m.flights?.[0]?.flightNo||"", lastFlightArrival: last?.arrTime||"", lastArrivalAirport: last?.toAirport||"", warnings };
+    });
+    res.json({ method: "ai", crew: enriched });
+  } catch (err: any) {
+    console.error("[crew-parse] Error:", err.message);
+    res.json({ method: "fallback", crew: [], error: err.message });
+  }
+});
+
+export default router;
+
+server/routes.ts'e kaydet:
+import crewParseRoutes from "./routes/crew-parse.routes";
+app.use("/api/v1/crew", crewParseRoutes);
+
+## ADIM 2 — Local Regex Fallback Parser
+
+client/src/lib/parse-crew-text.ts dosyası oluştur:
+
+const AIRPORTS: Record<string,string> = {ADB:"Izmir",IST:"Istanbul",SAW:"Istanbul SAW",GDN:"Gdansk",WAW:"Warsaw",RZE:"Rzeszow",SZZ:"Szczecin",KTW:"Katowice",MUC:"Munich",FRA:"Frankfurt",BER:"Berlin",LED:"St Petersburg",SVO:"Moscow",AER:"Sochi",LHR:"London",CDG:"Paris",AMS:"Amsterdam",DXB:"Dubai",DOH:"Doha",SIN:"Singapore",BKK:"Bangkok",MNL:"Manila",HKG:"Hong Kong"};
+function toTitle(s:string){return s?s.toLowerCase().replace(/(?:^|\s)\S/g,a=>a.toUpperCase()):""}
+
+export interface ParsedFlight{legNo:number;flightNo:string;date:string;fromAirport:string;toAirport:string;route:string;depTime:string;arrTime:string}
+export interface ParsedCrew{signerType:"on_signer"|"off_signer";rank:string;firstName:string;lastName:string;middleName:string;fullName:string;dob:string;birthPlace:string;nationality:string;passportNo:string;passportIssued:string;passportExpiry:string;passportPlace:string;seamansBookNo:string;seamansBookIssued:string;seamansBookExpiry:string;seamansBookPlace:string;employeeNo:string;flights:ParsedFlight[];firstFlightCode:string;lastFlightArrival:string;lastArrivalAirport:string;warnings:string[]}
+
+export function parseCrewText(raw:string):ParsedCrew[]{
+  const crew:ParsedCrew[]=[];
+  let signerType:"on_signer"|"off_signer"="on_signer";
+  const lines=raw.split("\n");
+  const blocks:{text:string;st:"on_signer"|"off_signer"}[]=[];
+  let cur="";
+  for(const l of lines){
+    if(/on[- ]?signers?\s*(details|info)?/i.test(l)){signerType="on_signer";continue}
+    if(/off[- ]?signers?\s*(details|info)?/i.test(l)){signerType="off_signer";continue}
+    if(/^(Planned\s+)?Rank\s*:/i.test(l.trim())&&cur.trim().length>10){blocks.push({text:cur,st:signerType});cur=l+"\n"}
+    else cur+=l+"\n";
+  }
+  if(cur.trim().length>10)blocks.push({text:cur,st:signerType});
+
+  for(const b of blocks.filter(x=>/rank\s*:/i.test(x.text))){
+    const t=b.text;
+    const m:ParsedCrew={signerType:b.st,rank:"",firstName:"",lastName:"",middleName:"",fullName:"",dob:"",birthPlace:"",nationality:"",passportNo:"",passportIssued:"",passportExpiry:"",passportPlace:"",seamansBookNo:"",seamansBookIssued:"",seamansBookExpiry:"",seamansBookPlace:"",employeeNo:"",flights:[],firstFlightCode:"",lastFlightArrival:"",lastArrivalAirport:"",warnings:[]};
+
+    const rm=t.match(/(?:Planned\s+)?Rank\s*:\s*(.+?)(?:\n|$)/i);if(rm)m.rank=rm[1].trim();
+    const nm=t.match(/Full\s*Name\s*:\s*(.+?)(?:\n|$)/i);
+    if(nm){m.fullName=nm[1].trim();const p=m.fullName.split(",").map(s=>s.trim());if(p.length>=2){m.lastName=toTitle(p[0]);const fp=p[1].split(/\s+/);m.firstName=toTitle(fp[0]);m.middleName=fp.slice(1).map(toTitle).join(" ")}else{const w=m.fullName.split(/\s+/);m.lastName=toTitle(w[0]);m.firstName=toTitle(w.slice(1).join(" "))}}
+    const dm=t.match(/DOB\s*(?:&|and)?\s*Place\s*:\s*(.+?)(?:\n|$)/i);if(dm){const dp=dm[1].split(/\s*-\s*/);m.dob=dp[0]?.trim()||"";m.birthPlace=toTitle(dp.slice(1).join(", "))}
+    const ntm=t.match(/Nationality\s*:\s*(.+?)(?:\n|$)/i);if(ntm)m.nationality=ntm[1].trim();
+    const pnm=t.match(/Passport\s*No\.?\s*:\s*(\S+)/i);if(pnm)m.passportNo=pnm[1].trim();
+    const pdm=t.match(/Passport\s*Issued\s*-\s*Valid\s*Until\s*-\s*Place\.?\s*:\s*(.+?)(?:\n|$)/i);
+    if(pdm){const p=pdm[1].split(/\s*-\s*/);m.passportIssued=p[0]?.trim()||"";m.passportExpiry=p[1]?.trim()||"";m.passportPlace=toTitle(p.slice(2).join(", "))}
+    const sbm=t.match(/Seaman\s*Book\s*No\.?\s*:\s*(.+?)(?:\n|$)/i);if(sbm)m.seamansBookNo=sbm[1].trim().replace(/\s+/g,"");
+    const sdm=t.match(/Seaman\s*Book\s*Issued\s*-\s*Valid\s*Until\s*-\s*Place\s*:\s*(.+?)(?:\n|$)/i);
+    if(sdm){const p=sdm[1].split(/\s*-\s*/);m.seamansBookIssued=p[0]?.trim()||"";m.seamansBookExpiry=p[1]?.trim()||"";m.seamansBookPlace=toTitle(p.slice(2).join(", "))}
+    const em=t.match(/Employee\s*No\.?\s*:\s*(\S+)/i);if(em)m.employeeNo=em[1].trim();
+
+    const fls=t.split("\n").filter(l=>/^\s*\d+\.\s/.test(l));
+    for(const fl of fls){const fm=fl.match(/(\d+)\.\s*(\S+)\s+(\d{2}[A-Z]{3})\s+(\w{6,7})\s+(\S+)\s+(\d{2}:\d{2})\s+(\d{2}:\d{2})/i);
+      if(fm){const from=fm[4].substring(0,3).toUpperCase(),to=fm[4].substring(3,6).toUpperCase();
+        m.flights.push({legNo:+fm[1],flightNo:fm[2],date:fm[3],fromAirport:from,toAirport:to,route:`${from} (${AIRPORTS[from]||from}) → ${to} (${AIRPORTS[to]||to})`,depTime:fm[6],arrTime:fm[7]})}}
+
+    if(m.flights.length>0){m.firstFlightCode=m.flights[0].flightNo;const lf=m.flights[m.flights.length-1];m.lastFlightArrival=lf.arrTime;m.lastArrivalAirport=lf.toAirport}
+    if(!m.passportNo)m.warnings.push("⚠️ Passport missing");
+    if(!m.flights.length)m.warnings.push("✈️ No flights detected");
+    if(m.nationality?.toLowerCase()==="russian")m.warnings.push("🛂 Russian — check visa");
+    if(m.passportExpiry){const d=new Date(m.passportExpiry);if(!isNaN(d.getTime())){const ml=(d.getTime()-Date.now())/(30*24*3600000);if(ml<0)m.warnings.push("⛔ Passport EXPIRED!");else if(ml<6)m.warnings.push(`⚠️ Passport expires in ${Math.round(ml)}m`)}}
+    if(m.rank||m.fullName)crew.push(m);
+  }
+  return crew;
+}
+
+export function getParseStats(crew:ParsedCrew[]){return{total:crew.length,onSigners:crew.filter(c=>c.signerType==="on_signer").length,offSigners:crew.filter(c=>c.signerType==="off_signer").length,withWarnings:crew.filter(c=>c.warnings.length>0).length,nationalities:[...new Set(crew.map(c=>c.nationality).filter(Boolean))],totalFlightLegs:crew.reduce((s,c)=>s+c.flights.length,0),expiredPassports:crew.filter(c=>c.warnings.some(w=>w.includes("EXPIRED"))).length,expiringPassports:crew.filter(c=>c.warnings.some(w=>w.includes("expires"))).length}}
+
+## ADIM 3 — Paste Modal + AI/Fallback Parse
+
+Crew Logistics Board sayfasında ON-SIGNERS ve OFF-SIGNERS başlıklarının yanındaki "+ Add" butonlarının yanına ekle:
+<Button variant="outline" size="sm" className="text-xs h-7 gap-1.5" onClick={() => setShowPasteModal(true)}>
+  <ClipboardPaste className="w-3 h-3" /> Paste Crew Data
+</Button>
+
+Modal component:
+
+const [showPasteModal, setShowPasteModal] = useState(false);
+const [rawText, setRawText] = useState("");
+const [parsedCrew, setParsedCrew] = useState<any[]>([]);
+const [isParsing, setIsParsing] = useState(false);
+const [parseMethod, setParseMethod] = useState<"ai"|"local"|"">("");
+
+async function parseCrewData() {
+  setIsParsing(true); setParsedCrew([]);
+  try {
+    const r = await fetch("/api/v1/crew/parse-crew-text", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ rawText, portName: voyage?.portName }),
+    });
+    if (r.ok) {
+      const d = await r.json();
+      if (d.crew?.length > 0) { setParsedCrew(d.crew); setParseMethod(d.method); setIsParsing(false); return; }
+    }
+  } catch {}
+  // Fallback
+  const { parseCrewText } = await import("@/lib/parse-crew-text");
+  setParsedCrew(parseCrewText(rawText)); setParseMethod("local"); setIsParsing(false);
+}
+
+async function handleAddAllParsed() {
+  const onSigners = parsedCrew.filter(c => c.signerType === "on_signer");
+  const offSigners = parsedCrew.filter(c => c.signerType === "off_signer");
+  try {
+    if (onSigners.length > 0) {
+      await fetch(`/api/v1/voyages/${voyageId}/crew/bulk`, {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ crewMembers: onSigners, signerType: "on_signer" }),
+      });
+    }
+    if (offSigners.length > 0) {
+      await fetch(`/api/v1/voyages/${voyageId}/crew/bulk`, {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ crewMembers: offSigners, signerType: "off_signer" }),
+      });
+    }
+    toast({ title: "Success", description: `Added ${onSigners.length} on-signers + ${offSigners.length} off-signers` });
+    setShowPasteModal(false); setRawText(""); setParsedCrew([]);
+    queryClient.invalidateQueries(); // Crew listesini yenile
+  } catch (e: any) {
+    toast({ title: "Error", description: e.message, variant: "destructive" });
+  }
+}
+
+Modal JSX:
+
+<Dialog open={showPasteModal} onOpenChange={setShowPasteModal}>
+  <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden max-h-[85vh]">
+    <div className="flex flex-col h-[75vh]">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-slate-700/30 shrink-0">
+        <DialogTitle className="text-base font-semibold flex items-center gap-2">
+          <ClipboardPaste className="w-5 h-5 text-blue-400" />
+          Smart Paste — Auto-Fill Crew Data
+        </DialogTitle>
+        <p className="text-xs text-muted-foreground mt-1">Paste crew details from any email format. AI will detect names, ranks, passports, flights automatically.</p>
+      </div>
+
+      {/* İki panel */}
+      <div className="flex flex-1 min-h-0">
+        {/* SOL — Paste alanı */}
+        <div className="w-1/2 border-r border-slate-700/30 flex flex-col">
+          <div className="px-4 py-2 border-b border-slate-700/20 flex items-center justify-between shrink-0">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Raw Data</span>
+            <div className="flex gap-1.5">
+              <Button variant="ghost" size="sm" className="text-[10px] h-6" onClick={() => setRawText("")}>Clear</Button>
+              <Button variant="ghost" size="sm" className="text-[10px] h-6" onClick={async () => { const t = await navigator.clipboard.readText(); setRawText(t); }}>
+                <ClipboardPaste className="w-3 h-3 mr-1" /> Paste
+              </Button>
+            </div>
+          </div>
+          <textarea
+            value={rawText}
+            onChange={(e) => setRawText(e.target.value)}
+            placeholder={"Paste crew email here...\n\nSupported formats:\n• Standard (Rank : ... / Full Name : ...)\n• Table format (Name | Rank | Passport)\n• PDF copy-paste\n• Any language"}
+            className="flex-1 w-full resize-none bg-transparent text-[11px] text-slate-300 placeholder:text-slate-700 px-4 py-3 outline-none font-mono leading-relaxed"
+          />
+          {rawText.length > 20 && (
+            <div className="px-4 py-2 border-t border-slate-700/20 shrink-0">
+              <Button size="sm" className="w-full text-xs h-8 gap-1.5" onClick={parseCrewData} disabled={isParsing}>
+                {isParsing ? (
+                  <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Parsing...</>
+                ) : (
+                  <><Wand2 className="w-3.5 h-3.5" /> Parse with AI</>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* SAĞ — Sonuçlar */}
+        <div className="w-1/2 flex flex-col">
+          <div className="px-4 py-2 border-b border-slate-700/20 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500">Detected: {parsedCrew.length} crew</span>
+              {parseMethod && (
+                <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full", parseMethod === "ai" ? "bg-purple-500/15 text-purple-400" : "bg-slate-700 text-slate-400")}>
+                  {parseMethod === "ai" ? "✨ AI" : "📐 Regex"}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto">
+            {isParsing && (
+              <div className="flex flex-col items-center py-12">
+                <div className="w-10 h-10 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mb-3" />
+                <p className="text-xs text-slate-400">AI is analyzing crew data...</p>
+                <p className="text-[10px] text-slate-600 mt-1">Detecting names, ranks, passports, flights</p>
+              </div>
+            )}
+
+            {!isParsing && parsedCrew.length === 0 && rawText.length <= 20 && (
+              <div className="flex flex-col items-center py-12">
+                <ClipboardPaste className="w-10 h-10 text-slate-700 mb-2" />
+                <p className="text-sm text-slate-500">Paste crew data on the left</p>
+                <p className="text-xs text-slate-600 mt-1">Then click "Parse with AI"</p>
+              </div>
+            )}
+
+            {/* On-Signers grubu */}
+            {parsedCrew.filter(c => c.signerType === "on_signer").length > 0 && (
+              <div>
+                <div className="px-3 py-1.5 bg-emerald-500/5 border-b border-emerald-500/10 sticky top-0 z-10">
+                  <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">
+                    🟢 On-Signers ({parsedCrew.filter(c => c.signerType === "on_signer").length})
+                  </span>
+                </div>
+                {parsedCrew.filter(c => c.signerType === "on_signer").map((crew, i) => (
+                  <div key={`on-${i}`} className="px-3 py-2.5 border-b border-slate-700/20 hover:bg-slate-800/30 transition-colors">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center text-[10px] font-bold text-emerald-400">
+                          {crew.firstName?.[0]}{crew.lastName?.[0]}
+                        </div>
+                        <div>
+                          <span className="text-sm font-semibold text-slate-200">{crew.lastName}, {crew.firstName}</span>
+                          <span className="text-xs text-slate-400 ml-2">{crew.rank}</span>
+                        </div>
+                      </div>
+                      <button onClick={() => setParsedCrew(prev => prev.filter((_, idx) => idx !== parsedCrew.indexOf(crew)))} className="text-slate-600 hover:text-red-400">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px] ml-9">
+                      <div className="flex justify-between"><span className="text-slate-500">Nationality</span><span className="text-slate-300">{crew.nationality || "—"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Passport</span><span className="text-slate-300">{crew.passportNo || "—"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">DOB</span><span className="text-slate-300">{crew.dob || "—"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Seaman Book</span><span className="text-slate-300">{crew.seamansBookNo || "—"}</span></div>
+                    </div>
+                    {crew.flights?.length > 0 && (
+                      <div className="ml-9 mt-1.5 flex flex-wrap gap-1">
+                        {crew.flights.map((f: any, fi: number) => (
+                          <span key={fi} className="text-[9px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded">
+                            ✈ {f.flightNo} {f.fromAirport}→{f.toAirport} {f.depTime}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {crew.warnings?.length > 0 && (
+                      <div className="ml-9 mt-1 flex flex-wrap gap-1">
+                        {crew.warnings.map((w: string, wi: number) => (
+                          <span key={wi} className="text-[9px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">{w}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Off-Signers grubu */}
+            {parsedCrew.filter(c => c.signerType === "off_signer").length > 0 && (
+              <div>
+                <div className="px-3 py-1.5 bg-red-500/5 border-b border-red-500/10 sticky top-0 z-10">
+                  <span className="text-[10px] font-semibold text-red-400 uppercase tracking-wider">
+                    🔴 Off-Signers ({parsedCrew.filter(c => c.signerType === "off_signer").length})
+                  </span>
+                </div>
+                {parsedCrew.filter(c => c.signerType === "off_signer").map((crew, i) => (
+                  <div key={`off-${i}`} className="px-3 py-2.5 border-b border-slate-700/20 hover:bg-slate-800/30 transition-colors">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-red-500/15 flex items-center justify-center text-[10px] font-bold text-red-400">
+                          {crew.firstName?.[0]}{crew.lastName?.[0]}
+                        </div>
+                        <div>
+                          <span className="text-sm font-semibold text-slate-200">{crew.lastName}, {crew.firstName}</span>
+                          <span className="text-xs text-slate-400 ml-2">{crew.rank}</span>
+                        </div>
+                      </div>
+                      <button onClick={() => setParsedCrew(prev => prev.filter((_, idx) => idx !== parsedCrew.indexOf(crew)))} className="text-slate-600 hover:text-red-400">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px] ml-9">
+                      <div className="flex justify-between"><span className="text-slate-500">Nationality</span><span className="text-slate-300">{crew.nationality || "—"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Passport</span><span className="text-slate-300">{crew.passportNo || "—"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">DOB</span><span className="text-slate-300">{crew.dob || "—"}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-500">Seaman Book</span><span className="text-slate-300">{crew.seamansBookNo || "—"}</span></div>
+                    </div>
+                    {crew.flights?.length > 0 && (
+                      <div className="ml-9 mt-1.5 flex flex-wrap gap-1">
+                        {crew.flights.map((f: any, fi: number) => (
+                          <span key={fi} className="text-[9px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded">
+                            ✈ {f.flightNo} {f.fromAirport}→{f.toAirport} {f.depTime}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {crew.warnings?.length > 0 && (
+                      <div className="ml-9 mt-1 flex flex-wrap gap-1">
+                        {crew.warnings.map((w: string, wi: number) => (
+                          <span key={wi} className="text-[9px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">{w}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="border-t border-slate-700/30 px-5 py-3 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3 text-[10px] text-slate-500">
+          {parsedCrew.length > 0 && (
+            <>
+              <span>👥 {parsedCrew.length}</span>
+              <span>🟢 {parsedCrew.filter(c=>c.signerType==="on_signer").length} on</span>
+              <span>🔴 {parsedCrew.filter(c=>c.signerType==="off_signer").length} off</span>
+              <span>✈️ {parsedCrew.reduce((s,c)=>s+(c.flights?.length||0),0)} flights</span>
+              <span>🌍 {[...new Set(parsedCrew.map(c=>c.nationality).filter(Boolean))].join(", ")}</span>
+            </>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="sm" className="text-xs" onClick={() => setShowPasteModal(false)}>Cancel</Button>
+          <Button size="sm" className="text-xs gap-1.5" onClick={handleAddAllParsed} disabled={parsedCrew.length === 0}>
+            <UserPlus className="w-3 h-3" />
+            Add {parsedCrew.filter(c=>c.signerType==="on_signer").length} On + {parsedCrew.filter(c=>c.signerType==="off_signer").length} Off Signers
+          </Button>
+        </div>
+      </div>
+    </div>
+  </DialogContent>
+</Dialog>
+
+## ADIM 4 — Bulk Add Backend
+
+server/routes/husbandry.routes.ts dosyasına ekle (yoksa oluştur):
+
+// POST /voyages/:voyageId/crew/bulk
+router.post("/:voyageId/crew/bulk", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.voyageId);
+    const { crewMembers, signerType } = req.body;
+    const added = [];
+    for (const m of crewMembers) {
+      const firstFlight = m.flights?.[0];
+      const lastFlight = m.flights?.[m.flights?.length - 1];
+      const [row] = await db.insert(crewChanges).values({
+        voyageId,
+        type: m.signerType || signerType,
+        fullName: `${m.firstName} ${m.lastName}`.trim(),
+        firstName: m.firstName, lastName: m.lastName,
+        rank: m.rank, nationality: m.nationality,
+        passportNo: m.passportNo,
+        passportExpiry: m.passportExpiry ? new Date(m.passportExpiry) : null,
+        seamansBookNo: m.seamansBookNo,
+        dob: m.dob ? new Date(m.dob) : null,
+        birthPlace: m.birthPlace,
+        employeeNo: m.employeeNo,
+        flightCode: firstFlight?.flightNo || null,
+        flightEta: lastFlight?.arrTime || null,
+        flightDetails: JSON.stringify(m.flights || []),
+        createdBy: req.user?.id,
+      }).returning();
+      added.push(row);
+    }
+    res.status(201).json({ added: added.length, crew: added });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+Schema'ya eksik alanlar ekle (crewChanges tablosuna):
+  flightDetails: jsonb("flight_details"),
+  birthPlace: varchar("birth_place", { length: 200 }),
+  employeeNo: varchar("employee_no", { length: 50 }),
+
+Migration: npx drizzle-kit generate && npx drizzle-kit push
