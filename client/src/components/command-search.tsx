@@ -17,6 +17,18 @@ interface SearchResult {
   href: string;
 }
 
+interface GlobalVessel {
+  id: null;
+  name: string;
+  vesselName: string;
+  imo: string;
+  vesselType: string;
+  flag: string;
+  mmsi: string;
+  dwt: string | number;
+  isGlobal: true;
+}
+
 const TYPE_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   vessel:          { label: "Vessels",   icon: Ship,          color: "text-sky-400" },
   voyage:          { label: "Voyages",   icon: Navigation,    color: "text-emerald-400" },
@@ -69,17 +81,14 @@ function saveRecent(item: { title: string; subtitle: string; href: string; type:
 interface FlatItem { url: string; title: string; subtitle: string; type: string; id?: number }
 type AiMessage = { role: "user" | "assistant"; content: string };
 
-interface CommandSearchProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-
-export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
+export function CommandSearch() {
+  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<"search" | "ai">("search");
   const [aiMessages, setAiMessages] = useState<AiMessage[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [globalVessels, setGlobalVessels] = useState<GlobalVessel[]>([]);
   const [loading, setLoading] = useState(false);
   const [recent, setRecent] = useState<ReturnType<typeof loadRecent>>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -94,15 +103,15 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
     const down = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        onOpenChange(!open);
+        setOpen(prev => !prev);
       } else if (e.key === "Escape" && open) {
         e.preventDefault();
-        onOpenChange(false);
+        setOpen(false);
       }
     };
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
-  }, [open, onOpenChange]);
+  }, [open]);
 
   useEffect(() => {
     if (open) {
@@ -111,6 +120,7 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
     } else {
       setQuery("");
       setResults([]);
+      setGlobalVessels([]);
       setSelectedIndex(0);
       setMode("search");
       setAiMessages([]);
@@ -132,24 +142,94 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
   }, [aiMessages, aiLoading]);
 
   const fetchResults = useCallback(async (q: string) => {
-    if (q.length < 2) { setResults([]); setLoading(false); return; }
+    if (q.length < 2) { setResults([]); setGlobalVessels([]); setLoading(false); return; }
     if (abortRef.current) abortRef.current.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     latestRef.current = q;
     setLoading(true);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=5`, {
-        credentials: "include",
-        signal: ctrl.signal,
-      });
-      if (!res.ok) throw new Error("search failed");
-      const data = await res.json();
+      const isImo = /^\d{5,9}$/.test(q.trim());
+      const isNameSearch = q.trim().length >= 3 && !/^\d+$/.test(q.trim());
+
+      const [searchData, globalProResult, globalNameResults] = await Promise.all([
+        fetch(`/api/search?q=${encodeURIComponent(q)}&limit=5`, {
+          credentials: "include",
+          signal: ctrl.signal,
+        }).then(r => r.ok ? r.json() : { results: [] }).catch(() => ({ results: [] })),
+
+        isImo
+          ? fetch(`/api/datalastic/vessel-pro/${q.trim()}`, { credentials: "include" })
+              .then(r => r.ok ? r.json() : null).catch(() => null)
+          : Promise.resolve(null),
+
+        isNameSearch
+          ? fetch(`/api/datalastic/vessel-find?name=${encodeURIComponent(q.trim())}`, { credentials: "include" })
+              .then(r => r.ok ? r.json() : []).catch(() => [])
+          : Promise.resolve([]),
+      ]);
+
       if (latestRef.current !== q) return;
-      setResults(data.results || []);
+
+      const dbResults: SearchResult[] = searchData.results || [];
+      setResults(dbResults);
+
+      const dbVesselNames = new Set(
+        dbResults.filter(r => r.type === "vessel").map(r => r.title.toLowerCase())
+      );
+      const dbVesselImos = new Set(
+        dbResults.filter(r => r.type === "vessel").map(r => r.subtitle?.match(/IMO[\s:]?(\d+)/i)?.[1]).filter(Boolean)
+      );
+
+      const extras: GlobalVessel[] = [];
+
+      if (globalProResult && globalProResult.name) {
+        const alreadyInDb =
+          dbVesselImos.has(String(globalProResult.imo)) ||
+          dbVesselNames.has((globalProResult.name || "").toLowerCase());
+        if (!alreadyInDb) {
+          extras.push({
+            id: null,
+            name: globalProResult.name,
+            vesselName: globalProResult.name,
+            imo: String(globalProResult.imo || q.trim()),
+            vesselType: globalProResult.vessel_type || globalProResult.type || "",
+            flag: globalProResult.flag || "",
+            mmsi: String(globalProResult.mmsi || ""),
+            dwt: globalProResult.dwt || "",
+            isGlobal: true,
+          });
+        }
+      }
+
+      if (Array.isArray(globalNameResults)) {
+        for (const v of globalNameResults.slice(0, 5)) {
+          if (!v.name) continue;
+          const alreadyInDb =
+            dbVesselImos.has(String(v.imo)) ||
+            dbVesselNames.has((v.name || "").toLowerCase());
+          const alreadyInExtras = extras.some(e => e.imo === String(v.imo) || e.name.toLowerCase() === v.name.toLowerCase());
+          if (!alreadyInDb && !alreadyInExtras) {
+            extras.push({
+              id: null,
+              name: v.name,
+              vesselName: v.name,
+              imo: String(v.imo || ""),
+              vesselType: v.vessel_type || v.type || "",
+              flag: v.flag || "",
+              mmsi: String(v.mmsi || ""),
+              dwt: v.dwt || "",
+              isGlobal: true,
+            });
+          }
+        }
+      }
+
+      setGlobalVessels(extras.slice(0, 4));
     } catch (err: any) {
       if (err?.name === "AbortError") return;
       setResults([]);
+      setGlobalVessels([]);
     } finally {
       if (latestRef.current === q) setLoading(false);
     }
@@ -158,7 +238,7 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
   useEffect(() => {
     if (mode !== "search") return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (query.length < 2) { setResults([]); setLoading(false); return; }
+    if (query.length < 2) { setResults([]); setGlobalVessels([]); setLoading(false); return; }
     setLoading(true);
     debounceRef.current = setTimeout(() => fetchResults(query), 280);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
@@ -167,7 +247,7 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
   function handleSelect(url: string, result?: SearchResult) {
     if (result) saveRecent({ title: result.title, subtitle: result.subtitle, href: result.href, type: result.type });
     navigate(url);
-    onOpenChange(false);
+    setOpen(false);
   }
 
   async function handleAiSubmit(text: string) {
@@ -210,15 +290,16 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
     .map(t => ({ type: t, items: results.filter(r => r.type === t) }))
     .filter(g => g.items.length > 0);
 
-  const showSearchResults = query.length >= 2 && (results.length > 0 || loading);
-  const showEmpty = query.length >= 2 && !loading && results.length === 0 && filteredNav.length === 0;
+  const showSearchResults = query.length >= 2 && (results.length > 0 || globalVessels.length > 0 || loading);
+  const showEmpty = query.length >= 2 && !loading && results.length === 0 && globalVessels.length === 0 && filteredNav.length === 0;
   const showRecent = query.length < 2 && recent.length > 0;
 
   const allFlat: FlatItem[] = mode === "search" ? [
     ...(showRecent ? recent.map(r => ({ url: r.href, title: r.title, subtitle: r.subtitle, type: r.type })) : []),
     ...results.map(r => ({ url: r.href, title: r.title, subtitle: r.subtitle, type: r.type, id: r.id })),
+    ...globalVessels.map(v => ({ url: `/vessel-track?imo=${v.imo}`, title: v.name, subtitle: v.vesselType, type: "vessel_global" })),
     ...(query.length < 2 ? filteredNav.map(n => ({ url: n.url, title: n.name, subtitle: "", type: "nav" })) : []),
-    ...(query.length >= 2 && results.length === 0 ? filteredNav.map(n => ({ url: n.url, title: n.name, subtitle: "", type: "nav" })) : []),
+    ...(query.length >= 2 && results.length === 0 && globalVessels.length === 0 ? filteredNav.map(n => ({ url: n.url, title: n.name, subtitle: "", type: "nav" })) : []),
   ] : [];
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -233,7 +314,7 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
         e.preventDefault();
         handleAiSubmit(query);
       }
-      if (e.key === "Escape") onOpenChange(false);
+      if (e.key === "Escape") setOpen(false);
       return;
     }
 
@@ -250,7 +331,7 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
         handleSelect(allFlat[selectedIndex].url, matched);
       }
     } else if (e.key === "Escape") {
-      onOpenChange(false);
+      setOpen(false);
     }
   }
 
@@ -262,16 +343,15 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
     <>
       <div
         className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]"
-        onClick={() => onOpenChange(false)}
+        onClick={() => setOpen(false)}
       />
 
       <div
         className={cn(
-          "fixed z-50 left-1/2 -translate-x-1/2 top-16 w-full max-w-xl rounded-xl overflow-hidden shadow-2xl shadow-black/50",
-          "animate-in fade-in slide-in-from-top-2 duration-200",
+          "fixed z-50 left-1/2 -translate-x-1/2 top-14 w-full max-w-xl rounded-xl overflow-hidden shadow-2xl shadow-black/50",
           mode === "ai"
-            ? "border border-purple-500/30 bg-slate-900/95 backdrop-blur-xl shadow-[0_0_30px_rgba(168,85,247,0.1)]"
-            : "border border-slate-700/80 bg-slate-900/95 backdrop-blur-xl"
+            ? "border border-purple-500/30 bg-slate-900/98 backdrop-blur-xl shadow-[0_0_30px_rgba(168,85,247,0.1)]"
+            : "border border-slate-700/80 bg-slate-900/98 backdrop-blur-xl"
         )}
         data-testid="command-search-dialog"
         style={{ animation: "cmdSlideIn 0.18s ease-out" }}
@@ -409,7 +489,50 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
                 );
               })}
 
-              {(query.length < 2 || (query.length >= 2 && results.length === 0 && filteredNav.length > 0)) && (
+              {/* Global vessel results from Datalastic */}
+              {globalVessels.length > 0 && (
+                <div>
+                  <div className="border-t border-slate-700/30 my-1 mx-3" />
+                  <div className="px-4 py-1.5 flex items-center gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Global Vessels</span>
+                    <span className="text-[9px] bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded">🌍 Datalastic</span>
+                  </div>
+                  {globalVessels.map(v => {
+                    const myIdx = flatIdx++;
+                    return (
+                      <button
+                        key={`global-${v.imo || v.name}`}
+                        onClick={() => {
+                          navigate(`/vessel-track?imo=${v.imo}`);
+                          setOpen(false);
+                        }}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-4 py-2 text-left transition-colors",
+                          selectedIndex === myIdx ? "bg-purple-500/10 text-purple-300" : "hover:bg-slate-800/50 text-slate-300"
+                        )}
+                        data-testid={`cmd-result-vessel-global-${v.imo}`}
+                      >
+                        <Ship className="w-4 h-4 shrink-0 text-purple-400" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-slate-200 truncate">{v.name}</span>
+                            <span className="text-[9px] bg-purple-500/15 text-purple-400 px-1.5 py-0.5 rounded shrink-0">🌍 Global</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 truncate">
+                            {v.vesselType || ""}
+                            {v.imo ? ` · IMO ${v.imo}` : ""}
+                            {v.flag ? ` · 🏳️ ${v.flag}` : ""}
+                            {v.dwt ? ` · ${v.dwt} DWT` : ""}
+                          </div>
+                        </div>
+                        <ArrowRight className="w-3 h-3 text-slate-600 shrink-0" />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {(query.length < 2 || (query.length >= 2 && results.length === 0 && globalVessels.length === 0 && filteredNav.length > 0)) && (
                 <div>
                   {(showRecent || showSearchResults) && <div className="border-t border-slate-700/30 my-1 mx-3" />}
                   <div className="px-4 py-1.5">
@@ -454,7 +577,7 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
                         key={suggestion}
                         onClick={() => handleAiSubmit(suggestion)}
                         className="text-left text-xs text-slate-400 hover:text-purple-300 hover:bg-purple-500/5 px-3 py-2 rounded-lg transition-colors"
-                        data-testid={`cmd-ai-suggestion`}
+                        data-testid="cmd-ai-suggestion"
                       >
                         <span className="text-purple-500/50 mr-2">→</span>
                         {suggestion}
