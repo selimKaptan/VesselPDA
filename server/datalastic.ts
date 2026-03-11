@@ -477,15 +477,28 @@ export async function getRoute(params: {
   from_lat?: number; from_lon?: number; to_lat?: number; to_lon?: number;
 }): Promise<any | null> {
   try {
-    const parts: string[] = [];
+    const key = apiKey();
+    if (!key) throw new Error("DATALASTIC_API_KEY not configured");
+    const parts: string[] = [`api-key=${key}`];
     if (params.from_port) parts.push(`from_port=${encodeURIComponent(params.from_port)}`);
     if (params.to_port) parts.push(`to_port=${encodeURIComponent(params.to_port)}`);
-    if (params.from_lat !== undefined) parts.push(`from_lat=${params.from_lat}`);
-    if (params.from_lon !== undefined) parts.push(`from_lon=${params.from_lon}`);
-    if (params.to_lat !== undefined) parts.push(`to_lat=${params.to_lat}`);
-    if (params.to_lon !== undefined) parts.push(`to_lon=${params.to_lon}`);
-    if (!parts.length) return null;
-    const json = await datalasticFetch(`/route?${parts.join("&")}`);
+    if (params.from_lat !== undefined) parts.push(`lat_from=${params.from_lat}`);
+    if (params.from_lon !== undefined) parts.push(`lon_from=${params.from_lon}`);
+    if (params.to_lat !== undefined) parts.push(`lat_to=${params.to_lat}`);
+    if (params.to_lon !== undefined) parts.push(`lon_to=${params.to_lon}`);
+    if (parts.length <= 1) return null;
+    const url = `https://api.datalastic.com/api/ext/route?${parts.join("&")}`;
+    console.log(`[datalastic] Fetching route: https://api.datalastic.com/api/ext/route (key hidden)`);
+    const res = await fetch(url, {
+      headers: { "Accept": "application/json", "User-Agent": "VesselPDA/1.0" },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.error(`[datalastic] Route API error ${res.status}: ${text.slice(0, 300)}`);
+      throw new Error(`Datalastic route API error ${res.status}: ${text.slice(0, 200)}`);
+    }
+    const json = await res.json();
     return json?.data ?? null;
   } catch (err: any) { console.error("Datalastic route error:", err?.message); return null; }
 }
