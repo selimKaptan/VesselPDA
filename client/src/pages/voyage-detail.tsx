@@ -899,22 +899,44 @@ export default function VoyageDetail() {
   const handleAddAllParsed = async () => {
     const onSigners = parsedCrew.filter((c) => c.signerType === "on_signer");
     const offSigners = parsedCrew.filter((c) => c.signerType === "off_signer");
+    let addedOn = 0, addedOff = 0;
+    const errors: string[] = [];
     try {
       if (onSigners.length > 0) {
-        await fetch(`/api/v1/voyages/${voyageId}/crew/bulk`, {
+        const res = await fetch(`/api/v1/voyages/${voyageId}/crew/bulk`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ crewMembers: onSigners, signerType: "on_signer" }),
         });
+        if (res.ok) {
+          const data = await res.json();
+          addedOn = data.added ?? onSigners.length;
+        } else {
+          const err = await res.text();
+          console.error("[crew-bulk] on-signer failed:", err);
+          errors.push(`On-signer eklenemedi: ${res.status}`);
+        }
       }
       if (offSigners.length > 0) {
-        await fetch(`/api/v1/voyages/${voyageId}/crew/bulk`, {
+        const res = await fetch(`/api/v1/voyages/${voyageId}/crew/bulk`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ crewMembers: offSigners, signerType: "off_signer" }),
         });
+        if (res.ok) {
+          const data = await res.json();
+          addedOff = data.added ?? offSigners.length;
+        } else {
+          const err = await res.text();
+          console.error("[crew-bulk] off-signer failed:", err);
+          errors.push(`Off-signer eklenemedi: ${res.status}`);
+        }
       }
-      toast({ title: "Başarılı", description: `${onSigners.length} on-signer + ${offSigners.length} off-signer eklendi` });
+      if (errors.length > 0) {
+        toast({ title: "Kısmi Hata", description: errors.join(" | "), variant: "destructive" });
+      } else {
+        toast({ title: "Başarılı", description: `${addedOn} on-signer + ${addedOff} off-signer eklendi` });
+      }
       setShowPasteModal(false);
       setPasteRawText("");
       setParsedCrew([]);

@@ -23,7 +23,7 @@ router.post("/parse-crew-text", isAuthenticated, async (req: any, res) => {
         content: `You are a maritime crew data parser. Parse the following text and extract ALL crew members. The text may be in ANY format — structured email, table, list, PDF copy-paste, tab-separated, Turkish, or messy formatting.
 
 For each crew member extract (use null if not found):
-- signerType: "on_signer" or "off_signer" (detect from "On-Signers"/"Joining"/"Sign On" = on_signer; "Off-Signers"/"Leaving"/"Sign Off" = off_signer)
+- signerType: "on_signer" or "off_signer" — see CRITICAL RULES below
 - rank: position on vessel
 - firstName: (Title Case)
 - lastName: (Title Case)
@@ -42,10 +42,17 @@ For each crew member extract (use null if not found):
 - employeeNo
 - flights: array of { legNo, flightNo, date, fromAirport (3-letter IATA), toAirport (3-letter IATA), depTime (HH:MM), arrTime (HH:MM) }
 
-Rules:
+CRITICAL RULES FOR SIGNER TYPE (read carefully):
+- When you see a section header "Off-Signers Details", "Off-Signers", "Sign Off", "Departing", "Leaving" — ALL crew members listed AFTER that header (until the next section or end of text) are "off_signer"
+- When you see a section header "On-Signers Details", "On-Signers", "Sign On", "Joining", "Embarking" — ALL crew members listed AFTER that header are "on_signer"
+- "Planned Rank :" usually indicates on-signer; "Rank :" alone usually indicates off-signer
+- If the text has BOTH sections, you MUST assign different signerType values — never assign all crew to the same type when two sections exist
+- If only one section exists with no header, default to "on_signer"
+- VERIFY: Count how many on_signer and off_signer you found — if the text has both sections but all are same type, you made an error
+
+Additional Rules:
 - Names often "LASTNAME, FIRSTNAME MIDDLENAME" — split correctly
 - Flight routes "GDNMUC" = GDN→MUC, "ADBIST" = ADB→IST (first 3 = from, last 3 = to)
-- "Planned Rank" and "Rank" both mean rank
 - Detect crew even with inconsistent formatting
 - Current port: ${portName || "unknown"}
 

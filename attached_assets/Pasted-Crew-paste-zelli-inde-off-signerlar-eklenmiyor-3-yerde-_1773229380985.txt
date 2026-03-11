@@ -1,0 +1,173 @@
+Crew paste özelliğinde off-signerlar eklenmiyor. 3 yerde düzeltme gerekiyor:
+
+## SORUN 1 — Frontend: Off-signer'lar ayrı API çağrısıyla gönderiliyor ama endpoint yanlış olabilir
+
+client/src/pages/ içindeki crew logistics sayfasında handleAddAllParsed fonksiyonunu bul ve şöyle düzelt:
+
+async function handleAddAllParsed() {
+  try {
+    const onSigners = parsedCrew.filter(c => c.signerType === "on_signer");
+    const offSigners = parsedCrew.filter(c => c.signerType === "off_signer");
+    
+    let addedOn = 0, addedOff = 0;
+    
+    // On-signers ekle
+    if (onSigners.length > 0) {
+      const res = await fetch(`/api/v1/voyages/${voyageId}/crew/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ crewMembers: onSigners, signerType: "on_signer" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        addedOn = data.added || onSigners.length;
+      } else {
+        console.error("Failed to add on-signers:", await res.text());
+      }
+    }
+    
+    // Off-signers ekle — AYRI ÇAĞRI
+    if (offSigners.length > 0) {
+      const res = await fetch(`/api/v1/voyages/${voyageId}/crew/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ crewMembers: offSigners, signerType: "off_signer" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        addedOff = data.added || offSigners.length;
+      } else {
+        console.error("Failed to add off-signers:", await res.text());
+      }
+    }
+    
+    toast({ title: "Crew Added", description: `${addedOn} on-signers + ${addedOff} off-signers added successfully` });
+    setShowPasteModal(false);
+    setRawText("");
+    setParsedCrew([]);
+    // Crew listesini yenile
+    queryClient.invalidateQueries();
+  } catch (e: any) {
+    toast({ title: "Error", description: e.message, variant: "destructive" });
+  }
+}
+
+## SORUN 2 — Backend: Bulk endpoint'te signerType doğru kaydedilmiyor
+
+server/routes/ içindeki bulk crew endpoint'ini bul (husbandry.routes.ts veya crew routes) ve düzelt:
+
+router.post("/:voyageId/crew/bulk", isAuthenticated, async (req: any, res) => {
+  try {
+    const voyageId = parseInt(req.params.voyageId);
+    const { crewMembers, signerType } = req.body;
+    
+    console.log(`[crew-bulk] Adding ${crewMembers.length} crew as ${signerType} to voyage ${voyageId}`);
+    
+    const added = [];
+    for (const m of crewMembers) {
+      // signerType: her crew member'ın kendi signerType'ı VEYA request body'den gelen
+      const type = m.signerType || signerType || "on_signer";
+      
+      console.log(`[crew-bulk] Adding ${m.firstName} ${m.lastName} as ${type}`);
+      
+      const firstFlight = m.flights?.[0];
+      const lastFlight = m.flights?.[m.flights?.length - 1];
+      
+      // crewChanges tablosuna insert
+      const insertData: any = {
+        voyageId,
+        type: type, // "on_signer" veya "off_signer"
+        fullName: `${m.firstName || ""} ${m.lastName || ""}`.trim(),
+        firstName: m.firstName || null,
+        lastName: m.lastName || null,
+        rank: m.rank || null,
+        nationality: m.nationality || null,
+        passportNo: m.passportNo || null,
+        seamansBookNo: m.seamansBookNo || null,
+        employeeNo: m.employeeNo || null,
+        createdBy: req.user?.id,
+      };
+      
+      // Opsiyonel alanlar — sadece değer varsa ekle
+      if (m.passportExpiry) {
+        try { insertData.passportExpiry = new Date(m.passportExpiry); } catch {}
+      }
+      if (m.passportIssued) insertData.passportIssued = m.passportIssued;
+      if (m.passportPlace) insertData.passportPlace = m.passportPlace;
+      if (m.seamansBookExpiry) {
+        try { insertData.seamansBookExpiry = new Date(m.seamansBookExpiry); } catch {}
+      }
+      if (m.dob) {
+        try { insertData.dob = new Date(m.dob); } catch {}
+      }
+      if (m.birthPlace) insertData.birthPlace = m.birthPlace;
+      if (firstFlight?.flightNo) insertData.flightCode = firstFlight.flightNo;
+      if (lastFlight?.arrTime) insertData.flightEta = lastFlight.arrTime;
+      if (m.flights?.length > 0) insertData.flightDetails = JSON.stringify(m.flights);
+      
+      try {
+        const [row] = await db.insert(crewChanges).values(insertData).returning();
+        added.push(row);
+      } catch (insertErr: any) {
+        console.error(`[crew-bulk] Failed to insert ${m.firstName} ${m.lastName}:`, insertErr.message);
+        // Hata olsa bile diğerlerine devam et
+      }
+    }
+    
+    console.log(`[crew-bulk] Successfully added ${added.length}/${crewMembers.length} crew members`);
+    res.status(201).json({ added: added.length, crew: added });
+  } catch (e: any) {
+    console.error("[crew-bulk] Error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+## SORUN 3 — Schema: "type" alanı "on_signer" / "off_signer" kabul ediyor mu kontrol et
+
+shared/schema/ içindeki crewChanges tablosunu kontrol et. "type" alanı şu değerleri kabul etmeli:
+- "on_signer" 
+- "off_signer"
+- Veya "sign_on" / "sign_off" kullanılıyorsa frontend'deki mapping'i düzelt
+
+grep -n "type.*signer\|type.*sign_on\|crewChanges\|crew_changes" shared/schema/ ile bul.
+
+Eğer schema'da type alanı "sign_on" / "sign_off" bekliyorsa, backend'de mapping ekle:
+
+const typeMapping: Record<string, string> = {
+  "on_signer": "sign_on",
+  "off_signer": "sign_off",
+  "sign_on": "sign_on",
+  "sign_off": "sign_off",
+};
+const dbType = typeMapping[type] || type;
+insertData.type = dbType;
+
+Veya frontend parser'da signerType'ı schema'nın beklediği formata çevir.
+
+## SORUN 4 — Crew board'da off-signerlar gösteriliyor mu kontrol et
+
+Crew Logistics Board'da on-signers ve off-signers listeleme sorgusu doğru mu kontrol et:
+
+Eğer frontend'de crew listesi çekilirken type filtresi varsa:
+- on-signers: type === "on_signer" VEYA type === "sign_on" 
+- off-signers: type === "off_signer" VEYA type === "sign_off"
+
+Her iki formatı da kabul et:
+
+// Frontend filtreleme
+const onSigners = crewList.filter(c => c.type === "on_signer" || c.type === "sign_on" || c.type === "joining");
+const offSigners = crewList.filter(c => c.type === "off_signer" || c.type === "sign_off" || c.type === "departing");
+
+## SORUN 5 — AI Parser'da signerType doğru parse edildiğinden emin ol
+
+AI parse prompt'unda off-signers algılaması güçlendir. Mevcut prompt'a ekle:
+
+CRITICAL RULES FOR SIGNER TYPE:
+- Text containing "Off-Signers Details" or "Off-Signers" — ALL crew members AFTER this line are "off_signer"
+- Text containing "On-Signers Details" or "On-Signers" — ALL crew members AFTER this line are "on_signer"  
+- "Rank :" (without "Planned") usually means off-signer
+- "Planned Rank :" usually means on-signer
+- If only one section exists with no header, default to "on_signer"
+- NEVER assign all crew to same type if both sections exist in the text
+
+Verify: In your response, the signerType field MUST be "off_signer" for crew listed under "Off-Signers Details". Do NOT default everything to "on_signer".
