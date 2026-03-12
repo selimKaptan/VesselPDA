@@ -3,7 +3,8 @@ import { storage } from "../storage";
 import { isAuthenticated, authStorage } from "../replit_integrations/auth";
 import { isAdmin } from "./shared";
 import { db, pool } from "../db";
-import { sql as drizzleSql, eq, desc } from "drizzle-orm";
+import { sql as drizzleSql, eq, desc, count } from "drizzle-orm";
+import { users as usersTable } from "@shared/models/auth";
 import { logAction, getClientIp } from "../audit";
 import { emitToUser } from "../socket";
 import { geocodeStats } from "../geocode-ports";
@@ -56,12 +57,12 @@ router.get("/users", isAuthenticated, async (req: any, res) => {
     if (page && !isNaN(page) && page > 0) {
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
       const offset = (page - 1) * limit;
-      const [dataRes, countRes] = await Promise.all([
-        pool.query(`SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2`, [limit, offset]),
-        pool.query(`SELECT COUNT(*) as total FROM users`),
+      const [data, countRes] = await Promise.all([
+        db.select().from(usersTable).orderBy(desc(usersTable.createdAt)).limit(limit).offset(offset),
+        db.select({ total: count() }).from(usersTable),
       ]);
-      const total = parseInt(countRes.rows[0].total) || 0;
-      return res.json({ data: dataRes.rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+      const total = Number(countRes[0]?.total) || 0;
+      return res.json({ data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
     }
     const allUsers = await storage.getAllUsers();
     res.json(allUsers);
@@ -185,7 +186,7 @@ router.get("/stats", isAuthenticated, async (req: any, res) => {
 
     const data = await cached('admin:stats', 'short', async () => {
       const [userStatsRes, contentStatsRes, tendersByPortRes, bidsRes, monthlyRes] = await Promise.all([
-        pool.query(`
+        db.execute(drizzleSql`
           SELECT
             COUNT(*) as total_users,
             COUNT(*) FILTER (WHERE user_role = 'agent') as agents,
@@ -198,7 +199,7 @@ router.get("/stats", isAuthenticated, async (req: any, res) => {
             COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') as weekly_users
           FROM users
         `),
-        pool.query(`
+        db.execute(drizzleSql`
           SELECT
             (SELECT COUNT(*) FROM vessels) as total_vessels,
             (SELECT COUNT(*) FROM proformas) as total_proformas,
@@ -206,7 +207,7 @@ router.get("/stats", isAuthenticated, async (req: any, res) => {
             (SELECT COUNT(*) FROM port_tenders) as total_tenders,
             (SELECT COUNT(*) FROM port_tenders WHERE status = 'open') as open_tenders
         `),
-        pool.query(`
+        db.execute(drizzleSql`
           SELECT COALESCE(p.name, 'Port #' || pt.port_id::text) as port, COUNT(*) as count
           FROM port_tenders pt
           LEFT JOIN ports p ON pt.port_id = p.id
@@ -214,13 +215,13 @@ router.get("/stats", isAuthenticated, async (req: any, res) => {
           ORDER BY count DESC
           LIMIT 10
         `),
-        pool.query(`
+        db.execute(drizzleSql`
           SELECT
             COUNT(*) as total_bids,
             COUNT(*) FILTER (WHERE status = 'selected') as selected_bids
           FROM tender_bids
         `),
-        pool.query(`
+        db.execute(drizzleSql`
           SELECT TO_CHAR(date_trunc('month', created_at), 'Mon YY') as month, COUNT(*) as count
           FROM proformas
           WHERE created_at >= date_trunc('month', NOW() - INTERVAL '5 months')
