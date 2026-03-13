@@ -1024,11 +1024,10 @@ export default function VoyageDetail() {
             });
           }
         }
-        const result = Array.from(grouped.values()).map((g, i) => ({
+        const result = Array.from(grouped.values()).map((g) => ({
           ...g,
           blNumber: g.blNumbers.join(", "),
           hsCode: g.hsCodes.join(", "),
-          sequence: i + 1,
         }));
         setParsedParcels(result);
       } else {
@@ -1083,9 +1082,7 @@ export default function VoyageDetail() {
     }
   };
 
-  const removeDeclParcel = (idx: number) => {
-    setParsedParcels(prev => prev.filter((_, i) => i !== idx));
-  };
+  const removeDeclParcel = (idx: number) => setParsedParcels(prev => prev.filter((_, i) => i !== idx));
 
   // ── Close Operation / Finance Handover ───────────────────────────────────
   const [showCloseOpModal, setShowCloseOpModal] = useState(false);
