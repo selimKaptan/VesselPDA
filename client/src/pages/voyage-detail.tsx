@@ -899,7 +899,7 @@ export default function VoyageDetail() {
       const r = await fetch("/api/v1/crew/parse-crew-text", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawText: pasteRawText, portName: (voyageData as any)?.portName }),
+        body: JSON.stringify({ rawText: pasteRawText, portName: (voyage as any)?.portName }),
       });
       if (r.ok) {
         const d = await r.json();
@@ -974,7 +974,7 @@ export default function VoyageDetail() {
     try {
       let body: Record<string, any> = {
         documentType: "ozet_beyan",
-        operationType: (voyageData as any)?.operationType || "discharging",
+        operationType: (voyage as any)?.operationType || "discharging",
       };
 
       if (declarationFile && !declarationPasteText) {
@@ -1021,7 +1021,7 @@ export default function VoyageDetail() {
 
   const handleImportParcels = async () => {
     const isTanker = vesselType === "tanker";
-    const opType = (voyageData as any)?.operationType || "discharging";
+    const opType = (voyage as any)?.operationType || "discharging";
     try {
       let imported = 0;
       for (const [i, parcel] of parsedParcels.entries()) {
@@ -9288,7 +9288,7 @@ export default function VoyageDetail() {
               <div className="flex-1 overflow-y-auto p-5">
                 <div className="mb-4">
             <h3 className="text-sm font-semibold text-slate-200">Tahliye / Yükleme Sırası Belirle</h3>
-            <p className="text-xs text-muted-foreground mt-1">Parselleri sürükleyerek sıralayın. İlk parsel önce {(voyageData as any)?.operationType === "loading" ? "yüklenecek" : "tahliye edilecek"}.</p>
+            <p className="text-xs text-muted-foreground mt-1">Parselleri sürükleyerek sıralayın. İlk parsel önce {(voyage as any)?.operationType === "loading" ? "yüklenecek" : "tahliye edilecek"}.</p>
                 </div>
 
                 <div className="space-y-2">
@@ -9338,7 +9338,7 @@ export default function VoyageDetail() {
             ))}
                 </div>
                 <p className="text-[10px] text-slate-600 text-center mt-3 italic">
-            ↕ Sürükle ile sırala · İlk öğe önce {(voyageData as any)?.operationType === "loading" ? "yüklenir" : "tahliye edilir"} · Sağdaki alana {vesselType === "tanker" ? "tank" : "ambar"} numarası girin
+            ↕ Sürükle ile sırala · İlk öğe önce {(voyage as any)?.operationType === "loading" ? "yüklenir" : "tahliye edilir"} · Sağdaki alana {vesselType === "tanker" ? "tank" : "ambar"} numarası girin
                 </p>
               </div>
             )}
