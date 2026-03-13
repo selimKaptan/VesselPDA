@@ -545,7 +545,7 @@ function LiveMiniMap({ lat, lng, heading }: { lat: number; lng: number; heading?
     <div
       ref={containerRef}
       className="w-full rounded-lg overflow-hidden border border-border/40"
-      style={{ height: 200 }}
+      style={{ height: 300 }}
       data-testid="live-mini-map"
     />
   );
@@ -681,12 +681,14 @@ function DatalasticPanel({ vessel }: { vessel: Vessel }) {
           <p className="text-xs text-muted-foreground py-2">{(posQuery.error as Error).message}</p>
         ) : posQuery.data ? (
           <>
-            <LiveMiniMap lat={posQuery.data.latitude} lng={posQuery.data.longitude} heading={posQuery.data.heading} />
+            {posQuery.data.latitude != null && posQuery.data.longitude != null && isFinite(posQuery.data.latitude) && isFinite(posQuery.data.longitude) && (
+              <LiveMiniMap lat={posQuery.data.latitude} lng={posQuery.data.longitude} heading={posQuery.data.heading} />
+            )}
             <div className="grid grid-cols-3 gap-2 mt-3">
               {[
                 { label: "Sürat", value: posQuery.data.speed != null ? `${posQuery.data.speed} kn` : "—" },
                 { label: "Rota", value: posQuery.data.course != null ? `${posQuery.data.course}°` : "—" },
-                { label: "Güncelleme", value: posQuery.data.timestamp ? new Date(posQuery.data.timestamp).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—" },
+                { label: "Durum", value: posQuery.data.navigation_status || "—" },
               ].map(({ label, value }) => (
                 <div key={label} className="text-center bg-muted/30 rounded-lg py-2 px-1">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{label}</p>
@@ -2400,26 +2402,20 @@ export default function Vessels() {
                   {detailTab === "technical" && (
                     <div className="space-y-5" data-testid="technical-grouped">
                       {[
-                        { title: "Kimlik", fields: [
-                          { label: "IMO No",   value: v.imoNumber || "—" },
-                          { label: "Call Sign", value: v.callSign || "—" },
-                          { label: "Bayrak",   value: `${flag} ${v.flag || "—"}` },
-                          { label: "Tip",      value: v.vesselType || "—" },
-                          { label: "İnşa Yılı", value: v.yearBuilt ? String(v.yearBuilt) : "—" },
-                        ]},
                         { title: "Boyutlar", fields: [
-                          { label: "LOA",  value: v.loa ? v.loa + " m" : "—" },
-                          { label: "Beam", value: v.beam ? v.beam + " m" : "—" },
+                          { label: "LOA",   value: v.loa ? v.loa + " m" : "—" },
+                          { label: "Beam",  value: v.beam ? v.beam + " m" : "—" },
+                          { label: "Draft", value: "—" },
                         ]},
                         { title: "Kapasite", fields: [
                           { label: "GRT", value: v.grt ? v.grt.toLocaleString("en-US") + " GT" : "—" },
-                          { label: "NRT", value: v.nrt ? v.nrt.toLocaleString("en-US") + " GT" : "—" },
                           { label: "DWT", value: v.dwt ? v.dwt.toLocaleString("en-US") + " MT" : "—" },
+                          { label: "NRT", value: v.nrt ? v.nrt.toLocaleString("en-US") + " GT" : "—" },
                         ]},
                         { title: "Sevk", fields: [
                           { label: "Motor Tipi",  value: (v as any).engineType || "—" },
                           { label: "Motor Gücü",  value: (v as any).enginePower ? `${(v as any).enginePower} kW` : "—" },
-                          { label: "Klas Kuruluşu", value: (v as any).classificationSociety || "—" },
+                          { label: "Sürat",       value: "—" },
                         ]},
                       ].map(group => (
                         <div key={group.title}>
@@ -2434,6 +2430,24 @@ export default function Vessels() {
                           </div>
                         </div>
                       ))}
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Genel</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { label: "IMO No",    value: v.imoNumber || "—" },
+                            { label: "Call Sign",  value: v.callSign || "—" },
+                            { label: "Bayrak",     value: `${flag} ${v.flag || "—"}` },
+                            { label: "Tip",        value: v.vesselType || "—" },
+                            { label: "İnşa Yılı", value: v.yearBuilt ? String(v.yearBuilt) : "—" },
+                            { label: "Klas",       value: (v as any).classificationSociety || "—" },
+                          ].map(({ label, value }) => (
+                            <div key={label} className="bg-muted/30 rounded-xl p-3">
+                              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide mb-1">{label}</p>
+                              <p className="text-sm font-bold">{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
 
