@@ -347,6 +347,8 @@ function VoyageLiveTracker({ voyage, portName, imoNumber, onOriginPortChange }: 
     retry: false,
   });
 
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+
   useEffect(() => {
     if (!pos || !mapRef.current) return;
     let destroyed = false;
@@ -354,6 +356,7 @@ function VoyageLiveTracker({ voyage, portName, imoNumber, onOriginPortChange }: 
       if (destroyed || !mapRef.current) return;
       const L = LM.default;
       if (leafletMap.current) { leafletMap.current.remove(); leafletMap.current = null; }
+      if (resizeObserverRef.current) { resizeObserverRef.current.disconnect(); resizeObserverRef.current = null; }
       const map = L.map(mapRef.current, {
         center: [pos.latitude, pos.longitude],
         zoom: 10,
@@ -378,17 +381,13 @@ function VoyageLiveTracker({ voyage, portName, imoNumber, onOriginPortChange }: 
       if (mapRef.current && typeof ResizeObserver !== "undefined") {
         const ro = new ResizeObserver(() => { if (leafletMap.current) leafletMap.current.invalidateSize(); });
         ro.observe(mapRef.current);
-        const origCleanup = () => ro.disconnect();
-        map._roCleanup = origCleanup;
+        resizeObserverRef.current = ro;
       }
     });
     return () => {
       destroyed = true;
-      if (leafletMap.current) {
-        leafletMap.current._roCleanup?.();
-        leafletMap.current.remove();
-        leafletMap.current = null;
-      }
+      if (resizeObserverRef.current) { resizeObserverRef.current.disconnect(); resizeObserverRef.current = null; }
+      if (leafletMap.current) { leafletMap.current.remove(); leafletMap.current = null; }
     };
   }, [pos]);
 
