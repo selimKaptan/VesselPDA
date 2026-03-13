@@ -95,7 +95,7 @@ router.post("/parse-declaration", isAuthenticated, async (req: any, res) => {
         } catch (convErr: any) {
           console.warn(`[cargo-parse] pdftoppm failed (${convErr.message}), falling back to document type`);
           messageContent = [
-            { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } } as any,
+            { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } },
             { type: "text", text: `${PARSE_SYSTEM_PROMPT}\n\nOperation type: ${operationType || "discharging"}` },
           ];
         }
@@ -189,7 +189,7 @@ router.post("/extract-pdf-text", isAuthenticated, async (req: any, res) => {
         contentPart = { type: "image", source: { type: "base64", media_type: "image/png", data: pngBase64 } };
       } catch (convErr: any) {
         console.warn(`[cargo-extract-pdf] pdftoppm failed (${convErr.message}), falling back to document type`);
-        contentPart = { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } } as any;
+        contentPart = { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } };
       }
 
       const response = await anthropic.messages.create({
@@ -207,7 +207,9 @@ router.post("/extract-pdf-text", isAuthenticated, async (req: any, res) => {
         }]
       });
       const textContent = response.content.find((c: any) => c.type === "text");
-      return res.json({ text: (textContent as any)?.text || "" });
+      const extractedText = (textContent as any)?.text || "";
+      console.log(`[cargo-extract-pdf] Claude response (${extractedText.length} chars): ${extractedText.substring(0, 300)}...`);
+      return res.json({ text: extractedText });
     }
 
     if (isImage) {
