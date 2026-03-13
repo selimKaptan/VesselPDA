@@ -1006,7 +1006,7 @@ export default function VoyageDetail() {
           const key = `${(p.receiverName || "").toUpperCase().trim()}|||${(p.cargoType || "").toUpperCase().trim()}`;
           if (grouped.has(key)) {
             const g = grouped.get(key);
-            g.quantity += p.quantity || 0;
+            g.quantity += Number(p.quantity) || 0;
             if (p.blNumber && !g.blNumbers.includes(p.blNumber)) g.blNumbers.push(p.blNumber);
             if (p.hsCode && !g.hsCodes.includes(p.hsCode)) g.hsCodes.push(p.hsCode);
           } else {
@@ -1015,7 +1015,7 @@ export default function VoyageDetail() {
               shipperName: p.shipperName,
               cargoType: p.cargoType,
               cargoGrade: p.cargoGrade,
-              quantity: p.quantity || 0,
+              quantity: Number(p.quantity) || 0,
               unit: p.unit || "MT",
               countryOfOrigin: p.countryOfOrigin,
               portOfLoading: p.portOfLoading,
@@ -9229,8 +9229,8 @@ export default function VoyageDetail() {
                         <th className="text-left px-3 py-2.5 font-medium text-slate-500 w-8">#</th>
                         <th className="text-left px-3 py-2.5 font-medium text-slate-500">Alıcı</th>
                         <th className="text-left px-3 py-2.5 font-medium text-slate-500">Kargo Cinsi</th>
-                        <th className="text-right px-3 py-2.5 font-medium text-slate-500">Miktar</th>
-                        <th className="text-left px-3 py-2.5 font-medium text-slate-500">B/L No</th>
+                        <th className="text-right px-3 py-2.5 font-medium text-slate-500">Toplam Miktar</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-slate-500">B/L No(lar)</th>
                         <th className="px-3 py-2.5 w-8"></th>
                       </tr>
                     </thead>
