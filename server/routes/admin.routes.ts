@@ -1262,30 +1262,55 @@ router.get("/audit-logs/stats", isAuthenticated, async (req: any, res) => {
     if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
     const { userId, action, entityType, from, to, ipAddress } = req.query;
 
-    let baseFilter = "WHERE 1=1";
-    const params: any[] = [];
-    if (userId) { params.push(userId); baseFilter += ` AND user_id = $${params.length}`; }
-    if (action && action !== 'all') { params.push(action); baseFilter += ` AND action = $${params.length}`; }
-    if (entityType && entityType !== 'all') { params.push(entityType); baseFilter += ` AND entity_type = $${params.length}`; }
-    if (from) { params.push(from); baseFilter += ` AND created_at >= $${params.length}`; }
-    if (to) { params.push(to); baseFilter += ` AND created_at <= $${params.length}`; }
-    if (ipAddress) { params.push(`%${ipAddress}%`); baseFilter += ` AND ip_address LIKE $${params.length}`; }
+    const conditions: ReturnType<typeof drizzleSql>[] = [];
+    const joinedConditions: ReturnType<typeof drizzleSql>[] = [];
+    if (userId) {
+      conditions.push(drizzleSql`user_id = ${userId}`);
+      joinedConditions.push(drizzleSql`al.user_id = ${userId}`);
+    }
+    if (action && action !== 'all') {
+      conditions.push(drizzleSql`action = ${action}`);
+      joinedConditions.push(drizzleSql`al.action = ${action}`);
+    }
+    if (entityType && entityType !== 'all') {
+      conditions.push(drizzleSql`entity_type = ${entityType}`);
+      joinedConditions.push(drizzleSql`al.entity_type = ${entityType}`);
+    }
+    if (from) {
+      conditions.push(drizzleSql`created_at >= ${from}`);
+      joinedConditions.push(drizzleSql`al.created_at >= ${from}`);
+    }
+    if (to) {
+      conditions.push(drizzleSql`created_at <= ${to}`);
+      joinedConditions.push(drizzleSql`al.created_at <= ${to}`);
+    }
+    if (ipAddress) {
+      conditions.push(drizzleSql`ip_address LIKE ${'%' + ipAddress + '%'}`);
+      joinedConditions.push(drizzleSql`al.ip_address LIKE ${'%' + ipAddress + '%'}`);
+    }
+
+    const whereClause = conditions.length > 0
+      ? drizzleSql`WHERE ${drizzleSql.join(conditions, drizzleSql` AND `)}`
+      : drizzleSql``;
+    const joinedWhereClause = joinedConditions.length > 0
+      ? drizzleSql`WHERE ${drizzleSql.join(joinedConditions, drizzleSql` AND `)}`
+      : drizzleSql``;
 
     const [weeklyRes, activeUserRes, topActionRes] = await Promise.all([
-      pool.query(`SELECT COUNT(*) as count FROM audit_logs WHERE created_at > NOW() - INTERVAL '7 days'`),
-      pool.query(`
-        SELECT u.email, COUNT(*) as count 
+      db.execute(drizzleSql`SELECT COUNT(*) as count FROM audit_logs WHERE created_at > NOW() - INTERVAL '7 days'`),
+      db.execute(drizzleSql`
+        SELECT u.email, COUNT(*) as count
         FROM audit_logs al
         JOIN users u ON al.user_id = u.id
-        ${baseFilter.replace(/user_id/, 'al.user_id').replace(/action/, 'al.action').replace(/entity_type/, 'al.entity_type').replace(/created_at/, 'al.created_at').replace(/ip_address/, 'al.ip_address')}
+        ${joinedWhereClause}
         GROUP BY u.email ORDER BY count DESC LIMIT 1
-      `, params),
-      pool.query(`
-        SELECT action, COUNT(*) as count 
+      `),
+      db.execute(drizzleSql`
+        SELECT action, COUNT(*) as count
         FROM audit_logs
-        ${baseFilter}
+        ${whereClause}
         GROUP BY action ORDER BY count DESC LIMIT 1
-      `, params)
+      `)
     ]);
 
     res.json({
