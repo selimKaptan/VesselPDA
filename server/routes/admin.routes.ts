@@ -830,9 +830,9 @@ router.get("/tariffs/summary", isAuthenticated, async (req: any, res) => {
         outdatedCount += oldResult.rows[0].cnt || 0;
       }
 
-      const portCount = await pool.query(`SELECT count(distinct port_id)::int as cnt FROM pilotage_tariffs WHERE port_id IS NOT NULL`);
+      const portCountResult = await db.execute(drizzleSql`SELECT count(distinct port_id)::int as cnt FROM pilotage_tariffs WHERE port_id IS NOT NULL`);
       return {
-        portCount: portCount.rows[0].cnt || 0,
+        portCount: (portCountResult.rows[0] as any)?.cnt || 0,
         totalRecords,
         lastUpdated: latestUpdate,
         outdatedCount,
