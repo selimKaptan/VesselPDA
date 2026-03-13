@@ -375,10 +375,20 @@ function VoyageLiveTracker({ voyage, portName, imoNumber, onOriginPortChange }: 
       L.marker([pos.latitude, pos.longitude], { icon }).addTo(map);
       leafletMap.current = map;
       setTimeout(() => { if (!destroyed && map) map.invalidateSize(); }, 300);
+      if (mapRef.current && typeof ResizeObserver !== "undefined") {
+        const ro = new ResizeObserver(() => { if (leafletMap.current) leafletMap.current.invalidateSize(); });
+        ro.observe(mapRef.current);
+        const origCleanup = () => ro.disconnect();
+        map._roCleanup = origCleanup;
+      }
     });
     return () => {
       destroyed = true;
-      if (leafletMap.current) { leafletMap.current.remove(); leafletMap.current = null; }
+      if (leafletMap.current) {
+        leafletMap.current._roCleanup?.();
+        leafletMap.current.remove();
+        leafletMap.current = null;
+      }
     };
   }, [pos]);
 
