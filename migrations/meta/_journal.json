@@ -8,6 +8,13 @@
       "when": 1773052189213,
       "tag": "0000_happy_ezekiel",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1773052200000,
+      "tag": "0001_add_cargo_parcels_target_rate",
+      "breakpoints": true
     }
   ]
 }
