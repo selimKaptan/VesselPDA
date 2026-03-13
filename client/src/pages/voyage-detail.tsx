@@ -361,7 +361,7 @@ function VoyageLiveTracker({ voyage, portName, imoNumber, onOriginPortChange }: 
         attributionControl: false,
         scrollWheelZoom: false,
       });
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", {
         subdomains: "abcd",
         maxZoom: 18,
       }).addTo(map);
@@ -374,6 +374,7 @@ function VoyageLiveTracker({ voyage, portName, imoNumber, onOriginPortChange }: 
       });
       L.marker([pos.latitude, pos.longitude], { icon }).addTo(map);
       leafletMap.current = map;
+      setTimeout(() => { if (!destroyed && map) map.invalidateSize(); }, 300);
     });
     return () => {
       destroyed = true;
@@ -1770,6 +1771,39 @@ export default function VoyageDetail() {
     onError: () => toast({ title: "Kalkış limanı güncellenemedi", variant: "destructive" }),
   });
 
+  const [milestoneDialogOpen, setMilestoneDialogOpen] = useState(false);
+  const [milestoneStepKey, setMilestoneStepKey] = useState("");
+  const [milestoneDate, setMilestoneDate] = useState("");
+  const [milestoneNotes, setMilestoneNotes] = useState("");
+
+  const imoForAis = voyage?.imoNumber || null;
+  const { data: aisPos } = useQuery<any>({
+    queryKey: ["/api/vessels/live-position", imoForAis],
+    queryFn: async () => {
+      const res = await fetch(`/api/vessels/live-position?imo=${encodeURIComponent(imoForAis!)}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!imoForAis,
+    staleTime: 2 * 60 * 1000,
+    retry: false,
+  });
+
+  const confirmMilestoneMutation = useMutation({
+    mutationFn: (data: { stepKey: string; completedAt: string; notes?: string }) =>
+      apiRequest("POST", `/api/voyages/${voyageId}/workflow-step`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/voyages"] });
+      setMilestoneDialogOpen(false);
+      setMilestoneStepKey("");
+      setMilestoneDate("");
+      setMilestoneNotes("");
+      toast({ title: "Adım onaylandı" });
+    },
+    onError: () => toast({ title: "Adım onaylanamadı", variant: "destructive" }),
+  });
+
   // ── Auto-set requiresHotel on crewSigners when voyage ETA/ETD loaded ───────
   useEffect(() => {
     if (!voyage) return;
@@ -2955,52 +2989,98 @@ export default function VoyageDetail() {
         {/* ── ROW 2: Port Call Stepper ──────────────────────────────────────── */}
         <div className="px-5 py-5 border-t border-b border-border/50 bg-muted/20" data-testid="port-call-stepper">
           {(() => {
-            const activeIdx = getStepperIndex(voyage.status);
+            const wfSteps = (voyage.workflowSteps || {}) as Record<string, { completedAt?: string; completedBy?: string; notes?: string }>;
+            const aisNavStatus = (aisPos?.navigation_status || "").toLowerCase();
+            const aisSuggestion: Record<string, boolean> = {
+              anchorage: aisNavStatus.includes("anchor"),
+              berthed: aisNavStatus.includes("moor") || aisNavStatus.includes("berth"),
+              departed: (aisPos?.speed ?? 0) > 1 && !!wfSteps.berthed?.completedAt,
+            };
             return (
               <div className="flex items-start gap-0">
                 {PORT_CALL_STEPS.map((step, idx) => {
                   const StepIcon = step.icon;
-                  const isPast   = activeIdx >= 0 && idx < activeIdx;
-                  const isActive = activeIdx >= 0 && idx === activeIdx;
-                  const isLast   = idx === PORT_CALL_STEPS.length - 1;
+                  const stepData = wfSteps[step.key];
+                  const isConfirmed = !!stepData?.completedAt;
+                  const isLast = idx === PORT_CALL_STEPS.length - 1;
                   const stepLabel = step.key === "cargo_ops" ? features.stepperLabel4 : step.label;
+                  const hasAisSuggestion = !isConfirmed && aisSuggestion[step.key];
+                  const confirmedDate = stepData?.completedAt ? new Date(stepData.completedAt) : null;
+                  const lastConfirmedIdx = PORT_CALL_STEPS.reduce((acc, s, i) => wfSteps[s.key]?.completedAt ? i : acc, -1);
+                  const isNextStep = !isConfirmed && idx === lastConfirmedIdx + 1;
 
                   return (
                     <div key={step.key} className="flex items-center flex-1 min-w-0">
-                      {/* Step node + label */}
-                      <div className="flex flex-col items-center gap-1.5 shrink-0">
-                        <div className={`
-                          relative w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all
-                          ${isActive
-                            ? "bg-primary border-primary text-primary-foreground shadow-[0_0_20px_rgba(59,130,246,0.55)]"
-                            : isPast
-                            ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
-                            : "bg-muted/30 border-border/50 text-muted-foreground/35"
-                          }
-                        `}>
-                          {isActive && (
-                            <span className="absolute inset-0 rounded-full animate-ping bg-primary/25 pointer-events-none" />
+                      <div className="flex flex-col items-center gap-1 shrink-0 min-w-[64px]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMilestoneStepKey(step.key);
+                            setMilestoneDate(isConfirmed && stepData?.completedAt
+                              ? new Date(stepData.completedAt).toISOString().slice(0, 16)
+                              : new Date().toISOString().slice(0, 16));
+                            setMilestoneNotes(stepData?.notes || "");
+                            setMilestoneDialogOpen(true);
+                          }}
+                          className={`
+                            relative w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all cursor-pointer
+                            ${isConfirmed
+                              ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/30"
+                              : isNextStep
+                              ? "bg-primary/10 border-primary/50 text-primary hover:bg-primary/20 shadow-[0_0_12px_rgba(59,130,246,0.3)]"
+                              : "bg-muted/30 border-border/50 text-muted-foreground/35 hover:border-border hover:text-muted-foreground/60"
+                            }
+                          `}
+                          data-testid={`step-node-${step.key}`}
+                        >
+                          {isNextStep && !isConfirmed && (
+                            <span className="absolute inset-0 rounded-full animate-ping bg-primary/20 pointer-events-none" />
                           )}
-                          {isPast
+                          {isConfirmed
                             ? <CheckCheck className="w-4 h-4" />
                             : <StepIcon className="w-4 h-4" />
                           }
-                        </div>
+                          {isConfirmed && (
+                            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-card border border-border flex items-center justify-center">
+                              <Pencil className="w-2 h-2 text-muted-foreground" />
+                            </span>
+                          )}
+                        </button>
                         <span className={`text-[11px] font-bold text-center whitespace-nowrap ${
-                          isActive ? "text-primary"
-                          : isPast  ? "text-emerald-400/80"
+                          isConfirmed ? "text-emerald-400/80"
+                          : isNextStep ? "text-primary"
                           : "text-muted-foreground/35"
                         }`}>
                           {stepLabel}
                         </span>
+                        {isConfirmed && confirmedDate && (
+                          <span className="text-[9px] text-emerald-400/70 font-medium whitespace-nowrap" data-testid={`step-date-${step.key}`}>
+                            {confirmedDate.toLocaleDateString("tr-TR", { day: "2-digit", month: "short" })} {confirmedDate.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        )}
+                        {!isConfirmed && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMilestoneStepKey(step.key);
+                              setMilestoneDate(new Date().toISOString().slice(0, 16));
+                              setMilestoneNotes("");
+                              setMilestoneDialogOpen(true);
+                            }}
+                            className="text-[9px] text-muted-foreground/50 hover:text-primary font-medium transition-colors"
+                            data-testid={`step-confirm-${step.key}`}
+                          >
+                            Onayla
+                          </button>
+                        )}
+                        {hasAisSuggestion && (
+                          <span className="text-[8px] font-bold text-amber-400 bg-amber-500/15 border border-amber-500/30 rounded-full px-1.5 py-0.5 mt-0.5 flex items-center gap-0.5" data-testid={`step-ais-${step.key}`}>
+                            <Activity className="w-2.5 h-2.5" /> AIS
+                          </span>
+                        )}
                       </div>
-
-                      {/* Connector line */}
                       {!isLast && (
-                        <div className={`
-                          h-0.5 flex-1 mx-1 mb-5 rounded-full transition-all
-                          ${isPast ? "bg-emerald-500/40" : "bg-border/40"}
-                        `} />
+                        <div className={`h-0.5 flex-1 mx-1 mb-8 rounded-full transition-all ${isConfirmed ? "bg-emerald-500/40" : "bg-border/40"}`} />
                       )}
                     </div>
                   );
@@ -8857,6 +8937,62 @@ export default function VoyageDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Milestone Confirmation Dialog */}
+      <Dialog open={milestoneDialogOpen} onOpenChange={v => { if (!v) { setMilestoneDialogOpen(false); setMilestoneStepKey(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BadgeCheck className="w-5 h-5 text-emerald-500" />
+              {milestoneStepKey ? (PORT_CALL_STEPS.find(s => s.key === milestoneStepKey)?.label || milestoneStepKey) : ""} — Onayla
+            </DialogTitle>
+            <DialogDescription>
+              Bu adımın gerçekleştiği tarih ve saati girin.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Tarih / Saat</Label>
+              <Input
+                type="datetime-local"
+                value={milestoneDate}
+                onChange={e => setMilestoneDate(e.target.value)}
+                data-testid="input-milestone-date"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Not (isteğe bağlı)</Label>
+              <Textarea
+                value={milestoneNotes}
+                onChange={e => setMilestoneNotes(e.target.value)}
+                placeholder="Eklemek istediğiniz not..."
+                rows={2}
+                data-testid="input-milestone-notes"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => { setMilestoneDialogOpen(false); setMilestoneStepKey(""); }} data-testid="button-milestone-cancel">
+              İptal
+            </Button>
+            <Button
+              size="sm"
+              disabled={!milestoneDate || confirmMilestoneMutation.isPending}
+              onClick={() => {
+                if (!milestoneStepKey || !milestoneDate) return;
+                confirmMilestoneMutation.mutate({
+                  stepKey: milestoneStepKey,
+                  completedAt: new Date(milestoneDate).toISOString(),
+                  notes: milestoneNotes || undefined,
+                });
+              }}
+              data-testid="button-milestone-save"
+            >
+              {confirmMilestoneMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Onayla"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Close-out Checklist Dialog */}
       <Dialog open={showCloseOutDialog} onOpenChange={setShowCloseOutDialog}>

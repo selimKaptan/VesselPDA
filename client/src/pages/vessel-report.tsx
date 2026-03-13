@@ -249,7 +249,7 @@ export default function VesselReport() {
     });
     miniMapInstanceRef.current = map;
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", {
       subdomains: "abcd",
       maxZoom: 18,
     }).addTo(map);
@@ -258,6 +258,7 @@ export default function VesselReport() {
     }).addTo(map);
 
     map.setView([posData.latitude, posData.longitude], 11);
+    setTimeout(() => map.invalidateSize(), 300);
 
     const course = posData.course ?? 0;
     const shipIcon = L.divIcon({
@@ -298,7 +299,7 @@ export default function VesselReport() {
     });
     trackMapInstanceRef.current = map;
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { subdomains: "abcd", maxZoom: 18 }).addTo(map);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", { subdomains: "abcd", maxZoom: 18 }).addTo(map);
     L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", { maxZoom: 18, opacity: 0.6 }).addTo(map);
 
     const trackData = trackQ.data;
