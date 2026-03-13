@@ -707,6 +707,7 @@ export default function VoyageDetail() {
   const [cargoViewMode, setCargoViewMode] = useState<"cards" | "table">("cards");
   const [vesselType, setVesselType] = useState<"dry_bulk" | "tanker">("dry_bulk");
   const [logParcelId, setLogParcelId] = useState("");
+  const [logParcelLocked, setLogParcelLocked] = useState(false);
   const [logHold, setLogHold] = useState("");
   const [logQuantity, setLogQuantity] = useState("");
   const [logCrane, setLogCrane] = useState("");
@@ -2421,7 +2422,7 @@ export default function VoyageDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId, "cargo-logs"] });
       setShowAddLogDialog(false);
       setLogForm({ fromTime: "", toTime: "", logType: "operation", remarks: "", delayReason: "", delayNotes: "", receiverEntries: {} });
-      setLogParcelId(""); setLogHold(""); setLogQuantity(""); setLogCrane(""); setLogGangs("");
+      setLogParcelId(""); setLogParcelLocked(false); setLogHold(""); setLogQuantity(""); setLogCrane(""); setLogGangs("");
       setLogTank(""); setLogEquipment(""); setLogConnections(""); setLogPressure(""); setLogTemp("");
       setLogRemarks("");
       toast({ title: "Log kaydedildi" });
@@ -5595,6 +5596,7 @@ export default function VoyageDetail() {
                                   <button onClick={() => cycleParcelStatus(parcel.id)} className={cn("text-[10px] font-semibold px-2.5 py-1 rounded-full border cursor-pointer transition-all", isActive && cn("animate-pulse", c.light, c.text, c.border), isPaused && "bg-amber-500/15 text-amber-400 border-amber-500/30", isCompleted && "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", !isActive && !isCompleted && !isPaused && "bg-slate-800 text-slate-500 border-slate-700 hover:border-blue-500/30 hover:text-blue-400")} data-testid={`badge-parcel-status-${parcel.id}`}>
                                     {isActive ? "🔄 ACTIVE" : isPaused ? "⏸ PAUSED" : isCompleted ? "✅ DONE" : "⏳ WAITING"}
                                   </button>
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-emerald-500 hover:text-emerald-400" onClick={() => { setLogParcelId(String(parcel.id)); setLogParcelLocked(true); setShowAddLogDialog(true); }} data-testid={`button-add-log-parcel-${parcel.id}`} title="Log Ekle"><Plus className="w-3.5 h-3.5" /></Button>
                                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" onClick={() => { setEditingParcel(parcel); setParcelForm({ receiverName: parcel.receiverName || "", cargoType: parcel.cargoType || "", cargoDescription: parcel.cargoDescription || "", targetQuantity: parcel.targetQuantity || 0, handledQuantity: parcel.handledQuantity || 0, unit: parcel.unit || "MT", holdNumbers: parcel.holdNumbers || "", blNumber: parcel.blNumber || "", notes: parcel.notes || "", consigneeName: parcel.consigneeName || "", shipperName: parcel.shipperName || "", cargoGrade: parcel.cargoGrade || "", tankNumbers: parcel.tankNumbers || "", blQuantity: parcel.blQuantity || "", loadingSequence: parcel.loadingSequence || "", dischargeSequence: parcel.dischargeSequence || "", operationStatus: parcel.operationStatus || "waiting", equipmentUsed: parcel.equipmentUsed || "", hosesConnected: parcel.hosesConnected || "", cranesAssigned: parcel.cranesAssigned || "", targetRate: parcel.targetRate || "" }); setShowAddParcelDialog(true); }} data-testid={`button-edit-parcel-${parcel.id}`}><Pencil className="w-3.5 h-3.5" /></Button>
                                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => deleteParcelMutation.mutate(parcel.id)} data-testid={`button-delete-parcel-${parcel.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>
                                 </div>
@@ -5749,6 +5751,7 @@ export default function VoyageDetail() {
                                   </td>
                                   <td className="px-3 py-2.5">
                                     <div className="flex items-center gap-1">
+                                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-emerald-500 hover:text-emerald-400" onClick={() => { setLogParcelId(String(parcel.id)); setLogParcelLocked(true); setShowAddLogDialog(true); }} data-testid={`button-add-log-parcel-table-${parcel.id}`} title="Log Ekle"><Plus className="w-3 h-3" /></Button>
                                       <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { setEditingParcel(parcel); setParcelForm({ receiverName: parcel.receiverName || "", cargoType: parcel.cargoType || "", cargoDescription: parcel.cargoDescription || "", targetQuantity: parcel.targetQuantity || 0, handledQuantity: parcel.handledQuantity || 0, unit: parcel.unit || "MT", holdNumbers: parcel.holdNumbers || "", blNumber: parcel.blNumber || "", notes: parcel.notes || "", consigneeName: parcel.consigneeName || "", shipperName: parcel.shipperName || "", cargoGrade: parcel.cargoGrade || "", tankNumbers: parcel.tankNumbers || "", blQuantity: parcel.blQuantity || "", loadingSequence: parcel.loadingSequence || "", dischargeSequence: parcel.dischargeSequence || "", operationStatus: parcel.operationStatus || "waiting", equipmentUsed: parcel.equipmentUsed || "", hosesConnected: parcel.hosesConnected || "", cranesAssigned: parcel.cranesAssigned || "", targetRate: parcel.targetRate || "" }); setShowAddParcelDialog(true); }} data-testid={`button-edit-parcel-${parcel.id}`}><Pencil className="w-3 h-3" /></Button>
                                       <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => deleteParcelMutation.mutate(parcel.id)} data-testid={`button-delete-parcel-${parcel.id}`}><Trash2 className="w-3 h-3" /></Button>
                                     </div>
@@ -5785,8 +5788,8 @@ export default function VoyageDetail() {
                   <Button variant="outline" size="sm" className="text-xs h-7 gap-1.5 text-slate-400 hover:text-slate-200" onClick={() => { setStowageNotes(stowagePlanData?.holdNotes ?? ""); setShowStowageModal(true); }} data-testid="button-open-stowage-modal">
                     <Ship className="w-3 h-3" /> Stowage Plan
                   </Button>
-                  <Button size="sm" className="text-xs h-7 gap-1.5" onClick={() => setShowAddLogDialog(true)} data-testid="button-add-cargo-log">
-                    <Plus className="w-3 h-3" /> Add Log
+                  <Button size="sm" className="text-xs h-7 gap-1.5" onClick={() => { setLogParcelLocked(false); setLogParcelId(""); setShowAddLogDialog(true); }} data-testid="button-add-cargo-log">
+                    <Plus className="w-3 h-3" /> Log Ekle
                   </Button>
                 </div>
               </div>
@@ -6110,7 +6113,6 @@ export default function VoyageDetail() {
 
             {/* ── Add Operation Log Dialog ─────────── */}
             {(() => {
-              const isTanker = vesselType === "tanker";
               const isOperation = logForm.logType === "operation";
               const periodHours = logForm.fromTime && logForm.toTime
                 ? (new Date(logForm.toTime).getTime() - new Date(logForm.fromTime).getTime()) / 3_600_000
@@ -6125,84 +6127,73 @@ export default function VoyageDetail() {
                 : null;
               const canSubmit = !!logForm.fromTime && !!logForm.toTime &&
                 (isOperation ? parseFloat(logQuantity || "0") > 0 : true);
+              const lockedParcel = logParcelLocked ? cargoParcelsData.find((p: any) => String(p.id) === logParcelId) : null;
 
               return (
                 <Dialog open={showAddLogDialog} onOpenChange={v => {
                   setShowAddLogDialog(v);
                   if (!v) {
                     setLogForm({ fromTime: "", toTime: "", logType: "operation", remarks: "", delayReason: "", delayNotes: "", receiverEntries: {} });
-                    setLogParcelId(""); setLogHold(""); setLogQuantity(""); setLogCrane(""); setLogGangs("");
+                    setLogParcelId(""); setLogParcelLocked(false); setLogHold(""); setLogQuantity(""); setLogCrane(""); setLogGangs("");
                     setLogTank(""); setLogEquipment(""); setLogConnections(""); setLogPressure(""); setLogTemp("");
                     setLogRemarks("");
                   }
                 }}>
-                  <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+                  <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle className="flex items-center gap-2">
                         <ScrollText className="w-4 h-4" />
-                        Add Operation Log
+                        Operasyon Logu Ekle
                       </DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-2">
 
-                      {/* Vessel Type Toggle */}
-                      <div className="flex items-center gap-1 p-1 bg-muted/40 rounded-lg border border-border/60">
-                        <button
-                          className={`flex-1 text-xs py-1.5 px-3 rounded-md font-medium transition-colors ${vesselType === "dry_bulk" ? "bg-background shadow border border-border/60 text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                          onClick={() => setVesselType("dry_bulk")}
-                          data-testid="toggle-dry-bulk"
-                        >
-                          🏗 Dry Bulk
-                        </button>
-                        <button
-                          className={`flex-1 text-xs py-1.5 px-3 rounded-md font-medium transition-colors ${vesselType === "tanker" ? "bg-background shadow border border-border/60 text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                          onClick={() => setVesselType("tanker")}
-                          data-testid="toggle-tanker"
-                        >
-                          🛢 Tanker
-                        </button>
-                      </div>
-
-                      {/* Log Type + Parcel */}
+                      {/* Log Type + Grade/Tank */}
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <Label className="text-xs">Log Type</Label>
+                          <Label className="text-xs">Log Tipi</Label>
                           <Select value={logForm.logType} onValueChange={v => setLogForm(f => ({ ...f, logType: v }))}>
                             <SelectTrigger className="h-9 text-xs" data-testid="select-log-type"><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="operation">{isTanker ? "Pumping" : "Cargo Handling"}</SelectItem>
-                              <SelectItem value="delay">Delay / Stoppage</SelectItem>
-                              <SelectItem value="inspection">Survey / Inspection</SelectItem>
-                              <SelectItem value="shift">Shift Change</SelectItem>
-                              <SelectItem value="weather">Weather Delay</SelectItem>
+                              <SelectItem value="operation">Operasyon</SelectItem>
+                              <SelectItem value="delay">Gecikme / Durus</SelectItem>
+                              <SelectItem value="inspection">Survey / Denetim</SelectItem>
+                              <SelectItem value="shift">Vardiya Degisimi</SelectItem>
+                              <SelectItem value="weather">Hava Gecikmesi</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                         <div>
-                          <Label className="text-xs">{isTanker ? "Grade / Tank" : "Parcel / Receiver"}</Label>
-                          <Select value={logParcelId || "none"} onValueChange={v => setLogParcelId(v === "none" ? "" : v)}>
-                            <SelectTrigger className="h-9 text-xs" data-testid="select-log-parcel"><SelectValue placeholder="Select..." /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">— None —</SelectItem>
-                              {cargoParcelsData.map((p: any) => (
-                                <SelectItem key={p.id} value={String(p.id)}>{p.receiverName}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <Label className="text-xs">Grade / Tank</Label>
+                          {logParcelLocked && lockedParcel ? (
+                            <div className="h-9 flex items-center px-3 text-xs bg-muted/40 border border-border/60 rounded-md text-foreground truncate" data-testid="text-log-parcel-locked" title={`${lockedParcel.receiverName} — ${lockedParcel.cargoType || ""}`}>
+                              {lockedParcel.receiverName}{lockedParcel.cargoType ? ` — ${lockedParcel.cargoType}` : ""}
+                            </div>
+                          ) : (
+                            <Select value={logParcelId || "none"} onValueChange={v => setLogParcelId(v === "none" ? "" : v)}>
+                              <SelectTrigger className="h-9 text-xs" data-testid="select-log-parcel"><SelectValue placeholder="Parsel sec..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">— Yok —</SelectItem>
+                                {cargoParcelsData.map((p: any) => (
+                                  <SelectItem key={p.id} value={String(p.id)}>{p.receiverName}{p.cargoType ? ` — ${p.cargoType}` : ""}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </div>
                       </div>
 
-                      {/* From / To */}
+                      {/* Baslangic / Bitis */}
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <Label className="text-xs">From *</Label>
+                          <Label className="text-xs">Baslangic *</Label>
                           <Input type="datetime-local" value={logForm.fromTime}
                             onChange={e => setLogForm(f => ({ ...f, fromTime: e.target.value }))}
                             className="text-xs h-9" data-testid="input-log-from-time" />
                         </div>
                         <div>
                           <Label className="text-xs flex items-center justify-between">
-                            <span>To *</span>
+                            <span>Bitis *</span>
                             {periodLabel && <span className="text-muted-foreground font-normal normal-case">süre: {periodLabel}</span>}
                           </Label>
                           <Input type="datetime-local" value={logForm.toTime}
@@ -6211,101 +6202,40 @@ export default function VoyageDetail() {
                         </div>
                       </div>
 
-                      {/* ── OPERATION MODE: dynamic params ─────────── */}
-                      {logForm.logType === "operation" && (
-                        <div className="space-y-3 pt-1">
-                          {!isTanker ? (
-                            /* DRY BULK params */
-                            <>
-                              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Dry Bulk Parameters</div>
-                              <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                  <Label className="text-xs">Hold No.</Label>
-                                  <Input type="text" value={logHold} onChange={e => setLogHold(e.target.value)}
-                                    placeholder="e.g. H1, H2-H4" className="h-9 text-xs" data-testid="input-log-hold" />
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Quantity (MT) *</Label>
-                                  <Input type="number" min="0" step="0.1" value={logQuantity}
-                                    onChange={e => setLogQuantity(e.target.value)}
-                                    placeholder="0.00" className="h-9 text-xs font-mono" data-testid="input-log-quantity" />
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Crane Used</Label>
-                                  <Input type="text" value={logCrane} onChange={e => setLogCrane(e.target.value)}
-                                    placeholder="e.g. Crane 1" className="h-9 text-xs" data-testid="input-log-crane" />
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Gangs Working</Label>
-                                  <Input type="number" min="0" step="1" value={logGangs} onChange={e => setLogGangs(e.target.value)}
-                                    placeholder="0" className="h-9 text-xs font-mono" data-testid="input-log-gangs" />
-                                </div>
-                              </div>
-                            </>
-                          ) : (
-                            /* TANKER params */
-                            <>
-                              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Tanker Parameters</div>
-                              <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                  <Label className="text-xs">Tank No.</Label>
-                                  <Input type="text" value={logTank} onChange={e => setLogTank(e.target.value)}
-                                    placeholder="e.g. 1P, 2S" className="h-9 text-xs" data-testid="input-log-tank" />
-                                </div>
-                                <div className="grid grid-cols-2 gap-1.5">
-                                  <div>
-                                    <Label className="text-xs">Qty *</Label>
-                                    <Input type="number" min="0" step="0.1" value={logQuantity}
-                                      onChange={e => setLogQuantity(e.target.value)}
-                                      placeholder="0.00" className="h-9 text-xs font-mono" data-testid="input-log-qty-tanker" />
-                                  </div>
-                                  <div>
-                                    <Label className="text-xs">Unit</Label>
-                                    <Select value={logUnit} onValueChange={setLogUnit}>
-                                      <SelectTrigger className="h-9 text-xs" data-testid="select-log-unit"><SelectValue /></SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="MT">MT</SelectItem>
-                                        <SelectItem value="CBM">CBM</SelectItem>
-                                        <SelectItem value="BBL">BBL</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Equipment</Label>
-                                  <Input type="text" value={logEquipment} onChange={e => setLogEquipment(e.target.value)}
-                                    placeholder="e.g. Arm 1" className="h-9 text-xs" data-testid="input-log-equipment" />
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Connections</Label>
-                                  <Input type="number" min="0" step="1" value={logConnections} onChange={e => setLogConnections(e.target.value)}
-                                    placeholder="0" className="h-9 text-xs font-mono" data-testid="input-log-connections" />
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Pressure (bar)</Label>
-                                  <Input type="number" min="0" step="0.1" value={logPressure} onChange={e => setLogPressure(e.target.value)}
-                                    placeholder="0.0" className="h-9 text-xs font-mono" data-testid="input-log-pressure" />
-                                </div>
-                                <div>
-                                  <Label className="text-xs">Temperature (°C)</Label>
-                                  <Input type="number" step="0.1" value={logTemp} onChange={e => setLogTemp(e.target.value)}
-                                    placeholder="0.0" className="h-9 text-xs font-mono" data-testid="input-log-temp" />
-                                </div>
-                              </div>
-                            </>
-                          )}
-                          {previewRate && (
-                            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-md text-emerald-400 text-xs">
-                              <Activity className="w-3.5 h-3.5" />
-                              <span>Dönem hızı: <strong>{previewRate} MT/hr</strong></span>
-                            </div>
-                          )}
+                      {/* Quantity + Unit (shown for operation type) */}
+                      {isOperation && (
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="col-span-2">
+                            <Label className="text-xs">Miktar *</Label>
+                            <Input type="number" min="0" step="0.1" value={logQuantity}
+                              onChange={e => setLogQuantity(e.target.value)}
+                              placeholder="0.00" className="h-9 text-xs font-mono" data-testid="input-log-quantity" />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Birim</Label>
+                            <Select value={logUnit} onValueChange={setLogUnit}>
+                              <SelectTrigger className="h-9 text-xs" data-testid="select-log-unit"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="MT">MT</SelectItem>
+                                <SelectItem value="CBM">CBM</SelectItem>
+                                <SelectItem value="BBL">BBL</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Preview rate */}
+                      {previewRate && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-md text-emerald-400 text-xs">
+                          <Activity className="w-3.5 h-3.5" />
+                          <span>Dönem hızı: <strong>{previewRate} MT/hr</strong></span>
                         </div>
                       )}
 
                       {/* Remarks */}
                       <div>
-                        <Label className="text-xs">Remarks</Label>
+                        <Label className="text-xs">Notlar</Label>
                         <Textarea value={logRemarks} onChange={e => setLogRemarks(e.target.value)}
                           placeholder="Notlar, gecikme nedeni, özel olaylar..." rows={2}
                           className="text-xs resize-none" data-testid="textarea-log-remarks" />
