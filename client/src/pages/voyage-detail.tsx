@@ -5444,6 +5444,305 @@ export default function VoyageDetail() {
             </Card>
           )}
           </>)}
+
+          {/* ── CREW CHANGE / HUSBANDRY: Overview Tab ────────────────── */}
+          {(voyage.purposeOfCall === "Crew Change" || voyage.purposeOfCall === "Husbandry") && activeTab === "overview" && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* LEFT: Milestones + Crew Stats */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Port Call Stepper */}
+                <PortCallWorkflow
+                  voyageId={voyage.id}
+                  operationType={voyage.purposeOfCall || "Crew Change"}
+                  portName={voyage.portName || portData?.name || "Port"}
+                  userRole={user?.userRole || user?.activeRole || "agency"}
+                  completedSteps={workflowData?.steps || {}}
+                  onStepComplete={async (key, dt, notes) => {
+                    await apiRequest("POST", `/api/v1/voyages/${voyage.id}/workflow-step`, { stepKey: key, completedAt: dt, notes });
+                    refetchWorkflow();
+                  }}
+                  onStepEdit={async (key, dt, notes) => {
+                    await apiRequest("POST", `/api/v1/voyages/${voyage.id}/workflow-step`, { stepKey: key, completedAt: dt, notes });
+                    refetchWorkflow();
+                  }}
+                />
+
+                {/* Crew Change Stats */}
+                {voyage.purposeOfCall === "Crew Change" && (() => {
+                  const onSignersCount  = crewSigners.filter(c => c.side === "on").length;
+                  const offSignersCount = crewSigners.filter(c => c.side === "off").length;
+                  const hotelsCount     = crewSigners.filter(c => c.requiresHotel).length;
+                  const flightsCount    = crewSigners.filter(c => c.flight).length;
+                  return (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {[
+                        { label: "On-Signers",  value: onSignersCount,  icon: LogIn,   color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
+                        { label: "Off-Signers", value: offSignersCount, icon: LogOut,  color: "text-rose-400",    bg: "bg-rose-500/10 border-rose-500/20" },
+                        { label: "Hotel Gerekli", value: hotelsCount,   icon: Building, color: "text-sky-400",    bg: "bg-sky-500/10 border-sky-500/20" },
+                        { label: "Uçuş Girildi", value: flightsCount,  icon: Plane,   color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/20" },
+                      ].map(({ label, value, icon: Icon, color, bg }) => (
+                        <Card key={label} className={`p-4 border ${bg}`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <Icon className={`w-4 h-4 ${color}`} />
+                            <span className="text-xs text-muted-foreground">{label}</span>
+                          </div>
+                          <p className={`text-2xl font-bold ${color}`}>{value}</p>
+                        </Card>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* Crew List Preview */}
+                {voyage.purposeOfCall === "Crew Change" && crewSigners.length > 0 && (
+                  <Card className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <UsersIcon className="w-4 h-4 text-cyan-400" />
+                        <h3 className="font-semibold text-sm">Mürettebat Özeti</h3>
+                        <span className="text-xs text-muted-foreground">({crewSigners.length} kişi)</span>
+                      </div>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setActiveTab("crew-ops")}>
+                        Tümünü Yönet →
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                      {crewSigners.slice(0, 8).map(c => (
+                        <div key={c.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${c.side === "on" ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-rose-500/10 border border-rose-500/20"}`}>
+                          <span className={`font-bold text-[10px] uppercase px-1.5 py-0.5 rounded ${c.side === "on" ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"}`}>
+                            {c.side === "on" ? "ON" : "OFF"}
+                          </span>
+                          <span className="font-medium truncate">{c.name || "—"}</span>
+                          <span className="ml-auto text-muted-foreground shrink-0">{c.rank || ""}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {crewSigners.length > 8 && (
+                      <button onClick={() => setActiveTab("crew-ops")} className="text-xs text-cyan-400 hover:underline">
+                        +{crewSigners.length - 8} daha fazla →
+                      </button>
+                    )}
+                  </Card>
+                )}
+
+                {/* Service Requests */}
+                <Card className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Wrench className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                      <h3 className="font-semibold text-sm">Hizmet Talepleri</h3>
+                    </div>
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => setShowServiceDialog(true)} data-testid="button-add-service-cc">
+                      <Plus className="w-3 h-3" /> Ekle
+                    </Button>
+                  </div>
+                  {serviceReqs.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-2">Henüz hizmet talebi yok.</p>
+                  ) : (
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                      {serviceReqs.map((req: any) => {
+                        const cfg = SERVICE_TYPE_CONFIG[req.serviceType] || SERVICE_TYPE_CONFIG.other;
+                        const SIcon = cfg.icon;
+                        return (
+                          <Link key={req.id} href={`/service-requests/${req.id}`}>
+                            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 hover:bg-muted/60 transition-colors cursor-pointer text-xs">
+                              <SIcon className={`w-3.5 h-3.5 flex-shrink-0 ${cfg.color}`} />
+                              <span className="font-medium truncate">{cfg.label}</span>
+                              <Badge variant="outline" className="text-[10px] ml-auto capitalize">{req.status}</Badge>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Card>
+              </div>
+
+              {/* RIGHT: Team + Appointments preview */}
+              <div className="flex flex-col gap-6">
+                {/* Voyage Team */}
+                <Card className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-sm flex items-center gap-2">
+                      <Users2 className="w-4 h-4 text-sky-400" />
+                      Voyage Team
+                      <span className="text-xs text-muted-foreground">({participants.length + 1})</span>
+                    </h3>
+                    {(isOwner || isAgent) && (
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setActiveTab("team")}>
+                        <UserPlus className="w-3 h-3 mr-1" /> Davet Et
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {voyage && (
+                      <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full px-3 py-1">
+                        <div className="w-5 h-5 rounded-full bg-amber-600 flex items-center justify-center text-[10px] font-bold text-white">
+                          {voyage.ownerFirstName?.[0] ?? "O"}
+                        </div>
+                        <span className="text-xs font-medium">{`${voyage.ownerFirstName ?? ""} ${voyage.ownerLastName ?? ""}`.trim() || "Owner"}</span>
+                        <span className="text-[10px] text-amber-400/70">Owner</span>
+                      </div>
+                    )}
+                    {participants.slice(0, 4).map((p: any) => (
+                      <div key={p.id} className="flex items-center gap-1.5 bg-muted/40 rounded-full px-3 py-1 border border-border/50">
+                        <div className="w-5 h-5 rounded-full bg-slate-600 flex items-center justify-center text-[10px] font-bold text-white uppercase">
+                          {p.firstName?.[0] ?? p.inviteeEmail?.[0] ?? "?"}
+                        </div>
+                        <span className="text-xs font-medium">{`${p.firstName ?? ""} ${p.lastName ?? ""}`.trim() || p.email || "—"}</span>
+                      </div>
+                    ))}
+                    {participants.length === 0 && (
+                      <p className="text-xs text-muted-foreground italic">Henüz katılımcı yok.</p>
+                    )}
+                  </div>
+                </Card>
+
+                {/* Upcoming Appointments preview */}
+                <Card className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CalendarClock className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                      <h3 className="font-semibold text-sm">Randevular</h3>
+                      {appointments.length > 0 && <span className="text-xs text-muted-foreground">({appointments.length})</span>}
+                    </div>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setActiveTab("appointments")}>
+                      Tümü →
+                    </Button>
+                  </div>
+                  {appointments.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-2">Randevu yok.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {appointments.slice(0, 4).map((appt: any) => (
+                        <div key={appt.id} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded bg-muted/30">
+                          <Badge className="text-[10px] capitalize shrink-0">{appt.appointmentType}</Badge>
+                          <span className="text-muted-foreground truncate">{appt.scheduledAt ? fmtDateTime(appt.scheduledAt) : "Tarih girilmedi"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <Button size="sm" variant="outline" className="w-full h-7 text-xs" onClick={() => { setShowApptForm(true); setActiveTab("appointments"); }}>
+                    <Plus className="w-3 h-3 mr-1" /> Randevu Ekle
+                  </Button>
+                </Card>
+
+                {/* Vault */}
+                <VoyageVaultSection vesselId={voyage.vesselId ?? 0} />
+              </div>
+            </div>
+          )}
+
+          {/* ── CREW CHANGE: Appointments Tab ────────────────────────── */}
+          {(voyage.purposeOfCall === "Crew Change" || voyage.purposeOfCall === "Husbandry") && activeTab === "appointments" && (isOwner || isAgent) && (
+            <Card className="p-5 space-y-4" data-testid="card-cc-appointments">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CalendarClock className="w-4 h-4 text-[hsl(var(--maritime-primary))]" />
+                  <h2 className="font-semibold text-sm">Port Call Randevuları</h2>
+                  {appointments.length > 0 && <span className="text-xs text-muted-foreground">({appointments.length})</span>}
+                </div>
+                <Button size="sm" variant="outline" onClick={() => setShowApptForm(v => !v)} data-testid="button-add-appointment-cc">
+                  <Plus className="w-3.5 h-3.5 mr-1" />Randevu Ekle
+                </Button>
+              </div>
+
+              {showApptForm && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 bg-muted/30 rounded-lg">
+                  <div>
+                    <Select value={apptForm.appointmentType} onValueChange={v => setApptForm(f => ({ ...f, appointmentType: v }))}>
+                      <SelectTrigger className="h-8 text-xs" data-testid="select-appt-type-cc"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pilot">Pilot</SelectItem>
+                        <SelectItem value="tugboat">Römorkör</SelectItem>
+                        <SelectItem value="health">Sağlık Kontrolü</SelectItem>
+                        <SelectItem value="customs">Gümrük</SelectItem>
+                        <SelectItem value="immigration">İskele / Göçmenlik</SelectItem>
+                        <SelectItem value="transportation">Ulaşım (Araç)</SelectItem>
+                        <SelectItem value="hotel">Otel Check-in/Out</SelectItem>
+                        <SelectItem value="flight">Uçuş</SelectItem>
+                        <SelectItem value="other">Diğer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Input type="datetime-local" className="h-8 text-xs" value={apptForm.scheduledAt} onChange={e => setApptForm(f => ({ ...f, scheduledAt: e.target.value }))} data-testid="input-appt-scheduled-cc" />
+                  </div>
+                  <div className="flex gap-1">
+                    <Input className="h-8 text-xs flex-1" placeholder="Notlar (isteğe bağlı)" value={apptForm.notes} onChange={e => setApptForm(f => ({ ...f, notes: e.target.value }))} data-testid="input-appt-notes-cc" />
+                    <Button size="sm" className="h-8 px-2" onClick={() => createApptMutation.mutate()} disabled={createApptMutation.isPending} data-testid="button-save-appt-cc">
+                      {createApptMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {appointments.length === 0 && !showApptForm && (
+                <EmptyState
+                  icon={CalendarClock}
+                  title="Randevu Yok"
+                  description="Pilot, göçmenlik, ulaşım, uçuş gibi randevuları buradan takip edin."
+                  action={{ label: "Randevu Ekle", onClick: () => setShowApptForm(true) }}
+                  compact
+                  testId="section-cc-appointments-empty"
+                />
+              )}
+
+              <div className="space-y-2">
+                {appointments.map((appt: any) => {
+                  const typeLabels: Record<string, { label: string; color: string }> = {
+                    pilot:          { label: "Pilot",          color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
+                    tugboat:        { label: "Römorkör",       color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" },
+                    health:         { label: "Sağlık",         color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" },
+                    customs:        { label: "Gümrük",         color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" },
+                    immigration:    { label: "Göçmenlik",      color: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300" },
+                    transportation: { label: "Ulaşım",         color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" },
+                    hotel:          { label: "Otel",           color: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" },
+                    flight:         { label: "Uçuş",           color: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300" },
+                    other:          { label: "Diğer",          color: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" },
+                  };
+                  const statusLabels: Record<string, { label: string; color: string }> = {
+                    pending:   { label: "Bekliyor",    color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" },
+                    confirmed: { label: "Onaylandı",   color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
+                    completed: { label: "Tamamlandı",  color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" },
+                    cancelled: { label: "İptal",       color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" },
+                  };
+                  const typeCfg = typeLabels[appt.appointmentType] || typeLabels.other;
+                  const stCfg = statusLabels[appt.status] || statusLabels.pending;
+                  return (
+                    <div key={appt.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/30" data-testid={`appt-cc-row-${appt.id}`}>
+                      <Badge className={`text-xs shrink-0 ${typeCfg.color}`}>{typeCfg.label}</Badge>
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {appt.scheduledAt ? fmtDateTime(appt.scheduledAt) : "Tarih girilmedi"}
+                      </span>
+                      {appt.notes && <span className="text-xs text-muted-foreground truncate flex-1">{appt.notes}</span>}
+                      <Badge className={`text-xs shrink-0 ml-auto ${stCfg.color}`}>{stCfg.label}</Badge>
+                      {(isOwner || isAgent) && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="p-1 rounded hover:bg-muted/60 text-muted-foreground" data-testid={`button-appt-cc-menu-${appt.id}`}>
+                              <MoreVertical className="w-3.5 h-3.5" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="text-xs">
+                            {["pending","confirmed","completed","cancelled"].map(s => (
+                              <DropdownMenuItem key={s} onClick={() => updateApptMutation.mutate({ id: appt.id, status: s })} className="text-xs capitalize">
+                                {statusLabels[s]?.label ?? s}
+                              </DropdownMenuItem>
+                            ))}
+                            <DropdownMenuItem onClick={() => deleteApptMutation.mutate(appt.id)} className="text-xs text-red-500">
+                              Sil
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+
           </div>
 
           {/* Cargo Ops Content — only for cargo voyages */}
