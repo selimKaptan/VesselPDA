@@ -819,15 +819,15 @@ router.get("/tariffs/summary", isAuthenticated, async (req: any, res) => {
       const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
 
       for (const tbl of Object.keys(ALLOWED_TARIFF_TABLES)) {
-        const result = await pool.query(`SELECT count(*)::int as cnt, max(updated_at) as latest FROM ${tbl}`);
-        const row = result.rows[0];
+        const result = await db.execute(drizzleSql`SELECT count(*)::int as cnt, max(updated_at) as latest FROM ${drizzleSql.identifier(tbl)}`);
+        const row = result.rows[0] as any;
         counts[tbl] = row.cnt || 0;
         totalRecords += row.cnt || 0;
         if (row.latest && (!latestUpdate || new Date(row.latest) > latestUpdate)) {
           latestUpdate = new Date(row.latest);
         }
-        const oldResult = await pool.query(`SELECT count(*)::int as cnt FROM ${tbl} WHERE updated_at < $1`, [oneYearAgo]);
-        outdatedCount += oldResult.rows[0].cnt || 0;
+        const oldResult = await db.execute(drizzleSql`SELECT count(*)::int as cnt FROM ${drizzleSql.identifier(tbl)} WHERE updated_at < ${oneYearAgo}`);
+        outdatedCount += (oldResult.rows[0] as any).cnt || 0;
       }
 
       const portCountResult = await db.execute(drizzleSql`SELECT count(distinct port_id)::int as cnt FROM pilotage_tariffs WHERE port_id IS NOT NULL`);
