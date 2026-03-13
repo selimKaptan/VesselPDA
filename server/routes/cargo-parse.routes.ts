@@ -1,8 +1,37 @@
 import { Router } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { isAuthenticated } from "../replit_integrations/auth";
+import { execFile } from "child_process";
+import { writeFile, readFile, unlink, mkdtemp } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
 
 const router = Router();
+
+async function convertPdfToImage(pdfBase64: string): Promise<string> {
+  const tmpDir = await mkdtemp(join(tmpdir(), "pdfimg-"));
+  const pdfPath = join(tmpDir, "input.pdf");
+  const outPrefix = join(tmpDir, "page");
+
+  try {
+    await writeFile(pdfPath, Buffer.from(pdfBase64, "base64"));
+
+    await new Promise<void>((resolve, reject) => {
+      execFile("pdftoppm", ["-png", "-r", "300", "-singlefile", pdfPath, outPrefix], { timeout: 30000 }, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    const pngPath = outPrefix + ".png";
+    const pngBuffer = await readFile(pngPath);
+    return pngBuffer.toString("base64");
+  } finally {
+    await unlink(join(tmpDir, "input.pdf")).catch(() => {});
+    await unlink(outPrefix + ".png").catch(() => {});
+    await unlink(tmpDir).catch(() => {});
+  }
+}
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
