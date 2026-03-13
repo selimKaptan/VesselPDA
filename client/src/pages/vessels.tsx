@@ -690,7 +690,7 @@ function DatalasticPanel({ vessel }: { vessel: Vessel }) {
               {[
                 { label: "Sürat", value: posQuery.data.speed != null ? `${posQuery.data.speed} kn` : "—" },
                 { label: "Rota", value: posQuery.data.course != null ? `${posQuery.data.course}°` : "—" },
-                { label: "Güncelleme", value: posQuery.data.timestamp ? new Date(posQuery.data.timestamp).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—" },
+                { label: "Durum", value: posQuery.data.navigation_status || "—" },
               ].map(({ label, value }) => (
                 <div key={label} className="text-center bg-muted/30 rounded-lg py-2 px-1">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{label}</p>
@@ -2684,7 +2684,7 @@ export default function Vessels() {
                           className="gap-1"
                           onClick={() => {
                             setEditCrewMember({ vesselId: v.id, id: null });
-                            setCrewForm({ ...defaultCrewForm } as any);
+                            setCrewForm({ ...defaultCrewForm });
                             setCrewDialogOpen(true);
                           }}
                           data-testid="button-add-crew"
@@ -2708,7 +2708,7 @@ export default function Vessels() {
                             className="mt-4 gap-2"
                             onClick={() => {
                               setEditCrewMember({ vesselId: v.id, id: null });
-                              setCrewForm({ ...defaultCrewForm } as any);
+                              setCrewForm({ ...defaultCrewForm });
                               setCrewDialogOpen(true);
                             }}
                             data-testid="button-add-crew-empty"
