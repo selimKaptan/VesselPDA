@@ -116,14 +116,17 @@ async function deleteVesselCertificate(id: number): Promise<boolean> {
   return (result as any).rowCount > 0;
 }
 
-async function getExpiringCertificates(userId: string, daysAhead: number): Promise<VesselCertificate[]> {
+async function getExpiringCertificates(userId: string, daysAhead: number, includeExpired = false): Promise<VesselCertificate[]> {
   const cutoff = new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000);
+  const conditions = [
+    eq(vesselCertificates.userId, userId),
+    lte(vesselCertificates.expiresAt, cutoff),
+  ];
+  if (!includeExpired) {
+    conditions.push(gte(vesselCertificates.expiresAt, new Date()));
+  }
   return db.select().from(vesselCertificates)
-    .where(and(
-      eq(vesselCertificates.userId, userId),
-      lte(vesselCertificates.expiresAt, cutoff),
-      gte(vesselCertificates.expiresAt, new Date()),
-    ))
+    .where(and(...conditions))
     .orderBy(asc(vesselCertificates.expiresAt));
 }
 

@@ -13,6 +13,7 @@ import {
   ChevronLeft, Download, Upload, Eye, X,
   Layers, Users2, FileSpreadsheet, FolderLock,
   Shield, ClipboardCheck, Building2, Zap, Gauge, Navigation2, Wrench,
+  Fuel, Truck, Snowflake, Box, Flame,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Card } from "@/components/ui/card";
@@ -1084,9 +1085,23 @@ function VesselQ88Badge({ vesselId }: { vesselId: number }) {
 
 // ─── Vessel Card ──────────────────────────────────────────────────────────────
 
-function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete, fleets, onAddToFleet, onRemoveFromFleet }: {
+const VESSEL_TYPE_ICON: Record<string, typeof Ship> = {
+  "Bulk Carrier": Anchor,
+  "Container Ship": Box,
+  "General Cargo": Ship,
+  "Tanker": Fuel,
+  "Chemical Tanker": Fuel,
+  "Ro-Ro": Truck,
+  "Passenger": Users2,
+  "LPG Carrier": Flame,
+  "LNG Carrier": Flame,
+  "Reefer": Snowflake,
+};
+
+function VesselCard({ vessel, voyage, certWarning, onSelect, onEdit, onDelete, fleets, onAddToFleet, onRemoveFromFleet }: {
   vessel: Vessel;
   voyage: any;
+  certWarning?: "expired" | "expiring_soon" | null;
   onSelect: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -1097,6 +1112,8 @@ function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete, fleets, onAddT
   const cfg = getCfg(vessel.fleetStatus);
   const progress = getProgress(voyage);
   const flag = FLAG_EMOJI[vessel.flag || ""] || "🏳️";
+  const TypeIcon = VESSEL_TYPE_ICON[vessel.vesselType || ""] || Ship;
+  const isActive = cfg.group !== "idle";
 
   const locationLine = (() => {
     if (!voyage) return null;
@@ -1106,24 +1123,51 @@ function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete, fleets, onAddT
     return null;
   })();
 
+  const cardShadow = isActive
+    ? `0 0 0 1px ${cfg.bar}30, 0 4px 20px ${cfg.bar}15`
+    : "0 1px 4px rgba(0,0,0,0.08)";
+
   return (
+    <TooltipProvider delayDuration={200}>
     <div
       className="group relative bg-card rounded-2xl border border-border/60 hover:border-[hsl(var(--maritime-primary)/0.5)] transition-all duration-200 cursor-pointer overflow-hidden"
-      style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}
+      style={{ boxShadow: cardShadow }}
       onClick={onSelect}
       data-testid={`card-vessel-${vessel.id}`}
     >
       {/* Top status bar */}
-      <div className="h-0.5" style={{ background: cfg.bar }} />
+      <div className="h-1" style={{ background: cfg.bar }} />
+
+      {/* Certificate warning badge */}
+      {certWarning && (
+        <div className="absolute top-2.5 right-2.5 z-10" data-testid={`badge-cert-warning-${vessel.id}`}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                certWarning === "expired"
+                  ? "bg-red-500/15 text-red-400 border border-red-500/30"
+                  : "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+              }`}>
+                <AlertTriangle className="w-3 h-3" />
+                {certWarning === "expired" ? "!" : "⏳"}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="left" className="text-xs">
+              {certWarning === "expired" ? "Süresi dolmuş sertifika var" : "30 gün içinde dolacak sertifika var"}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      )}
 
       <div className="p-4">
-        {/* Header row: flag icon + name/type + status badge */}
+        {/* Header row: type icon + flag + name + status badge */}
         <div className="flex items-start gap-3 mb-3">
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 select-none"
-            style={{ background: `${cfg.bar}22` }}
+            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 select-none relative"
+            style={{ background: `${cfg.bar}18` }}
           >
-            {flag}
+            <TypeIcon className="w-5 h-5" style={{ color: cfg.bar }} />
+            <span className="absolute -bottom-0.5 -right-0.5 text-[11px] leading-none select-none">{flag}</span>
           </div>
           <div className="flex-1 min-w-0 pt-0.5">
             <h3 className="font-bold text-sm leading-tight truncate" data-testid={`text-vessel-name-${vessel.id}`}>
@@ -1140,11 +1184,11 @@ function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete, fleets, onAddT
         <div className="flex items-center gap-1.5 mb-3 min-h-[16px]">
           {locationLine ? (
             <>
-              <MapPin className="w-3 h-3 text-muted-foreground/60 flex-shrink-0" />
+              <MapPin className="w-3 h-3 text-muted-foreground flex-shrink-0" />
               <span className="text-[11px] text-muted-foreground truncate">{locationLine}</span>
             </>
           ) : (
-            <span className="text-[11px] text-muted-foreground/30">—</span>
+            <span className="text-[11px] text-muted-foreground/40">—</span>
           )}
         </div>
 
@@ -1162,62 +1206,80 @@ function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete, fleets, onAddT
         )}
 
         {/* Stats: GRT | DWT | IMO */}
-        <div className="grid grid-cols-3 divide-x divide-border/40 pt-2.5 border-t border-border/40">
+        <div className="grid grid-cols-3 divide-x divide-border/50 pt-2.5 border-t border-border/50">
           {[
             { label: "GRT", value: vessel.grt ? vessel.grt.toLocaleString() : "—" },
             { label: "DWT", value: vessel.dwt ? vessel.dwt.toLocaleString() : "—" },
             { label: "IMO", value: vessel.imoNumber || "—" },
           ].map(s => (
             <div key={s.label} className="text-center px-1">
-              <p className="text-[9px] text-muted-foreground/60 uppercase tracking-wider font-medium">{s.label}</p>
-              <p className="text-[11px] font-semibold mt-0.5 truncate">{s.value}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{s.label}</p>
+              <p className="text-xs font-semibold mt-0.5 truncate">{s.value}</p>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Hover quick actions overlay */}
-      <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 pb-2.5 pt-6 bg-gradient-to-t from-background/96 via-background/60 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none group-hover:pointer-events-auto">
-        <button
-          onClick={e => { e.stopPropagation(); onSelect(); }}
-          className="flex items-center gap-1 px-2 py-1 rounded-md bg-background border border-border text-[11px] font-medium hover:bg-muted transition-colors shadow-sm"
-          data-testid={`button-view-vessel-${vessel.id}`}
-        >
-          <Eye className="w-3 h-3" /> View
-        </button>
-        <button
-          onClick={e => { e.stopPropagation(); onEdit(); }}
-          className="flex items-center gap-1 px-2 py-1 rounded-md bg-background border border-border text-[11px] font-medium hover:bg-muted transition-colors shadow-sm"
-          data-testid={`button-edit-vessel-${vessel.id}`}
-        >
-          <Edit2 className="w-3 h-3" /> Edit
-        </button>
-        {vessel.imoNumber && (
-          <Link href={`/vessel-report/${vessel.imoNumber}`}>
+      {/* Hover quick actions overlay — icon-only with tooltips */}
+      <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 pb-3 pt-8 bg-gradient-to-t from-background/95 via-background/50 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none group-hover:pointer-events-auto">
+        <Tooltip>
+          <TooltipTrigger asChild>
             <button
-              onClick={e => e.stopPropagation()}
-              className="flex items-center gap-1 px-2 py-1 rounded-md bg-background border border-border text-[11px] font-medium hover:bg-muted transition-colors shadow-sm"
-              data-testid={`button-track-vessel-${vessel.id}`}
+              onClick={e => { e.stopPropagation(); onSelect(); }}
+              className="w-8 h-8 rounded-full bg-background border border-border flex items-center justify-center hover:bg-muted transition-colors shadow-md"
+              data-testid={`button-view-vessel-${vessel.id}`}
             >
-              <Navigation2 className="w-3 h-3" /> Track
+              <Eye className="w-3.5 h-3.5" />
             </button>
-          </Link>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">View</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={e => { e.stopPropagation(); onEdit(); }}
+              className="w-8 h-8 rounded-full bg-background border border-border flex items-center justify-center hover:bg-muted transition-colors shadow-md"
+              data-testid={`button-edit-vessel-${vessel.id}`}
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">Edit</TooltipContent>
+        </Tooltip>
+        {vessel.imoNumber && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                href={`/vessel-report/${vessel.imoNumber}`}
+                onClick={e => e.stopPropagation()}
+                className="w-8 h-8 rounded-full bg-background border border-border flex items-center justify-center hover:bg-muted transition-colors shadow-md cursor-pointer"
+                data-testid={`button-track-vessel-${vessel.id}`}
+              >
+                <Navigation2 className="w-3.5 h-3.5" />
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">Track</TooltipContent>
+          </Tooltip>
         )}
-        <Link href="/pms">
-          <button
-            onClick={e => e.stopPropagation()}
-            className="flex items-center gap-1 px-2 py-1 rounded-md bg-background border border-border text-[11px] font-medium hover:bg-muted transition-colors shadow-sm"
-            data-testid={`button-pms-vessel-${vessel.id}`}
-          >
-            <Wrench className="w-3 h-3" /> PMS
-          </button>
-        </Link>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link
+              href="/pms"
+              onClick={e => e.stopPropagation()}
+              className="w-8 h-8 rounded-full bg-background border border-border flex items-center justify-center hover:bg-muted transition-colors shadow-md cursor-pointer"
+              data-testid={`button-pms-vessel-${vessel.id}`}
+            >
+              <Wrench className="w-3.5 h-3.5" />
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">PMS</TooltipContent>
+        </Tooltip>
         {fleets.length > 0 && (
           <div onClick={e => e.stopPropagation()}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-1 px-2 py-1 rounded-md bg-background border border-border text-[11px] font-medium hover:bg-muted transition-colors shadow-sm" data-testid={`button-fleet-vessel-${vessel.id}`}>
-                  <Layers className="w-3 h-3" />
+                <button className="w-8 h-8 rounded-full bg-background border border-border flex items-center justify-center hover:bg-muted transition-colors shadow-md" data-testid={`button-fleet-vessel-${vessel.id}`}>
+                  <Layers className="w-3.5 h-3.5" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="min-w-[150px]">
@@ -1237,6 +1299,7 @@ function VesselCard({ vessel, voyage, onSelect, onEdit, onDelete, fleets, onAddT
         )}
       </div>
     </div>
+    </TooltipProvider>
   );
 }
 
@@ -1361,6 +1424,29 @@ export default function Vessels() {
     });
     return map;
   }, [voyages]);
+
+  const { data: expiringCertsData = [] } = useQuery<{ vesselId: number; expiresAt: string | null }[]>({
+    queryKey: ["/api/certificates/expiring", 60],
+    queryFn: async () => {
+      const res = await fetch("/api/certificates/expiring?days=60");
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 120_000,
+  });
+
+  const certWarningMap = useMemo(() => {
+    const m = new Map<number, "expired" | "expiring_soon">();
+    const now = new Date();
+    for (const c of expiringCertsData) {
+      if (!c.vesselId || !c.expiresAt) continue;
+      const exp = new Date(c.expiresAt);
+      const level = exp < now ? "expired" : "expiring_soon";
+      const existing = m.get(c.vesselId);
+      if (!existing || level === "expired") m.set(c.vesselId, level);
+    }
+    return m;
+  }, [expiringCertsData]);
 
   const selectedVesselFresh = useMemo(
     () => vessels.find((v) => v.id === selectedVessel?.id) ?? null,
@@ -1931,6 +2017,7 @@ export default function Vessels() {
                     key={vessel.id}
                     vessel={vessel}
                     voyage={vesselVoyageMap.get(vessel.id) ?? null}
+                    certWarning={certWarningMap.get(vessel.id) ?? null}
                     onSelect={() => { setSelectedVessel(vessel); setDetailTab("general"); }}
                     onEdit={() => setEditingVessel(vessel)}
                     onDelete={() => setDeleteVesselId(vessel.id)}
