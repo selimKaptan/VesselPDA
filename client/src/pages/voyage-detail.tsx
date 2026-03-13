@@ -3017,9 +3017,14 @@ export default function VoyageDetail() {
                           type="button"
                           onClick={() => {
                             setMilestoneStepKey(step.key);
+                            const toLocalDT = (d: Date) => {
+                              const off = d.getTimezoneOffset();
+                              const local = new Date(d.getTime() - off * 60000);
+                              return local.toISOString().slice(0, 16);
+                            };
                             setMilestoneDate(isConfirmed && stepData?.completedAt
-                              ? new Date(stepData.completedAt).toISOString().slice(0, 16)
-                              : new Date().toISOString().slice(0, 16));
+                              ? toLocalDT(new Date(stepData.completedAt))
+                              : toLocalDT(new Date()));
                             setMilestoneNotes(stepData?.notes || "");
                             setMilestoneDialogOpen(true);
                           }}
@@ -3071,7 +3076,9 @@ export default function VoyageDetail() {
                             type="button"
                             onClick={() => {
                               setMilestoneStepKey(step.key);
-                              setMilestoneDate(new Date().toISOString().slice(0, 16));
+                              const now = new Date();
+                              const off = now.getTimezoneOffset();
+                              setMilestoneDate(new Date(now.getTime() - off * 60000).toISOString().slice(0, 16));
                               setMilestoneNotes("");
                               setMilestoneDialogOpen(true);
                             }}
