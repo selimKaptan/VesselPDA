@@ -2,7 +2,9 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import JSZip from "jszip";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { PortLookupInput } from "@/components/port-lookup-input";
 import {
   Ship, Plus, Trash2, Edit2, Search, Loader2, RefreshCw,
@@ -491,6 +493,48 @@ function DatalasticFetchSection({
   );
 }
 
+function LiveMiniMap({ lat, lng, heading }: { lat: number; lng: number; heading?: number }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+    const map = L.map(containerRef.current, {
+      center: [lat, lng],
+      zoom: 10,
+      zoomControl: false,
+      attributionControl: false,
+      dragging: true,
+      scrollWheelZoom: false,
+    });
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", {
+      subdomains: "abcd",
+      maxZoom: 19,
+      crossOrigin: true,
+    }).addTo(map);
+    const vesselIcon = L.divIcon({
+      className: "",
+      html: `<div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;transform:rotate(${heading ?? 0}deg)"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="hsl(217,91%,60%)" stroke="white" stroke-width="1.5"><path d="M12 2L4 20l8-4 8 4z"/></svg></div>`,
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
+    });
+    L.marker([lat, lng], { icon: vesselIcon }).addTo(map);
+    mapRef.current = map;
+    const ro = new ResizeObserver(() => map.invalidateSize());
+    ro.observe(containerRef.current);
+    return () => { ro.disconnect(); map.remove(); mapRef.current = null; };
+  }, [lat, lng, heading]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="w-full rounded-lg overflow-hidden border border-border/40"
+      style={{ height: 200 }}
+      data-testid="live-mini-map"
+    />
+  );
+}
+
 function DatalasticPanel({ vessel }: { vessel: Vessel }) {
   const [showEngine, setShowEngine] = useState(false);
   const [showOwnership, setShowOwnership] = useState(false);
@@ -620,23 +664,35 @@ function DatalasticPanel({ vessel }: { vessel: Vessel }) {
         {posQuery.isError ? (
           <p className="text-xs text-muted-foreground py-2">{(posQuery.error as Error).message}</p>
         ) : posQuery.data ? (
-          <div className="grid grid-cols-2 gap-1.5">
-            {[
-              { label: "Enlem", value: posQuery.data.latitude?.toFixed(4) ?? "—" },
-              { label: "Boylam", value: posQuery.data.longitude?.toFixed(4) ?? "—" },
-              { label: "Sürat", value: posQuery.data.speed != null ? `${posQuery.data.speed} kn` : "—" },
-              { label: "Rota", value: posQuery.data.course != null ? `${posQuery.data.course}°` : "—" },
-              { label: "Varış Yeri", value: posQuery.data.destination || "—" },
-              { label: "ETA", value: posQuery.data.eta ? new Date(posQuery.data.eta).toLocaleDateString("tr-TR") : "—" },
-              { label: "Durum", value: posQuery.data.navigation_status || "—" },
-              { label: "Güncelleme", value: posQuery.data.timestamp ? new Date(posQuery.data.timestamp).toLocaleString("tr-TR") : "—" },
-            ].map(({ label, value }) => (
-              <div key={label} className="flex items-center justify-between gap-2 text-xs">
-                <span className="text-muted-foreground shrink-0">{label}</span>
-                <span className="font-semibold text-right truncate">{value}</span>
-              </div>
-            ))}
-          </div>
+          <>
+            <LiveMiniMap lat={posQuery.data.latitude} lng={posQuery.data.longitude} heading={posQuery.data.heading} />
+            <div className="grid grid-cols-3 gap-2 mt-3">
+              {[
+                { label: "Sürat", value: posQuery.data.speed != null ? `${posQuery.data.speed} kn` : "—" },
+                { label: "Rota", value: posQuery.data.course != null ? `${posQuery.data.course}°` : "—" },
+                { label: "Güncelleme", value: posQuery.data.timestamp ? new Date(posQuery.data.timestamp).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—" },
+              ].map(({ label, value }) => (
+                <div key={label} className="text-center bg-muted/30 rounded-lg py-2 px-1">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{label}</p>
+                  <p className="text-sm font-bold mt-0.5">{value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 mt-2">
+              {[
+                { label: "Enlem", value: posQuery.data.latitude?.toFixed(4) ?? "—" },
+                { label: "Boylam", value: posQuery.data.longitude?.toFixed(4) ?? "—" },
+                { label: "Varış Yeri", value: posQuery.data.destination || "—" },
+                { label: "ETA", value: posQuery.data.eta ? new Date(posQuery.data.eta).toLocaleDateString("tr-TR") : "—" },
+                { label: "Durum", value: posQuery.data.navigation_status || "—" },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground shrink-0">{label}</span>
+                  <span className="font-semibold text-right truncate">{value}</span>
+                </div>
+              ))}
+            </div>
+          </>
         ) : posQuery.isLoading ? (
           <div className="py-3 flex items-center justify-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin" /> Konum alınıyor...
@@ -2325,21 +2381,40 @@ export default function Vessels() {
 
                   {/* ── Teknik ── */}
                   {detailTab === "technical" && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-5" data-testid="technical-grouped">
                       {[
-                        { label: "IMO No",   value: v.imoNumber || "—" },
-                        { label: "Call Sign", value: v.callSign || "—" },
-                        { label: "Flag",     value: `${flag} ${v.flag || "—"}` },
-                        { label: "Type",     value: v.vesselType || "—" },
-                        { label: "GRT",      value: v.grt ? v.grt.toLocaleString("en-US") + " GT" : "—" },
-                        { label: "NRT",      value: v.nrt ? v.nrt.toLocaleString("en-US") + " GT" : "—" },
-                        { label: "DWT",      value: v.dwt ? v.dwt.toLocaleString("en-US") + " MT" : "—" },
-                        { label: "LOA",      value: v.loa ? v.loa + " m" : "—" },
-                        { label: "Beam",     value: v.beam ? v.beam + " m" : "—" },
-                      ].map(({ label, value }) => (
-                        <div key={label} className="bg-muted/30 rounded-xl p-3">
-                          <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide mb-1">{label}</p>
-                          <p className="text-sm font-bold">{value}</p>
+                        { title: "Kimlik", fields: [
+                          { label: "IMO No",   value: v.imoNumber || "—" },
+                          { label: "Call Sign", value: v.callSign || "—" },
+                          { label: "Bayrak",   value: `${flag} ${v.flag || "—"}` },
+                          { label: "Tip",      value: v.vesselType || "—" },
+                          { label: "İnşa Yılı", value: v.yearBuilt ? String(v.yearBuilt) : "—" },
+                        ]},
+                        { title: "Boyutlar", fields: [
+                          { label: "LOA",  value: v.loa ? v.loa + " m" : "—" },
+                          { label: "Beam", value: v.beam ? v.beam + " m" : "—" },
+                        ]},
+                        { title: "Kapasite", fields: [
+                          { label: "GRT", value: v.grt ? v.grt.toLocaleString("en-US") + " GT" : "—" },
+                          { label: "NRT", value: v.nrt ? v.nrt.toLocaleString("en-US") + " GT" : "—" },
+                          { label: "DWT", value: v.dwt ? v.dwt.toLocaleString("en-US") + " MT" : "—" },
+                        ]},
+                        { title: "Sevk", fields: [
+                          { label: "Motor Tipi",  value: (v as any).engineType || "—" },
+                          { label: "Motor Gücü",  value: (v as any).enginePower ? `${(v as any).enginePower} kW` : "—" },
+                          { label: "Klas Kuruluşu", value: (v as any).classificationSociety || "—" },
+                        ]},
+                      ].map(group => (
+                        <div key={group.title}>
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-2">{group.title}</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {group.fields.map(({ label, value }) => (
+                              <div key={label} className="bg-muted/30 rounded-xl p-3">
+                                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide mb-1">{label}</p>
+                                <p className="text-sm font-bold">{value}</p>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       ))}
                     </div>
