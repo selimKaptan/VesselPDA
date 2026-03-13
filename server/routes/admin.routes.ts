@@ -281,7 +281,7 @@ router.get("/stats/enhanced", isAuthenticated, async (req: any, res) => {
   try {
     if (!(await isAdmin(req))) return res.status(403).json({ message: "Admin access required" });
 
-    const statsRes = await pool.query(`
+    const statsRes = await db.execute(drizzleSql`
       SELECT
         (SELECT COUNT(*) FROM users) as total_users,
         (SELECT COUNT(*) FROM users WHERE user_role = 'shipowner') as shipowners,
@@ -301,7 +301,7 @@ router.get("/stats/enhanced", isAuthenticated, async (req: any, res) => {
         (SELECT COUNT(*) FROM company_profiles WHERE is_approved = false AND (verification_status IS NULL OR verification_status != 'pending')) as pending_approvals
     `);
 
-    const s = statsRes.rows[0];
+    const s = ((statsRes as any).rows ?? statsRes)[0];
 
     res.json({
       totalUsers: parseInt(s.total_users) || 0,
