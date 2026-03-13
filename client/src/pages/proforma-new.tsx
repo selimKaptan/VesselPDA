@@ -76,6 +76,9 @@ export default function ProformaNew() {
   const [selectedPort, setSelectedPort] = useState<string>("");
   const [portOpen, setPortOpen] = useState(false);
   const [portSearch, setPortSearch] = useState("");
+  const [portCountry, setPortCountry] = useState<string>("");
+  const [countryOpen, setCountryOpen] = useState(false);
+  const [countrySearch, setCountrySearch] = useState("");
 
   // Trip parameters
   const [berthStayDays, setBerthStayDays] = useState<number>(4);
@@ -145,6 +148,7 @@ export default function ProformaNew() {
 
   const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({ queryKey: ["/api/vessels"] });
   const { data: myCompanyProfile } = useQuery<CompanyProfile | null>({ queryKey: ["/api/company-profile/me"] });
+  const { data: portCountries = [] } = useQuery<string[]>({ queryKey: ["/api/ports/countries"], staleTime: 10 * 60 * 1000 });
 
   // ── Voyage pre-fill from ?voyageId= URL param ─────────────────────────────
   const linkedVoyageId = useMemo(() => {
@@ -606,22 +610,106 @@ export default function ProformaNew() {
 
               <Separator />
 
-              {/* Port / Terminal selector */}
-              <div className="space-y-1.5">
+              {/* Port / Terminal selector — Country → Terminal hierarchy */}
+              <div className="space-y-3">
                 <Label className="text-sm font-medium flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-[hsl(var(--maritime-primary))]" />
                   Port / Terminal <span className="text-red-500">*</span>
                 </Label>
-                <PortLookupInput
-                  value={selectedPort}
-                  onChange={(portId, portName, portCode) => {
-                    setSelectedPort(portId);
-                    setPortSearch(portName);
-                    setSelectedPortObj({ id: parseInt(portId), name: portName, code: portCode || null } as any);
-                  }}
-                  placeholder="Search and select port / terminal..."
-                  data-testid="select-port-terminal"
-                />
+
+                {/* Step 1 – Country */}
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">1. Ülke seçin <span className="italic">(isteğe bağlı)</span></p>
+                  <Popover open={countryOpen} onOpenChange={setCountryOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between font-normal"
+                        data-testid="button-country-select"
+                      >
+                        <span className={portCountry ? "text-foreground" : "text-muted-foreground"}>
+                          {portCountry
+                            ? (() => { try { return new Intl.DisplayNames(["tr"], { type: "region" }).of(portCountry) || portCountry; } catch { return portCountry; } })()
+                            : "Tüm ülkeler"}
+                        </span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                      <Command>
+                        <CommandInput
+                          placeholder="Ülke ara..."
+                          value={countrySearch}
+                          onValueChange={setCountrySearch}
+                          data-testid="input-country-search"
+                        />
+                        <CommandList>
+                          <CommandItem
+                            value=""
+                            onSelect={() => {
+                              setPortCountry("");
+                              setCountrySearch("");
+                              setSelectedPort("");
+                              setPortSearch("");
+                              setCountryOpen(false);
+                            }}
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", !portCountry ? "opacity-100" : "opacity-0")} />
+                            <span className="text-muted-foreground italic">Tüm ülkeler</span>
+                          </CommandItem>
+                          <CommandGroup>
+                            {portCountries
+                              .filter(code => {
+                                if (!countrySearch) return true;
+                                const name = (() => { try { return new Intl.DisplayNames(["tr"], { type: "region" }).of(code) || code; } catch { return code; } })();
+                                return name.toLowerCase().includes(countrySearch.toLowerCase()) || code.toLowerCase().includes(countrySearch.toLowerCase());
+                              })
+                              .map(code => {
+                                const name = (() => { try { return new Intl.DisplayNames(["tr"], { type: "region" }).of(code) || code; } catch { return code; } })();
+                                return (
+                                  <CommandItem
+                                    key={code}
+                                    value={code}
+                                    onSelect={() => {
+                                      setPortCountry(code);
+                                      setCountrySearch("");
+                                      setSelectedPort("");
+                                      setPortSearch("");
+                                      setCountryOpen(false);
+                                    }}
+                                    data-testid={`item-country-${code}`}
+                                  >
+                                    <Check className={cn("mr-2 h-4 w-4", portCountry === code ? "opacity-100" : "opacity-0")} />
+                                    <span className="font-medium">{name}</span>
+                                    <span className="ml-2 text-xs text-muted-foreground">{code}</span>
+                                  </CommandItem>
+                                );
+                              })
+                            }
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Step 2 – Port / Terminal */}
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">2. Liman / terminal seçin</p>
+                  <PortLookupInput
+                    value={selectedPort}
+                    onChange={(portId, portName, portCode) => {
+                      setSelectedPort(portId);
+                      setPortSearch(portName);
+                      setSelectedPortObj({ id: parseInt(portId), name: portName, code: portCode || null } as any);
+                    }}
+                    placeholder={portCountry ? "Liman / terminal ara..." : "Search and select port / terminal..."}
+                    countryFilter={portCountry || undefined}
+                    data-testid="select-port-terminal"
+                  />
+                </div>
+
                 {selectedPortData && (
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground px-3 py-2 rounded-lg bg-muted/30 border border-dashed" data-testid="text-port-summary">
                     <MapPin className="w-3 h-3 text-[hsl(var(--maritime-primary))]" />

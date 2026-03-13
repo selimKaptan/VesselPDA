@@ -5,8 +5,22 @@ import { isAuthenticated } from "../replit_integrations/auth";
 import { isAdmin } from "./shared";
 import { cached, invalidateCache } from "../cache";
 import { findPorts, isDatalasticConfigured } from "../datalastic";
+import { db } from "../db";
+import { sql } from "drizzle-orm";
 
 const router = Router();
+
+router.get("/api/ports/countries", async (_req, res, next) => {
+  try {
+    const countries = await cached("ports:countries", "long", async () => {
+      const result = await db.execute(sql`SELECT DISTINCT country FROM ports WHERE country IS NOT NULL AND country != '' ORDER BY country`);
+      return (result as any).rows.map((r: any) => r.country as string);
+    });
+    res.json(countries);
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.get("/api/ports", async (req: any, res: any, next: any) => {
   try {

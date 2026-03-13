@@ -19,13 +19,14 @@ import { useQuery } from "@tanstack/react-query";
 import type { Port } from "@shared/schema";
 
 interface PortLookupInputProps {
-  value: string; // Port ID as string
+  value: string;
   onChange: (portId: string, portName: string, portCode?: string) => void;
   placeholder?: string;
   className?: string;
+  countryFilter?: string;
 }
 
-export function PortLookupInput({ value, onChange, placeholder = "Select port...", className }: PortLookupInputProps) {
+export function PortLookupInput({ value, onChange, placeholder = "Select port...", className, countryFilter }: PortLookupInputProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -41,18 +42,39 @@ export function PortLookupInput({ value, onChange, placeholder = "Select port...
     };
   }, [search]);
 
+  const queryEnabled = countryFilter
+    ? debouncedSearch.length >= 1
+    : debouncedSearch.length >= 2;
+
   const { data: ports, isLoading } = useQuery<Port[]>({
-    queryKey: ["/api/ports", { q: debouncedSearch }],
+    queryKey: ["/api/ports", { q: debouncedSearch, country: countryFilter ?? "" }],
     queryFn: async () => {
-      if (!debouncedSearch || debouncedSearch.length < 2) return [];
-      const res = await fetch(`/api/ports?q=${encodeURIComponent(debouncedSearch)}`);
+      if (!queryEnabled) return [];
+      const params = new URLSearchParams();
+      if (debouncedSearch) params.set("q", debouncedSearch);
+      if (countryFilter) params.set("country", countryFilter);
+      const res = await fetch(`/api/ports?${params.toString()}`);
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: debouncedSearch.length >= 2,
+    enabled: queryEnabled,
   });
 
-  const selectedPort = ports?.find((p) => p.id.toString() === value);
+  const { data: countryPorts } = useQuery<Port[]>({
+    queryKey: ["/api/ports", { country: countryFilter ?? "", noSearch: true }],
+    queryFn: async () => {
+      if (!countryFilter) return [];
+      const res = await fetch(`/api/ports?country=${encodeURIComponent(countryFilter)}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!countryFilter && !debouncedSearch,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const displayPorts = debouncedSearch ? ports : (countryFilter ? countryPorts : []);
+  const selectedPort = displayPorts?.find((p) => p.id.toString() === value)
+    ?? ports?.find((p) => p.id.toString() === value);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -70,6 +92,8 @@ export function PortLookupInput({ value, onChange, placeholder = "Select port...
               <span className="truncate">
                 {selectedPort.name} {selectedPort.code ? `(${selectedPort.code})` : ""}
               </span>
+            ) : value ? (
+              <span className="truncate text-muted-foreground">Port #{value}</span>
             ) : (
               <span className="text-muted-foreground">{placeholder}</span>
             )}
@@ -80,7 +104,7 @@ export function PortLookupInput({ value, onChange, placeholder = "Select port...
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="Search port name or LOCODE..."
+            placeholder={countryFilter ? "Liman / terminal ara..." : "Search port name or LOCODE..."}
             value={search}
             onValueChange={setSearch}
             data-testid="input-port-search"
@@ -91,16 +115,16 @@ export function PortLookupInput({ value, onChange, placeholder = "Select port...
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
             )}
-            {!isLoading && search.length >= 2 && (!ports || ports.length === 0) && (
-              <CommandEmpty>No port found.</CommandEmpty>
-            )}
-            {!isLoading && search.length < 2 && (
+            {!isLoading && !debouncedSearch && !countryFilter && (
               <div className="py-6 text-center text-sm text-muted-foreground">
                 Type at least 2 characters to search...
               </div>
             )}
+            {!isLoading && debouncedSearch && (!displayPorts || displayPorts.length === 0) && (
+              <CommandEmpty>No port found.</CommandEmpty>
+            )}
             <CommandGroup>
-              {ports?.map((port) => (
+              {displayPorts?.map((port) => (
                 <CommandItem
                   key={port.id}
                   value={port.id.toString()}

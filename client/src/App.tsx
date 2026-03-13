@@ -153,6 +153,7 @@ function AuthenticatedRouter() {
         <Route path="/voyages/:id" component={VoyageDetail} />
         <Route path="/voyages/:id/pnl" component={VoyagePnl} />
         <Route path="/voyage-workflow/:id" component={VoyageWorkflow} />
+        <Route path="/service-ports" component={ServicePorts} />
         <Route path="/service-requests" component={ServiceRequests} />
         <Route path="/service-requests/:id" component={ServiceRequestDetail} />
         <Route path="/messages" component={Messages} />
