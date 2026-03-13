@@ -6166,8 +6166,8 @@ export default function VoyageDetail() {
                         <div>
                           <Label className="text-xs">Grade / Tank</Label>
                           {logParcelLocked && lockedParcel ? (
-                            <div className="h-9 flex items-center px-3 text-xs bg-muted/40 border border-border/60 rounded-md text-foreground truncate" data-testid="text-log-parcel-locked" title={`${lockedParcel.receiverName} — ${lockedParcel.cargoType || ""}`}>
-                              {lockedParcel.receiverName}{lockedParcel.cargoType ? ` — ${lockedParcel.cargoType}` : ""}
+                            <div className="h-9 flex items-center px-3 text-xs bg-muted/40 border border-border/60 rounded-md text-foreground truncate" data-testid="text-log-parcel-locked" title={`${lockedParcel.receiverName} — ${[lockedParcel.cargoType, lockedParcel.cargoGrade].filter(Boolean).join(" / ")}`}>
+                              {lockedParcel.receiverName}{(lockedParcel.cargoType || lockedParcel.cargoGrade) ? ` — ${[lockedParcel.cargoType, lockedParcel.cargoGrade].filter(Boolean).join(" / ")}` : ""}
                             </div>
                           ) : (
                             <Select value={logParcelId || "none"} onValueChange={v => setLogParcelId(v === "none" ? "" : v)}>
@@ -6175,7 +6175,7 @@ export default function VoyageDetail() {
                               <SelectContent>
                                 <SelectItem value="none">— Yok —</SelectItem>
                                 {cargoParcelsData.map((p: any) => (
-                                  <SelectItem key={p.id} value={String(p.id)}>{p.receiverName}{p.cargoType ? ` — ${p.cargoType}` : ""}</SelectItem>
+                                  <SelectItem key={p.id} value={String(p.id)}>{p.receiverName}{(p.cargoType || p.cargoGrade) ? ` — ${[p.cargoType, p.cargoGrade].filter(Boolean).join(" / ")}` : ""}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
