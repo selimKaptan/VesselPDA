@@ -497,6 +497,7 @@ function LiveMiniMap({ lat, lng, heading }: { lat: number; lng: number; heading?
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
+  const roRef = useRef<ResizeObserver | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -515,8 +516,8 @@ function LiveMiniMap({ lat, lng, heading }: { lat: number; lng: number; heading?
         crossOrigin: true,
       }).addTo(map);
       mapRef.current = map;
-      const ro = new ResizeObserver(() => map.invalidateSize());
-      ro.observe(containerRef.current);
+      roRef.current = new ResizeObserver(() => map.invalidateSize());
+      roRef.current.observe(containerRef.current);
     }
     const map = mapRef.current;
     const vesselIcon = L.divIcon({
@@ -536,6 +537,7 @@ function LiveMiniMap({ lat, lng, heading }: { lat: number; lng: number; heading?
 
   useEffect(() => {
     return () => {
+      if (roRef.current) { roRef.current.disconnect(); roRef.current = null; }
       if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
       markerRef.current = null;
     };
@@ -688,25 +690,11 @@ function DatalasticPanel({ vessel }: { vessel: Vessel }) {
               {[
                 { label: "Sürat", value: posQuery.data.speed != null ? `${posQuery.data.speed} kn` : "—" },
                 { label: "Rota", value: posQuery.data.course != null ? `${posQuery.data.course}°` : "—" },
-                { label: "Durum", value: posQuery.data.navigation_status || "—" },
+                { label: "Güncelleme", value: posQuery.data.timestamp ? new Date(posQuery.data.timestamp).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—" },
               ].map(({ label, value }) => (
                 <div key={label} className="text-center bg-muted/30 rounded-lg py-2 px-1">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">{label}</p>
                   <p className="text-sm font-bold mt-0.5">{value}</p>
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-1.5 mt-2">
-              {[
-                { label: "Enlem", value: posQuery.data.latitude?.toFixed(4) ?? "—" },
-                { label: "Boylam", value: posQuery.data.longitude?.toFixed(4) ?? "—" },
-                { label: "Varış Yeri", value: posQuery.data.destination || "—" },
-                { label: "ETA", value: posQuery.data.eta ? new Date(posQuery.data.eta).toLocaleDateString("tr-TR") : "—" },
-                { label: "Durum", value: posQuery.data.navigation_status || "—" },
-              ].map(({ label, value }) => (
-                <div key={label} className="flex items-center justify-between gap-2 text-xs">
-                  <span className="text-muted-foreground shrink-0">{label}</span>
-                  <span className="font-semibold text-right truncate">{value}</span>
                 </div>
               ))}
             </div>
