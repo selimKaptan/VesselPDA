@@ -2,7 +2,7 @@ import { Router } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { isAuthenticated } from "../replit_integrations/auth";
 import { execFile } from "child_process";
-import { writeFile, readFile, unlink, mkdtemp } from "fs/promises";
+import { writeFile, readFile, unlink, mkdtemp, rmdir } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -29,7 +29,7 @@ async function convertPdfToImage(pdfBase64: string): Promise<string> {
   } finally {
     await unlink(join(tmpDir, "input.pdf")).catch(() => {});
     await unlink(outPrefix + ".png").catch(() => {});
-    await unlink(tmpDir).catch(() => {});
+    await rmdir(tmpDir).catch(() => {});
   }
 }
 
@@ -84,10 +84,21 @@ router.post("/parse-declaration", isAuthenticated, async (req: any, res) => {
       const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName || "");
 
       if (isPdf) {
-        messageContent = [
-          { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } } as any,
-          { type: "text", text: `${PARSE_SYSTEM_PROMPT}\n\nOperation type: ${operationType || "discharging"}` },
-        ];
+        try {
+          console.log(`[cargo-parse] Converting PDF to PNG via pdftoppm...`);
+          const pngBase64 = await convertPdfToImage(pdfBase64);
+          console.log(`[cargo-parse] PDF→PNG conversion OK (${Math.round(pngBase64.length * 3 / 4 / 1024)} KB)`);
+          messageContent = [
+            { type: "image", source: { type: "base64", media_type: "image/png", data: pngBase64 } },
+            { type: "text", text: `${PARSE_SYSTEM_PROMPT}\n\nOperation type: ${operationType || "discharging"}` },
+          ];
+        } catch (convErr: any) {
+          console.warn(`[cargo-parse] pdftoppm failed (${convErr.message}), falling back to document type`);
+          messageContent = [
+            { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } } as any,
+            { type: "text", text: `${PARSE_SYSTEM_PROMPT}\n\nOperation type: ${operationType || "discharging"}` },
+          ];
+        }
       } else if (isImage) {
         const ext = (fileName?.split(".").pop() || "jpeg").toLowerCase();
         const mediaTypeMap: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp" };
@@ -112,9 +123,11 @@ router.post("/parse-declaration", isAuthenticated, async (req: any, res) => {
     });
 
     const textContent = response.content.find((c: any) => c.type === "text");
+    const rawAiText = (textContent as any)?.text || "";
+    console.log(`[cargo-parse] Claude response (${rawAiText.length} chars): ${rawAiText.substring(0, 300)}...`);
     if (!textContent) return res.json({ method: "fallback", parcels: [] });
 
-    let jsonStr = (textContent as any).text.trim()
+    let jsonStr = rawAiText.trim()
       .replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 
     let parsed: any;
@@ -168,20 +181,24 @@ router.post("/extract-pdf-text", isAuthenticated, async (req: any, res) => {
     const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName || "");
 
     if (isPdf) {
+      let contentPart: any;
+      try {
+        console.log(`[cargo-extract-pdf] Converting PDF to PNG via pdftoppm...`);
+        const pngBase64 = await convertPdfToImage(pdfBase64);
+        console.log(`[cargo-extract-pdf] PDF→PNG conversion OK (${Math.round(pngBase64.length * 3 / 4 / 1024)} KB)`);
+        contentPart = { type: "image", source: { type: "base64", media_type: "image/png", data: pngBase64 } };
+      } catch (convErr: any) {
+        console.warn(`[cargo-extract-pdf] pdftoppm failed (${convErr.message}), falling back to document type`);
+        contentPart = { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } } as any;
+      }
+
       const response = await anthropic.messages.create({
         model: "claude-opus-4-5",
         max_tokens: 8000,
         messages: [{
           role: "user",
           content: [
-            {
-              type: "document",
-              source: {
-                type: "base64",
-                media_type: "application/pdf",
-                data: pdfBase64,
-              },
-            } as any,
+            contentPart,
             {
               type: "text",
               text: "Extract ALL text from this document. Preserve the structure, table layout, columns, and line breaks as much as possible. Output only the raw extracted text, no explanation.",
