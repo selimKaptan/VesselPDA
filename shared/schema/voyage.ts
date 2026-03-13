@@ -125,6 +125,7 @@ export const cargoParcels = pgTable("cargo_parcels", {
   estimatedCompletionAt: timestamp("estimated_completion_at"),
   currentRate: real("current_rate"),
   averageRate: real("average_rate"),
+  targetRate: real("target_rate"),
 });
 
 export const stowagePlans = pgTable("stowage_plans", {

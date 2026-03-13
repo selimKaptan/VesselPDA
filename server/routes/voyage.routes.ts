@@ -1850,16 +1850,30 @@ router.get("/:id/cargo-parcels", isAuthenticated, async (req: any, res) => {
 router.post("/:id/cargo-parcels", isAuthenticated, async (req: any, res) => {
   try {
     const voyageId = parseInt(req.params.id);
-    const { receiverName, cargoType, cargoDescription, targetQuantity, handledQuantity, unit, holdNumbers, blNumber, blDate, status, notes, sortOrder } = req.body;
+    const b = req.body;
     const [parcel] = await db.insert(cargoParcels).values({
-      voyageId, receiverName, cargoType, cargoDescription,
-      targetQuantity: targetQuantity ?? 0,
-      handledQuantity: handledQuantity ?? 0,
-      unit: unit ?? "MT",
-      holdNumbers, blNumber,
-      blDate: blDate ? new Date(blDate) : null,
-      status: status ?? "pending",
-      notes, sortOrder: sortOrder ?? 0,
+      voyageId,
+      receiverName: b.receiverName,
+      cargoType: b.cargoType,
+      cargoDescription: b.cargoDescription,
+      targetQuantity: b.targetQuantity ?? 0,
+      handledQuantity: b.handledQuantity ?? 0,
+      unit: b.unit ?? "MT",
+      holdNumbers: b.holdNumbers,
+      blNumber: b.blNumber,
+      blDate: b.blDate ? new Date(b.blDate) : null,
+      status: b.status ?? "pending",
+      notes: b.notes,
+      sortOrder: b.sortOrder ?? 0,
+      consigneeName: b.consigneeName,
+      shipperName: b.shipperName,
+      cargoGrade: b.cargoGrade,
+      tankNumbers: b.tankNumbers,
+      blQuantity: b.blQuantity ?? null,
+      operationStatus: b.operationStatus ?? "waiting",
+      currentRate: b.currentRate ?? null,
+      averageRate: b.averageRate ?? null,
+      targetRate: b.targetRate ?? null,
     }).returning();
     res.json(parcel);
   } catch (err) {
@@ -1872,10 +1886,11 @@ router.patch("/cargo-parcels/:pid", isAuthenticated, async (req: any, res) => {
   try {
     const pid = parseInt(req.params.pid);
     const updates: any = { updatedAt: new Date() };
-    const fields = ["receiverName","cargoType","cargoDescription","targetQuantity","handledQuantity","unit","holdNumbers","blNumber","blDate","status","notes","sortOrder"];
+    const fields = ["receiverName","cargoType","cargoDescription","targetQuantity","handledQuantity","unit","holdNumbers","blNumber","blDate","status","notes","sortOrder","consigneeName","shipperName","cargoGrade","tankNumbers","blQuantity","shippedQuantity","receivedQuantity","shortageQuantity","loadingSequence","dischargeSequence","operationStatus","equipmentUsed","hosesConnected","cranesAssigned","operationStartedAt","operationCompletedAt","estimatedCompletionAt","currentRate","averageRate","targetRate"];
     for (const f of fields) {
       if (req.body[f] !== undefined) {
-        updates[f] = f === "blDate" && req.body[f] ? new Date(req.body[f]) : req.body[f];
+        const dateFields = ["blDate", "operationStartedAt", "operationCompletedAt", "estimatedCompletionAt"];
+        updates[f] = dateFields.includes(f) && req.body[f] ? new Date(req.body[f]) : req.body[f];
       }
     }
     const [updated] = await db.update(cargoParcels).set(updates).where(eq(cargoParcels.id, pid)).returning();
