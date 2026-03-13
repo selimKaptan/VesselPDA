@@ -1426,9 +1426,9 @@ export default function Vessels() {
   }, [voyages]);
 
   const { data: expiringCertsData = [] } = useQuery<{ vesselId: number; expiresAt: string | null }[]>({
-    queryKey: ["/api/certificates/expiring", 60],
+    queryKey: ["/api/certificates/expiring", 30],
     queryFn: async () => {
-      const res = await fetch("/api/certificates/expiring?days=60");
+      const res = await fetch("/api/certificates/expiring?days=30&includeExpired=1");
       if (!res.ok) return [];
       return res.json();
     },

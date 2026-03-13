@@ -22,7 +22,8 @@ router.get("/api/certificates/expiring", isAuthenticated, async (req: any, res) 
   try {
     const userId = req.user.claims.sub;
     const daysAhead = parseInt(req.query.days as string) || 30;
-    const certs = await storage.getExpiringCertificates(userId, daysAhead, true);
+    const includeExpired = req.query.includeExpired === "1" || req.query.includeExpired === "true";
+    const certs = await storage.getExpiringCertificates(userId, daysAhead, includeExpired);
     res.json(certs);
   } catch {
     res.status(500).json({ message: "Failed to fetch expiring certificates" });
