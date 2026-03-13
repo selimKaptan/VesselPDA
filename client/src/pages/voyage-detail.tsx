@@ -2404,10 +2404,9 @@ export default function VoyageDetail() {
       };
       if (logForm.logType === "operation") {
         const qty = logQuantity ? parseFloat(logQuantity) : 0;
-        const pid = logParcelId ? Number(logParcelId) : undefined;
         return apiRequest("POST", `/api/voyages/${voyageId}/cargo-logs`, {
           fromTime: fromIso, toTime: toIso, logType: "operation",
-          receiverId: pid, amountHandled: qty,
+          amountHandled: qty,
           ...commonExtra,
         });
       } else {
