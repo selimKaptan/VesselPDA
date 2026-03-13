@@ -1,0 +1,38 @@
+Role: Act as a Senior UI/UX Engineer and Lead Full-Stack Developer.
+Objective: Audit and refactor the "VesselPDA" project to align with a "Shipowner-Centric" dashboard vision. Focus on scannability, risk management, and operational efficiency.
+
+Please implement the following UI/UX improvements step-by-step:
+
+1. Global UI Adjustments:
+
+Contrast: Improve text contrast for secondary labels (IMO, ETA, Labels). Use a brighter gray/white for better readability on dark backgrounds.
+
+Card Hover State: When hovering over a Vessel Card, show actions (View, Edit, Track, PMS) as a clean, semi-transparent overlay with icons only. Do not let buttons block the vessel data.
+
+Consistency: Round all card corners (border-radius: 12px+) and add a subtle drop-shadow/glow to active operational cards.
+
+2. Vessel Card Component Refactoring:
+
+Data Hierarchy: Move static data (GRT, DWT, IMO) to a single, small footer line.
+
+Dynamic Content: In the center of the card, display "Live Status" (e.g., Laden/Ballast), "Next Port," and a "Visual Timeline" (Progress bar) between ETD and ETA.
+
+Visuals: Add vessel type silhouettes (Bulk, Tanker, etc.) and make Flag icons more prominent next to the Vessel Name.
+
+3. Sidebar/Detail Panel Enhancements:
+
+Technical Tab: Replace the plain list with a grouped layout. Use a "Technical Blueprint" style to display LOA, Beam, and Draft.
+
+Certificates Tab: Implement a "Traffic Light" system. Highlight expiring certificates in Red (<15 days) or Yellow (<30 days). Add a global "Expiry Warning" badge to the card if any cert is at risk.
+
+Live Tab: Integrate a mini-map view using the coordinates. Replace raw text with a "Position Summary" (Speed, Course, Last Updated).
+
+Voyage/Crew Tabs: Improve "Empty States." Instead of just "No data," add a clear Call-to-Action (CTA) button (e.g., "+ Add First Crew Member") with a modern icon.
+
+4. Performance & Logic:
+
+Ensure the "Rate & Timeline" logic is prioritized in Cargo Operations.
+
+Fix the "Search/Filter" bugs to ensure instantaneous results when searching by vessel name or status.
+
+Instructions: Please analyze the existing files and provide a summary of the changes you plan to make. Wait for my approval before modifying the code.
