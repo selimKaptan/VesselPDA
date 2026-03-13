@@ -12,7 +12,16 @@ export function serveStaticFiles(app: Express) {
     console.warn(`[static] dist/public not found at ${distPath} — static files not served yet`);
     return;
   }
-  app.use(express.static(distPath));
+
+  app.use(
+    "/assets",
+    express.static(path.join(distPath, "assets"), {
+      maxAge: "1y",
+      immutable: true,
+    }),
+  );
+
+  app.use(express.static(distPath, { maxAge: 0, etag: false }));
 }
 
 export function serveSpaFallback(app: Express) {
@@ -23,6 +32,11 @@ export function serveSpaFallback(app: Express) {
     );
   }
   app.use("/{*path}", (_req, res) => {
+    res.set({
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      "Pragma": "no-cache",
+      "Expires": "0",
+    });
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
