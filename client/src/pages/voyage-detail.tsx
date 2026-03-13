@@ -15,7 +15,7 @@ import {
   FileImage, Eye, Pencil,
   Truck, ShieldCheck, UserCircle, Building, Shield,
   ClipboardPaste, Wand2,
-  FileUp, GripVertical,
+  FileUp,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import { WeatherPanel, EtaWeatherAlert } from "@/components/port-weather-panel";
@@ -701,8 +701,6 @@ export default function VoyageDetail() {
   const [declarationPasteText, setDeclarationPasteText] = useState("");
   const [parsedParcels, setParsedParcels] = useState<any[]>([]);
   const [isParsingDeclaration, setIsParsingDeclaration] = useState(false);
-  const [declDragIdx, setDeclDragIdx] = useState<number | null>(null);
-  const [declDragOverIdx, setDeclDragOverIdx] = useState<number | null>(null);
   const declarationFileInputRef = useRef<HTMLInputElement>(null);
   const [inlineHandled, setInlineHandled] = useState<Record<number, string>>({});
   const [cargoSortBy, setCargoSortBy] = useState("sequence");
@@ -1003,7 +1001,36 @@ export default function VoyageDetail() {
       }
       const data = await res.json();
       if (data.parcels?.length > 0) {
-        setParsedParcels(data.parcels.map((p: any, i: number) => ({ ...p, sequence: i + 1 })));
+        const grouped = new Map<string, any>();
+        for (const p of data.parcels) {
+          const key = `${(p.receiverName || "").toUpperCase().trim()}|||${(p.cargoType || "").toUpperCase().trim()}`;
+          if (grouped.has(key)) {
+            const g = grouped.get(key);
+            g.quantity += p.quantity || 0;
+            if (p.blNumber && !g.blNumbers.includes(p.blNumber)) g.blNumbers.push(p.blNumber);
+            if (p.hsCode && !g.hsCodes.includes(p.hsCode)) g.hsCodes.push(p.hsCode);
+          } else {
+            grouped.set(key, {
+              receiverName: p.receiverName,
+              shipperName: p.shipperName,
+              cargoType: p.cargoType,
+              cargoGrade: p.cargoGrade,
+              quantity: p.quantity || 0,
+              unit: p.unit || "MT",
+              countryOfOrigin: p.countryOfOrigin,
+              portOfLoading: p.portOfLoading,
+              blNumbers: p.blNumber ? [p.blNumber] : [],
+              hsCodes: p.hsCode ? [p.hsCode] : [],
+            });
+          }
+        }
+        const result = Array.from(grouped.values()).map((g, i) => ({
+          ...g,
+          blNumber: g.blNumbers.join(", "),
+          hsCode: g.hsCodes.join(", "),
+          sequence: i + 1,
+        }));
+        setParsedParcels(result);
       } else {
         setDeclarationStep(0);
         setIsParsingDeclaration(false);
@@ -1020,11 +1047,9 @@ export default function VoyageDetail() {
   };
 
   const handleImportParcels = async () => {
-    const isTanker = vesselType === "tanker";
-    const opType = (voyage as any)?.operationType || "discharging";
     try {
       let imported = 0;
-      for (const [i, parcel] of parsedParcels.entries()) {
+      for (const parcel of parsedParcels) {
         const res = await fetch(`/api/v1/voyages/${voyageId}/cargo-parcels`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1037,10 +1062,6 @@ export default function VoyageDetail() {
             blQuantity: parcel.quantity,
             unit: parcel.unit || "MT",
             blNumber: parcel.blNumber,
-            holdNumbers: isTanker ? null : (parcel.holdNumbers || null),
-            tankNumbers: isTanker ? (parcel.tankNumbers || parcel.holdNumbers || null) : null,
-            dischargeSequence: opType !== "loading" ? i + 1 : null,
-            loadingSequence: opType === "loading" ? i + 1 : null,
             notes: [
               parcel.hsCode ? `HS: ${parcel.hsCode}` : "",
               parcel.countryOfOrigin ? `Origin: ${parcel.countryOfOrigin}` : "",
@@ -1050,7 +1071,7 @@ export default function VoyageDetail() {
         });
         if (res.ok) imported++;
       }
-      toast({ title: "Beyan İçe Aktarıldı", description: `${imported} adet kargo parseli Cargo Operations'a eklendi` });
+      toast({ title: "Beyan İçe Aktarıldı", description: `${imported} adet kargo grubu Cargo Operations'a eklendi` });
       setShowDeclarationModal(false);
       setDeclarationStep(0);
       setParsedParcels([]);
@@ -1062,20 +1083,8 @@ export default function VoyageDetail() {
     }
   };
 
-  const reorderParsedParcels = (from: number, to: number) => {
-    if (from === to) return;
-    const items = [...parsedParcels];
-    const [moved] = items.splice(from, 1);
-    items.splice(to, 0, moved);
-    setParsedParcels(items.map((p, i) => ({ ...p, sequence: i + 1 })));
-  };
-
-  const updateDeclParcelField = (idx: number, field: string, value: any) => {
-    setParsedParcels(prev => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p));
-  };
-
   const removeDeclParcel = (idx: number) => {
-    setParsedParcels(prev => prev.filter((_, i) => i !== idx).map((p, i) => ({ ...p, sequence: i + 1 })));
+    setParsedParcels(prev => prev.filter((_, i) => i !== idx));
   };
 
   // ── Close Operation / Finance Handover ───────────────────────────────────
@@ -9117,7 +9126,7 @@ export default function VoyageDetail() {
 
             {/* Steps */}
             <div className="flex items-center justify-center gap-0 px-8 py-3 border-b border-slate-700/20 shrink-0">
-              {["Belge Yükle", "Parselleri İncele", "Sıra Belirle"].map((step, idx) => (
+              {["Belge Yükle", "Parselleri İncele"].map((step, idx) => (
                 <div key={idx} className="flex items-center">
             <div className={cn("flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
               declarationStep === idx ? "bg-blue-500/15 text-blue-400" : declarationStep > idx ? "bg-emerald-500/10 text-emerald-400" : "text-slate-600"
@@ -9129,7 +9138,7 @@ export default function VoyageDetail() {
               </div>
               {step}
             </div>
-            {idx < 2 && <div className={cn("w-12 h-0.5 mx-1", declarationStep > idx ? "bg-emerald-500/30" : "bg-slate-800")} />}
+            {idx < 1 && <div className={cn("w-12 h-0.5 mx-1", declarationStep > idx ? "bg-emerald-500/30" : "bg-slate-800")} />}
                 </div>
               ))}
             </div>
@@ -9181,7 +9190,7 @@ export default function VoyageDetail() {
               </div>
             )}
 
-            {/* STEP 2 — Review */}
+            {/* STEP 2 — Review (grouped by receiver + cargo type) */}
             {declarationStep === 1 && (
               <div className="flex-1 overflow-y-auto p-5">
                 {isParsingDeclaration ? (
@@ -9192,12 +9201,11 @@ export default function VoyageDetail() {
             </div>
                 ) : (
             <>
-              <div className="grid grid-cols-4 gap-3 mb-5">
+              <div className="grid grid-cols-3 gap-3 mb-5">
                 {[
-                  { label: "Parsel", value: parsedParcels.length, sub: null },
+                  { label: "Grup", value: parsedParcels.length, sub: null },
                   { label: "Toplam Miktar", value: parsedParcels.reduce((s, p) => s + (p.quantity || 0), 0).toLocaleString("tr-TR", { maximumFractionDigits: 2 }), sub: "MT" },
                   { label: "Alıcı", value: [...new Set(parsedParcels.map(p => p.receiverName))].length, sub: null },
-                  { label: "Kargo Tipi", value: [...new Set(parsedParcels.map(p => p.cargoType))].length, sub: null },
                 ].map(({ label, value, sub }) => (
                   <div key={label} className="p-3 rounded-lg bg-slate-800/40 border border-slate-700/30 text-center">
                     <div className="text-[10px] text-slate-500">{label}</div>
@@ -9211,135 +9219,49 @@ export default function VoyageDetail() {
                 <div className="text-center py-10 text-slate-500">
                   <p className="text-sm">Parsel bulunamadı.</p>
                   <p className="text-xs mt-1">Belge formatını kontrol edin veya metni yapıştırın.</p>
-                  <Button variant="outline" size="sm" className="mt-4 text-xs" onClick={() => setDeclarationStep(0)}>← Geri Dön</Button>
+                  <Button variant="outline" size="sm" className="mt-4 text-xs" onClick={() => setDeclarationStep(0)} data-testid="button-decl-back-empty">← Geri Dön</Button>
                 </div>
               ) : (
-                <>
-                  <div className="rounded-xl border border-slate-700/40 overflow-hidden">
-                    <table className="w-full text-xs">
-                      <thead>
-                  <tr className="bg-slate-800/50 border-b border-slate-700/30">
-                    <th className="text-left px-3 py-2.5 font-medium text-slate-500 w-8">#</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-slate-500">B/L No</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-slate-500">Kargo</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-slate-500">HS Kodu</th>
-                    <th className="text-right px-3 py-2.5 font-medium text-slate-500">Miktar</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-slate-500">Gönderen</th>
-                    <th className="text-left px-3 py-2.5 font-medium text-slate-500">Alıcı</th>
-                    <th className="px-3 py-2.5 w-8"></th>
-                  </tr>
-                      </thead>
-                      <tbody>
-                  {parsedParcels.map((p, i) => (
-                    <tr key={i} className="border-b border-slate-700/10 hover:bg-slate-800/20 transition-colors">
-                      <td className="px-3 py-2.5 text-slate-500">{i + 1}</td>
-                      <td className="px-3 py-2.5 font-medium text-slate-300">{p.blNumber || "—"}</td>
-                      <td className="px-3 py-2.5 text-slate-300">{p.cargoType}</td>
-                      <td className="px-3 py-2.5 text-slate-500">{p.hsCode || "—"}</td>
-                      <td className="px-3 py-2.5 text-right font-medium text-slate-200">{(p.quantity || 0).toLocaleString("tr-TR", { maximumFractionDigits: 3 })} {p.unit || "MT"}</td>
-                      <td className="px-3 py-2.5 text-slate-400 max-w-[130px] truncate">{p.shipperName || "—"}</td>
-                      <td className="px-3 py-2.5 text-slate-300 max-w-[180px] truncate">{p.receiverName || "—"}</td>
-                      <td className="px-3 py-2.5">
-                        <button onClick={() => removeDeclParcel(i)} className="text-slate-600 hover:text-red-400">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                      </tbody>
-                      <tfoot>
-                  <tr className="bg-slate-800/30 border-t border-slate-700/30">
-                    <td colSpan={4} className="px-3 py-2.5 text-xs font-semibold text-slate-400">TOPLAM</td>
-                    <td className="px-3 py-2.5 text-right font-bold text-slate-200">{parsedParcels.reduce((s, p) => s + (p.quantity || 0), 0).toLocaleString("tr-TR", { maximumFractionDigits: 2 })} MT</td>
-                    <td colSpan={3}></td>
-                  </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-
-                  {/* Alıcıya göre özet */}
-                  <div className="mt-4 grid grid-cols-3 gap-3">
-                    {Object.entries(
-                      parsedParcels.reduce((acc, p) => {
-                  const key = p.receiverName || "Bilinmiyor";
-                  if (!acc[key]) acc[key] = { count: 0, total: 0, types: new Set<string>() };
-                  acc[key].count++;
-                  acc[key].total += p.quantity || 0;
-                  acc[key].types.add(p.cargoType);
-                  return acc;
-                      }, {} as Record<string, { count: number; total: number; types: Set<string> }>)
-                    ).map(([name, data]) => (
-                      <div key={name} className="p-3 rounded-lg bg-slate-800/30 border border-slate-700/20">
-                  <div className="text-xs font-semibold text-slate-300 truncate">{name}</div>
-                  <div className="text-lg font-bold mt-1">{data.total.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} MT</div>
-                  <div className="text-[10px] text-slate-500">{data.count} parsel · {[...data.types].join(", ")}</div>
-                      </div>
-                    ))}
-                  </div>
-                </>
+                <div className="rounded-xl border border-slate-700/40 overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-slate-800/50 border-b border-slate-700/30">
+                        <th className="text-left px-3 py-2.5 font-medium text-slate-500 w-8">#</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-slate-500">Alıcı</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-slate-500">Kargo Cinsi</th>
+                        <th className="text-right px-3 py-2.5 font-medium text-slate-500">Miktar</th>
+                        <th className="text-left px-3 py-2.5 font-medium text-slate-500">B/L No</th>
+                        <th className="px-3 py-2.5 w-8"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parsedParcels.map((p, i) => (
+                        <tr key={i} className="border-b border-slate-700/10 hover:bg-slate-800/20 transition-colors" data-testid={`row-decl-parcel-${i}`}>
+                          <td className="px-3 py-2.5 text-slate-500">{i + 1}</td>
+                          <td className="px-3 py-2.5 font-semibold text-slate-200 max-w-[200px] truncate">{p.receiverName || "—"}</td>
+                          <td className="px-3 py-2.5 text-slate-300">{p.cargoType || "—"}</td>
+                          <td className="px-3 py-2.5 text-right font-bold text-slate-200">{(p.quantity || 0).toLocaleString("tr-TR", { maximumFractionDigits: 3 })} {p.unit || "MT"}</td>
+                          <td className="px-3 py-2.5 text-slate-500 max-w-[150px] truncate">{p.blNumber || "—"}</td>
+                          <td className="px-3 py-2.5">
+                            <button onClick={() => removeDeclParcel(i)} className="text-slate-600 hover:text-red-400" data-testid={`button-remove-parcel-${i}`}>
+                              <X className="w-3 h-3" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-slate-800/30 border-t border-slate-700/30">
+                        <td colSpan={3} className="px-3 py-2.5 text-xs font-semibold text-slate-400">TOPLAM</td>
+                        <td className="px-3 py-2.5 text-right font-bold text-slate-200">{parsedParcels.reduce((s, p) => s + (p.quantity || 0), 0).toLocaleString("tr-TR", { maximumFractionDigits: 2 })} MT</td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               )}
             </>
                 )}
-              </div>
-            )}
-
-            {/* STEP 3 — Sequence / Reorder */}
-            {declarationStep === 2 && (
-              <div className="flex-1 overflow-y-auto p-5">
-                <div className="mb-4">
-            <h3 className="text-sm font-semibold text-slate-200">Tahliye / Yükleme Sırası Belirle</h3>
-            <p className="text-xs text-muted-foreground mt-1">Parselleri sürükleyerek sıralayın. İlk parsel önce {(voyage as any)?.operationType === "loading" ? "yüklenecek" : "tahliye edilecek"}.</p>
-                </div>
-
-                <div className="space-y-2">
-            {parsedParcels.map((parcel, i) => (
-              <div
-                key={i}
-                draggable
-                onDragStart={(e) => { e.dataTransfer.setData("idx", String(i)); setDeclDragIdx(i); }}
-                onDragOver={(e) => { e.preventDefault(); setDeclDragOverIdx(i); }}
-                onDragEnd={() => { setDeclDragIdx(null); setDeclDragOverIdx(null); }}
-                onDrop={(e) => { e.preventDefault(); reorderParsedParcels(parseInt(e.dataTransfer.getData("idx")), i); }}
-                className={cn(
-                  "flex items-center gap-3 p-3 rounded-lg border transition-all cursor-grab active:cursor-grabbing",
-                  declDragIdx === i && "opacity-40 scale-95",
-                  declDragOverIdx === i && "border-blue-500/50 bg-blue-500/5",
-                  declDragIdx !== i && declDragOverIdx !== i && "border-slate-700/40 bg-slate-800/30 hover:border-slate-600/50"
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <GripVertical className="w-4 h-4 text-slate-600" />
-                  <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold", i === 0 ? "bg-emerald-500/15 text-emerald-400" : "bg-slate-800 text-slate-500")}>
-                    #{i + 1}
-                  </div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-200 truncate">{parcel.receiverName || "—"}</span>
-                    <span className="text-xs text-slate-500">·</span>
-                    <span className="text-xs text-slate-400">{parcel.cargoType}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-[10px] text-slate-500 mt-0.5">
-                    <span className="font-medium text-slate-300">{(parcel.quantity || 0).toLocaleString("tr-TR", { maximumFractionDigits: 2 })} {parcel.unit || "MT"}</span>
-                    {parcel.blNumber && <span>B/L: {parcel.blNumber}</span>}
-                    {parcel.hsCode && <span>HS: {parcel.hsCode}</span>}
-                  </div>
-                </div>
-                <div className="shrink-0">
-                  <input
-                    type="text"
-                    value={vesselType === "tanker" ? (parcel.tankNumbers || "") : (parcel.holdNumbers || "")}
-                    onChange={(e) => updateDeclParcelField(i, vesselType === "tanker" ? "tankNumbers" : "holdNumbers", e.target.value)}
-                    placeholder={vesselType === "tanker" ? "Tank #" : "Ambar #"}
-                    className="w-20 text-xs bg-slate-800/50 border border-slate-700/50 rounded px-2 py-1 text-center outline-none focus:ring-1 focus:ring-blue-500/30"
-                  />
-                </div>
-              </div>
-            ))}
-                </div>
-                <p className="text-[10px] text-slate-600 text-center mt-3 italic">
-            ↕ Sürükle ile sırala · İlk öğe önce {(voyage as any)?.operationType === "loading" ? "yüklenir" : "tahliye edilir"} · Sağdaki alana {vesselType === "tanker" ? "tank" : "ambar"} numarası girin
-                </p>
               </div>
             )}
 
@@ -9348,7 +9270,7 @@ export default function VoyageDetail() {
               <div className="flex items-center gap-3 text-[10px] text-slate-500">
                 {parsedParcels.length > 0 && (
             <>
-              <span>📦 {parsedParcels.length} parsel</span>
+              <span>📦 {parsedParcels.length} grup</span>
               <span>⚖️ {parsedParcels.reduce((s, p) => s + (p.quantity || 0), 0).toLocaleString("tr-TR", { maximumFractionDigits: 2 })} MT</span>
               <span>🏢 {[...new Set(parsedParcels.map(p => p.receiverName))].length} alıcı</span>
             </>
@@ -9362,14 +9284,9 @@ export default function VoyageDetail() {
             <Button variant="ghost" size="sm" className="text-xs" onClick={() => setShowDeclarationModal(false)}>İptal</Button>
                 )}
                 {declarationStep === 1 && parsedParcels.length > 0 && (
-            <Button size="sm" className="text-xs" onClick={() => setDeclarationStep(2)} data-testid="button-decl-next-sequence">
-              İleri: Sıra Belirle →
-            </Button>
-                )}
-                {declarationStep === 2 && (
-            <Button size="sm" className="text-xs gap-1.5" onClick={handleImportParcels} disabled={parsedParcels.length === 0} data-testid="button-import-declaration">
+            <Button size="sm" className="text-xs gap-1.5" onClick={handleImportParcels} data-testid="button-import-declaration">
               <Package className="w-3 h-3" />
-              {parsedParcels.length} Parseli Cargo Operations'a Aktar
+              {parsedParcels.length} Grubu Cargo Operations'a Aktar
             </Button>
                 )}
               </div>
