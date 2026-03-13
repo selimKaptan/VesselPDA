@@ -1795,6 +1795,7 @@ export default function VoyageDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/voyages", voyageId] });
       queryClient.invalidateQueries({ queryKey: ["/api/voyages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/v1/voyages", voyageId, "workflow"] });
       setMilestoneDialogOpen(false);
       setMilestoneStepKey("");
       setMilestoneDate("");
@@ -2994,7 +2995,7 @@ export default function VoyageDetail() {
             const aisSuggestion: Record<string, boolean> = {
               anchorage: aisNavStatus.includes("anchor"),
               berthed: aisNavStatus.includes("moor") || aisNavStatus.includes("berth"),
-              departed: (aisPos?.speed ?? 0) > 1 && !!wfSteps.berthed?.completedAt,
+              departed: aisNavStatus.includes("underway") && !!wfSteps.berthed?.completedAt,
             };
             return (
               <div className="flex items-start gap-0">
@@ -3054,9 +3055,16 @@ export default function VoyageDetail() {
                           {stepLabel}
                         </span>
                         {isConfirmed && confirmedDate && (
-                          <span className="text-[9px] text-emerald-400/70 font-medium whitespace-nowrap" data-testid={`step-date-${step.key}`}>
-                            {confirmedDate.toLocaleDateString("tr-TR", { day: "2-digit", month: "short" })} {confirmedDate.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
-                          </span>
+                          <div className="flex flex-col items-center">
+                            <span className="text-[9px] text-emerald-400/70 font-medium whitespace-nowrap" data-testid={`step-date-${step.key}`}>
+                              {confirmedDate.toLocaleDateString("tr-TR", { day: "2-digit", month: "short" })} {confirmedDate.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                            {stepData?.completedBy && (
+                              <span className="text-[8px] text-muted-foreground/50 truncate max-w-[80px]" title={stepData.completedBy}>
+                                {stepData.completedBy}
+                              </span>
+                            )}
+                          </div>
                         )}
                         {!isConfirmed && (
                           <button
