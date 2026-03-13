@@ -1106,12 +1106,12 @@ router.get("/tariff-custom-sections/:id/entries", isAuthenticated, async (req: a
 router.post("/tariff-custom-sections/:id/entries", isAuthenticated, async (req: any, res) => {
   try {
     if (!await checkAdmin(req, res)) return;
+    const ALLOWED_COLUMNS = new Set(["section_id", "port_id", "service_name", "fee", "unit", "currency", "valid_year", "notes", "updated_at"]);
     const sectionId = parseInt(req.params.id);
     const body = { ...req.body };
-    delete body.id;
     body.section_id = sectionId;
     body.updated_at = new Date().toISOString();
-    const keys = Object.keys(body).filter(k => body[k] !== undefined);
+    const keys = Object.keys(body).filter(k => body[k] !== undefined && ALLOWED_COLUMNS.has(k));
     const cols = keys.map(k => `"${k}"`).join(", ");
     const vals = keys.map((_, i) => `$${i + 1}`).join(", ");
     const values = keys.map(k => (body[k] === "" ? null : body[k]));
@@ -1131,11 +1131,10 @@ router.patch("/tariff-custom-sections/:id/entries/:entryId", isAuthenticated, as
   try {
     if (!await checkAdmin(req, res)) return;
     const entryId = parseInt(req.params.entryId);
+    const ALLOWED_COLUMNS = new Set(["port_id", "service_name", "fee", "unit", "currency", "valid_year", "notes", "updated_at"]);
     const body = { ...req.body };
-    delete body.id;
-    delete body.section_id;
     body.updated_at = new Date().toISOString();
-    const keys = Object.keys(body).filter(k => body[k] !== undefined);
+    const keys = Object.keys(body).filter(k => body[k] !== undefined && ALLOWED_COLUMNS.has(k));
     const sets = keys.map((k, i) => `"${k}" = $${i + 1}`).join(", ");
     const values = [...keys.map(k => (body[k] === "" ? null : body[k])), entryId];
     const result = await pool.query(
