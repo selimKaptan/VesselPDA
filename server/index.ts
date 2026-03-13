@@ -35,17 +35,20 @@ app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
 
 app.use(helmet({
   contentSecurityPolicy: {
+    useDefaults: false,
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com", "https://cdn.jsdelivr.net"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com", "data:"],
-      imgSrc: ["'self'", "data:", "blob:", "https:", "http:", "https://*.basemaps.cartocdn.com", "https://tiles.openseamap.org"],
+      imgSrc: ["'self'", "data:", "blob:", "https:", "http:", "https://*.basemaps.cartocdn.com", "https://tiles.openseamap.org", "https://*.tile.openstreetmap.org"],
       connectSrc: ["'self'", "ws:", "wss:", "https://api.anthropic.com", "https://nominatim.openstreetmap.org", "https://tiles.stadiamaps.com", "https://*.tile.openstreetmap.org", "https://api.mapbox.com", "https://events.mapbox.com", "https://*.mapbox.com", "https://*.basemaps.cartocdn.com", "https://tiles.openseamap.org", "https://api.datalastic.com"],
       frameSrc: ["'self'"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
       workerSrc: ["'self'", "blob:", "https://api.mapbox.com"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
     },
   },
   crossOriginEmbedderPolicy: false,

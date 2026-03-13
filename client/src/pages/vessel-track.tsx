@@ -648,6 +648,7 @@ export default function VesselTrack() {
           attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions">CARTO</a>',
           subdomains: "abcd",
           maxZoom: 19,
+          crossOrigin: true,
         }).addTo(map);
       };
 
@@ -659,6 +660,7 @@ export default function VesselTrack() {
             tileSize: 512,
             zoomOffset: -1,
             maxZoom: 22,
+            crossOrigin: true,
           }
         );
         let fallbackAdded = false;
@@ -677,6 +679,7 @@ export default function VesselTrack() {
       L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
         attribution: '© <a href="https://www.openseamap.org" target="_blank">OpenSeaMap</a> contributors',
         opacity: 0.85,
+        crossOrigin: true,
       }).addTo(map);
 
       L.control.zoom({ position: "topright" }).addTo(map);
@@ -684,14 +687,29 @@ export default function VesselTrack() {
 
       mapRef.current = map;
 
-      setTimeout(() => map.invalidateSize(), 300);
-      setTimeout(() => map.invalidateSize(), 1000);
+      setTimeout(() => map.invalidateSize(), 100);
+      setTimeout(() => map.invalidateSize(), 500);
+      setTimeout(() => map.invalidateSize(), 1500);
+
+      // ResizeObserver ensures tiles load correctly in Chrome after layout changes
+      if (mapContainerRef.current) {
+        const ro = new ResizeObserver(() => {
+          if (mapRef.current) mapRef.current.invalidateSize();
+        });
+        ro.observe(mapContainerRef.current);
+        // Cleanup handled by the return below
+        (mapContainerRef.current as any).__roVesselTrack = ro;
+      }
     }
 
     initMap();
 
     return () => {
       cancelled = true;
+      if (mapContainerRef.current) {
+        const ro = (mapContainerRef.current as any).__roVesselTrack as ResizeObserver | undefined;
+        ro?.disconnect();
+      }
       markersRef.current.forEach(m => m.remove());
       markersRef.current.clear();
       if (mapRef.current) {

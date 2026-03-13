@@ -367,6 +367,7 @@ function VoyageLiveTracker({ voyage, portName, imoNumber, onOriginPortChange }: 
       L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", {
         subdomains: "abcd",
         maxZoom: 18,
+        crossOrigin: true,
       }).addTo(map);
       const rotation = pos.course || pos.heading || 0;
       const icon = L.divIcon({

@@ -221,13 +221,17 @@ function MapPanel({ waypoints, routeGeometry, onWpClick, vesselPosition, approac
     if (!containerRef.current || mapRef.current) return;
     const map = L.map(containerRef.current, { center: [20, 20], zoom: 3, zoomControl: true });
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap", maxZoom: 18,
+      attribution: "© OpenStreetMap", maxZoom: 18, crossOrigin: true,
     }).addTo(map);
     L.tileLayer("https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png", {
-      opacity: 0.6, maxZoom: 18,
+      opacity: 0.6, maxZoom: 18, crossOrigin: true,
     }).addTo(map);
     mapRef.current = map;
-    return () => { map.remove(); mapRef.current = null; };
+    setTimeout(() => map.invalidateSize(), 300);
+    setTimeout(() => map.invalidateSize(), 1000);
+    const ro = new ResizeObserver(() => map.invalidateSize());
+    ro.observe(containerRef.current);
+    return () => { ro.disconnect(); map.remove(); mapRef.current = null; };
   }, []);
 
   // Vessel live position marker
