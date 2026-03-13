@@ -967,7 +967,7 @@ router.delete("/tariffs/:table/:id", isAuthenticated, async (req: any, res) => {
     const tbl = req.params.table;
     if (!ALLOWED_TARIFF_TABLES[tbl]) return res.status(400).json({ message: "Invalid table" });
 
-    await pool.query(`DELETE FROM ${tbl} WHERE id = $1`, [parseInt(req.params.id)]);
+    await db.execute(drizzleSql`DELETE FROM ${drizzleSql.identifier(tbl)} WHERE id = ${parseInt(req.params.id)}`);
     invalidateCacheByPrefix('tariffs:', 'long');
     res.json({ success: true });
   } catch (err) {
