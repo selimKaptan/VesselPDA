@@ -690,7 +690,7 @@ export default function VoyageDetail() {
   const [receiverForm, setReceiverForm] = useState({ name: "", allocatedMt: 0 });
   const [showAddParcelDialog, setShowAddParcelDialog] = useState(false);
   const [editingParcel, setEditingParcel] = useState<any | null>(null);
-  const EMPTY_PARCEL_FORM = { receiverName: "", cargoType: "", cargoDescription: "", targetQuantity: 0, handledQuantity: 0, unit: "MT", holdNumbers: "", blNumber: "", notes: "", consigneeName: "", shipperName: "", cargoGrade: "", tankNumbers: "", blQuantity: 0 as number | "", loadingSequence: 0 as number | "", dischargeSequence: 0 as number | "", operationStatus: "waiting", equipmentUsed: "", hosesConnected: 0 as number | "", cranesAssigned: "", targetRate: 0 as number | "" };
+  const EMPTY_PARCEL_FORM = { receiverName: "", cargoType: "", cargoDescription: "", targetQuantity: 0, handledQuantity: 0, unit: "MT", holdNumbers: "", blNumber: "", notes: "", consigneeName: "", shipperName: "", cargoGrade: "", tankNumbers: "", blQuantity: "" as number | "", loadingSequence: "" as number | "", dischargeSequence: "" as number | "", operationStatus: "waiting", equipmentUsed: "", hosesConnected: "" as number | "", cranesAssigned: "", targetRate: "" as number | "" };
   const [parcelForm, setParcelForm] = useState(EMPTY_PARCEL_FORM);
   const [stowageNotes, setStowageNotes] = useState("");
   const [stowageNotesEditing, setStowageNotesEditing] = useState(false);
@@ -5677,7 +5677,7 @@ export default function VoyageDetail() {
                                         {etcDate && !parcel.operationCompletedAt && (
                                           <div className="flex items-center justify-between">
                                             <span className="text-slate-400">Tahmini Bitiş</span>
-                                            <span className="font-semibold text-amber-400" data-testid={`text-etc-${parcel.id}`}>{etcDate.toLocaleString("tr-TR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                                            <span className="font-semibold text-amber-400" data-testid={`text-etc-${parcel.id}`}>{`${etcDate.getDate()} ${etcDate.toLocaleString("tr-TR", { month: "short" })} · ${String(etcDate.getHours()).padStart(2, "0")}:${String(etcDate.getMinutes()).padStart(2, "0")}`}</span>
                                           </div>
                                         )}
                                         {timeRemaining && (
