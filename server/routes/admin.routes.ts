@@ -5,6 +5,7 @@ import { isAdmin } from "./shared";
 import { db, pool } from "../db";
 import { sql as drizzleSql, eq, desc, count } from "drizzle-orm";
 import { users as usersTable } from "@shared/models/auth";
+import { voyages as voyagesTable } from "@shared/schema/voyage";
 import { logAction, getClientIp } from "../audit";
 import { emitToUser } from "../socket";
 import { geocodeStats } from "../geocode-ports";
@@ -580,11 +581,11 @@ router.get("/voyages", isAuthenticated, async (req: any, res) => {
         ORDER BY v.created_at DESC
         LIMIT $1 OFFSET $2
       `, [effectiveLimit, offset]),
-      page && page > 0 ? pool.query(`SELECT COUNT(*) as total FROM voyages`) : Promise.resolve(null),
+      page && page > 0 ? db.select({ total: count() }).from(voyagesTable) : Promise.resolve(null),
     ]);
 
     if (page && page > 0 && countRes) {
-      const total = parseInt(countRes.rows[0].total) || 0;
+      const total = Number((countRes as { total: number }[])[0]?.total) || 0;
       return res.json({ data: dataRes.rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
     }
     res.json(dataRes.rows);
