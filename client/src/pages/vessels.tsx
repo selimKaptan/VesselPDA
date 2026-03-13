@@ -2,7 +2,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import JSZip from "jszip";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { PortLookupInput } from "@/components/port-lookup-input";
@@ -496,34 +496,50 @@ function DatalasticFetchSection({
 function LiveMiniMap({ lat, lng, heading }: { lat: number; lng: number; heading?: number }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
 
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-    const map = L.map(containerRef.current, {
-      center: [lat, lng],
-      zoom: 10,
-      zoomControl: false,
-      attributionControl: false,
-      dragging: true,
-      scrollWheelZoom: false,
-    });
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", {
-      subdomains: "abcd",
-      maxZoom: 19,
-      crossOrigin: true,
-    }).addTo(map);
+    if (!containerRef.current) return;
+    if (!mapRef.current) {
+      const map = L.map(containerRef.current, {
+        center: [lat, lng],
+        zoom: 10,
+        zoomControl: false,
+        attributionControl: false,
+        dragging: true,
+        scrollWheelZoom: false,
+      });
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", {
+        subdomains: "abcd",
+        maxZoom: 19,
+        crossOrigin: true,
+      }).addTo(map);
+      mapRef.current = map;
+      const ro = new ResizeObserver(() => map.invalidateSize());
+      ro.observe(containerRef.current);
+    }
+    const map = mapRef.current;
     const vesselIcon = L.divIcon({
       className: "",
       html: `<div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;transform:rotate(${heading ?? 0}deg)"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="hsl(217,91%,60%)" stroke="white" stroke-width="1.5"><path d="M12 2L4 20l8-4 8 4z"/></svg></div>`,
       iconSize: [24, 24],
       iconAnchor: [12, 12],
     });
-    L.marker([lat, lng], { icon: vesselIcon }).addTo(map);
-    mapRef.current = map;
-    const ro = new ResizeObserver(() => map.invalidateSize());
-    ro.observe(containerRef.current);
-    return () => { ro.disconnect(); map.remove(); mapRef.current = null; };
+    if (markerRef.current) {
+      markerRef.current.setLatLng([lat, lng]);
+      markerRef.current.setIcon(vesselIcon);
+    } else {
+      markerRef.current = L.marker([lat, lng], { icon: vesselIcon }).addTo(map);
+    }
+    map.setView([lat, lng], map.getZoom());
   }, [lat, lng, heading]);
+
+  useEffect(() => {
+    return () => {
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+      markerRef.current = null;
+    };
+  }, []);
 
   return (
     <div
@@ -2368,11 +2384,12 @@ export default function Vessels() {
                           </Link>
                         </>
                       ) : (
-                        <div className="text-center py-10 text-muted-foreground">
-                          <Anchor className="w-10 h-10 mx-auto mb-3 opacity-20" />
-                          <p className="font-medium">No active voyage for this vessel</p>
-                          <Link href="/voyages">
-                            <Button size="sm" className="mt-4 gap-2"><Plus className="w-3.5 h-3.5" /> New Voyage</Button>
+                        <div className="text-center py-12 text-muted-foreground" data-testid="voyage-empty-state">
+                          <Ship className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                          <p className="font-semibold text-sm">Henüz yolculuk yok</p>
+                          <p className="text-xs mt-1 text-muted-foreground/60">Bu gemi için aktif veya planlı bir sefer bulunamadı.</p>
+                          <Link href={`/voyages?vesselId=${v.id}`}>
+                            <Button size="sm" className="mt-4 gap-2"><Plus className="w-3.5 h-3.5" /> Yolculuk Oluştur</Button>
                           </Link>
                         </div>
                       )}
@@ -2466,18 +2483,45 @@ export default function Vessels() {
                         <div className="flex justify-center py-8">
                           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                         </div>
-                      ) : (
+                      ) : (() => {
+                        const now = new Date();
+                        const d15 = new Date(now.getTime() + 15 * 86400000);
+                        const d30 = new Date(now.getTime() + 30 * 86400000);
+                        const certsWithStatus = VESSEL_CERT_TYPES.map(({ key, label }) => {
+                          const cert = vesselCerts.find((c: any) => c.certType === key);
+                          const exp = cert?.expiresAt ? new Date(cert.expiresAt) : null;
+                          let urgency = 3;
+                          if (exp && exp < now) urgency = 0;
+                          else if (exp && exp < d15) urgency = 1;
+                          else if (exp && exp < d30) urgency = 2;
+                          return { key, label, cert, urgency, exp };
+                        });
+                        const sorted = [...certsWithStatus].sort((a, b) => {
+                          if (a.exp && b.exp) return a.exp.getTime() - b.exp.getTime();
+                          if (a.exp) return -1;
+                          if (b.exp) return 1;
+                          return 0;
+                        });
+                        const warnCount = sorted.filter(c => c.urgency < 3).length;
+                        return (
+                        <>
+                        {warnCount > 0 && (
+                          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 mb-1" data-testid="cert-warning-banner">
+                            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span className="text-xs font-semibold text-amber-400">⚠ {warnCount} sertifika uyarısı</span>
+                          </div>
+                        )}
                         <div className="grid grid-cols-1 gap-2">
-                          {VESSEL_CERT_TYPES.map(({ key, label }) => {
-                            const cert = vesselCerts.find((c: any) => c.certType === key);
+                          {sorted.map(({ key, label, cert, urgency }) => {
                             const isUploading = certUploading === key;
                             const isDragOver = certDragOver === key;
                             const hasFile = !!(cert?.fileBase64 || cert?.fileUrl);
+                            const borderColor = urgency === 0 ? "border-l-red-500" : urgency <= 1 ? "border-l-red-500" : urgency === 2 ? "border-l-amber-500" : "";
 
                             return (
                               <div
                                 key={key}
-                                className={`rounded-xl border p-3 transition-colors ${isDragOver ? "border-primary bg-primary/5" : "bg-muted/10 hover:bg-muted/20"}`}
+                                className={`rounded-xl border p-3 transition-colors border-l-[3px] ${borderColor} ${isDragOver ? "border-primary bg-primary/5" : "bg-muted/10 hover:bg-muted/20"}`}
                                 data-testid={`cert-card-${key}`}
                                 onDragOver={e => { e.preventDefault(); setCertDragOver(key); }}
                                 onDragLeave={() => setCertDragOver(null)}
@@ -2491,7 +2535,7 @@ export default function Vessels() {
                                 {/* Card header */}
                                 <div className="flex items-start justify-between gap-2 mb-2">
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-semibold leading-tight truncate" title={label}>{label}</p>
+                                    <p className={`text-xs font-semibold leading-tight truncate ${urgency <= 1 ? "text-red-400" : urgency === 2 ? "text-amber-400" : ""}`} title={label}>{label}</p>
                                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                                       {certStatusBadge(cert?.status ?? "valid", cert?.expiresAt ?? null)}
                                       {cert?.expiresAt && (
@@ -2595,7 +2639,9 @@ export default function Vessels() {
                             );
                           })}
                         </div>
-                      )}
+                        </>
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -2651,9 +2697,22 @@ export default function Vessels() {
                           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                         </div>
                       ) : vesselCrewList.length === 0 ? (
-                        <div className="text-center py-10 text-muted-foreground">
-                          <Activity className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                          <p className="text-sm">No crew members added yet</p>
+                        <div className="text-center py-12 text-muted-foreground" data-testid="crew-empty-state">
+                          <Users2 className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                          <p className="font-semibold text-sm">Henüz mürettebat kaydı yok</p>
+                          <p className="text-xs mt-1 text-muted-foreground/60">Bu gemi için kayıtlı mürettebat bulunmuyor.</p>
+                          <Button
+                            size="sm"
+                            className="mt-4 gap-2"
+                            onClick={() => {
+                              setEditCrewMember({ vesselId: v.id, id: null });
+                              setCrewForm({ ...defaultCrewForm } as any);
+                              setCrewDialogOpen(true);
+                            }}
+                            data-testid="button-add-crew-empty"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Mürettebat Ekle
+                          </Button>
                         </div>
                       ) : (() => {
                         const now = new Date();
