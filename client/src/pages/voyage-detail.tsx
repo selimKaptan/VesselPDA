@@ -880,6 +880,17 @@ export default function VoyageDetail() {
   const [parsedCrew, setParsedCrew] = useState<any[]>([]);
   const [isParsing, setIsParsing] = useState(false);
   const [parseMethod, setParseMethod] = useState<"ai" | "local" | "">("");
+  const [pasteDefaultSignerType, setPasteDefaultSignerType] = useState<"on_signer" | "off_signer">("on_signer");
+
+  const textHasSignerHeaders = (text: string) =>
+    /on[- ]?signers?\b/i.test(text) || /off[- ]?signers?\b/i.test(text) ||
+    /sign\s*on\b/i.test(text) || /sign\s*off\b/i.test(text) ||
+    /\bjoining\b/i.test(text) || /\bdeparting\b/i.test(text);
+
+  const applyDefaultSignerType = (crew: any[], rawText: string) => {
+    if (textHasSignerHeaders(rawText)) return crew;
+    return crew.map((c) => ({ ...c, signerType: pasteDefaultSignerType }));
+  };
 
   const parseCrewData = async () => {
     setIsParsing(true);
@@ -893,7 +904,7 @@ export default function VoyageDetail() {
       if (r.ok) {
         const d = await r.json();
         if (d.crew?.length > 0) {
-          setParsedCrew(d.crew);
+          setParsedCrew(applyDefaultSignerType(d.crew, pasteRawText));
           setParseMethod(d.method === "ai" ? "ai" : "local");
           setIsParsing(false);
           return;
@@ -901,7 +912,7 @@ export default function VoyageDetail() {
       }
     } catch {}
     const { parseCrewText } = await import("@/lib/parse-crew-text");
-    setParsedCrew(parseCrewText(pasteRawText));
+    setParsedCrew(applyDefaultSignerType(parseCrewText(pasteRawText), pasteRawText));
     setParseMethod("local");
     setIsParsing(false);
   };
@@ -984,13 +995,27 @@ export default function VoyageDetail() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.parcels?.length > 0) {
-          setParsedParcels(data.parcels.map((p: any, i: number) => ({ ...p, sequence: i + 1 })));
-        }
+      if (!res.ok) {
+        setDeclarationStep(0);
+        setIsParsingDeclaration(false);
+        toast({ title: "Hata", description: `Sunucu hatası (${res.status}). Lütfen tekrar deneyin.`, variant: "destructive" });
+        return;
       }
-    } catch {}
+      const data = await res.json();
+      if (data.parcels?.length > 0) {
+        setParsedParcels(data.parcels.map((p: any, i: number) => ({ ...p, sequence: i + 1 })));
+      } else {
+        setDeclarationStep(0);
+        setIsParsingDeclaration(false);
+        toast({ title: "Parsel Bulunamadı", description: "Belgeden kargo parseli çıkarılamadı. Belge formatını kontrol edin veya metni yapıştırarak tekrar deneyin.", variant: "destructive" });
+        return;
+      }
+    } catch (err: any) {
+      setDeclarationStep(0);
+      setIsParsingDeclaration(false);
+      toast({ title: "Hata", description: err?.message || "Beyan analizi sırasında bir hata oluştu.", variant: "destructive" });
+      return;
+    }
     setIsParsingDeclaration(false);
   };
 
@@ -3936,7 +3961,7 @@ export default function VoyageDetail() {
                           <div className="ml-auto flex items-center gap-1.5">
                             <button
                               className="flex items-center gap-1 h-6 px-2 text-[10px] font-semibold rounded-md bg-purple-600/20 border border-purple-500/40 text-purple-400 hover:bg-purple-600/30 hover:border-purple-400/60 transition-colors"
-                              onClick={() => setShowPasteModal(true)}
+                              onClick={() => { setPasteDefaultSignerType("on_signer"); setShowPasteModal(true); }}
                               data-testid="button-paste-crew"
                             >
                               <ClipboardPaste className="w-2.5 h-2.5" /> Paste
@@ -3974,7 +3999,7 @@ export default function VoyageDetail() {
                           <div className="ml-auto flex items-center gap-1.5">
                             <button
                               className="flex items-center gap-1 h-6 px-2 text-[10px] font-semibold rounded-md bg-purple-600/20 border border-purple-500/40 text-purple-400 hover:bg-purple-600/30 hover:border-purple-400/60 transition-colors"
-                              onClick={() => setShowPasteModal(true)}
+                              onClick={() => { setPasteDefaultSignerType("off_signer"); setShowPasteModal(true); }}
                               data-testid="button-paste-crew-off"
                             >
                               <ClipboardPaste className="w-2.5 h-2.5" /> Paste
@@ -4017,7 +4042,33 @@ export default function VoyageDetail() {
                         <ClipboardPaste className="w-5 h-5 text-blue-400" />
                         Smart Paste — Auto-Fill Crew Data
                       </DialogTitle>
-                      <p className="text-xs text-muted-foreground mt-1">Armatörden gelen her formattaki metni yapıştırın. AI isim, rütbe, pasaport ve uçuş bilgilerini otomatik tanır.</p>
+                      <div className="flex items-center justify-between mt-2">
+                        <p className="text-xs text-muted-foreground">Armatörden gelen her formattaki metni yapıştırın. AI isim, rütbe, pasaport ve uçuş bilgilerini otomatik tanır.</p>
+                        <div className="flex items-center gap-0.5 rounded-lg border border-slate-700/50 overflow-hidden shrink-0 ml-3" data-testid="toggle-signer-type">
+                          <button
+                            onClick={() => {
+                              setPasteDefaultSignerType("on_signer");
+                              if (parsedCrew.length > 0 && !textHasSignerHeaders(pasteRawText)) {
+                                setParsedCrew((prev) => prev.map((c) => ({ ...c, signerType: "on_signer" })));
+                              }
+                            }}
+                            className={cn("px-2.5 py-1 text-[10px] font-semibold transition-colors", pasteDefaultSignerType === "on_signer" ? "bg-emerald-500/15 text-emerald-400" : "bg-slate-800/50 text-slate-500 hover:text-slate-300")}
+                          >
+                            On-Signer
+                          </button>
+                          <button
+                            onClick={() => {
+                              setPasteDefaultSignerType("off_signer");
+                              if (parsedCrew.length > 0 && !textHasSignerHeaders(pasteRawText)) {
+                                setParsedCrew((prev) => prev.map((c) => ({ ...c, signerType: "off_signer" })));
+                              }
+                            }}
+                            className={cn("px-2.5 py-1 text-[10px] font-semibold transition-colors", pasteDefaultSignerType === "off_signer" ? "bg-rose-500/15 text-rose-400" : "bg-slate-800/50 text-slate-500 hover:text-slate-300")}
+                          >
+                            Off-Signer
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="flex flex-1 min-h-0">
