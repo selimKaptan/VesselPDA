@@ -5689,7 +5689,7 @@ export default function VoyageDetail() {
                                         {parcel.averageRate > 0 && <div className="flex items-center justify-between"><span className="text-slate-400">Ort. Hız</span><span className="font-medium text-slate-300">{parcel.averageRate} MT/hr</span></div>}
                                         {parcel.operationStartedAt && <div className="flex items-center justify-between pt-1.5 mt-1 border-t border-slate-700/20"><span className="text-slate-400">Başlangıç</span><span className="font-medium text-slate-300">{new Date(parcel.operationStartedAt).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span></div>}
                                         {parcel.operationCompletedAt && <div className="flex items-center justify-between"><span className="text-slate-400">Tamamlandı</span><span className="font-medium text-emerald-400">{new Date(parcel.operationCompletedAt).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span></div>}
-                                        {!rate && !parcel.operationStartedAt && <span className="text-[10px] text-slate-600 italic">Henüz hız verisi yok</span>}
+                                        {!rate && <span className="text-[10px] text-slate-600 italic">Henüz hız verisi yok</span>}
                                       </div>
                                       {parcel.notes && <div className="text-[10px] text-slate-500 italic pt-2 mt-2 border-t border-slate-700/20 truncate" title={parcel.notes}>{parcel.notes}</div>}
                                     </div>
